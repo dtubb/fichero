@@ -5,6 +5,7 @@ description: >
 
   In this project, we will:
   - Fetch the IIIF Images and metadata from the British Library
+  - Segment the images with Kraken
   - Transcribe the images using Google Vision 
   - Upload the images to eScriptorium where the transcriptions can be corrected
   - Download the transcriptions from eScriptorium
@@ -30,6 +31,7 @@ directories: ["assets", "configs", "scripts", "pipelines", "packages"]
 workflows:
   prepare:
     - fetch_iiif
+    - segment
     - transcribe
     - upload
   process:
@@ -43,16 +45,23 @@ commands:
       - "python scripts/fetch_iiif.py ${vars.iiif_collections} assets/"
     outputs:
       - assets/
-  
+
+  - name: segment
+    help: "Segment the images with Kraken."
+    script:
+      - "python scripts/segment.py assets/"
+    outputs:
+      - assets/
+
   - name: transcribe
     help: "Transcribe the images using Google Vision ."
     script:
-      - "python scripts/transcribe.py ${env.GOOGLE_VISION_KEY} ${vars.language} assets/images assets/transcriptions"
+      - "python scripts/transcribe.py ${env.GOOGLE_VISION_KEY} ${vars.language} assets/"
     outputs:
-      - assets/transcriptions
+      - assets/
   
   - name: upload
-    help: "Upload the images to eScriptorium where the transcriptions can be corrected."
+    help: "Upload the images and ALTO to eScriptorium where the transcriptions can be corrected."
     script:
       - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} assets/images assets/transcriptions"
 

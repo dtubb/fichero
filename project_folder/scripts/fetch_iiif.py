@@ -69,13 +69,13 @@ def fetch_iiif(
                     # https://images.eap.bl.uk/EAP1477/EAP1477_1_1_6/1.jp2
                     image_name = id.split('/')[-2] + "_" +  id.split('/')[-1]
                     image_name = image_name.split('.')[0] + ".jpg"
-
-                    image_uri = image["images"][0]["resource"]["@id"]
-                    # fetch the image
-                    image_response = httpx.get(image_uri)
-                    # save the image to the output path
                     if not (output_subpath / image_name).exists():
-                        (output_subpath / image_name).write_bytes(image_response.content)
+                        image_uri = image["images"][0]["resource"]["@id"]
+                        # fetch the image
+                        image_response = httpx.get(image_uri)
+                        # save the image
+                        if image_response.status_code == 200:
+                            (output_subpath / image_name).write_bytes(image_response.content)
                     progress.update(task1, advance=1)
 
 if __name__ == "__main__":
