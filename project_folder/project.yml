@@ -1,0 +1,65 @@
+title: "Demo Project Workflow. From images to research data in Obsidian"
+description: > 
+  This project offers a workflow to process historical documents from the Circuit Court of Istmina, Chocó, Colombia.
+  https://eap.bl.uk/project/EAP1477
+
+  In this project, we will:
+  - Fetch the IIIF Images and metadata from the British Library
+  - Transcribe the images using Google Vision 
+  - Upload the images to eScriptorium where the transcriptions can be corrected
+  - Download the transcriptions from eScriptorium
+  - Use named entity recognition and entity linking to identify people, places, dates, events and organizations
+  - Use LLMs to generate case summaries and collection summaries
+  - Assesses the quality of extracted metadata 
+  - Use the results to create a package of text and media that can be loaded into Obsidian for research.
+
+vars:
+  name: "demo"
+  language: "es"
+  version: "0.0.0"
+  iiif_collections: "collections.txt"
+  escriptorium_url: "https://escriptorium.pennds.org"
+  
+env:
+  ESCRIPTORIUM_USERNAME: ESCRIPTORIUM_USERNAME
+  ESCRIPTORIUM_PASSWORD: ESCRIPTORIUM_PASSWORD
+  GOOGLE_VISION_KEY: GOOGLE_VISION_KEY  
+
+directories: ["assets", "configs", "scripts", "pipelines", "packages"]
+
+workflows:
+  prepare:
+    - fetch_iiif
+    - transcribe
+    - upload
+  process:
+    - download
+    
+
+commands:
+  - name: fetch_iiif
+    help: "Reads the collections file, loads the manifests and downloads images and metadata."
+    script:
+      - "echo ${env.GOOGLE_VISION_KEY}"
+      - "python scripts/fetch_iiif.py assets/images"
+    outputs:
+      - assets/images
+  
+  - name: transcribe
+    help: "Transcribe the images using Google Vision ."
+    script:
+      - "python scripts/transcribe.py ${env.GOOGLE_VISION_KEY} ${vars.language} assets/images assets/transcriptions"
+    outputs:
+      - assets/transcriptions
+  
+  - name: upload
+    help: "Upload the images to eScriptorium where the transcriptions can be corrected."
+    script:
+      - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} assets/images assets/transcriptions"
+
+  - name: download
+    help: "Download the corrected transcriptions from eScriptorium."
+    script:
+      - "python scripts/download.py assets/transcriptions"
+    outputs:
+      - assets/transcriptions
