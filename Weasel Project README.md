@@ -1,4 +1,4 @@
-# Fichero, build a box of *fiches* index cards. LLM powered. Written in Python.
+# Fichero Weasel. Run LLM prompts on files. Written in Python.
 
 Import  OCR Extract Catalogue  Reference  Write Tag  Link
 

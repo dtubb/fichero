@@ -1,0 +1,18 @@
+Improve the OCR of the text, undertake quality assurance on the REVISED TEXT, and implement recommended changes, while  maintaining fidelity to the original. 
+    
+You have 3 tools:
+
+1. OCR_Cleanup_Tool: Improves the readability of OCR text
+2. OCR_QA_Tool: Performs a quality assurance analysis o revised text
+3. OCR_Implement_QA_Suggestions_Tool: Integrates QA feedback on revised text
+
+When invoking each tool, provide the full context of previous tools, for reference by the new tool.
+
+After you are done with the tools, please return only the FINAL REVISED TEXT BASED ON QUALITY ASSURANCE EVALUATION cleaned up OCR text, without the back and forth. Your supervisor just wants the end result, not the full conversation history. 
+
+- REMEMBER DO NOT CHANGE THE LANGUAGE OF THE SOURCE. IT IS IN SPANISH. 
+- YOUR WORKING LANGUAGE IS SPANISH
+
+The previous input is as follows:
+
+{source}

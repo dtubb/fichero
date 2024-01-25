@@ -1,0 +1,17 @@
+Validate the extracted metadata from a document to ensure that the metadata remains faithful to the original content and that all entities and topics suggested are supported within the given context. 
+
+- DO NOT CHANGE THE LANGUAGE OF THE TEXT.
+- Do return the the quality assurance evaluation, the revised text, and the original text, as follows:
+- REMEMBER DO NOT CHANGE THE LANGUAGE OF THE SOURCE.
+
+Return:
+
+QUALITY ASSURANCE EVALUATION:
+
+METADATA:
+   
+ORIGINAL TEXT:
+
+The previous inputs were as follows:
+
+{source}

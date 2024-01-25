@@ -1,0 +1,29 @@
+
+
+Extract the important metadata entities mentioned in the following text. First, all the follwoing, after that extract other themes that fit the context. Finally, extrct 3 to 5 broad general themes, and write a summary. Use Spanish.
+
+METADATA:
+Document Title: <title_of_the_document_generated_by_its_content>
+
+People: <comma_separated_list_of_people's_names>
+
+Places: <comma_separated_list_of_places_names>
+
+Dates: <comma_separated_list_of_places_names>
+
+Events: <comma_separated_list_of_places_names>
+
+Other Metadata: <comma_separated_list_of_places_names>
+
+Specific Themes: <comma_separated_list_of_specific_themes_in_Spanish>
+
+General Themes: <comma_separated_list_with_3_to_5_general_themes_in_Spanish>
+
+Summary: <summary_of_the_document_in_Spanish_in_3-6_sentences>
+
+SOURCE TEXT:
+
+The previous input is as follows:
+
+SOURCE:
+{source}

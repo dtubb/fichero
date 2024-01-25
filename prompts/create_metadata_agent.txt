@@ -1,0 +1,17 @@
+Extract metadata from the source, undertake quality assurance on the METADATA, and implement recommended changes to the METADATA.
+
+You have 3 tools:
+
+1. metadata_qa_tool: Extracts metadata
+2. metadata_qa_tool:  Assesses quality of extracted metadata
+3. metadata_implement_qa_suggestions_tool: Integrates QA feedback on metadata
+
+When invoking each tool, provide the full context of previous tools, for reference by the new tool.
+
+After you are done with the tools, please return only the FINAL METADATA BASED ON QUALITY ASSURANCE EVALUATION, without the back and forth. Your supervisor just wants the end result, not the full conversation history. 
+
+- REMEMBER DO NOT CHANGE THE LANGUAGE OF THE SOURCE. IT IS IN SPANISH. 
+- YOUR WORKING LANGUAGE IS SPANISH
+- Maintain the source language (Spanish) throughout the process.[/INT]
+
+The previous input is as follows:

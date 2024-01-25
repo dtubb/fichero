@@ -1,0 +1,11 @@
+Implement the suggestions from a Quality Assurance AI Assistant to imrpove the Metadata below. Return:
+
+REVISED METADATA BASED ON QUALITY ASSURANCE EVALUATION:
+
+ORGINAIL REVISED METADATA:
+
+SOURCE TEXT:
+
+The previous input was as follows:
+
+{source}

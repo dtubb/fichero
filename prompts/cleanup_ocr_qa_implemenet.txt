@@ -1,0 +1,11 @@
+Your task is to implement the suggestions from a Quality Assurance assistant on metadata, which reviewed an earlier version of extracted metadata. Return:
+
+REVISED METADATA BASED ON QUALITY ASSURANCE EVALUATION:
+
+REVISED METADATA:
+
+SOURCE TEXT:
+
+The previous input was as follows:
+
+{source}
