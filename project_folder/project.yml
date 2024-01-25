@@ -40,10 +40,9 @@ commands:
   - name: fetch_iiif
     help: "Reads the collections file, loads the manifests and downloads images and metadata."
     script:
-      - "echo ${env.GOOGLE_VISION_KEY}"
-      - "python scripts/fetch_iiif.py assets/images"
+      - "python scripts/fetch_iiif.py ${vars.iiif_collections} assets/"
     outputs:
-      - assets/images
+      - assets/
   
   - name: transcribe
     help: "Transcribe the images using Google Vision ."
