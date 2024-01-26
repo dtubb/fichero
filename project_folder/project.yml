@@ -21,7 +21,7 @@ vars:
   version: "0.0.0"
   iiif_collections: "collections.txt"
   escriptorium_url: "https://escriptorium.pennds.org"
-  escriptorium_project_name: ""
+  escriptorium_project_name: "EAP1477/1"
   transcription: 'vision'
   
 env:
@@ -77,6 +77,6 @@ commands:
   - name: download
     help: "Download the corrected transcriptions from eScriptorium."
     script:
-      - "python scripts/download.py ${escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} ${vars.escriptorium_project_name} /assets ${vars.transcription}"
+      - "python scripts/download.py ${vars.escriptorium_url} ${vars.escriptorium_project_name} assets/ ${vars.transcription}"
     outputs:
       - assets/transcriptions

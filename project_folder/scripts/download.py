@@ -3,15 +3,15 @@ from zipfile import ZipFile
 from io import BytesIO
 from escriptorium_connector import EscriptoriumConnector
 from typing_extensions import Annotated
-
+from pathlib import Path
 
 def download(
     escriptorium_url: Annotated[str, typer.Argument(help="Escriptorium URL")],
-    username: Annotated[str, typer.Argument(help="Escriptorium username")],
-    password: Annotated[str, typer.Argument(help="Escriptorium password")],
     project_name: Annotated[str, typer.Argument(help="Escriptorium project name")],
-    collection_path: Annotated[str, typer.Argument(help="Path to the collections", exists=True)],
+    collection_path: Annotated[Path, typer.Argument(help="Path to the collections", exists=True)],
     transcription: Annotated[str, typer.Argument(help="Escriptorium transcription name")],
+    username: Annotated[str, typer.Argument(envvar="ESCRIPTORIUM_USERNAME", help="Escriptorium username")],
+    password: Annotated[str, typer.Argument(envvar="ESCRIPTORIUM_PASSWORD", help="Escriptorium password")],
 ):
     E = EscriptoriumConnector(
             escriptorium_url,
@@ -20,8 +20,12 @@ def download(
         )
     
     projects = E.get_projects()
-    project = [p for p in projects.results if p.name == project_name][0]
-    
+    try:
+        project = [p for p in projects.results if p.name == project_name][0]
+    except IndexError:
+        print(f"Project {project_name} not found")
+        raise typer.Exit(code=1)
+
     documents = E.get_documents()
     documents = [d for d in documents.results if d.project == project.slug]
 
