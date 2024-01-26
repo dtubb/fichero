@@ -15,7 +15,7 @@ description: >
   - Use the results to create a package of text and media that can be loaded into Obsidian for research.
 
 vars:
-  name: "demo"
+  name: "EAP1477/1: Archivo Histórico del Juzgado del Circuito de Istmina (1860-1930)"
   language: "es"
   version: "0.0.0"
   iiif_collections: "collections.txt"
@@ -33,9 +33,15 @@ workflows:
     - fetch_iiif
     - segment
     - transcribe
+  evaluate:
     - upload
+    - download
   process:
     - download
+  #publish:
+    #- obsidian
+    #- huggingface-datasets
+    #- eleventy-site
     
 
 commands:
@@ -61,7 +67,7 @@ commands:
       - assets/
   
   - name: upload
-    help: "Upload the images and ALTO to eScriptorium where the transcriptions can be corrected."
+    help: "Upload the images and ALTO to eScriptorium where the transcriptions can be evaluated and corrected."
     script:
       - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} assets/images assets/transcriptions"
 
