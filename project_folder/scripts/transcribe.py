@@ -6,9 +6,9 @@ from rich.progress import track
 from spacy.cli._util import Arg
 from googleapiclient.discovery import build
 from xml.etree.ElementTree import SubElement, tostring, fromstring
+from typing_extensions import Annotated
 
 import base64
-
 
 def vision(
     image_content: str,
@@ -175,22 +175,22 @@ def merge_vision_alto(vision_response: json, alto_xml: str):
 
 
 def transcribe(
-    collection_path: Path = Arg(..., help="Path to the collections", exists=True),
-    google_vision_api_key: str = Arg(..., help="Google Vision API key"),
-    language: str = Arg(..., help="Language code"),
+    collection_path: Annotated[Path, typer.Argument(help="Path to the collections",exists=True)],
+    google_vision_api_key: Annotated[str, typer.Argument(help="Google Vision API key")],
+    language: Annotated[str, typer.Argument(help="Language code")]
 ):
     images = list(collection_path.glob("**/*.jpg"))
     for image in track(images, description="Transcribing images..."):
+        img = Image.open(image)
+        image_b64 = base64.b64encode(img.tobytes())
+        vision_response = vision(
+            image_b64, google_vision_api_key, language=language
+        )
         if not image.with_suffix(".xml").exists():
-            print(f"Images need to be segmented first ")
-            typer.Exit()
+            text = vision_response['responses'][0]['textAnnotations'][0]['description']
+            image.with_suffix(".txt").write_text(text)
 
         else:
-            img = Image.open(image)
-            image_b64 = base64.b64encode(img.tobytes())
-            vision_response = vision(
-                image_b64, google_vision_api_key, language=language
-            )
             alto_xml = image.with_suffix(".xml").read_text()
             alto_xml = merge_vision_alto(vision_response, alto_xml)
             image.with_suffix(".xml").write_text(alto_xml)
