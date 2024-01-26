@@ -78,7 +78,5 @@ commands:
     help: "Download the corrected transcriptions from eScriptorium."
     script:
       - "python scripts/download.py ${escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} ${vars.escriptorium_project_name} /assets ${vars.transcription}"
-):
-    
     outputs:
       - assets/transcriptions
