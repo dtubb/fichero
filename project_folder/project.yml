@@ -56,7 +56,7 @@ commands:
   - name: transcribe
     help: "Transcribe the images using Google Vision ."
     script:
-      - "python scripts/transcribe.py ${env.GOOGLE_VISION_KEY} ${vars.language} assets/"
+      - "python scripts/transcribe.py assets/ ${env.GOOGLE_VISION_KEY} ${vars.language}"
     outputs:
       - assets/
   
