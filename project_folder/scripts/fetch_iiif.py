@@ -63,13 +63,9 @@ def fetch_iiif(
 
                 # loop through each manifest
                 image_count = 0
+                image_tasks = []
+
                 for manifest in manifests:
-                    images = manifest["sequences"][0]["canvases"]
-                    image_count += len(images)
-                print(f"Found {image_count} images")
-                progress.tasks[1].total = image_count
-                
-                for manifest in manifests:    
                     # get the metadata
                     metadata = {}
                     metadata["id"] = manifest.get("@id", None)
@@ -87,20 +83,28 @@ def fetch_iiif(
                             metadata[item["label"]] = item["value"]
                     srsly.write_json(output_subpath / "metadata.json", metadata)
 
-                    # get the images
+
                     images = manifest["sequences"][0]["canvases"]
-                    # get the image URIs
-                    image_tasks = []
+                    image_count += len(images)
+
                     for image in images:
                         id = image["images"][0]["resource"]["service"]["@id"]
-                        # https://images.eap.bl.uk/EAP1477/EAP1477_1_1_6/1.jp2
                         image_name = id.split('/')[-2] + "_" +  id.split('/')[-1]
                         image_name = image_name.split('.')[0] + ".jpg"
                         if not (output_subpath / image_name).exists():
                             image_uri = image["images"][0]["resource"]["@id"]
                             image_tasks.append(fetch_image(image_uri, output_path, output_subpath, image_name, image_task, progress))
-                    await asyncio.gather(*image_tasks)
-
+                    
+                    
+                print(f"Found {image_count} images")
+                progress.tasks[1].total = image_count
+                    
+                batch_size = 100
+                # split image_tasks into batches of 100
+                batches = [image_tasks[i:i + batch_size] for i in range(0, len(image_tasks), batch_size)]
+                for batch in batches:
+                    await asyncio.gather(*batch)    
+                    
     aiorun(_fetch_iiif())
 
 if __name__ == "__main__":
