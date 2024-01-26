@@ -17,9 +17,12 @@ description: >
 vars:
   name: "EAP1477/1: Archivo Histórico del Juzgado del Circuito de Istmina (1860-1930)"
   language: "es"
+  text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
   version: "0.0.0"
   iiif_collections: "collections.txt"
   escriptorium_url: "https://escriptorium.pennds.org"
+  escriptorium_project_name: ""
+  transcription: 'vision'
   
 env:
   ESCRIPTORIUM_USERNAME: ESCRIPTORIUM_USERNAME
@@ -55,7 +58,7 @@ commands:
   - name: segment
     help: "Segment the images with Kraken."
     script:
-      - "python scripts/segment.py assets/"
+      - "python scripts/segment.py assets/ ${vars.text_direction}"
     outputs:
       - assets/
 
@@ -74,6 +77,8 @@ commands:
   - name: download
     help: "Download the corrected transcriptions from eScriptorium."
     script:
-      - "python scripts/download.py assets/transcriptions"
+      - "python scripts/download.py ${escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} ${vars.escriptorium_project_name} /assets ${vars.transcription}"
+):
+    
     outputs:
       - assets/transcriptions

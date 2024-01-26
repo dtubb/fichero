@@ -11,6 +11,7 @@ from kraken import serialization
 
 def segment(
     collection_path: Path = Arg(..., help="Path to the collections", exists=True),
+    text_direction: str = Arg("horizontal-lr", help="Text direction of the images"),
 ):
     if torch.cuda.is_available():
         device = 'cuda'
@@ -18,10 +19,11 @@ def segment(
         device = 'cpu'
 
     images = list(collection_path.glob("**/*.jpg"))
+    print(f"Found {len(images)} images")
     for image in track(images, description="Segmenting images..."):
         if not image.with_suffix('.xml').exists():
             img = Image.open(image)
-            baseline_seg = blla.segment(img, device=device)
+            baseline_seg = blla.segment(img, device=device, text_direction=text_direction)
             alto_xml = serialization.serialize_segmentation(baseline_seg, image_name=image.name, image_size=img.size, template='alto')
             image.with_suffix('.xml').write_text(alto_xml)
 
