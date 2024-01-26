@@ -52,6 +52,8 @@ def fetch_iiif(
             output_path.mkdir(parents=True)
 
         with Progress() as progress:
+            # Your existing code here
+
             manifest_task = progress.add_task("[blue]Manifests...", total=len(manifest_uris))
             image_task = progress.add_task("[blue]Images and metadata...")
             while not progress.finished:
@@ -94,7 +96,8 @@ def fetch_iiif(
                         if not (output_subpath / image_name).exists():
                             image_uri = image["images"][0]["resource"]["@id"]
                             image_tasks.append(fetch_image(image_uri, output_path, output_subpath, image_name, image_task, progress))
-                    
+                        else:
+                            progress.update(image_task, advance=1)
                     
                 print(f"Found {image_count} images")
                 progress.tasks[1].total = image_count
@@ -103,7 +106,9 @@ def fetch_iiif(
                 # split image_tasks into batches of 100
                 batches = [image_tasks[i:i + batch_size] for i in range(0, len(image_tasks), batch_size)]
                 for batch in batches:
-                    await asyncio.gather(*batch)    
+                    await asyncio.gather(*batch)
+                
+                progress.stop()
                     
     aiorun(_fetch_iiif())
 
