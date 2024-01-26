@@ -9,6 +9,7 @@ from xml.etree.ElementTree import SubElement, tostring, fromstring
 
 import base64
 
+
 def vision(
     image_content: str,
     APIKEY: str,
@@ -110,8 +111,7 @@ def get_strings_for_alto_line(
     return line_words
 
 
-def merge_vision_alto(vision_response:json, alto_xml: str):
-
+def merge_vision_alto(vision_response: json, alto_xml: str):
     # read the alto xml into an ElementTree
     # alto = etree.XML(alto_xml)
     alto = fromstring(alto_xml)
@@ -121,7 +121,9 @@ def merge_vision_alto(vision_response:json, alto_xml: str):
     # find all TextLine elements
     text_lines = alto.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}TextLine")
     # assert that the page has been segmented, otherwise no text will post
-    assert len(text_lines) > 0, "Please segment your images in eScriptorium. No TextLine elements found in ALTO XML"
+    assert (
+        len(text_lines) > 0
+    ), "Please segment your images in eScriptorium. No TextLine elements found in ALTO XML"
 
     for line in text_lines:
         line_attrib = (
@@ -177,18 +179,22 @@ def transcribe(
     google_vision_api_key: str = Arg(..., help="Google Vision API key"),
     language: str = Arg(..., help="Language code"),
 ):
-    
     images = list(collection_path.glob("**/*.jpg"))
     for image in track(images, description="Transcribing images..."):
-        if not image.with_suffix('.xml').exists():
-            print(f"{image.name} needs to be segmented first ")
+        if not image.with_suffix(".xml").exists():
+            print(f"Images need to be segmented first ")
+            typer.Exit()
+
         else:
             img = Image.open(image)
             image_b64 = base64.b64encode(img.tobytes())
-            vision_response = vision(image_b64, google_vision_api_key, language=language)
-            alto_xml = image.with_suffix('.xml').read_text()
+            vision_response = vision(
+                image_b64, google_vision_api_key, language=language
+            )
+            alto_xml = image.with_suffix(".xml").read_text()
             alto_xml = merge_vision_alto(vision_response, alto_xml)
-            image.with_suffix('.xml').write_text(alto_xml)
+            image.with_suffix(".xml").write_text(alto_xml)
+
 
 if __name__ == "__main__":
     typer.run(transcribe)
