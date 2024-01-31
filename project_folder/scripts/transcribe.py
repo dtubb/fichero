@@ -130,11 +130,7 @@ def merge_vision_alto(vision_response: json, alto_xml: str):
     filename = filename.split("/")[-1]
     # find all TextLine elements
     text_lines = alto.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}TextLine")
-    # assert that the page has been segmented, otherwise no text will post
-    assert (
-        len(text_lines) > 0
-    ), "Please segment your images in eScriptorium. No TextLine elements found in ALTO XML"
-
+    
     for line in text_lines:
         line_attrib = (
             line.attrib
@@ -193,28 +189,32 @@ def transcribe(
 ):
     images = list(collection_path.glob("**/*.jpg"))
     for image in track(images, description="Transcribing images..."):
-        img = Image.open(image)
-        # mask ruler on the right 
-        img = remove_ruler(img)
-        rgb_im = img.convert("RGB")
-        img_byte_arr = io.BytesIO()
-        rgb_im.save(img_byte_arr, format="JPEG")
-        image_b64 = base64.b64encode(img_byte_arr.getvalue())
-        vision_response = vision(
-            image_b64, google_vision_api_key, language=language
-        )
-        if not image.with_suffix(".txt").exists() and txt:
-            text = vision_response['responses'][0]['textAnnotations'][0]['description']
-            image.with_suffix(".txt").write_text(text)
+        if not image.with_suffix(".txt").exists():
+            img = Image.open(image)
+            # mask ruler on the right 
+            img = remove_ruler(img)
+            rgb_im = img.convert("RGB")
+            img_byte_arr = io.BytesIO()
+            rgb_im.save(img_byte_arr, format="JPEG")
+            image_b64 = base64.b64encode(img_byte_arr.getvalue())
+            vision_response = vision(
+                image_b64, google_vision_api_key, language=language
+            )
+            if not image.with_suffix(".txt").exists() and txt:
+                if vision_response.get('responses',None):
+                    if vision_response['responses'][0].get('textAnnotations',None):
+                        if vision_response['responses'][0]['textAnnotations'][0].get('description',None):
+                            text = vision_response['responses'][0]['textAnnotations'][0]['description']
+                            image.with_suffix(".txt").write_text(text)
 
-        if image.with_suffix(".xml").exists() and alto:
-            alto_xml = ET.parse(image.with_suffix(".xml"))
-            alto_xml = alto_xml.getroot()
-            alto_xml = tostring(alto_xml, encoding="unicode")
-            alto_xml = merge_vision_alto(vision_response, alto_xml)
-            image.with_suffix(".xml").write_bytes(alto_xml)
-        else:
-            print(f"Skipping {image} because it already exists")
+            if image.with_suffix(".xml").exists() and alto:
+                alto_xml = ET.parse(image.with_suffix(".xml"))
+                alto_xml = alto_xml.getroot()
+                alto_xml = tostring(alto_xml, encoding="unicode")
+                alto_xml = merge_vision_alto(vision_response, alto_xml)
+                image.with_suffix(".xml").write_bytes(alto_xml)
+            else:
+                print(f"Skipping {image} because it already exists")
 
 
 if __name__ == "__main__":
