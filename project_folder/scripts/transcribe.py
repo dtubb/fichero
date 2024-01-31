@@ -1,14 +1,24 @@
 import json
 import typer
-from PIL import Image
+from PIL import Image,ImageDraw
 from pathlib import Path
 from rich.progress import track
 from spacy.cli._util import Arg
 from googleapiclient.discovery import build
 from xml.etree.ElementTree import SubElement, tostring, fromstring
+from xml.etree import ElementTree as ET
 from typing_extensions import Annotated
-
+import io
 import base64
+
+def remove_ruler(img):
+    img1 = ImageDraw.Draw(img)   
+    w, h = img.size
+    #shape = [(w-(w/3) , h-2000), (w-200, h)] #Upper left, lower right
+    # draw a black rectangle along the right edge of the image
+    shape = [(w - 50 , 100), (w, h)] #Upper left, lower right
+    img1.rectangle(shape, fill ="#000000") 
+    return img
 
 def vision(
     image_content: str,
@@ -176,26 +186,33 @@ def merge_vision_alto(vision_response: json, alto_xml: str):
 
 def transcribe(
     collection_path: Annotated[Path, typer.Argument(help="Path to the collections",exists=True)],
-    google_vision_api_key: Annotated[str, typer.Argument(help="Google Vision API key")],
     language: Annotated[str, typer.Argument(help="Language code")],
-    transcription_output: Annotated[list, typer.Option(help="Output formats of transciption process", default=[])],
-    force: Annotated[bool, typer.Option(help="Force transcription even if file already exists", default=False)],
+    txt: Annotated[bool, typer.Argument(help="Transcribe to txt")],
+    alto: Annotated[bool, typer.Argument(help="Transcribe to alto")],
+    google_vision_api_key: Annotated[str, typer.Argument(help="Google Vision API key", envvar="GOOGLE_VISION_API_KEY")],
 ):
     images = list(collection_path.glob("**/*.jpg"))
     for image in track(images, description="Transcribing images..."):
         img = Image.open(image)
-        image_b64 = base64.b64encode(img.tobytes())
+        # mask ruler on the right 
+        img = remove_ruler(img)
+        rgb_im = img.convert("RGB")
+        img_byte_arr = io.BytesIO()
+        rgb_im.save(img_byte_arr, format="JPEG")
+        image_b64 = base64.b64encode(img_byte_arr.getvalue())
         vision_response = vision(
             image_b64, google_vision_api_key, language=language
         )
-        if not image.with_suffix(".txt").exists() and 'txt' in transcription_output or force:
+        if not image.with_suffix(".txt").exists() and txt:
             text = vision_response['responses'][0]['textAnnotations'][0]['description']
             image.with_suffix(".txt").write_text(text)
 
-        if not image.with_suffix(".xml").exists() and 'alto' in transcription_output or force:
-            alto_xml = image.with_suffix(".xml").read_text()
+        if image.with_suffix(".xml").exists() and alto:
+            alto_xml = ET.parse(image.with_suffix(".xml"))
+            alto_xml = alto_xml.getroot()
+            alto_xml = tostring(alto_xml, encoding="unicode")
             alto_xml = merge_vision_alto(vision_response, alto_xml)
-            image.with_suffix(".xml").write_text(alto_xml)
+            image.with_suffix(".xml").write_bytes(alto_xml)
         else:
             print(f"Skipping {image} because it already exists")
 

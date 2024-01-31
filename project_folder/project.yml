@@ -23,7 +23,8 @@ vars:
   escriptorium_url: "https://escriptorium.pennds.org"
   escriptorium_project_name: "EAP1477/1"
   transcription: 'vision'
-  transcription_output: ['alto','txt']
+  alto: true
+  txt: true
   
   output:
     id: uuid
@@ -71,9 +72,9 @@ commands:
       - assets/
 
   - name: transcribe
-    help: "Transcribe the images using Google Vision ."
+    help: "Transcribe the images using Google Vision."
     script:
-      - "python scripts/transcribe.py assets/ ${env.GOOGLE_VISION_KEY} ${vars.language} {$vars.transcription_output}"
+      - "python scripts/transcribe.py assets/ ${vars.language} ${vars.txt} ${vars.alto}"
     outputs:
       - assets/
   
