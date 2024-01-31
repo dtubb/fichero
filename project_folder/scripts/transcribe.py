@@ -177,7 +177,9 @@ def merge_vision_alto(vision_response: json, alto_xml: str):
 def transcribe(
     collection_path: Annotated[Path, typer.Argument(help="Path to the collections",exists=True)],
     google_vision_api_key: Annotated[str, typer.Argument(help="Google Vision API key")],
-    language: Annotated[str, typer.Argument(help="Language code")]
+    language: Annotated[str, typer.Argument(help="Language code")],
+    transcription_output: Annotated[list, typer.Option(help="Output formats of transciption process", default=[])],
+    force: Annotated[bool, typer.Option(help="Force transcription even if file already exists", default=False)],
 ):
     images = list(collection_path.glob("**/*.jpg"))
     for image in track(images, description="Transcribing images..."):
@@ -186,14 +188,16 @@ def transcribe(
         vision_response = vision(
             image_b64, google_vision_api_key, language=language
         )
-        if not image.with_suffix(".xml").exists():
+        if not image.with_suffix(".txt").exists() and 'txt' in transcription_output or force:
             text = vision_response['responses'][0]['textAnnotations'][0]['description']
             image.with_suffix(".txt").write_text(text)
 
-        else:
+        if not image.with_suffix(".xml").exists() and 'alto' in transcription_output or force:
             alto_xml = image.with_suffix(".xml").read_text()
             alto_xml = merge_vision_alto(vision_response, alto_xml)
             image.with_suffix(".xml").write_text(alto_xml)
+        else:
+            print(f"Skipping {image} because it already exists")
 
 
 if __name__ == "__main__":

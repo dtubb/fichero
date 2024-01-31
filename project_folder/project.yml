@@ -23,7 +23,14 @@ vars:
   escriptorium_url: "https://escriptorium.pennds.org"
   escriptorium_project_name: "EAP1477/1"
   transcription: 'vision'
+  transcription_output: ['alto','txt']
   
+  output:
+    id: uuid
+    title: "EAP1477/1: Archivo Histórico del Juzgado del Circuito de Istmina (1860-1930)"
+    full_text: str
+    image_uri: str
+
 env:
   ESCRIPTORIUM_USERNAME: ESCRIPTORIUM_USERNAME
   ESCRIPTORIUM_PASSWORD: ESCRIPTORIUM_PASSWORD
@@ -40,6 +47,7 @@ workflows:
     - upload
     - download
   process:
+    - metadata
     - download
   #publish:
     #- obsidian
@@ -65,18 +73,25 @@ commands:
   - name: transcribe
     help: "Transcribe the images using Google Vision ."
     script:
-      - "python scripts/transcribe.py assets/ ${env.GOOGLE_VISION_KEY} ${vars.language}"
+      - "python scripts/transcribe.py assets/ ${env.GOOGLE_VISION_KEY} ${vars.language} {$vars.transcription_output}"
     outputs:
       - assets/
   
   - name: upload
     help: "Upload the images and ALTO to eScriptorium where the transcriptions can be evaluated and corrected."
     script:
-      - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} assets/images assets/transcriptions"
+      - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} ${vars.escriptorium_project_name} assets/"
 
   - name: download
     help: "Download the corrected transcriptions from eScriptorium."
     script:
       - "python scripts/download.py ${vars.escriptorium_url} ${vars.escriptorium_project_name} assets/ ${vars.transcription}"
     outputs:
-      - assets/transcriptions
+      - assets/
+
+  - name: metadata
+    help: "Use named entity recognition and entity linking to identify people, places, dates, events and organizations."
+    script:
+      - "python scripts/metadata.py ${vars.iiif_collections} assets/"
+    outputs:
+      - assets/
