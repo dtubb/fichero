@@ -7,6 +7,7 @@ from escriptorium_connector.dtos import PostProject, PostDocument, PostPart
 import srsly 
 from io import BytesIO
 from datetime import date
+from rich.progress import track
 
 class ReadDirection(str, Enum):
     LTR = "ltr"
@@ -47,14 +48,10 @@ def upload(
     project = PostProject(name=escriptorium_project_name)
     project = E.create_project(project_data=project)
     
-    collections = srsly.read_jsonl(collection_path / 'test_collections_metadata.jsonl')
-    for collection in collections:
-        #3 required positional arguments: 'name', 'typology', and 'source'
-        #PostDocument.__init__() missing 2 required positional arguments: 'read_direction' and 'line_offset'
-        # new_document = PostDocument(
-        #     ...     "test-doc", project_name, "Latin", ReadDirection.LTR, LineOffset.BASELINE, []
-        #     ... )
-        # positional arguments: name, project, main_script, read_direction, line_offset, tags
+    collections = srsly.read_jsonl(collection_path / 'collections_metadata.jsonl')
+    collections = list(collections)
+    for collection in track(collections):
+        
         document = PostDocument(collection['label'], project.slug, "Latin", ReadDirection.LTR, LineOffset.BASELINE, [] )
         document = E.create_document(doc_data=document)
         collection_subpath = collection_path / collection["id"].split('/')[-1]
