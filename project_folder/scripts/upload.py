@@ -6,6 +6,7 @@ from escriptorium_connector import EscriptoriumConnector
 from escriptorium_connector.dtos import PostProject, PostDocument, PostPart
 import srsly 
 from io import BytesIO
+from datetime import date
 
 class ReadDirection(str, Enum):
     LTR = "ltr"
@@ -20,10 +21,10 @@ class LineOffset(int, Enum):
 
 def upload(
         escriptorium_url: Annotated[str, typer.Argument(help="URL to eScriptorium", envvar="ESCRIPTORIUM_URL")],
-        escriptorium_username: Annotated[str, typer.Argument(help="Username for eScriptorium", envvar="ESCRIPTORIUM_USERNAME")],
-        escriptorium_password: Annotated[str, typer.Argument(help="Password for eScriptorium", envvar="ESCRIPTORIUM_PASSWORD")],
         escriptorium_project_name: Annotated[str, typer.Argument(help="Name of the project in eScriptorium", envvar="ESCRIPTORIUM_PROJECT_NAME")],
         collection_path: Annotated[Path, typer.Argument(help="Path to the collections",exists=True)],
+        escriptorium_username: Annotated[str, typer.Argument(help="Username for eScriptorium", envvar="ESCRIPTORIUM_USERNAME")],
+        escriptorium_password: Annotated[str, typer.Argument(help="Password for eScriptorium", envvar="ESCRIPTORIUM_PASSWORD")],
 ):
     E = EscriptoriumConnector(
         escriptorium_url,
@@ -33,21 +34,28 @@ def upload(
 
     projects = E.get_projects()
     # check if project_name in projects 
+    
     project_exists = (
         escriptorium_project_name in [project.name for project in projects.results]
     )
     if project_exists:
         print(f"[*] Error: Project {escriptorium_project_name} already exists")
-        typer.Exit()
+        # can't replace because not all users can delete a project, it will create a new object with the same name. Not good.
+        escriptorium_project_name = escriptorium_project_name + "-" + str(date.today())
 
-    if not project_exists:
-        print(f"Creating project: {escriptorium_project_name}")
-        project = PostProject(name=escriptorium_project_name)
-        project = E.create_project(project_data=project)
+    print(f"Creating project: {escriptorium_project_name}")
+    project = PostProject(name=escriptorium_project_name)
+    project = E.create_project(project_data=project)
     
-    collections = srsly.read_jsonl(collection_path / 'collections_metadata.jsonl')
+    collections = srsly.read_jsonl(collection_path / 'test_collections_metadata.jsonl')
     for collection in collections:
-        document = PostDocument(name=collection['label'], project=project, main_script=None, read_direction=ReadDirection('ltr'),line_offset=LineOffset(0))
+        #3 required positional arguments: 'name', 'typology', and 'source'
+        #PostDocument.__init__() missing 2 required positional arguments: 'read_direction' and 'line_offset'
+        # new_document = PostDocument(
+        #     ...     "test-doc", project_name, "Latin", ReadDirection.LTR, LineOffset.BASELINE, []
+        #     ... )
+        # positional arguments: name, project, main_script, read_direction, line_offset, tags
+        document = PostDocument(collection['label'], project.slug, "Latin", ReadDirection.LTR, LineOffset.BASELINE, [] )
         document = E.create_document(doc_data=document)
         collection_subpath = collection_path / collection["id"].split('/')[-1]
         for image in collection.get('images', []):
@@ -57,7 +65,7 @@ def upload(
             #Alto data 
             file_data=Path(collection_subpath / image['alto_filename']).read_bytes()
             file_data = BytesIO(file_data)
-            alto = E.upload_part_transcription(document_pk=document.pk, transcription_name='vision', filename=image['filename'], file_data=file_data, override="on")
-       
+            alto = E.upload_part_transcription(document_pk=document.pk, transcription_name='vision', filename=image['alto_filename'], file_data=file_data, override="on")
+        
 if __name__ == "__main__":
     typer.run(upload)

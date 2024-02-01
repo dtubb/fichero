@@ -45,6 +45,7 @@ workflows:
     - segment
     - transcribe
   evaluate:
+    - atlas
     - upload
     - download
   process:
@@ -54,7 +55,9 @@ workflows:
     #- obsidian
     #- huggingface-datasets
     #- eleventy-site
-    
+    #- steamlit/gradio
+    #- datasette
+
 
 commands:
   - name: fetch_iiif
@@ -78,10 +81,17 @@ commands:
     outputs:
       - assets/
   
+  - name: atlas
+    help: "Assess the quality of data and the collection using Nomic Atlas."
+    script:
+      - "python scripts/atlas.py assets/"
+    outputs:
+      - assets/
+
   - name: upload
     help: "Upload the images and ALTO to eScriptorium where the transcriptions can be evaluated and corrected."
     script:
-      - "python scripts/upload.py ${vars.escriptorium_url} ${env.ESCRIPTORIUM_USERNAME} ${env.ESCRIPTORIUM_PASSWORD} ${vars.escriptorium_project_name} assets/"
+      - "python scripts/upload.py ${vars.escriptorium_url} ${vars.escriptorium_project_name} assets/"
 
   - name: download
     help: "Download the corrected transcriptions from eScriptorium."
