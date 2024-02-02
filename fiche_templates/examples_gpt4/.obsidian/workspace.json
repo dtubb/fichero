@@ -1,0 +1,194 @@
+{
+  "main": {
+    "id": "bebe6a04ec2f9d95",
+    "type": "split",
+    "children": [
+      {
+        "id": "58e203ee1f6d1ca5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5ff260ca2c272e8e",
+            "type": "leaf",
+            "state": {
+              "type": "image",
+              "state": {
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007.jpg"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2272b6818b884834",
+    "type": "split",
+    "children": [
+      {
+        "id": "44095c306d16d434",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "71409cb601b3b1d0",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "b470535255b9e44c",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "dcd5b4d0a0b1bf2b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {}
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 610.5024719238281
+  },
+  "right": {
+    "id": "c9f28dfba33cc3e0",
+    "type": "split",
+    "children": [
+      {
+        "id": "525783b67e2a3ad3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4e9fd4764c0e841a",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007.jpg",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "1ef8558b70e0a503",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007.jpg",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "397bb300e1e257ff",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              }
+            }
+          },
+          {
+            "id": "b2b561f5501bb66f",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007.jpg"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false
+    }
+  },
+  "active": "5ff260ca2c272e8e",
+  "lastOpenFiles": [
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-ocr.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/Screenshot 2024-02-02 at 11.21.11 AM.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010.jpg",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/Screenshot 2024-02-02 at 11.20.35 AM.png",
+    "Screenshot 2024-02-02 at 11.20.35 AM.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-ocr.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-screenshot.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/Screenshot 2024-02-02 at 11.19.56 AM.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.pdf",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.json",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-extracts-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.txt",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata copy.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.json",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata copy.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.json",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata copy.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-ocr-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-extracts-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-source.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-ocr-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-source.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-ocr-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010",
+    "10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
+    "10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-ocr-cleaned.md",
+    "10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-source.md",
+    "10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts.md",
+    "10-EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-extracts-ocr-cleaned.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008",
+    "untitled folder"
+  ]
+}

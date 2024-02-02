@@ -1,0 +1,45 @@
+{
+  "source-img": "#filename",
+  "source-url": "[uri](uri)",
+  "process-date": "#date metadata extracted",
+  "process-tools": "tool", 
+  "names": [
+    "Full Name 1",
+    "Full Name 2",
+    "etc"
+  ],
+  "places": [
+    "Place Mentioned 1",
+    "Place Mentioned 2",
+    "etc"  
+  ],
+  "organizations": [
+    "Organization Mentioned 1",
+    "Organization Mentioned 2",
+    "etc"
+  ],
+  "dates": [
+    "YYYY/MM/DD Mentioned",
+    "YYYY/MM/DD Mentioned",
+    "YYYY/MM/DD Mentioned"
+  ],
+  "document-type": [
+    "Summons / Court Order / Acknowledgment of Debt / Will / Contract / Government Record / Census Record / Birth Certificate / Marriage License / Death Certificate / Correspondence / Letter / Email / Memo / Telegram / Financial Document / Invoice / Receipt / Financial Statement / Tax Return / Literary Work* / Book / Poem / Article / Manuscript / Research Report / Survey / Audit / Other specify the type if not listed above.",
+    "etc"
+  ],
+  "description": "Brief description of the document content and purpose.",
+  "tags": [
+    "#Tag-One",
+    "#Tag-Two",
+    "#Tag-Three",
+    "#Tag-Four",
+    "#Tag-Five"
+  ],
+  "language": [
+    "Spanish",
+    "English" 
+  ],
+  "concise-summary": "Concise summary in one or two sentences of the document.",
+  "title": "# Concise Title of Document"
+  "summary": "Summary that mentions all key details in the document, in about 150 to 200 words."
+}
