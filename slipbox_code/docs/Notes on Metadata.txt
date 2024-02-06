@@ -1,0 +1,63 @@
+Here is a more comprehensive list of different types of entities and metadata that could potentially be extracted from source documents and stored as slip notes in the metadata folder:
+
+- People
+  - Authors 
+  - Characters
+  - Historical figures
+  - Interview subjects
+- Organizations
+  - Companies
+  - Governments
+  - Institutions 
+  - Groups  
+- Locations
+  - Cities
+  - Countries 
+  - Regions
+  - Landmarks
+  - Buildings
+- Dates
+  - Absolute dates 
+  - Date ranges
+  - Eras
+- Events
+  - Conferences
+  - Wars
+  - Natural disasters
+  - Product releases
+- Titles
+  - Publications
+  - Laws
+  - Offices
+  - Projects  
+- Concepts
+  - Academic subjects
+  - Ideologies    
+  - Theories
+- Objects  
+  - Vehicles
+  - Artworks 
+  - Inventions
+- Species
+  - Plants
+  - Animals
+- Brands and products
+- Academic papers
+- Awards and honors   
+- Sports teams
+- Medical conditions
+- Construction projects
+- Keywords and tags  
+- Quotes
+- Typographic elements
+- Equations
+- Diagrams and figures
+- Tables and lists
+- Document metadata
+  - Authors
+  - Publish date
+  - Publisher
+  - Subjects
+  - Language 
+
+Let me know if you need any examples or have additional types of metadata to consider extracting. The goal is to capture people, places and other contextual elements that enhance understanding of ideas across sources.

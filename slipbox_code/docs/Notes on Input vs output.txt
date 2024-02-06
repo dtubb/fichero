@@ -1,0 +1,136 @@
+You're right, it makes sense to separate the file handling for the input sources vs the internal slipbox storage.
+
+Here is one way to divide it:
+
+Input File Manager:
+
+- Responsible for crawling folders and importing source material 
+
+- Could be called something like `ImportFileManager`
+
+- Located in `src/import` module
+
+- Provides methods like:
+  - crawlDirectory() - recursively walk folder structure
+  - readFile() - read individual files like PDFs
+  - extractText() - extract text from files
+  - importFile() - save extracted text to an ImportFile model
+
+- Imports raw content to build Slips from 
+
+Slipbox File Manager: 
+
+- Manages reading/writing slipbox data like Slips and References
+
+- Located in `src/slipbox/io` module
+
+- Provides methods like:
+  - readSlipFiles() - parse slip Markdown files 
+  - writeSlip() - serialize Slip to file
+
+- Works with converted Slipbox data, not raw imports
+
+So in summary:
+
+- ImportFileManager handles crawling and ingesting raw source files 
+
+- SlipboxFileManager handles serialized slipbox data
+
+This separation makes sense as they deal with different types of data and workflows. The high level SlipBoxManager can leverage both - using the ImportFileManager to ingest new sources, and the SlipboxFileManager to load the existing knowledge base.
+
+Let me know if this approach for dividing up the file management responsibilities makes sense!
+
+Here is an expanded overview of the proposed InputFileManager class:
+
+Purpose:
+
+- The InputFileManager is responsible for discovering and ingesting raw source files for the slipbox. 
+
+- This includes functionality like:
+  - Recursively crawling folders
+  - Identifying supported file types
+  - Extracting text and metadata
+  - Saving extracted information
+
+Functionality:
+
+- crawlDirectories(rootFolder)
+  - Recursively crawls the folder structure starting from the provided root folder
+  - Uses os.walk() to traverse folders
+  - Yields path of each file found
+
+- isSupportedFile(filepath)
+  - Checks the file extension against a list of supported types
+  - Returns True if the file can be processed, False otherwise
+
+- extractText(filepath)
+  - Based on file type, extracts raw text 
+  - PDF -> PDF parser library
+  - DOC -> text extraction library 
+  - Plain text -> just read file contents
+
+- extractMetadata(filepath)
+  - Extract metadata like title, author, date if possible
+  - PDFs may have embedded metadata for example
+
+- importFile(filepath, extractedText, metadata)
+  - Saves the extracted information as an ImportFile model
+
+Implementation:
+
+- The InputFileManager could be initialized with the root folder to crawl
+- It would expose public methods like crawl() and processFile()
+- crawl() would initiate recursive folder traversal 
+- processFile() would check the file type, extract text/metadata, and import
+
+This would encapsulate all raw file handling and extraction in a reusable class. The higher level SlipBoxManager could create an InputFileManager and leverage it to populate initial source material for the slipbox.
+
+Let me know if you need any clarification or have additional questions!
+
+
+Here is an expanded overview of the proposed InputFileManager class:
+
+Purpose:
+
+- The InputFileManager is responsible for discovering and ingesting raw source files for the slipbox. 
+
+- This includes functionality like:
+  - Recursively crawling folders
+  - Identifying supported file types
+  - Extracting text and metadata
+  - Saving extracted information
+
+Functionality:
+
+- crawlDirectories(rootFolder)
+  - Recursively crawls the folder structure starting from the provided root folder
+  - Uses os.walk() to traverse folders
+  - Yields path of each file found
+
+- isSupportedFile(filepath)
+  - Checks the file extension against a list of supported types
+  - Returns True if the file can be processed, False otherwise
+
+- extractText(filepath)
+  - Based on file type, extracts raw text 
+  - PDF -> PDF parser library
+  - DOC -> text extraction library 
+  - Plain text -> just read file contents
+
+- extractMetadata(filepath)
+  - Extract metadata like title, author, date if possible
+  - PDFs may have embedded metadata for example
+
+- importFile(filepath, extractedText, metadata)
+  - Saves the extracted information as an ImportFile model
+
+Implementation:
+
+- The InputFileManager could be initialized with the root folder to crawl
+- It would expose public methods like crawl() and processFile()
+- crawl() would initiate recursive folder traversal 
+- processFile() would check the file type, extract text/metadata, and import
+
+This would encapsulate all raw file handling and extraction in a reusable class. The higher level SlipBoxManager could create an InputFileManager and leverage it to populate initial source material for the slipbox.
+
+Let me know if you need any clarification or have additional questions!

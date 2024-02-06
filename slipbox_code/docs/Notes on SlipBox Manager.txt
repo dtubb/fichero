@@ -1,0 +1,51 @@
+Here are some details on potential file handling classes and where they could be stored:
+
+File Handling Classes:
+
+- FileManager - Top level file operations class
+
+- FileReader - Handles reading different file types into memory
+
+- FileWriter - Handles writing in-memory objects to files
+
+- MarkdownFileReader - Reads .md files into Slip objects
+
+- BibTeXFileReader - Reads .bib files into Reference objects
+
+Location:
+
+- These classes could live in a new `src/slipbox/io` module. 
+
+- Keeps file handling separated from core logic.
+
+FileManager:
+
+- Orchestrates all file system interactions
+
+- Methods like:
+  - readSlipFiles() - loop through slip folder, read each
+  - writeSlip() - write one Slip object to .md file
+
+FileReader:
+
+- Abstract base class defining interface for reading files to objects
+
+MarkdownFileReader:
+
+- Extends FileReader
+- Implements read() to parse Markdown into Slip objects
+
+BibTeXFileReader:
+
+- Extends FileReader
+- Implements read() to parse BibTeX into Reference objects
+
+FileWriter:
+
+- Abstract base class defining interface for writing objects to files
+
+- WriteSlipFile, WriteBibTeXFile extend and implement for specific file types
+
+This provides a clean architecture for handling file reading and writing. The higher level SlipBoxManager can call FileManager to load or save the overall state.
+
+Let me know if you need any clarification or have additional questions on the slipbox manager

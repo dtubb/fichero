@@ -1,0 +1,101 @@
+# Content Classes
+
+- `Source` 
+  - Stores original source content and metadata
+  - Methods like `get_text()`, `get_title()`, etc
+
+- `ExtractedText`
+  - Stores plain text extracted from Source
+  - Methods like `get_text()`, `get_source_id()` 
+
+- `Slip`
+  - Represents atomic slip note 
+  - Stores slip text, links to other slips
+  - Methods like `get_text()`, `get_links()`, `add_link()`
+
+- `Reference`
+  - Stores bibliographic metadata about Source
+  - Title, author, publication date, etc
+  - Methods like `get_title()`, `get_author()`, etc
+
+- `Tag`
+  - Defines a tag or category
+  - Stores tag name, links to tagged slips
+  - Methods like `get_name()`, `add_slip()`
+
+# Content Managers
+
+- `SourceManager`
+  - Loads Sources from files/URLs
+  - Stores Sources, handles CRUD operations
+
+- `ExtractManager`
+  - Stores ExtractedText from Sources
+  - CRUD operations on ExtractedText  
+
+- `SlipManager` 
+  - Creates Slips from ExtractedText
+  - CRUD operations on Slips
+  - Handles links between Slips
+
+- `ReferenceManager`
+  - Creates References from Sources
+  - CRUD operations on References
+
+- `TagManager`
+  - Creates Tags 
+  - CRUD operations on Tags
+  - Manages links between Tags and Slips
+
+# File I/O
+
+- `SlipReader`
+  - Loads Slip files from disk
+  - Parses file contents into Slip objects
+
+- `SlipWriter`
+  - Serializes Slip objects to files
+  - Writes files to disk  
+
+# AI Integration
+
+- `LangchainClient`
+  - Sends requests to Langchain API
+  - Methods like `summarize()`, `generate_text()`  
+
+- `ChatGPTClient`
+  - Sends requests to ChatGPT API
+  - Methods like `ask()`, `converse()` 
+
+# Generation  
+
+- `Extractor`
+  - Uses text extraction libraries on Source
+  - Creates ExtractedText
+
+- `ReferenceGenerator`
+  - Summarizes Source 
+  - Creates Reference from summary  
+
+- `SlipGenerator`
+  - Summarizes ExtractedText
+  - Creates Slip objects from summary
+
+- `TagGenerator`
+  - Analyzes Slips to extract Tags
+  - Creates Tag objects
+  
+- `LinkGenerator`
+  - Identifies relationships between Slips
+  - Creates links between Slip objects
+
+- `SummaryGenerator`
+  - Summarizes a collection of Slips
+  - Produces overview summary text
+
+# Orchestration
+
+- `Slipbox`
+  - Coordinates overall workflow
+  - Initializes managers, clients, generators
+  - Runs generation pipeline  

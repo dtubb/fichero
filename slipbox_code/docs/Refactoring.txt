@@ -1,0 +1,158 @@
+# 2023-12-24 Next Steps
+()*2. Debug Mode:** 
+
+- Create DebugConfig class to initialize stubs
+- Add test stubs for:
+  - Unit testing (mock inputs/apis)
+  - CLI argument mocking
+  - API response mocking  
+- Conditionally enable stubs when `--debug`
+
+The goals are to:
+
+- Leave a permanent log of runs 
+- Step through codeexecution and view logs
+- Test functionality without full system
+- Prevent unintended real API/CLI usage
+
+Let me know if you have any other questions! We can break these tasks into smaller sub-tasks.
+
+Sure, here's a quick overview of the differences between logging and verbosity:
+
+Logging:
+
+Used to write permanent log records to a file
+Typically used for debugging errors/exceptions
+Logs are structured output written to a file
+Can log at different levels (DEBUG, INFO, WARN, ERROR)
+Logs persist after program runs
+Verbosity:
+
+Conditional printing of debug messages
+Useful for following program execution
+Output goes to stdout and disappears
+Controlled by global verbosity level
+Can enable/disable groups of prints
+Things that would be good to log:
+
+File I/O operations
+API requests and responses
+Configuration values
+Errors and exceptions
+Validation of user input
+Processing times for tasks
+Version/environment details
+
+Good point, having different types of debug modes could be even more useful. A few options that come to mind:
+
+- Unit test mode 
+  - Stub out APIs/inputs 
+  - Validate functions independent of full execution
+
+- CLI mock mode
+  - Mock CLI args instead of reading from sys.argv
+  - Useful for debugging argument parsing
+  
+- API mock mode 
+  - Mock HTTP responses for API calls
+  - Validate request/response handling
+  
+- Silent mode
+  - Skip print/log statements 
+  - Faster prototyping without output
+  
+- Sandbox mode
+  - Use test/dummy API keys/tokens
+  - Prevent accidental usage of production credentials
+
+Some ways to implement:
+
+- Add debug_type arg alongside debug flag
+- Have debug_type options like "unit", "cli", "api" etc
+- Conditionally enable specific stubs based on type
+
+This allows more granular control over what to mock/stub out during debugging.
+
+The key aspects are ability to:
+
+- Isolate pieces for testing 
+- Prevent unintended side effects
+- Iterate quickly without extra overhead
+
+### Refactor Output File Logic
+
+- Create a `sb_output_utils.py` module for output utility functions
+- Move existing output path handling logic there
+  - Checking if path is file or dir
+  - Getting output filename 
+  - Building full file path
+- Make them reusable functions  
+- Call those functions from `sb_pdf_to_text` and `sb_summarize` instead of duplicating logic
+
+### Handle Multiple Files as Input
+
+- Update `slipbox.py` argparser to allow multiple inputs with `nargs='+'` 
+- Validate each input 
+  - Check if file exists with `os.path.exists()`
+- Loop through `args.inputs`
+  - Call `sb_pdf_to_text` or `sb_summarize` on each file
+- Could validate inputs upfront before loop
+
+### Support Input Folders
+
+- Check if input is folder with `os.path.isdir(input)`
+- Get list of files in folder with `os.listdir(input)`
+- Loop through and process each file
+
+### Recursive Folder Input
+
+- Use `os.walk(input)` to walk folder tree
+- Skip folders, only process files
+- Could implement max depth limit
+
+**Refactor Output File Logic**
+
+In addition to the steps mentioned, some other good practices would be:
+
+- Add documentation strings to the new utility functions explaining usage
+- Use meaningful function names like `get_output_path()`
+- Validate passed parameters like ensuring output path is valid
+- Add unit tests to validate output path handling  
+- Make the functions more robust and handle edge cases
+
+**Handle Multiple Files** 
+
+- When validating inputs:
+  - Print specific error messages for missing/invalid files
+  - Consider still processing other valid files if some are invalid
+- For loop through files:
+  - Use enumerate() to get index and filename
+  - Print filename before processing for better visibility 
+- Support different extensions besides just PDF
+- Allow user to control filename format/convention
+
+**Input Folders**
+
+- Recursively process subfolders in addition to top level folder
+- Allow user to set max recursion depth
+- Skip hidden folders/files (start with .)
+- Print number of files found and Confirm before processing
+- Allow user to filter file extensions
+
+**Recursive Folders** 
+
+- Use optional max depth parameter in os.walk()
+- Print tree structure when walking folders
+- Store folder structure info when processing files
+- Allow starting folder to be set instead of just input arg
+
+In summary, the main enhancements I would suggest are:
+
+- Comprehensive validation, error handling and logging
+- Flexible and customizable file/folder input  
+- Print more output for visibility into files being processed  
+- Unit tests to validate functionality
+- Support nested folder structures
+- Allow customization of output naming/locations
+
+Please let me know if you would like me to elaborate on any specific part of the suggestions in more detail!

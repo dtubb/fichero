@@ -1,0 +1,43 @@
+Here is some more detail on how file management could work:
+
+Storage Location:
+
+- The slipbox data could be stored in a `data/` folder within the project. 
+
+- This keeps it separate from code but accessible.
+
+File Types:
+
+- The main storage format would be Markdown files. 
+
+- One .md file per slip, named by slip ID.
+
+- Markdown supports links, formatting, headers, lists - good for notes.
+
+- References could be stored as .bib BibTeX files. One per reference.
+
+Folder Structure:
+
+- `data/slips/` - Contains all slip Markdown files named `slip-###.md`
+
+- `data/refs/` - Contains BibTeX reference files named `ref-###.bib` 
+
+- `data/index/` - Any supplemental indices, category lists etc
+
+File Management:
+
+- SlipBoxManager handles all file IO. 
+
+- It can create, read, update, delete files as needed to sync the file contents to in-memory objects.
+
+- No direct file access from Slip/Reference classes - SlipBoxManager controllers file storage.
+
+- On init, SlipBoxManager iterates through data folders, reads all files into objects.
+
+- CRUD methods handle syncing memory state to files. 
+
+- Allows managing slipbox purely in memory if desired.
+
+This file/folder based approach allows persisting the entire slipbox as human-readable files that can be easily inspected, edited, backed up. But abstracts file handling into the manager class.
+
+Let me know if you need any clarification or have additional questions!
