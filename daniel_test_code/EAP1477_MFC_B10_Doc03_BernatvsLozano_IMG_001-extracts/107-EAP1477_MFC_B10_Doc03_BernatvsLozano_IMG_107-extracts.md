@@ -1,0 +1,40 @@
+PUBLICA
+Pozn
+ENCIA
+22
+Pagé portes de ida
+DE
+COLOMBIA
+одних
+CUITO
+NACIONAL
+COLOMBIA
+5 6
+CINCO CENTAVOS
+MOMEN
+R#378
+CINCO CENTAVOSO
+CINCO CENTAVOS
+Señor
+JUEZ MUNICIPAL,
+Condoto.
+Contime el Despacho #2
+-8024
+Lizan. atminas, agrste 29/930.
+Portes a cargo de Bernat
+NCO CENTAVOS
+REPUBLIC
+COLOMO
+HA
+lihar..
+el yen-
+you.
+#29
+r. Bemat contin Mannes Mr.
+CUATRO CENTAVOS
+10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+6
+8
+4 5 6 7
+23
+0 cm 1

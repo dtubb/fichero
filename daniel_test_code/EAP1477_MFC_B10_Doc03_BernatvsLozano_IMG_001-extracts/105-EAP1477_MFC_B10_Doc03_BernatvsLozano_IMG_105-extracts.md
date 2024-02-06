@@ -1,0 +1,60 @@
+R
+REXTOM
+DIEZ CENTAVOS
+TROMBIA
+ozn
+TENDENCIA NACIONAL
+10
+No
+DE
+SEPE
+CELATHEDE
+LOMBIA
+10
+DIEZ CENTAVOS
+COMET
+COLOMB
+CUITO
+10
+DE IST
+STMINA
+OOOH 130
+ALICANDY
+AME
+LORSPRO
+DIEZ CENTAVOS
+Señor Juez Municipal,
+Condoto.
+DIEZ CENTAVOS
+mosiera y se pon draat, ruien le imp visará en
+Portes a cargo del Dr. L. E. Bernat.
+Contiene el juicio ejecutivo que lleva, el Dr. L. E. Bernat,
+contra Manuel María Lozano; 55 fs escritas y dos en blanco.
+Istmina, octubre 24/930.
+DIEZ CENTAVOS
+COMENDE
+FRANS
+SDIEZ CENTAVOS
+TEXTOMINNDB
+10
+PAS
+DIEZ CENTAVOS
+Pliego Número 701.
+LIDDL
+HEM BATA DE
+COLOTHIA
+Casuttival
+DIEZ CENTAVOS
+MER OUDE
+COLOMA
+LACUDE
+FOLOMBIA
+DIEZ CENTAVOS
+10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+6
+8
+-∞
+4 5 6 7
+3
+2
+0 cm 1

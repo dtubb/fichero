@@ -1,0 +1,9 @@
+{
+	"nodes":[
+		{"id":"5e2f8b136aa38aa6","type":"file","file":"EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.md","x":70,"y":-472,"width":400,"height":400},
+		{"id":"66f3289aacc70505","type":"file","file":"People/Manuel Maria Lozano.md","x":-700,"y":-440,"width":400,"height":400},
+		{"id":"95c9738b0f5957e3","type":"file","file":"EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.md","x":120,"y":120,"width":400,"height":400},
+		{"id":"6c5863c96b3f3a3d","x":-640,"y":120,"width":400,"height":400,"type":"file","file":"EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-cleaned.md"}
+	],
+	"edges":[]
+}

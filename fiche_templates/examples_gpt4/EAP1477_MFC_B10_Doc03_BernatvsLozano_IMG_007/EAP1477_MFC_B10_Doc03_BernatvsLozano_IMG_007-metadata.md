@@ -1,29 +1,26 @@
 ---
-source-img: "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-extracts-ocr-cleaned.md"
+source-img: EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-extracts-ocr-cleaned.md
 source-url: ""
 process-date: 2024/02/02
-process-tools: "GPT-4"
-names: 
-  - "Manuel María Lozano"
-  - "C.A.P. de la Torre"
-  - "Luis Enrique Bernat"
+process-tools: GPT-4
+names:
+  - "[[Manuel Maria Lozano]]"
+  - "[[C.A.P. de la Torre]]"
+  - "[[Luis Enrique Bernat]]"
 places:
-  - "Condoto"
-organizations: []
-dates: 
-  - "1929/08/20"
-document-type: 
-  - "Documento Legal"
-description: "Acuerdo de deuda y condiciones de hipoteca entre Manuel María Lozano y C.A.P. de la Torre."
+  - "[[Condoto]]"
+organizations: 
+dates:
+  - 1928/08/20
+document-type:
+  - "[[Documento Legal]]"
+description: Acuerdo de deuda y condiciones de hipoteca entre Manuel María Lozano y C.A.P. de la Torre.
 tags:
   - "#Deuda"
   - "#Hipoteca"
-  - "#Comercio"
-  - "#TimbreNacional"
-  - "#DocumentoLegal"
 language:
-  - "Spanish"
-summary: "Manuel María Lozano se constituye deudor de C.A.P. de la Torre por $107.00, con un acuerdo de pago e hipoteca sobre una propiedad."
+  - Spanish
+summary: Manuel María Lozano se constituye deudor de C.A.P. de la Torre por $107.00, con un acuerdo de pago e hipoteca sobre una propiedad.
 ---
 # Deuda de Manuel María Lozano a C.A.P. de la Torre
 

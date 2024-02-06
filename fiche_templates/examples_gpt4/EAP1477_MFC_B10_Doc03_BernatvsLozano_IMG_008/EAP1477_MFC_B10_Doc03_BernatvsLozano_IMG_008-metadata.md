@@ -1,33 +1,31 @@
 ---
-source-img: "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-extracts-cleaned.md"
+source-img: EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-extracts-cleaned.md
 source-url: ""
 process-date: 2024-02-02
-process-tools: "GPT-4"
-names: 
-  - "Luis Enrique Bernat"
-  - "Manuel Maria Lozano"
-  - "Alfonso Heluk"
-  - "Gerardo Vega S."
+process-tools: GPT-4
+names:
+  - "[[Luis Enrique Bernat]]"
+  - "[[Manuel Maria Lozano]]"
+  - "[[Alfonso Heluk]]"
+  - "[[Gerardo Vega S.]]"
 places:
-  - "Condoto"
-  - "Istmina"
+  - "[[Condoto]]"
+  - "[[Istmina]]"
 organizations:
   - ""
-dates: 
-  - "1929/08/20"
-  - "1929/10/05"
-document-type: 
-  - "Summons"
-description: "Petición de un abogado para que un juez fije fecha y hora para que una parte reconozca un documento y su firma bajo juramento, y notifique una cesión de derechos."
+dates:
+  - 1929/08/20
+  - 1929/10/05
+document-type:
+  - "[[Summons]]"
+description: Petición de un abogado para que un juez fije fecha y hora para que una parte reconozca un documento y su firma bajo juramento, y notifique una cesión de derechos.
 tags:
   - "#Legal"
   - "#Summons"
-  - "#DocumentRecognition"
   - "#Oath"
-  - "#JudicialProcedure"
-language: 
-  - "Spanish"
-summary: "Solicitud de LUIS ENRIQUE BERNAT a un juez para que MANUEL MARIA LOZANO reconozca un documento bajo juramento y se le notifique de una cesión de derechos realizada a favor de Bernat."
+language:
+  - Spanish
+summary: Solicitud de LUIS ENRIQUE BERNAT a un juez para que MANUEL MARIA LOZANO reconozca un documento bajo juramento y se le notifique de una cesión de derechos realizada a favor de Bernat.
 ---
 # Citación Judicial de Reconocimiento de Documento
 
