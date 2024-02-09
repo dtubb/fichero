@@ -3,7 +3,7 @@
 Andrew Paul Janco[^Andy] and Daniel Tubb[^Tubb]
 
 [^Andy]: Andrew Paul Janco, UPenn Digital Libraries, apjanco@upenn.edu
-[^Tubb]" Daniel Tubb, Anthropology, UNB Fredericton
+[^Tubb]: Daniel Tubb, Anthropology, UNB Fredericton
 
 How can machine learning pipelines help catalogue an endangered archive for community researchers, students, historians, and others? Until 2022, the Istmina Circuit Court archive, with documents from the 1870s to 1930s, was rotting, disorganized, and exposed to the elements in garbage bags. Yet, this archive is a crucial source of Afro-Colombian history, in a region too often forgotten in Colombian historiography. In 2023, five young archivists from Istmina and the departmental capital Quibdó worked with the Muntu Bantu Center for Afro-diasporic studies and researchers from UPenn, the University of New Brunswick, and the University of Michigan, with funding from the British Library and the Canadian Social Sciences and Humanities Research Council, to clean, store, and digitize the archive, which is now available online.[^1] While the students catalogued 330 Case Files and wrote a book of micro-history,[^2] the task of cataloguing 470 more cases remains, each has hundreds of damaged documents. In this paper, we reflect on a machine learning pipelines to extract text and catalogue the archive, using Weasel,[^3] a workflow system. to understand 61,000 images"
 
