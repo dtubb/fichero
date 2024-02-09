@@ -1,3 +1,5 @@
+Link to [google doc](https://docs.google.com/document/d/1975Iek55SX-9C3Wc0d6zDMGrlsnKZCTt1wOaug2RmBI/edit)
+
 **Building a *Fichero*: New Tools, Old Documents, and Machine Learning Workflows with an Andangered Afro-Colombian Archive**
 
 Andrew Paul Janco[^Andy] and Daniel Tubb[^Tubb]
