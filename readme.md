@@ -1,75 +1,44 @@
-# Fichero Weasel. Run LLM prompts on files. Written in Python.
-
-Import  OCR Extract Catalogue  Reference  Write Tag  Link
-
-**Documentation:** https://fichero.hewlab.ca
-
+# Fichero: Build a Extract Text and Build Digital Card Catalogue from Archives
+Read Catalogue Export
 **Source Code:** https://github.com/dtubb/fichero
 
-Extraction and organization of note cards from source material powered by LLM.
+Fichero is an set of workflows using open-source tools to extract text, generate metadata, and build a digital card catalogue or *fichero* from archival documents.
 
-Fichero—from the Spanish for "box of index cards"—is a CLI applications to help build a *fichero*, an interconnected box of index cards about source material. It helps researchers in the social sciences and humanities unlock an Swiss-Army Knife of easy to edit LLM prompts, to build, read, edit a dynamic, accessible *fichero* from the terminal.
+It uses machine learning pipelines with digital images.
 
-The key features are:
+- Natural language processing with spaCy to detect named entities and keywords.
+- Summarization, timeline generation, and metadata extraction by querying large language models through LangChain/HuggingFace.
+- Exporting the extracted information as Markdown files organized into a digital *fichero* or slip-box system.
+- Mapping metadata visually with Nomic's Atlas. 
+- Builds a static website to browse the catalogue using Jekyll.
 
-- Allows users to easily and iteratively build a box of *fiches* based on sources. 
-- Produces folder hierarchy with text-files that are  of easy to read, understand, *rewrite*, and reuse.
-- Files are easy to integrate into a knowledge management app (Obsidian, Tinderbox, DevonThink, etc), or a Jekyl and Pandoc powered static website. 
+Fichero simplifies creating a searchable, interconnected digital card catalogue. The Markdown output integrates with knowledge management tools like Obsidian.
+
+## Fichero
+Fichero is designed for archivists, librarians, researchers in the humanities and social sciences. It builds on traditional practices like a historian's archival notes or an anthropologist's field notes.
+
+The focus is on open source tools for extracting semantic information from documents to build a digital catalogue. 
+
+Fichero—from the Spanish for "box of index cards"—is a set of Weasel workflows to build a *fichero*, an interconnected box of index cards about source material. It helps researchers in the social sciences and humanities unlock an Swiss-Army Knife of machine learning tools to read text, build an catalogue, and export a dynamic, accessible *fichero* from the terminal.
+
+- Allows for the building of an box of *fiches* based on sources. 
+- Produces folder hierarchy with text-files easy to read, explore, *rewrite*, and reuse.
 - Builds a *fichero*, an interconnected box of *fiches* index cards about source material.
+- Files are can be opened in a knowledge management app (Obsidian, Tinderbox, DevonThink, etc), or converted to  static website with Jecyyll. 
 - Written for researchers in the social sciences and humanities, who have long made collections of short notes on a research topic.
-- Builds on the methods of a historians archival-notes, an anthropologists field-notes.
-- Inspired the Walter Benjamin's [Arcades Project](https://en.wikipedia.org/wiki/Arcades_Project), Niklas Luhmann's [Zettelkasten method](https://en.wikipedia.org/wiki/Zettelkasten), and Sönke Ahrens [slip-box](https://www.soenkeahrens.de/en/takesmartnotes) method. 
-- Simplifies automatically producing *fiches* about source material (notes, articles, books, and images) in jpg, pdf,  txt, md, word, and other formats.). 
+- Builds on the methods of a historians archival-notes, an anthropologists field-notes, and is inspired the Walter Benjamin's [Arcades Project](https://en.wikipedia.org/wiki/Arcades_Project), Niklas Luhmann's [Zettelkasten method](https://en.wikipedia.org/wiki/Zettelkasten), and Sönke Ahrens [slip-box](https://www.soenkeahrens.de/en/takesmartnotes) method. 
+- Uses machine learning to extract metadata, catalogue entries, summaries, etc.
 
-- Creates *fiches* with metadata, catalogue entries, summaries, notes on atomic ideas, references, tags, links, and quotes from a variety of sources, powered by easy to edit LLM prompts, connected to many LLM models. 
-
-Key technical features:
-
+# Key technical features:
+- Weasel workflows
+- NLP with spaCy
 - Written in Python.
-- Uses Google Vision, for text extraction.
-- Hooks into [eScriptorium-Vision](https://github.com/upenndigitalscholarship/escriptorium-vision) to fetch the images from eScriptorium, run HTR on the images, upload the transcriptions back to eScriptorium, and then extract the text.
-- Powered by [LangChain](https://www.langchain.com) Large Language Models
-  - Connects to the cloud (e.g. OpenAi's ChatGPT 3.5 and 4).
-  - Run LLMS locally with [Ollama](https://ollama.ai) or [GPT4All](https://gpt4all.io), and use [HuggingFace](https://huggingface.co) models— e.g. [Mistral:Instruct](https://mistral.ai/news/announcing-mistral-7b/) or [Mixtral 8x7B](https://mistral.ai/news/mixtral-of-experts/)
-- Writes Markdown, with metadata in human-readable [YAML]() format, using [python-frontmatter](https://github.com/eyeseast/python-frontmatter)
+- Hooks into
+  - Google Vision, for text extraction.
+  - [eScriptorium-Vision](https://github.com/upenndigitalscholarship/escriptorium-vision) to fetch the images from eScriptorium, run HTR on the images, upload the transcriptions back to eScriptorium, and then extract the text.
+  - [LangChain](https://www.langchain.com) Large Language Models
+    - Connects to the cloud (e.g. OpenAi's ChatGPT 3.5 and 4).
+    - Run LLMS locally with [Ollama](https://ollama.ai) or [GPT4All](https://gpt4all.io), and [HuggingFace](https://huggingface.co) models— e.g. [Mistral:Instruct](https://mistral.ai/news/announcing-mistral-7b/) or [Mixtral 8x7B](https://mistral.ai/news/mixtral-of-experts/)
+- Writes Markdown, with metadata in human-readable [YAML]() format.
 - Easy to use command-line interface (CLI), made with [Typer](https://typer.tiangolo.com).
 - Prettified terminal output, with [Rich](https://rich.readthedocs.io/en/stable/index.html).
-
-
-# Fichero. Run LLM prompts on files. Written in Python.
-
-Rum Prompts Extract Metadata  Catalogue  
-
-**Documentation:** https://fichero.hewlab.ca
-
-**Source Code:** https://github.com/dtubb/fichero
-
-Key features:
-
-- Run a prompt on a file.
-- Written in Python.
-- Easy to use command-line interface (CLI), made with [Typer](https://typer.tiangolo.com).
-- Prettified terminal output, with [Rich](https://rich.readthedocs.io/en/stable/index.html).
-- Powered by [LangChain](https://www.langchain.com) Large Language Models
-  - Connects to the cloud (e.g. OpenAi's ChatGPT 3.5 and 4).
-  - Run LLMS locally with [Ollama](https://ollama.ai) or [GPT4All](https://gpt4all.io), and use [HuggingFace](https://huggingface.co) models— e.g. [Mistral:Instruct](https://mistral.ai/news/announcing-mistral-7b/) or [Mixtral 8x7B](https://mistral.ai/news/mixtral-of-experts/)
-
-# Input
-
-- source
-- prompt
-- output
-- config
-  - llm and model
-  - open_ai (gpt 3.5, 4, etc)
-  - ollama (recomended mistral:isntruct or mixtral7x8b:isntruct)
-  - gpt4all (recomended mistral:isntruct or mixtral7x8b:isntruct)
-  - ollama (recomended mistral:isntruct or mixtral7x8b:isntruct)
-
-  - temperature
-  - max toxens
-  - other parematers
-  - verbose
-  - debug
-  
-  
