@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "People/Manuel Maria Lozano.md",
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
                 "mode": "source",
                 "backlinks": true,
                 "source": false
@@ -26,7 +26,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
                 "mode": "source",
                 "backlinks": true,
                 "source": false
@@ -96,8 +96,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 335.5024719238281
   },
   "right": {
     "id": "c9f28dfba33cc3e0",
@@ -113,7 +112,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "People/Manuel Maria Lozano.md",
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -130,7 +129,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "People/Manuel Maria Lozano.md",
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -153,7 +152,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "People/Manuel Maria Lozano.md"
+                "file": "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md"
               }
             }
           },
@@ -189,6 +188,14 @@
   },
   "active": "2768f79805b3b479",
   "lastOpenFiles": [
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.png",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-cleaned.md",
+    "Document Type/Documento Legal.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.png",
+    "People/Manuel Maria Lozano.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-extracts-cleaned.md",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.md",
     "Caja 75/Caja75-metadata.md",
     "Caja 8/Caja75-metadata.md",
@@ -197,23 +204,17 @@
     "Caja 75",
     "untitled folder",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-metadata.png",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.png",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-metadata.md",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
+    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.md",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008.jpg",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-ocr.md",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008-extracts-cleaned.md",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-extracts-cleaned.md",
-    "People/Manuel Maria Lozano.md",
     "Untitled.canvas",
     "People/Alfonso Heluk.md",
     "People/C.A.P. de la Torre.md",
     "Gerardo Vega S..md",
     "People/Manuel María Lozano.md",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007-ocr.md",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-extracts-cleaned.md",
     "People/Luis Enrique Bernat.md",
-    "Document Type/Documento Legal.md",
     "Document Type/JUZGADO MERCIPAL.md",
     "Document Type/Summons.md",
     "People/Ramon M.md",
@@ -224,14 +225,11 @@
     "Dates",
     "Dates/1929/08",
     "Dates/1929",
-    "Places/Condoto.md",
     "Places",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_007.jpg",
     "People",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-metadata.png",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/Screenshot 2024-02-02 at 11.21.11 AM.png",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010.jpg",
-    "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_010-ocr.md",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008.png",
     "EAP1477_MFC_B10_Doc03_BernatvsLozano_IMG_008/Screenshot 2024-02-02 at 11.20.35 AM.png",
     "Screenshot 2024-02-02 at 11.20.35 AM.png",
