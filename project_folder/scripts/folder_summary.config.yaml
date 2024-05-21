@@ -1,0 +1,64 @@
+prompts:
+  long_summary:
+    template: |
+      Generate a long summary of the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  concise_summary:
+    template: |
+      Generate a concise summary of the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  timeline:
+    template: |
+      Generate a timeline of events based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  people:
+    template: |
+      Generate a list of people and how they appear in the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  places:
+    template: |
+      Generate a list of places and how they appear in the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  organizations:
+    template: |
+      Generate a list of organizations and how they appear in the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  keywords:
+    template: |
+      Generate a list of keywords based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
+
+  dublin_core:
+    template: |
+      Generate Dublin Core metadata for the case based on the provided data.
+
+      Data: {data}
+    provider: ollama
+    model_name: llama3:8b
