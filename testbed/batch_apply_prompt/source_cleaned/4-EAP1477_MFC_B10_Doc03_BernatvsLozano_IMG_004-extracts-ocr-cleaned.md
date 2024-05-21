@@ -1,0 +1,17 @@
+371
+REPUBLICA DE COLOMBIA
+INTENDENCIA NACIONAL DEL CHOCO
+DISTRITO JUDICIAL DE CALI
+JUZGADO PRIMERO DEL CIRCUITO DE ISTMINA
+179 **RED INK**
+180 **BLUE INK OVERTOP OF !79**
+Demanda **BLANK**
+Juicio Ejecutivo **BLANK**
+Demandado: **BLANK**
+Apoderado: **BLANK**
+Demandante: **BLANK**
+Apoderado: **BLANK**
+Iniciado el **BLANK** de: **BLANK** del 193**BLANK**
+Radicado bajo la partida Nº **BLANK**
+El Secretario **BLANK**
+IMPRENTA OFICIAL, QUIBDÓ.

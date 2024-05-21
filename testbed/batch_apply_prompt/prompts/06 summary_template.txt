@@ -1,0 +1,11 @@
+Describe and summarize SOURCE in Spanish. 
+
+IGNORE INDECIPHERABLE NUMBERS AND TEXT. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `summary`. SAY NOTHING ELSE. 
+
+EXAMPLE: 
+"summary": "Aquí va el resumen del texto fuente en español."
+
+SOURCE:[/INT]
+{source}

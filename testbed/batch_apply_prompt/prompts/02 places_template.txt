@@ -1,0 +1,11 @@
+List the NAMES OF PLACES in this source.
+
+SAY NOTHING ELSE. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `names`.
+
+EXAMPLE: 
+"names": "Name of Place"
+
+SOURCE:
+{source} 

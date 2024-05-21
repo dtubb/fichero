@@ -1,0 +1,8 @@
+EJECUTIVO 
+79**HANDWRITTEN TOP RIGHT**
+DEMANDANTE: L. E. BERNAT, cesionario de C. A. P. de la Torre
+DEMANDADO: MANUEL MARIA LOZANO, vecino de Condoto
+FECHA DE LA DEMANDA: 4 de diciembre de 1929
+!!!!!!!!!!!!!!!!!!!
+0000000000000000000
+(119) **HAND WRITTEN IN BLUE**

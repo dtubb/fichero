@@ -1,0 +1,11 @@
+Clarify, clean up, and if necessary reorder the OCR text of the SOURCE in Spanish. 
+
+IGNORE RULE NUMBERS AND CM. Flag INDECIPHERABLE TEXT. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `clarified_text`. MAKE NOTHING UP. SAY NOTHING ELSE. 
+
+EXAMPLE: 
+"clarified_text": "Este texto es mas claro."
+
+SOURCE:[/INT]
+{source}

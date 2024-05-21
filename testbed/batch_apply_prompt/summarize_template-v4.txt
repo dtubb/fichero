@@ -1,0 +1,11 @@
+If there is enough information, concisely describe and summarize the ARCHIVAL SOURCE in Spanish, otherwise, say not enough information to summarize.
+
+SAY NOTHING ELSE. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `summary`.
+
+EXAMPLE: 
+"summary": "Aquí va el resumen del texto fuente en español."
+
+ARCHIVAL SOURCE:
+{source}

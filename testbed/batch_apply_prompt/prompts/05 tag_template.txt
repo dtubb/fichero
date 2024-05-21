@@ -1,0 +1,9 @@
+Use the Zettelkasten method to tag this source with 3 tags, based on the tags list provided. If no tags fit, create a tag.
+  
+RETURN AS JSON.
+
+SLIP:
+{source}
+
+TAGS:
+{tags}

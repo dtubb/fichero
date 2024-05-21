@@ -1,0 +1,11 @@
+List the NAMES OF PEOPLE in this source.
+
+SAY NOTHING ELSE. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `names`.
+
+EXAMPLE: 
+"names": "First Name Last Name(s)"
+
+SOURCE:
+{source} 

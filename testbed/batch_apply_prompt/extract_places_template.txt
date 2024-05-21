@@ -1,0 +1,10 @@
+Extract ALL NAMES of PLACES mentioned in the SOURCE. DO NOT ASSUME. SAY NOTHING ELSE.
+
+RETURN AS JSON DICTIONARY WITH THE KEY `places`.
+
+Example: 
+
+"place_names": ["Madrid", "Bogotá", "Puerto Rico"]
+
+SOURCE:
+{source}

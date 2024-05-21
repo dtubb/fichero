@@ -1,0 +1,55 @@
+Great! Let's break down the Fichero project into its main components and define the steps that need to be done programmatically for each component. We'll focus on the Python scripts and their functionalities. Please note that this is a high-level overview, and we can further refine and expand on each component as needed.
+
+1. Image Processing and Text Extraction:
+   - Script: `extract_text.py`
+   - Functionality:
+     - Connect to Google Vision API or eScriptorium-Vision API to process the digital images.
+     - Extract text from the images using OCR (Optical Character Recognition) or HTR (Handwritten Text Recognition) techniques.
+     - Save the extracted text in a structured format (e.g., JSON or XML) for further processing.
+
+2. Natural Language Processing (NLP):
+   - Script: `process_text.py`
+   - Functionality:
+     - Load the extracted text from the previous step.
+     - Use spaCy library for NLP tasks such as tokenization, named entity recognition, and keyword extraction.
+     - Perform additional text preprocessing if required (e.g., removing stop words, stemming, lemmatization).
+     - Save the processed text and extracted entities/keywords in a structured format.
+
+3. Metadata Extraction and Summarization:
+   - Script: `extract_metadata.py`
+   - Functionality:
+     - Use LangChain/HuggingFace to query large language models for metadata extraction and summarization.
+     - Generate summaries, timelines, and other relevant metadata based on the processed text.
+     - Save the extracted metadata in a structured format (e.g., YAML) for each document.
+
+4. Markdown File Generation:
+   - Script: `generate_markdown.py`
+   - Functionality:
+     - Create a folder hierarchy based on the document structure or metadata.
+     - Generate Markdown files for each document, incorporating the extracted text, metadata, and summaries.
+     - Use a template engine (e.g., Jinja2) to generate the Markdown files with a consistent structure and formatting.
+
+5. Visual Metadata Mapping:
+   - Script: `map_metadata.py`
+   - Functionality:
+     - Integrate with Nomic's Atlas library to create visual representations of the metadata.
+     - Generate interactive visualizations, such as network graphs or timelines, based on the extracted entities, keywords, and relationships.
+     - Save the visualizations in a format that can be easily embedded or linked to the Markdown files.
+
+6. Static Website Generation:
+   - Script: `generate_website.py`
+   - Functionality:
+     - Use Jekyll static site generator to build a website from the generated Markdown files.
+     - Configure Jekyll templates and layouts to present the digital catalogue in a user-friendly and navigable format.
+     - Generate the necessary HTML, CSS, and JavaScript files for the static website.
+
+7. Command-Line Interface (CLI):
+   - Script: `fichero_cli.py`
+   - Functionality:
+     - Use Typer library to create a user-friendly CLI for the Fichero project.
+     - Define commands and options for each component, allowing users to run specific tasks or the entire workflow.
+     - Implement color verbosity and logging using the Rich library to provide informative and visually appealing output.
+
+These are the main components and their corresponding Python scripts for the Fichero project. Each script focuses on a specific functionality and can be developed and tested independently. The CLI script (`fichero_cli.py`) will serve as the main entry point, orchestrating the execution of the other scripts based on user input.
+
+Let me know if you have any questions or if you'd like to further discuss any of the components in more detail.

@@ -1,0 +1,11 @@
+List the DATES in this source.
+
+SAY NOTHING ELSE. 
+
+RETURN AS JSON DICTIONARY WITH THE KEY `dates`.
+
+EXAMPLE: 
+"dates": "YYYY-MM-DD"
+
+SOURCE:
+{source} 

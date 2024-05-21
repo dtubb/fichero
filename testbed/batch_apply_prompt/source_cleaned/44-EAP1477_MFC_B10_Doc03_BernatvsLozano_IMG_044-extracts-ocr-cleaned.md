@@ -1,0 +1,26 @@
+GACETA DE I
+El abandono sería imputable a ellos y no al actor, ya que este ha actuado hasta llegar a esa providencia y no es a quien corresponde cumplirla. Consta de autos que el actor, luego de haber decretado el embargo de la casa, cuyo desembargo se demanda ahora, hizo todas las gestiones necesarias para un avalúo y depósito, costeó la publicación del edicto en el zatorio y llevó a los autos los ejemplares que comprueban haber cumplido con tal obligación; que el edicto emplazatorio fue desfijado el ocho de febrero de mil novecientos veintiocho, y que el nueve de agosto del mismo año citó a las partes para sentencia de pregón remate.
+
+Proferido este auto, no corresponde al ejecutante verificar la notificación de la Secretaría, y si esta no lo ha hecho, la omisión del empleado no puede generar abandono del actor, sino que es imputable al empleado. No consta que se haya hecho nada para notificar correctamente y que no figura alguna notificación personal en el supuesto de que la Secretaría hubiera notificado el auto. Tocaba al Juez dictar la sentencia para la cual fueron citadas las partes, y que tampoco es deber del actor proceder al término legal, que para eso han principiado a correr, por culpa del Secretario no notificando la notificación.
+
+Por estas razones, este Juzgado se niega a decretar la caducidad de la instancia y al consiguiente levantamiento del embargo y en su lugar dispone: Procédase por la Secretaría a notificar el auto de nueve de agosto de mil novecientos veintiocho, notificación que tiene que ser personal (artículo 69 de la Ley 63 de 1905). Notifíquese y cúmplase.-El Juez, PABLO ROJAS.-El Secretario Ruperto Perea P.
+
+"Juzgado segundo de mil por ser su Juez. Por tanto, para que sirva de notificación en forma surta los efectos legales como lo indica el artículo 69 de la Ley 63 de 1905, fijo el presente edicto en lugar público de este Juzgado por el término de treinta días hoy diez y ocho de diciembre de mil novecientos veintinueve a las dos (2) de la tarde. -El Secretario, Ruperto Perea P. Es copia.-El Secretario, Ruperto Perea P.
+
+EDICTO EMPLAZATORIO
+El Juez segundo del Circuito de Istmicho HACE SABER:
+Que en el juicio ejecutivo seguido por Enrique Bernat contra Juan B. se dictó el auto siguiente: aplíquese.
+
+Quibdó, seis de marzo de mil novecientos treinta. JORGE VALENCIA LOZANO.-El Secretario de Hacienda, Delfino Díaz R.
+
+DECRETO número 69 de 1930 (marzo 6), por el cual se aprueba otro del Interventor Subalterno de Rentas.
+El Intendente Nacional del Chocó, en uso de sus facultades legales, DECRETA:
+Artículo único. Apruébase el decreto que se copia a continuación:
+“Decreto número 15 (febrero 6 de 1930), por el cual se hace un nombramiento.-El Interventor Subalterno de Rentas, en uso de la autorización contenida en el telegrama número 561 de 24 de enero, originario de la Secretaría de Hacienda, decreta: Artículo 12 Por renuncia aceptada al señor Noé Gómez, colector de hacienda de Palestina, y por incapacidad del señor José Agustín Morante, quien había sido nombrado en reemplazo por la Intendencia, nómbrese al señor Manuel D. Ca- Colector de Palestina. El nombrado, antes de presentar un fiador responsable por el manejo por una cuantía de seiscientos (600,00) oro.-Dáse cuenta al Intendente Nacional para los fines pertinentes, y comuníquese al interesado. Quibdó, a seis de febrero de mil novecientos treinta.-El Interventor Subalterno de Rentas, Lisandro Mosquera, publíquese.
+
+RESOLUCIÓN número 6 de 1930 (marzo 17). Estudiadas las precedentes diligencias y habiéndose satisfecho en ellas todas las exigencias del Código de Minas; teniendo en cuenta -además- el inciso 5º, artículo 33 del citado Código, se RESUELVE:
+Expídase a favor del señor Juan Garcés, residente de una sociedad, para sí y los socios que la constituyen conforme la distribución que antecede, el correspondiente título de propiedad de la mina de aluvión de oro y platino, de nuevo descubrimiento, denominada "LA SOCIEDAD", situada en la desembocadura de la quebrada "La Sabanera", afluente del riachuelo Mumbú, en el corregimiento de este nombre, Distrito de Tadó, Provincia del San Juan, jurisdicción de esta Intendencia. De conformidad con lo prescrito por las Leyes 19 de 1904 y 72 de 1910, se impone la condición resolutoria de nulidad de no poder traspasar los derechos provenientes de la presente adjudicación a compañías, entidades o individuos que no sean nacionales colombianos. En ningún caso dicha adjudicación perjudica a terceros y deja a salvo derechos de los cultivadores o colonos de bienes dioses, según el artículo 47 del Código Fiscal y quedará sujeta en lo pertinente a las disposiciones contenidas en el título III del mismo Código. Dada en Quibdó, a diecisiete (17) de marzo de mil novecientos treinta (1930) y sellado con el sello de la Intendencia. El Intendente, JORGE VALENCIA LOZANO., El Secretario de Hacienda, Delfino Díaz R.
+
+DECRETO número 63 de 1930 (marzo 5), por el cual se nombran profesores en el Colegio Carrasquilla.
+El Intendente Nacional del Chocó, en uso de sus atribuciones legales, DECRETA:
+Artículo 19. Nómbrese en propiedad Profesor de Filosofía (Lógica) del Colegio Carrasquilla, al doctor Raúl F. Castillo.
