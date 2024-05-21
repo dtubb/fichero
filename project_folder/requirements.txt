@@ -1,0 +1,14 @@
+torch
+typer
+Pillow
+rich
+spacy
+kraken=4.3.0
+shapely
+coremltools
+markupsafe
+jinja2
+jsonschema
+google-api-python-client
+typing-extensions
+cryptography
