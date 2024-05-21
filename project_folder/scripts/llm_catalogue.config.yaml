@@ -1,0 +1,86 @@
+langchain:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+  ollama:  
+    api_key: ${OLLAMA_API_KEY}
+  claude:
+    api_key: ${CLAUDE_API_KEY}
+  google:  
+    api_key: ${GOOGLE_API_KEY}
+
+logging:
+  filename: script.log
+
+prompts:
+  summary:
+    template: |
+      [INT]Describe and summarize TEXT in Spanish. IGNORE INDECIPHERABLE NUMBERS AND TEXT. RETURN AS JSON DICTIONARY WITH THE KEY `summary`. 
+      
+      SAY NOTHING ELSE. EXAMPLE:
+      
+      "summary": "Aquí va el resumen del texto fuente en español." 
+      
+      TEXT:[/INT]
+      {text}
+    provider: ollama
+    model_name: llama3:8b
+  names:
+    template: |
+      [INT]List PEOPLE mentioned in this source. If no PEOPLE are mentioned, return an empty JSON with the key `names`.
+      
+      SAY NOTHING ELSE. 
+      
+      RETURN AS JSON DICTIONARY WITH THE KEY `names`.
+
+      EXAMPLE: 
+      "names": "First Name Last Name(s)"
+      
+      TEXT:[/INT]
+      {text}
+    provider: ollama
+    model_name: mistral:7b-instruct
+  places:
+    template: |
+      [INT]List PLACES mentioned in this source. If no PLACES are mentioned, return an empty JSON with the key `places`.
+      
+      SAY NOTHING ELSE. 
+      
+      RETURN AS JSON DICTIONARY WITH THE KEY `places`.
+      
+      EXAMPLE: 
+      "places": "Name of Place"
+      
+      TEXT:[/INT]
+      {text}
+    provider: ollama
+    model_name: mistral:7b-instruct
+  dates:
+    template: |
+      [INT]List the DATES in this source. If no DATES are mentioned, return an empty JSON with the key `dates`.
+      
+      SAY NOTHING ELSE. 
+      
+      RETURN AS JSON DICTIONARY WITH THE KEY `dates`.
+      
+      EXAMPLE: 
+      "dates": "YYYY-MM-DD"
+      
+      TEXT:[/INT]
+      {text}
+    provider: ollama
+    model_name: mistral:7b-instruct
+  keywords:
+    template: |
+      [INT]List 3 `keywords` for this source. If no KEYWORDS applicable, return an empty JSON with the key `keywords`.
+      
+      SAY NOTHING ELSE. 
+      
+      RETURN AS JSON DICTIONARY WITH THE KEY `keywords`.
+      
+      EXAMPLE: 
+      "keywords": ""
+      
+      TEXT:[/INT]
+      {text}
+    provider: ollama
+    model_name: mistral:7b-instruct
