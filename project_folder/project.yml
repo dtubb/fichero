@@ -19,7 +19,8 @@ vars:
   language: "es"
   text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
   version: "0.0.0"
-  iiif_collections: "collections.txt"
+  iiif_collections: "assets/collections.txt" #if loading from IIIF
+  image_folder: "assets/images" # if loading from a folder
   escriptorium_url: "https://escriptorium.pennds.org"
   escriptorium_project_name: "EAP1477/1"
   transcription: 'vision'
@@ -42,6 +43,9 @@ directories: ["assets", "configs", "scripts", "pipelines", "packages"]
 workflows:
   prepare:
     - fetch_iiif
+      # or
+    - prepare_folder 
+
     - segment
     - transcribe
   evaluate:
@@ -67,6 +71,13 @@ commands:
     outputs:
       - assets/
 
+  - name: prepare_folder
+    help: "Reads a folder fill of image files, normalized the filenames and file types."
+    script:
+      - "python scripts/prepare_folder.py ${vars.image_folder} assets/"
+    outputs:
+      - assets/
+      
   - name: segment
     help: "Segment the images with Kraken."
     script:

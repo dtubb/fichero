@@ -24,7 +24,12 @@ def segment(
         if not image.with_suffix('.xml').exists():
             img = Image.open(image)
             baseline_seg = blla.segment(img, device=device, text_direction=text_direction)
-            alto_xml = serialization.serialize_segmentation(baseline_seg, image_name=image.name, image_size=img.size, template='alto')
+            # Temporary hack following code update 
+            for line in baseline_seg.lines:
+                line.cuts = []
+                line.confidences = []
+                line.prediction = ''
+            alto_xml = serialization.serialize(baseline_seg, image_size=img.size, template='alto')
             image.with_suffix('.xml').write_text(alto_xml)
 
 if __name__ == "__main__":
