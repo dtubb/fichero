@@ -42,3 +42,18 @@ Fichero—from the Spanish for "box of index cards"—is a set of Weasel workflo
 - Writes Markdown, with metadata in human-readable [YAML]() format.
 - Easy to use command-line interface (CLI), made with [Typer](https://typer.tiangolo.com).
 - Prettified terminal output, with [Rich](https://rich.readthedocs.io/en/stable/index.html).
+
+## Useage 
+
+1. clone this repository 
+`git clone https://github.com/dtubb/fichero.git && cd fichero`
+2. install Python and dependencies
+`conda env create --file=project_folder/linux_cuda.yml`
+
+To run commands in the workflow, first navigate to the projects_folder
+`cd project_folder`
+then type 
+`python -m weasel run` 
+you should see the help display with a list of available commands. 
+For example, to fetch the IIIF images from the British Library, you would execute:  
+`python -m weasel run fetch_iiif`

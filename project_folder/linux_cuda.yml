@@ -108,6 +108,8 @@ dependencies:
       - coremltools==6.3.0
       - cymem==2.0.8
       - frozenlist==1.4.1
+      - google-api-python-client==2.129.0
+      - httpx==0.27.0
       - idna==3.7
       - imageio==2.34.1
       - importlib-resources==6.4.0
