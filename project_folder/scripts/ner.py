@@ -1,20 +1,33 @@
 import typer
 import spacy
+import srsly 
 from lxml import etree
 from pathlib import Path
 import json
 from rich.progress import Progress
+from typing_extensions import Annotated
 
 app = typer.Typer()
 
 # Load spaCy model
-nlp = spacy.load("es_core_news_lg")
+try:
+    nlp = spacy.load("es_core_news_lg")
+except OSError:
+    print("Downloading spaCy model...")
+    from spacy.cli.download import download
 
-def process_xml(xml_file: Path, force_update: bool = False) -> None:
+    download("es_core_news_lg")
+    nlp = spacy.load("es_core_news_lg")
+
+def process_xml(
+        xml_file: Annotated[Path, typer.Argument(help="Path to the XML file or path",exists=True)],
+        collection_data: Annotated[Path, typer.Argument(help="Path to the collection_data.jsonl file",exists=True)],
+        force_update: Annotated[bool, typer.Argument(help="Force update even if data exists",exists=True)] = False,
+):
     """
-    Process an XML file to extract named entities and update the XML file.
+    Process an ALTO XML files to extract named entities.
 
-    :param xml_file: Path to the XML file
+    :param xml_file: Path to the XML file or path
     :param force_update: Force update even if data exists
     """
 
@@ -33,90 +46,92 @@ def process_xml(xml_file: Path, force_update: bool = False) -> None:
         # Load XML with recovery option
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(xml_file, parser)
-    except Exception as e:
-        print(f"Error parsing {xml_file.name}: {e}")
-        return
+    
 
-    # Define the namespace
-    ns = {'alto': 'http://www.loc.gov/standards/alto/ns-v4#'}
+        # Define the namespace
+        ns = {'alto': 'http://www.loc.gov/standards/alto/ns-v4#'}
 
-    # Find Page element
-    page_elem = tree.find(".//{http://www.loc.gov/standards/alto/ns-v4#}Page")
+        # Find Page element
+        page_elem = tree.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}String")
 
-    if page_elem is None:
-        print(f"No Page element found in {xml_file.name}")
-        return
+        if page_elem is None:
+            print(f"No Page element found in {xml_file.name}")
+            return
 
-    # Get the String element under the Page element
-    string_elem = page_elem.find("{http://www.loc.gov/standards/alto/ns-v4#}String")
+        # Get the String element under the Page element
+        string_elem = page_elem.find("{http://www.loc.gov/standards/alto/ns-v4#}String")
 
-    if string_elem is None:
-        print(f"No String element found under Page in {xml_file.name}")
-        # Create an empty ner.json file
+        if string_elem is None:
+            print(f"No String element found under Page in {xml_file.name}")
+            # Create an empty ner.json file
+            try:
+                with open(ner_json_file, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+            except Exception as e:
+                print(f"Error writing {ner_json_file.name}: {e}")
+            return
+
+        # Get the full text from the String element
+        full_text = string_elem.get("CONTENT", "")
+
+        """
+        ======================================
+        LOAD OR CREATE Entities from Full_Text using spaCy
+        ========================
+        """
+        # Define the entity categories
+        entity_categories = ["PER", "LOC", "ORG", "DATE", "MISC"]
+
+        # Initialize the entities dictionary with lists for each category
+        entities = {category: [] for category in entity_categories}
+
+        # Remove existing Entity elements from the XML
+        for entity_elem in tree.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}Entity", namespaces=ns):
+            entity_elem.getparent().remove(entity_elem)
+
+        # Extract named entities using spaCy
+        spacy_doc = nlp(full_text)
+
+        # Iterate over the extracted entities and populate the entities dictionary
+        for ent in spacy_doc.ents:
+            entity_data = {
+                "text": ent.text,
+                "start": ent.start_char,
+                "end": ent.end_char,
+                "label": ent.label_
+            }
+            if ent.label_ in entity_categories:
+                entities[ent.label_].append(entity_data)
+            else:
+                entities["MISC"].append(entity_data)
+
+        # Create XML elements for each entity and append to Page element
+        for category, entity_list in entities.items():
+            for entity in entity_list:
+                entity_elem = etree.Element("{http://www.loc.gov/standards/alto/ns-v4#}Entity", nsmap=ns)
+                entity_elem.set("type", category)
+                entity_elem.set("start", str(entity["start"]))
+                entity_elem.set("end", str(entity["end"]))
+                entity_elem.text = entity["text"]
+                page_elem.append(entity_elem)
+
+        # Save the modified XML
+        try:
+            tree.write(xml_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
+        except Exception as e:
+            print(f"Error writing {xml_file.name}: {e}")
+            return
+
+        # Save named entities to a JSON file
         try:
             with open(ner_json_file, "w", encoding="utf-8") as f:
-                json.dump({}, f)
+                json.dump(entities, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Error writing {ner_json_file.name}: {e}")
-        return
-
-    # Get the full text from the String element
-    full_text = string_elem.get("CONTENT", "")
-
-    """
-    ======================================
-    LOAD OR CREATE Entities from Full_Text using spaCy
-    ========================
-    """
-    # Define the entity categories
-    entity_categories = ["PER", "LOC", "ORG", "DATE", "MISC"]
-
-    # Initialize the entities dictionary with lists for each category
-    entities = {category: [] for category in entity_categories}
-
-    # Remove existing Entity elements from the XML
-    for entity_elem in tree.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}Entity", namespaces=ns):
-        entity_elem.getparent().remove(entity_elem)
-
-    # Extract named entities using spaCy
-    spacy_doc = nlp(full_text)
-
-    # Iterate over the extracted entities and populate the entities dictionary
-    for ent in spacy_doc.ents:
-        entity_data = {
-            "text": ent.text,
-            "start": ent.start_char,
-            "end": ent.end_char,
-            "label": ent.label_
-        }
-        if ent.label_ in entity_categories:
-            entities[ent.label_].append(entity_data)
-        else:
-            entities["MISC"].append(entity_data)
-
-    # Create XML elements for each entity and append to Page element
-    for category, entity_list in entities.items():
-        for entity in entity_list:
-            entity_elem = etree.Element("{http://www.loc.gov/standards/alto/ns-v4#}Entity", nsmap=ns)
-            entity_elem.set("type", category)
-            entity_elem.set("start", str(entity["start"]))
-            entity_elem.set("end", str(entity["end"]))
-            entity_elem.text = entity["text"]
-            page_elem.append(entity_elem)
-
-    # Save the modified XML
-    try:
-        tree.write(xml_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
+            return
+    
     except Exception as e:
-        print(f"Error writing {xml_file.name}: {e}")
-        return
-
-    # Save named entities to a JSON file
-    try:
-        with open(ner_json_file, "w", encoding="utf-8") as f:
-            json.dump(entities, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"Error writing {ner_json_file.name}: {e}")
+        print(f"Error parsing {xml_file.name}: {e}")
         return
 
 @app.command()

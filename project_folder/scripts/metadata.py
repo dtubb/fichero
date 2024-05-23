@@ -15,6 +15,16 @@ def parse_Istmina_id(filename):
     box = re.search(r'B\d{2}', filename).group()
     return collection, doc.replace('Doc',''), box.replace('B','')
 
+def organize_by_doc(collections_data:list):
+    for collection in collections_data:
+        collection['docs'] = []
+        # get all distinct doc numbers
+        docs = list(set([image.get("doc",None) for image in collection["images"]])) 
+        # for each doc number, get all images
+        for doc in docs:
+            collection['docs'].append({"doc":doc, "ents":[], "description":None})
+            
+
 def metadata(
         iiif_collections: Annotated[Path, typer.Argument(help="Path to the collections.txt file",exists=True)],
         bl_to_istmina: Annotated[Path, typer.Argument(help="Path to the BL to Istmina csv file",exists=True)],
@@ -66,7 +76,8 @@ def metadata(
                 img['collection'], img["doc"], img["box"] = parse_Istmina_id(img['istmina_id'])
             metadata['images'].append(img)
         collections_data.append(metadata)
-    srsly.write_jsonl(f'{str(output_path)}/collections_metadata.jsonl', collections_data)
+        collection = organize_by_doc(collections_data)
+    srsly.write_jsonl(f'{str(output_path)}/collection_data.jsonl', collections_data)
 
 if __name__ == "__main__":
     typer.run(metadata)

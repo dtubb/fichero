@@ -52,13 +52,16 @@ workflows:
     - download
   process:
     - metadata
-    - download
+    - ner
+    - llm_catalogue
+  
   #publish:
     #- obsidian
     #- huggingface-datasets
     #- eleventy-site
     #- steamlit/gradio
     #- datasette
+    #- excel
 
 
 commands:
@@ -110,8 +113,22 @@ commands:
       - assets/
 
   - name: metadata
+    help: "Use the existing manifests to createa jsonl file to store box- and doc-level metadata"
+    script:
+      - "python scripts/metadata.py ${vars.iiif_collections} ${vars.bl_to_istmina} assets/"
+    outputs:
+      - assets/collection_data.jsonl
+  
+  - name: ner
     help: "Use named entity recognition and entity linking to identify people, places, dates, events and organizations."
     script:
       - "python scripts/metadata.py ${vars.iiif_collections} ${vars.bl_to_istmina} assets/"
+    outputs:
+      - assets/
+
+  - name: llm_catalogue
+    help: "Use LLMs to generate case summaries and collection summaries."
+    script:
+      - "python scripts/TODO.py"
     outputs:
       - assets/
