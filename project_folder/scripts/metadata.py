@@ -5,7 +5,15 @@ import srsly
 from pathlib import Path
 from typing_extensions import Annotated
 from rich.progress import track
+import re 
 
+def parse_Istmina_id(filename):
+    filename = filename.split('/')[-1]
+    filename = filename.split('.')[0]
+    collection = 'MFC' if 'MFC' in filename else 'GHC'
+    doc = re.search(r'Doc\d{2}', filename).group() 
+    box = re.search(r'B\d{2}', filename).group()
+    return collection, doc.replace('Doc',''), box.replace('B','')
 
 def metadata(
         iiif_collections: Annotated[Path, typer.Argument(help="Path to the collections.txt file",exists=True)],
@@ -53,7 +61,9 @@ def metadata(
             img['filename'] = img['id'].split('/')[-2] + "_" +  img['id'].split('/')[-1]
             img['filename'] = img['filename'].split('.')[0] + ".jpg"
             img['alto_filename'] = img['filename'].split('.')[0] + ".xml"
-            img['istimna_id'] = bl_to_istmina.get(img['filename'].split('/')[-1], None)
+            img['istmina_id'] = bl_to_istmina.get(img['filename'].split('/')[-1], None)
+            if img['istmina_id']:
+                img['collection'], img["doc"], img["box"] = parse_Istmina_id(img['istmina_id'])
             metadata['images'].append(img)
         collections_data.append(metadata)
     srsly.write_jsonl(f'{str(output_path)}/collections_metadata.jsonl', collections_data)
