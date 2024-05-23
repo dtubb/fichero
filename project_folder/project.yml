@@ -1,4 +1,4 @@
-title: "Demo Project Workflow. From images to research data in Obsidian"
+title: "Istmina Project Workflow. From images to research data in Obsidian"
 description: > 
   This project offers a workflow to process historical documents from the Circuit Court of Istmina, Chocó, Colombia.
   https://eap.bl.uk/project/EAP1477
@@ -20,7 +20,7 @@ vars:
   text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
   version: "0.0.0"
   iiif_collections: "assets/collections.txt" #if loading from IIIF
-  image_folder: "assets/images" # if loading from a folder
+  image_folder: "assets/images" # if loading from a folder, use the prepare_folder command
   escriptorium_url: "https://escriptorium.pennds.org"
   escriptorium_project_name: "EAP1477/1"
   transcription: 'vision'
@@ -43,9 +43,6 @@ directories: ["assets", "configs", "scripts", "pipelines", "packages"]
 workflows:
   prepare:
     - fetch_iiif
-      # or
-    - prepare_folder 
-
     - segment
     - transcribe
   evaluate:
