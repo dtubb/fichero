@@ -9,8 +9,15 @@ from rich.progress import track
 
 def metadata(
         iiif_collections: Annotated[Path, typer.Argument(help="Path to the collections.txt file",exists=True)],
+        bl_to_istmina: Annotated[Path, typer.Argument(help="Path to the BL to Istmina csv file",exists=True)],
         output_path: Annotated[Path, typer.Argument(help="Path where fetched images were saved")],
 ):
+    # read the BL to Istmina csv file to a dictionary
+    bl_to_istmina = Path(bl_to_istmina).read_text().splitlines()
+    bl_to_istmina = [line.split(",") for line in bl_to_istmina]
+    bl_to_istmina = [[line[0].split('/')[-1],line[1]] for line in bl_to_istmina]
+    bl_to_istmina = {line[0]:line[1] for line in bl_to_istmina}
+
     # read the manifests 
     # load txt file and get manifest URIs
     manifest_uris = Path(iiif_collections).read_text().splitlines()
@@ -46,6 +53,7 @@ def metadata(
             img['filename'] = img['id'].split('/')[-2] + "_" +  img['id'].split('/')[-1]
             img['filename'] = img['filename'].split('.')[0] + ".jpg"
             img['alto_filename'] = img['filename'].split('.')[0] + ".xml"
+            img['istimna_id'] = bl_to_istmina.get(img['filename'].split('/')[-1], None)
             metadata['images'].append(img)
         collections_data.append(metadata)
     srsly.write_jsonl(f'{str(output_path)}/collections_metadata.jsonl', collections_data)

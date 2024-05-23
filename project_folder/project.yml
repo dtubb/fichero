@@ -20,6 +20,7 @@ vars:
   text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
   version: "0.0.0"
   iiif_collections: "assets/collections.txt" #if loading from IIIF
+  bl_to_istmina: "assets/bl-istmina.csv"
   image_folder: "assets/images" # if loading from a folder, use the prepare_folder command
   escriptorium_url: "https://escriptorium.pennds.org"
   escriptorium_project_name: "EAP1477/1"
@@ -111,6 +112,6 @@ commands:
   - name: metadata
     help: "Use named entity recognition and entity linking to identify people, places, dates, events and organizations."
     script:
-      - "python scripts/metadata.py ${vars.iiif_collections} assets/"
+      - "python scripts/metadata.py ${vars.iiif_collections} ${vars.bl_to_istmina} assets/"
     outputs:
       - assets/
