@@ -4,25 +4,51 @@ import srsly
 from lxml import etree
 from pathlib import Path
 import json
-from rich.progress import Progress
+from rich.progress import track
 from typing_extensions import Annotated
+from simple_alto_parser import AltoFileParser
 
 app = typer.Typer()
 
-# Load spaCy model
-try:
-    nlp = spacy.load("es_core_news_lg")
-except OSError:
-    print("Downloading spaCy model...")
-    from spacy.cli.download import download
+def process_xml_file(xml_file: Path):
+    parser = etree.XMLParser()
+    xml_tree = etree.parse(xml_file, parser)
+    # assert that the XML file is an ALTO file
+    if xml_tree.getroot().tag != "{http://www.loc.gov/standards/alto/ns-v4#}alto":
+        raise ValueError(f"{xml_file} is not an ALTO file")
+    # xmlns from xml_tree
+    xmlns = xml_tree.getroot().nsmap[None]
+    
+    # from: https://github.com/RISE-UNIBAS/simple-alto-parser
+    page_content = """"""
+    for text_block in xml_tree.iterfind('.//{%s}TextBlock' % xmlns):
+        block_content = ""
+        for text_line in text_block.iterfind('.//{%s}TextLine' % xmlns):
+            line_content = ""
+            for text_bit in text_line.findall('{%s}String' % xmlns):
+                bit_content = text_bit.attrib.get('CONTENT')
+                line_content += " " + bit_content
 
-    download("es_core_news_lg")
-    nlp = spacy.load("es_core_news_lg")
+            block_content += line_content
+        page_content += block_content + "\n"
+    # https://altoxml.github.io/documentation/use-cases/tags/ALTO_tags_usecases.html#named_entity_tagging
+    
+    # Add the entity tag to the Tags element
+    # <Tags>
+    # <NamedEntityTag ID="NE15" LABEL="Location" DESCRIPTION="Lexington"/>
+    # …
+    # </Tags>
+    # then refer to the tag id in the String element
+    #<String CONTENT="Lexington" WC="1.0" TAGREFS="NE15" HPOS… VPOS…>
 
-def process_xml(
-        xml_file: Annotated[Path, typer.Argument(help="Path to the XML file or path",exists=True)],
+    return page_content
+
+    
+
+def ner(
+        xml_path: Annotated[Path, typer.Argument(help="Path to the XML file or path",exists=True)],
         collection_data: Annotated[Path, typer.Argument(help="Path to the collection_data.jsonl file",exists=True)],
-        force_update: Annotated[bool, typer.Argument(help="Force update even if data exists",exists=True)] = False,
+        spacy_model: Annotated[str, typer.Argument(help="spaCy model name")] = "es_core_news_lg",
 ):
     """
     Process an ALTO XML files to extract named entities.
@@ -31,145 +57,28 @@ def process_xml(
     :param force_update: Force update even if data exists
     """
 
-    # Check if the XML file has already been processed
-    ner_json_file = xml_file.with_suffix(".ner.json")
-    if ner_json_file.exists() and not force_update:
-        # Check if the ner.json file is empty
-        if ner_json_file.stat().st_size == 0:
-            # If the ner.json file is empty, process the XML file
-            pass
-        else:
-            # If the ner.json file is not empty, skip the file
-            return
-
+    # Load or download spaCy model
     try:
-        # Load XML with recovery option
-        parser = etree.XMLParser(recover=True)
-        tree = etree.parse(xml_file, parser)
+        nlp = spacy.load(spacy_model)
+    except OSError:
+        from spacy.cli.download import download
+        download(spacy_model)
     
+    nlp = spacy.load(spacy_model)
 
-        # Define the namespace
-        ns = {'alto': 'http://www.loc.gov/standards/alto/ns-v4#'}
-
-        # Find Page element
-        page_elem = tree.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}String")
-
-        if page_elem is None:
-            print(f"No Page element found in {xml_file.name}")
-            return
-
-        # Get the String element under the Page element
-        string_elem = page_elem.find("{http://www.loc.gov/standards/alto/ns-v4#}String")
-
-        if string_elem is None:
-            print(f"No String element found under Page in {xml_file.name}")
-            # Create an empty ner.json file
-            try:
-                with open(ner_json_file, "w", encoding="utf-8") as f:
-                    json.dump({}, f)
-            except Exception as e:
-                print(f"Error writing {ner_json_file.name}: {e}")
-            return
-
-        # Get the full text from the String element
-        full_text = string_elem.get("CONTENT", "")
-
-        """
-        ======================================
-        LOAD OR CREATE Entities from Full_Text using spaCy
-        ========================
-        """
-        # Define the entity categories
-        entity_categories = ["PER", "LOC", "ORG", "DATE", "MISC"]
-
-        # Initialize the entities dictionary with lists for each category
-        entities = {category: [] for category in entity_categories}
-
-        # Remove existing Entity elements from the XML
-        for entity_elem in tree.findall(".//{http://www.loc.gov/standards/alto/ns-v4#}Entity", namespaces=ns):
-            entity_elem.getparent().remove(entity_elem)
-
-        # Extract named entities using spaCy
-        spacy_doc = nlp(full_text)
-
-        # Iterate over the extracted entities and populate the entities dictionary
-        for ent in spacy_doc.ents:
-            entity_data = {
-                "text": ent.text,
-                "start": ent.start_char,
-                "end": ent.end_char,
-                "label": ent.label_
-            }
-            if ent.label_ in entity_categories:
-                entities[ent.label_].append(entity_data)
-            else:
-                entities["MISC"].append(entity_data)
-
-        # Create XML elements for each entity and append to Page element
-        for category, entity_list in entities.items():
-            for entity in entity_list:
-                entity_elem = etree.Element("{http://www.loc.gov/standards/alto/ns-v4#}Entity", nsmap=ns)
-                entity_elem.set("type", category)
-                entity_elem.set("start", str(entity["start"]))
-                entity_elem.set("end", str(entity["end"]))
-                entity_elem.text = entity["text"]
-                page_elem.append(entity_elem)
-
-        # Save the modified XML
-        try:
-            tree.write(xml_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
-        except Exception as e:
-            print(f"Error writing {xml_file.name}: {e}")
-            return
-
-        # Save named entities to a JSON file
-        try:
-            with open(ner_json_file, "w", encoding="utf-8") as f:
-                json.dump(entities, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error writing {ner_json_file.name}: {e}")
-            return
+    # Load the collection data
+    collection_data = srsly.read_jsonl(collection_data)
     
-    except Exception as e:
-        print(f"Error parsing {xml_file.name}: {e}")
-        return
-
-@app.command()
-def main(
-    path: Path = typer.Argument(..., help="Path to the XML file or directory"),
-    force_update: bool = typer.Option(False, "--force", "-f", help="Force update even if data exists"),
-):
-    """
-    Process an XML file or a directory of XML files to extract named entities and update the XML files.
-    """
-
-    if path.is_dir():
-        xml_files = list(path.rglob("*.xml"))
+    # Process the XML file
+    if xml_path.is_dir():
+        xml_files = list(xml_path.rglob("*.xml"))
     else:
-        xml_files = [path]
+        xml_files = [xml_path]
 
-    total_files = len(xml_files)
-    print(f"Processing {total_files} files...")
+    for xml_file in track(xml_files, description="Processing XML files..."):
+        text = process_xml_file(xml_file)
+        print(text)
 
-    with Progress() as progress:
-        task = progress.add_task("[green]Processing...", total=total_files)
-        skipped_files_count = 0
-        processed_files_count = 0
-
-        for xml_file in xml_files:
-            ner_json_file = xml_file.with_suffix(".ner.json")
-            if ner_json_file.exists() and not force_update:
-                skipped_files_count += 1
-                continue
-
-            process_xml(xml_file, force_update)
-            processed_files_count += 1
-            progress.update(task, advance=1)
-
-        if skipped_files_count > 0:
-            print(f"{skipped_files_count} files were skipped.")
-
-    print(f"Processed {processed_files_count} files.")
 
 if __name__ == "__main__":
-    app()
+    typer.run(ner)
