@@ -53,8 +53,8 @@ workflows:
   process:
     - metadata
     - ner
-    #- img_summary
-    #- doc_summary
+    - img_summary
+    - doc_summary
     #- box_summary
     #- collection_summary
 
@@ -116,12 +116,32 @@ commands:
       - assets/
 
   - name: metadata
-    help: "Use the existing manifests to createa jsonl file to store box- and doc-level metadata"
+    help: "Use the British Library box-level manifests to create jsonl files to store box-, doc- and image-level metadata"
     script:
       - "python scripts/metadata.py ${vars.iiif_collections} ${vars.bl_to_istmina} assets/"
     outputs:
-      - assets/collection_data.jsonl
+      - assets/images.jsonl
+      - assets/docs.jsonl
+      - assets/boxes.jsonl
   
+  - name: img_summary
+    help: "Generate image-level metadata"
+    deps:
+      - assets/images.jsonl
+    script:
+      - "python scripts/img_summary.py assets/images.jsonl"
+    outputs:
+      - assets/images.jsonl
+
+  - name: doc_summary
+    help: "Generate doc-level metadata"
+    deps:
+      - assets/docs.jsonl
+    script:
+      - "python scripts/doc_summary.py assets/docs.jsonl"
+    outputs:
+      - assets/docs.jsonl
+
   - name: ner
     help: "Use named entity recognition and entity linking to identify people, places, dates, events and organizations."
     script:
