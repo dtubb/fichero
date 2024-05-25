@@ -53,8 +53,11 @@ workflows:
   process:
     - metadata
     - ner
-    - llm_catalogue
-  
+    #- img_summary
+    #- doc_summary
+    #- box_summary
+    #- collection_summary
+
   #publish:
     #- obsidian
     #- huggingface-datasets

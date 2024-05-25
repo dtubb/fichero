@@ -10,9 +10,7 @@ from simple_alto_parser import AltoFileParser
 
 app = typer.Typer()
 
-def process_xml_file(xml_file: Path):
-    parser = etree.XMLParser()
-    xml_tree = etree.parse(xml_file, parser)
+def get_page_fulltext(xml_tree):
     # assert that the XML file is an ALTO file
     if xml_tree.getroot().tag != "{http://www.loc.gov/standards/alto/ns-v4#}alto":
         raise ValueError(f"{xml_file} is not an ALTO file")
@@ -31,15 +29,6 @@ def process_xml_file(xml_file: Path):
 
             block_content += line_content
         page_content += block_content + "\n"
-    # https://altoxml.github.io/documentation/use-cases/tags/ALTO_tags_usecases.html#named_entity_tagging
-    
-    # Add the entity tag to the Tags element
-    # <Tags>
-    # <NamedEntityTag ID="NE15" LABEL="Location" DESCRIPTION="Lexington"/>
-    # …
-    # </Tags>
-    # then refer to the tag id in the String element
-    #<String CONTENT="Lexington" WC="1.0" TAGREFS="NE15" HPOS… VPOS…>
 
     return page_content
 
@@ -76,8 +65,25 @@ def ner(
         xml_files = [xml_path]
 
     for xml_file in track(xml_files, description="Processing XML files..."):
-        text = process_xml_file(xml_file)
-        print(text)
+        parser = etree.XMLParser()
+        xml_tree = etree.parse(xml_file, parser)
+        text = get_page_fulltext(xml_tree)
+        # Process the text with spaCy
+        doc = nlp(text)
+        # Extract named entities
+        ents = [{"text": ent.text, "label": ent.label_} for ent in doc.ents]
+        print(ents)
+        # Create NamedEntityTag for each entity
+        # https://altoxml.github.io/documentation/use-cases/tags/ALTO_tags_usecases.html#named_entity_tagging
+        # Add the entity tag to the Tags element
+        # <Tags>
+        # <NamedEntityTag ID="NE15" LABEL="Location" DESCRIPTION="Lexington"/>
+        # …
+        # </Tags>
+        # then refer to the tag id in the String element
+        #<String CONTENT="Lexington" WC="1.0" TAGREFS="NE15" HPOS… VPOS…></String>
+        
+
 
 
 if __name__ == "__main__":

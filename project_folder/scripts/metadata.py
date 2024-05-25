@@ -15,21 +15,25 @@ def parse_Istmina_id(filename):
     box = re.search(r'B\d{2}', filename).group()
     return collection, doc.replace('Doc',''), box.replace('B','')
 
-def organize_by_doc(collections_data:list):
+def organize_by_doc(collections_data:list, docs:list):
     for collection in collections_data:
         collection['docs'] = []
         # get all distinct doc numbers
-        docs = list(set([image.get("doc",None) for image in collection["images"]])) 
+        _docs = list(set([image.get("doc",None) for image in collection["images"]])) 
         # for each doc number, get all images
-        for doc in docs:
+        for doc in _docs:
             collection['docs'].append({"doc":doc, "ents":[], "description":None})
-            
+            docs.append({"bl_box_id": collection["id"],"doc":doc, "ents":[], "description":None})
+    return collections_data, docs
 
 def metadata(
         iiif_collections: Annotated[Path, typer.Argument(help="Path to the collections.txt file",exists=True)],
         bl_to_istmina: Annotated[Path, typer.Argument(help="Path to the BL to Istmina csv file",exists=True)],
         output_path: Annotated[Path, typer.Argument(help="Path where fetched images were saved")],
 ):
+    """
+    Transforms the IIIF collections into a JSONL file with the metadata for each image.
+    """
     # read the BL to Istmina csv file to a dictionary
     bl_to_istmina = Path(bl_to_istmina).read_text().splitlines()
     bl_to_istmina = [line.split(",") for line in bl_to_istmina]
@@ -47,7 +51,9 @@ def metadata(
         manifest = response.json()
         manifests.append(manifest)
 
-    collections_data = []
+    all_images = []
+    docs = []
+    boxes = []
     for manifest in track(manifests, description="Processing manifests..."):
         # get the metadata
         metadata = {}
@@ -62,7 +68,6 @@ def metadata(
                 metadata[item["label"]] = item["value"]
         
         images = manifest["sequences"][0]["canvases"]
-
         for image in images:
             img = {}
             img['id'] = image["images"][0]["resource"]["service"]["@id"]
@@ -74,10 +79,15 @@ def metadata(
             img['istmina_id'] = bl_to_istmina.get(img['filename'].split('/')[-1], None)
             if img['istmina_id']:
                 img['collection'], img["doc"], img["box"] = parse_Istmina_id(img['istmina_id'])
+            all_images.append(img)
             metadata['images'].append(img)
-        collections_data.append(metadata)
-        collection = organize_by_doc(collections_data)
-    srsly.write_jsonl(f'{str(output_path)}/collection_data.jsonl', collections_data)
+        boxes.append(metadata)
+        boxes, docs = organize_by_doc(boxes, docs)
+    srsly.write_jsonl(f'{str(output_path)}/images.jsonl', all_images)
+    srsly.write_jsonl(f'{str(output_path)}/docs.jsonl', docs)
+    srsly.write_jsonl(f'{str(output_path)}/boxes.jsonl', boxes)
+    
+
 
 if __name__ == "__main__":
     typer.run(metadata)
