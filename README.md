@@ -125,27 +125,7 @@ DASHSCOPE_API_KEY=your_api_key_here
 
 Note: The DashScope API is a paid service. Please check their pricing page for current rates.
 
-## Citation and Credits
+## Citation
 
-Developed by:
-- Daniel Tubb
-- Andrew Janco
-
-This project uses the following models and tools:
-
-- Qwen2.0-VL-2B-Instruct: [Citation needed]
-- Qwen2.0-VL-7B-Instruct: [Citation needed]
-- Qwen2.0-VL-Max-Instruct: [Citation needed]
-
-The segmentation and processing pipeline is based on research from:
-- Text baseline detection: [Citation needed]
-- Connected component analysis: [Citation needed]
-- Document structure preservation: [Citation needed]
-
-## License
-
-[Your License Here]
-
-## Contributing
-
-[Your Contributing Guidelines Here]
+Citation for Fichero:
+Tubb, Daniel, and Andrew Janco. "Fichero: Document Processing and Transcription." GitHub, May 9, 2023. https://github.com/dtubb/fichero.
