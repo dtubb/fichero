@@ -119,7 +119,7 @@ To use the LM Studio workflows, you'll need to:
 2. Download the Qwen 2.5 VL 7B model in LM Studio:
    - Open LM Studio
    - Go to the "Models" tab
-   - Search for "qwen2.5-vl-7b-instruct"
+   - Search for "Qwen2.5-VL-3B-Instruct-8bit"
    - Download the model
 3. Start the LM Studio server:
    - Go to the "Local Server" tab

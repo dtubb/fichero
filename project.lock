@@ -16,9 +16,9 @@ crop:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/crops
-      md5: 9e7229d315e1afe4c18624d4eaceb27e
+      md5: 07eb6dd37d037c402129c2240adca9f8
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/crops/crop_manifest.jsonl
-      md5: e87bf8fb392fc0331a321e1cd98444fe
+      md5: 2af9fad16c3e94e42d7e53b4eb756138
 split:
   cmd: python -m weasel run split
   script:
@@ -28,9 +28,9 @@ split:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/splits
-      md5: ba062550714f8633e06ae8b03fd3e79c
+      md5: 4571ebdfe7c3083f1559aac13db8ff74
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/splits/split_manifest.jsonl
-      md5: 4f1dfa183d0b5c76a195655b580adfe8
+      md5: 1cd38c13a858388d4d70440ecef48576
 rotate:
   cmd: python -m weasel run rotate
   script:
@@ -40,9 +40,9 @@ rotate:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/rotated
-      md5: 0baf2677235333467ea6171298de5926
+      md5: ca4e929c487d79eb736adbddf82b2f21
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/rotated/rotate_manifest.jsonl
-      md5: 50808fc19886123899df8f626a052396
+      md5: 070265425b8115259242b9f0549b5d2f
 enhance:
   cmd: python -m weasel run enhance
   script:
@@ -52,9 +52,9 @@ enhance:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/enhanced
-      md5: 22c796bdfc7b72e4b2016f23af315041
+      md5: 26fa798ef14103d74d930df6b063fba4
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/enhanced/enhance_manifest.jsonl
-      md5: b01016950597c81ac1910d32e83d8871
+      md5: 2990ed686f0608ece32a16855653db28
 remove_background:
   cmd: python -m weasel run remove_background
   script:
@@ -64,7 +64,7 @@ remove_background:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/background_removed
-      md5: f3d700db94d39975c52b870d1d68956c
+      md5: 476133845747f631fa794f99b3610299
 transcribe_qwen_2b:
   cmd: python -m weasel run transcribe_qwen_2b
   script:
@@ -109,9 +109,9 @@ segment:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/segments
-      md5: 899b0355f767702fab9bb4ed3ae3216b
+      md5: 8080f2549ac23ee595860d1ff993d7ee
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/segments/segment_manifest.jsonl
-      md5: 86113dc24df063c03ecd357616916eb9
+      md5: 4b0abe4cd52f672c3d34824b5e77a298
 transcribe_qwen_max_segments:
   cmd: python -m weasel run transcribe_qwen_max_segments
   script:
@@ -145,9 +145,9 @@ fuzzy_clean:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/transcriptions
-      md5: 1642888ec3ef1efa160d1816426d3605
+      md5: cef7c7f275cfe347fd4869ac96240c5b
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/transcriptions/transcription_manifest.jsonl
-      md5: 1b0338c65ed7583243bd9b9fa3a6b160
+      md5: c608857c7d0c8b0b5204010db037513f
 convert_segmented_to_word:
   cmd: python -m weasel run convert_segmented_to_word
   script:
@@ -168,7 +168,7 @@ convert_to_word:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/word
-      md5: 5b682f5851cdfe6f42c24e94d82e1956
+      md5: e6a56ea30a6beed714da76e9d0a60d40
 transcribe_qwen_2b_segments:
   cmd: python -m weasel run transcribe_qwen_2b_segments
   script:
@@ -190,7 +190,7 @@ recombine_segments:
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/recombined
-      md5: da49466548b5c67d9313fe2caed600f7
+      md5: 1d40b05357851cca20e78f7a770bab07
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/recombined/recombine_manifest.jsonl
       md5: 0816c9351805956250708dd683435ab3
 transcribe_qwen_7b:
@@ -236,10 +236,10 @@ transcribe_lmstudio_segments:
     - python scripts/transcribe_lmstudio.py /Users/dtubb/code/fichero/projects/demo_small/assets/segments/documents
       /Users/dtubb/code/fichero/projects/demo_small/assets/segments/segment_manifest.jsonl
       /Users/dtubb/code/fichero/projects/demo_small/assets/segmented_transcriptions
-      --model qwen2.5-vl-7b-instruct
+      --model Qwen2.5-VL-3B-Instruct-8bit
   deps: []
   outs:
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/segmented_transcriptions
-      md5: 6f524e6532f9a1b8ed84036f4602f432
+      md5: e299ccafe29cd2933a87db9beaf7b5b2
     - path: /Users/dtubb/code/fichero/projects/demo_small/assets/segmented_transcriptions/transcription_manifest.jsonl
-      md5: 48d4bf3297e8f1cc9dabeafba39b6846
+      md5: d22b66b7443ec9e52e3cb4d38aca3910

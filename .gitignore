@@ -33,3 +33,15 @@ projects/test
 projects/daniel
 projects/demo
 test_workflows.sh
+projects/demo_small/assets/crops/
+projects/demo_small/assets/splits/
+projects/demo_small/assets/rotated/
+projects/demo_small/assets/background_removed/
+projects/demo_small/assets/enhanced/
+projects/demo_small/assets/segments/
+projects/demo_small/assets/transcriptions/
+projects/demo_small/assets/segmented_transcriptions/
+projects/demo_small/assets/word/
+projects/demo_small/assets/recombined/
+projects/demo_small/assets/documents/
+projects/demo_small/assets/documents_manifest/
