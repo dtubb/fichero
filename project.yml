@@ -1,0 +1,247 @@
+title: "Fichero: Document Processing and Transcription"
+description: > 
+  This project offers a workflow to process documents and create transcriptions from archival materials.
+
+  Fichero will:
+  - Read and process image files
+  - Split multi-page documents into single pages where needed
+  - Transcribe images using AI models
+  - Process transcriptions to extract structured data
+  - Enhance image quality and remove backgrounds
+
+vars:
+  name: "Fichero"
+  language: "es"  # Default language, can be changed per project
+  text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
+  version: "0.0.0"
+  
+  # Project paths - these should be configured per project
+  project_folder: "projects/demo"  # Relative path to project folder
+  documents_folder: "${vars.project_folder}/documents"
+  assets_folder: "${vars.project_folder}/assets"
+
+  # metadata
+  documents_manifest_folder: "${vars.assets_folder}/manifests"
+  documents_manifest: "${vars.documents_manifest_folder}/documents_manifest.jsonl"
+  
+  # Processing folders
+  crops_folder: "${vars.assets_folder}/crops"
+  crop_manifest: "${vars.documents_manifest}"
+  crop_source_folder: "${vars.documents_folder}"
+  
+  split_image_folder: "${vars.assets_folder}/splits"
+  rotated_image_folder: "${vars.assets_folder}/rotated"
+  background_removed_image_folder: "${vars.assets_folder}/background_removed"
+  
+  # Processing folders
+  enhanced_image_folder: "${vars.assets_folder}/enhanced"
+  segmented_image_folder: "${vars.assets_folder}/segments"
+  transcriptions_folder: "${vars.assets_folder}/transcriptions"
+  prompt: "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. SAY NOTHING ELSE"
+  recombined_folder: "${vars.assets_folder}/recombined"
+  cleaned_folder: "${vars.assets_folder}/cleaned"
+  
+  # Output folders
+  word_folder: "${vars.assets_folder}/word"
+  
+  # Manifest paths
+  split_manifest: "${vars.split_image_folder}/split_manifest.jsonl"
+  segment_manifest: "${vars.segmented_image_folder}/segment_manifest.jsonl"
+  transcription_manifest: "${vars.transcriptions_folder}/transcription_manifest.jsonl"
+
+directories: ["scripts"]
+
+workflows:
+  archive-to-word-qwen-max:
+    - build_documents_manifest
+    - crop
+    - split
+    - rotate
+    - enhance
+    - remove_background
+    - transcribe_qwen_max
+    - convert_transcribe_to_word
+
+  archive-to-word-qwen-max-segmented:
+    - build_documents_manifest
+    - crop
+    - split
+    - rotate
+    - enhance
+    - remove_background
+    - segment
+    - transcribe_qwen_max_segments
+    - recombine_segments_qwen_max
+    - fuzzy_clean
+    - convert_segmented_to_word
+
+  # archive-to-word-qwen-2b: CURRENTLY NOT WORKING
+  #  - build_documents_manifest
+  #  - crop
+  #  - split
+  #  - rotate
+  #  - enhance
+  #  - remove_background
+  #  - transcribe_qwen_2b
+  #  - convert_transcribe_to_word
+
+  # archive-to-word-qwen-2b-segmented: CURRENTLY NOT WORKING
+  #  - build_documents_manifest
+  #  - crop
+  #  - split
+  #  - rotate
+  #  - enhance
+  #  - remove_background
+  #  - segment
+  #  - transcribe_qwen_2b
+  #  - recombine_segments
+  #  - fuzzy_clean
+  #  - convert_segmented_to_word
+
+  # archive-to-word-qwen-7b: CURRENTLY NOT WORKING
+  #  - build_documents_manifest
+  #  - crop
+  #  - split
+  #  - rotate
+  #  - enhance
+  #  - remove_background
+  #  - transcribe_qwen_7b
+  #  - convert_transcribe_to_word
+
+  # archive-to-word-qwen-7b-segmented: CURRENTLY NOT WORKING
+  #  - build_documents_manifest
+  #  - crop
+  #  - split
+  #  - rotate
+  #  - enhance
+  #  - remove_background
+  #  - segment
+  #  - transcribe_qwen_7b
+  #  - recombine_segments
+  #  - fuzzy_clean
+  #  - convert_segmented_to_word
+
+commands:
+  - name: build_documents_manifest
+    help: "Generate the documents manifest listing"
+    script:
+      - "python scripts/build_documents_manifest.py ${vars.documents_folder} ${vars.documents_manifest}"
+    outputs:
+      - ${vars.documents_manifest}
+
+  - name: crop
+    help: "Crop documents using computer vision techniques"
+    script:
+      - "python scripts/crop.py ${vars.documents_folder} ${vars.documents_manifest} ${vars.crops_folder}"
+    outputs:
+      - ${vars.crops_folder}
+      - ${vars.crops_folder}/crop_manifest.jsonl
+
+  - name: split
+    help: "Split cropped images"
+    script:
+      - "python scripts/split.py ${vars.crops_folder} ${vars.crops_folder}/crop_manifest.jsonl ${vars.split_image_folder}"
+    outputs:
+      - ${vars.split_image_folder}
+      - ${vars.split_manifest}
+
+  - name: rotate
+    help: "Rotate the split images to straighten text."
+    script:
+      - "python scripts/rotate.py ${vars.split_image_folder} ${vars.split_manifest} ${vars.rotated_image_folder}"
+    outputs:
+      - ${vars.rotated_image_folder}
+      - ${vars.rotated_image_folder}/rotate_manifest.jsonl
+
+  - name: enhance
+    help: "Enhance image quality with contrast and clarity improvements"
+    script:
+      - "python scripts/enhance.py ${vars.rotated_image_folder} ${vars.rotated_image_folder}/rotate_manifest.jsonl ${vars.enhanced_image_folder}"
+    outputs:
+      - ${vars.enhanced_image_folder}
+      - ${vars.enhanced_image_folder}/enhance_manifest.jsonl
+
+  - name: remove_background
+    help: "Remove background from enhanced images"
+    script:
+      - "python scripts/remove_background.py ${vars.enhanced_image_folder} ${vars.enhanced_image_folder}/enhance_manifest.jsonl ${vars.background_removed_image_folder}"
+    outputs:
+      - ${vars.background_removed_image_folder}
+
+  - name: segment
+    help: "Segment images into text regions"
+    script:
+      - "python scripts/segment.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.segmented_image_folder}"
+    outputs:
+      - ${vars.segmented_image_folder}
+      - ${vars.segment_manifest}
+
+  # - name: transcribe_qwen_2b
+  #   help: "Transcribe documents using Qwen2.0-VL-2B"
+  #   script:
+  #     - "python scripts/transcribe_qwen_2b.py ${vars.segmented_image_folder} ${vars.segment_manifest} ${vars.transcriptions_folder}"
+  #   outputs:
+  #     - ${vars.transcriptions_folder}
+  #    - ${vars.transcription_manifest}
+
+  # - name: transcribe_qwen_7b
+  #   help: "Transcribe documents using Qwen2.0-VL-7B"
+  #   script:
+  #     - "python scripts/transcribe_qwen_7b.py ${vars.segmented_image_folder} ${vars.segment_manifest} ${vars.transcriptions_folder}"
+  #  outputs:
+  #    - ${vars.transcriptions_folder}
+  #    - ${vars.transcription_manifest}
+
+  - name: transcribe_qwen_max
+    help: "Transcribe documents using Alibaba Qwen"
+    script:
+      - "python scripts/transcribe_qwen_max.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
+    outputs:
+      - ${vars.transcriptions_folder}
+      - ${vars.transcription_manifest}
+
+  - name: transcribe_qwen_max_segments
+    help: "Transcribe segmented documents using Alibaba Qwen"
+    script:
+      - "python scripts/transcribe_qwen_max.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.transcriptions_folder}"
+    outputs:
+      - ${vars.transcriptions_folder}
+      - ${vars.transcription_manifest}
+
+  - name: recombine_segments
+    help: "Recombine the transcribed segments into single markdown files"
+    script:
+      - "python scripts/recombine_segments.py ${vars.transcriptions_folder} ${vars.recombined_folder} ${vars.transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
+    outputs:
+      - ${vars.recombined_folder}
+      - ${vars.recombined_folder}/recombine_manifest.jsonl
+
+  - name: recombine_segments_qwen_max
+    help: "Recombine the transcribed segments from Qwen into single markdown files"
+    script:
+      - "python scripts/recombine_segments.py ${vars.transcriptions_folder} ${vars.recombined_folder} ${vars.transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
+    outputs:
+      - ${vars.recombined_folder}
+      - ${vars.recombined_folder}/recombine_manifest.jsonl
+
+  - name: fuzzy_clean
+    help: "Clean up text from recombined transcriptions"
+    script:
+      - "python scripts/fuzzy_clean.py ${vars.recombined_folder} ${vars.recombined_folder}/recombine_manifest.jsonl ${vars.cleaned_folder}"
+    outputs:
+      - ${vars.cleaned_folder}
+      - ${vars.cleaned_folder}/fuzzy_clean_manifest.jsonl
+
+  - name: convert_segmented_to_word
+    help: "Convert background-removed images and cleaned text from segmented workflow to Word documents with side-by-side layout"
+    script:
+      - "python scripts/convert_to_word.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.cleaned_folder}/fuzzy_clean_manifest.jsonl ${vars.word_folder} ${vars.cleaned_folder}"
+    outputs:
+      - ${vars.word_folder}
+
+  - name: convert_transcribe_to_word
+    help: "Convert background-removed images and transcriptions to Word documents with side-by-side layout"
+    script:
+      - "python scripts/convert_to_word.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}/transcription_manifest.jsonl ${vars.word_folder} ${vars.transcriptions_folder}"
+    outputs:
+      - ${vars.word_folder}

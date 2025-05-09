@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+scripts/not_working/
+*.ipynb_checkpoints/ 
+
+# Ignore
+site/
+static/
+pipelines/
+projects/17th_century
+projects/1948
+projects/aha
+projects/EAP1477_MFC_B03_Doc04_DominguezvsGarrido
+projects/ernestina
+projects/fhc
+projects/ghc
+projects/ghc_test
+projects/marshall_diary
+projects/numero18
+projects/sergio_notebooks
+projects/test
+projects/daniel
