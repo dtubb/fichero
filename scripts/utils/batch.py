@@ -135,16 +135,20 @@ class BatchProcessor:
             try:
                 path = Path(doc["path"])
                 
-                # Fix path resolution - remove double 'documents' if present
+                # Ensure consistent path handling with documents/ prefix
                 if self.base_folder:
                     if 'documents' in str(self.base_folder):
-                        # Base folder already has documents
+                        # Base folder already has documents/
                         full_path = self.base_folder / path
                     else:
-                        # Need to add documents
+                        # Add documents/ prefix
                         full_path = self.base_folder / 'documents' / path
                 else:
-                    full_path = path
+                    # No base folder, treat path as relative to workspace
+                    if 'documents' in path.parts:
+                        full_path = path
+                    else:
+                        full_path = Path('documents') / path
 
                 # Ensure extension is preserved
                 if path.suffix:
@@ -154,7 +158,13 @@ class BatchProcessor:
                 
                 # Preserve source path in result
                 if not result.get("source"):
-                    result["source"] = str(path)
+                    # Store relative path from documents/
+                    if 'documents' in path.parts:
+                        rel_path = Path(*path.parts[path.parts.index('documents')+1:])
+                    else:
+                        rel_path = path
+                    result["source"] = str(rel_path)
+                    
                 self.output_proc.save_entry(result)
                 
                 if result.get("skipped"):

@@ -69,8 +69,8 @@ def deskew_image(pil_img: Image.Image) -> Image.Image:
     center = (w // 2, h // 2)
     # Compute rotation matrix
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    # Rotate
-    rotated = original_img.rotate(angle, resample=Image.BICUBIC, expand=False)
+    # Rotate - use negative angle to correct in opposite direction
+    rotated = original_img.rotate(-angle, resample=Image.BICUBIC, expand=False)
     return rotated
 
 def get_text_baseline_angle(img: Image.Image) -> float:
@@ -188,7 +188,7 @@ def get_connected_component_lines(
         lines.append((current_top, current_bottom))
     return lines
 
-def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
+def merge_thin_empty_segments(segments, min_height=100, min_text_ratio=0.1):
     """
     Enhanced merge function that:
     1. Merges empty segments with neighbors
@@ -210,12 +210,12 @@ def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
         height = current["bottom"] - current["top"]
         
         # If segment is extremely thin, always merge it
-        if height < min_height/3:
+        if height < min_height/2:  # Changed from min_height/3 to min_height/2
             # Try to merge with previous segment first
             if very_thin_merged:
                 prev_segment = very_thin_merged[-1]
                 new_height = current["bottom"] - prev_segment["top"]
-                if new_height < min_height * 3:
+                if new_height < min_height * 4:  # Increased from 3 to 4
                     # Create new image and preserve colors
                     new_img = Image.new('RGB', (
                         prev_segment["image"].width,
@@ -236,7 +236,7 @@ def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
             if i < len(segments) - 1:
                 next_segment = segments[i + 1]
                 new_height = next_segment["bottom"] - current["top"]
-                if new_height < min_height * 3:
+                if new_height < min_height * 4:  # Increased from 3 to 4
                     # Merge with next segment
                     next_segment["top"] = current["top"]
                     next_segment["text_len"] += current["text_len"]
@@ -258,8 +258,8 @@ def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
         text_density = current["text_len"] / height if height > 0 else 0
 
         should_merge = (
-            height < min_height or  # Too small
-            (text_density < avg_text_per_pixel * min_text_ratio and height < min_height * 2)  # Very little text
+            height < min_height * 1.5 or  # Increased threshold from min_height to min_height * 1.5
+            (text_density < avg_text_per_pixel * min_text_ratio and height < min_height * 3)  # Increased from 2 to 3
         )
         
         if should_merge:
@@ -270,7 +270,7 @@ def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
                 overlap = max(0, prev_segment["bottom"] - current["top"])
                 new_height = current["bottom"] - prev_segment["top"]
                 
-                if new_height < min_height * 3:
+                if new_height < min_height * 4:  # Increased from 3 to 4
                     # Create new image with white background
                     new_img = Image.new('RGB', (
                         prev_segment["image"].width,
@@ -298,7 +298,7 @@ def merge_thin_empty_segments(segments, min_height=50, min_text_ratio=0.1):
                 overlap = max(0, current["bottom"] - next_segment["top"])
                 new_height = next_segment["bottom"] - current["top"]
                 
-                if new_height < min_height * 3:
+                if new_height < min_height * 4:  # Increased from 3 to 4
                     new_img = Image.new('RGB', (
                         next_segment["image"].width,
                         new_height
@@ -373,7 +373,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     width, height = img.size
     
     # Don't segment if image is relatively small
-    if height < 1000:  # Adjust threshold as needed
+    if height < 2500:  # Increased from 2000 to 2500
         text_in_img = pytesseract.image_to_string(img).strip()
         return [{
             "image": img,
@@ -401,7 +401,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     # 3. Fallback to connected components if Tesseract found < 3 lines
     fallback_needed = (len(tess_boxes) < 3)
     if fallback_needed:
-        cc_lines = get_connected_component_lines(deskewed_img, line_threshold=10)
+        cc_lines = get_connected_component_lines(deskewed_img, line_threshold=15)  # Increased from 10 to 15
     else:
         cc_lines = []
 
@@ -410,7 +410,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     all_boxes.sort(key=lambda x: x[0])
 
     # Merge boxes that are close
-    line_threshold = 10
+    line_threshold = 15  # Increased from 10 to 15
     merged_boxes = []
     for box in all_boxes:
         if not merged_boxes:
@@ -444,12 +444,23 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
             cover_segments.append((merged_boxes[-1][1], height))
 
     # 5. Subdivide large segments if they exceed MAX_CHUNK_HEIGHT
-    MAX_CHUNK_HEIGHT = 800  # e.g., 800 px max
+    MAX_CHUNK_HEIGHT = 2000  # Increased from 1500 to 2000
+    MIN_CHUNK_HEIGHT = 100   # Added minimum chunk height
     subdivided_segments = []
     for seg_top, seg_bottom in cover_segments:
         seg_height = seg_bottom - seg_top
-        if seg_height <= MAX_CHUNK_HEIGHT:
+        if seg_height <= MAX_CHUNK_HEIGHT and seg_height >= MIN_CHUNK_HEIGHT:
             subdivided_segments.append((seg_top, seg_bottom))
+        elif seg_height < MIN_CHUNK_HEIGHT:
+            # If segment is too small, try to merge with adjacent segments
+            if subdivided_segments:
+                prev_top, prev_bottom = subdivided_segments[-1]
+                if seg_bottom - prev_top <= MAX_CHUNK_HEIGHT:
+                    subdivided_segments[-1] = (prev_top, seg_bottom)
+                else:
+                    subdivided_segments.append((seg_top, seg_bottom))
+            else:
+                subdivided_segments.append((seg_top, seg_bottom))
         else:
             # break it down, finding safe cut points
             start = seg_top
@@ -461,17 +472,22 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
                     target_end = start + MAX_CHUNK_HEIGHT
                     end = find_safe_cut_point(deskewed_img, target_end - 40, target_end + 40)
                 
-                subdivided_segments.append((start, end))
+                if end - start >= MIN_CHUNK_HEIGHT:
+                    subdivided_segments.append((start, end))
                 start = end
 
     # 6. Crop each segment with a small overlap
-    chunk_overlap = 15
+    chunk_overlap = 20  # Increased from 15 to 20
     segments = []
     for i, (seg_top, seg_bottom) in enumerate(subdivided_segments):
         # Only add overlap at the bottom of segments (except last)
         actual_top = seg_top
         actual_bottom = seg_bottom + (chunk_overlap if i < len(subdivided_segments)-1 else 0)
         
+        # Skip if segment is too small
+        if actual_bottom - actual_top < MIN_CHUNK_HEIGHT:
+            continue
+            
         # Crop from original colored image
         roi = deskewed_img.crop((0, actual_top, width, actual_bottom))
         text_in_segment = pytesseract.image_to_string(roi.convert('L')).strip()  # Convert to grayscale only for OCR
@@ -490,12 +506,13 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     for segment in segments:
         if segment["text_len"] > 0:
             center = (segment["image"].width/2, segment["image"].height/2)
-            segment["image"] = segment["image"].rotate(-avg_angle, center=center, 
+            # Use positive angle to match the convention in deskew_image
+            segment["image"] = segment["image"].rotate(avg_angle, center=center, 
                                                  expand=False, resample=Image.BICUBIC)
         deskewed_segments.append(segment)
     
     # Merge thin empty segments with neighbors
-    segments = merge_thin_empty_segments(deskewed_segments)
+    segments = merge_thin_empty_segments(deskewed_segments, min_height=MIN_CHUNK_HEIGHT)
     
     return segments
 

@@ -4,8 +4,6 @@ from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT, WD_SECTION
-from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls
 from docx.enum.text import WD_BREAK
 from PIL import Image
 import io
@@ -15,6 +13,7 @@ import json
 from utils.batch import BatchProcessor
 from utils.processor import process_file
 from utils.segment_handler import SegmentHandler
+from utils.files import ensure_dirs
 
 console = Console()
 app = typer.Typer()
@@ -61,19 +60,6 @@ def create_cover_page(doc, folder_name):
     
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
-def get_base_filename(filename):
-    """Extract base filename without path or extension and remove duplicates"""
-    base = Path(filename).stem
-    # Split by potential duplicate segments and take the first occurrence
-    parts = base.split('_')
-    seen = set()
-    cleaned_parts = []
-    for part in parts:
-        if part not in seen:
-            seen.add(part)
-            cleaned_parts.append(part)
-    return '_'.join(cleaned_parts)
-
 def calculate_optimal_font_size(text_length, page_width_inches, page_height_inches):
     """Calculate optimal font size to fit text on one page"""
     # Approximate characters per line and lines per page at 12pt
@@ -105,8 +91,6 @@ def calculate_optimal_font_size(text_length, page_width_inches, page_height_inch
 
 def create_spread(doc, image_path, text, filename):
     """Create a two-page spread with image (left) and text (right)"""
-    display_name = get_base_filename(filename)
-    
     # Left page - Image
     section = doc.add_section()
     
@@ -168,7 +152,7 @@ def create_spread(doc, image_path, text, filename):
     # Add filename as title
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    title_run = title_p.add_run(display_name)
+    title_run = title_p.add_run(filename)
     title_run.font.name = 'Times New Roman'
     title_run.font.size = Pt(12)
     title_run.font.bold = True
@@ -190,66 +174,80 @@ def create_spread(doc, image_path, text, filename):
     
     return True
 
-def process_document(file_path: str, output_folder: Path, text_paths: dict) -> dict:
-    """Process a single document file"""
-    try:
-        # Convert file_path to Path
-        file_path = Path(file_path)
-        
-        # Get the relative path from the documents folder
-        rel_path = Path(*file_path.parts[file_path.parts.index('documents'):])
-        
-        # Find the corresponding text file using the manifest
-        text_path = text_paths.get(str(rel_path))
-        if not text_path:
-            console.print(f"[red]No transcription found for {file_path} in manifest")
+def process_document(file_path: str, output_folder: Path) -> dict:
+    """Process a single document file using process_file utility"""
+    file_path = Path(file_path)
+    
+    def process_fn(f: str, o: Path) -> dict:
+        try:
+            # Get relative path using SegmentHandler
+            rel_path = SegmentHandler.get_relative_path(Path(f))
+            console.print(f"\nProcessing document: {f}")
+            console.print(f"Relative path: {rel_path}")
+            
+            # Find the corresponding text file
+            text_path = output_folder.parent / "transcriptions" / "documents" / rel_path.with_suffix('.txt')
+            if not text_path.exists():
+                console.print(f"[red]Text file not found: {text_path}")
+                return {
+                    "error": f"Text file not found: {text_path}",
+                    "source": str(rel_path)
+                }
+            
+            # Read the text content
+            text = text_path.read_text(encoding='utf-8')
+            
+            # Get the parent folder name for document grouping
+            parent_folder = Path(f).parent.name
+            
+            # Create or get document
+            if parent_folder not in docs_dict:
+                doc = Document()
+                set_document_properties(doc)
+                create_cover_page(doc, parent_folder)
+                docs_dict[parent_folder] = {
+                    "doc": doc,
+                    "path": rel_path.parent  # Store the full path for saving
+                }
+            
+            # Add spread to document
+            doc_info = docs_dict[parent_folder]
+            create_spread(doc_info["doc"], str(f), text, Path(f).stem)
+            
+            # Create output path using SegmentHandler
+            out_path = output_folder / "documents" / rel_path.parent / rel_path.stem
+            out_path = out_path.with_suffix('.docx')
+            
             return {
-                "error": f"No transcription found for {file_path} in manifest",
-                "source": str(file_path)
+                "outputs": [str(SegmentHandler.get_relative_path(out_path))],
+                "source": str(rel_path),
+                "details": {
+                    "text_length": len(text)
+                }
             }
-        
-        # Read the text content
-        with open(text_path, 'r', encoding='utf-8') as f:
-            text = f.read()
-        
-        # Get the parent folder name for document grouping
-        parent_folder = file_path.parent.name
-        
-        # Create or get document
-        if parent_folder not in docs_dict:
-            doc = Document()
-            set_document_properties(doc)
-            create_cover_page(doc, parent_folder)
-            docs_dict[parent_folder] = {"doc": doc}
-        
-        # Add spread to document
-        doc_info = docs_dict[parent_folder]
-        create_spread(doc_info["doc"], file_path, text, file_path.stem)
-        
-        # Build output path
-        out_path = Path(parent_folder).with_suffix('.docx')
-        
-        return {
-            "outputs": [str(out_path)],
-            "source": str(file_path),
-            "details": {
-                "text_length": len(text)
+        except Exception as e:
+            console.print(f"[red]Error processing {f}: {str(e)}")
+            return {
+                "error": str(e),
+                "source": str(rel_path)
             }
+    
+    return process_file(
+        file_path=str(file_path),
+        output_folder=output_folder,
+        process_fn=process_fn,
+        file_types={
+            '.png': process_fn,
+            '.jpg': process_fn,
+            '.jpeg': process_fn
         }
-    except Exception as e:
-        console.print(f"[red]Error processing {file_path}: {e}")
-        return {
-            "error": str(e),
-            "source": str(file_path)
-        }
+    )
 
 @app.command()
 def convert_to_word(
     background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
-    background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
-    fuzzy_clean_manifest: Path = typer.Argument(..., help="Input fuzzy clean manifest"),
-    word_folder: Path = typer.Argument(..., help="Output folder for Word documents"),
-    transcriptions_folder: Path = typer.Argument(..., help="Folder containing transcription files")
+    transcription_manifest: Path = typer.Argument(..., help="Input transcription manifest"),
+    word_folder: Path = typer.Argument(..., help="Output folder for Word documents")
 ):
     """Convert background-removed images and transcriptions to Word documents with side-by-side layout"""
     console.print(f"[green]Converting images in {background_removed_folder} to Word documents")
@@ -257,26 +255,14 @@ def convert_to_word(
     # Clear any existing docs_dict
     docs_dict.clear()
     
-    # Load the fuzzy clean manifest to get text file paths
-    text_paths = {}
-    with open(fuzzy_clean_manifest, 'r', encoding='utf-8') as f:
-        for line in f:
-            entry = json.loads(line)
-            if entry.get('success', False) and 'outputs' in entry:
-                # Get the relative path without extension
-                source = Path(entry['source'])
-                source_no_ext = source.parent / source.stem
-                # Map both .png and .jpg versions to handle different image formats
-                # The paths in the manifest are relative to documents/, so we need to add that back
-                text_paths[f"documents/{source_no_ext}.png"] = transcriptions_folder / "documents" / entry['outputs'][0]
-                text_paths[f"documents/{source_no_ext}.jpg"] = transcriptions_folder / "documents" / entry['outputs'][0]
-    
+    # Create processor for PNG files
     processor = BatchProcessor(
-        input_manifest=background_removed_manifest,  # Use background-removed manifest for images
+        input_manifest=transcription_manifest,
         output_folder=word_folder,
         process_name="convert_to_word",
-        base_folder=background_removed_folder / "documents",
-        processor_fn=lambda f, o: process_document(f, o, text_paths)
+        base_folder=background_removed_folder,
+        processor_fn=lambda f, o: process_document(f, o),
+        use_source=True  # Use source paths from manifest
     )
     
     results = processor.process()
@@ -284,10 +270,10 @@ def convert_to_word(
     # Save accumulated documents
     word_folder.mkdir(parents=True, exist_ok=True)
     for doc_key, doc_info in docs_dict.items():
-        # Create output path
-        out_path = word_folder / Path(doc_key).with_suffix('.docx')
-        # Ensure parent directories exist
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+        # Create output path using SegmentHandler with full path structure
+        out_path = word_folder / "documents" / doc_info["path"] / doc_key
+        out_path = out_path.with_suffix('.docx')
+        ensure_dirs(out_path)  # Use files utility
         # Save document
         doc_info["doc"].save(str(out_path))
     

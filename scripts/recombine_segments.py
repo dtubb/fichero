@@ -69,7 +69,7 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         
         if not segment_files:
             return {
-                "source": str(source_path),
+                "source": str(source_path.with_suffix('.txt')),
                 "error": f"No segments found for {source_path}"
             }
 
@@ -88,7 +88,7 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
                 
         if not text_files:
             return {
-                "source": str(file_path),
+                "source": str(source_path.with_suffix('.txt')),
                 "error": f"No text segments found for {source_path}"
             }
 
@@ -105,7 +105,7 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
 
         # Create output directory and subdirectories using SegmentHandler
         output_path = output_folder / "documents" / source_path.parent / source_path.name
-        output_path = output_path.with_suffix('.md')
+        output_path = output_path.with_suffix('.txt')
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         console.print(f"[blue]Writing combined output to: {output_path}")
@@ -119,7 +119,7 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         output_rel_path = SegmentHandler.get_relative_path(output_path)
             
         return {
-            "source": str(rel_path),
+            "source": str(rel_path.with_suffix('.txt')),
             "bg_removed": bg_mapping.get(str(rel_path)),
             "outputs": [str(output_rel_path)],
             "segments_joined": len(text_files),
@@ -129,7 +129,10 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
 
     except Exception as e:
         console.print(f"[red]Error processing {file_path}: {e}")
-        return {"error": str(e), "source": str(file_path)}
+        return {
+            "source": str(Path(file_path).with_suffix('.txt')),
+            "error": str(e)
+        }
 
 def recombine_segments(
     input_folder: Path = typer.Argument(..., help="Path to the transcribed segments folder"),

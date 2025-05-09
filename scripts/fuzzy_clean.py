@@ -4,6 +4,7 @@ from rich.console import Console
 import re
 from utils.batch import BatchProcessor
 from utils.processor import process_file
+import json
 
 console = Console()
 
@@ -442,11 +443,11 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         if 'documents' in source_path.parts:
             rel_path = Path(*source_path.parts[source_path.parts.index('documents')+1:])
         
-        # Look for input .md file
-        input_path = Path(file_path).with_suffix('.md')
+        # Look for input .txt file
+        input_path = source_path.with_suffix('.txt')
         if not input_path.exists():
             # Try with documents prefix if not found
-            input_path = output_folder.parent / "recombined/documents" / rel_path.with_suffix('.md')
+            input_path = output_folder.parent / "documents" / rel_path.with_suffix('.txt')
             
         if not input_path.exists():
             raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -459,7 +460,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         
         if not text.strip():
             return {
-                "source": str(input_path),
+                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
                 "error": "Empty file",
                 "success": False
             }
@@ -468,16 +469,27 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         cleaned_text = TextCleaner.clean_text(text)
         
         # Use relative path for output
-        out_path = output_folder / "documents" / rel_path.with_suffix('.md')
+        out_path = output_folder / "documents" / rel_path.with_suffix('.txt')
         out_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Write cleaned text
         out_path.write_text(cleaned_text)
         
+        # Get bg_removed from input manifest
+        bg_removed = None
+        recombine_manifest = output_folder.parent / "recombined" / "recombine_manifest.jsonl"
+        if recombine_manifest.exists():
+            with open(recombine_manifest, 'r') as f:
+                for line in f:
+                    entry = json.loads(line)
+                    if entry.get('source') == str(rel_path.with_suffix('.txt')):
+                        bg_removed = entry.get('bg_removed')
+                        break
+        
         # Return success manifest entry with proper relative paths
-        return {
-            "source": str(rel_path.with_suffix('.md')),  # Relative from documents/
-            "outputs": [str(rel_path.with_suffix('.md'))],  # Relative from documents/
+        result = {
+            "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+            "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
             "success": True,
             "details": {
                 "original_length": len(text),
@@ -486,17 +498,23 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             }
         }
         
+        # Add bg_removed if found
+        if bg_removed:
+            result["bg_removed"] = bg_removed
+            
+        return result
+        
     except Exception as e:
         console.print(f"[red]Error processing {file_path}: {e}")
         return {
-            "source": str(file_path),
+            "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
             "error": str(e)
         }
 
 def fuzzy_clean(
     recombined_folder: Path = typer.Argument(..., help="Path to the recombined files"),
     recombined_manifest: Path = typer.Argument(..., help="Path to the recombined manifest file"),
-    cleaned_folder: Path = typer.Argument(..., help="Output folder for cleaned files")
+    transcriptions_folder: Path = typer.Argument(..., help="Output folder for cleaned transcriptions")
 ):
     """Clean up text from recombined transcriptions"""
     
@@ -508,8 +526,8 @@ def fuzzy_clean(
         
     processor = BatchProcessor(
         input_manifest=recombined_manifest,
-        output_folder=cleaned_folder,
-        process_name="fuzzy_clean",
+        output_folder=transcriptions_folder,
+        process_name="transcription",
         processor_fn=lambda f, o: process_document(f, o),
         base_folder=recombined_folder,
         use_source=True  # Use source path from manifest since we're processing MD files

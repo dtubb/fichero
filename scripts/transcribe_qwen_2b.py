@@ -130,7 +130,13 @@ class TranscriptionProcessor:
         try:
             # Image preprocessing
             max_size = 1000
+            min_size = 32    # Minimum size to prevent processing errors
             width, height = image.size
+            
+            # Skip if image is too small
+            if width < min_size or height < min_size:
+                return ""
+                
             aspect_ratio = max(width, height) / float(min(width, height))
             if aspect_ratio > 200:
                 return ""
@@ -205,20 +211,20 @@ class TranscriptionProcessor:
             console.print(f"[red]Error in vision-language processing: {e}")
             raise
 
-def process_image(img_path: Path, out_path: Path) -> dict:
+def process_image(img_path: Path, out_path: Path, model_name: str = "Qwen/Qwen2-VL-2B-Instruct") -> dict:
     """Process a single image file, returning manifest-compatible output"""
     try:
-        segments_folder = out_path.parent
-        segments_folder.mkdir(parents=True, exist_ok=True)
+        # Ensure output directory exists
         out_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Always create output file
+        # Convert output path to .txt extension but preserve original extension in source
+        out_path = out_path.with_suffix('.txt')
         out_path.touch()
         
         try:
             # Initialize transcriber with model
             transcriber = TranscriptionProcessor(
-                model_name="Qwen/Qwen2.0-VL-2B-Instruct",
+                model_name=model_name,
                 prompt=DEFAULT_PROMPT
             )
             
@@ -235,10 +241,11 @@ def process_image(img_path: Path, out_path: Path) -> dict:
             with open(out_path, 'w', encoding='utf-8') as f:
                 f.write(transcription)
             
-            # Create manifest entry with detailed info
+            # Create manifest entry with .txt extension
+            rel_path = SegmentHandler.get_relative_path(img_path)
             result = {
-                "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                "source": str(SegmentHandler.get_relative_path(img_path)),
+                "outputs": [str(rel_path.with_suffix('.txt'))],
+                "source": str(rel_path),  # Keep original extension in source
                 "details": {
                     "estimated_words": estimated_words,
                     "token_count": token_count,
@@ -247,7 +254,6 @@ def process_image(img_path: Path, out_path: Path) -> dict:
             }
             
             # Add parent image info
-            rel_path = SegmentHandler.get_relative_path(img_path)
             if 'segments' in str(rel_path):
                 parent_path = rel_path.parents[1]
                 result["parent_image"] = str(parent_path)
@@ -268,75 +274,41 @@ def process_image(img_path: Path, out_path: Path) -> dict:
         console.print(f"[red]Error processing {img_path}: {e}")
         return {"error": str(e)}
 
-def process_document(file_path: str, output_folder: Path) -> dict:
-    """Process a document's segments folder"""
-    try:
-        input_path = Path(file_path)
+def process_document(file_path: str, output_folder: Path, model_name: str = "Qwen/Qwen2-VL-2B-Instruct") -> dict:
+    """Process a document using the process_file utility"""
+    file_path = Path(file_path)
+    
+    def process_fn(f: str, o: Path) -> dict:
+        # Process the image and let process_file handle path management
+        result = process_image(Path(f), o, model_name)
         
-        # If this is a source PNG from segments manifest, process it directly
-        if input_path.suffix.lower() == '.png':
-            rel_path = SegmentHandler.get_relative_path(input_path)
-            # Save to folder-level MD file
-            out_path = output_folder / 'documents' / rel_path.with_suffix('.md')
-            return process_image(input_path, out_path)
-            
-        # If this is a single segment file, process it
-        if input_path.suffix.lower() in ['.jpg', '.jpeg']:
-            rel_path = SegmentHandler.get_relative_path(input_path)
-            out_path = output_folder / 'documents' / rel_path.with_suffix('.md')
-            return process_image(input_path, out_path)
-            
-        # Otherwise treat as segments folder
-        paths = SegmentHandler.get_segment_paths(input_path)
-        segments_folder = paths["segments_folder"]
-        
-        if not segments_folder.name.endswith('_segments'):
-            return {"error": f"Not a segments folder: {file_path}"}
-            
-        # Get all segments in order
-        segments = sorted(segments_folder.glob('*.jpg'), 
-                       key=lambda x: int(x.stem.split('_')[-1]))
-        if not segments:
-            return {"error": f"No segments found in: {file_path}"}
-            
-        # Process each segment individually
-        results = []
-        for segment in segments:
-            rel_path = SegmentHandler.get_relative_path(segment)
-            out_path = output_folder / 'documents' / rel_path.with_suffix('.md')
-            result = process_image(segment, out_path)
-            results.append(result)
-            
-        # Also process source PNG if it exists
-        source_png = segments_folder.parent / f"{segments_folder.stem[:-9]}.png"
-        if source_png.exists():
-            folder_md = output_folder / 'documents' / paths["parent_path"].with_suffix('.md')
-            source_result = process_image(source_png, folder_md)
-            results.append(source_result)
+        # Add parent image info if needed
+        if not result.get("error"):
+            rel_path = SegmentHandler.get_relative_path(Path(f))
+            if 'segments' in str(rel_path):
+                result["parent_image"] = str(rel_path.parents[1])
+            else:
+                result["parent_image"] = str(rel_path)
                 
-        # Return combined results
-        successful = [r for r in results if not r.get("error")]
-        if successful:
-            return {
-                "outputs": [r["outputs"][0] for r in successful],
-                "source": str(SegmentHandler.get_relative_path(segments_folder)),
-                "parent_image": str(paths["parent_path"]),
-                "success": True,
-                "errors": [r["error"] for r in results if r.get("error")]
-            }
-            
-        return {"error": f"No successful transcriptions in: {file_path}"}
-            
-    except Exception as e:
-        console.print(f"[red]Error processing folder {file_path}: {e}")
-        return {"error": str(e)}
+        return result
+    
+    return process_file(
+        file_path=str(file_path),
+        output_folder=output_folder,
+        process_fn=process_fn,
+        file_types={
+            '.png': process_fn,
+            '.jpg': process_fn,
+            '.jpeg': process_fn
+        }
+    )
 
 def transcribe(
     segment_folder: Path = typer.Argument(..., help="Input segments folder"),
     segment_manifest: Path = typer.Argument(..., help="Input segments manifest"),
     transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
     model_name: str = typer.Option(
-        "Qwen/Qwen2.0-VL-2B-Instruct",
+        "Qwen/Qwen2-VL-2B-Instruct",
         "--model", "-m",
         help="Model name to use"
     ),
@@ -354,7 +326,7 @@ def transcribe(
         input_manifest=segment_manifest,
         output_folder=transcribed_folder,
         process_name="transcription",
-        processor_fn=lambda f, o: process_document(f, o),
+        processor_fn=lambda f, o: process_document(f, o, model_name),  # Pass model_name to process_document
         base_folder=segment_folder
     )
     return processor.process()

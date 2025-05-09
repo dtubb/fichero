@@ -60,10 +60,12 @@ pip install -r requirements.txt
 2. Choose a workflow based on your needs:
    - `archive-to-word-qwen-max`: Process full documents with Qwen Max model
    - `archive-to-word-qwen-max-segmented`: Process documents in vertical segments with Qwen Max model
-   - ~`archive-to-word-qwen-2b`: Process full documents with Qwen 2B model. (Broken)~
-   - ~`archive-to-word-qwen-2b-segmented`: Process documents in vertical segments with Qwen 2B model (Broken)~
-   - ~`archive-to-word-qwen-7b`: Process full documents with Qwen 7B model (Broken)~
-   - ~`archive-to-word-qwen-7b-segmented`: Process documents in vertical segments with Qwen 7B model (Broken)~
+   - `archive-to-word-qwen-2b`: Process full documents with Qwen 2B model, running locally. Requires 16 GB M1.
+   - `archive-to-word-qwen-2b-segmented`: Process documents in vertical segments with Qwen 2B model. Requires 16 GB M1.
+   - `archive-to-word-qwen-7b`: Process full documents with Qwen 7B model (Untested)
+   - `archive-to-word-qwen-7b-segmented`: Process documents in vertical segments with Qwen 7B model (Untested)
+   - `archive-to-word-lmstudio`: Process full documents using LM Studio with Qwen 2.5 VL 7B model. Requires LM Studio to be running locally.
+   - `archive-to-word-lmstudio-segmented`: Process documents in vertical segments using LM Studio with Qwen 2.5 VL 7B model. Requires LM Studio to be running locally.
 
 3. Run the selected workflow using Weasel:
 ```bash
@@ -85,22 +87,6 @@ Each workflow follows these general steps:
 5. Transcribe text (full document or in vertical segments)
 6. Clean and format text
 7. Generate Word documents
-
-## Notes
-
-- Full document workflows process the entire page at once, which is faster but may miss some text in complex layouts
-- Segmented workflows analyze the document's text layout and split it into vertical segments based on:
-  - Text baseline detection
-  - Connected component analysis
-  - Natural text boundaries
-  - Maximum segment height (800px)
-  - Overlap between segments (15px) to ensure no text is missed
-- The segmentation process includes:
-  - Automatic deskewing of text
-  - Merging of thin or empty segments
-  - Smart cut points between text lines
-  - Preservation of document structure
-- Word documents include both the processed image and transcribed text in a side-by-side layout
 
 ## API Key Setup
 
@@ -125,7 +111,33 @@ DASHSCOPE_API_KEY=your_api_key_here
 
 Note: The DashScope API is a paid service. Please check their pricing page for current rates.
 
+## LM Studio Setup
+
+To use the LM Studio workflows, you'll need to:
+
+1. Download and install LM Studio from [lmstudio.ai](https://lmstudio.ai)
+2. Download the Qwen 2.5 VL 7B model in LM Studio:
+   - Open LM Studio
+   - Go to the "Models" tab
+   - Search for "qwen2.5-vl-7b-instruct"
+   - Download the model
+3. Start the LM Studio server:
+   - Go to the "Local Server" tab
+   - Click "Start Server"
+   - The server will run on `http://localhost:1234` by default
+   - The API endpoint for chat completions is `http://localhost:1234/v1/chat/completions`
+
+Note: LM Studio requires significant system resources. For optimal performance:
+- 16GB RAM minimum
+- M1/M2 Mac or equivalent GPU
+- Keep LM Studio running while using the workflows
+
+For Apple Silicon Macs (M1/M2), make sure to:
+- Use the MLX version of LM Studio for best performance
+- Download the MLX version from the LM Studio website
+- The MLX version is optimized for Apple's Neural Engine
+
 ## Citation
 
 Citation for Fichero:
-Tubb, Daniel, and Andrew Janco. "Fichero: Document Processing and Transcription." GitHub, May 9, 2023. https://github.com/dtubb/fichero.
+Tubb, Daniel, and Andrew Janco. "Fichero: Document Processing and Transcription." GitHub, May 9, 2025. https://github.com/dtubb/fichero.
