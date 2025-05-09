@@ -60,10 +60,10 @@ pip install -r requirements.txt
 2. Choose a workflow based on your needs:
    - `archive-to-word-qwen-max`: Process full documents with Qwen Max model
    - `archive-to-word-qwen-max-segmented`: Process documents in vertical segments with Qwen Max model
-   - `archive-to-word-qwen-2b`: Process full documents with Qwen 2B model
-   - `archive-to-word-qwen-2b-segmented`: Process documents in vertical segments with Qwen 2B model
-   - `archive-to-word-qwen-7b`: Process full documents with Qwen 7B model
-   - `archive-to-word-qwen-7b-segmented`: Process documents in vertical segments with Qwen 7B model
+   - ~`archive-to-word-qwen-2b`: Process full documents with Qwen 2B model. (Broken)~
+   - ~`archive-to-word-qwen-2b-segmented`: Process documents in vertical segments with Qwen 2B model (Broken)~
+   - ~`archive-to-word-qwen-7b`: Process full documents with Qwen 7B model (Broken)~
+   - ~`archive-to-word-qwen-7b-segmented`: Process documents in vertical segments with Qwen 7B model (Broken)~
 
 3. Run the selected workflow using Weasel:
 ```bash
