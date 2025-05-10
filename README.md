@@ -1,12 +1,12 @@
 # Fichero
 
-Fichero is a tool that processes archival materials, and converts them (for now) to transcribed Word documents with the right verso page as the image and the recto page as the text. 
+Fichero processes archival materials (documents in JPG, PDF, TIFF format), and crops, splits, enhances contrast, remvoes bakgrounds, and then transcribes text using AI LLMs, before exporting them to Word documents, with the image of the document on the right verso page, amd the recto page as the text. 
 
 ## Features
-- Powered by the Weasel workflow management system, developed by Explosion, which provides a flexible way to manage  workflows. More details can be found at [Weasel GitHub repository](https://github.com/explosion/weasel).
+- Powered by the [Weasel GitHub repository](https://github.com/explosion/weasel) workflow management system.
 - Processes archival materials (scanned documents, images, etc.)
 - Splits multi-page materials into single pages
-- Enhances image quality and remove backgrounds
+- Enhances image quality and removes backgrounds
 - Transcribe text using various AI models:
   - Qwen Max (full document or segmented processing)
   - Qwen 2B (full document or segmented processing)
@@ -58,39 +58,23 @@ pip install -r requirements.txt
 1. Place your archival materials in the `documents` folder of your project.
 
 2. Choose a workflow based on your needs:
-   - `archive-to-word-qwen-max`: Process full documents with Qwen Max model
+   - `archive-to-word-qwen-max`: Process full documents with Qwen Max model, but requires Alibaba Cloud account and API access;
    - `archive-to-word-qwen-max-segmented`: Process documents in vertical segments with Qwen Max model
    - `archive-to-word-qwen-2b`: Process full documents with Qwen 2B model, running locally. Requires 16 GB M1.
    - `archive-to-word-qwen-2b-segmented`: Process documents in vertical segments with Qwen 2B model. Requires 16 GB M1.
-   - `archive-to-word-qwen-7b`: Process full documents with Qwen 7B model (Untested)
-   - `archive-to-word-qwen-7b-segmented`: Process documents in vertical segments with Qwen 7B model (Untested)
-   - `archive-to-word-lmstudio`: Process full documents using LM Studio with Qwen 2.5 VL 7B model. Requires LM Studio to be running locally.
-   - `archive-to-word-lmstudio-segmented`: Process documents in vertical segments using LM Studio with Qwen 2.5 VL 7B model. Requires LM Studio to be running locally.
+   - `archive-to-word-lmstudio`: Process full documents using LM Studio, with any model. Requires LM Studio to be running locally.
+   - `archive-to-word-lmstudio-segmented`: Process documents in vertical segments
 
 3. Run the selected workflow using Weasel:
-```bash
-weasel run archive-to-word-qwen-max
-```
 
 For example, to process documents in segments using the Qwen 2B model:
 ```bash
 weasel run archive-to-word-qwen-2b-segmented
 ```
 
-## Workflow Steps
+## Alibaba API Key Setup
 
-Each workflow follows these general steps:
-1. Build document manifest
-2. Crop and split materials
-3. Rotate and enhance images
-4. Remove backgrounds
-5. Transcribe text (full document or in vertical segments)
-6. Clean and format text
-7. Generate Word documents
-
-## API Key Setup
-
-To use the transcription features, you'll need to set up your DashScope API key:
+To transcribe with Alibababa features, you'll need to set up your DashScope API key:
 
 1. Sign up or log in to your Alibaba Cloud account
 2. Navigate to the DashScope console
@@ -109,14 +93,14 @@ DASHSCOPE_API_KEY=your_api_key_here
 ```
 7. Save the file
 
-Note: The DashScope API is a paid service. Please check their pricing page for current rates.
+Note: The DashScope API costs money.
 
 ## LM Studio Setup
 
 To use the LM Studio workflows, you'll need to:
 
 1. Download and install LM Studio from [lmstudio.ai](https://lmstudio.ai)
-2. Download the Qwen 2.5 VL 7B model in LM Studio:
+2. Download the Qwen 2.5 VL 7B model (or another VL model) in LM Studio:
    - Open LM Studio
    - Go to the "Models" tab
    - Search for "Qwen2.5-VL-3B-Instruct-8bit"
@@ -127,15 +111,9 @@ To use the LM Studio workflows, you'll need to:
    - The server will run on `http://localhost:1234` by default
    - The API endpoint for chat completions is `http://localhost:1234/v1/chat/completions`
 
-Note: LM Studio requires significant system resources. For optimal performance:
-- 16GB RAM minimum
-- M1/M2 Mac or equivalent GPU
-- Keep LM Studio running while using the workflows
-
-For Apple Silicon Macs (M1/M2), make sure to:
+For Apple Silicon Macs (M1/M2/M3/M4), make sure to:
 - Use the MLX version of LM Studio for best performance
 - Download the MLX version from the LM Studio website
-- The MLX version is optimized for Apple's Neural Engine
 
 ## Citation
 
