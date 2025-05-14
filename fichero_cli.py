@@ -22,20 +22,34 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeEl
 from rich.live import Live
 from rich.table import Table
 from rich.panel import Panel
+from rich.console import Group
 
 from scripts.utils.workflow_progress import WorkflowProgress, StepProgress
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
-)
-logger = logging.getLogger("fichero")
+# Configure console for rich logging
+console = Console()
+
+def rich_log(level, message):
+    """Log a message with rich formatting, respecting debug mode."""
+    # Get debug mode from environment
+    debug_mode = os.environ.get('FICHERO_DEBUG', '0') == '1'
+    
+    if level == "info":
+        if debug_mode:
+            console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+        else:
+            # In non-debug mode, only show important info messages
+            if "Processing complete" in message or "Processing " in message and "files" in message:
+                console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+    elif level == "warning":
+        console.log(f"[bold yellow][WARNING][/bold yellow] {message}")
+    elif level == "error":
+        console.log(f"[bold red][ERROR][/bold red] {message}")
+    else:
+        if debug_mode:
+            console.log(message)
 
 app = typer.Typer(help="Fichero CLI - Document Processing and Transcription")
-console = Console()
 
 def is_debug_mode() -> bool:
     """Check if debug mode is enabled via flag or environment variable."""
@@ -44,18 +58,8 @@ def is_debug_mode() -> bool:
 def configure_logging(debug: bool = False):
     """Configure logging based on debug mode."""
     if debug or is_debug_mode():
-        logging.getLogger().setLevel(logging.DEBUG)
-        # Enable all debug logging
-        logging.getLogger('ultralytics').setLevel(logging.DEBUG)
-        logging.getLogger('PIL').setLevel(logging.DEBUG)
-        logging.getLogger('torch').setLevel(logging.DEBUG)
         os.environ['FICHERO_DEBUG'] = '1'
     else:
-        logging.getLogger().setLevel(logging.WARNING)
-        # Disable all debug logging from other modules
-        logging.getLogger('ultralytics').setLevel(logging.WARNING)
-        logging.getLogger('PIL').setLevel(logging.WARNING)
-        logging.getLogger('torch').setLevel(logging.WARNING)
         os.environ['FICHERO_DEBUG'] = '0'
 
 def detect_hardware() -> dict:
@@ -140,7 +144,7 @@ def load_execution_config() -> dict:
     """Load execution configuration from execution_config.yml."""
     config_path = Path(__file__).parent / "execution_config.yml"
     if not config_path.exists():
-        logger.warning("execution_config.yml not found, using default configuration")
+        rich_log("warning", "execution_config.yml not found, using default configuration")
         return {}
     
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -208,16 +212,16 @@ def run_script(script_path: Path, args: list):
         env['FICHERO_DEBUG'] = '1'
     
     cmd = ['python', str(script_path)] + args
-    logger.info(f"Executing: {' '.join(cmd)}")
+    rich_log("info", f"Executing: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
-        logger.error(f"Script failed with exit code {result.returncode}")
-        logger.error(f"Error output: {result.stderr}")
+        rich_log("error", f"Script failed with exit code {result.returncode}")
+        rich_log("error", f"Error output: {result.stderr}")
         raise Exception(f"Script failed: {result.stderr}")
     if result.stdout.strip():
-        logger.info("Script output:")
+        rich_log("info", "Script output:")
         for line in result.stdout.splitlines():
-            logger.info(f"  {line}")
+            rich_log("info", f"  {line}")
 
 def run_script_parallel(script_path: Path, args: list, num_workers: int):
     """Run multiple instances of a script in parallel with proper manifest locking."""
@@ -232,12 +236,6 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
         raise ValueError("No manifest file found in arguments")
     
     # Create progress bars for each worker using Rich
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
-    from rich.live import Live
-    from rich.table import Table
-    from rich.panel import Panel
-    
-    # Create progress bars for each worker
     progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -255,7 +253,7 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
     for worker_id in range(num_workers):
         worker_tasks[worker_id] = progress.add_task(
             f"Worker {worker_id}",
-            total=100,  # Will be updated when we know the total
+            total=0,  # Will be updated when we know the total
             processed=0,
             current_file="Initializing..."
         )
@@ -266,20 +264,30 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
         # Add worker ID to environment
         env = os.environ.copy()
         env['WORKER_ID'] = str(worker_id)
+        env['FICHERO_WORKER'] = '1'  # Mark as worker process
         
         # Add debug flag to environment if enabled
         if os.environ.get('FICHERO_DEBUG') == '1':
             env['FICHERO_DEBUG'] = '1'
         
+        # Add project root to PYTHONPATH
+        project_root = script_path.parent.parent
+        if 'PYTHONPATH' in env:
+            env['PYTHONPATH'] = f"{project_root}:{env['PYTHONPATH']}"
+        else:
+            env['PYTHONPATH'] = str(project_root)
+        
         # Launch process with output capture
         cmd = ['python', str(script_path)] + args
-        logger.info(f"Launching worker {worker_id}: {' '.join(cmd)}")
+        rich_log("info", f"Launching worker {worker_id}: {' '.join(cmd)}")
         process = subprocess.Popen(
             cmd,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            bufsize=1,  # Line buffered
+            universal_newlines=True
         )
         processes.append((worker_id, process))
     
@@ -293,10 +301,10 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
                     stdout, stderr = process.communicate()
                     if stdout:
                         for line in stdout.splitlines():
-                            logger.info(f"Worker {worker_id}: {line}")
+                            rich_log("info", f"Worker {worker_id}: {line}")
                     if stderr:
                         for line in stderr.splitlines():
-                            logger.error(f"Worker {worker_id}: {line}")
+                            rich_log("error", f"Worker {worker_id}: {line}")
                     
                     # Check return code
                     if process.returncode != 0:
@@ -317,7 +325,9 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
                 stdout = process.stdout.readline()
                 if stdout:
                     line = stdout.strip()
-                    logger.info(f"Worker {worker_id}: {line}")
+                    # Always log debug output
+                    if os.environ.get('FICHERO_DEBUG') == '1':
+                        rich_log("info", f"Worker {worker_id}: {line}")
                     
                     # Update progress based on output
                     if "Processing:" in line:
@@ -339,10 +349,24 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
                             total=total,
                             description=f"Worker {worker_id}"
                         )
+                    elif "=== Starting YOLO Processing" in line:
+                        progress.update(
+                            worker_tasks[worker_id],
+                            description=f"Worker {worker_id}: Initializing YOLO"
+                        )
+                    elif "=== YOLO Processing Complete" in line:
+                        progress.update(
+                            worker_tasks[worker_id],
+                            description=f"Worker {worker_id}: YOLO Ready"
+                        )
                 
                 stderr = process.stderr.readline()
                 if stderr:
-                    logger.error(f"Worker {worker_id}: {stderr.strip()}")
+                    rich_log("error", f"Worker {worker_id}: {stderr.strip()}")
+                    progress.update(
+                        worker_tasks[worker_id],
+                        description=f"Worker {worker_id} (Error)"
+                    )
             
             # Small sleep to prevent CPU spinning
             time.sleep(0.1)
@@ -427,43 +451,43 @@ def run_workflow(
                 
                 if debug or is_debug_mode():
                     # Log detailed system information
-                    logger.info("\n=== System Resource Information ===")
-                    logger.info(f"System: {platform.system()} {platform.release()}")
-                    logger.info(f"Machine: {platform.machine()}")
-                    logger.info(f"Processor: {platform.processor()}")
-                    logger.info(f"CPU Cores: {system_resources['cpu_count']}")
-                    logger.info(f"Total Memory: {system_resources['memory_gb']:.1f} GB")
+                    rich_log("info", "\n=== System Resource Information ===")
+                    rich_log("info", f"System: {platform.system()} {platform.release()}")
+                    rich_log("info", f"Machine: {platform.machine()}")
+                    rich_log("info", f"Processor: {platform.processor()}")
+                    rich_log("info", f"CPU Cores: {system_resources['cpu_count']}")
+                    rich_log("info", f"Total Memory: {system_resources['memory_gb']:.1f} GB")
                     
                     # Log GPU information
                     if torch.cuda.is_available():
-                        logger.info("\n=== CUDA Information ===")
-                        logger.info(f"CUDA Available: Yes")
-                        logger.info(f"CUDA Version: {torch.version.cuda}")
-                        logger.info(f"GPU Device: {torch.cuda.get_device_name(0)}")
-                        logger.info(f"GPU Count: {torch.cuda.device_count()}")
+                        rich_log("info", "\n=== CUDA Information ===")
+                        rich_log("info", "CUDA Available: Yes")
+                        rich_log("info", f"CUDA Version: {torch.version.cuda}")
+                        rich_log("info", f"GPU Device: {torch.cuda.get_device_name(0)}")
+                        rich_log("info", f"GPU Count: {torch.cuda.device_count()}")
                         for i in range(torch.cuda.device_count()):
-                            logger.info(f"GPU {i} Memory: {torch.cuda.get_device_properties(i).total_memory / 1024**3:.1f} GB")
+                            rich_log("info", f"GPU {i} Memory: {torch.cuda.get_device_properties(i).total_memory / 1024**3:.1f} GB")
                     elif torch.backends.mps.is_available():
-                        logger.info("\n=== MPS Information ===")
-                        logger.info("MPS (Metal Performance Shaders) Available: Yes")
-                        logger.info("Using Apple Silicon GPU")
+                        rich_log("info", "\n=== MPS Information ===")
+                        rich_log("info", "MPS (Metal Performance Shaders) Available: Yes")
+                        rich_log("info", "Using Apple Silicon GPU")
                     
                     # Log worker configuration
-                    logger.info("\n=== Worker Configuration ===")
-                    logger.info(f"Step: {step}")
-                    logger.info(f"Device: {hardware_info['device']}")
-                    logger.info(f"GPU Task: {is_gpu_task}")
-                    logger.info(f"YOLO Task: {is_yolo_task}")
-                    logger.info(f"CPU Workers Available: {system_resources['cpu_workers']}")
-                    logger.info(f"Memory Workers Available: {system_resources['memory_workers']}")
-                    logger.info(f"Configured Workers: {configured_workers}")
-                    logger.info(f"Suggested Workers: {system_resources['suggested_workers']}")
-                    logger.info(f"Actual Workers: {num_workers}")
-                    logger.info("=============================\n")
+                    rich_log("info", "\n=== Worker Configuration ===")
+                    rich_log("info", f"Step: {step}")
+                    rich_log("info", f"Device: {hardware_info['device']}")
+                    rich_log("info", f"GPU Task: {is_gpu_task}")
+                    rich_log("info", f"YOLO Task: {is_yolo_task}")
+                    rich_log("info", f"CPU Workers Available: {system_resources['cpu_workers']}")
+                    rich_log("info", f"Memory Workers Available: {system_resources['memory_workers']}")
+                    rich_log("info", f"Configured Workers: {configured_workers}")
+                    rich_log("info", f"Suggested Workers: {system_resources['suggested_workers']}")
+                    rich_log("info", f"Actual Workers: {num_workers}")
+                    rich_log("info", "=============================\n")
             else:
                 # For sequential steps, just log that we're running it
                 if debug or is_debug_mode():
-                    logger.info(f"\n=== Running Sequential Step: {step} ===\n")
+                    rich_log("info", f"\n=== Running Sequential Step: {step} ===\n")
                 num_workers = 1  # Sequential steps use single process
             
             # Execute each script in the command
@@ -507,10 +531,10 @@ def run_workflow(
                         # Run single process
                         run_script(Path(script_path), resolved_args)
                 except Exception as e:
-                    logger.error(f"Step '{step}' failed: {str(e)}")
+                    rich_log("error", f"Step '{step}' failed: {str(e)}")
                     return
     
-    logger.info(f"Workflow '{workflow_name}' completed successfully")
+    rich_log("info", f"Workflow '{workflow_name}' completed successfully")
 
 if __name__ == "__main__":
     app() 

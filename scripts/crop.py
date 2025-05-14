@@ -28,10 +28,10 @@ import multiprocessing
 from ultralytics import YOLO
 from scripts.utils.workflow_progress import create_progress_tracker
 import multiprocessing as mp
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.live import Live
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure console for rich logging
 console = Console()
 
 app = typer.Typer()
@@ -59,64 +59,88 @@ def rich_log(level, message):
 # Determine best device for the system
 def get_best_device():
     """Determine the best available device for model inference."""
-    if torch.backends.mps.is_available():
-        logger.info("Using MPS (Metal Performance Shaders) for GPU acceleration")
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        rich_log("info", "Using MPS (Metal Performance Shaders) for GPU acceleration")
         return "mps"
     elif torch.cuda.is_available():
-        logger.info("Using CUDA for GPU acceleration")
+        rich_log("info", "Using CUDA for GPU acceleration")
         return "cuda"
     else:
-        logger.info("Using CPU for inference")
+        rich_log("info", "Using CPU for inference")
         return "cpu"
 
+def get_worker_device(worker_id: int, device: str) -> str:
+    """Get the specific device for a worker based on worker ID."""
+    if device == "cuda" and torch.cuda.is_available():
+        gpu_count = torch.cuda.device_count()
+        if gpu_count > 1:
+            # Distribute workers across available GPUs
+            gpu_id = worker_id % gpu_count
+            rich_log("info", f"Worker {worker_id} using CUDA device {gpu_id}")
+            return f"cuda:{gpu_id}"
+    return device
+
 # Load YOLO model with device optimization
-try:
-    device = get_best_device()
-    yolo_model = YOLO("models/yolov8s-fichero.pt")
+def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
+    """Initialize YOLO model with proper device optimization."""
+    rich_log("info", "=== Initializing YOLO Model ===")
     
-    # Enhanced device optimization
+    # Check device availability
+    rich_log("info", "Checking device availability:")
+    rich_log("info", f"CUDA available: {torch.cuda.is_available()}")
+    rich_log("info", f"MPS available: {torch.backends.mps.is_available()}")
+    rich_log("info", f"MPS built: {torch.backends.mps.is_built()}")
+    
+    device = get_best_device()
+    rich_log("info", f"Selected device: {device}")
+    
+    # Load model with detailed logging
+    rich_log("info", f"Loading model from: {model_path}")
+    try:
+        yolo_model = YOLO(model_path)
+        rich_log("info", "Model loaded successfully")
+    except Exception as e:
+        rich_log("error", f"Failed to load model: {e}")
+        raise
+    
+    # Enhanced device optimization with detailed logging
     if device == "mps":
+        rich_log("info", "Configuring MPS device")
         # Enable Metal Performance Shaders
-        torch.backends.mps.enable_fallback_to_cpu = False  # Force MPS usage
+        torch.backends.mps.enable_fallback_to_cpu = True  # Allow fallback to CPU if needed
+        rich_log("info", "Moving model to MPS device")
         yolo_model.to(device)
-        # Set model to use MPS
-        yolo_model.model = yolo_model.model.to(device)
-        # Enable half precision for better performance
-        yolo_model.model.half()
-        logger.info("Enabled MPS acceleration with half precision")
+        rich_log("info", "MPS configuration complete")
     elif device == "cuda":
+        rich_log("info", "Configuring CUDA device:")
+        rich_log("info", f"CUDA device count: {torch.cuda.device_count()}")
+        rich_log("info", f"Current CUDA device: {torch.cuda.current_device()}")
+        rich_log("info", f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        rich_log("info", "Moving model to CUDA device")
         yolo_model.to(device)
+        rich_log("info", "Enabling half precision")
         yolo_model.model.half()
-        logger.info("Enabled CUDA acceleration with half precision")
+        rich_log("info", "CUDA configuration complete")
     else:
+        rich_log("info", "Using CPU device")
         yolo_model.to(device)
-        logger.info("Using CPU for inference")
     
     # Set model parameters for better performance
     yolo_model.conf = 0.35  # Confidence threshold
     yolo_model.iou = 0.45   # IoU threshold
     yolo_model.max_det = 1  # Only keep the best detection
     
-    logger.info(f"Successfully loaded YOLO model on {device}")
-    
-    # Enhanced device verification
-    logger.info(f"YOLO model device: {device}")
-    logger.info(f"Model device placement verification:")
-    for name, param in yolo_model.model.named_parameters():
-        logger.info(f"Model param {name} is on device: {param.device}")
-        if device == "mps" and hasattr(param, 'memory_format'):
-            logger.info(f"Parameter memory format: {param.memory_format}")
-        break  # Just print the first parameter for brevity
-    
-    # Verify tensor operations will use GPU
-    test_tensor = torch.zeros(1, 3, 640, 640)
-    test_tensor = test_tensor.to(device)
-    logger.info(f"Test tensor device: {test_tensor.device}")
-    if device == "mps" and hasattr(test_tensor, 'memory_format'):
-        logger.info(f"Test tensor memory format: {test_tensor.memory_format}")
-    
+    rich_log("info", "=== Model Initialization Complete ===")
+    return yolo_model, device
+
+# Initialize model globally with error handling
+try:
+    rich_log("info", "=== Starting Global Model Initialization ===")
+    yolo_model, device = init_yolo_model()
+    rich_log("info", "=== Global Model Initialization Complete ===")
 except Exception as e:
-    logger.error(f"Failed to load YOLO model: {e}")
+    rich_log("error", f"=== Global Model Initialization Failed ===")
+    rich_log("error", f"Error: {str(e)}")
     raise
 
 def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
@@ -176,31 +200,54 @@ def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
 def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float = 0.35) -> Optional[Tuple[Image.Image, Dict[str, Any]]]:
     """Crop image using YOLOv8 model with optimized settings"""
     try:
-        rich_log("info", f"[crop_with_yolo] Processing {image_path}")
+        rich_log("info", f"=== Starting YOLO Processing for {image_path} ===")
+        
+        # Get worker ID and determine device
+        worker_id = int(os.environ.get('WORKER_ID', '0'))
+        worker_device = get_worker_device(worker_id, device)
+        
+        # Ensure model is on the correct device
+        global yolo_model
+        rich_log("info", "Checking model device placement:")
+        
+        # Check device by looking at first parameter
+        first_param = next(yolo_model.model.parameters())
+        current_device = first_param.device
+        rich_log("info", f"Current model device: {current_device}")
+        rich_log("info", f"Target device: {worker_device}")
+        
+        if str(current_device) != worker_device:
+            rich_log("info", f"Moving model to device: {worker_device}")
+            yolo_model.to(worker_device)
+            rich_log("info", f"Model moved to device: {worker_device}")
         
         # Enhanced GPU verification at start of processing
-        logger.info(f"Current device: {device}")
-        logger.info(f"MPS available: {torch.backends.mps.is_available()}")
-        logger.info(f"MPS built: {torch.backends.mps.is_built()}")
-        if device == "mps":
-            logger.info(f"MPS device: {torch.mps.current_device()}")
-            logger.info(f"MPS device name: {torch.mps.get_device_name()}")
+        rich_log("info", "=== GPU Status ===")
+        rich_log("info", f"Current device: {worker_device}")
+        rich_log("info", f"MPS available: {torch.backends.mps.is_available()}")
+        rich_log("info", f"MPS built: {torch.backends.mps.is_built()}")
+        if "cuda" in worker_device:
+            rich_log("info", f"CUDA device: {torch.cuda.current_device()}")
+            rich_log("info", f"CUDA device name: {torch.cuda.get_device_name(0)}")
+            rich_log("info", f"CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**2:.1f} MB")
+        elif worker_device == "mps":
+            rich_log("info", "MPS device active")
+            if hasattr(torch.mps, 'memory_allocated'):
+                rich_log("info", f"MPS memory allocated: {torch.mps.memory_allocated() / 1024**2:.1f} MB")
         
         # Get true orientation and required rotation
         true_orientation, rotation_angle, orientation_details = get_image_orientation(image_path)
-        rich_log("info", f"[crop_with_yolo] Orientation: {true_orientation}, Rotation: {rotation_angle}")
+        rich_log("info", f"Image orientation: {true_orientation}, Rotation: {rotation_angle}")
         
         # Read original image and convert to PIL
         original_pil = Image.open(image_path)
         orig_width, orig_height = original_pil.size
-        logger.info(f"Original image size: {orig_width}x{orig_height}")
         rich_log("info", f"Original image size: {orig_width}x{orig_height}")
         
         # Apply rotation if needed
         if rotation_angle > 0:
             original_pil = original_pil.rotate(rotation_angle, expand=True)
             orig_width, orig_height = original_pil.size
-            logger.info(f"Image size after rotation: {orig_width}x{orig_height}")
             rich_log("info", f"Image size after rotation: {orig_width}x{orig_height}")
         
         # Convert to numpy array for YOLO
@@ -220,26 +267,35 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         model_img = cv2.resize(original_img, (model_width, model_height), 
                              interpolation=cv2.INTER_LINEAR)
         
-        logger.info(f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
         rich_log("info", f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
         
         # Enhanced GPU tensor conversion with memory optimization
+        rich_log("info", "=== Tensor Conversion ===")
         tensor = torch.from_numpy(model_img).float()
+        rich_log("info", f"Initial tensor device: {tensor.device}")
         tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> BCHW
-        tensor = tensor.to(device)
+        rich_log("info", f"Tensor shape after permute: {tensor.shape}")
+        
+        # Move to device with detailed logging
+        rich_log("info", f"Moving tensor to {worker_device}")
+        tensor = tensor.to(worker_device)
+        rich_log("info", f"Tensor device after move: {tensor.device}")
         
         # Optimize memory format for MPS
-        if device == "mps":
-            tensor = tensor.contiguous(memory_format=torch.channels_last)  # Optimize for MPS
-            logger.info(f"Tensor memory format: {tensor.memory_format}")
-            
-            # Force MPS to use the tensor
-            torch.mps.synchronize()
+        if worker_device == "mps":
+            rich_log("info", "Optimizing tensor for MPS")
+            try:
+                tensor = tensor.contiguous()
+                rich_log("info", "Tensor made contiguous")
+            except Exception as e:
+                rich_log("warning", f"Could not optimize tensor for MPS: {e}")
         
-        logger.info(f"Input tensor device: {tensor.device}")
+        rich_log("info", f"Final input tensor device: {tensor.device}")
         
         # Run prediction with optimized settings
+        rich_log("info", "=== Running YOLO Prediction ===")
         with torch.no_grad():  # Disable gradient calculation
+            rich_log("info", "Starting prediction")
             results = list(yolo_model.predict(
                 source=tensor,  # Pass the GPU tensor directly
                 conf=conf_threshold,
@@ -247,24 +303,27 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                 iou=0.45,
                 verbose=False,
                 stream=True,  # Enable streaming for better memory usage
-                device=device  # Explicitly set device
+                device=worker_device  # Explicitly set device
             ))
+            rich_log("info", "Prediction complete")
         
         # Clear GPU memory
-        if device == "mps":
+        if worker_device == "mps":
+            rich_log("info", "Clearing MPS cache")
             torch.mps.empty_cache()
+        elif "cuda" in worker_device:
+            rich_log("info", "Clearing CUDA cache")
+            torch.cuda.empty_cache()
         
         rich_log("info", f"YOLO prediction results: {results}")
         
         if not results or not results[0].boxes:
-            logger.warning("No detections found")
             rich_log("warning", "No detections found")
             return None
             
         # Get the best detection (highest confidence)
         box = max(results[0].boxes.data, key=lambda x: x[4])
         x1, y1, x2, y2, conf = map(float, box[:5])
-        logger.info(f"Detection in model space: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
         rich_log("info", f"Detection in model space: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
         
         # Calculate scale factors
@@ -276,7 +335,6 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         y1 = int(y1 * scale_y)
         x2 = int(x2 * scale_x)
         y2 = int(y2 * scale_y)
-        logger.info(f"Scaled to original size: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         rich_log("info", f"Scaled to original size: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         
         # Apply padding only on left and bottom
@@ -285,12 +343,10 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         y1 = max(0, y1 - padding)
         x2 = min(orig_width, x2)
         y2 = min(orig_height, y2 + padding)
-        logger.info(f"After padding: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         rich_log("info", f"After padding: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         
         # Crop original image at full resolution
         cropped = original_img[y1:y2, x1:x2]
-        logger.info(f"Cropped size: {cropped.shape[1]}x{cropped.shape[0]}")
         rich_log("info", f"Cropped size: {cropped.shape[1]}x{cropped.shape[0]}")
         
         # Convert to PIL Image and preserve EXIF
@@ -303,7 +359,6 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                 if exif is not None:
                     result.info['exif'] = exif
         except Exception as e:
-            logger.warning(f"Could not preserve EXIF data: {e}")
             rich_log("warning", f"Could not preserve EXIF data: {e}")
         
         # Create crop info dictionary
@@ -329,11 +384,12 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                 }
             }
         }
-            
+        
+        rich_log("info", "=== YOLO Processing Complete ===")
         return result, crop_info
         
     except Exception as e:
-        logger.error(f"Error in crop_with_yolo: {str(e)}")
+        rich_log("error", f"=== YOLO Processing Failed ===")
         rich_log("error", f"Error in crop_with_yolo: {str(e)}")
         return None
 
@@ -374,7 +430,7 @@ def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
         # Convert to PIL Image
         return Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
     except Exception as e:
-        logger.warning(f"Contour detection failed: {e}")
+        rich_log("warning", f"Contour detection failed: {e}")
         return None
 
 def process_image(file_path: Path, out_path: Path) -> dict:
@@ -388,23 +444,20 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # Verify file exists and is readable
     if not file_path.exists():
-        logger.error(f"File does not exist: {file_path}")
         rich_log("error", f"File does not exist: {file_path}")
         return {"success": False, "error": "File not found"}
     
     try:
         # Try to open the image to verify it's readable
         with Image.open(file_path) as img:
-            logger.debug(f"Successfully opened image: {file_path.name} (format: {img.format})")
+            rich_log("info", f"Successfully opened image: {file_path.name} (format: {img.format})")
     except Exception as e:
-        logger.error(f"Failed to open image {file_path.name}: {e}")
         rich_log("error", f"Failed to open image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to open image: {e}"}
     
     attempts = []
     
     # Try YOLO with original confidence threshold
-    logger.debug(f"Attempting YOLO detection with confidence 0.35 for {file_path.name}")
     rich_log("info", f"Attempting YOLO detection with confidence 0.35 for {file_path.name}")
     result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.35)
     attempts.append({
@@ -415,7 +468,6 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # If YOLO fails, try with lower confidence
     if not result:
-        logger.debug(f"Attempting YOLO detection with confidence 0.15 for {file_path.name}")
         rich_log("info", f"Attempting YOLO detection with confidence 0.15 for {file_path.name}")
         result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.15)
         attempts.append({
@@ -426,7 +478,6 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # If YOLO still fails, try contour detection
     if not result:
-        logger.debug(f"Attempting contour detection for {file_path.name}")
         rich_log("info", f"Attempting contour detection for {file_path.name}")
         result = detect_with_contours(file_path)
         attempts.append({
@@ -444,7 +495,6 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # If all detection methods fail, use original image
     if not result:
-        logger.warning(f"Using original image as fallback for {file_path.name}")
         rich_log("warning", f"Using original image as fallback for {file_path.name}")
         original = Image.open(file_path)
         crop_info = {
@@ -461,7 +511,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # Convert to JPG if needed
     image, crop_info = result
     if image.format != 'JPEG':
-        logger.debug(f"Converting {file_path.name} from {image.format} to JPEG")
+        rich_log("info", f"Converting {file_path.name} from {image.format} to JPEG")
         image = image.convert('RGB')
 
     # Create output path maintaining directory structure
@@ -469,10 +519,8 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     output_path = output_path.with_suffix('.jpg')
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    logger.info(f"Saving cropped image to: {output_path}")
     rich_log("info", f"Saving cropped image to: {output_path}")
     image.save(output_path, 'JPEG', quality=95)
-    logger.debug(f"Saved cropped image to {output_path}")
     rich_log("info", f"Saved cropped image to {output_path}")
     
     # Build relative path preserving hierarchy
@@ -504,7 +552,7 @@ def process_pdf(file_path: Path, out_path: Path) -> dict:
     pdf_dir.mkdir(parents=True, exist_ok=True)
     
     for i, image in enumerate(images):
-        logger.info(f"Processing page {i+1} of {len(images)} from {file_path.name}")
+        rich_log("info", f"Processing page {i+1} of {len(images)} from {file_path.name}")
         # Save original page as JPG
         page_path = pdf_dir / f"page_{i + 1}.jpg"
         image.save(page_path, "JPEG", quality=95)
@@ -545,7 +593,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
     
     # Skip directories
     if file_path.is_dir():
-        logger.debug(f"Skipping directory: {file_path}")
+        rich_log("info", f"Skipping directory: {file_path}")
         return {"success": True, "details": {"skipped": "directory"}}
     
     try:
@@ -571,7 +619,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         return result
         
     except Exception as e:
-        logger.error(f"Error processing {file_path}: {e}")
+        rich_log("error", f"Error processing {file_path}: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -590,13 +638,9 @@ def crop(
     debug: bool = typer.Option(False, help="Enable debug logging")
 ):
     """Crop documents using computer vision techniques."""
-    # Set logging level based on debug flag
+    # Set debug mode in environment
     if debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        # Enable all debug logging
-        logging.getLogger('ultralytics').setLevel(logging.DEBUG)
-        logging.getLogger('PIL').setLevel(logging.DEBUG)
-        logging.getLogger('torch').setLevel(logging.DEBUG)
+        os.environ['FICHERO_DEBUG'] = '1'
         
         # Log detailed hardware information
         rich_log("info", "=== Hardware Information ===")
@@ -638,12 +682,7 @@ def crop(
         
         rich_log("info", "========================")
     else:
-        # Set main logger to WARNING to suppress most output
-        logging.getLogger().setLevel(logging.WARNING)
-        # Disable all debug logging from other modules
-        logging.getLogger('ultralytics').setLevel(logging.WARNING)
-        logging.getLogger('PIL').setLevel(logging.WARNING)
-        logging.getLogger('torch').setLevel(logging.WARNING)
+        os.environ['FICHERO_DEBUG'] = '0'
 
     # Set up paths based on project structure
     source_folder = project_folder / "documents"
@@ -654,121 +693,53 @@ def crop(
     
     # Initialize manifest manager
     manifest = StepManifestManager(manifest_file, "crop")
-
-    # Log manifest stats
-    all_files = manifest.get_all_files()
-    pending_files = [f for f in all_files if manifest.is_pending(f)]
-    total_files = len(pending_files)
-    rich_log("info", f"Total files: {total_files}")
     
-    # Create progress trackers (will be None if child/worker process)
-    workflow_progress, step_progress = create_progress_tracker(
-        total_files=total_files,
-        step_name="Cropping Documents",
-        show_workflow=True,
-        total_steps=1
-    )
+    # Get worker ID
+    worker_id = os.environ.get('WORKER_ID', '0')
+    rich_log("info", f"Worker {worker_id} started")
     
-    # Get worker ID and determine if we're a worker process
-    worker_id = os.environ.get('WORKER_ID', None)
-    is_worker = worker_id is not None
-    
-    if is_worker:
-        # Worker process - process files in batches
-        rich_log("info", f"Worker {worker_id} started")
+    # Process files until none are left
+    processed = 0
+    while True:
+        # Get next pending file
+        input_path = manifest.get_next_pending()
+        if not input_path:
+            rich_log("info", f"Worker {worker_id} finished - no more files to process")
+            break
         
-        # Process files in batches
-        processed = 0
-        while True:
-            # Get next batch of pending files
-            batch_files = []
-            for _ in range(batch_size):
-                input_path = manifest.get_next_pending()
-                if not input_path:
-                    break
-                batch_files.append(input_path)
+        try:
+            # Remove documents/ prefix from input_path if present
+            if input_path.startswith('documents/'):
+                input_path = input_path[10:]  # Remove 'documents/' prefix
             
-            if not batch_files:
-                break
+            # Construct full paths
+            full_input_path = source_folder / input_path
+            full_output_path = output_folder / input_path
             
-            # Process batch
-            for input_path in batch_files:
-                try:
-                    # Remove documents/ prefix from input_path if present
-                    if input_path.startswith('documents/'):
-                        input_path = input_path[10:]  # Remove 'documents/' prefix
-                    
-                    # Construct full paths
-                    full_input_path = source_folder / input_path
-                    full_output_path = output_folder / input_path
-                    
-                    # Log current file being processed
-                    rich_log("info", f"Processing: {input_path}")
-                    
-                    # Process the file
-                    result = process_document(str(full_input_path), output_folder)
-                    
-                    if result["success"]:
-                        processed += 1
-                        rich_log("info", f"Completed: {input_path}")
-                        # Update manifest with results
-                        manifest.mark_done(
-                            input_path,
-                            crop_outputs=result.get("outputs", []),
-                            crop_details=result.get("details", {})
-                        )
-                    else:
-                        rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
-                        manifest.mark_error(input_path, result.get("error", "Unknown error"))
-                        
-                except Exception as e:
-                    rich_log("error", f"Error processing {input_path}: {e}")
-                    manifest.mark_error(input_path, str(e))
+            # Log current file being processed
+            rich_log("info", f"Processing: {input_path}")
             
-            rich_log("info", f"Worker {worker_id} processed {processed} files")
-        
-        rich_log("info", f"Worker {worker_id} finished")
-    else:
-        # Main process - monitor progress
-        processed = 0
-        while True:
-            # Get next pending file
-            input_path = manifest.get_next_pending()
-            if not input_path:
-                rich_log("info", "Processing complete!")
-                break
+            # Process the file
+            result = process_document(str(full_input_path), output_folder)
             
-            try:
-                # Remove documents/ prefix from input_path if present
-                if input_path.startswith('documents/'):
-                    input_path = input_path[10:]  # Remove 'documents/' prefix
+            if result["success"]:
+                processed += 1
+                rich_log("info", f"Completed: {input_path}")
+                # Update manifest with results
+                manifest.mark_done(
+                    input_path,
+                    crop_outputs=result.get("outputs", []),
+                    crop_details=result.get("details", {})
+                )
+            else:
+                rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
+                manifest.mark_error(input_path, result.get("error", "Unknown error"))
                 
-                # Construct full paths
-                full_input_path = source_folder / input_path
-                full_output_path = output_folder / input_path
-                
-                # Log current file being processed
-                rich_log("info", f"Processing: {input_path}")
-                
-                # Process the file
-                result = process_document(str(full_input_path), output_folder)
-                
-                if result["success"]:
-                    processed += 1
-                    rich_log("info", f"Completed: {input_path}")
-                    # Update manifest with results
-                    manifest.mark_done(
-                        input_path,
-                        crop_outputs=result.get("outputs", []),
-                        crop_details=result.get("details", {})
-                    )
-                else:
-                    rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
-                    manifest.mark_error(input_path, result.get("error", "Unknown error"))
-                    
-            except Exception as e:
-                rich_log("error", f"Error processing {input_path}: {e}")
-                manifest.mark_error(input_path, str(e))
+        except Exception as e:
+            rich_log("error", f"Error processing {input_path}: {e}")
+            manifest.mark_error(input_path, str(e))
+    
+    rich_log("info", f"Worker {worker_id} processed {processed} files")
 
 if __name__ == "__main__":
     app()

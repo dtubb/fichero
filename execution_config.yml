@@ -11,12 +11,12 @@ hardware:
 system_configs:
   cuda:
     # GPU tasks
-    crop: 4
+    # crop: 4
     transcribe_qwen_max: 2
     transcribe_qwen_7b: 2
     transcribe_lmstudio: 2
     # CPU tasks
-    split: 4
+    # split: 4
     rotate: 4
     enhance: 4
     remove_background: 4
@@ -24,12 +24,12 @@ system_configs:
   
   mps:  # Apple Silicon
     # GPU tasks
-    crop: 4
+    crop: 16
     transcribe_qwen_max: 2
     transcribe_qwen_7b: 2
     transcribe_lmstudio: 2
     # CPU tasks
-    split: 4
+    # split: 4
     rotate: 4
     enhance: 4
     remove_background: 4
@@ -37,11 +37,11 @@ system_configs:
   
   cpu:
     # CPU tasks
-    crop: 4
+    # crop: 4
     transcribe_qwen_max: 2
     transcribe_qwen_7b: 2
     transcribe_lmstudio: 2
-    split: 4
+    # split: 4
     rotate: 4
     enhance: 4
     remove_background: 4
