@@ -1,0 +1,13 @@
+# Configuration for downloading images from EAP1477
+# https://eap.bl.uk/archive-file/EAP1477-1-1-1#
+
+# HTML source to scrape for images
+html_sources:
+  - url: "https://eap.bl.uk/archive-file/EAP1477-1-1-1#"
+    selector: ".image-viewer img"  # Selector for image elements in the viewer
+
+# Download settings
+download_settings:
+  max_workers: 5  # Number of concurrent downloads
+  retry_attempts: 3  # Number of retry attempts per file
+  timeout: 30  # Timeout in seconds for each download 

@@ -1,3 +1,11 @@
+import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
+
 import typer
 from PIL import Image
 from pathlib import Path
@@ -6,35 +14,90 @@ import cv2
 from pdf2image import convert_from_path
 from datetime import datetime
 import logging
-from typing import Dict, Any, Optional, Tuple
-import os
+from typing import Dict, Any, Optional, Tuple, List
 import json
 import yaml
-from utils.batch import BatchProcessor
-from utils.processor import process_file
+from scripts.utils.step_manifest import StepManifestManager
+from scripts.utils.jsonl_manager import JSONLManager
 from rich.console import Console
 from PIL import ExifTags
+import torch
+import time
+import platform
+import multiprocessing
+from ultralytics import YOLO
+from scripts.utils.workflow_progress import create_progress_tracker
+import multiprocessing as mp
 
 # Configure logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
-# Load YOLO model
+app = typer.Typer()
+
+def rich_log(level, message):
+    """Log a message with rich formatting, respecting debug mode."""
+    # Get debug mode from environment
+    debug_mode = os.environ.get('FICHERO_DEBUG', '0') == '1'
+    
+    if level == "info":
+        if debug_mode:
+            console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+        else:
+            # In non-debug mode, only show important info messages
+            if "Processing complete" in message or "Processing " in message and "files" in message:
+                console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+    elif level == "warning":
+        console.log(f"[bold yellow][WARNING][/bold yellow] {message}")
+    elif level == "error":
+        console.log(f"[bold red][ERROR][/bold red] {message}")
+    else:
+        if debug_mode:
+            console.log(message)
+
+# Determine best device for the system
+def get_best_device():
+    """Determine the best available device for model inference."""
+    if torch.backends.mps.is_available():
+        logger.info("Using MPS (Metal Performance Shaders) for GPU acceleration")
+        return "mps"
+    elif torch.cuda.is_available():
+        logger.info("Using CUDA for GPU acceleration")
+        return "cuda"
+    else:
+        logger.info("Using CPU for inference")
+        return "cpu"
+
+# Load YOLO model with device optimization
 try:
-    from ultralytics import YOLO
-    yolo_model = YOLO("models/yolov8s-fichero.pt")  # Keep original model
-    logger.info("Successfully loaded YOLO model")
+    device = get_best_device()
+    yolo_model = YOLO("models/yolov8s-fichero.pt")
+    yolo_model.to(device)
+    
+    # Set model parameters for better performance
+    yolo_model.conf = 0.35  # Confidence threshold
+    yolo_model.iou = 0.45   # IoU threshold
+    yolo_model.max_det = 1  # Only keep the best detection
+    
+    # Enable half precision if using GPU/MPS
+    if device != "cpu":
+        yolo_model.model.half()
+    
+    logger.info(f"Successfully loaded YOLO model on {device}")
+    
+    # DEBUG: Check model device placement
+    logger.info(f"YOLO model device: {device}")
+    for name, param in yolo_model.model.named_parameters():
+        logger.info(f"Model param {name} is on device: {param.device}")
+        break  # Just print the first parameter for brevity
+    
 except Exception as e:
     logger.error(f"Failed to load YOLO model: {e}")
     raise
 
 def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
-    """Get the true orientation of an image using EXIF data and required rotation angle.
-    Returns (orientation, rotation_angle, details) where:
-    - orientation is "vertical" or "horizontal"
-    - rotation_angle is the degrees needed to correct the image
-    - details is a dict with EXIF and processing information"""
+    """Get the true orientation of an image using EXIF data and required rotation angle."""
     details = {
         "exif_orientation": None,
         "original_dimensions": None,
@@ -56,18 +119,7 @@ def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
                         exif_orientation = exif[orientation]
                         details["exif_orientation"] = exif_orientation
                         
-                        # EXIF orientation values and their meanings:
-                        # 1: Normal (0°)
-                        # 2: Mirrored (0°)
-                        # 3: Upside down (180°)
-                        # 4: Mirrored upside down (180°)
-                        # 5: Mirrored and rotated 90° CCW (90°)
-                        # 6: Rotated 90° CW (270°)
-                        # 7: Mirrored and rotated 90° CW (270°)
-                        # 8: Rotated 90° CCW (90°)
-                        
                         if exif_orientation in [5, 6, 7, 8]:  # Vertical orientations
-                            # Calculate required rotation angle
                             if exif_orientation == 6:  # 90° CW
                                 details["rotation_applied"] = 270
                                 details["reason"] = "EXIF orientation 6 (90° CW) requires 270° rotation to correct"
@@ -99,74 +151,112 @@ def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
         return "unknown", 0, details
 
 def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float = 0.35) -> Optional[Tuple[Image.Image, Dict[str, Any]]]:
-    """Crop image using YOLOv8 model
-    Returns tuple of (cropped_image, crop_info) where crop_info contains box coordinates and confidence"""
+    """Crop image using YOLOv8 model with optimized settings"""
     try:
+        rich_log("info", f"[crop_with_yolo] Processing {image_path}")
         # Get true orientation and required rotation
         true_orientation, rotation_angle, orientation_details = get_image_orientation(image_path)
+        rich_log("info", f"[crop_with_yolo] Orientation: {true_orientation}, Rotation: {rotation_angle}")
         
         # Read original image and convert to PIL
         original_pil = Image.open(image_path)
         orig_width, orig_height = original_pil.size
+        logger.info(f"Original image size: {orig_width}x{orig_height}")
+        rich_log("info", f"Original image size: {orig_width}x{orig_height}")
         
         # Apply rotation if needed
         if rotation_angle > 0:
             original_pil = original_pil.rotate(rotation_angle, expand=True)
-            # Update dimensions after rotation
             orig_width, orig_height = original_pil.size
+            logger.info(f"Image size after rotation: {orig_width}x{orig_height}")
+            rich_log("info", f"Image size after rotation: {orig_width}x{orig_height}")
         
         # Convert to numpy array for YOLO
         original_img = cv2.cvtColor(np.array(original_pil), cv2.COLOR_RGB2BGR)
         
-        # Resize image for model prediction while maintaining aspect ratio and stride requirement
-        model_size = 640
+        # Calculate target size maintaining aspect ratio and divisible by 32
+        model_size = 640  # YOLO's preferred input size
         scale = min(model_size / orig_width, model_size / orig_height)
         model_width = int(orig_width * scale)
         model_height = int(orig_height * scale)
         
-        # Ensure dimensions are multiples of 32 (YOLO stride requirement)
+        # Ensure dimensions are divisible by 32
         model_width = ((model_width + 31) // 32) * 32
         model_height = ((model_height + 31) // 32) * 32
         
-        model_img = cv2.resize(original_img, (model_width, model_height))
+        # Resize image maintaining aspect ratio
+        model_img = cv2.resize(original_img, (model_width, model_height), 
+                             interpolation=cv2.INTER_LINEAR)
+        
+        logger.info(f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
+        rich_log("info", f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
+        
+        # DEBUG: Check GPU availability and tensor device
+        logger.info(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+        logger.info(f"torch.backends.mps.is_available(): {getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available()}")
+        
+        # Convert to tensor and move to GPU
+        tensor = torch.from_numpy(model_img).float()
+        tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> BCHW
+        tensor = tensor / 255.0  # Normalize to [0, 1]
+        tensor = tensor.to(device)
+        logger.info(f"model_img tensor device: {tensor.device}")
+        rich_log("info", f"model_img tensor device: {tensor.device}")
+        logger.info(f"model_img tensor shape: {tensor.shape}")
+        rich_log("info", f"model_img tensor shape: {tensor.shape}")
         
         # Run prediction with optimized settings
-        results = yolo_model.predict(
-            source=model_img,
+        results = list(yolo_model.predict(
+            source=tensor,  # Pass the GPU tensor directly
             conf=conf_threshold,
-            imgsz=(model_width, model_height),
+            imgsz=(model_height, model_width),  # Use actual dimensions
             iou=0.45,
-            verbose=False
-        )[0]
+            verbose=False,
+            stream=True  # Enable streaming for better memory usage
+        ))
+        rich_log("info", f"YOLO prediction results: {results}")
         
-        if not results.boxes:
+        if not results or not results[0].boxes:
             logger.warning("No detections found")
+            rich_log("warning", "No detections found")
             return None
             
         # Get the best detection (highest confidence)
-        box = max(results.boxes.data, key=lambda x: x[4])
+        box = max(results[0].boxes.data, key=lambda x: x[4])
         x1, y1, x2, y2, conf = map(float, box[:5])
+        logger.info(f"Detection in model space: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+        rich_log("info", f"Detection in model space: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+        
+        # Calculate scale factors
+        scale_x = orig_width / model_width
+        scale_y = orig_height / model_height
         
         # Scale coordinates back to original image size
-        x1 = int(x1 / scale)
-        y1 = int(y1 / scale)
-        x2 = int(x2 / scale)
-        y2 = int(y2 / scale)
+        x1 = int(x1 * scale_x)
+        y1 = int(y1 * scale_y)
+        x2 = int(x2 * scale_x)
+        y2 = int(y2 * scale_y)
+        logger.info(f"Scaled to original size: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
+        rich_log("info", f"Scaled to original size: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         
         # Apply padding only on left and bottom
         padding = 30
-        x1 = max(0, x1 - padding)  # Add padding to left
-        y1 = max(0, y1 - padding)  # Add padding to top
-        x2 = min(orig_width, x2)   # No padding on right
-        y2 = min(orig_height, y2 + padding)  # Add padding to bottom
+        x1 = max(0, x1 - padding)
+        y1 = max(0, y1 - padding)
+        x2 = min(orig_width, x2)
+        y2 = min(orig_height, y2 + padding)
+        logger.info(f"After padding: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
+        rich_log("info", f"After padding: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
         
         # Crop original image at full resolution
         cropped = original_img[y1:y2, x1:x2]
+        logger.info(f"Cropped size: {cropped.shape[1]}x{cropped.shape[0]}")
+        rich_log("info", f"Cropped size: {cropped.shape[1]}x{cropped.shape[0]}")
         
         # Convert to PIL Image and preserve EXIF
         result = Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
         
-        # Try to preserve EXIF data from original image
+        # Try to preserve EXIF data
         try:
             if hasattr(original_pil, '_getexif'):
                 exif = original_pil._getexif()
@@ -174,6 +264,7 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                     result.info['exif'] = exif
         except Exception as e:
             logger.warning(f"Could not preserve EXIF data: {e}")
+            rich_log("warning", f"Could not preserve EXIF data: {e}")
         
         # Create crop info dictionary
         crop_info = {
@@ -184,15 +275,26 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                 "y2": y2
             },
             "confidence": float(conf),
-            "method": "yolo",
-            "padding": padding,
-            "original_size": [orig_width, orig_height],
-            "cropped_size": [x2 - x1, y2 - y1]
+            "orientation": {
+                "true_orientation": true_orientation,
+                "rotation_applied": rotation_angle,
+                "details": orientation_details
+            },
+            "scaling": {
+                "original_size": [orig_width, orig_height],
+                "model_size": [model_width, model_height],
+                "scale_factors": {
+                    "x": scale_x,
+                    "y": scale_y
+                }
+            }
         }
             
         return result, crop_info
+        
     except Exception as e:
-        logger.error(f"YOLO cropping failed: {e}")
+        logger.error(f"Error in crop_with_yolo: {str(e)}")
+        rich_log("error", f"Error in crop_with_yolo: {str(e)}")
         return None
 
 def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
@@ -237,12 +339,17 @@ def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
 
 def process_image(file_path: Path, out_path: Path) -> dict:
     """Process a single image file"""
+    rich_log("info", f"[process_image] Processing {file_path}")
     # Get source folder structure from input path
-    source_dir = Path(file_path).parts[1:]  # Skip the first part (documents)
+    if 'documents/' in str(file_path):
+        source_dir = Path(*file_path.parts[file_path.parts.index('documents')+1:])
+    else:
+        source_dir = file_path
     
     # Verify file exists and is readable
     if not file_path.exists():
         logger.error(f"File does not exist: {file_path}")
+        rich_log("error", f"File does not exist: {file_path}")
         return {"success": False, "error": "File not found"}
     
     try:
@@ -251,12 +358,14 @@ def process_image(file_path: Path, out_path: Path) -> dict:
             logger.debug(f"Successfully opened image: {file_path.name} (format: {img.format})")
     except Exception as e:
         logger.error(f"Failed to open image {file_path.name}: {e}")
+        rich_log("error", f"Failed to open image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to open image: {e}"}
     
     attempts = []
     
     # Try YOLO with original confidence threshold
     logger.debug(f"Attempting YOLO detection with confidence 0.35 for {file_path.name}")
+    rich_log("info", f"Attempting YOLO detection with confidence 0.35 for {file_path.name}")
     result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.35)
     attempts.append({
         "method": "yolo",
@@ -267,6 +376,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # If YOLO fails, try with lower confidence
     if not result:
         logger.debug(f"Attempting YOLO detection with confidence 0.15 for {file_path.name}")
+        rich_log("info", f"Attempting YOLO detection with confidence 0.15 for {file_path.name}")
         result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.15)
         attempts.append({
             "method": "yolo",
@@ -277,6 +387,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # If YOLO still fails, try contour detection
     if not result:
         logger.debug(f"Attempting contour detection for {file_path.name}")
+        rich_log("info", f"Attempting contour detection for {file_path.name}")
         result = detect_with_contours(file_path)
         attempts.append({
             "method": "contour",
@@ -294,6 +405,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # If all detection methods fail, use original image
     if not result:
         logger.warning(f"Using original image as fallback for {file_path.name}")
+        rich_log("warning", f"Using original image as fallback for {file_path.name}")
         original = Image.open(file_path)
         crop_info = {
             "method": "original",
@@ -311,15 +423,20 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     if image.format != 'JPEG':
         logger.debug(f"Converting {file_path.name} from {image.format} to JPEG")
         image = image.convert('RGB')
+
+    # Create output path maintaining directory structure
+    output_path = out_path / source_dir
+    output_path = output_path.with_suffix('.jpg')
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Save the result as JPG with lowercase extension
-    out_path = out_path.with_suffix('.jpg')
-    image.save(out_path, 'JPEG', quality=95)
-    logger.debug(f"Saved cropped image to {out_path}")
+    logger.info(f"Saving cropped image to: {output_path}")
+    rich_log("info", f"Saving cropped image to: {output_path}")
+    image.save(output_path, 'JPEG', quality=95)
+    logger.debug(f"Saved cropped image to {output_path}")
+    rich_log("info", f"Saved cropped image to {output_path}")
     
-    # Build output path preserving full source hierarchy
-    # Use the same directory structure but with lowercase .jpg extension
-    rel_path = Path(*source_dir[:-1]) / out_path.with_suffix('.jpg').name
+    # Build relative path preserving hierarchy
+    rel_path = Path('assets/crops') / source_dir.with_suffix('.jpg')
     
     # Add attempts to the crop info
     crop_info["attempts"] = attempts
@@ -332,7 +449,10 @@ def process_image(file_path: Path, out_path: Path) -> dict:
 def process_pdf(file_path: Path, out_path: Path) -> dict:
     """Process a PDF file"""
     # Get source folder structure from input path
-    source_dir = Path(file_path).parts[-4:-1]
+    if 'documents/' in str(file_path):
+        source_dir = Path(*file_path.parts[file_path.parts.index('documents')+1:])
+    else:
+        source_dir = file_path
     
     # Convert and process each page
     images = convert_from_path(file_path, dpi=300)
@@ -340,7 +460,7 @@ def process_pdf(file_path: Path, out_path: Path) -> dict:
     details = {}
     
     # Create directory for PDF pages
-    pdf_dir = out_path.parent / f"{out_path.stem}"
+    pdf_dir = out_path / source_dir.parent / f"{source_dir.stem}"
     pdf_dir.mkdir(parents=True, exist_ok=True)
     
     for i, image in enumerate(images):
@@ -358,7 +478,7 @@ def process_pdf(file_path: Path, out_path: Path) -> dict:
             result[0].save(cropped_path, "JPEG", quality=95)
             
             # Build relative path preserving hierarchy
-            rel_path = Path(*source_dir) / f"{out_path.stem}" / f"page_{i + 1}_cropped.jpg"
+            rel_path = Path('assets/crops') / source_dir.parent / f"{source_dir.stem}" / f"page_{i + 1}_cropped.jpg"
             outputs.append(str(rel_path))
             
             details[f"page_{i + 1}"] = result[1]  # Include the crop info
@@ -383,37 +503,170 @@ def process_document(file_path: str, output_folder: Path) -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
-    def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o)
+    # Skip directories
+    if file_path.is_dir():
+        logger.debug(f"Skipping directory: {file_path}")
+        return {"success": True, "details": {"skipped": "directory"}}
     
-    return process_file(
-        file_path=str(file_path),
-        output_folder=output_folder,
-        process_fn=process_fn,
-        file_types={
-            '.pdf': lambda f, o: process_pdf(Path(f), o),
-            '.jpg': process_fn,
-            '.jpeg': process_fn,
-            '.tif': process_fn,
-            '.tiff': process_fn,
-            '.png': process_fn
+    try:
+        # Ensure output folder exists
+        output_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Get the relative path from documents/
+        if 'documents/' in str(file_path):
+            rel_path = Path(*file_path.parts[file_path.parts.index('documents')+1:])
+        else:
+            rel_path = file_path
+            
+        # Process image
+        result = process_image(file_path, output_folder)
+        
+        # Add success flag and ensure outputs are set
+        if "outputs" not in result:
+            result["outputs"] = []
+        if "details" not in result:
+            result["details"] = {}
+        
+        result["success"] = True
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error processing {file_path}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "outputs": [],
+            "details": {"error": str(e)}
         }
-    )
 
+@app.command()
 def crop(
-    source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
-    source_manifest: Path = typer.Argument(..., help="Manifest file"),
-    output_folder: Path = typer.Argument(..., help="Output folder for cropped images")
+    manifest_file: Path = typer.Argument(..., help="Manifest file"),
+    project_folder: Path = typer.Argument(..., help="Project folder"),
+    model_path: str = typer.Option("models/yolov8s-fichero.pt", help="Path to YOLO model"),
+    conf_threshold: float = typer.Option(0.35, help="Confidence threshold"),
+    batch_size: int = typer.Option(10, help="Batch size for parallel processing"),
+    max_workers: Optional[int] = typer.Option(None, help="Number of worker processes"),
+    debug: bool = typer.Option(False, help="Enable debug logging")
 ):
-    """Crop images from documents using YOLO detection"""
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="crop",
-        base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o)
+    """Crop documents using computer vision techniques."""
+    # Set logging level based on debug flag
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        # Enable all debug logging
+        logging.getLogger('ultralytics').setLevel(logging.DEBUG)
+        logging.getLogger('PIL').setLevel(logging.DEBUG)
+        logging.getLogger('torch').setLevel(logging.DEBUG)
+        
+        # Log detailed hardware information
+        rich_log("info", "=== Hardware Information ===")
+        rich_log("info", f"System: {platform.system()} {platform.release()}")
+        rich_log("info", f"Machine: {platform.machine()}")
+        rich_log("info", f"Processor: {platform.processor()}")
+        
+        # Log CPU information
+        cpu_count = multiprocessing.cpu_count()
+        rich_log("info", f"CPU Cores: {cpu_count}")
+        
+        # Log GPU information
+        if torch.cuda.is_available():
+            rich_log("info", "=== CUDA Information ===")
+            rich_log("info", f"CUDA Available: Yes")
+            rich_log("info", f"CUDA Version: {torch.version.cuda}")
+            rich_log("info", f"GPU Device: {torch.cuda.get_device_name(0)}")
+            rich_log("info", f"GPU Count: {torch.cuda.device_count()}")
+        elif torch.backends.mps.is_available():
+            rich_log("info", "=== MPS Information ===")
+            rich_log("info", "MPS (Metal Performance Shaders) Available: Yes")
+            rich_log("info", "Using Apple Silicon GPU")
+        else:
+            rich_log("info", "No GPU acceleration available - using CPU")
+        
+        # Log model information
+        rich_log("info", "=== Model Information ===")
+        rich_log("info", f"Model Path: {model_path}")
+        rich_log("info", f"Model Device: {device}")
+        rich_log("info", f"Model Parameters: {sum(p.numel() for p in yolo_model.parameters())}")
+        rich_log("info", f"Model Half Precision: {device != 'cpu'}")
+        
+        # Log worker information
+        worker_id = os.environ.get('WORKER_ID', None)
+        if worker_id is not None:
+            rich_log("info", f"Running as Worker {worker_id}")
+        else:
+            rich_log("info", "Running in single-process mode")
+        
+        rich_log("info", "========================")
+    else:
+        # Set main logger to WARNING to suppress most output
+        logging.getLogger().setLevel(logging.WARNING)
+        # Disable all debug logging from other modules
+        logging.getLogger('ultralytics').setLevel(logging.WARNING)
+        logging.getLogger('PIL').setLevel(logging.WARNING)
+        logging.getLogger('torch').setLevel(logging.WARNING)
+
+    # Set up paths based on project structure
+    source_folder = project_folder / "documents"
+    output_folder = project_folder / "assets" / "crops"
+    
+    # Create output folder if it doesn't exist
+    output_folder.mkdir(parents=True, exist_ok=True)
+    
+    # Initialize manifest manager
+    manifest = StepManifestManager(manifest_file, "crop")
+
+    # Log manifest stats
+    all_files = manifest.get_all_files()
+    pending_files = [f for f in all_files if manifest.is_pending(f)]
+    rich_log("info", f"Processing {len(pending_files)} files...")
+    
+    # Create progress trackers (will be None if child/worker process)
+    workflow_progress, step_progress = create_progress_tracker(
+        total_files=len(list(source_folder.glob("**/*.jpg"))),
+        step_name="Cropping Documents",
+        show_workflow=True,
+        total_steps=1
     )
-    processor.process()
+    
+    # Process files until none are left
+    while True:
+        # Get next pending file
+        input_path = manifest.get_next_pending()
+        if not input_path:
+            rich_log("info", "Processing complete!")
+            break
+        
+        try:
+            # Remove documents/ prefix from input_path if present
+            if input_path.startswith('documents/'):
+                input_path = input_path[10:]  # Remove 'documents/' prefix
+            
+            # Construct full paths
+            full_input_path = source_folder / input_path
+            full_output_path = output_folder / input_path
+            
+            if debug:
+                rich_log("info", f"Processing: {input_path}")
+            
+            # Process the file
+            result = process_document(str(full_input_path), output_folder)
+            
+            if result["success"]:
+                if debug:
+                    rich_log("info", f"Completed: {input_path}")
+                # Update manifest with results
+                manifest.mark_done(
+                    input_path,
+                    crop_outputs=result.get("outputs", []),
+                    crop_details=result.get("details", {})
+                )
+            else:
+                rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
+                manifest.mark_error(input_path, result.get("error", "Unknown error"))
+                
+        except Exception as e:
+            rich_log("error", f"Error processing {input_path}: {e}")
+            manifest.mark_error(input_path, str(e))
 
 if __name__ == "__main__":
-    typer.run(crop)
+    app()

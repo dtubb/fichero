@@ -15,16 +15,28 @@ vars:
   text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
   version: "0.0.0"
   
-  # Project paths - these should be configured per project
-  project_folder: "/Volumes/Fichero/projects/choco_atlas"  # Relative path to project folder
-  documents_folder: "${vars.project_folder}/documents"
-  assets_folder: "${vars.project_folder}/assets"
+  # Input source - where we get files from (can be folder, URLs, or HTML)
+  # This must be provided via CLI: --source /path/to/folder or --source https://example.com
+  #input_source: "/Users/dtubb/code/fichero/projects/demo_source"  # Will be set by CLI
+  input_source: "/Users/dtubb/code/fichero/projects/marshall_diary_source" # Will be set by CLI
+  
+  # Working folder - where everything happens
+  # This can be overridden via CLI, but needs to be defined here for scripts
+  project_folder: "/Users/dtubb/code/fichero/projects/marshall_diary"  # Can be overridden via CLI
+  #project_folder: "/Volumes/Fichero/projects/demo"  # Relative path to project folder
+  #project_folder: "/Users/dtubb/code/fichero/projects/demo"  # Relative path to project folder
+  
+  # These folders will be created inside project_folder
+  documents_folder: "${vars.project_folder}/documents"  # Where source files will be copied/downloaded
+  assets_folder: "${vars.project_folder}/assets"  # Where all processed files go
+  temp_folder: "${vars.assets_folder}/temp"  # For temporary files
+
 
   # metadata
-  documents_manifest_folder: "${vars.assets_folder}/manifests"
-  documents_manifest: "${vars.documents_manifest_folder}/documents_manifest.jsonl"
+  documents_manifest_folder: "${vars.project_folder}"
+  documents_manifest: "${vars.project_folder}/manifest.jsonl"
   
-  # Processing folders
+  # Processing folders (created automatically)
   crops_folder: "${vars.assets_folder}/crops"
   crop_manifest: "${vars.documents_manifest}"
   crop_source_folder: "${vars.documents_folder}"
@@ -52,16 +64,26 @@ vars:
 
   # LMStudio configuration
   lmstudio_url: "http://localhost:1234"
-  #lmstudio_model: "qwen2-vl-7b-instruct"  # Model name as shown in LM Studio
-  #lmstudio_model: "qwen2.5-vl-7b-instruct"  # Model name as shown in LM Studio
-  #lmstudio_model: "Qwen2-VL-7B-Instruct-8bit"  # Model name as shown in LM Studio
   lmstudio_model: "Qwen2.5-VL-3B-Instruct-8bit"  # Model name as shown in LM Studio
 
 directories: ["scripts"]
 
 workflows:
   test:
+    - prepare_images
+    - convert_to_jpg
     - build_documents_manifest
+    - crop
+    - split
+
+  prepare-convert-build-manifest:
+    - prepare_images
+    - convert_to_jpg
+    - build_documents_manifest
+
+  crop-split:
+      - crop
+
 
   archive-to-word-qwen-max:
     - build_documents_manifest
@@ -133,6 +155,20 @@ workflows:
     - convert_to_word
 
 commands:
+  - name: prepare_images
+    help: "Copy files from input source to project folder"
+    script:
+      - "python scripts/prepare_images.py ${vars.input_source} ${vars.documents_folder}"
+    outputs:
+      - ${vars.documents_folder}
+
+  - name: convert_to_jpg
+    help: "Convert various file formats to JPG"
+    script:
+      - "python scripts/convert_to_jpg.py ${vars.documents_folder} ${vars.documents_folder} --dpi 300"
+    outputs:
+      - ${vars.documents_folder}
+
   - name: build_documents_manifest
     help: "Generate the documents manifest listing"
     script:
@@ -143,7 +179,7 @@ commands:
   - name: crop
     help: "Crop documents using computer vision techniques"
     script:
-      - "python scripts/crop.py ${vars.documents_folder} ${vars.documents_manifest} ${vars.crops_folder}"
+      - "python scripts/crop.py \"${vars.documents_manifest}\" \"${vars.project_folder}\""
     outputs:
       - ${vars.crops_folder}
       - ${vars.crops_folder}/crop_manifest.jsonl
@@ -151,7 +187,7 @@ commands:
   - name: split
     help: "Split cropped images"
     script:
-      - "python scripts/split.py ${vars.crops_folder} ${vars.crops_folder}/crop_manifest.jsonl ${vars.split_image_folder}"
+      - "python scripts/split.py \"${vars.project_folder}/manifest.jsonl\" ${vars.project_folder}"
     outputs:
       - ${vars.split_image_folder}
       - ${vars.split_manifest}
@@ -198,7 +234,7 @@ commands:
   - name: transcribe_qwen_2b_segments
     help: "Transcribe segmented documents using Qwen2.0-VL-2B"
     script:
-      - "python scripts/transcribe_qwen_2b.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
+      - "python scripts/transcribe_qwen_2b_segments.py ${vars.segmented_image_folder} ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
     outputs:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
@@ -236,12 +272,12 @@ commands:
       - ${vars.segmented_transcription_manifest}
 
   - name: recombine_segments
-    help: "Recombine the transcribed segments into single markdown files"
+    help: "Recombine segmented transcriptions"
     script:
-      - "python scripts/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.recombined_folder} ${vars.segmented_transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
+      - "python scripts/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.segmented_transcription_manifest} ${vars.recombined_folder}"
     outputs:
       - ${vars.recombined_folder}
-      - ${vars.recombined_folder}/recombine_manifest.jsonl
+      - ${vars.recombined_folder}/recombined_manifest.jsonl
 
   - name: recombine_segments_qwen_max
     help: "Recombine the transcribed segments from Qwen into single markdown files"
@@ -252,17 +288,17 @@ commands:
       - ${vars.recombined_folder}/recombine_manifest.jsonl
 
   - name: fuzzy_clean
-    help: "Clean up text from recombined transcriptions"
+    help: "Clean and normalize text"
     script:
-      - "python scripts/fuzzy_clean.py ${vars.recombined_folder} ${vars.recombined_folder}/recombine_manifest.jsonl ${vars.transcriptions_folder}"
+      - "python scripts/fuzzy_clean.py ${vars.recombined_folder} ${vars.recombined_folder}/recombined_manifest.jsonl ${vars.transcriptions_folder}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
 
   - name: convert_to_word
-    help: "Convert background-removed images and transcriptions to Word documents with side-by-side layout"
+    help: "Convert transcriptions to Word documents"
     script:
-      - "python scripts/convert_to_word.py ${vars.background_removed_image_folder} ${vars.transcription_manifest} ${vars.word_folder}"
+      - "python scripts/convert_to_word.py ${vars.transcriptions_folder} ${vars.transcription_manifest} ${vars.word_folder}"
     outputs:
       - ${vars.word_folder}
 

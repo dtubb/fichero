@@ -1,9 +1,0 @@
-build_documents_manifest:
-  cmd: python -m weasel run build_documents_manifest
-  script:
-    - python scripts/build_documents_manifest.py "/Volumes/Fichero/projects/choco_atlas/documents"
-      "/Volumes/Fichero/projects/choco_atlas/assets/manifests/documents_manifest.jsonl"
-  deps: []
-  outs:
-    - path: /Volumes/Fichero/projects/choco_atlas/assets/manifests/documents_manifest.jsonl
-      md5: 51764cd7888b793c35002a6fecaee503

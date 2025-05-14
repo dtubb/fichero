@@ -12,13 +12,13 @@ def natural_sort_key(s: str):
 
 def build_documents_manifest(
     documents_dir: Path = typer.Argument(..., help="Directory to scan for files and folders"),
-    manifest_filename: str = typer.Argument("assets/manifests/documents_manifest.jsonl", help="Manifest output filename (relative to project root or absolute)")
+    manifest_filename: str = typer.Argument("manifest.jsonl", help="Manifest output filename (relative to project root or absolute)")
 ):
     """
     Recursively scan the given documents directory and create a JSONL file listing
     all files and subfolders (relative paths only), sorted alphanumerically.
     Now uses JSONLManager for safe, central manifest creation.
-    Manifest is written to the given output path (default: assets/manifests/documents_manifest.jsonl).
+    Manifest is written to the given output path (default: manifest.jsonl).
     Shows a progress bar while scanning files.
     """
     
@@ -54,8 +54,9 @@ def build_documents_manifest(
             # print(f"[DEBUG] Processing directory: {root_path}")
             for d in dirs:
                 rel_path = root_path.joinpath(d).relative_to(documents_dir)
-                # print(f"[DEBUG] Adding directory entry: {rel_path}")
-                entries.append({"input_path": str(rel_path), "type": "directory"})
+                # Add documents/ prefix to path
+                input_path = f"documents/{rel_path}"
+                entries.append({"input_path": input_path, "type": "directory"})
                 stats["processed"] += 1
                 tracker.progress.update(tracker.task, advance=1, **stats)
             for f in files:
@@ -66,21 +67,25 @@ def build_documents_manifest(
                     '.pdf', '.jpg', '.jpeg', '.tif', '.tiff', '.png', '.jxl')):
                     file_path = root_path.joinpath(f)
                     rel_path = file_path.relative_to(documents_dir)
+                    # Add documents/ prefix to path
+                    input_path = f"documents/{rel_path}"
                     folder = rel_path.parts[0] if len(rel_path.parts) > 1 else ""
                     try:
                         mtime = os.path.getmtime(file_path)
                         size = os.path.getsize(file_path)
-                        # print(f"[DEBUG] Adding file entry: {rel_path} (size: {size}, mtime: {mtime})")
                     except Exception as e:
                         print(f"[ERROR] Could not stat {file_path}: {e}")
                         continue
                     entries.append({
-                        "input_path": str(rel_path),
+                        "input_path": input_path,
                         "folder": folder,
                         "type": "file",
                         "mtime": mtime,
                         "size": size,
-                        "status": "pending"
+                        "status": "pending",
+                        "crop_status": "pending",
+                        "crop_outputs": [],
+                        "crop_details": {}
                     })
                     stats["processed"] += 1
                     tracker.progress.update(tracker.task, advance=1, **stats)

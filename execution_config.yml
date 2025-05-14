@@ -1,0 +1,70 @@
+# Configuration for execution modes
+# This file is used by fichero_cli.py to control how steps are executed
+
+# Hardware detection and optimization
+hardware:
+  auto_detect: true  # Enable automatic hardware detection
+  # Manual override options (if auto_detect is false)
+  # device: "cuda"  # Options: "cuda", "mps", "cpu"
+
+# System-specific configurations
+system_configs:
+  cuda:
+    # GPU tasks
+    crop: 4
+    transcribe_qwen_max: 2
+    transcribe_qwen_7b: 2
+    transcribe_lmstudio: 2
+    # CPU tasks
+    split: 4
+    rotate: 4
+    enhance: 4
+    remove_background: 4
+    segment: 4
+  
+  mps:  # Apple Silicon
+    # GPU tasks
+    crop: 4
+    transcribe_qwen_max: 2
+    transcribe_qwen_7b: 2
+    transcribe_lmstudio: 2
+    # CPU tasks
+    split: 4
+    rotate: 4
+    enhance: 4
+    remove_background: 4
+    segment: 4
+  
+  cpu:
+    # CPU tasks
+    crop: 4
+    transcribe_qwen_max: 2
+    transcribe_qwen_7b: 2
+    transcribe_lmstudio: 2
+    split: 4
+    rotate: 4
+    enhance: 4
+    remove_background: 4
+    segment: 4
+
+# Steps that should run sequentially (one file at a time)
+sequential_steps:
+  - prepare_images          # Initial file preparation
+  - convert_to_jpg         # Format conversion
+  - build_documents_manifest  # Single operation on entire folder
+  - recombine_segments       # Needs all segments before combining
+  - recombine_segments_qwen_max
+  - fuzzy_clean             # Post-processing of all files
+  - convert_to_word         # Final conversion step
+
+# Steps that can run concurrently (multiple files processed by worker pool)
+concurrent_steps:
+  - crop                    # Image processing
+  - split                   # Image processing
+  - rotate                  # Image processing
+  - enhance                 # Image processing
+  - remove_background       # Image processing
+  - segment                 # Image processing
+  - transcribe_qwen_7b
+  - transcribe_qwen_max
+  - transcribe_lmstudio 

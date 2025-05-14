@@ -10,9 +10,9 @@ We are building **Fichero**, a scalable, resilient document processing system de
 * Organize documents into **folders** (e.g., legal cases)
 * Process documents **independently and in parallel**
 * Post-process **entire folders** when files are complete
-* Be controllable via **GUI or CLI**
+* Be controllable via **CLI**
 * Be **reliable, fault-tolerant, and recoverable**
-* **Scale** cleanly with CPUs and GPUs
+* **Scale** cleanly with CPUs
 
 ---
 
@@ -20,31 +20,25 @@ We are building **Fichero**, a scalable, resilient document processing system de
 
 | Layer                      | Role                                              |
 | :------------------------- | :------------------------------------------------ |
-| GUI (wxPython)             | User starts processing and monitors progress      |
-| CLI (fichero\_cli.py)      | Parses inputs, calls the controller               |
-| Controller (controller.py) | Dynamically builds Weasel flows per file          |
-| Weasel                     | Runs tasks, manages concurrency, retries failures |
-| Monitor (monitor.py)       | Watches fichero.jsonl for folder completion       |
-| fichero.jsonl              | Central file recording per-file status            |
+| CLI (fichero_cli.py)      | Parses inputs, manages workflow execution         |
+| Controller (controller.py) | Manages file processing and worker pools          |
+| Monitor (monitor.py)       | Watches manifest.jsonl for folder completion      |
+| manifest.jsonl            | Central file recording per-file status            |
 
 ---
 
 # 🌐 Detailed Workflow
 
-1. User selects a folder of files in GUI or terminal CLI.
-2. GUI calls the CLI with folder path and settings (CPUs, GPU usage).
-3. CLI invokes **Controller**, which:
-
+1. User selects a workflow and configuration via CLI.
+2. CLI invokes **Controller**, which:
    * Scans the selected folder.
-   * **Creates a Weasel flow per file** (Rotate, Enhance, Segment, OCR, Clean).
-   * Launches all flows with **controlled concurrency**.
-4. Each **Weasel task** updates **fichero.jsonl** with file progress.
-5. **Separate Monitor process**:
-
-   * Reads fichero.jsonl every few seconds.
+   * Processes files based on workflow steps.
+   * Manages parallel execution with worker pools.
+3. Each **processing step** updates **manifest.jsonl** with file progress.
+4. **Separate Monitor process**:
+   * Reads manifest.jsonl every few seconds.
    * Groups files by folder.
-   * Triggers **folder-level flows** (Merge texts, Create PDFs, Archive) once all files in a folder are "done".
-6. **GUI** polls fichero.jsonl and shows real-time updates.
+   * Triggers **folder-level processing** once all files in a folder are "done".
 
 ---
 
@@ -52,23 +46,22 @@ We are building **Fichero**, a scalable, resilient document processing system de
 
 | File                     | Purpose                                          |
 | :----------------------- | :----------------------------------------------- |
-| fichero\_gui.py          | wxPython GUI frontend                            |
-| fichero\_cli.py          | Command-line interface frontend                  |
-| controller.py            | Builds and manages Weasel flows dynamically      |
+| fichero_cli.py          | Command-line interface frontend                  |
+| controller.py            | Manages file processing and worker pools         |
 | monitor.py               | Separate process that monitors folder completion |
 | steps/rotate.py          | Rotate image task                                |
 | steps/enhance.py         | Image enhancement task                           |
 | steps/segment.py         | Document segmentation task                       |
 | steps/ocr.py             | OCR task                                         |
 | steps/clean.py           | Cleaning/postprocessing task                     |
-| steps/folder\_merge.py   | Merge texts per folder                           |
-| steps/folder\_pdf.py     | Create final PDFs                                |
-| steps/folder\_archive.py | Zip/Archive folder                               |
-| jsonl\_manager.py        | Safe read/write operations for fichero.jsonl     |
+| steps/folder_merge.py    | Merge texts per folder                           |
+| steps/folder_pdf.py      | Create final PDFs                                |
+| steps/folder_archive.py  | Zip/Archive folder                               |
+| jsonl_manager.py         | Safe read/write operations for manifest.jsonl    |
 
 ---
 
-# 📚 fichero.jsonl Format
+# 📚 manifest.jsonl Format
 
 Each line is one file:
 
@@ -85,7 +78,6 @@ Each line is one file:
 ```
 
 Fields:
-
 * `input_path`: original file path
 * `folder`: folder (case) name
 * `status`: task completion status ("done", "error", etc.)
@@ -94,15 +86,15 @@ Fields:
 
 # 🌀 File-Level Processing (per file)
 
-Each file gets its **own Weasel flow**:
+Each file is processed through the workflow steps:
 
 ```text
 Rotate ➔ Enhance ➔ Segment ➔ OCR ➔ Clean
 ```
 
-* Tasks run in order.
-* Retry on failure is automatic.
-* Progress is recorded after each step.
+* Steps can run sequentially or in parallel based on configuration
+* Progress is recorded after each step
+* Error handling and retries are managed per step
 
 ---
 
@@ -114,8 +106,8 @@ When all files in a folder are complete:
 Merge Transcriptions ➔ Create PDF ➔ Archive Folder
 ```
 
-* The Monitor triggers a **new Weasel flow** for the folder.
-* Folder-level actions are reliable and sequential.
+* The Monitor triggers folder-level processing
+* Folder-level actions are reliable and sequential
 
 ---
 
@@ -123,57 +115,66 @@ Merge Transcriptions ➔ Create PDF ➔ Archive Folder
 
 | Problem                             | Solution                                                    |
 | :---------------------------------- | :---------------------------------------------------------- |
-| 61,000+ files?                      | Concurrency control in Weasel (e.g., 8-64 concurrent flows) |
-| Writing conflicts in fichero.jsonl? | `multiprocessing.Lock()` or batched safe writes             |
-| Folder needs to wait?               | Monitor watches and triggers folder flows                   |
+| 61,000+ files?                      | Async processing with worker pools                          |
+| Writing conflicts in manifest.jsonl? | Safe concurrent writes with jsonl_manager                   |
+| Folder needs to wait?               | Monitor watches and triggers folder processing              |
 | Slow steps?                         | Fine, because each file is independent                      |
-| GPUs/CPUs?                          | Assign specific GPUs to workers with environment variables  |
+| CPU scaling?                        | Dynamic worker count based on system resources              |
 
 **RAM usage?**
-
-* Loading 61k file entries = \~200-500 MB RAM.
-* Fine on modern systems.
+* Loading 61k file entries = ~200-500 MB RAM
+* Fine on modern systems
 
 ---
 
 # 🏋️ Control Flow Diagram
 
 ```
-[GUI/CLI]
-   └── Launches Controller ──└── Build Weasel Flows
-                                        └── Start Weasel Workers
+[CLI]
+   └── Launches Controller ──└── Process Files
+                                    └── Manage Worker Pools
 [Monitor]
-   └── Watches fichero.jsonl
-           └── Triggers Folder Flows when Ready
+   └── Watches manifest.jsonl
+           └── Triggers Folder Processing when Ready
 ```
 
 ---
 
 # ✨ Summary in One Sentence
 
-> **Fichero** dynamically creates per-file Weasel flows for processing, monitors per-folder completion via fichero.jsonl, and triggers final folder workflows automatically, all coordinated through a clean GUI or CLI.
+> **Fichero** processes files through configurable workflows, manages parallel execution with worker pools, monitors per-folder completion via manifest.jsonl, and triggers final folder processing automatically, all controlled through a clean CLI.
 
 ---
 
 # 🛠️ Immediate Next Build Steps
 
-1. **Create fichero\_cli.py** to launch controller.
-2. **Create controller.py** to dynamically build flows.
-3. **Write monitor.py** to watch fichero.jsonl and trigger folders.
-4. **Write safe jsonl\_manager.py** to handle concurrent writes.
-5. **Expand steps/rotate.py, steps/enhance.py, etc.**
-6. **Connect fichero\_gui.py** to CLI via subprocess.
-7. **Test with 3 folders, each with 5 files, to validate logic.**
+1. **Implement processing steps**:
+   - rotate.py
+   - enhance.py
+   - segment.py
+   - ocr.py
+   - clean.py
+
+2. **Implement folder-level processing**:
+   - folder_merge.py
+   - folder_pdf.py
+   - folder_archive.py
+
+3. **Test with sample documents**:
+   - Create test documents folder
+   - Run through complete workflow
+   - Verify parallel processing
+   - Check folder completion
 
 ---
 
-# 🔍 Notes for Cursor.ai Instructions
+# 🔍 Notes for Implementation
 
-* Focus on **dynamic Python Weasel flows**, **no YAML**.
-* Focus on **file-level independence** + **folder-level post-processing**.
-* Use **multiprocessing.Lock()** for safe concurrent fichero.jsonl updates.
-* Optimize **GUI polling** every 2 seconds for user feedback.
-* Prepare for **batch updating** to fichero.jsonl if needed for speed.
+* Focus on **clean async processing** with worker pools
+* Focus on **file-level independence** + **folder-level post-processing**
+* Use **safe concurrent writes** for manifest.jsonl updates
+* Optimize **worker count** based on system resources
+* Prepare for **batch processing** if needed for speed
 
 ---
 
@@ -182,14 +183,19 @@ Merge Transcriptions ➔ Create PDF ➔ Archive Folder
 Once implemented, **Fichero** will:
 
 * Process tens of thousands of documents efficiently
-* Scale across CPUs and GPUs
+* Scale across CPUs
 * Be crash-recoverable
 * Be cross-platform (macOS, Linux, Windows)
-* Have a beautiful GUI and a CLI for automation
+* Have a clean CLI for automation
 
 ---
 
 # 🚀 Let's Build It!
 
 # Notes
-Completd: jsonl\_manager.py        Safe read/write operations for documents_manifest.jsonl
+Completed: 
+- jsonl_manager.py: Safe read/write operations for manifest.jsonl
+- fichero_cli.py: CLI interface with workflow management
+- async_controller.py: File processing and worker management
+- folder_monitor.py: Folder completion monitoring
+
