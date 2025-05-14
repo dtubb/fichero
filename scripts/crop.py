@@ -59,6 +59,12 @@ def rich_log(level, message):
 # Determine best device for the system
 def get_best_device():
     """Determine the best available device for model inference."""
+    # Check if CPU is forced
+    force_cpu = os.environ.get('FICHERO_FORCE_CPU', '0') == '1'
+    if force_cpu:
+        rich_log("info", "Force CPU mode enabled - using CPU for inference")
+        return "cpu"
+        
     if torch.backends.mps.is_available() and torch.backends.mps.is_built():
         rich_log("info", "Using MPS (Metal Performance Shaders) for GPU acceleration")
         return "mps"

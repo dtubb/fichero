@@ -18,11 +18,11 @@ vars:
   # Input source - where we get files from (can be folder, URLs, or HTML)
   # This must be provided via CLI: --source /path/to/folder or --source https://example.com
   #input_source: "/Users/dtubb/code/fichero/projects/demo_source"  # Will be set by CLI
-  input_source: "/Users/dtubb/code/fichero/projects/marshall_diary_source" # Will be set by CLI
+  input_source: "/Users/dtubb/code/fichero/projects/ghc_source" # Will be set by CLI
   
   # Working folder - where everything happens
   # This can be overridden via CLI, but needs to be defined here for scripts
-  project_folder: "/Users/dtubb/code/fichero/projects/marshall_diary"  # Can be overridden via CLI
+  project_folder: "/Users/dtubb/code/fichero/projects/ghc"  # Can be overridden via CLI
   #project_folder: "/Volumes/Fichero/projects/demo"  # Relative path to project folder
   #project_folder: "/Users/dtubb/code/fichero/projects/demo"  # Relative path to project folder
   
@@ -74,7 +74,6 @@ workflows:
     - convert_to_jpg
     - build_documents_manifest
     - crop
-    - split
 
   prepare-convert-build-manifest:
     - prepare_images

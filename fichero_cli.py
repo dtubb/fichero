@@ -64,19 +64,37 @@ def configure_logging(debug: bool = False):
 
 def detect_hardware() -> dict:
     """Detect available hardware and return configuration."""
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        device = "mps"
+    # Load execution config
+    execution_config = load_execution_config()
+    hardware_config = execution_config.get('hardware', {})
     
-    system = platform.system().lower()
-    is_apple_silicon = system == "darwin" and platform.machine() == "arm64"
+    # First check force_cpu from config
+    force_cpu = hardware_config.get('force_cpu', False)
+    if force_cpu:
+        return {
+            "device": "cpu",
+            "system": platform.system().lower(),
+            "is_apple_silicon": platform.system().lower() == "darwin" and platform.machine() == "arm64",
+            "force_cpu": True
+        }
+    
+    # Then check auto_detect setting
+    if not hardware_config.get('auto_detect', True):
+        # Use configured device
+        device = hardware_config.get('device', 'cpu')
+    else:
+        # Auto-detect device
+        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            device = "mps"
     
     return {
         "device": device,
-        "system": system,
-        "is_apple_silicon": is_apple_silicon
+        "system": platform.system().lower(),
+        "is_apple_silicon": platform.system().lower() == "darwin" and platform.machine() == "arm64",
+        "force_cpu": force_cpu
     }
 
 def get_system_resources() -> dict:
@@ -150,13 +168,17 @@ def load_execution_config() -> dict:
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-def get_worker_count(execution_config: dict, step: str, device: str) -> int:
+def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> int:
     """Get the configured number of workers for a step based on the device."""
     if not execution_config:
         return None
     
     # Get the system config for the current device
     system_config = execution_config.get('system_configs', {}).get(device, {})
+    
+    # For crop step on MPS (Apple Silicon), check if we should use CPU
+    if step == 'crop' and device == 'mps' and force_cpu:
+        return system_config.get('crop_cpu')
     
     # Get the worker count for this step
     return system_config.get(step)
@@ -192,7 +214,7 @@ def parse_script_command(cmd: str) -> tuple[str, list[str]]:
     # First part is 'python', second is script path, rest are arguments
     return parts[1], parts[2:]
 
-def run_script(script_path: Path, args: list):
+def run_script(script_path: Path, args: list, force_cpu: bool = False):
     """Run a script with the given arguments."""
     # Get the project root directory (parent of scripts directory)
     project_root = script_path.parent.parent
@@ -211,6 +233,8 @@ def run_script(script_path: Path, args: list):
     if os.environ.get('FICHERO_DEBUG') == '1':
         env['FICHERO_DEBUG'] = '1'
     
+    env['FICHERO_FORCE_CPU'] = '1' if force_cpu else '0'
+    
     cmd = ['python', str(script_path)] + args
     rich_log("info", f"Executing: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
@@ -223,8 +247,8 @@ def run_script(script_path: Path, args: list):
         for line in result.stdout.splitlines():
             rich_log("info", f"  {line}")
 
-def run_script_parallel(script_path: Path, args: list, num_workers: int):
-    """Run multiple instances of a script in parallel with proper manifest locking."""
+def run_script_parallel(script_path: Path, args: list, num_workers: int, force_cpu: bool = False):
+    """Run multiple instances of a script in parallel."""
     # Get manifest path from args
     manifest_path = None
     for i, arg in enumerate(args):
@@ -277,9 +301,13 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
         else:
             env['PYTHONPATH'] = str(project_root)
         
+        # Ensure force_cpu is properly propagated
+        env['FICHERO_FORCE_CPU'] = '1' if force_cpu else '0'
+        
         # Launch process with output capture
         cmd = ['python', str(script_path)] + args
         rich_log("info", f"Launching worker {worker_id}: {' '.join(cmd)}")
+        rich_log("info", f"Worker {worker_id} force_cpu: {force_cpu}")  # Log force_cpu setting
         process = subprocess.Popen(
             cmd,
             env=env,
@@ -375,15 +403,30 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
 def run_workflow(
     project_yml: Path = typer.Argument(..., help="Path to project.yml file"),
     workflow_name: str = typer.Argument(..., help="Name of workflow to run"),
-    debug: bool = typer.Option(False, help="Enable debug logging")
+    debug: bool = typer.Option(False, help="Enable debug logging"),
+    force_cpu: bool = typer.Option(False, help="Force CPU usage for YOLO processing")
 ) -> None:
     """Run a workflow defined in project.yml."""
+    start_time = time.time()
+    
     # Configure logging based on debug flag
     configure_logging(debug)
     
     # Load configurations
     config = load_project_yml(project_yml)
     execution_config = load_execution_config()
+    
+    # Set force_cpu based on both config and command line
+    config_force_cpu = execution_config.get('hardware', {}).get('force_cpu', False)
+    force_cpu = force_cpu or config_force_cpu
+    
+    # Set environment variable for force_cpu
+    os.environ['FICHERO_FORCE_CPU'] = '1' if force_cpu else '0'
+    
+    if debug:
+        rich_log("info", f"Force CPU from config: {config_force_cpu}")
+        rich_log("info", f"Force CPU from command line: {force_cpu}")
+        rich_log("info", f"Final Force CPU setting: {force_cpu}")
     
     # Get workflow steps
     workflow = config.get('workflows', {}).get(workflow_name)
@@ -434,7 +477,7 @@ def run_workflow(
                 hardware_info = detect_hardware()
                 
                 # Get configured worker count from execution_config.yml
-                configured_workers = get_worker_count(execution_config, step, hardware_info['device'])
+                configured_workers = get_worker_count(execution_config, step, hardware_info['device'], force_cpu)
                 
                 # Determine if this is a GPU task
                 is_gpu_task = (
@@ -483,6 +526,7 @@ def run_workflow(
                     rich_log("info", f"Configured Workers: {configured_workers}")
                     rich_log("info", f"Suggested Workers: {system_resources['suggested_workers']}")
                     rich_log("info", f"Actual Workers: {num_workers}")
+                    rich_log("info", f"Force CPU: {force_cpu}")
                     rich_log("info", "=============================\n")
             else:
                 # For sequential steps, just log that we're running it
@@ -526,15 +570,17 @@ def run_workflow(
                 try:
                     if num_workers > 1 and manifest_path and manifest_path.exists():
                         # Run in parallel if we have a manifest file
-                        run_script_parallel(Path(script_path), resolved_args, num_workers)
+                        run_script_parallel(Path(script_path), resolved_args, num_workers, force_cpu)
                     else:
                         # Run single process
-                        run_script(Path(script_path), resolved_args)
+                        run_script(Path(script_path), resolved_args, force_cpu)
                 except Exception as e:
                     rich_log("error", f"Step '{step}' failed: {str(e)}")
                     return
     
     rich_log("info", f"Workflow '{workflow_name}' completed successfully")
+    elapsed = time.time() - start_time
+    rich_log("info", f"Total time to completion: {elapsed:.2f} seconds")
 
 if __name__ == "__main__":
     app() 
