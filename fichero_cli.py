@@ -18,6 +18,10 @@ from scripts.utils.jsonl_manager import JSONLManager
 import time
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.live import Live
+from rich.table import Table
+from rich.panel import Panel
 
 from scripts.utils.workflow_progress import WorkflowProgress, StepProgress
 
@@ -132,6 +136,27 @@ def load_project_yml(project_yml: Path) -> dict:
     
     return config
 
+def load_execution_config() -> dict:
+    """Load execution configuration from execution_config.yml."""
+    config_path = Path(__file__).parent / "execution_config.yml"
+    if not config_path.exists():
+        logger.warning("execution_config.yml not found, using default configuration")
+        return {}
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+def get_worker_count(execution_config: dict, step: str, device: str) -> int:
+    """Get the configured number of workers for a step based on the device."""
+    if not execution_config:
+        return None
+    
+    # Get the system config for the current device
+    system_config = execution_config.get('system_configs', {}).get(device, {})
+    
+    # Get the worker count for this step
+    return system_config.get(step)
+
 def get_command_config(config: dict, step: str) -> dict:
     """Get the configuration for a specific command."""
     for cmd in config.get('commands', []):
@@ -178,6 +203,10 @@ def run_script(script_path: Path, args: list):
     # Add flag to indicate this is a child process
     env['FICHERO_CHILD_PROCESS'] = '1'
     
+    # Add debug flag to environment if enabled
+    if os.environ.get('FICHERO_DEBUG') == '1':
+        env['FICHERO_DEBUG'] = '1'
+    
     cmd = ['python', str(script_path)] + args
     logger.info(f"Executing: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
@@ -202,12 +231,45 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
     if not manifest_path:
         raise ValueError("No manifest file found in arguments")
     
+    # Create progress bars for each worker using Rich
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+    from rich.live import Live
+    from rich.table import Table
+    from rich.panel import Panel
+    
+    # Create progress bars for each worker
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("[progress.files]{task.fields[processed]}/{task.fields[total]} files"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        expand=True
+    )
+    
+    # Create tasks for each worker
+    worker_tasks = {}
+    for worker_id in range(num_workers):
+        worker_tasks[worker_id] = progress.add_task(
+            f"Worker {worker_id}",
+            total=100,  # Will be updated when we know the total
+            processed=0,
+            current_file="Initializing..."
+        )
+    
     # Launch workers
     processes = []
     for worker_id in range(num_workers):
         # Add worker ID to environment
         env = os.environ.copy()
         env['WORKER_ID'] = str(worker_id)
+        
+        # Add debug flag to environment if enabled
+        if os.environ.get('FICHERO_DEBUG') == '1':
+            env['FICHERO_DEBUG'] = '1'
         
         # Launch process with output capture
         cmd = ['python', str(script_path)] + args
@@ -222,37 +284,68 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int):
         processes.append((worker_id, process))
     
     # Monitor and log output from all workers
-    while processes:
-        for worker_id, process in processes[:]:
-            # Check if process has finished
-            if process.poll() is not None:
-                # Get any remaining output
-                stdout, stderr = process.communicate()
+    with Live(progress, refresh_per_second=4, vertical_overflow="visible") as live:
+        while processes:
+            for worker_id, process in processes[:]:
+                # Check if process has finished
+                if process.poll() is not None:
+                    # Get any remaining output
+                    stdout, stderr = process.communicate()
+                    if stdout:
+                        for line in stdout.splitlines():
+                            logger.info(f"Worker {worker_id}: {line}")
+                    if stderr:
+                        for line in stderr.splitlines():
+                            logger.error(f"Worker {worker_id}: {line}")
+                    
+                    # Check return code
+                    if process.returncode != 0:
+                        raise Exception(f"Worker {worker_id} failed with exit code {process.returncode}")
+                    
+                    # Update progress for completed worker
+                    progress.update(
+                        worker_tasks[worker_id],
+                        completed=True,
+                        description=f"Worker {worker_id} (Completed)"
+                    )
+                    
+                    # Remove finished process
+                    processes.remove((worker_id, process))
+                    continue
+                
+                # Check for output
+                stdout = process.stdout.readline()
                 if stdout:
-                    for line in stdout.splitlines():
-                        logger.info(f"Worker {worker_id}: {line}")
+                    line = stdout.strip()
+                    logger.info(f"Worker {worker_id}: {line}")
+                    
+                    # Update progress based on output
+                    if "Processing:" in line:
+                        current_file = line.split("Processing:")[1].strip()
+                        progress.update(
+                            worker_tasks[worker_id],
+                            description=f"Worker {worker_id}: {current_file}"
+                        )
+                    elif "Completed:" in line:
+                        progress.update(
+                            worker_tasks[worker_id],
+                            advance=1,
+                            description=f"Worker {worker_id}"
+                        )
+                    elif "Total files:" in line:
+                        total = int(line.split("Total files:")[1].strip())
+                        progress.update(
+                            worker_tasks[worker_id],
+                            total=total,
+                            description=f"Worker {worker_id}"
+                        )
+                
+                stderr = process.stderr.readline()
                 if stderr:
-                    for line in stderr.splitlines():
-                        logger.error(f"Worker {worker_id}: {line}")
-                
-                # Check return code
-                if process.returncode != 0:
-                    raise Exception(f"Worker {worker_id} failed with exit code {process.returncode}")
-                
-                # Remove finished process
-                processes.remove((worker_id, process))
-                continue
+                    logger.error(f"Worker {worker_id}: {stderr.strip()}")
             
-            # Check for output
-            stdout = process.stdout.readline()
-            if stdout:
-                logger.info(f"Worker {worker_id}: {stdout.strip()}")
-            stderr = process.stderr.readline()
-            if stderr:
-                logger.error(f"Worker {worker_id}: {stderr.strip()}")
-        
-        # Small sleep to prevent CPU spinning
-        time.sleep(0.1)
+            # Small sleep to prevent CPU spinning
+            time.sleep(0.1)
 
 @app.command(name="run-workflow")
 def run_workflow(
@@ -264,76 +357,114 @@ def run_workflow(
     # Configure logging based on debug flag
     configure_logging(debug)
     
-    # Load project configuration
+    # Load configurations
     config = load_project_yml(project_yml)
+    execution_config = load_execution_config()
     
     # Get workflow steps
     workflow = config.get('workflows', {}).get(workflow_name)
     if not workflow:
         raise typer.BadParameter(f"Workflow '{workflow_name}' not found in project.yml")
     
-    # Create workflow progress tracker
-    workflow_progress = WorkflowProgress(total_steps=len(workflow))
+    # Create progress bars for workflow and workers
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+    from rich.live import Live
     
-    with workflow_progress:
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        expand=True
+    )
+    
+    # Add workflow task
+    workflow_task = progress.add_task(
+        "[cyan]Workflow Progress",
+        total=len(workflow)
+    )
+    
+    with Live(progress, refresh_per_second=4, vertical_overflow="visible") as live:
         # Execute each step in the workflow
-        for step in workflow:
-            workflow_progress.start_step(step)
+        for step_idx, step in enumerate(workflow, 1):
+            progress.update(
+                workflow_task,
+                description=f"[cyan]Step {step_idx}/{len(workflow)}: {step}",
+                advance=1
+            )
             
             # Get command configuration
             cmd_config = get_command_config(config, step)
             if not cmd_config:
                 raise Exception(f"Command '{step}' not found in project.yml")
             
-            # Get system resources for parallel processing
-            system_resources = get_system_resources()
+            # Check if this is a concurrent step
+            is_concurrent = step in execution_config.get('concurrent_steps', [])
             
-            # Determine if this is a GPU task
-            is_gpu_task = (
-                step in ['crop', 'transcribe_qwen_max', 'transcribe_qwen_7b', 'transcribe_lmstudio'] or
-                any('gpu' in str(arg).lower() for arg in cmd_config.get('script', []))
-            )
-            is_yolo_task = (
-                step == 'crop' or
-                any('yolo' in str(arg).lower() for arg in cmd_config.get('script', []))
-            )
-            
-            # Calculate optimal number of workers
-            num_workers = calculate_auto_workers(system_resources, is_gpu_task, is_yolo_task)
-            
-            if debug or is_debug_mode():
-                # Log detailed system information
-                logger.info("\n=== System Resource Information ===")
-                logger.info(f"System: {platform.system()} {platform.release()}")
-                logger.info(f"Machine: {platform.machine()}")
-                logger.info(f"Processor: {platform.processor()}")
-                logger.info(f"CPU Cores: {system_resources['cpu_count']}")
-                logger.info(f"Total Memory: {system_resources['memory_gb']:.1f} GB")
+            # Only get system resources and hardware info for concurrent steps
+            if is_concurrent:
+                system_resources = get_system_resources()
+                hardware_info = detect_hardware()
                 
-                # Log GPU information
-                if torch.cuda.is_available():
-                    logger.info("\n=== CUDA Information ===")
-                    logger.info(f"CUDA Available: Yes")
-                    logger.info(f"CUDA Version: {torch.version.cuda}")
-                    logger.info(f"GPU Device: {torch.cuda.get_device_name(0)}")
-                    logger.info(f"GPU Count: {torch.cuda.device_count()}")
-                    for i in range(torch.cuda.device_count()):
-                        logger.info(f"GPU {i} Memory: {torch.cuda.get_device_properties(i).total_memory / 1024**3:.1f} GB")
-                elif torch.backends.mps.is_available():
-                    logger.info("\n=== MPS Information ===")
-                    logger.info("MPS (Metal Performance Shaders) Available: Yes")
-                    logger.info("Using Apple Silicon GPU")
+                # Get configured worker count from execution_config.yml
+                configured_workers = get_worker_count(execution_config, step, hardware_info['device'])
                 
-                # Log worker configuration
-                logger.info("\n=== Worker Configuration ===")
-                logger.info(f"Step: {step}")
-                logger.info(f"GPU Task: {is_gpu_task}")
-                logger.info(f"YOLO Task: {is_yolo_task}")
-                logger.info(f"CPU Workers Available: {system_resources['cpu_workers']}")
-                logger.info(f"Memory Workers Available: {system_resources['memory_workers']}")
-                logger.info(f"Suggested Workers: {system_resources['suggested_workers']}")
-                logger.info(f"Actual Workers: {num_workers}")
-                logger.info("=============================\n")
+                # Determine if this is a GPU task
+                is_gpu_task = (
+                    step in ['crop', 'transcribe_qwen_max', 'transcribe_qwen_7b', 'transcribe_lmstudio'] or
+                    any('gpu' in str(arg).lower() for arg in cmd_config.get('script', []))
+                )
+                is_yolo_task = (
+                    step == 'crop' or
+                    any('yolo' in str(arg).lower() for arg in cmd_config.get('script', []))
+                )
+                
+                # Use configured workers if available, otherwise calculate optimal number
+                num_workers = configured_workers if configured_workers is not None else calculate_auto_workers(system_resources, is_gpu_task, is_yolo_task)
+                
+                if debug or is_debug_mode():
+                    # Log detailed system information
+                    logger.info("\n=== System Resource Information ===")
+                    logger.info(f"System: {platform.system()} {platform.release()}")
+                    logger.info(f"Machine: {platform.machine()}")
+                    logger.info(f"Processor: {platform.processor()}")
+                    logger.info(f"CPU Cores: {system_resources['cpu_count']}")
+                    logger.info(f"Total Memory: {system_resources['memory_gb']:.1f} GB")
+                    
+                    # Log GPU information
+                    if torch.cuda.is_available():
+                        logger.info("\n=== CUDA Information ===")
+                        logger.info(f"CUDA Available: Yes")
+                        logger.info(f"CUDA Version: {torch.version.cuda}")
+                        logger.info(f"GPU Device: {torch.cuda.get_device_name(0)}")
+                        logger.info(f"GPU Count: {torch.cuda.device_count()}")
+                        for i in range(torch.cuda.device_count()):
+                            logger.info(f"GPU {i} Memory: {torch.cuda.get_device_properties(i).total_memory / 1024**3:.1f} GB")
+                    elif torch.backends.mps.is_available():
+                        logger.info("\n=== MPS Information ===")
+                        logger.info("MPS (Metal Performance Shaders) Available: Yes")
+                        logger.info("Using Apple Silicon GPU")
+                    
+                    # Log worker configuration
+                    logger.info("\n=== Worker Configuration ===")
+                    logger.info(f"Step: {step}")
+                    logger.info(f"Device: {hardware_info['device']}")
+                    logger.info(f"GPU Task: {is_gpu_task}")
+                    logger.info(f"YOLO Task: {is_yolo_task}")
+                    logger.info(f"CPU Workers Available: {system_resources['cpu_workers']}")
+                    logger.info(f"Memory Workers Available: {system_resources['memory_workers']}")
+                    logger.info(f"Configured Workers: {configured_workers}")
+                    logger.info(f"Suggested Workers: {system_resources['suggested_workers']}")
+                    logger.info(f"Actual Workers: {num_workers}")
+                    logger.info("=============================\n")
+            else:
+                # For sequential steps, just log that we're running it
+                if debug or is_debug_mode():
+                    logger.info(f"\n=== Running Sequential Step: {step} ===\n")
+                num_workers = 1  # Sequential steps use single process
             
             # Execute each script in the command
             for script_cmd in cmd_config['script']:
@@ -366,10 +497,6 @@ def run_workflow(
                                 manifest.add_file(str(file_path.relative_to(docs_dir)))
                         manifest.save()
                     resolved_args = [str(manifest_path), str(project_folder)] + resolved_args[2:]
-                
-                # Add debug flag to script arguments if debug is enabled
-                if debug or is_debug_mode():
-                    resolved_args.append("--debug")
                 
                 # Run script with resolved arguments
                 try:

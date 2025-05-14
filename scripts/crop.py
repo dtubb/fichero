@@ -73,24 +73,47 @@ def get_best_device():
 try:
     device = get_best_device()
     yolo_model = YOLO("models/yolov8s-fichero.pt")
-    yolo_model.to(device)
+    
+    # Enhanced device optimization
+    if device == "mps":
+        # Enable Metal Performance Shaders
+        torch.backends.mps.enable_fallback_to_cpu = False  # Force MPS usage
+        yolo_model.to(device)
+        # Set model to use MPS
+        yolo_model.model = yolo_model.model.to(device)
+        # Enable half precision for better performance
+        yolo_model.model.half()
+        logger.info("Enabled MPS acceleration with half precision")
+    elif device == "cuda":
+        yolo_model.to(device)
+        yolo_model.model.half()
+        logger.info("Enabled CUDA acceleration with half precision")
+    else:
+        yolo_model.to(device)
+        logger.info("Using CPU for inference")
     
     # Set model parameters for better performance
     yolo_model.conf = 0.35  # Confidence threshold
     yolo_model.iou = 0.45   # IoU threshold
     yolo_model.max_det = 1  # Only keep the best detection
     
-    # Enable half precision if using GPU/MPS
-    if device != "cpu":
-        yolo_model.model.half()
-    
     logger.info(f"Successfully loaded YOLO model on {device}")
     
-    # DEBUG: Check model device placement
+    # Enhanced device verification
     logger.info(f"YOLO model device: {device}")
+    logger.info(f"Model device placement verification:")
     for name, param in yolo_model.model.named_parameters():
         logger.info(f"Model param {name} is on device: {param.device}")
+        if device == "mps" and hasattr(param, 'memory_format'):
+            logger.info(f"Parameter memory format: {param.memory_format}")
         break  # Just print the first parameter for brevity
+    
+    # Verify tensor operations will use GPU
+    test_tensor = torch.zeros(1, 3, 640, 640)
+    test_tensor = test_tensor.to(device)
+    logger.info(f"Test tensor device: {test_tensor.device}")
+    if device == "mps" and hasattr(test_tensor, 'memory_format'):
+        logger.info(f"Test tensor memory format: {test_tensor.memory_format}")
     
 except Exception as e:
     logger.error(f"Failed to load YOLO model: {e}")
@@ -154,6 +177,15 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
     """Crop image using YOLOv8 model with optimized settings"""
     try:
         rich_log("info", f"[crop_with_yolo] Processing {image_path}")
+        
+        # Enhanced GPU verification at start of processing
+        logger.info(f"Current device: {device}")
+        logger.info(f"MPS available: {torch.backends.mps.is_available()}")
+        logger.info(f"MPS built: {torch.backends.mps.is_built()}")
+        if device == "mps":
+            logger.info(f"MPS device: {torch.mps.current_device()}")
+            logger.info(f"MPS device name: {torch.mps.get_device_name()}")
+        
         # Get true orientation and required rotation
         true_orientation, rotation_angle, orientation_details = get_image_orientation(image_path)
         rich_log("info", f"[crop_with_yolo] Orientation: {true_orientation}, Rotation: {rotation_angle}")
@@ -191,29 +223,37 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         logger.info(f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
         rich_log("info", f"Model input size: {model_width}x{model_height} (scale: {scale:.3f})")
         
-        # DEBUG: Check GPU availability and tensor device
-        logger.info(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
-        logger.info(f"torch.backends.mps.is_available(): {getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available()}")
-        
-        # Convert to tensor and move to GPU
+        # Enhanced GPU tensor conversion with memory optimization
         tensor = torch.from_numpy(model_img).float()
         tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> BCHW
-        tensor = tensor / 255.0  # Normalize to [0, 1]
         tensor = tensor.to(device)
-        logger.info(f"model_img tensor device: {tensor.device}")
-        rich_log("info", f"model_img tensor device: {tensor.device}")
-        logger.info(f"model_img tensor shape: {tensor.shape}")
-        rich_log("info", f"model_img tensor shape: {tensor.shape}")
+        
+        # Optimize memory format for MPS
+        if device == "mps":
+            tensor = tensor.contiguous(memory_format=torch.channels_last)  # Optimize for MPS
+            logger.info(f"Tensor memory format: {tensor.memory_format}")
+            
+            # Force MPS to use the tensor
+            torch.mps.synchronize()
+        
+        logger.info(f"Input tensor device: {tensor.device}")
         
         # Run prediction with optimized settings
-        results = list(yolo_model.predict(
-            source=tensor,  # Pass the GPU tensor directly
-            conf=conf_threshold,
-            imgsz=(model_height, model_width),  # Use actual dimensions
-            iou=0.45,
-            verbose=False,
-            stream=True  # Enable streaming for better memory usage
-        ))
+        with torch.no_grad():  # Disable gradient calculation
+            results = list(yolo_model.predict(
+                source=tensor,  # Pass the GPU tensor directly
+                conf=conf_threshold,
+                imgsz=(model_height, model_width),  # Use actual dimensions
+                iou=0.45,
+                verbose=False,
+                stream=True,  # Enable streaming for better memory usage
+                device=device  # Explicitly set device
+            ))
+        
+        # Clear GPU memory
+        if device == "mps":
+            torch.mps.empty_cache()
+        
         rich_log("info", f"YOLO prediction results: {results}")
         
         if not results or not results[0].boxes:
@@ -618,55 +658,117 @@ def crop(
     # Log manifest stats
     all_files = manifest.get_all_files()
     pending_files = [f for f in all_files if manifest.is_pending(f)]
-    rich_log("info", f"Processing {len(pending_files)} files...")
+    total_files = len(pending_files)
+    rich_log("info", f"Total files: {total_files}")
     
     # Create progress trackers (will be None if child/worker process)
     workflow_progress, step_progress = create_progress_tracker(
-        total_files=len(list(source_folder.glob("**/*.jpg"))),
+        total_files=total_files,
         step_name="Cropping Documents",
         show_workflow=True,
         total_steps=1
     )
     
-    # Process files until none are left
-    while True:
-        # Get next pending file
-        input_path = manifest.get_next_pending()
-        if not input_path:
-            rich_log("info", "Processing complete!")
-            break
+    # Get worker ID and determine if we're a worker process
+    worker_id = os.environ.get('WORKER_ID', None)
+    is_worker = worker_id is not None
+    
+    if is_worker:
+        # Worker process - process files in batches
+        rich_log("info", f"Worker {worker_id} started")
         
-        try:
-            # Remove documents/ prefix from input_path if present
-            if input_path.startswith('documents/'):
-                input_path = input_path[10:]  # Remove 'documents/' prefix
+        # Process files in batches
+        processed = 0
+        while True:
+            # Get next batch of pending files
+            batch_files = []
+            for _ in range(batch_size):
+                input_path = manifest.get_next_pending()
+                if not input_path:
+                    break
+                batch_files.append(input_path)
             
-            # Construct full paths
-            full_input_path = source_folder / input_path
-            full_output_path = output_folder / input_path
+            if not batch_files:
+                break
             
-            if debug:
-                rich_log("info", f"Processing: {input_path}")
+            # Process batch
+            for input_path in batch_files:
+                try:
+                    # Remove documents/ prefix from input_path if present
+                    if input_path.startswith('documents/'):
+                        input_path = input_path[10:]  # Remove 'documents/' prefix
+                    
+                    # Construct full paths
+                    full_input_path = source_folder / input_path
+                    full_output_path = output_folder / input_path
+                    
+                    # Log current file being processed
+                    rich_log("info", f"Processing: {input_path}")
+                    
+                    # Process the file
+                    result = process_document(str(full_input_path), output_folder)
+                    
+                    if result["success"]:
+                        processed += 1
+                        rich_log("info", f"Completed: {input_path}")
+                        # Update manifest with results
+                        manifest.mark_done(
+                            input_path,
+                            crop_outputs=result.get("outputs", []),
+                            crop_details=result.get("details", {})
+                        )
+                    else:
+                        rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
+                        manifest.mark_error(input_path, result.get("error", "Unknown error"))
+                        
+                except Exception as e:
+                    rich_log("error", f"Error processing {input_path}: {e}")
+                    manifest.mark_error(input_path, str(e))
             
-            # Process the file
-            result = process_document(str(full_input_path), output_folder)
+            rich_log("info", f"Worker {worker_id} processed {processed} files")
+        
+        rich_log("info", f"Worker {worker_id} finished")
+    else:
+        # Main process - monitor progress
+        processed = 0
+        while True:
+            # Get next pending file
+            input_path = manifest.get_next_pending()
+            if not input_path:
+                rich_log("info", "Processing complete!")
+                break
             
-            if result["success"]:
-                if debug:
-                    rich_log("info", f"Completed: {input_path}")
-                # Update manifest with results
-                manifest.mark_done(
-                    input_path,
-                    crop_outputs=result.get("outputs", []),
-                    crop_details=result.get("details", {})
-                )
-            else:
-                rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
-                manifest.mark_error(input_path, result.get("error", "Unknown error"))
+            try:
+                # Remove documents/ prefix from input_path if present
+                if input_path.startswith('documents/'):
+                    input_path = input_path[10:]  # Remove 'documents/' prefix
                 
-        except Exception as e:
-            rich_log("error", f"Error processing {input_path}: {e}")
-            manifest.mark_error(input_path, str(e))
+                # Construct full paths
+                full_input_path = source_folder / input_path
+                full_output_path = output_folder / input_path
+                
+                # Log current file being processed
+                rich_log("info", f"Processing: {input_path}")
+                
+                # Process the file
+                result = process_document(str(full_input_path), output_folder)
+                
+                if result["success"]:
+                    processed += 1
+                    rich_log("info", f"Completed: {input_path}")
+                    # Update manifest with results
+                    manifest.mark_done(
+                        input_path,
+                        crop_outputs=result.get("outputs", []),
+                        crop_details=result.get("details", {})
+                    )
+                else:
+                    rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
+                    manifest.mark_error(input_path, result.get("error", "Unknown error"))
+                    
+            except Exception as e:
+                rich_log("error", f"Error processing {input_path}: {e}")
+                manifest.mark_error(input_path, str(e))
 
 if __name__ == "__main__":
     app()
