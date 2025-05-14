@@ -3,9 +3,9 @@
 
 # Hardware detection and optimization
 hardware:
-  auto_detect: false  # Disable automatic hardware detection
-  device: "cpu"  # Options: "cuda", "mps", "cpu"
-  force_cpu: true  # Force CPU usage even if GPU is available
+  auto_detect: true  # Disable automatic hardware detection
+  # device: "cpu"  # Options: "cuda", "mps", "cpu"
+  # force_cpu: false  # Force CPU usage even if GPU is available
 
 # System-specific configurations
 system_configs:
@@ -24,8 +24,8 @@ system_configs:
   
   mps:  # Apple Silicon
     # GPU tasks
-    crop: 1  # Single GPU worker due to MPS limitations
-    crop_cpu: 8  # CPU fallback option for crop
+    crop: 2  # Single GPU worker due to MPS limitations
+    crop_cpu: 2  # CPU fallback option for crop
     transcribe_qwen_max: 2
     transcribe_qwen_7b: 2
     transcribe_lmstudio: 2
@@ -38,7 +38,7 @@ system_configs:
   
   cpu:
     # CPU tasks
-    crop: 1  # Using 8 CPU cores for crop
+    crop: 4  # Using 8 CPU cores for crop
     transcribe_qwen_max: 2
     transcribe_qwen_7b: 2
     transcribe_lmstudio: 2

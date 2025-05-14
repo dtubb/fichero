@@ -28,8 +28,15 @@ import multiprocessing
 from ultralytics import YOLO
 from scripts.utils.workflow_progress import create_progress_tracker
 import multiprocessing as mp
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn, TaskProgressColumn
 from rich.live import Live
+import subprocess
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if os.environ.get('FICHERO_DEBUG', '0') == '1' else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Configure console for rich logging
 console = Console()
@@ -84,10 +91,14 @@ def get_worker_device(worker_id: int, device: str) -> str:
             gpu_id = worker_id % gpu_count
             rich_log("info", f"Worker {worker_id} using CUDA device {gpu_id}")
             return f"cuda:{gpu_id}"
+    elif device == "mps":
+        rich_log("info", f"Worker {worker_id} using MPS device")
+    else:
+        rich_log("info", f"Worker {worker_id} using device: {device}")
     return device
 
 # Load YOLO model with device optimization
-def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
+def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt", worker_id: Optional[int] = None):
     """Initialize YOLO model with proper device optimization."""
     rich_log("info", "=== Initializing YOLO Model ===")
     
@@ -98,6 +109,8 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
     rich_log("info", f"MPS built: {torch.backends.mps.is_built()}")
     
     device = get_best_device()
+    if worker_id is not None:
+        device = get_worker_device(worker_id, device)
     rich_log("info", f"Selected device: {device}")
     
     # Load model with detailed logging
@@ -117,7 +130,7 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
         rich_log("info", "Moving model to MPS device")
         yolo_model.to(device)
         rich_log("info", "MPS configuration complete")
-    elif device == "cuda":
+    elif "cuda" in device:
         rich_log("info", "Configuring CUDA device:")
         rich_log("info", f"CUDA device count: {torch.cuda.device_count()}")
         rich_log("info", f"Current CUDA device: {torch.cuda.current_device()}")
@@ -125,7 +138,7 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
         rich_log("info", "Moving model to CUDA device")
         yolo_model.to(device)
         rich_log("info", "Enabling half precision")
-        yolo_model.model.half()
+        yolo_model.model.half()  # Use FP16 for better performance
         rich_log("info", "CUDA configuration complete")
     else:
         rich_log("info", "Using CPU device")
@@ -633,6 +646,31 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             "details": {"error": str(e)}
         }
 
+def load_execution_config() -> dict:
+    """Load execution configuration from execution_config.yml."""
+    config_path = Path(project_root) / "execution_config.yml"
+    if not config_path.exists():
+        rich_log("warning", "execution_config.yml not found, using default configuration")
+        return {}
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> Optional[int]:
+    """Get the configured number of workers for a step based on the device."""
+    if not execution_config:
+        return None
+    
+    # Get the system config for the current device
+    system_config = execution_config.get('system_configs', {}).get(device, {})
+    
+    # For crop step on MPS (Apple Silicon), check if we should use CPU
+    if step == 'crop' and device == 'mps' and force_cpu:
+        return system_config.get('crop_cpu')
+    
+    # Get the worker count for this step
+    return system_config.get(step)
+
 @app.command()
 def crop(
     manifest_file: Path = typer.Argument(..., help="Manifest file"),
@@ -643,50 +681,76 @@ def crop(
     max_workers: Optional[int] = typer.Option(None, help="Number of worker processes"),
     debug: bool = typer.Option(False, help="Enable debug logging")
 ):
-    """Crop documents using computer vision techniques."""
+    """Crop documents using YOLO model."""
+    # Check if this is a worker process
+    if os.environ.get('FICHERO_WORKER') == '1':
+        worker_id = int(os.environ.get('WORKER_ID', '0'))
+        rich_log("info", f"Starting worker process {worker_id}")
+        
+        # Initialize model with worker-specific device
+        global yolo_model, device
+        yolo_model, device = init_yolo_model(model_path, worker_id)
+        rich_log("info", f"Worker {worker_id} initialized with device: {device}")
+        
+        # Initialize manifest manager
+        manifest = StepManifestManager(manifest_file, "crop")
+        
+        # Process files until none are left
+        processed = 0
+        while True:
+            # Get next pending file
+            input_path = manifest.get_next_pending()
+            if not input_path:
+                rich_log("info", f"Worker {worker_id} finished - no more files to process")
+                break
+            
+            try:
+                # Clear GPU memory periodically
+                if processed > 0 and processed % 10 == 0:
+                    if device == "mps":
+                        torch.mps.empty_cache()
+                    elif "cuda" in device:
+                        torch.cuda.empty_cache()
+                
+                # Remove documents/ prefix from input_path if present
+                if input_path.startswith('documents/'):
+                    input_path = input_path[10:]  # Remove 'documents/' prefix
+                
+                # Construct full paths
+                full_input_path = project_folder / "documents" / input_path
+                
+                # Log current file being processed
+                rich_log("info", f"Worker {worker_id} processing: {input_path}")
+                
+                # Process the file
+                result = process_document(str(full_input_path), project_folder / "assets" / "crops")
+                
+                if result["success"]:
+                    processed += 1
+                    rich_log("info", f"Worker {worker_id} completed: {input_path}")
+                    # Update manifest with results
+                    manifest.mark_done(
+                        input_path,
+                        crop_outputs=result.get("outputs", []),
+                        crop_details=result.get("details", {})
+                    )
+                else:
+                    rich_log("error", f"Worker {worker_id} failed to process {input_path}: {result.get('error', 'Unknown error')}")
+                    manifest.mark_error(input_path, result.get("error", "Unknown error"))
+                    
+            except Exception as e:
+                rich_log("error", f"Worker {worker_id} error processing {input_path}: {e}")
+                manifest.mark_error(input_path, str(e))
+        
+        rich_log("info", f"Worker {worker_id} completed processing {processed} files")
+        return
+    
+    # This is the main process
+    rich_log("info", "Starting main process")
+    
     # Set debug mode in environment
     if debug:
         os.environ['FICHERO_DEBUG'] = '1'
-        
-        # Log detailed hardware information
-        rich_log("info", "=== Hardware Information ===")
-        rich_log("info", f"System: {platform.system()} {platform.release()}")
-        rich_log("info", f"Machine: {platform.machine()}")
-        rich_log("info", f"Processor: {platform.processor()}")
-        
-        # Log CPU information
-        cpu_count = multiprocessing.cpu_count()
-        rich_log("info", f"CPU Cores: {cpu_count}")
-        
-        # Log GPU information
-        if torch.cuda.is_available():
-            rich_log("info", "=== CUDA Information ===")
-            rich_log("info", f"CUDA Available: Yes")
-            rich_log("info", f"CUDA Version: {torch.version.cuda}")
-            rich_log("info", f"GPU Device: {torch.cuda.get_device_name(0)}")
-            rich_log("info", f"GPU Count: {torch.cuda.device_count()}")
-        elif torch.backends.mps.is_available():
-            rich_log("info", "=== MPS Information ===")
-            rich_log("info", "MPS (Metal Performance Shaders) Available: Yes")
-            rich_log("info", "Using Apple Silicon GPU")
-        else:
-            rich_log("info", "No GPU acceleration available - using CPU")
-        
-        # Log model information
-        rich_log("info", "=== Model Information ===")
-        rich_log("info", f"Model Path: {model_path}")
-        rich_log("info", f"Model Device: {device}")
-        rich_log("info", f"Model Parameters: {sum(p.numel() for p in yolo_model.parameters())}")
-        rich_log("info", f"Model Half Precision: {device != 'cpu'}")
-        
-        # Log worker information
-        worker_id = os.environ.get('WORKER_ID', None)
-        if worker_id is not None:
-            rich_log("info", f"Running as Worker {worker_id}")
-        else:
-            rich_log("info", "Running in single-process mode")
-        
-        rich_log("info", "========================")
     else:
         os.environ['FICHERO_DEBUG'] = '0'
 
@@ -697,55 +761,120 @@ def crop(
     # Create output folder if it doesn't exist
     output_folder.mkdir(parents=True, exist_ok=True)
     
-    # Initialize manifest manager
+    # Determine number of workers
+    if max_workers is None:
+        # Get from execution config or system
+        execution_config = load_execution_config()
+        device = get_best_device()
+        max_workers = get_worker_count(execution_config, "crop", device)
+        if max_workers is None:
+            # Auto-detect based on system
+            max_workers = os.cpu_count() - 1 if os.cpu_count() > 1 else 1
+    
+    # Set worker count in environment for manifest partitioning
+    os.environ['FICHERO_WORKER_COUNT'] = str(max_workers)
+    rich_log("info", f"Using {max_workers} workers")
+    
+    # Initialize manifest manager to get total files
     manifest = StepManifestManager(manifest_file, "crop")
+    total_files = len([e for e in manifest.manifest.all_entries() 
+                      if e.get("type") == "file" and 
+                      e.get("crop_status") in [None, "pending", "error"]])
     
-    # Get worker ID
-    worker_id = os.environ.get('WORKER_ID', '0')
-    rich_log("info", f"Worker {worker_id} started")
+    rich_log("info", f"Found {total_files} files to process")
     
-    # Process files until none are left
-    processed = 0
-    while True:
-        # Get next pending file
-        input_path = manifest.get_next_pending()
-        if not input_path:
-            rich_log("info", f"Worker {worker_id} finished - no more files to process")
-            break
+    # Initialize progress tracking
+    progress = Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        "[progress.percentage]{task.percentage:>3.0f}%",
+        TimeRemainingColumn(),
+        console=console,
+        transient=True
+    )
+    
+    # Create tasks for each worker
+    worker_tasks = {}
+    for worker_id in range(max_workers):
+        # Calculate expected files for this worker
+        worker_files = total_files // max_workers
+        if worker_id < total_files % max_workers:  # Distribute remainder
+            worker_files += 1
+            
+        worker_tasks[worker_id] = progress.add_task(
+            f"Worker {worker_id}",
+            total=worker_files  # Each worker gets their share of files
+        )
+    
+    # Create and start worker processes
+    processes = []
+    rich_log("info", "Starting worker processes...")
+    for worker_id in range(max_workers):
+        env = os.environ.copy()
+        env['WORKER_ID'] = str(worker_id)
+        env['FICHERO_WORKER'] = '1'
         
-        try:
-            # Remove documents/ prefix from input_path if present
-            if input_path.startswith('documents/'):
-                input_path = input_path[10:]  # Remove 'documents/' prefix
-            
-            # Construct full paths
-            full_input_path = source_folder / input_path
-            full_output_path = output_folder / input_path
-            
-            # Log current file being processed
-            rich_log("info", f"Processing: {input_path}")
-            
-            # Process the file
-            result = process_document(str(full_input_path), output_folder)
-            
-            if result["success"]:
-                processed += 1
-                rich_log("info", f"Completed: {input_path}")
-                # Update manifest with results
-                manifest.mark_done(
-                    input_path,
-                    crop_outputs=result.get("outputs", []),
-                    crop_details=result.get("details", {})
-                )
-            else:
-                rich_log("error", f"Failed to process {input_path}: {result.get('error', 'Unknown error')}")
-                manifest.mark_error(input_path, result.get("error", "Unknown error"))
-                
-        except Exception as e:
-            rich_log("error", f"Error processing {input_path}: {e}")
-            manifest.mark_error(input_path, str(e))
+        # Launch process
+        cmd = [sys.executable, __file__, str(manifest_file), str(project_folder)]
+        if debug:
+            cmd.append('--debug')
+        
+        rich_log("info", f"Launching worker {worker_id} with command: {' '.join(cmd)}")
+        process = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        processes.append((worker_id, process))
     
-    rich_log("info", f"Worker {worker_id} processed {processed} files")
+    # Monitor progress
+    with Live(progress, refresh_per_second=4) as live:
+        while processes:
+            for worker_id, process in processes[:]:
+                if process.poll() is not None:
+                    # Process finished
+                    stdout, stderr = process.communicate()
+                    if process.returncode != 0:
+                        rich_log("error", f"Worker {worker_id} failed with code {process.returncode}")
+                        if stderr:
+                            rich_log("error", f"Worker {worker_id} error output: {stderr}")
+                        if stdout:
+                            rich_log("error", f"Worker {worker_id} output: {stdout}")
+                    else:
+                        rich_log("info", f"Worker {worker_id} completed successfully")
+                        if stdout:
+                            for line in stdout.splitlines():
+                                if "Completed:" in line:
+                                    # Update processed count in fields
+                                    task = progress.tasks[worker_tasks[worker_id]]
+                                    progress.update(
+                                        worker_tasks[worker_id],
+                                        advance=1
+                                    )
+                    processes.remove((worker_id, process))
+                    continue
+                
+                # Check output
+                stdout = process.stdout.readline()
+                if stdout:
+                    if "Completed:" in stdout:
+                        # Update processed count in fields
+                        task = progress.tasks[worker_tasks[worker_id]]
+                        progress.update(
+                            worker_tasks[worker_id],
+                            advance=1
+                        )
+                    rich_log("info", f"Worker {worker_id}: {stdout.strip()}")
+                stderr = process.stderr.readline()
+                if stderr:
+                    rich_log("error", f"Worker {worker_id}: {stderr.strip()}")
+            
+            time.sleep(0.1)
+    
+    rich_log("info", "All workers finished")
 
 if __name__ == "__main__":
     app()
