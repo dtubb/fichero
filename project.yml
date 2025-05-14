@@ -16,7 +16,7 @@ vars:
   version: "0.0.0"
   
   # Project paths - these should be configured per project
-  project_folder: "/Users/dtubb/code/fichero/projects/demo_small"  # Relative path to project folder
+  project_folder: "/Volumes/Fichero/projects/choco_atlas"  # Relative path to project folder
   documents_folder: "${vars.project_folder}/documents"
   assets_folder: "${vars.project_folder}/assets"
 
@@ -60,6 +60,9 @@ vars:
 directories: ["scripts"]
 
 workflows:
+  test:
+    - build_documents_manifest
+
   archive-to-word-qwen-max:
     - build_documents_manifest
     - crop
@@ -133,7 +136,7 @@ commands:
   - name: build_documents_manifest
     help: "Generate the documents manifest listing"
     script:
-      - "python scripts/build_documents_manifest.py ${vars.documents_folder} ${vars.documents_manifest}"
+      - "python scripts/build_documents_manifest.py \"${vars.documents_folder}\" \"${vars.documents_manifest}\""
     outputs:
       - ${vars.documents_manifest}
 
