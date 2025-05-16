@@ -28,17 +28,19 @@ console = Console()
 
 def get_best_device() -> str:
     """Determine the best available device for processing."""
+    # Check if CPU is forced through environment variable or config
     force_cpu = os.environ.get('FICHERO_FORCE_CPU', '0') == '1'
     if force_cpu:
         rich_log("info", "Force CPU mode enabled - using CPU for processing")
         return "cpu"
-        
-    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        rich_log("info", "Using MPS (Metal Performance Shaders) for GPU acceleration")
-        return "mps"
-    elif torch.cuda.is_available():
+    
+    # Check hardware capabilities
+    if torch.cuda.is_available():
         rich_log("info", "Using CUDA for GPU acceleration")
         return "cuda"
+    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        rich_log("info", "Using MPS (Metal Performance Shaders) for GPU acceleration")
+        return "mps"
     else:
         rich_log("info", "Using CPU for processing")
         return "cpu"
@@ -53,18 +55,38 @@ def get_worker_device(worker_id: int, device: str) -> str:
             rich_log("info", f"Worker {worker_id} using CUDA device {gpu_id}")
             return f"cuda:{gpu_id}"
     elif device == "mps":
+        # For MPS, we need to ensure each worker gets its own device context
+        # MPS doesn't support multiple devices like CUDA, but we can create separate contexts
         rich_log("info", f"Worker {worker_id} using MPS device")
+        # Clear any existing MPS cache to prevent memory issues
+        if hasattr(torch.mps, 'empty_cache'):
+            torch.mps.empty_cache()
+        return "mps"
     else:
         rich_log("info", f"Worker {worker_id} using device: {device}")
     return device
 
 def clear_gpu_memory():
-    """Clear GPU memory after processing."""
-    device = get_best_device()
-    if device == "mps":
-        torch.mps.empty_cache()
-    elif "cuda" in device:
-        torch.cuda.empty_cache()
+    """Clear GPU memory based on device type."""
+    import torch
+    try:
+        device = get_best_device()
+        if device == "mps":
+            if hasattr(torch.mps, 'empty_cache'):
+                torch.mps.empty_cache()
+            if hasattr(torch.mps, 'synchronize'):
+                torch.mps.synchronize()
+        elif "cuda" in device:
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                with torch.cuda.device(device):
+                    torch.cuda.ipc_collect()
+        # Force garbage collection
+        import gc
+        gc.collect()
+    except Exception as e:
+        rich_log("warning", f"Error clearing GPU memory: {e}")
 
 def run_worker_process(
     manifest_file: Path,
@@ -87,72 +109,51 @@ def run_worker_process(
     # Initialize manifest manager
     manifest = StepManifestManager(manifest_file, step)
     
-    # Get batch size from environment
-    batch_size = int(os.environ.get('FICHERO_BATCH_SIZE', '1'))
-    rich_log("info", f"Worker {os.environ.get('WORKER_ID')} using batch size: {batch_size}")
-    
     while True:
-        # Get next batch of files to process
-        input_paths = manifest.get_next_pending()
-        if not input_paths:
+        # Get next file to process
+        input_path = manifest.get_next_pending()
+        if not input_path:
             rich_log("info", f"Worker {os.environ.get('WORKER_ID')} no more files to process")
             break
             
-        rich_log("info", f"Worker {os.environ.get('WORKER_ID')} processing batch of {len(input_paths)} files")
+        rich_log("info", f"Worker {os.environ.get('WORKER_ID')} processing: {input_path}")
         
-        # Process each file in the batch
-        successful_files = []
-        failed_files = []
-        error_message = None
-        results = {}
-        
-        for input_path in input_paths:
-            try:
-                # Remove prefix from input_path if present
-                if source_prefix and input_path.startswith(source_prefix):
-                    input_path = input_path[len(source_prefix):]
-                
-                # Construct full paths
-                if source_prefix:
-                    # If source_prefix is provided, use it to construct the full path
-                    full_input_path = project_folder / input_path
-                else:
-                    # Otherwise use the input path as is
-                    full_input_path = project_folder / input_path
-                
-                # Log current file being processed
-                rich_log("info", f"Worker {os.environ.get('WORKER_ID')} processing: {input_path}")
-                rich_log("info", f"Full input path: {full_input_path}")
-                
-                # Process the file
-                result = process_func(str(full_input_path), output_folder or project_folder)
-                
-                if result["success"]:
-                    successful_files.append(input_path)
-                    results[input_path] = {
-                        f"{step}_outputs": result.get("outputs", []),
-                        f"{step}_details": result.get("details", {})
-                    }
-                    rich_log("info", f"Worker {os.environ.get('WORKER_ID')} completed: {input_path}")
-                    rich_log("info", f"Result: {result}")
-                else:
-                    error_message = result.get("error", "Unknown error")
-                    failed_files.append(input_path)
-                    rich_log("error", f"Worker {os.environ.get('WORKER_ID')} failed {input_path}: {error_message}")
-            except Exception as e:
-                error_message = str(e)
-                failed_files.append(input_path)
-                rich_log("error", f"Worker {os.environ.get('WORKER_ID')} failed {input_path}: {error_message}")
-        
-        # Mark successful files as done with their results
-        if successful_files:
-            for input_path in successful_files:
-                manifest.mark_done(input_path, **results[input_path])
+        try:
+            # Remove prefix from input_path if present
+            if source_prefix and input_path.startswith(source_prefix):
+                input_path = input_path[len(source_prefix):]
             
-        # Mark failed files as error
-        if failed_files:
-            for input_path in failed_files:
+            # Construct full paths
+            if source_prefix:
+                # If source_prefix is provided, use it to construct the full path
+                full_input_path = project_folder / input_path
+            else:
+                # Otherwise use the input path as is
+                full_input_path = project_folder / input_path
+            
+            # Log current file being processed
+            rich_log("info", f"Full input path: {full_input_path}")
+            
+            # Process the file
+            result = process_func(str(full_input_path), output_folder or project_folder)
+            
+            if result["success"]:
+                # Mark file as done with its results
+                manifest.mark_done(input_path, **{
+                    f"{step}_outputs": result.get("outputs", []),
+                    f"{step}_details": result.get("details", {})
+                })
+                rich_log("info", f"Worker {os.environ.get('WORKER_ID')} completed: {input_path}")
+                rich_log("info", f"Result: {result}")
+            else:
+                # Mark file as error
+                error_message = result.get("error", "Unknown error")
                 manifest.mark_error(input_path, error_message)
+                rich_log("error", f"Worker {os.environ.get('WORKER_ID')} failed {input_path}: {error_message}")
+        except Exception as e:
+            # Mark file as error on exception
+            manifest.mark_error(input_path, str(e))
+            rich_log("error", f"Worker {os.environ.get('WORKER_ID')} failed {input_path}: {str(e)}")
 
 def run_main_process(
     manifest_file: Path,

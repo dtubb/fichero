@@ -37,7 +37,7 @@ from scripts.utils.step_manifest import StepManifestManager
 from scripts.utils.workflow_progress import create_progress_tracker
 from scripts.utils.file_manager import FileManager
 from scripts.utils.logging_utils import rich_log, setup_logging
-from scripts.utils.worker_manager import clear_gpu_memory
+from scripts.utils.worker_manager import clear_gpu_memory, get_best_device, get_worker_device
 
 # Initialize global variables
 yolo_model = None
@@ -46,7 +46,7 @@ file_manager = None
 
 app = typer.Typer()
 
-def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
+def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt", worker_id: Optional[int] = None):
     """Initialize YOLO model with proper device optimization."""
     rich_log("info", "=== Initializing YOLO Model ===")
     
@@ -56,13 +56,16 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
     rich_log("info", f"MPS available: {torch.backends.mps.is_available()}")
     rich_log("info", f"MPS built: {torch.backends.mps.is_built()}")
     
-    # Select best device
-    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        device = "mps"
-    elif torch.cuda.is_available():
-        device = "cuda"
-    else:
+    # Check if CPU is forced
+    force_cpu = os.environ.get('FICHERO_FORCE_CPU', '0') == '1'
+    if force_cpu:
+        rich_log("info", "Force CPU mode enabled - using CPU for processing")
         device = "cpu"
+    else:
+        # Select best device
+        device = get_best_device()
+        if worker_id is not None:
+            device = get_worker_device(worker_id, device)
     rich_log("info", f"Selected device: {device}")
     
     # Load model with detailed logging
@@ -71,13 +74,21 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt"):
         yolo_model = YOLO(model_path)
         rich_log("info", "Model loaded successfully")
         
-        # Move model to device
+        # Move model to device with proper MPS handling
         if device == "mps":
             rich_log("info", "Moving model to MPS device")
+            # Clear MPS cache before moving model
+            if hasattr(torch.mps, 'empty_cache'):
+                torch.mps.empty_cache()
+            # Enable MPS fallback to CPU if needed
+            torch.backends.mps.enable_fallback_to_cpu = True
             yolo_model.to("mps")
+            rich_log("info", "MPS configuration complete")
         elif device == "cuda":
             rich_log("info", "Moving model to CUDA device")
             yolo_model.to("cuda")
+            rich_log("info", "Enabling half precision")
+            yolo_model.model.half()  # Use FP16 for better performance
         else:
             rich_log("info", "Using CPU device")
             yolo_model.to("cpu")
@@ -302,14 +313,49 @@ def process_batch(images: List[Image.Image], file_paths: List[Path]) -> List[Tup
             # Convert to BGR for OpenCV
             img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
             
-            # Run YOLO prediction
-            with torch.no_grad():
-                results_yolo = yolo_model.predict(
-                    source=img_bgr,
-                    conf=0.35,
-                    device=device,
-                    verbose=False
-                )
+            # Calculate target size maintaining aspect ratio and divisible by 32
+            model_size = 640  # YOLO's preferred input size
+            scale = min(model_size / image.width, model_size / image.height)
+            model_width = int(image.width * scale)
+            model_height = int(image.height * scale)
+            
+            # Ensure dimensions are divisible by 32
+            model_width = ((model_width + 31) // 32) * 32
+            model_height = ((model_height + 31) // 32) * 32
+            
+            # Resize image maintaining aspect ratio
+            model_img = cv2.resize(img_bgr, (model_width, model_height), 
+                                 interpolation=cv2.INTER_LINEAR)
+            
+            # Convert to tensor and move to device
+            tensor = torch.from_numpy(model_img).float()
+            tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> BCHW
+            tensor = tensor.to(device)
+            
+            if device == "mps":
+                tensor = tensor.contiguous()
+            
+            # Run YOLO prediction with error handling
+            try:
+                with torch.no_grad():
+                    results_yolo = yolo_model.predict(
+                        source=tensor,
+                        conf=0.35,
+                        imgsz=(model_height, model_width),
+                        iou=0.45,
+                        verbose=False,
+                        stream=True,
+                        device=device
+                    )
+                    results_yolo = list(results_yolo)
+            except Exception as pred_error:
+                rich_log("error", f"YOLO prediction failed for {file_path}: {str(pred_error)}")
+                results.append(([image], {"error": f"Prediction failed: {str(pred_error)}"}))
+                continue
+            finally:
+                # Clean up tensor
+                del tensor
+                clear_gpu_memory()
             
             # Process results
             if not results_yolo or not results_yolo[0].boxes:
@@ -321,9 +367,14 @@ def process_batch(images: List[Image.Image], file_paths: List[Path]) -> List[Tup
             boxes = results_yolo[0].boxes
             best_box = boxes[0]  # Already sorted by confidence
             
-            # Get coordinates
-            x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
-            conf = float(best_box.conf[0])
+            # Get coordinates and confidence
+            try:
+                x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
+                conf = float(best_box.conf[0])
+            except Exception as box_error:
+                rich_log("error", f"Error extracting box coordinates for {file_path}: {str(box_error)}")
+                results.append(([image], {"error": f"Box extraction failed: {str(box_error)}"}))
+                continue
             
             # Add padding
             padding = 30
@@ -333,21 +384,25 @@ def process_batch(images: List[Image.Image], file_paths: List[Path]) -> List[Tup
             y2 = min(image.height, y2 + padding)
             
             # Crop image
-            cropped = image.crop((x1, y1, x2, y2))
-            
-            # Store results
-            debug_info = {
-                "confidence": conf,
-                "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-                "original_size": {"width": image.width, "height": image.height},
-                "cropped_size": {"width": cropped.width, "height": cropped.height}
-            }
-            
-            results.append(([cropped], debug_info))
+            try:
+                cropped = image.crop((x1, y1, x2, y2))
+                results.append(([cropped], {
+                    "confidence": conf,
+                    "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+                    "original_size": {"width": image.width, "height": image.height},
+                    "model_size": {"width": model_width, "height": model_height},
+                    "scale_factors": {"x": float(image.width / model_width), "y": float(image.height / model_height)}
+                }))
+            except Exception as crop_error:
+                rich_log("error", f"Error cropping image {file_path}: {str(crop_error)}")
+                results.append(([image], {"error": f"Cropping failed: {str(crop_error)}"}))
             
         except Exception as e:
-            rich_log("error", f"Error processing {file_path}: {e}")
+            rich_log("error", f"Error processing {file_path}: {str(e)}")
             results.append(([image], {"error": str(e)}))
+        finally:
+            # Clean up any remaining GPU memory
+            clear_gpu_memory()
     
     return results
 
@@ -366,20 +421,39 @@ def process_document(file_path: str, output_folder: Path, manifest: StepManifest
     try:
         rich_log("info", f"[CROP] Starting processing: {file_path}")
         
-        # Process image
-        image = Image.open(file_path)
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Process single image as batch
-        results = process_batch([image], [file_path])[0]
-        parts, debug_info = results
-        
-        # Clear GPU memory after processing
-        clear_gpu_memory()
-        
         # Get relative path from project root for input file
         rel_input = str(file_manager.get_relative_path(file_path, base_prefix="documents"))
+        
+        # Verify file exists and is readable
+        if not file_path.exists():
+            error_msg = f"File does not exist: {file_path}"
+            rich_log("error", error_msg)
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
+            return False
+            
+        try:
+            # Process image
+            image = Image.open(file_path)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as img_error:
+            error_msg = f"Failed to open or convert image: {str(img_error)}"
+            rich_log("error", error_msg)
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
+            return False
+        
+        # Process single image as batch
+        try:
+            results = process_batch([image], [file_path])[0]
+            parts, debug_info = results
+        except Exception as batch_error:
+            error_msg = f"Failed during batch processing: {str(batch_error)}"
+            rich_log("error", error_msg)
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
+            return False
+        finally:
+            # Clear GPU memory after processing
+            clear_gpu_memory()
         
         # Create output path maintaining directory structure
         output_path = file_manager.get_output_path(
@@ -389,16 +463,22 @@ def process_document(file_path: str, output_folder: Path, manifest: StepManifest
         )
         
         # Ensure output directory exists
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as dir_error:
+            error_msg = f"Failed to create output directory: {str(dir_error)}"
+            rich_log("error", error_msg)
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
+            return False
         
         # Save image
         try:
             parts[0].save(output_path, 'JPEG', quality=95)
             rich_log("info", f"[CROP] Saved output to: {output_path}")
-        except Exception as e:
-            rich_log("error", f"[CROP] Error saving output to {output_path}: {e}")
-            if not manifest.mark_error(f"documents/{rel_input}", f"Error saving output: {e}"):
-                rich_log("error", f"Failed to update manifest for {rel_input}")
+        except Exception as save_error:
+            error_msg = f"Error saving output to {output_path}: {str(save_error)}"
+            rich_log("error", error_msg)
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
             return False
         
         # Get relative path from project root for output
@@ -408,22 +488,31 @@ def process_document(file_path: str, output_folder: Path, manifest: StepManifest
         rich_log("info", f"[CROP] Finished processing: {file_path}")
         
         # Update manifest with success
-        if not manifest.mark_done(
-            f"documents/{rel_input}",
-            crop_output_path=rel_output,
-            crop_confidence=debug_info["confidence"],
-            crop_orientation=debug_info.get("orientation", "normal"),
-            crop_bbox=debug_info.get("box", {})
-        ):
-            rich_log("error", f"Failed to update manifest for {rel_input}")
+        try:
+            if not manifest.mark_done(
+                f"documents/{rel_input}",
+                crop_output_path=rel_output,
+                crop_confidence=debug_info.get("confidence", 0.0),
+                crop_orientation=debug_info.get("orientation", "normal"),
+                crop_bbox=debug_info.get("box", {})
+            ):
+                error_msg = "Failed to update manifest"
+                rich_log("error", error_msg)
+                return False
+        except Exception as manifest_error:
+            error_msg = f"Error updating manifest: {str(manifest_error)}"
+            rich_log("error", error_msg)
             return False
 
         rich_log("info", f"Completed: {rel_input}")
         return True
         
     except Exception as e:
-        rich_log("error", f"[CROP] Error processing {file_path}: {e}")
-        if not manifest.mark_error(f"documents/{rel_input}", str(e)):
+        error_msg = f"[CROP] Unexpected error processing {file_path}: {str(e)}"
+        rich_log("error", error_msg)
+        try:
+            manifest.mark_error(f"documents/{rel_input}", error_msg)
+        except:
             rich_log("error", f"Failed to update manifest for {rel_input}")
         return False
     finally:

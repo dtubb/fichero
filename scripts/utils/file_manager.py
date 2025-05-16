@@ -68,8 +68,10 @@ class FileManager:
         if isinstance(file_path, str):
             file_path = Path(file_path)
         elif isinstance(file_path, list):
-            # Handle case where a list is passed
-            file_path = Path(str(file_path[0])) if file_path else Path()
+            # Handle case where a list is passed - return empty Path if list is empty
+            if not file_path:
+                return Path()
+            file_path = Path(str(file_path[0]))
         
         # If path contains the prefix, get everything after it
         if base_prefix and base_prefix in str(file_path):

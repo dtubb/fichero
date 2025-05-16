@@ -111,6 +111,14 @@ async def convert_to_jpg(
                     output_path = output_dir / rel_path.with_suffix('.jpg')
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     
+                    # Skip if already a JPG/JPEG
+                    if file_path.suffix.lower() in ['.jpg', '.jpeg']:
+                        rich_log("debug", f"Skipping already JPG file: {file_path}")
+                        stats["processed"] += 1
+                        if step_progress:
+                            step_progress.update(processed=stats["processed"], **stats)
+                        continue
+                    
                     try:
                         # Convert to JPG
                         with Image.open(file_path) as img:
@@ -125,12 +133,13 @@ async def convert_to_jpg(
                             # Save as JPG
                             img.save(output_path, 'JPEG', quality=95)
                         
-                        # Delete original file after successful conversion
-                        try:
-                            os.remove(file_path)
-                            rich_log("debug", f"Deleted original file: {file_path}")
-                        except Exception as e:
-                            rich_log("warning", f"Failed to delete original file {file_path}: {e}")
+                        # Only delete original file if it's not already a JPG
+                        if file_path.suffix.lower() not in ['.jpg', '.jpeg']:
+                            try:
+                                os.remove(file_path)
+                                rich_log("debug", f"Deleted original file: {file_path}")
+                            except Exception as e:
+                                rich_log("warning", f"Failed to delete original file {file_path}: {e}")
                             
                     except Exception as e:
                         rich_log("error", f"Error converting {file_path}: {e}")

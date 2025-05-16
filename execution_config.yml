@@ -3,9 +3,9 @@
 
 # Hardware detection and optimization
 hardware:
-  auto_detect: true  # Enable automatic hardware detection
-  # device: "cpu"  # Options: "cuda", "mps", "cpu"
-  # force_cpu: false  # Force CPU usage even if GPU is available
+  auto_detect: false  # Disable automatic hardware detection
+  device: "cpu"  # Force CPU
+  force_cpu: true  # Force CPU usage even if GPU is available
 
 # System-specific configurations
 system_configs:
@@ -91,7 +91,7 @@ system_configs:
   
   cpu:  # CPU-only configuration
     crop:
-      workers: 4
+      workers: 2
       batch_size: 6
     split:
       workers: 4  # Can use more workers as split is less intensive

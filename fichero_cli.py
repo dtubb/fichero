@@ -25,6 +25,7 @@ from rich.console import Group
 
 from scripts.utils.workflow_progress import WorkflowProgress, StepProgress
 from scripts.utils.logging_utils import rich_log, should_show_progress, setup_logging
+from scripts.utils.worker_manager import get_best_device
 
 # Configure console for rich logging
 console = Console()
@@ -172,19 +173,15 @@ def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: 
     if not execution_config:
         return None
     
+    # If force_cpu is True, always use CPU config regardless of device
+    if force_cpu:
+        device = "cpu"
+    
     # Get the system config for the current device
     system_config = execution_config.get('system_configs', {}).get(device, {})
     
-    # For crop/split step on MPS (Apple Silicon), check if we should use CPU config
-    if device == "mps" and force_cpu:
-        if step == 'crop':
-            step_config = system_config.get('crop_cpu', {})
-        elif step == 'split':
-            step_config = system_config.get('split_cpu', {})
-        else:
-            step_config = system_config.get(step, {})
-    else:
-        step_config = system_config.get(step, {})
+    # Get the step config
+    step_config = system_config.get(step, {})
     
     # Handle both new dict format and legacy integer format
     if isinstance(step_config, dict):
@@ -297,7 +294,7 @@ def run_script(script_path: Path, args: list, force_cpu: bool = False):
             else:
                 rich_log("info", f"  {line}")
 
-def run_script_parallel(script_path: Path, args: list, num_workers: int, force_cpu: bool = False):
+def run_script_parallel(script_path: Path, args: list, num_workers: int, force_cpu: bool = False, parent_progress: Optional[Progress] = None):
     """Run multiple instances of a script in parallel."""
     # Get manifest path from args
     manifest_path = None
@@ -306,28 +303,8 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
             manifest_path = arg
             break
     
-    if not manifest_path:
-        raise ValueError("No manifest file found in arguments")
-    
-    # Get step name from script path
-    step = script_path.stem
-    
-    # Get step-specific configuration
-    execution_config = load_execution_config()
-    device = get_best_device()
-    batch_size = get_batch_size(execution_config, step, device, force_cpu)
-    memory_limit = get_memory_limit(execution_config, step, device, force_cpu)
-    
-    if batch_size:
-        # Add batch size to args if configured
-        args.extend(['--batch-size', str(batch_size)])
-    
-    if memory_limit:
-        # Set memory limit in environment
-        os.environ['FICHERO_MEMORY_LIMIT'] = memory_limit
-    
-    # Create progress bars for each worker using Rich
-    progress = Progress(
+    # Use parent progress if provided, otherwise create new one
+    progress = parent_progress or Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -352,27 +329,9 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
     # Launch workers
     processes = []
     for worker_id in range(num_workers):
-        # Add worker ID to environment
         env = os.environ.copy()
         env['WORKER_ID'] = str(worker_id)
         env['FICHERO_WORKER'] = '1'  # Mark as worker process
-        
-        # Add debug flag to environment if enabled
-        if os.environ.get('FICHERO_DEBUG') == '1':
-            env['FICHERO_DEBUG'] = '1'
-            # Add debug flag to args if not already present
-            if '--debug' not in args:
-                args.append('--debug')
-        
-        # Add project root to PYTHONPATH
-        project_root = script_path.parent.parent
-        if 'PYTHONPATH' in env:
-            env['PYTHONPATH'] = f"{project_root}:{env['PYTHONPATH']}"
-        else:
-            env['PYTHONPATH'] = str(project_root)
-        
-        # Ensure force_cpu is properly propagated
-        env['FICHERO_FORCE_CPU'] = '1' if force_cpu else '0'
         
         # Launch process with output capture
         cmd = ['python', str(script_path)] + args
@@ -389,98 +348,86 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
         )
         processes.append((worker_id, process))
     
-    # Monitor and log output from all workers
-    with Live(progress, refresh_per_second=4, vertical_overflow="visible") as live:
-        while processes:
-            for worker_id, process in processes[:]:
-                # Check if process has finished
-                if process.poll() is not None:
-                    # Get any remaining output
-                    stdout, stderr = process.communicate()
-                    if stdout:
-                        for line in stdout.splitlines():
-                            if os.environ.get('FICHERO_DEBUG') == '1':
-                                rich_log("debug", f"Worker {worker_id}: {line}")
-                            else:
-                                rich_log("info", f"Worker {worker_id}: {line}")
-                    if stderr:
-                        for line in stderr.splitlines():
-                            rich_log("error", f"Worker {worker_id}: {line}")
-                    
-                    # Check return code
-                    if process.returncode != 0:
-                        raise Exception(f"Worker {worker_id} failed with exit code {process.returncode}")
-                    
-                    # Update progress for completed worker
+    # If we created our own progress, wrap it in Live
+    if not parent_progress:
+        with Live(progress, refresh_per_second=4, vertical_overflow="visible") as live:
+            _monitor_workers(processes, worker_tasks, progress)
+    else:
+        # Otherwise just use the parent progress directly
+        _monitor_workers(processes, worker_tasks, progress)
+    
+    rich_log("info", "All workers finished")
+
+def _monitor_workers(processes, worker_tasks, progress):
+    """Monitor worker processes and update progress."""
+    while processes:
+        for worker_id, process in processes[:]:
+            # Check if process has finished
+            if process.poll() is not None:
+                stdout, stderr = process.communicate()
+                if stdout:
+                    for line in stdout.splitlines():
+                        if "Completed:" in line:
+                            progress.update(worker_tasks[worker_id], advance=1)
+                        rich_log("info", f"Worker {worker_id}: {line}")
+                if stderr:
+                    for line in stderr.splitlines():
+                        rich_log("error", f"Worker {worker_id}: {line}")
+                
+                # Check return code
+                if process.returncode != 0:
+                    raise Exception(f"Worker {worker_id} failed with exit code {process.returncode}")
+                
+                # Update progress for completed worker
+                progress.update(
+                    worker_tasks[worker_id],
+                    completed=True,
+                    description=f"Worker {worker_id} (Completed)"
+                )
+                
+                # Remove finished process
+                processes.remove((worker_id, process))
+                continue
+            
+            # Check for output
+            stdout = process.stdout.readline()
+            if stdout:
+                line = stdout.strip()
+                rich_log("info", f"Worker {worker_id}: {line}")
+                
+                # Update progress based on output
+                if "[CROP] Starting processing:" in line:
+                    current_file = line.split("[CROP] Starting processing:")[1].strip()
                     progress.update(
                         worker_tasks[worker_id],
-                        completed=True,
-                        description=f"Worker {worker_id} (Completed)"
+                        description=f"Worker {worker_id}: {current_file}"
                     )
-                    
-                    # Remove finished process
-                    processes.remove((worker_id, process))
-                    continue
-                
-                # Check for output
-                stdout = process.stdout.readline()
-                if stdout:
-                    line = stdout.strip()
-                    # Log all output in debug mode
-                    if os.environ.get('FICHERO_DEBUG') == '1':
-                        # Just print the line directly without re-logging
-                        print(f"Worker {worker_id}: {line}")
-                    
-                    # Update progress based on output
-                    if "Processing:" in line:
-                        current_file = line.split("Processing:")[1].strip()
-                        progress.update(
-                            worker_tasks[worker_id],
-                            description=f"Worker {worker_id}: {current_file}"
-                        )
-                    elif "Completed:" in line:
-                        progress.update(
-                            worker_tasks[worker_id],
-                            advance=1,
-                            description=f"Worker {worker_id}"
-                        )
-                    elif "Total files:" in line:
+                elif "[CROP] Finished processing:" in line:
+                    progress.update(
+                        worker_tasks[worker_id],
+                        advance=1,
+                        description=f"Worker {worker_id}"
+                    )
+                elif "Total files:" in line:
+                    try:
                         total = int(line.split("Total files:")[1].strip())
                         progress.update(
                             worker_tasks[worker_id],
                             total=total,
                             description=f"Worker {worker_id}"
                         )
-                    elif "=== Starting YOLO Processing" in line:
-                        progress.update(
-                            worker_tasks[worker_id],
-                            description=f"Worker {worker_id}: Initializing YOLO"
-                        )
-                    elif "=== YOLO Processing Complete" in line:
-                        progress.update(
-                            worker_tasks[worker_id],
-                            description=f"Worker {worker_id}: YOLO Ready"
-                        )
-                    elif "DEBUG:" in line:
-                        # Just print the line directly without re-logging
-                        print(f"Worker {worker_id}: {line}")
-                    elif "INFO:" in line:
-                        print(f"Worker {worker_id}: {line}")
-                    elif "WARNING:" in line:
-                        print(f"Worker {worker_id}: {line}")
-                    elif "ERROR:" in line:
-                        print(f"Worker {worker_id}: {line}")
-                
-                stderr = process.stderr.readline()
-                if stderr:
-                    print(f"Worker {worker_id}: {stderr.strip()}")
-                    progress.update(
-                        worker_tasks[worker_id],
-                        description=f"Worker {worker_id} (Error)"
-                    )
+                    except ValueError:
+                        pass
             
-            # Small sleep to prevent CPU spinning
-            time.sleep(0.1)
+            stderr = process.stderr.readline()
+            if stderr:
+                rich_log("error", f"Worker {worker_id}: {stderr.strip()}")
+                progress.update(
+                    worker_tasks[worker_id],
+                    description=f"Worker {worker_id} (Error)"
+                )
+        
+        time.sleep(0.1)
 
 @app.command(name="run-workflow")
 def run_workflow(
@@ -633,27 +580,11 @@ def run_workflow(
                                 arg = arg.replace(f"${{vars.{var_key}}}", str(var_value))
                     resolved_args.append(arg)
                 
-                # Create manifest file if needed
-                manifest_path = None
-                if step == "crop_split":
-                    # Create manifest file in project directory
-                    project_folder = Path(config['vars']['project_folder'])
-                    manifest_path = project_folder / "manifest.jsonl"
-                    if not manifest_path.exists():
-                        # Initialize manifest with all files in documents directory
-                        docs_dir = project_folder / "documents"
-                        manifest = JSONLManager(str(manifest_path))
-                        for file_path in docs_dir.glob("**/*"):
-                            if file_path.is_file():
-                                manifest.add_file(str(file_path.relative_to(docs_dir)))
-                        manifest.save()
-                    resolved_args = [str(manifest_path), str(project_folder)] + resolved_args[2:]
-                
                 # Run script with resolved arguments
                 try:
-                    if num_workers > 1 and manifest_path and manifest_path.exists():
-                        # Run in parallel if we have a manifest file
-                        run_script_parallel(Path(script_path), resolved_args, num_workers, force_cpu)
+                    if num_workers > 1:
+                        # Run in parallel if we have multiple workers configured
+                        run_script_parallel(Path(script_path), resolved_args, num_workers, force_cpu, progress)
                     else:
                         # Run single process
                         run_script(Path(script_path), resolved_args, force_cpu)

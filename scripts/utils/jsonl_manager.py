@@ -142,52 +142,89 @@ class JSONLManager:
         self.all_entries()
         return self._cache.get(input_path)
 
-    def update_entry(self, input_path: str, **fields) -> bool:
-        """Update or add an entry for input_path, atomically."""
-        try:
-            with self._lock:
-                entries = self.all_entries()
+    def update_entry(self, key: str, **fields) -> bool:
+        """Update an entry in the manifest file."""
+        if not isinstance(key, str):
+            rich_log("error", f"Invalid key type: {type(key)}. Key must be a string.")
+            return False
+            
+        retries = 0
+        max_retries = 3
+        base_delay = 0.1
+        
+        while retries < max_retries:
+            try:
+                entries = self._read_entries_from_file()
                 updated = False
+                
                 for entry in entries:
-                    if entry.get('input_path') == input_path:
+                    if entry.get("input_path") == key:
                         entry.update(fields)
                         updated = True
                         break
+                        
                 if not updated:
-                    entry = {'input_path': input_path, **fields}
-                    entries.append(entry)
-                self._atomic_write(entries)
-                return True
-        except Exception as e:
-            rich_log("error", f"Error updating entry for {input_path}: {str(e)}")
-            return False
+                    rich_log("warning", f"No entry found with key: {key}")
+                    return False
+                    
+                if self._write_entries_to_file(entries):
+                    return True
+                    
+                retries += 1
+                if retries < max_retries:
+                    time.sleep(base_delay * (2 ** retries))
+                    
+            except Exception as e:
+                rich_log("error", f"Error updating entry (attempt {retries + 1}): {str(e)}")
+                retries += 1
+                if retries < max_retries:
+                    time.sleep(base_delay * (2 ** retries))
+                    
+        rich_log("error", f"Failed to update entry after {max_retries} attempts")
+        return False
 
     def batch_update(self, updates: List[Dict[str, Any]]) -> bool:
         """Batch update entries. Each dict must have 'input_path'."""
-        try:
-            with self._lock:
-                # Filter out any existing entries that don't have input_path
-                existing_entries = self.all_entries()
-                valid_entries = {e['input_path']: e for e in existing_entries if 'input_path' in e}
-                
-                # Process updates
-                for update in updates:
-                    if 'input_path' not in update:
-                        rich_log("warning", f"Skipping update without input_path: {update}")
-                        continue
-                    ip = update['input_path']
-                    if ip in valid_entries:
-                        valid_entries[ip].update(update)
-                    else:
-                        valid_entries[ip] = update
-                
-                # Write back all valid entries
-                return self._atomic_write(list(valid_entries.values()))
-        except Exception as e:
-            rich_log("error", f"Exception in batch_update: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        retries = 0
+        max_retries = 3
+        base_delay = 0.1
+        
+        while retries < max_retries:
+            try:
+                with self._lock:
+                    # Filter out any existing entries that don't have input_path
+                    existing_entries = self.all_entries()
+                    valid_entries = {e['input_path']: e for e in existing_entries if 'input_path' in e}
+                    
+                    # Process updates
+                    for update in updates:
+                        if 'input_path' not in update:
+                            rich_log("warning", f"Skipping update without input_path: {update}")
+                            continue
+                        ip = update['input_path']
+                        if ip in valid_entries:
+                            valid_entries[ip].update(update)
+                        else:
+                            valid_entries[ip] = update
+                    
+                    # Write back all valid entries
+                    if self._atomic_write(list(valid_entries.values())):
+                        return True
+                        
+                    retries += 1
+                    if retries < max_retries:
+                        time.sleep(base_delay * (2 ** retries))
+                        
+            except Exception as e:
+                rich_log("error", f"Exception in batch_update (attempt {retries + 1}): {e}")
+                import traceback
+                traceback.print_exc()
+                retries += 1
+                if retries < max_retries:
+                    time.sleep(base_delay * (2 ** retries))
+                    
+        rich_log("error", f"Failed to batch update after {max_retries} attempts")
+        return False
 
     def filter_entries(self, **criteria) -> List[Dict[str, Any]]:
         return [e for e in self.all_entries() if all(e.get(k) == v for k, v in criteria.items())]
@@ -214,17 +251,13 @@ class JSONLManager:
                     self._release_file_lock(f)
             
             # Now atomically rename temp file to target
-            with open(self.path, 'r+', encoding='utf-8') as f:
-                if not self._acquire_file_lock(f):
-                    rich_log("warning", "Could not acquire file lock for rename")
-                    return False
+            try:
+                tmp_path.replace(self.path)
+                return True
+            except Exception as e:
+                rich_log("error", f"Error during atomic rename: {str(e)}")
+                return False
                 
-                try:
-                    # Rename temp file to target
-                    tmp_path.replace(self.path)
-                finally:
-                    self._release_file_lock(f)
-            return True
         except Exception as e:
             rich_log("error", f"Error writing entries: {str(e)}")
             return False
@@ -235,6 +268,10 @@ class JSONLManager:
                     tmp_path.unlink()
                 except Exception:
                     pass
+
+    def _write_entries_to_file(self, entries: List[Dict[str, Any]]) -> bool:
+        """Write entries to file with proper locking and error handling."""
+        return self._atomic_write(entries)
 
     def __enter__(self):
         """Context manager entry."""
