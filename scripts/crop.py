@@ -46,6 +46,25 @@ file_manager = None
 
 app = typer.Typer()
 
+def get_best_device():
+    """Determine the best available device for model inference."""
+    # Check if CPU is forced
+    force_cpu = os.environ.get('FICHERO_FORCE_CPU', '0') == '1'
+    if force_cpu:
+        rich_log("info", "Force CPU mode enabled - using CPU for processing")
+        return "cpu"
+    
+    # Select best device
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        rich_log("info", "Using MPS (Metal Performance Shaders) for GPU acceleration")
+        return "mps"
+    elif torch.cuda.is_available():
+        rich_log("info", "Using CUDA for GPU acceleration")
+        return "cuda"
+    else:
+        rich_log("info", "Using CPU for inference")
+        return "cpu"
+
 def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt", worker_id: Optional[int] = None):
     """Initialize YOLO model with proper device optimization."""
     rich_log("info", "=== Initializing YOLO Model ===")
@@ -56,16 +75,10 @@ def init_yolo_model(model_path: str = "models/yolov8s-fichero.pt", worker_id: Op
     rich_log("info", f"MPS available: {torch.backends.mps.is_available()}")
     rich_log("info", f"MPS built: {torch.backends.mps.is_built()}")
     
-    # Check if CPU is forced
-    force_cpu = os.environ.get('FICHERO_FORCE_CPU', '0') == '1'
-    if force_cpu:
-        rich_log("info", "Force CPU mode enabled - using CPU for processing")
-        device = "cpu"
-    else:
-        # Select best device
-        device = get_best_device()
-        if worker_id is not None:
-            device = get_worker_device(worker_id, device)
+    # Get device
+    device = get_best_device()
+    if worker_id is not None:
+        device = get_worker_device(worker_id, device)
     rich_log("info", f"Selected device: {device}")
     
     # Load model with detailed logging
@@ -430,9 +443,9 @@ def process_document(file_path: str, output_folder: Path, manifest: StepManifest
             rich_log("error", error_msg)
             manifest.mark_error(f"documents/{rel_input}", error_msg)
             return False
-            
+        
+        # Process image
         try:
-            # Process image
             image = Image.open(file_path)
             if image.mode != 'RGB':
                 image = image.convert('RGB')
