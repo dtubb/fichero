@@ -91,7 +91,7 @@ system_configs:
   
   cpu:  # CPU-only configuration
     crop:
-      workers: 2
+      workers: 4
       batch_size: 6
     split:
       workers: 4  # Can use more workers as split is less intensive
