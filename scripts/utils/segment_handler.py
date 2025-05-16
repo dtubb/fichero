@@ -1,16 +1,221 @@
-from pathlib import Path
+=from pathlib import Path
 from PIL import Image
-from typing import Dict, Union
+from typing import Dict, Union, List, Any, Optional, Tuple
 import shutil
 import os
 import json
 import tempfile
 from rich.console import Console  # Add this import
+from scripts.utils.logging_utils import rich_log
+from scripts.utils.jsonl_manager import JSONLManager
 
 console = Console()
 
 class SegmentHandler:
-    """Handles loading, saving, and path management for image segments"""
+    """Handles segmentation of files for parallel processing."""
+    
+    def __init__(self, base_dir: str = "data"):
+        """
+        Initialize SegmentHandler.
+        
+        Args:
+            base_dir: Base directory for segments
+        """
+        self.base_dir = Path(base_dir)
+        self.segments_dir = self.base_dir / "segments"
+        self.segments_file = self.segments_dir / "segments.jsonl"
+        self.jsonl_manager = JSONLManager(str(self.segments_file))
+        self._ensure_directories()
+
+    def _ensure_directories(self):
+        """Ensure required directories exist."""
+        try:
+            self.segments_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            rich_log("error", f"Error creating segments directory {self.segments_dir}: {str(e)}")
+            raise
+
+    def create_segments(self, file_list: List[str], segment_size: int) -> bool:
+        """
+        Create segments from a list of files.
+        
+        Args:
+            file_list: List of files to segment
+            segment_size: Number of files per segment
+            
+        Returns:
+            bool: True if segments were created successfully
+        """
+        try:
+            # Clear existing segments
+            self.jsonl_manager.batch_update([])
+            
+            # Create new segments
+            segments = []
+            for i in range(0, len(file_list), segment_size):
+                segment = {
+                    "segment_id": len(segments),
+                    "files": file_list[i:i + segment_size],
+                    "status": "pending"
+                }
+                segments.append(segment)
+            
+            # Save segments
+            success = self.jsonl_manager.batch_update(segments)
+            if success:
+                rich_log("info", f"Created {len(segments)} segments")
+            return success
+            
+        except Exception as e:
+            rich_log("error", f"Error creating segments: {str(e)}")
+            return False
+
+    def get_segment(self, segment_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific segment by ID.
+        
+        Args:
+            segment_id: ID of the segment to get
+            
+        Returns:
+            Optional[Dict[str, Any]]: Segment data or None if not found
+        """
+        try:
+            return self.jsonl_manager.read_entry("segment_id", segment_id)
+        except Exception as e:
+            rich_log("error", f"Error getting segment {segment_id}: {str(e)}")
+            return None
+
+    def update_segment_status(self, segment_id: int, status: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Update the status of a segment.
+        
+        Args:
+            segment_id: ID of the segment to update
+            status: New status
+            metadata: Additional metadata to update
+            
+        Returns:
+            bool: True if update was successful
+        """
+        try:
+            segment = self.get_segment(segment_id)
+            if not segment:
+                rich_log("warning", f"Segment {segment_id} not found")
+                return False
+                
+            if metadata:
+                segment["metadata"] = segment.get("metadata", {})
+                segment["metadata"].update(metadata)
+            segment["status"] = status
+            
+            return self.jsonl_manager.update_entry("segment_id", segment_id, segment)
+        except Exception as e:
+            rich_log("error", f"Error updating segment {segment_id}: {str(e)}")
+            return False
+
+    def get_pending_segments(self) -> List[Dict[str, Any]]:
+        """
+        Get list of pending segments.
+        
+        Returns:
+            List[Dict[str, Any]]: List of pending segments
+        """
+        try:
+            segments = self.jsonl_manager.read_all()
+            return [s for s in segments if s["status"] == "pending"]
+        except Exception as e:
+            rich_log("error", f"Error getting pending segments: {str(e)}")
+            return []
+
+    def get_completed_segments(self) -> List[Dict[str, Any]]:
+        """
+        Get list of completed segments.
+        
+        Returns:
+            List[Dict[str, Any]]: List of completed segments
+        """
+        try:
+            segments = self.jsonl_manager.read_all()
+            return [s for s in segments if s["status"] == "completed"]
+        except Exception as e:
+            rich_log("error", f"Error getting completed segments: {str(e)}")
+            return []
+
+    def get_failed_segments(self) -> List[Dict[str, Any]]:
+        """
+        Get list of failed segments.
+        
+        Returns:
+            List[Dict[str, Any]]: List of failed segments
+        """
+        try:
+            segments = self.jsonl_manager.read_all()
+            return [s for s in segments if s["status"] == "failed"]
+        except Exception as e:
+            rich_log("error", f"Error getting failed segments: {str(e)}")
+            return []
+
+    def get_all_segments(self) -> List[Dict[str, Any]]:
+        """
+        Get all segments.
+        
+        Returns:
+            List[Dict[str, Any]]: List of all segments
+        """
+        try:
+            return self.jsonl_manager.read_all()
+        except Exception as e:
+            rich_log("error", f"Error getting all segments: {str(e)}")
+            return []
+
+    def clear_segments(self) -> bool:
+        """
+        Clear all segments.
+        
+        Returns:
+            bool: True if clear was successful
+        """
+        try:
+            return self.jsonl_manager.batch_update([])
+        except Exception as e:
+            rich_log("error", f"Error clearing segments: {str(e)}")
+            return False
+
+    def get_progress(self) -> Dict[str, int]:
+        """
+        Get progress statistics for segments.
+        
+        Returns:
+            Dict[str, int]: Dictionary with counts for each status
+        """
+        try:
+            segments = self.jsonl_manager.read_all()
+            status_counts = {"total": len(segments)}
+            for segment in segments:
+                status = segment["status"]
+                status_counts[status] = status_counts.get(status, 0) + 1
+            return status_counts
+        except Exception as e:
+            rich_log("error", f"Error getting segment progress: {str(e)}")
+            return {"total": 0}
+
+    def get_segment_files(self, segment_id: int) -> List[str]:
+        """
+        Get list of files in a segment.
+        
+        Args:
+            segment_id: ID of the segment
+            
+        Returns:
+            List[str]: List of files in the segment
+        """
+        try:
+            segment = self.get_segment(segment_id)
+            return segment["files"] if segment else []
+        except Exception as e:
+            rich_log("error", f"Error getting files for segment {segment_id}: {str(e)}")
+            return []
     
     @staticmethod
     def exists(path: Union[str, Path], base_folder: Path = None) -> bool:

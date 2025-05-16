@@ -14,13 +14,12 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import re
 from PIL import Image
+import os
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from scripts.utils.file_manager import FileManager
+from scripts.utils.jsonl_manager import JSONLManager
+from scripts.utils.workflow_progress import create_progress_tracker
+from scripts.utils.logging_utils import rich_log, setup_logging
 
 app = typer.Typer()
 
@@ -31,7 +30,7 @@ def validate_image(file_path: Path) -> bool:
             img.verify()  # Verify it's an image
             return True
     except Exception as e:
-        logger.error(f"Invalid image file {file_path}: {str(e)}")
+        rich_log("error", f"Invalid image file {file_path}: {str(e)}")
         return False
 
 def copy_file_mac(source: Path, dest: Path) -> bool:
@@ -44,11 +43,11 @@ def copy_file_mac(source: Path, dest: Path) -> bool:
         result = subprocess.run(['cp', '-c', str(source), str(dest)], 
                               capture_output=True, text=True)
         if result.returncode != 0:
-            logger.error(f"Error copying {source}: {result.stderr}")
+            rich_log("error", f"Error copying {source}: {result.stderr}")
             return False
         return True
     except Exception as e:
-        logger.error(f"Error copying {source}: {str(e)}")
+        rich_log("error", f"Error copying {source}: {str(e)}")
         return False
 
 def copy_file_other(source: Path, dest: Path) -> bool:
@@ -61,7 +60,7 @@ def copy_file_other(source: Path, dest: Path) -> bool:
         shutil.copy2(source, dest)
         return True
     except Exception as e:
-        logger.error(f"Error copying {source}: {str(e)}")
+        rich_log("error", f"Error copying {source}: {str(e)}")
         return False
 
 async def download_file(session: aiohttp.ClientSession, url: str, dest: Path, semaphore: asyncio.Semaphore) -> bool:
@@ -84,11 +83,11 @@ async def download_file(session: aiohttp.ClientSession, url: str, dest: Path, se
                             return True
                         else:
                             dest.unlink()  # Delete invalid file
-                            logger.warning(f"Invalid image downloaded from {url}")
+                            rich_log("warning", f"Invalid image downloaded from {url}")
                     else:
-                        logger.warning(f"Failed to download {url}: HTTP {response.status}")
+                        rich_log("warning", f"Failed to download {url}: HTTP {response.status}")
             except Exception as e:
-                logger.warning(f"Attempt {attempt + 1} failed for {url}: {str(e)}")
+                rich_log("warning", f"Attempt {attempt + 1} failed for {url}: {str(e)}")
                 if attempt < 2:  # Don't sleep on the last attempt
                     await asyncio.sleep(1)
         return False
@@ -119,10 +118,10 @@ async def extract_image_urls(session: aiohttp.ClientSession, url: str, selector:
                         urls.append(img_url)
                 return urls
             else:
-                logger.warning(f"Failed to fetch {url}: HTTP {response.status}")
+                rich_log("warning", f"Failed to fetch {url}: HTTP {response.status}")
                 return []
     except Exception as e:
-        logger.error(f"Error extracting images from {url}: {str(e)}")
+        rich_log("error", f"Error extracting images from {url}: {str(e)}")
         return []
 
 async def process_html_source(session: aiohttp.ClientSession, source: dict, output_folder: Path) -> list[str]:
@@ -157,11 +156,9 @@ async def download_urls(urls_file: Path, output_folder: Path, max_workers: int =
     urls = []
     if urls_file.suffix == '.jsonl':
         # Load from JSONL
-        with open(urls_file) as f:
-            for line in f:
-                data = json.loads(line)
-                if 'url' in data:
-                    urls.append(data['url'])
+        jsonl_manager = JSONLManager(str(urls_file))
+        entries = jsonl_manager.read_all()
+        urls = [entry['url'] for entry in entries if 'url' in entry]
     elif urls_file.suffix in ['.yaml', '.yml']:
         # Load from YAML
         with open(urls_file) as f:
@@ -178,7 +175,7 @@ async def download_urls(urls_file: Path, output_folder: Path, max_workers: int =
                 if 'direct_urls' in config:
                     urls.extend(config['direct_urls'])
     
-    logger.info(f"Found {len(urls)} URLs to download")
+    rich_log("info", f"Found {len(urls)} URLs to download")
     
     # Set up async download
     semaphore = asyncio.Semaphore(max_workers)
@@ -199,7 +196,7 @@ async def download_urls(urls_file: Path, output_folder: Path, max_workers: int =
             if await coro:
                 success_count += 1
         
-        logger.info(f"Successfully downloaded {success_count} of {len(urls)} files")
+        rich_log("info", f"Successfully downloaded {success_count} of {len(urls)} files")
 
 def prepare_local_folder(source_folder: Path, output_folder: Path):
     """Copy all files from source to output folder."""
@@ -210,7 +207,7 @@ def prepare_local_folder(source_folder: Path, output_folder: Path):
     input_files = list(source_folder.glob('**/*'))
     input_files = [f for f in input_files if f.is_file()]  # Only files, not directories
     
-    logger.info(f"Found {len(input_files)} files to prepare")
+    rich_log("info", f"Found {len(input_files)} files to prepare")
     
     # Choose copy function based on platform
     copy_func = copy_file_mac if platform.system() == 'Darwin' else copy_file_other
@@ -229,19 +226,23 @@ def prepare_local_folder(source_folder: Path, output_folder: Path):
             else:
                 # Delete invalid file
                 output_path.unlink()
-                logger.error(f"Invalid image file: {input_path}")
+                rich_log("error", f"Invalid image file: {input_path}")
     
-    logger.info(f"Successfully prepared {success_count} of {len(input_files)} files")
+    rich_log("info", f"Successfully prepared {success_count} of {len(input_files)} files")
 
 @app.command()
 def main(
     source: Path = typer.Argument(..., help="Source folder containing files to prepare, JSONL file with URLs, or YAML file with HTML sources"),
     output_folder: Path = typer.Argument(..., help="Folder to copy/download files to"),
-    max_workers: int = typer.Option(10, help="Maximum number of concurrent downloads")
+    max_workers: int = typer.Option(10, help="Maximum number of concurrent downloads"),
+    debug: bool = typer.Option(False, help="Enable debug logging")
 ):
     """Prepare images by copying from local folder or downloading from URLs/HTML sources."""
+    # Set up logging
+    setup_logging(level=logging.DEBUG if debug or os.environ.get('FICHERO_DEBUG') == '1' else logging.INFO)
+    
     try:
-        logger.info(f"Preparing files from {source}")
+        rich_log("info", f"Preparing files from {source}")
         
         if source.suffix in ['.jsonl', '.yaml', '.yml']:
             # Download from URLs or HTML sources
@@ -250,10 +251,10 @@ def main(
             # Copy from local folder
             prepare_local_folder(source, output_folder)
             
-        logger.info("Preparation completed")
+        rich_log("info", "Preparation completed")
         
     except Exception as e:
-        logger.error(f"Error during preparation: {str(e)}")
+        rich_log("error", f"Error during preparation: {str(e)}")
         raise typer.Exit(1)
 
 if __name__ == "__main__":

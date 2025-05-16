@@ -8,231 +8,250 @@ This script processes scanned document images, with intelligent detection of:
 4. Double-page book spreads
 
 Key Features:
-- Multi-stage document type detection:
-  * First checks for notebook/spiral binding patterns
-  * Then analyzes for labels/covers using text density and filename patterns
-  * Finally checks for photos using edge density and variance
-- Smart split point detection:
-  * Centers splits for notebooks and double pages
-  * Prevents splitting of single-page documents
-  * Handles both sharp and subtle page divisions
-- Comprehensive content analysis:
-  * Measures content distribution across page halves
-  * Analyzes vertical patterns for binding detection
-  * Considers edge density and text patterns
-  * Uses filename patterns for first/cover pages
-- GPU Acceleration:
-  * Uses PyTorch for GPU-accelerated image processing
-  * Optimizes pattern detection and content analysis
-  * Supports both CUDA and Apple Silicon (MPS) devices
-
-Detection Thresholds:
-- Notebooks: aspect ratio > 1.35, width > 2000px, strong vertical patterns
-- Labels/Covers: high text density, specific aspect ratios, filename patterns
-- Photos: high edge density/variance, balanced content distribution
-- General splits: adaptive thresholds based on document characteristics
+- Multi-stage document type detection
+- Smart split point detection
+- Comprehensive content analysis
+- GPU Acceleration with CUDA and Apple Silicon (MPS) support
+- Multi-worker processing with progress tracking
 """
+
+import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
 
 import typer
 from PIL import Image
-from pathlib import Path
 import numpy as np
 import cv2
 import torch
-from pdf2image import convert_from_path
-from rich.console import Console
+import torch.nn.functional as F
+from datetime import datetime
+from typing import Dict, Any, Optional, Tuple, List
 import json
-from typing import Set, Optional, Tuple, List, Dict, Any
-import logging
-import os
-import multiprocessing as mp
+import yaml
+import time
+import platform
+import multiprocessing
+import subprocess
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.live import Live
 
-from scripts.utils.image_utils import (
-    get_image_orientation,
-    prepare_image_for_model,
-    save_image_with_metadata,
-    get_relative_path
-)
+from scripts.utils.step_manifest import StepManifestManager
 from scripts.utils.workflow_progress import create_progress_tracker
-from scripts.utils.parallel import process_directory
+from scripts.utils.worker_manager import (
+    run_worker_process,
+    run_main_process,
+    get_best_device,
+    get_worker_device,
+    clear_gpu_memory,
+)
+from scripts.utils.file_manager import FileManager
+from scripts.utils.logging_utils import rich_log, should_show_progress
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize global variables
+device = None
+edge_detection_kernel = None
+gaussian_kernel = None
+file_manager = None
 
-console = Console()
+app = typer.Typer()
 
-# Set up device for GPU acceleration
-device = torch.device('mps' if torch.backends.mps.is_available() else 
-                     'cuda' if torch.cuda.is_available() else 'cpu')
-logger.info(f"Using device: {device}")
+def initialize_kernels():
+    """Initialize kernels for edge detection on GPU."""
+    global edge_detection_kernel, gaussian_kernel, device
+    
+    if device is None:
+        device = get_best_device()
+    
+    # Sobel kernels for edge detection
+    sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32, device=device)
+    sobel_y = torch.tensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=torch.float32, device=device)
+    edge_detection_kernel = torch.stack([sobel_x, sobel_y]).unsqueeze(1)
+    
+    # Gaussian kernel for smoothing
+    gaussian = torch.tensor([
+        [1, 4, 6, 4, 1],
+        [4, 16, 24, 16, 4],
+        [6, 24, 36, 24, 6],
+        [4, 16, 24, 16, 4],
+        [1, 4, 6, 4, 1]
+    ], dtype=torch.float32, device=device) / 256
+    gaussian_kernel = gaussian.unsqueeze(0).unsqueeze(0)
+
+def edge_detection_gpu(img_tensor: torch.Tensor) -> torch.Tensor:
+    """Perform edge detection using GPU tensors."""
+    global edge_detection_kernel, gaussian_kernel
+    
+    if edge_detection_kernel is None:
+        initialize_kernels()
+    
+    # Ensure input is float and normalized
+    if img_tensor.dtype != torch.float32:
+        img_tensor = img_tensor.float()
+    if img_tensor.max() > 1.0:
+        img_tensor = img_tensor / 255.0
+    
+    # Add batch and channel dimensions if needed
+    if img_tensor.dim() == 2:
+        img_tensor = img_tensor.unsqueeze(0).unsqueeze(0)
+    elif img_tensor.dim() == 3:
+        img_tensor = img_tensor.unsqueeze(0)
+    
+    # Apply Gaussian blur
+    blurred = F.conv2d(img_tensor, gaussian_kernel, padding=2)
+    
+    # Apply Sobel filters
+    edges = F.conv2d(blurred, edge_detection_kernel, padding=1)
+    
+    # Calculate magnitude
+    magnitude = torch.sqrt(edges[:, 0] ** 2 + edges[:, 1] ** 2)
+    
+    # Threshold
+    threshold = 0.1
+    edges_binary = (magnitude > threshold).float()
+    
+    return edges_binary.squeeze()
 
 def to_tensor(img_array: np.ndarray) -> torch.Tensor:
     """Convert numpy array to PyTorch tensor and move to GPU."""
+    global device
+    if device is None:
+        device = get_best_device()
     return torch.from_numpy(img_array).float().to(device)
 
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """Convert PyTorch tensor to numpy array."""
     return tensor.cpu().numpy()
 
-def analyze_page_content(img_array: np.ndarray) -> tuple[float, float, float]:
-    """
-    Enhanced content analysis that also detects vertical patterns
-    Returns (left_density, right_density, pattern_strength)
-    """
-    # Convert to tensor for GPU processing
-    img_tensor = to_tensor(img_array)
-    height, width = img_tensor.shape
-    mid = width // 2
+def process_batch(images: List[Image.Image], file_paths: List[Path] = None) -> List[Tuple[List[Image.Image], dict]]:
+    """Process a batch of images on GPU."""
+    global device
     
-    # Consider pixels darker than 240 as content
-    threshold = 240
-    left_content = torch.sum(img_tensor[:, :mid] < threshold)
-    right_content = torch.sum(img_tensor[:, mid:] < threshold)
+    if device is None:
+        device = get_best_device()
     
-    # Calculate vertical pattern strength (for notebook detection)
-    center_region = img_tensor[:, mid-100:mid+100]
+    # Convert images to tensors
+    tensors = []
+    sizes = []
+    for img in images:
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img_array = np.array(img.convert('L'))  # Convert to grayscale
+        tensor = to_tensor(img_array)
+        tensors.append(tensor)
+        sizes.append(img.size)
+    
+    # Stack tensors into a batch
+    batch = torch.stack(tensors)
+    
+    # Process batch
+    results = []
+    for i, (tensor, (width, height)) in enumerate(zip(tensors, sizes)):
+        file_path = file_paths[i] if file_paths else None
+        aspect_ratio = width / height
+        
+        # Skip if image is portrait or too small
+        if aspect_ratio < 1.2 or width < 1000:
+            results.append(([images[i]], {"aspect_ratio": float(aspect_ratio)}))
+            continue
+        
+        # Detect document type
+        doc_type = detect_document_type(tensor, width, height, aspect_ratio, file_path)
+        
+        # Never split labels, photos, or first pages
+        if doc_type["is_label"] or doc_type["is_photo"]:
+            results.append(([images[i]], doc_type))
+            continue
+        
+        # Find split point if needed
+        if doc_type["is_double_page"]:
+            split_point, avg_darkness = find_split_point_gpu(tensor, width)
+            if split_point:
+                # Split image
+                left_page = images[i].crop((0, 0, split_point, height))
+                right_page = images[i].crop((split_point, 0, width, height))
+                results.append(([left_page, right_page], {
+                    **doc_type,
+                    "split_point": split_point,
+                    "avg_darkness": float(avg_darkness)
+                }))
+                continue
+        
+        # If no split needed or split point not found
+        results.append(([images[i]], doc_type))
+    
+    return results
+
+def find_split_point_gpu(img_tensor: torch.Tensor, width: int) -> Tuple[Optional[int], float]:
+    """Find optimal split point using GPU tensors."""
+    center_x = width // 2
+    search_range = 200
+    
+    # Get the center region
+    start_x = max(0, center_x - search_range)
+    end_x = min(width, center_x + search_range)
+    center_region = img_tensor[:, start_x:end_x]
+    
+    # Calculate vertical sums
     vertical_sums = torch.sum(center_region, dim=0)
-    pattern_strength = torch.std(torch.diff(vertical_sums))
     
-    # Calculate density as percentage
-    total_pixels = height * (width // 2)
-    return (
-        float(left_content / total_pixels),
-        float(right_content / total_pixels),
-        float(pattern_strength)
-    )
+    # Find darkest line
+    min_val, min_idx = torch.min(vertical_sums, dim=0)
+    split_x = start_x + int(min_idx)
+    avg_darkness = float(min_val) / img_tensor.shape[0]
+    
+    # Check surrounding area
+    window = 5
+    start_check = max(0, min_idx - window)
+    end_check = min(vertical_sums.shape[0], min_idx + window + 1)
+    surrounding_avg = torch.mean(vertical_sums[start_check:end_check])
+    
+    # Verify split point is significantly darker
+    if min_val < surrounding_avg * 0.8:
+        return split_x, avg_darkness
+    return None, avg_darkness
 
-def convert_to_serializable(obj):
-    """Convert numpy/custom types to JSON serializable Python types"""
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, np.float32) or isinstance(obj, np.float64):
-        return float(obj)
-    if isinstance(obj, np.int32) or isinstance(obj, np.int64):
-        return int(obj)
-    if isinstance(obj, (list, tuple)):
-        return [convert_to_serializable(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: convert_to_serializable(v) for k, v in obj.items()}
-    if isinstance(obj, bool):
-        return bool(obj)  # Ensure booleans are Python native
-    return obj
-
-def is_cover_or_label(img_array: np.ndarray, aspect_ratio: float) -> tuple[bool, dict]:
-    """
-    Detect if image is a cover page or label based on:
-    - Content density distribution
-    - Edge patterns
-    - Text layout patterns
-    """
-    height, width = img_array.shape
-    
-    # Calculate text/content regions
-    text_mask = img_array < 200  # Threshold for text/content
-    
-    # Check content distribution
-    rows_with_content = np.any(text_mask, axis=1)
-    cols_with_content = np.any(text_mask, axis=0)
-    
-    # Calculate content spread
-    content_height = np.sum(rows_with_content) / height
-    content_width = np.sum(cols_with_content) / width
-    
-    # Calculate edge characteristics
-    edges = cv2.Canny(img_array, 100, 200)
-    edge_density = np.sum(edges > 0) / (width * height)
-    
-    # Characteristics of cover pages/labels:
-    # 1. More spread out content (not concentrated in columns)
-    # 2. Lower edge density than notebooks
-    # 3. Often have specific aspect ratios
-    is_cover = (
-        (content_width > 0.7) and  # Content spread across width
-        (edge_density < 0.1) and   # Fewer sharp edges than notebooks
-        (1.3 < aspect_ratio < 1.9)  # Typical cover aspect ratios
-    )
-    
-    metrics = {
-        "content_height": float(content_height),
-        "content_width": float(content_width),
-        "edge_density": float(edge_density)
-    }
-    
-    return is_cover, metrics
-
-def is_likely_label_from_name(file_path: Path) -> bool:
-    """Enhanced label/first page detection from filename"""
-    name = file_path.stem.lower()
-    parent = file_path.parent.name.lower()
-    
-    # Common patterns for first/cover pages
-    label_patterns = [
-        "_001",          # First page in sequence
-        "_img_001",      # First image
-        "cover",
-        "label",
-        "title",
-        "front",
-        "endpaper"
-    ]
-    
-    # Detect photo albums by folder name
-    photo_patterns = [
-        "photo",
-        "album",
-        "photograph"
-    ]
-    
-    is_first = any(part.isdigit() and int(part) == 1 for part in name.split('_'))
-    is_in_photo_album = any(pattern in parent for pattern in photo_patterns)
-    
-    return (
-        any(pattern in name for pattern in label_patterns) or
-        is_first or
-        is_in_photo_album
-    )
-
-def detect_document_type(img_array: np.ndarray, width: int, height: int, aspect_ratio: float, file_path: Path = None) -> dict:
-    """Detect document type and determine if it should be split."""
-    # Convert to tensor for GPU processing
-    img_tensor = to_tensor(img_array)
-    
-    # Calculate basic metrics using GPU
-    edges = cv2.Canny(img_array, 100, 200)  # Keep CPU for now as cv2.cuda requires special build
-    edge_tensor = to_tensor(edges)
-    edge_density = float(torch.sum(edge_tensor > 0) / (width * height))
+def detect_document_type(img_tensor: torch.Tensor, width: int, height: int, aspect_ratio: float, file_path: Path = None) -> dict:
+    """Detect document type using GPU tensors."""
+    # Calculate edges using GPU
+    edges = edge_detection_gpu(img_tensor)
+    edge_density = float(torch.sum(edges) / (width * height))
     text_density = float(torch.mean(img_tensor < 200))
 
-    # Calculate content distribution using GPU
+    # Calculate content distribution
     left_half = img_tensor[:, :width//2]
     right_half = img_tensor[:, width//2:]
     left_density = float(torch.mean(left_half < 200))
     right_density = float(torch.mean(right_half < 200))
     content_balance = float(torch.abs(left_density - right_density))
     
-    # Check for notebook/spiral binding pattern
+    # Check for binding pattern
     center_width = 100
     center_x = width // 2
     center_region = img_tensor[:, center_x-center_width:center_x+center_width]
     vertical_pattern = float(torch.std(torch.sum(center_region, dim=0)))
     
-    # Calculate periodic binding pattern using GPU
+    # Calculate periodic pattern
     vertical_sums = torch.sum(center_region, dim=0)
     kernel = torch.ones(5, device=device) / 5
-    smooth_sums = torch.nn.functional.conv1d(
+    smooth_sums = F.conv1d(
         vertical_sums.unsqueeze(0).unsqueeze(0),
         kernel.unsqueeze(0).unsqueeze(0),
         padding=2
     ).squeeze()
     
-    # Find peaks in smoothed signal
+    # Find peaks
     pattern_peaks = int(torch.sum(
         (smooth_sums[1:-1] < smooth_sums[:-2]) & 
         (smooth_sums[1:-1] < smooth_sums[2:])
     ).item())
     
-    # Enhanced double page detection
+    # Detect double page
     is_double_page = (
         width > 2000 and
         aspect_ratio > 1.35 and
@@ -245,13 +264,11 @@ def detect_document_type(img_array: np.ndarray, width: int, height: int, aspect_
     )
 
     # Check for label/first page
-    is_likely_first = file_path and any(x in str(file_path).lower() for x in [
-        "_001", "_img_001", "cover", "label", "title", "front", "endpaper"
-    ])
+    is_likely_first = file_path and is_likely_label_from_name(file_path)
     
-    # Check for photos using GPU
-    horizontal_profile = torch.sum(edge_tensor, dim=1) / width
-    vertical_profile = torch.sum(edge_tensor, dim=0) / height
+    # Check for photos
+    horizontal_profile = torch.sum(edges, dim=1) / width
+    vertical_profile = torch.sum(edges, dim=0) / height
     h_var = float(torch.var(horizontal_profile))
     v_var = float(torch.var(vertical_profile))
     
@@ -272,240 +289,119 @@ def detect_document_type(img_array: np.ndarray, width: int, height: int, aspect_
         "text_density": float(text_density),
         "content_balance": float(content_balance),
         "vertical_pattern": float(vertical_pattern),
-        "pattern_peaks": int(pattern_peaks)
+        "pattern_peaks": int(pattern_peaks),
+        "aspect_ratio": float(aspect_ratio)
     }
 
-def detect_split_point(image: Image.Image, file_path: Path = None) -> Tuple[bool, Optional[int], float, dict]:
-    """Detect if and where an image should be split."""
-    width, height = image.size
-    aspect_ratio = width / height
+def process_document(file_path: str, output_folder: Path) -> dict:
+    """Process a single document file."""
+    global file_manager
     
-    # Don't split if image is portrait or too small
-    if aspect_ratio < 1.2 or width < 1000:
-        return False, None, 0.0, {"aspect_ratio": float(aspect_ratio)}
+    file_path = Path(file_path)
+    output_folder = Path(output_folder)
     
-    # Convert to grayscale numpy array and then to tensor
-    img_array = np.array(image.convert("L"))
-    img_tensor = to_tensor(img_array)
+    # Skip directories
+    if file_path.is_dir():
+        rich_log("info", f"Skipping directory: {file_path}")
+        return {"success": True, "details": {"skipped": "directory"}}
     
-    # Detect document type
-    doc_type = detect_document_type(img_array, width, height, aspect_ratio, file_path)
-    
-    # Never split labels, photos, or first pages
-    if doc_type["is_label"] or doc_type["is_photo"]:
-        return False, None, 0.0, doc_type
-    
-    # Handle double pages
-    if doc_type["is_double_page"]:
-        # Find optimal split point near center using GPU
-        center_x = width // 2
-        search_range = 200
-        split_x = center_x
-        min_sum = float('inf')
-        
-        # Process in chunks to avoid memory issues
-        chunk_size = 50
-        for start_x in range(center_x - search_range, center_x + search_range, chunk_size):
-            end_x = min(start_x + chunk_size, center_x + search_range)
-            if start_x >= 0 and end_x <= width:
-                chunk = img_tensor[:, start_x:end_x]
-                vertical_sums = torch.sum(chunk, dim=0)
-                min_val, min_idx = torch.min(vertical_sums, dim=0)
-                if min_val < min_sum:
-                    min_sum = float(min_val)
-                    split_x = start_x + int(min_idx)
-        
-        avg_darkness = min_sum / height
-        return True, split_x, avg_darkness, doc_type
-    
-    # For other images, analyze middle region
-    threshold_ratio = 0.20
-    mid_region_start = int(width * (0.5 - threshold_ratio))
-    mid_region_end = int(width * (0.5 + threshold_ratio))
-    
-    # Look for darkest vertical line using GPU
-    mid_region = img_tensor[:, mid_region_start:mid_region_end]
-    vertical_sums = torch.sum(mid_region, dim=0)
-    min_val, min_idx = torch.min(vertical_sums, dim=0)
-    split_x = mid_region_start + int(min_idx)
-    avg_darkness = float(min_val) / height
-    
-    # Compare surrounding slices using GPU
-    slice_values = []
-    for offset in range(-3, 4):
-        x_check = split_x + offset
-        if 0 <= x_check < width:
-            slice_sum = float(torch.sum(img_tensor[:, x_check])) / height
-            slice_values.append(slice_sum)
-    avg_slice_value = float(torch.tensor(slice_values).mean()) if slice_values else float('inf')
-    
-    # Determine if split is needed
-    darkness_diff = avg_slice_value - avg_darkness
-    should_split = (avg_darkness < 180) and (darkness_diff > 15)
-    
-    # For very wide images, be more aggressive
-    if aspect_ratio > 1.65 and not should_split:
-        should_split = darkness_diff > 5
-    
-    return should_split, split_x, avg_darkness, {
-        **doc_type,
-        "aspect_ratio": float(aspect_ratio),
-        "mid_region_start": int(mid_region_start),
-        "mid_region_end": int(mid_region_end),
-        "avg_darkness": float(avg_darkness),
-        "split_point": int(split_x) if split_x is not None else None,
-        "should_split": bool(should_split),
-        "darkness_diff": float(darkness_diff)
-    }
-
-def split_image(image: Image.Image, file_path: Path = None) -> Tuple[List[Image.Image], dict]:
-    """Split an image into left and right pages if needed."""
-    should_split, split_point, avg_darkness, debug_info = detect_split_point(image, file_path)
-    
-    if not should_split:
-        return [image], debug_info
-    
-    # Split into left and right pages
-    width, height = image.size
-    left_page = image.crop((0, 0, split_point, height))
-    right_page = image.crop((split_point, 0, width, height))
-    
-    return [left_page, right_page], debug_info
-
-def process_image(
-    image_path: Path,
-    output_dir: Path,
-    batch_size: int = 10,
-    max_workers: Optional[int] = None
-) -> bool:
-    """Process a single image."""
     try:
-        # Create output path
-        rel_path = get_relative_path(image_path)
-        output_path = output_dir / rel_path
+        # Ensure output folder exists
+        file_manager.ensure_output_path(output_folder)
         
-        # Create output directory
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Skip if output exists
-        if output_path.exists():
-            return True
-        
-        # Load and process image
-        image = Image.open(image_path)
+        # Process image
+        image = Image.open(file_path)
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Split image if needed
-        parts, debug_info = split_image(image, file_path=image_path)
+        # Process single image as batch
+        results = process_batch([image], [file_path])[0]
+        parts, debug_info = results
         
-        # Save parts
+        # Clear GPU memory after processing
+        clear_gpu_memory()
+        
+        outputs = []
         for i, part in enumerate(parts):
-            if len(parts) > 1:
-                part_name = f"{output_path.stem}_part_{i+1}.jpg"
-            else:
-                part_name = f"{output_path.stem}.jpg"
-            
-            part_path = output_path.parent / part_name
-            save_image_with_metadata(
-                part,
-                part_path,
-                original_image=image,
-                quality=95
+            # Create output path using file manager
+            output_path = file_manager.get_output_path(
+                input_path=file_path,
+                output_folder=output_folder,
+                suffix='.jpg',
+                part_number=i+1 if len(parts) > 1 else None
             )
+            
+            # Save image
+            part.save(output_path, 'JPEG', quality=95)
+            
+            # Get relative path from project root
+            rel_output = file_manager.get_relative_path(output_path)
+            outputs.append(str(rel_output))
+            
+            rich_log("info", f"Saved output to: {output_path}")
+            rich_log("info", f"Relative output path: {rel_output}")
         
-        return True
+        return {
+            "success": True,
+            "outputs": outputs,
+            "details": debug_info
+        }
         
     except Exception as e:
-        logger.error(f"Error processing {image_path}: {str(e)}")
-        return False
+        rich_log("error", f"Error processing {file_path}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "outputs": [],
+            "details": {"error": str(e)}
+        }
+    finally:
+        # Always clear GPU memory after processing
+        clear_gpu_memory()
 
-def main(
-    input_dir: Path,
-    output_dir: Path,
-    batch_size: int = 10,
-    max_workers: Optional[int] = None
-) -> None:
-    """Main function to process all images in directory."""
-    # Get worker ID for logging
-    worker_id = os.environ.get('WORKER_ID', '0')
-    
-    # Create progress trackers (will be None if child/worker process)
-    workflow_progress, step_progress = create_progress_tracker(
-        total_files=len(list(input_dir.glob("**/*.jpg"))),
-        step_name="Splitting Documents",
-        show_workflow=True,
-        total_steps=1
-    )
-    
-    # Show worker status
-    logger.info(f"Starting split process with {max_workers or mp.cpu_count()} workers")
-    logger.info("Each worker will show its current task in the logs")
-    
-    # Process images with or without progress tracking
-    if workflow_progress and step_progress:
-    with workflow_progress, step_progress:
-        workflow_progress.start_step("Splitting Documents")
-            results = process_directory(
-                input_dir,
-                lambda p: process_image(p, output_dir, batch_size, max_workers),
-                file_pattern="**/*.jpg",
-                batch_size=batch_size,
-                max_workers=max_workers,
-                progress=step_progress
-            )
-    else:
-        # No progress tracking, just logging
-        logger.info(f"Worker {worker_id} started")
-        results = process_directory(
-            input_dir,
-            lambda p: process_image(p, output_dir, batch_size, max_workers),
-            file_pattern="**/*.jpg",
-            batch_size=batch_size,
-            max_workers=max_workers,
-            progress=None
-        )
-        logger.info(f"Worker {worker_id} finished")
-        
-        # Log results
-        successful = sum(1 for r in results.values() if r)
-        total = len(results)
-        logger.info(f"Successfully split {successful}/{total} images")
+def init_worker(worker_id: int):
+    """Initialize worker-specific resources."""
+    global device, file_manager
+    device = get_best_device()
+    if worker_id is not None:
+        device = get_worker_device(worker_id, device)
+    initialize_kernels()
+    file_manager = FileManager()
 
+@app.command()
 def split(
     manifest_file: Path = typer.Argument(..., help="Manifest file"),
-    project_folder: Path = typer.Argument(..., help="Project folder")
+    project_folder: Path = typer.Argument(..., help="Project folder"),
+    batch_size: int = typer.Option(10, help="Batch size for parallel processing"),
+    max_workers: Optional[int] = typer.Option(None, help="Number of worker processes"),
+    debug: bool = typer.Option(False, help="Enable debug logging")
 ):
-    """Split cropped images into individual pages.
+    """Split cropped images into individual pages."""
+    # Initialize file manager
+    global file_manager
+    file_manager = FileManager(project_folder)
     
-    Args:
-        manifest_file: Path to the manifest file
-        project_folder: Path to the project folder
-    """
-    # Set up paths based on project structure
-    input_dir = project_folder / "assets" / "crops"
-    output_dir = project_folder / "assets" / "splits"
-    
-    # Create output folder if it doesn't exist
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Rest of the function remains the same
-    main(input_dir, output_dir)
+    # Check if this is a worker process
+    if os.environ.get('FICHERO_WORKER') == '1':
+        run_worker_process(
+            manifest_file=manifest_file,
+            project_folder=project_folder,
+            step="split",
+            process_func=process_document,
+            source_prefix="crops",
+            output_folder=file_manager.get_asset_path('splits')
+            )
+    else:
+        # This is the main process
+        run_main_process(
+            manifest_file=manifest_file,
+            project_folder=project_folder,
+            step="split",
+            max_workers=max_workers,
+            debug=debug,
+            source_folder=file_manager.get_asset_path('crops'),
+            output_folder=file_manager.get_asset_path('splits')
+        )
 
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Split document images into individual pages")
-    parser.add_argument("input_dir", type=Path, help="Input directory containing images")
-    parser.add_argument("output_dir", type=Path, help="Output directory for split images")
-    parser.add_argument("--batch-size", type=int, default=10, help="Batch size for parallel processing")
-    parser.add_argument("--workers", type=int, help="Number of worker processes")
-    
-    args = parser.parse_args()
-    
-    main(
-        args.input_dir,
-        args.output_dir,
-        args.batch_size,
-        args.workers
-    )
+    app()

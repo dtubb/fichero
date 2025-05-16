@@ -17,7 +17,6 @@ import os
 from scripts.utils.jsonl_manager import JSONLManager
 import time
 from rich.console import Console
-from rich.logging import RichHandler
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
 from rich.live import Live
 from rich.table import Table
@@ -25,29 +24,10 @@ from rich.panel import Panel
 from rich.console import Group
 
 from scripts.utils.workflow_progress import WorkflowProgress, StepProgress
+from scripts.utils.logging_utils import rich_log, should_show_progress, setup_logging
 
 # Configure console for rich logging
 console = Console()
-
-def rich_log(level, message):
-    """Log a message with rich formatting, respecting debug mode."""
-    # Get debug mode from environment
-    debug_mode = os.environ.get('FICHERO_DEBUG', '0') == '1'
-    
-    if level == "info":
-        if debug_mode:
-            console.log(f"[bold cyan][INFO][/bold cyan] {message}")
-        else:
-            # In non-debug mode, only show important info messages
-            if "Processing complete" in message or "Processing " in message and "files" in message:
-                console.log(f"[bold cyan][INFO][/bold cyan] {message}")
-    elif level == "warning":
-        console.log(f"[bold yellow][WARNING][/bold yellow] {message}")
-    elif level == "error":
-        console.log(f"[bold red][ERROR][/bold red] {message}")
-    else:
-        if debug_mode:
-            console.log(message)
 
 app = typer.Typer(help="Fichero CLI - Document Processing and Transcription")
 
@@ -59,8 +39,12 @@ def configure_logging(debug: bool = False):
     """Configure logging based on debug mode."""
     if debug or is_debug_mode():
         os.environ['FICHERO_DEBUG'] = '1'
+        # Set up logging with DEBUG level
+        setup_logging(level="DEBUG")
     else:
         os.environ['FICHERO_DEBUG'] = '0'
+        # Set up logging with INFO level
+        setup_logging(level="INFO")
 
 def detect_hardware() -> dict:
     """Detect available hardware and return configuration."""
@@ -168,7 +152,22 @@ def load_execution_config() -> dict:
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> int:
+def get_step_config(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> dict:
+    """Get the complete configuration for a step based on the device."""
+    if not execution_config:
+        return {}
+    
+    # Get the system config for the current device
+    system_config = execution_config.get('system_configs', {}).get(device, {})
+    
+    # For crop step on MPS (Apple Silicon), check if we should use CPU config
+    if step == 'crop' and device == 'mps' and force_cpu:
+        return system_config.get('crop_cpu', {})
+    
+    # Get the step config
+    return system_config.get(step, {})
+
+def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> Optional[int]:
     """Get the configured number of workers for a step based on the device."""
     if not execution_config:
         return None
@@ -176,12 +175,58 @@ def get_worker_count(execution_config: dict, step: str, device: str, force_cpu: 
     # Get the system config for the current device
     system_config = execution_config.get('system_configs', {}).get(device, {})
     
-    # For crop step on MPS (Apple Silicon), check if we should use CPU
-    if step == 'crop' and device == 'mps' and force_cpu:
-        return system_config.get('crop_cpu')
+    # For crop/split step on MPS (Apple Silicon), check if we should use CPU config
+    if device == "mps" and force_cpu:
+        if step == 'crop':
+            step_config = system_config.get('crop_cpu', {})
+        elif step == 'split':
+            step_config = system_config.get('split_cpu', {})
+        else:
+            step_config = system_config.get(step, {})
+    else:
+        step_config = system_config.get(step, {})
     
-    # Get the worker count for this step
-    return system_config.get(step)
+    # Handle both new dict format and legacy integer format
+    if isinstance(step_config, dict):
+        return step_config.get('workers')
+    elif isinstance(step_config, int):
+        return step_config
+    return None
+
+def get_batch_size(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> Optional[int]:
+    """Get the configured batch size for a step."""
+    step_config = get_step_config(execution_config, step, device, force_cpu)
+    if isinstance(step_config, dict):
+        return step_config.get('batch_size')
+    return None
+
+def get_memory_limit(execution_config: dict, step: str, device: str, force_cpu: bool = False) -> Optional[str]:
+    """Get the configured memory limit for a step."""
+    step_config = get_step_config(execution_config, step, device, force_cpu)
+    if isinstance(step_config, dict):
+        return step_config.get('memory_limit')
+    return None
+
+def parse_memory_limit(memory_limit: str) -> int:
+    """Convert memory limit string to bytes."""
+    if not memory_limit:
+        return None
+        
+    units = {
+        'B': 1,
+        'KB': 1024,
+        'MB': 1024 * 1024,
+        'GB': 1024 * 1024 * 1024,
+        'TB': 1024 * 1024 * 1024 * 1024
+    }
+    
+    match = re.match(r'(\d+)\s*([A-Za-z]+)', memory_limit)
+    if match:
+        value = int(match.group(1))
+        unit = match.group(2).upper()
+        if unit in units:
+            return value * units[unit]
+    return None
 
 def get_command_config(config: dict, step: str) -> dict:
     """Get the configuration for a specific command."""
@@ -216,8 +261,8 @@ def parse_script_command(cmd: str) -> tuple[str, list[str]]:
 
 def run_script(script_path: Path, args: list, force_cpu: bool = False):
     """Run a script with the given arguments."""
-    # Get the project root directory (parent of scripts directory)
-    project_root = script_path.parent.parent
+    # Set project_root to the directory containing fichero_cli.py
+    project_root = Path(__file__).parent.resolve()
     
     # Add project root to PYTHONPATH
     env = os.environ.copy()
@@ -232,6 +277,9 @@ def run_script(script_path: Path, args: list, force_cpu: bool = False):
     # Add debug flag to environment if enabled
     if os.environ.get('FICHERO_DEBUG') == '1':
         env['FICHERO_DEBUG'] = '1'
+        # Add debug flag to args if not already present
+        if '--debug' not in args:
+            args.append('--debug')
     
     env['FICHERO_FORCE_CPU'] = '1' if force_cpu else '0'
     
@@ -243,9 +291,11 @@ def run_script(script_path: Path, args: list, force_cpu: bool = False):
         rich_log("error", f"Error output: {result.stderr}")
         raise Exception(f"Script failed: {result.stderr}")
     if result.stdout.strip():
-        rich_log("info", "Script output:")
         for line in result.stdout.splitlines():
-            rich_log("info", f"  {line}")
+            if os.environ.get('FICHERO_DEBUG') == '1':
+                print(f"  {line}")
+            else:
+                rich_log("info", f"  {line}")
 
 def run_script_parallel(script_path: Path, args: list, num_workers: int, force_cpu: bool = False):
     """Run multiple instances of a script in parallel."""
@@ -258,6 +308,23 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
     
     if not manifest_path:
         raise ValueError("No manifest file found in arguments")
+    
+    # Get step name from script path
+    step = script_path.stem
+    
+    # Get step-specific configuration
+    execution_config = load_execution_config()
+    device = get_best_device()
+    batch_size = get_batch_size(execution_config, step, device, force_cpu)
+    memory_limit = get_memory_limit(execution_config, step, device, force_cpu)
+    
+    if batch_size:
+        # Add batch size to args if configured
+        args.extend(['--batch-size', str(batch_size)])
+    
+    if memory_limit:
+        # Set memory limit in environment
+        os.environ['FICHERO_MEMORY_LIMIT'] = memory_limit
     
     # Create progress bars for each worker using Rich
     progress = Progress(
@@ -293,6 +360,9 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
         # Add debug flag to environment if enabled
         if os.environ.get('FICHERO_DEBUG') == '1':
             env['FICHERO_DEBUG'] = '1'
+            # Add debug flag to args if not already present
+            if '--debug' not in args:
+                args.append('--debug')
         
         # Add project root to PYTHONPATH
         project_root = script_path.parent.parent
@@ -329,7 +399,10 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
                     stdout, stderr = process.communicate()
                     if stdout:
                         for line in stdout.splitlines():
-                            rich_log("info", f"Worker {worker_id}: {line}")
+                            if os.environ.get('FICHERO_DEBUG') == '1':
+                                rich_log("debug", f"Worker {worker_id}: {line}")
+                            else:
+                                rich_log("info", f"Worker {worker_id}: {line}")
                     if stderr:
                         for line in stderr.splitlines():
                             rich_log("error", f"Worker {worker_id}: {line}")
@@ -353,9 +426,10 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
                 stdout = process.stdout.readline()
                 if stdout:
                     line = stdout.strip()
-                    # Always log debug output
+                    # Log all output in debug mode
                     if os.environ.get('FICHERO_DEBUG') == '1':
-                        rich_log("info", f"Worker {worker_id}: {line}")
+                        # Just print the line directly without re-logging
+                        print(f"Worker {worker_id}: {line}")
                     
                     # Update progress based on output
                     if "Processing:" in line:
@@ -387,10 +461,19 @@ def run_script_parallel(script_path: Path, args: list, num_workers: int, force_c
                             worker_tasks[worker_id],
                             description=f"Worker {worker_id}: YOLO Ready"
                         )
+                    elif "DEBUG:" in line:
+                        # Just print the line directly without re-logging
+                        print(f"Worker {worker_id}: {line}")
+                    elif "INFO:" in line:
+                        print(f"Worker {worker_id}: {line}")
+                    elif "WARNING:" in line:
+                        print(f"Worker {worker_id}: {line}")
+                    elif "ERROR:" in line:
+                        print(f"Worker {worker_id}: {line}")
                 
                 stderr = process.stderr.readline()
                 if stderr:
-                    rich_log("error", f"Worker {worker_id}: {stderr.strip()}")
+                    print(f"Worker {worker_id}: {stderr.strip()}")
                     progress.update(
                         worker_tasks[worker_id],
                         description=f"Worker {worker_id} (Error)"

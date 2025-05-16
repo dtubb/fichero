@@ -3,7 +3,7 @@
 
 # Hardware detection and optimization
 hardware:
-  auto_detect: true  # Disable automatic hardware detection
+  auto_detect: true  # Enable automatic hardware detection
   # device: "cpu"  # Options: "cuda", "mps", "cpu"
   # force_cpu: false  # Force CPU usage even if GPU is available
 
@@ -11,42 +11,112 @@ hardware:
 system_configs:
   cuda:
     # GPU tasks
-    crop: 4
-    transcribe_qwen_max: 2
-    transcribe_qwen_7b: 2
-    transcribe_lmstudio: 2
+    crop:
+      workers: 4
+      batch_size: 10
+      memory_limit: "4GB"  # Per worker memory limit
+    split:
+      workers: 4  # Can run more workers as split uses less memory
+      batch_size: 8
+      memory_limit: "2GB"  # Split uses less memory per image
+    transcribe_qwen_max:
+      workers: 2
+      batch_size: 4
+      memory_limit: "8GB"
+    transcribe_qwen_7b:
+      workers: 2
+      batch_size: 4
+      memory_limit: "6GB"
+    transcribe_lmstudio:
+      workers: 2
+      batch_size: 4
+      memory_limit: "4GB"
     # CPU tasks
-    # split: 4
-    rotate: 4
-    enhance: 4
-    remove_background: 4
-    segment: 4
+    rotate:
+      workers: 4
+      batch_size: 10
+    enhance:
+      workers: 4
+      batch_size: 8
+    remove_background:
+      workers: 4
+      batch_size: 8
+    segment:
+      workers: 4
+      batch_size: 8
   
-  mps:  # Apple Silicon
+  mps:  # Apple Silicon M1 16GB
     # GPU tasks
-    crop: 2  # Single GPU worker due to MPS limitations
-    crop_cpu: 2  # CPU fallback option for crop
-    transcribe_qwen_max: 2
-    transcribe_qwen_7b: 2
-    transcribe_lmstudio: 2
+    crop:
+      workers: 3  # Increased from 1 to 3 workers
+      batch_size: 4  # Smaller batch size to prevent memory pressure
+      memory_limit: "6GB"  # Conservative limit for YOLO + processing
+    split:
+      workers: 1  # Single GPU worker for MPS
+      batch_size: 6  # Can process more images per batch than crop
+      memory_limit: "4GB"  # Split uses less memory than crop
+    crop_cpu:
+      workers: 3  # CPU fallback with more workers
+      batch_size: 8
+      memory_limit: "4GB"
+    split_cpu:
+      workers: 4  # CPU fallback with more workers
+      batch_size: 10
+      memory_limit: "2GB"
+    transcribe_qwen_max:
+      workers: 1
+      batch_size: 2
+      memory_limit: "8GB"
+    transcribe_qwen_7b:
+      workers: 1
+      batch_size: 2
+      memory_limit: "6GB"
+    transcribe_lmstudio:
+      workers: 1
+      batch_size: 2
+      memory_limit: "4GB"
     # CPU tasks
-    # split: 4
-    rotate: 4
-    enhance: 4
-    remove_background: 4
-    segment: 4
+    rotate:
+      workers: 3
+      batch_size: 8
+    enhance:
+      workers: 3
+      batch_size: 6
+    remove_background:
+      workers: 3
+      batch_size: 6
+    segment:
+      workers: 3
+      batch_size: 6
   
-  cpu:
-    # CPU tasks
-    crop: 4  # Using 8 CPU cores for crop
-    transcribe_qwen_max: 2
-    transcribe_qwen_7b: 2
-    transcribe_lmstudio: 2
-    # split: 4
-    rotate: 4
-    enhance: 4
-    remove_background: 4
-    segment: 4
+  cpu:  # CPU-only configuration
+    crop:
+      workers: 4
+      batch_size: 6
+    split:
+      workers: 4  # Can use more workers as split is less intensive
+      batch_size: 8
+    transcribe_qwen_max:
+      workers: 1
+      batch_size: 2
+    transcribe_qwen_7b:
+      workers: 1
+      batch_size: 2
+    transcribe_lmstudio:
+      workers: 1
+      batch_size: 2
+    rotate:
+      workers: 4
+      batch_size: 10
+    enhance:
+      workers: 3
+      batch_size: 8
+    remove_background:
+      workers: 3
+      batch_size: 8
+    segment:
+      workers: 3
+      batch_size: 8
 
 # Steps that should run sequentially (one file at a time)
 sequential_steps:

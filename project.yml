@@ -69,19 +69,24 @@ vars:
 directories: ["scripts"]
 
 workflows:
+  prepare_images:
+    - prepare_images
+
+  convert_to_jpg:
+    - convert_to_jpg
+
+  build_documents_manifest:
+    - build_documents_manifest
+
+  crop:
+      - crop
+
   test:
     - prepare_images
     - convert_to_jpg
     - build_documents_manifest
     - crop
 
-  prepare-convert-build-manifest:
-    - prepare_images
-    - convert_to_jpg
-    - build_documents_manifest
-
-  crop-split:
-      - crop
 
 
   archive-to-word-qwen-max:

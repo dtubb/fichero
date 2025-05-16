@@ -8,14 +8,29 @@ import fcntl
 import time
 import atexit
 from rich.console import Console
-from scripts.utils.logging_utils import rich_log
-import contextlib
 
 console = Console()
 
-class JSONLManager:
-    """Manages JSONL file operations with file locking and atomic writes."""
+def rich_log(level, message):
+    """Log a message with rich formatting, respecting debug mode."""
+    # Get debug mode from environment
+    debug_mode = os.environ.get('FICHERO_DEBUG', '0') == '1'
     
+    if level == "info":
+        if debug_mode:
+            console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+        else:
+            # In non-debug mode, only show important info messages
+            if "Processing complete" in message or "Processing " in message and "files" in message:
+                console.log(f"[bold cyan][INFO][/bold cyan] {message}")
+    elif level == "warning":
+        console.log(f"[bold yellow][WARNING][/bold yellow] {message}")
+    elif level == "error":
+        console.log(f"[bold red][ERROR][/bold red] {message}")
+    elif level == "debug" and debug_mode:
+        console.log(f"[dim][DEBUG][/dim] {message}")
+
+class JSONLManager:
     def __init__(self, file_path: str, cache_duration: int = 5):
         """Initialize JSONLManager with longer cache duration."""
         self.file_path = file_path
@@ -41,14 +56,9 @@ class JSONLManager:
                 pass
 
     def _ensure_file_exists(self):
-        """Ensure the JSONL file and its parent directory exist."""
-        try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            if not self.path.exists():
-                self.path.write_text("")
-        except Exception as e:
-            rich_log("error", f"Error ensuring file exists {self.path}: {str(e)}")
-            raise
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self.path.write_text("")
 
     def _acquire_file_lock(self, file_obj, timeout=5.0):
         """Acquire an exclusive lock on the file with timeout."""
@@ -142,27 +152,22 @@ class JSONLManager:
         self.all_entries()
         return self._cache.get(input_path)
 
-    def update_entry(self, input_path: str, **fields) -> bool:
+    def update_entry(self, input_path: str, **fields) -> None:
         """Update or add an entry for input_path, atomically."""
-        try:
-            with self._lock:
-                entries = self.all_entries()
-                updated = False
-                for entry in entries:
-                    if entry.get('input_path') == input_path:
-                        entry.update(fields)
-                        updated = True
-                        break
-                if not updated:
-                    entry = {'input_path': input_path, **fields}
-                    entries.append(entry)
-                self._atomic_write(entries)
-                return True
-        except Exception as e:
-            rich_log("error", f"Error updating entry for {input_path}: {str(e)}")
-            return False
+        with self._lock:
+            entries = self.all_entries()
+            updated = False
+            for entry in entries:
+                if entry.get('input_path') == input_path:
+                    entry.update(fields)
+                    updated = True
+                    break
+            if not updated:
+                entry = {'input_path': input_path, **fields}
+                entries.append(entry)
+            self._atomic_write(entries)
 
-    def batch_update(self, updates: List[Dict[str, Any]]) -> bool:
+    def batch_update(self, updates: List[Dict[str, Any]]):
         """Batch update entries. Each dict must have 'input_path'."""
         try:
             with self._lock:
@@ -182,17 +187,17 @@ class JSONLManager:
                         valid_entries[ip] = update
                 
                 # Write back all valid entries
-                return self._atomic_write(list(valid_entries.values()))
+                self._atomic_write(list(valid_entries.values()))
         except Exception as e:
             rich_log("error", f"Exception in batch_update: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            raise
 
     def filter_entries(self, **criteria) -> List[Dict[str, Any]]:
         return [e for e in self.all_entries() if all(e.get(k) == v for k, v in criteria.items())]
 
-    def _atomic_write(self, entries: List[Dict[str, Any]]) -> bool:
+    def _atomic_write(self, entries: List[Dict[str, Any]]):
         """Write all entries atomically to the JSONL file."""
         # Create temp file in same directory as target
         tmp_path = self.path.with_suffix('.tmp')
@@ -202,7 +207,7 @@ class JSONLManager:
             with open(tmp_path, 'w', encoding='utf-8') as f:
                 if not self._acquire_file_lock(f):
                     rich_log("warning", "Could not acquire file lock for writing")
-                    return False
+                    return
                 
                 try:
                     for entry in entries:
@@ -217,31 +222,17 @@ class JSONLManager:
             with open(self.path, 'r+', encoding='utf-8') as f:
                 if not self._acquire_file_lock(f):
                     rich_log("warning", "Could not acquire file lock for rename")
-                    return False
+                    return
                 
                 try:
                     # Rename temp file to target
                     tmp_path.replace(self.path)
                 finally:
                     self._release_file_lock(f)
-            return True
-        except Exception as e:
-            rich_log("error", f"Error writing entries: {str(e)}")
-            return False
         finally:
             # Clean up temp file if it still exists
             if tmp_path.exists():
                 try:
                     tmp_path.unlink()
                 except Exception:
-                    pass
-
-    def __enter__(self):
-        """Context manager entry."""
-        if not self._lock:
-            raise IOError(f"Could not acquire lock for {self.file_path}")
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        pass 
+                    pass 
