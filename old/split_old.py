@@ -128,103 +128,6 @@ def to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """Convert PyTorch tensor to numpy array."""
     return tensor.cpu().numpy()
 
-def detect_document_type(img_tensor: torch.Tensor, width: int, height: int, aspect_ratio: float, file_path: Path = None) -> dict:
-    """Detect document type using GPU tensors."""
-    # Calculate edges using GPU
-    edges = edge_detection_gpu(img_tensor)
-    edge_density = float(torch.sum(edges) / (width * height))
-    text_density = float(torch.mean(img_tensor < 200))
-
-    # Calculate content distribution
-    left_half = img_tensor[:, :width//2]
-    right_half = img_tensor[:, width//2:]
-    left_density = float(torch.mean(left_half < 200))
-    right_density = float(torch.mean(right_half < 200))
-    content_balance = float(torch.abs(left_density - right_density))
-    
-    # Check for binding pattern
-    center_width = 100
-    center_x = width // 2
-    center_region = img_tensor[:, center_x-center_width:center_x+center_width]
-    vertical_pattern = float(torch.std(torch.sum(center_region, dim=0)))
-    
-    # Calculate periodic pattern
-    vertical_sums = torch.sum(center_region, dim=0)
-    kernel = torch.ones(5, device=device) / 5
-    smooth_sums = F.conv1d(
-        vertical_sums.unsqueeze(0).unsqueeze(0),
-        kernel.unsqueeze(0).unsqueeze(0),
-        padding=2
-    ).squeeze()
-    
-    # Find peaks
-    pattern_peaks = int(torch.sum(
-        (smooth_sums[1:-1] < smooth_sums[:-2]) & 
-        (smooth_sums[1:-1] < smooth_sums[2:])
-    ))
-    
-    # Detect document type
-    is_double_page = (
-        aspect_ratio > 1.5 and  # Wide enough for double page
-        content_balance < 0.3 and  # Content balanced between sides
-        vertical_pattern > 1000 and  # Strong vertical pattern
-        pattern_peaks > 2  # Multiple binding holes
-    )
-    
-    is_label = (
-        aspect_ratio < 1.2 or  # Square-ish
-        width < 1000 or  # Small
-        edge_density < 0.05  # Few edges
-    )
-    
-    is_photo = (
-        text_density < 0.1 and  # Low text density
-        edge_density > 0.2  # High edge density
-    )
-    
-    return {
-        "is_double_page": bool(is_double_page),
-        "is_label": bool(is_label),
-        "is_photo": bool(is_photo),
-        "metrics": {
-            "aspect_ratio": float(aspect_ratio),
-            "edge_density": float(edge_density),
-            "text_density": float(text_density),
-            "content_balance": float(content_balance),
-            "vertical_pattern": float(vertical_pattern),
-            "pattern_peaks": int(pattern_peaks)
-        }
-    }
-
-def find_split_point_gpu(img_tensor: torch.Tensor, width: int) -> Tuple[Optional[int], float]:
-    """Find optimal split point using GPU tensors."""
-    center_x = width // 2
-    search_range = 200
-    
-    # Get the center region
-    start_x = max(0, center_x - search_range)
-    end_x = min(width, center_x + search_range)
-    center_region = img_tensor[:, start_x:end_x]
-    
-    # Calculate vertical sums
-    vertical_sums = torch.sum(center_region, dim=0)
-    
-    # Find darkest line
-    min_val, min_idx = torch.min(vertical_sums, dim=0)
-    split_x = start_x + int(min_idx)
-    avg_darkness = float(min_val) / img_tensor.shape[0]
-    
-    # Check surrounding area
-    window = 5
-    start_check = max(0, min_idx - window)
-    end_check = min(vertical_sums.shape[0], min_idx + window + 1)
-    surrounding_avg = torch.mean(vertical_sums[start_check:end_check])
-    
-    # Verify split point is significantly darker
-    if min_val < surrounding_avg * 0.8:
-        return split_x, avg_darkness
-    return None, avg_darkness
-
 def process_batch(images: List[Image.Image], file_paths: List[Path] = None) -> List[Tuple[List[Image.Image], dict]]:
     """Process a batch of images on GPU."""
     global device
@@ -284,6 +187,112 @@ def process_batch(images: List[Image.Image], file_paths: List[Path] = None) -> L
     
     return results
 
+def find_split_point_gpu(img_tensor: torch.Tensor, width: int) -> Tuple[Optional[int], float]:
+    """Find optimal split point using GPU tensors."""
+    center_x = width // 2
+    search_range = 200
+    
+    # Get the center region
+    start_x = max(0, center_x - search_range)
+    end_x = min(width, center_x + search_range)
+    center_region = img_tensor[:, start_x:end_x]
+    
+    # Calculate vertical sums
+    vertical_sums = torch.sum(center_region, dim=0)
+    
+    # Find darkest line
+    min_val, min_idx = torch.min(vertical_sums, dim=0)
+    split_x = start_x + int(min_idx)
+    avg_darkness = float(min_val) / img_tensor.shape[0]
+    
+    # Check surrounding area
+    window = 5
+    start_check = max(0, min_idx - window)
+    end_check = min(vertical_sums.shape[0], min_idx + window + 1)
+    surrounding_avg = torch.mean(vertical_sums[start_check:end_check])
+    
+    # Verify split point is significantly darker
+    if min_val < surrounding_avg * 0.8:
+        return split_x, avg_darkness
+    return None, avg_darkness
+
+def detect_document_type(img_tensor: torch.Tensor, width: int, height: int, aspect_ratio: float, file_path: Path = None) -> dict:
+    """Detect document type using GPU tensors."""
+    # Calculate edges using GPU
+    edges = edge_detection_gpu(img_tensor)
+    edge_density = float(torch.sum(edges) / (width * height))
+    text_density = float(torch.mean(img_tensor < 200))
+
+    # Calculate content distribution
+    left_half = img_tensor[:, :width//2]
+    right_half = img_tensor[:, width//2:]
+    left_density = float(torch.mean(left_half < 200))
+    right_density = float(torch.mean(right_half < 200))
+    content_balance = float(torch.abs(left_density - right_density))
+    
+    # Check for binding pattern
+    center_width = 100
+    center_x = width // 2
+    center_region = img_tensor[:, center_x-center_width:center_x+center_width]
+    vertical_pattern = float(torch.std(torch.sum(center_region, dim=0)))
+    
+    # Calculate periodic pattern
+    vertical_sums = torch.sum(center_region, dim=0)
+    kernel = torch.ones(5, device=device) / 5
+    smooth_sums = F.conv1d(
+        vertical_sums.unsqueeze(0).unsqueeze(0),
+        kernel.unsqueeze(0).unsqueeze(0),
+        padding=2
+    ).squeeze()
+    
+    # Find peaks
+    pattern_peaks = int(torch.sum(
+        (smooth_sums[1:-1] < smooth_sums[:-2]) & 
+        (smooth_sums[1:-1] < smooth_sums[2:])
+    ).item())
+    
+    # Detect double page
+    is_double_page = (
+        width > 2000 and
+        aspect_ratio > 1.35 and
+        (
+            (vertical_pattern > 1500 and edge_density > 0.01) or
+            (text_density > 0.9 and content_balance < 0.2) or
+            (pattern_peaks >= 2 and edge_density > 0.01) or
+            (aspect_ratio > 1.5 and vertical_pattern > 1000)
+        )
+    )
+
+    # Check for label/first page
+    is_likely_first = file_path and is_likely_label_from_name(file_path)
+    
+    # Check for photos
+    horizontal_profile = torch.sum(edges, dim=1) / width
+    vertical_profile = torch.sum(edges, dim=0) / height
+    h_var = float(torch.var(horizontal_profile))
+    v_var = float(torch.var(vertical_profile))
+    
+    is_photo = (
+        ("photo" in str(file_path).lower() if file_path else False) or
+        (
+            edge_density > 0.12 and
+            (h_var > 1000 or v_var > 1000) and
+            text_density < 0.5
+        )
+    )
+    
+    return {
+        "is_double_page": bool(is_double_page),
+        "is_label": bool(is_likely_first),
+        "is_photo": bool(is_photo),
+        "edge_density": float(edge_density),
+        "text_density": float(text_density),
+        "content_balance": float(content_balance),
+        "vertical_pattern": float(vertical_pattern),
+        "pattern_peaks": int(pattern_peaks),
+        "aspect_ratio": float(aspect_ratio)
+    }
+
 def process_document(file_path: str, output_folder: Path) -> dict:
     """Process a single document file."""
     global file_manager
@@ -314,18 +323,13 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         
         outputs = []
         for i, part in enumerate(parts):
-            # Get base output path
-            base_output_path = file_manager.get_output_path(
+            # Create output path using file manager
+            output_path = file_manager.get_output_path(
                 input_path=file_path,
                 output_folder=output_folder,
-                suffix='.jpg'
+                suffix='.jpg',
+                part_number=i+1 if len(parts) > 1 else None
             )
-            
-            # If we have multiple parts, modify the filename to include part number
-            if len(parts) > 1:
-                output_path = base_output_path.parent / f"{base_output_path.stem}_part{i+1}.jpg"
-            else:
-                output_path = base_output_path
             
             # Save image
             part.save(output_path, 'JPEG', quality=95)
@@ -356,10 +360,13 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         clear_gpu_memory()
 
 def init_worker(worker_id: int):
-    """Initialize worker process."""
-    global device
-    device = get_worker_device(worker_id)
+    """Initialize worker-specific resources."""
+    global device, file_manager
+    device = get_best_device()
+    if worker_id is not None:
+        device = get_worker_device(worker_id, device)
     initialize_kernels()
+    file_manager = FileManager()
 
 @app.command()
 def split(
@@ -383,7 +390,7 @@ def split(
             process_func=process_document,
             source_prefix="crops",
             output_folder=file_manager.get_asset_path('splits')
-        )
+            )
     else:
         # This is the main process
         run_main_process(

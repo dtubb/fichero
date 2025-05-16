@@ -81,6 +81,9 @@ workflows:
   crop:
       - crop
 
+  split:
+      - split
+
   test:
     - prepare_images
     - convert_to_jpg

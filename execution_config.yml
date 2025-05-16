@@ -4,23 +4,23 @@
 # Hardware detection and optimization
 hardware:
   auto_detect: false  # Disable automatic hardware detection
-  device: "cpu"       # Force CPU
-  force_cpu: true     # Force CPU usage even if GPU is available
+  device: "cpu"       # Force MPS for Apple Silicon
+  force_cpu: false     # Force CPU usage even if GPU is available
 
 # System-specific configurations
 system_configs:
   cuda:
     # GPU tasks
     crop:
-      workers: 4
+      workers: 2  # Reduced from 4 to 2 workers
     split:
-      workers: 4  # Can run more workers as split uses less memory
+      workers: 2  # Reduced from 4 to 2 workers
     transcribe_qwen_max:
-      workers: 2
+      workers: 1  # Reduced from 2 to 1 worker
     transcribe_qwen_7b:
-      workers: 2
+      workers: 1  # Reduced from 2 to 1 worker
     transcribe_lmstudio:
-      workers: 2
+      workers: 1  # Reduced from 2 to 1 worker
     # CPU tasks
     rotate:
       workers: 4
@@ -34,9 +34,9 @@ system_configs:
   mps:  # Apple Silicon M1 16GB
     # GPU tasks
     crop:
-      workers: 3  # Increased from 1 to 3 workers
+      workers: 1  # Keep at 1 worker for MPS
     split:
-      workers: 1  # Single GPU worker for MPS
+      workers: 1  # Keep at 1 worker for MPS
     crop_cpu:
       workers: 3  # CPU fallback with more workers
     split_cpu:
