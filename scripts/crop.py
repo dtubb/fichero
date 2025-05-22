@@ -23,10 +23,10 @@ console = Console()
 # Load YOLO model
 try:
     from ultralytics import YOLO
-    yolo_model = YOLO("models/yolov8s-fichero.pt")  # Keep original model
-    logger.info("Successfully loaded YOLO model")
+    yolo_model = None  # Will be initialized with the path from command line
+    logger.info("YOLO model will be loaded with provided path")
 except Exception as e:
-    logger.error(f"Failed to load YOLO model: {e}")
+    logger.error(f"Failed to import YOLO: {e}")
     raise
 
 def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
@@ -403,9 +403,18 @@ def process_document(file_path: str, output_folder: Path) -> dict:
 def crop(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
-    output_folder: Path = typer.Argument(..., help="Output folder for cropped images")
+    output_folder: Path = typer.Argument(..., help="Output folder for cropped images"),
+    model_path: Path = typer.Option(..., help="Path to YOLO model file")
 ):
     """Crop images from documents using YOLO detection"""
+    global yolo_model
+    try:
+        yolo_model = YOLO(str(model_path))
+        logger.info(f"Successfully loaded YOLO model from {model_path}")
+    except Exception as e:
+        logger.error(f"Failed to load YOLO model from {model_path}: {e}")
+        raise
+
     processor = BatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,

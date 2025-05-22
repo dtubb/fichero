@@ -46,4 +46,14 @@ projects/demo_small/assets/recombined/
 projects/demo_small/assets/documents/
 projects/demo_small/assets/documents_manifest/
 
-.project.lock
+project.lock
+.gitignore
+old_tools/
+.empty/
+project_lock
+fichero/scripts/
+venv/
+prompts/
+scripts/catalogue_document.py
+scripts/llm_process.py
+scripts/llm_catalogue.py

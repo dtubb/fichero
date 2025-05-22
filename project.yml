@@ -16,9 +16,19 @@ vars:
   version: "0.0.0"
   
   # Project paths - these should be configured per project
-  project_folder: "/Users/dtubb/code/fichero/projects/demo_small"  # Relative path to project folder
+  project_folder: "/Volumes/Fichero/istmina/second"  # This will be updated by fichero_director
+  fichero_root: "/Users/dtubb/code/fichero_main/fichero"  # This will be updated by fichero_director
   documents_folder: "${vars.project_folder}/documents"
   assets_folder: "${vars.project_folder}/assets"
+  scripts_dir: "${vars.fichero_root}/scripts"
+  prompts_dir: "${vars.fichero_root}/prompts"
+  models_dir: "${vars.fichero_root}/models"
+  yolo_model_path: "${vars.models_dir}/yolov8s-fichero.pt"  # Path to YOLO model
+
+  # LLM configuration
+  llm_backend: "openai"  # or "anthropic", "local", etc.
+  llm_model: "gpt-4"  # or other model name
+  llm_api_url: "https://api.openai.com/v1"  # API endpoint
 
   # metadata
   documents_manifest_folder: "${vars.assets_folder}/manifests"
@@ -52,12 +62,9 @@ vars:
 
   # LMStudio configuration
   lmstudio_url: "http://localhost:1234"
-  #lmstudio_model: "qwen2-vl-7b-instruct"  # Model name as shown in LM Studio
-  #lmstudio_model: "qwen2.5-vl-7b-instruct"  # Model name as shown in LM Studio
-  #lmstudio_model: "Qwen2-VL-7B-Instruct-8bit"  # Model name as shown in LM Studio
   lmstudio_model: "Qwen2.5-VL-3B-Instruct-8bit"  # Model name as shown in LM Studio
 
-directories: ["scripts"]
+directories: ["${vars.scripts_dir}"]
 
 workflows:
   archive-to-word-qwen-max:
@@ -83,6 +90,13 @@ workflows:
     - fuzzy_clean
     - convert_to_word
 
+  archive-to-word-qwen-max-segmented-from-segment:
+    - segment
+    - transcribe_qwen_max_segments
+    - recombine_segments_qwen_max
+    - fuzzy_clean
+    - convert_to_word
+    
   archive-to-word-qwen-2b:
    - build_documents_manifest
    - crop
@@ -133,14 +147,14 @@ commands:
   - name: build_documents_manifest
     help: "Generate the documents manifest listing"
     script:
-      - "python scripts/build_documents_manifest.py ${vars.documents_folder} ${vars.documents_manifest}"
+      - "python ${vars.scripts_dir}/build_documents_manifest.py ${vars.documents_folder} ${vars.documents_manifest}"
     outputs:
       - ${vars.documents_manifest}
 
   - name: crop
     help: "Crop documents using computer vision techniques"
     script:
-      - "python scripts/crop.py ${vars.documents_folder} ${vars.documents_manifest} ${vars.crops_folder}"
+      - "python ${vars.scripts_dir}/crop.py ${vars.documents_folder} ${vars.documents_manifest} ${vars.crops_folder} --model-path ${vars.yolo_model_path}"
     outputs:
       - ${vars.crops_folder}
       - ${vars.crops_folder}/crop_manifest.jsonl
@@ -148,7 +162,7 @@ commands:
   - name: split
     help: "Split cropped images"
     script:
-      - "python scripts/split.py ${vars.crops_folder} ${vars.crops_folder}/crop_manifest.jsonl ${vars.split_image_folder}"
+      - "python ${vars.scripts_dir}/split.py ${vars.crops_folder} ${vars.crops_folder}/crop_manifest.jsonl ${vars.split_image_folder}"
     outputs:
       - ${vars.split_image_folder}
       - ${vars.split_manifest}
@@ -156,7 +170,7 @@ commands:
   - name: rotate
     help: "Rotate the split images to straighten text."
     script:
-      - "python scripts/rotate.py ${vars.split_image_folder} ${vars.split_manifest} ${vars.rotated_image_folder}"
+      - "python ${vars.scripts_dir}/rotate.py ${vars.split_image_folder} ${vars.split_manifest} ${vars.rotated_image_folder}"
     outputs:
       - ${vars.rotated_image_folder}
       - ${vars.rotated_image_folder}/rotate_manifest.jsonl
@@ -164,7 +178,7 @@ commands:
   - name: enhance
     help: "Enhance image quality with contrast and clarity improvements"
     script:
-      - "python scripts/enhance.py ${vars.rotated_image_folder} ${vars.rotated_image_folder}/rotate_manifest.jsonl ${vars.enhanced_image_folder}"
+      - "python ${vars.scripts_dir}/enhance.py ${vars.rotated_image_folder} ${vars.rotated_image_folder}/rotate_manifest.jsonl ${vars.enhanced_image_folder}"
     outputs:
       - ${vars.enhanced_image_folder}
       - ${vars.enhanced_image_folder}/enhance_manifest.jsonl
@@ -172,14 +186,14 @@ commands:
   - name: remove_background
     help: "Remove background from enhanced images"
     script:
-      - "python scripts/remove_background.py ${vars.enhanced_image_folder} ${vars.enhanced_image_folder}/enhance_manifest.jsonl ${vars.background_removed_image_folder}"
+      - "python ${vars.scripts_dir}/remove_background.py ${vars.enhanced_image_folder} ${vars.enhanced_image_folder}/enhance_manifest.jsonl ${vars.background_removed_image_folder}"
     outputs:
       - ${vars.background_removed_image_folder}
 
   - name: segment
     help: "Segment images into text regions"
     script:
-      - "python scripts/segment.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.segmented_image_folder}"
+      - "python ${vars.scripts_dir}/segment.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.segmented_image_folder}"
     outputs:
       - ${vars.segmented_image_folder}
       - ${vars.segment_manifest}
@@ -187,7 +201,7 @@ commands:
   - name: transcribe_qwen_2b
     help: "Transcribe documents using Qwen2.0-VL-2B"
     script:
-      - "python scripts/transcribe_qwen_2b.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_2b.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
@@ -195,7 +209,7 @@ commands:
   - name: transcribe_qwen_2b_segments
     help: "Transcribe segmented documents using Qwen2.0-VL-2B"
     script:
-      - "python scripts/transcribe_qwen_2b.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_2b.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
     outputs:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
@@ -203,7 +217,7 @@ commands:
   - name: transcribe_qwen_7b
     help: "Transcribe documents using Qwen2.0-VL-7B"
     script:
-      - "python scripts/transcribe_qwen_7b.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_7b.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
@@ -211,7 +225,7 @@ commands:
   - name: transcribe_qwen_7b_segments
     help: "Transcribe segmented documents using Qwen2.0-VL-7B"
     script:
-      - "python scripts/transcribe_qwen_7b.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_7b.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
     outputs:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
@@ -219,7 +233,7 @@ commands:
   - name: transcribe_qwen_max
     help: "Transcribe documents using Alibaba Qwen"
     script:
-      - "python scripts/transcribe_qwen_max.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_max.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
@@ -227,7 +241,7 @@ commands:
   - name: transcribe_qwen_max_segments
     help: "Transcribe segmented images using Qwen VL Max model"
     script:
-      - "python scripts/transcribe_qwen_max.py ${vars.segmented_image_folder} ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
+      - "python ${vars.scripts_dir}/transcribe_qwen_max.py ${vars.segmented_image_folder} ${vars.segment_manifest} ${vars.segmented_transcriptions_folder}"
     outputs:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
@@ -235,7 +249,7 @@ commands:
   - name: recombine_segments
     help: "Recombine the transcribed segments into single markdown files"
     script:
-      - "python scripts/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.recombined_folder} ${vars.segmented_transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
+      - "python ${vars.scripts_dir}/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.recombined_folder} ${vars.segmented_transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
     outputs:
       - ${vars.recombined_folder}
       - ${vars.recombined_folder}/recombine_manifest.jsonl
@@ -243,7 +257,7 @@ commands:
   - name: recombine_segments_qwen_max
     help: "Recombine the transcribed segments from Qwen into single markdown files"
     script:
-      - "python scripts/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.recombined_folder} ${vars.segmented_transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
+      - "python ${vars.scripts_dir}/recombine_segments.py ${vars.segmented_transcriptions_folder} ${vars.recombined_folder} ${vars.segmented_transcription_manifest} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl"
     outputs:
       - ${vars.recombined_folder}
       - ${vars.recombined_folder}/recombine_manifest.jsonl
@@ -251,7 +265,7 @@ commands:
   - name: fuzzy_clean
     help: "Clean up text from recombined transcriptions"
     script:
-      - "python scripts/fuzzy_clean.py ${vars.recombined_folder} ${vars.recombined_folder}/recombine_manifest.jsonl ${vars.transcriptions_folder}"
+      - "python ${vars.scripts_dir}/fuzzy_clean.py ${vars.recombined_folder} ${vars.recombined_folder}/recombine_manifest.jsonl ${vars.transcriptions_folder}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
@@ -259,14 +273,14 @@ commands:
   - name: convert_to_word
     help: "Convert background-removed images and transcriptions to Word documents with side-by-side layout"
     script:
-      - "python scripts/convert_to_word.py ${vars.background_removed_image_folder} ${vars.transcription_manifest} ${vars.word_folder}"
+      - "python ${vars.scripts_dir}/convert_to_word.py ${vars.background_removed_image_folder} ${vars.transcription_manifest} ${vars.word_folder}"
     outputs:
       - ${vars.word_folder}
 
   - name: transcribe_lmstudio
     help: "Transcribe documents using local LMStudio model"
     script:
-      - "python scripts/transcribe_lmstudio.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder} --model ${vars.lmstudio_model}"
+      - "python ${vars.scripts_dir}/transcribe_lmstudio.py ${vars.background_removed_image_folder} ${vars.background_removed_image_folder}/remove_multi_obj_black_bg_manifest.jsonl ${vars.transcriptions_folder} --model ${vars.lmstudio_model}"
     outputs:
       - ${vars.transcriptions_folder}
       - ${vars.transcription_manifest}
@@ -274,7 +288,16 @@ commands:
   - name: transcribe_lmstudio_segments
     help: "Transcribe segmented documents using local LMStudio model"
     script:
-      - "python scripts/transcribe_lmstudio.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder} --model ${vars.lmstudio_model}"
+      - "python ${vars.scripts_dir}/transcribe_lmstudio.py ${vars.segmented_image_folder}/documents ${vars.segment_manifest} ${vars.segmented_transcriptions_folder} --model ${vars.lmstudio_model}"
     outputs:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
+
+  - name: catalogue_document
+    help: "Generate catalog entries for transcribed documents"
+    script:
+      - "python ${vars.scripts_dir}/llm_process.py ${vars.transcription_manifest} --backend-type ${vars.llm_backend} --model-name ${vars.llm_model} --api-url ${vars.llm_api_url} --word-folder ${vars.word_folder} --prompts-dir ${vars.prompts_dir} --task catalogue"
+    outputs:
+      - ${vars.transcription_manifest}
+      - "${vars.transcription_manifest}.catalogue_progress"
+      - "${vars.word_folder}/documents/**/*_catalogue.docx"
