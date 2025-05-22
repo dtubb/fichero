@@ -20,6 +20,8 @@ from rich.live import Live
 from rich.table import Table
 import time
 import concurrent.futures
+import json
+import shlex
 
 # Set up rich logging for better console output
 logging.basicConfig(
@@ -275,6 +277,90 @@ def smart_copy(src: Path, dst: Path) -> None:
         shutil.copytree(src, dst, dirs_exist_ok=True)
         log.info(f"Completed regular copy of {src.name}")
 
+def get_python_path() -> str:
+    """Get the Python executable path from the current environment"""
+    return sys.executable
+
+def get_python_env() -> Dict[str, str]:
+    """Get the current environment variables"""
+    return os.environ.copy()
+
+def run_script_directly(script_path: str, cwd: str, worker_log: logging.Logger) -> bool:
+    """Run a Python script directly and return success status"""
+    try:
+        # Get the current Python executable
+        python_exe = get_python_path()
+        worker_log.info(f"Using Python: {python_exe}")
+        
+        # Get current environment
+        env = get_python_env()
+        
+        # Use Popen to get process handle for cleanup
+        process = subprocess.Popen(
+            script_path,
+            text=True,
+            shell=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+            universal_newlines=True,
+            env=env
+        )
+        
+        # Track this process
+        current_processes.add(process.pid)
+        
+        try:
+            # Read output line by line
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    # Log to file
+                    worker_log.info(line.strip())
+            
+            process.wait()
+            return process.returncode == 0
+        except KeyboardInterrupt:
+            # Kill the entire process group
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            process.wait()
+            raise
+        finally:
+            # Remove from tracked processes
+            current_processes.discard(process.pid)
+    except Exception as e:
+        worker_log.error(f"Error running script {script_path}: {str(e)}")
+        return False
+
+def expand_vars(text: str, vars_dict: Dict) -> str:
+    """Expand variables in text using the vars dictionary"""
+    # First pass: expand direct variables
+    for key, value in vars_dict.items():
+        text = text.replace(f"${{{key}}}", str(value))
+    
+    # Second pass: expand vars.* variables
+    for key, value in vars_dict.items():
+        text = text.replace(f"${{vars.{key}}}", str(value))
+    
+    # Third pass: expand any remaining nested variables
+    while "${" in text:
+        for key, value in vars_dict.items():
+            text = text.replace(f"${{{key}}}", str(value))
+            text = text.replace(f"${{vars.{key}}}", str(value))
+    
+    # Convert relative paths to absolute paths
+    if text.startswith("python "):
+        parts = text.split()
+        if len(parts) >= 2:
+            # Convert script path to absolute if it's relative
+            script_path = parts[1]
+            if not os.path.isabs(script_path):
+                script_path = os.path.abspath(script_path)
+            parts[1] = script_path
+            text = " ".join(parts)
+    
+    return text
+
 def create_project_yml(template_path: Path, target_folder: Path, output_path: Path) -> None:
     """
     Create a new project.yml file for a specific folder.
@@ -285,20 +371,24 @@ def create_project_yml(template_path: Path, target_folder: Path, output_path: Pa
         target_folder: The folder this project.yml is for
         output_path: Where to save the new project.yml
     """
-    # Just copy the template file
-    shutil.copy2(template_path, output_path)
-    
-    # Read the copied file
-    with open(output_path, 'r') as f:
+    # Read the template file
+    with open(template_path, 'r') as f:
         content = f.read()
     
-    # Update project_folder to use relative path
+    # Update project_folder to use absolute path
     content = content.replace(
         'project_folder: "/Volumes/Fichero/istmina/second"',
-        f'project_folder: "."'  # Use current directory
+        f'project_folder: "{target_folder.absolute()}"'  # Use absolute path
     )
     
-    # Write back the modified content
+    # Update fichero_root to use absolute path to the fichero directory
+    fichero_root = Path(__file__).parent.absolute()
+    content = content.replace(
+        'fichero_root: "/Users/dtubb/code/fichero_main/fichero"',
+        f'fichero_root: "{fichero_root}"'
+    )
+    
+    # Write the modified content
     with open(output_path, 'w') as f:
         f.write(content)
 
@@ -335,15 +425,21 @@ def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     
     return output_folder
 
-def process_folder(folder_path: Path, template_yml: Path, workflow_name: str) -> None:
+def parse_project_yml(project_yml_path: Path) -> Dict:
+    """Parse project.yml and return the workflow configuration"""
+    with open(project_yml_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, use_weasel: bool = True) -> None:
     """
-    Process a single folder using Weasel workflow.
+    Process a single folder using either Weasel workflow or direct script execution.
     Creates project.yml and runs the specified workflow.
     
     Args:
         folder_path: Path to the folder to process
         template_yml: Path to the template project.yml
         workflow_name: Name of the Weasel workflow to run
+        use_weasel: Whether to use Weasel or run scripts directly
     """
     worker_id = multiprocessing.current_process().name
     folder_name = folder_path.name
@@ -369,53 +465,91 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str) ->
                     "Please set it in your .env file or environment."
                 )
         
-        # Run the workflow using Weasel
+        # Run the workflow
         worker_log.info("Starting processing")
         
-        # Change to the folder directory before running weasel
+        # Change to the folder directory before running
         original_dir = os.getcwd()
         os.chdir(str(folder_path))
         
         try:
-            # Use single quotes for the outer command and double quotes for the workflow name
-            cmd = f"weasel run '{workflow_name}' --force"
-            # Use Popen to get process handle for cleanup
-            process = subprocess.Popen(
-                cmd,
-                text=True,
-                shell=True,  # Use shell to handle path quoting
-                preexec_fn=os.setsid,  # Create new process group
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # Combine stderr into stdout
-                bufsize=1,  # Line buffered
-                universal_newlines=True
-            )
-            
-            # Track this process
-            current_processes.add(process.pid)
-            
-            try:
-                # Read output line by line
-                for line in iter(process.stdout.readline, ''):
-                    if line:
-                        # Log to file
-                        worker_log.info(line.strip())
+            if use_weasel:
+                # Use Weasel to run the workflow
+                cmd = f"weasel run '{workflow_name}'"
+            else:
+                # Parse project.yml and run scripts directly
+                project_config = parse_project_yml(project_yml)
+                workflow_steps = project_config.get('workflows', {}).get(workflow_name)
+                commands = {cmd['name']: cmd for cmd in project_config.get('commands', [])}
+                vars_dict = project_config.get('vars', {})
                 
-                process.wait()
-                if process.returncode != 0:
-                    worker_log.error(f"Process failed with return code {process.returncode}")
+                if not workflow_steps:
+                    worker_log.error(f"Workflow {workflow_name} not found in project.yml")
                     return False
-                else:
-                    worker_log.info("Successfully completed")
-                    return True
-            except KeyboardInterrupt:
-                # Kill the entire process group
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                process.wait()
-                raise
-            finally:
-                # Remove from tracked processes
-                current_processes.discard(process.pid)
+                
+                # Run each script in the workflow
+                for step_name in workflow_steps:
+                    command = commands.get(step_name)
+                    if not command:
+                        worker_log.error(f"Command {step_name} not found in project.yml")
+                        return False
+                    
+                    # Get the script command
+                    script_cmd = command.get('script', [])[0]  # Take first script command
+                    if not script_cmd:
+                        worker_log.error(f"No script found for command {step_name}")
+                        return False
+                    
+                    # Expand variables in the script command
+                    script_cmd = expand_vars(script_cmd, vars_dict)
+                    
+                    worker_log.info(f"Running command: {step_name}")
+                    worker_log.info(f"Script command: {script_cmd}")
+                    
+                    if not run_script_directly(script_cmd, str(folder_path), worker_log):
+                        worker_log.error(f"Command {step_name} failed")
+                        return False
+                
+                worker_log.info("Successfully completed all commands")
+                return True
+
+            if use_weasel:
+                process = subprocess.Popen(
+                    cmd,
+                    text=True,
+                    shell=True,
+                    preexec_fn=os.setsid,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                
+                # Track this process
+                current_processes.add(process.pid)
+                
+                try:
+                    # Read output line by line
+                    for line in iter(process.stdout.readline, ''):
+                        if line:
+                            # Log to file
+                            worker_log.info(line.strip())
+                    
+                    process.wait()
+                    if process.returncode != 0:
+                        worker_log.error(f"Process failed with return code {process.returncode}")
+                        return False
+                    else:
+                        worker_log.info("Successfully completed")
+                        return True
+                except KeyboardInterrupt:
+                    # Kill the entire process group
+                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                    process.wait()
+                    raise
+                finally:
+                    # Remove from tracked processes
+                    current_processes.discard(process.pid)
         finally:
             # Always change back to original directory
             os.chdir(original_dir)
@@ -429,49 +563,62 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str) ->
 
 @app.command()
 def process_folders(
-    input_folder: Path = typer.Argument(..., help="Folder containing subfolders to process"),
     output_folder: Path = typer.Argument(..., help="Base folder for output"),
     template_yml: Path = typer.Argument(..., help="Template project.yml file"),
     workflow_name: str = typer.Argument(..., help="Name of the Weasel workflow to run"),
-    num_processors: int = typer.Option(4, help="Number of parallel processors to use")
+    input_folder: Optional[Path] = typer.Option(None, help="Optional: Folder containing subfolders to process. If not provided, will process existing folders in output_folder"),
+    num_processors: int = typer.Option(4, help="Number of parallel processors to use"),
+    use_weasel: bool = typer.Option(True, help="Whether to use Weasel or run scripts directly")
 ):
     """
-    Process multiple folders in parallel using Weasel workflows.
+    Process multiple folders in parallel using either Weasel workflows or direct script execution.
     Each folder will get its own project.yml and be processed independently.
     
     The process happens in two phases:
-    1. Preparation: Create folder structure and copy files
-    2. Processing: Run Weasel workflows in parallel
+    1. Preparation: Create folder structure and copy files (if input_folder provided)
+    2. Processing: Run workflows in parallel
     
     Args:
-        input_folder: Folder containing subfolders to process
         output_folder: Base folder for output
         template_yml: Template project.yml file
-        workflow_name: Name of the Weasel workflow to run
+        workflow_name: Name of the workflow to run
+        input_folder: Optional folder containing subfolders to process. If not provided, will process existing folders in output_folder
         num_processors: Number of parallel processors to use
+        use_weasel: Whether to use Weasel or run scripts directly
     """
     global executor
     
     try:
         # Validate inputs
-        if not input_folder.exists():
-            raise typer.BadParameter(f"Input folder {input_folder} does not exist")
         if not template_yml.exists():
             raise typer.BadParameter(f"Template file {template_yml} does not exist")
         
         # Create output base folder
         output_folder.mkdir(parents=True, exist_ok=True)
         
-        # Get list of subfolders to process and sort them
-        subfolders = sorted([f for f in input_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
-        if not subfolders:
-            raise typer.BadParameter(f"No subfolders found in {input_folder}")
-        
-        # Phase 1: Prepare all folders
-        prepared_folders = []
-        for folder in subfolders:
-            prepared_folder = prepare_folder(folder, output_folder)
-            prepared_folders.append(prepared_folder)
+        # Get list of folders to process
+        if input_folder:
+            # Process new folders from input_folder
+            if not input_folder.exists():
+                raise typer.BadParameter(f"Input folder {input_folder} does not exist")
+            
+            # Get list of subfolders to process and sort them
+            subfolders = sorted([f for f in input_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
+            if not subfolders:
+                raise typer.BadParameter(f"No subfolders found in {input_folder}")
+            
+            # Phase 1: Prepare all folders
+            prepared_folders = []
+            for folder in subfolders:
+                prepared_folder = prepare_folder(folder, output_folder)
+                prepared_folders.append(prepared_folder)
+        else:
+            # Process existing folders in output_folder
+            prepared_folders = sorted([f for f in output_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
+            if not prepared_folders:
+                raise typer.BadParameter(f"No folders found in {output_folder}")
+            
+            log.info(f"Found {len(prepared_folders)} existing folders to process")
         
         # Phase 2: Process folders in parallel
         console = Console()
@@ -534,7 +681,7 @@ def process_folders(
                     worker_id = available_workers.pop()
                     
                     # Submit the task
-                    future = executor.submit(process_folder, folder, template_yml, workflow_name)
+                    future = executor.submit(process_folder, folder, template_yml, workflow_name, use_weasel)
                     futures.append((future, folder.name))
                     worker_assignments[future] = worker_id
                     

@@ -80,29 +80,53 @@ For processing multiple folders in parallel, use `fichero_director.py`. This scr
 
 ```bash
 python fichero_director.py \
-  <input_folder> \
   <output_folder> \
   <template_yml> \
   <workflow_name> \
-  --num-processors <number>
+  [--input-folder <input_folder>] \
+  [--num-processors <number>] \
+  [--use-weasel/--no-weasel]
 ```
 
 Where:
-- `<input_folder>`: Folder containing subfolders to process
 - `<output_folder>`: Base folder for output
 - `<template_yml>`: Template project.yml file (usually "project.yml")
 - `<workflow_name>`: Name of the Weasel workflow to run
+- `--input-folder`: Optional: Folder containing subfolders to process. If not provided, will process existing folders in output_folder
 - `--num-processors`: Number of parallel processors to use (default: 4)
+- `--use-weasel/--no-weasel`: Whether to use Weasel or run scripts directly (default: --use-weasel)
 
-### Example Command
+### Example Commands
 
+Process new folders with Weasel:
 ```bash
 python fichero_director.py \
-  "/path/to/input/folders" \
   "/path/to/output" \
   "project.yml" \
   "archive-to-word-qwen-max-segmented" \
+  --input-folder "/path/to/input/folders" \
   --num-processors 4
+```
+
+Process new folders without Weasel (faster, after the first run becuase Weasel hashes the folders):
+```bash
+python fichero_director.py \
+  "/path/to/output" \
+  "project.yml" \
+  "archive-to-word-qwen-max-segmented" \
+  --input-folder "/path/to/input/folders" \
+  --num-processors 4 \
+  --no-weasel
+```
+
+Reprocess existing folders without Weasel:
+```bash
+python fichero_director.py \
+  "/path/to/output" \
+  "project.yml" \
+  "archive-to-word-qwen-max-segmented" \
+  --num-processors 4 \
+  --no-weasel
 ```
 
 ### Features
