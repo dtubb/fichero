@@ -72,6 +72,53 @@ For example, to process documents in segments using the Qwen 2B model:
 weasel run archive-to-word-qwen-2b-segmented
 ```
 
+## Parallel Processing with fichero_director.py
+
+For processing multiple folders in parallel, use `fichero_director.py`. This script allows you to process multiple folders simultaneously, with each folder running in its own worker process.
+
+### Basic Usage
+
+```bash
+python fichero_director.py \
+  <input_folder> \
+  <output_folder> \
+  <template_yml> \
+  <workflow_name> \
+  --num-processors <number>
+```
+
+Where:
+- `<input_folder>`: Folder containing subfolders to process
+- `<output_folder>`: Base folder for output
+- `<template_yml>`: Template project.yml file (usually "project.yml")
+- `<workflow_name>`: Name of the Weasel workflow to run
+- `--num-processors`: Number of parallel processors to use (default: 4)
+
+### Example Command
+
+```bash
+python fichero_director.py \
+  "/path/to/input/folders" \
+  "/path/to/output" \
+  "project.yml" \
+  "archive-to-word-qwen-max-segmented" \
+  --num-processors 4
+```
+
+### Features
+- Processes multiple folders in parallel
+- Shows real-time progress for each folder
+- Creates detailed logs for each processed folder
+- Handles interruptions gracefully
+- Uses APFS cloning on macOS for faster file operations
+- Automatically manages worker processes
+
+### Notes
+- Each folder will be processed independently with its own project.yml
+- Progress is displayed in a live-updating table
+- The number of processors should not exceed your system's capabilities
+- For Apple Silicon Mac, M1 Mac, a good default is 4-6 processors
+
 ## Alibaba API Key Setup
 
 To transcribe with Alibababa features, you'll need to set up your DashScope API key:
