@@ -375,9 +375,9 @@ def create_project_yml(template_path: Path, target_folder: Path, output_path: Pa
     with open(template_path, 'r') as f:
         content = f.read()
     
-    # Update project_folder to use absolute path
+    # Update project_folder to use the target folder path
     content = content.replace(
-        'project_folder: "/Volumes/Fichero/istmina/second"',
+        'project_folder: "/Volumes/Files 2/test"',
         f'project_folder: "{target_folder.absolute()}"'  # Use absolute path
     )
     

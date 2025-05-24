@@ -25,3 +25,4 @@ tqdm>=4.66.0
 python-magic>=0.4.27 
 
 psutil
+wxpython

@@ -57,3 +57,6 @@ prompts/
 scripts/catalogue_document.py
 scripts/llm_process.py
 scripts/llm_catalogue.py
+fichero.py
+fichero_gui/
+rename_docs.sh
