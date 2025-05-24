@@ -60,3 +60,4 @@ scripts/llm_catalogue.py
 fichero.py
 fichero_gui/
 rename_docs.sh
+dump.rdb

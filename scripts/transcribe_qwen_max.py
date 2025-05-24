@@ -8,10 +8,14 @@ from PIL import Image
 from dotenv import load_dotenv 
 from io import BytesIO
 import base64
-from openai import OpenAI
+from openai import AsyncOpenAI
+import asyncio
 from utils.batch import BatchProcessor
 from utils.processor import process_file
 from utils.segment_handler import SegmentHandler
+
+# Semaphore to limit concurrent API calls
+API_SEMAPHORE = asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
 
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
@@ -38,7 +42,7 @@ def encode_image(image: Image.Image) -> str:
     image.save(buffered, format="JPEG", quality=85)  # Slightly reduced quality for better compression
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-def process_image(file_path: Path, out_path: Path) -> dict:
+async def process_image(file_path: Path, out_path: Path) -> dict:
     """Process a single image file, returning manifest-compatible output"""
     try:
         # Ensure output directory exists
@@ -58,24 +62,26 @@ def process_image(file_path: Path, out_path: Path) -> dict:
             base64_image = encode_image(image)
             
             # Initialize OpenAI client with DashScope endpoint
-            client = OpenAI(
+            client = AsyncOpenAI(
                 api_key=os.getenv("DASHSCOPE_API_KEY"),
                 base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             )
             
             print(f"[cyan]Sending to Qwen API...")
             
-            # Get transcription using OpenAI-compatible method
-            completion = client.chat.completions.create(
-                model="qwen-vl-max",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                        {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETRUN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRROED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMTPY IF NOT TEXT."},
-                    ]
-                }]
-            )
+            # Use semaphore to limit concurrent API calls
+            async with API_SEMAPHORE:
+                # Get transcription using OpenAI-compatible method
+                completion = await client.chat.completions.create(
+                    model="qwen-vl-max",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                            {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETRUN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRROED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMTPY IF NOT TEXT."},
+                        ]
+                    }]
+                )
             
             print(f"[green]Received response from Qwen API")
             
@@ -118,13 +124,13 @@ def process_image(file_path: Path, out_path: Path) -> dict:
         print(f"[red]Error processing {file_path}: {e}")
         return {"error": str(e)}
 
-def process_document(file_path: str, output_folder: Path) -> dict:
+async def process_document(file_path: str, output_folder: Path) -> dict:
     """Process a document using the process_file utility"""
     file_path = Path(file_path)
     
-    def process_fn(f: str, o: Path) -> dict:
+    async def process_fn(f: str, o: Path) -> dict:
         # Process the image and let process_file handle path management
-        result = process_image(Path(f), o)
+        result = await process_image(Path(f), o)
         
         # Add parent image info if needed
         if not result.get("error"):
@@ -136,7 +142,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
                 
         return result
     
-    return process_file(
+    return await process_file(
         file_path=str(file_path),
         output_folder=output_folder,
         process_fn=process_fn,
@@ -147,13 +153,13 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         }
     )
 
-def transcribe(
-    background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
-    background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
-    transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
-    testing: bool = typer.Option(False, help="Run on a small subset of data"),
+async def transcribe_async(
+    background_removed_folder: Path,
+    background_removed_manifest: Path,
+    transcribed_folder: Path,
+    testing: bool = False,
 ):
-    """Batch transcription CLI using Qwen VL Max model"""
+    """Async batch transcription using Qwen VL Max model"""
     print(f"[green]Transcribing images in {background_removed_folder}")
     print(f"[cyan]Using model qvq-max")
     
@@ -171,7 +177,21 @@ def transcribe(
         base_folder=background_removed_folder
     )
     
-    return processor.process()
+    return await processor.process()
+
+def transcribe(
+    background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
+    background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
+    transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
+    testing: bool = typer.Option(False, help="Run on a small subset of data"),
+):
+    """Batch transcription CLI using Qwen VL Max model"""
+    asyncio.run(transcribe_async(
+        background_removed_folder,
+        background_removed_manifest,
+        transcribed_folder,
+        testing
+    ))
 
 if __name__ == "__main__":
     typer.run(transcribe) 
