@@ -112,7 +112,7 @@ class BlackBackgroundRemoverMulti:
             dist_x = abs(center_x - img_center_x)
             dist_y = abs(center_y - img_center_y)
 
-            # For example: keep if it’s big, or if it's near center
+            # For example: keep if it's big, or if it's near center
             # (You can refine "near center" with a threshold, or keep only largest + 2nd largest, etc.)
             if (frac_of_foreground > MIN_FRAC_OF_FOREGROUND) or \
                (frac_of_largest > MIN_FRAC_OF_LARGEST) or \
@@ -205,7 +205,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # Save as PNG and ensure .png extension
     out_path = out_path.with_suffix('.png')
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    bg_removed.save(out_path, "PNG")  # Remove quality parameter as it's not used for PNG
+    bg_removed.save(out_path, "PNG", optimize=True, compress_level=9)  # Optimize PNG with maximum compression
     
     # Ensure output path in manifest also has .png extension
     rel_path = source_dir.with_suffix('.png')

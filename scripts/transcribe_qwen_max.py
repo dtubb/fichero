@@ -53,7 +53,10 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
         out_path.touch()
         
         try:
-            print(f"[cyan]Processing image: {file_path}")
+            # Add timestamp to show concurrent execution
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+            print(f"[cyan][{timestamp}] Starting to process: {file_path.name}")
             
             # Load and process image
             image = Image.open(file_path).convert("RGB")
@@ -67,10 +70,11 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
                 base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             )
             
-            print(f"[cyan]Sending to Qwen API...")
-            
             # Use semaphore to limit concurrent API calls
             async with API_SEMAPHORE:
+                timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                print(f"[yellow][{timestamp}] Sending to Qwen API: {file_path.name}")
+                
                 # Get transcription using OpenAI-compatible method
                 completion = await client.chat.completions.create(
                     model="qwen-vl-max",
@@ -78,12 +82,13 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
                         "role": "user",
                         "content": [
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                            {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETRUN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRROED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMTPY IF NOT TEXT."},
+                            {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."},
                         ]
                     }]
                 )
             
-            print(f"[green]Received response from Qwen API")
+            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+            print(f"[green][{timestamp}] Received response from Qwen API for: {file_path.name}")
             
             # Extract transcription from response
             transcription = completion.choices[0].message.content
@@ -124,44 +129,15 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
         print(f"[red]Error processing {file_path}: {e}")
         return {"error": str(e)}
 
-async def process_document(file_path: str, output_folder: Path) -> dict:
-    """Process a document using the process_file utility"""
-    file_path = Path(file_path)
-    
-    async def process_fn(f: str, o: Path) -> dict:
-        # Process the image and let process_file handle path management
-        result = await process_image(Path(f), o)
-        
-        # Add parent image info if needed
-        if not result.get("error"):
-            rel_path = SegmentHandler.get_relative_path(Path(f))
-            if 'segments' in str(rel_path):
-                result["parent_image"] = str(rel_path.parents[1])
-            else:
-                result["parent_image"] = str(rel_path)
-                
-        return result
-    
-    return await process_file(
-        file_path=str(file_path),
-        output_folder=output_folder,
-        process_fn=process_fn,
-        file_types={
-            '.png': process_fn,
-            '.jpg': process_fn,
-            '.jpeg': process_fn
-        }
-    )
-
-async def transcribe_async(
+def transcribe_batch(
     background_removed_folder: Path,
     background_removed_manifest: Path,
     transcribed_folder: Path,
     testing: bool = False,
 ):
-    """Async batch transcription using Qwen VL Max model"""
+    """Batch transcription using Qwen VL Max model"""
     print(f"[green]Transcribing images in {background_removed_folder}")
-    print(f"[cyan]Using model qvq-max")
+    print(f"[cyan]Using model qwen-vl-max")
     
     load_dotenv()
     
@@ -169,15 +145,120 @@ async def transcribe_async(
         print("[red]Error: DASHSCOPE_API_KEY environment variable not set")
         return
 
-    processor = BatchProcessor(
+    # Create a custom batch processor that handles async properly
+    class AsyncBatchProcessor(BatchProcessor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.pending_tasks = []
+            self.batch_times = []  # Track time for each batch
+            
+        async def process_batch_async(self, batch: list):
+            """Process a batch of files asynchronously"""
+            tasks = []
+            for doc in batch:
+                path = Path(doc["path"])
+                
+                # Ensure consistent path handling with documents/ prefix
+                if self.base_folder:
+                    if 'documents' in str(self.base_folder):
+                        full_path = self.base_folder / path
+                    else:
+                        full_path = self.base_folder / 'documents' / path
+                else:
+                    if 'documents' in path.parts:
+                        full_path = path
+                    else:
+                        full_path = Path('documents') / path
+
+                # Ensure extension is preserved
+                if path.suffix:
+                    full_path = full_path.with_suffix(path.suffix)
+                
+                # Create output path
+                parts = path.parts
+                if 'documents' in parts:
+                    rel_path = Path(*parts[parts.index('documents') + 1:])
+                else:
+                    rel_path = path
+                out_path = self.output_folder / "documents" / rel_path
+                
+                # Skip if already exists
+                if out_path.with_suffix('.txt').exists():
+                    continue
+                    
+                # Add to tasks
+                tasks.append(process_image(full_path, out_path))
+            
+            # Process all tasks concurrently
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                return results
+            return []
+
+        def _process_batch(self, batch: list, stats: dict, progress, task):
+            """Override to use async processing"""
+            import time
+            batch_start = time.time()
+            
+            # Get the current event loop
+            loop = asyncio.get_event_loop()
+            
+            # Run the async batch processing in the current event loop
+            results = loop.run_until_complete(self.process_batch_async(batch))
+            
+            batch_time = time.time() - batch_start
+            self.batch_times.append(batch_time)
+            
+            # Show time savings
+            sequential_estimate = len(batch) * 8  # Assume ~8 seconds per image sequentially
+            print(f"\n[green]Batch of {len(batch)} images processed in {batch_time:.1f}s")
+            print(f"[dim]Sequential processing would take ~{sequential_estimate}s[/dim]")
+            print(f"[green]Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)[/green]\n")
+            
+            # Process results
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    print(f"[red]Error: {result}")
+                    stats["failed"] += 1
+                elif isinstance(result, dict):
+                    self.output_proc.save_entry(result)
+                    if result.get("error"):
+                        stats["failed"] += 1
+                    else:
+                        stats["processed"] += 1
+                
+                progress.update(task, advance=1, **stats)
+                
+        def process(self):
+            """Override to add timing summary"""
+            result = super().process()
+            
+            # Show overall time savings summary
+            if self.batch_times:
+                total_time = sum(self.batch_times)
+                total_images = result.get('processed', 0) + result.get('failed', 0)
+                sequential_estimate = total_images * 8
+                
+                print(f"\n[bold green]🚀 Async Processing Summary:[/bold green]")
+                print(f"Total images processed: {total_images}")
+                print(f"Total time: {total_time:.1f}s")
+                print(f"Sequential estimate: {sequential_estimate}s")
+                print(f"[bold green]Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)[/bold green]")
+                print(f"Average time per image: {total_time / total_images:.1f}s")
+                
+            return result
+
+    # Use the async batch processor
+    processor = AsyncBatchProcessor(
         input_manifest=background_removed_manifest,
         output_folder=transcribed_folder,
         process_name="transcription",
-        processor_fn=lambda f, o: process_document(f, o),
-        base_folder=background_removed_folder
+        processor_fn=None,  # Not used in async version
+        base_folder=background_removed_folder,
+        batch_size=5  # Process 5 images concurrently
     )
     
-    return await processor.process()
+    return processor.process()
 
 def transcribe(
     background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
@@ -186,12 +267,12 @@ def transcribe(
     testing: bool = typer.Option(False, help="Run on a small subset of data"),
 ):
     """Batch transcription CLI using Qwen VL Max model"""
-    asyncio.run(transcribe_async(
+    transcribe_batch(
         background_removed_folder,
         background_removed_manifest,
         transcribed_folder,
         testing
-    ))
+    )
 
 if __name__ == "__main__":
     typer.run(transcribe) 

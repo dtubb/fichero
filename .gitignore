@@ -61,3 +61,9 @@ fichero.py
 fichero_gui/
 rename_docs.sh
 dump.rdb
+cpu_woroker.llm_catalogue
+cpu_worker.log
+cpu_worker.pid
+dump.rdb
+io_worker.log
+io_worker.pid

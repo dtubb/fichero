@@ -39,9 +39,58 @@ celery_app.conf.update(
     timezone='UTC',
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=3600,  # 1 hour timeout
-    worker_max_tasks_per_child=1,  # Restart worker after each task
+    task_time_limit=14400,  # 4 hour timeout for large folders
+    
+    # Optimize for M1 MacBook
+    worker_concurrency=6,  # Leave 2 cores for system
+    worker_max_memory_per_child=2048,  # 2GB per worker
+    worker_max_tasks_per_child=10,  # Restart after 10 tasks to prevent memory leaks
     worker_prefetch_multiplier=1,  # Process one task at a time
+    
+    # Task routing
+    task_routes={
+        'process_folder': {
+            'queue': 'cpu_intensive',
+            'routing_key': 'cpu_intensive'
+        }
+    },
+    
+    # Queue settings
+    task_queues={
+        'cpu_intensive': {
+            'exchange': 'cpu_intensive',
+            'routing_key': 'cpu_intensive',
+            'queue_arguments': {
+                'x-max-priority': 10
+            }
+        },
+        'io_intensive': {
+            'exchange': 'io_intensive',
+            'routing_key': 'io_intensive',
+            'queue_arguments': {
+                'x-max-priority': 10
+            }
+        }
+    },
+    
+    # Task priority
+    task_default_priority=5,
+    task_queue_max_priority=10,
+    
+    # Result backend settings
+    result_expires=14400,  # Results expire after 4 hours
+    result_backend_transport_options={
+        'retry_policy': {
+            'timeout': 5.0
+        }
+    },
+    
+    # Broker settings
+    broker_transport_options={
+        'visibility_timeout': 14400,  # 4 hours - must match task_time_limit
+        'fanout_prefix': True,
+        'fanout_patterns': True
+    }
 )
 
 # Set up rich logging for better console output
@@ -61,6 +110,28 @@ worker_assignments = {}  # folder_name -> worker_id
 folder_status = {}      # folder_name -> status
 folder_start_times = {} # folder_name -> start_time
 folder_completion_times = {} # folder_name -> completion_time
+active_task_ids = set()  # Track all submitted task IDs for cleanup
+
+# Define CPU-intensive and I/O-intensive scripts
+CPU_INTENSIVE_SCRIPTS = {
+    'crop.py', 'enhance.py', 'remove_background.py', 'rotate.py', 'segment.py',
+    'split.py'  # Image processing
+}
+
+IO_INTENSIVE_SCRIPTS = {
+    'fuzzy_clean.py', 'llm_catalogue.py', 'llm_process.py', 'recombine_segments.py',
+    'transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py',
+    'convert_to_word.py', 'build_documents_manifest.py'  # File I/O and API calls
+}
+
+def get_queue_for_script(script_name: str) -> str:
+    """Determine which queue a script should be routed to"""
+    script_name = script_name.lower()
+    if any(cpu_script in script_name for cpu_script in CPU_INTENSIVE_SCRIPTS):
+        return 'cpu_intensive'
+    elif any(io_script in script_name for io_script in IO_INTENSIVE_SCRIPTS):
+        return 'io_intensive'
+    return 'cpu_intensive'  # Default to CPU intensive if unknown
 
 def get_worker_logger(folder_path: Path) -> logging.Logger:
     """Create a logger for a specific worker process that writes to a file"""
@@ -101,22 +172,87 @@ def get_worker_logger(folder_path: Path) -> logging.Logger:
     
     return logger
 
+def get_worker_concurrency():
+    """Get the concurrency settings for each worker type"""
+    from celery.app.control import Control
+    control = Control(celery_app)
+    
+    # Get worker stats and active queues
+    stats = control.inspect().stats()
+    active_queues = control.inspect().active_queues()
+    
+    if not stats:
+        return {'cpu_intensive': 4, 'io_intensive': 4}  # Default fallback
+    
+    # Parse worker concurrency based on queue assignments
+    concurrency = {'cpu_intensive': 0, 'io_intensive': 0}
+    
+    for worker, info in stats.items():
+        max_conc = info.get('pool', {}).get('max-concurrency', 4)
+        
+        # Check which queues this worker is handling
+        if active_queues and worker in active_queues:
+            worker_queues = active_queues[worker]
+            for queue_info in worker_queues:
+                queue_name = queue_info.get('name', '')
+                if 'cpu_intensive' in queue_name:
+                    concurrency['cpu_intensive'] += max_conc
+                elif 'io_intensive' in queue_name:
+                    concurrency['io_intensive'] += max_conc
+        else:
+            # Fallback: check worker name patterns
+            if 'cpu_worker' in worker or 'worker1' in worker:
+                concurrency['cpu_intensive'] += max_conc
+            elif 'io_worker' in worker or 'worker2' in worker:
+                concurrency['io_intensive'] += max_conc
+    
+    # If no workers found, use defaults
+    if concurrency['cpu_intensive'] == 0:
+        concurrency['cpu_intensive'] = 4
+    if concurrency['io_intensive'] == 0:
+        concurrency['io_intensive'] = 4
+        
+    log.info(f"Detected worker concurrency: CPU={concurrency['cpu_intensive']}, IO={concurrency['io_intensive']}")
+    return concurrency
+
 def update_status(folder_name: str, worker_id: str, status: str, step: str = None, error: str = None):
     """Update the status of a folder"""
-    worker_assignments[folder_name] = worker_id
+    # Extract queue name from worker_id if it's in the format "worker_name (queue_name)"
+    queue_name = "unknown"
+    if "(" in worker_id and ")" in worker_id:
+        queue_name = worker_id.split("(")[1].split(")")[0]
+    elif worker_id in ["CPU", "I/O"]:
+        queue_name = "cpu_intensive" if worker_id == "CPU" else "io_intensive"
+    elif worker_id == "Waiting":
+        queue_name = "waiting"
+    elif worker_id == "Completed":
+        queue_name = "completed"
+    elif worker_id == "Failed":
+        queue_name = "failed"
+    elif worker_id == "Waiting I/O":
+        queue_name = "waiting_io"
+    
+    # Update worker assignment and status
+    worker_assignments[folder_name] = queue_name
     folder_status[folder_name] = status
     
+    # Update step and error if provided
     if step:
         folder_status[f"{folder_name}_step"] = step
     if error:
         folder_status[f"{folder_name}_error"] = error
     
-    # Track start time when status changes to Processing
-    if status == "Processing" and folder_name not in folder_start_times:
-        folder_start_times[folder_name] = time.time()
-    # Track completion time when status changes to Completed or Failed
-    elif status in ["Completed", "Failed"] and folder_name not in folder_completion_times:
-        folder_completion_times[folder_name] = time.time()
+    # Track timing
+    current_time = time.time()
+    if status in ["Processing", "Starting"] and folder_name not in folder_start_times:
+        folder_start_times[folder_name] = current_time
+    elif status in ["Completed", "Failed"]:
+        if folder_name not in folder_completion_times:
+            folder_completion_times[folder_name] = current_time
+        # Calculate total processing time
+        if folder_name in folder_start_times:
+            processing_time = current_time - folder_start_times[folder_name]
+            folder_status[f"{folder_name}_total_time"] = processing_time
 
 def format_time(seconds: float) -> str:
     """Format time in seconds to a human readable string"""
@@ -131,58 +267,180 @@ def format_time(seconds: float) -> str:
 
 def create_status_table() -> Table:
     """Create a table showing progress for each worker"""
+    # Get unique folders and their latest status
+    unique_folders = {}
+    for folder_name, status in folder_status.items():
+        # Skip step, error, and time entries
+        if "_step" in folder_name or "_error" in folder_name or "_total_time" in folder_name:
+            continue
+        unique_folders[folder_name] = status
+    
+    # Calculate task counts
+    total_tasks = len(unique_folders)
+    # Only count as active if actually processing (not waiting for IO)
+    active_cpu = sum(1 for folder, status in unique_folders.items() 
+                    if status in ["Processing", "Starting"] and worker_assignments.get(folder) == "cpu_intensive")
+    active_io = sum(1 for folder, status in unique_folders.items() 
+                   if status in ["Processing", "Starting"] and worker_assignments.get(folder) == "io_intensive")
+    # Count all waiting statuses including waiting for IO
+    waiting_tasks = sum(1 for folder, status in unique_folders.items() 
+                       if status == "Waiting" or worker_assignments.get(folder) in ["waiting", "waiting_io"])
+    completed_tasks = sum(1 for folder, status in unique_folders.items() 
+                         if status == "Completed")
+    failed_tasks = sum(1 for folder, status in unique_folders.items() 
+                      if status == "Failed")
+    
+    # Calculate total running time
+    current_time = time.time()
+    total_running_time = 0
+    for folder_name, status in unique_folders.items():
+        if status in ["Processing", "Starting"] and folder_name in folder_start_times:
+            total_running_time += current_time - folder_start_times[folder_name]
+    
+    # Create title with task counts and total running time
+    title = f"Tasks: {total_tasks} | Active: {active_cpu + active_io} (CPU: {active_cpu}, I/O: {active_io}) | Waiting: {waiting_tasks} | Completed: {completed_tasks} | Failed: {failed_tasks} | Running Time: {format_time(total_running_time)}"
+    
     table = Table(
-        title="Processing Status",
+        title=title,
         show_header=True,
         header_style="bold magenta",
         border_style="blue"
     )
-    table.add_column("Worker", style="cyan", width=10)
-    table.add_column("Folder", style="green", width=40, no_wrap=True)
-    table.add_column("Progress", style="yellow", width=50)
-    
-    # Get all folders and sort them alphanumerically
-    all_folders = sorted(folder_status.keys(), key=lambda x: x.lower())
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Worker", style="cyan", width=12)
+    table.add_column("Folder", style="green", width=35, no_wrap=True)
+    table.add_column("Progress", style="yellow", width=50, no_wrap=True)
+    table.add_column("Time", style="blue", width=8)
     
     # Define status priority (lower number = higher priority)
     status_priority = {
-        "Processing": 0,  # Highest priority
-        "Waiting": 1,
-        "Completed": 2,
-        "Failed": 2
+        "Failed": 0,     # Highest priority - show at top
+        "Processing": 1, # Second priority
+        "Starting": 2,
+        "Waiting": 3,
+        "Completed": 999 # Always at the bottom
     }
     
-    # Sort folders by status priority first, then by name
+    # Sort folders by status priority first, then by queue type, then by name
     def get_folder_priority(folder_name):
-        status = folder_status.get(folder_name, "Waiting")
-        return (status_priority.get(status, 3), folder_name.lower())
-    
-    # Sort all folders by priority and name
-    sorted_folders = sorted(all_folders, key=get_folder_priority)
-    
-    for folder_name in sorted_folders:
-        worker_id = worker_assignments.get(folder_name, "Waiting")
-        status = folder_status.get(folder_name, "Waiting")
+        status = unique_folders.get(folder_name, "Waiting")
+        queue = worker_assignments.get(folder_name, "unknown")
         
-        # Create progress display
-        if status == "Completed":
-            progress = "[green]✓[/green] Completed"
+        # Define queue priority (CPU > IO > unknown)
+        queue_priority = {
+            "cpu_intensive": 0,
+            "io_intensive": 1,
+            "waiting": 2,
+            "unknown": 3
+        }
+        
+        # For processing tasks, sort by queue first
+        if status in ["Processing", "Starting"]:
+            return (1, queue_priority.get(queue, 3), folder_name.lower())
+        # For failed tasks, always at top
         elif status == "Failed":
+            return (0, folder_name.lower())
+        # For other statuses, sort by status priority
+        return (status_priority.get(status, 999), folder_name.lower())
+    
+    # Sort all folders by priority
+    sorted_folders = sorted(unique_folders.keys(), key=get_folder_priority)
+    
+    # Add rows with task numbers
+    for idx, folder_name in enumerate(sorted_folders, 1):
+        queue_name = worker_assignments.get(folder_name, "unknown")
+        status = unique_folders[folder_name]
+        
+        # Skip completed tasks that are older than 60 seconds
+        if status == "Completed":
+            if folder_name in folder_completion_times:
+                completion_time = folder_completion_times[folder_name]
+                if current_time - completion_time > 60:  # 60 seconds
+                    continue
+        
+        # Skip folders that somehow don't have a valid status
+        if not status:
+            continue
+        
+        # Calculate time spent
+        time_spent = ""
+        if status in ["Processing", "Starting"] and folder_name in folder_start_times:
+            elapsed = current_time - folder_start_times[folder_name]
+            time_spent = format_time(elapsed)
+        elif status == "Waiting" and folder_name in folder_start_times:
+            # For folders waiting for I/O, show time since original start
+            elapsed = current_time - folder_start_times[folder_name]
+            time_spent = format_time(elapsed)
+        elif status == "Completed" and f"{folder_name}_total_time" in folder_status:
+            total_time = folder_status[f"{folder_name}_total_time"]
+            time_spent = format_time(total_time)
+        
+        # Get current step if available
+        current_step = folder_status.get(f"{folder_name}_step", "")
+        if current_step:
+            # Clean up step name
+            current_step = current_step.replace("Running step: ", "").replace("Running ", "").replace("Processing ", "")
+            
+        # Add warning for long-running tasks
+        long_running_threshold = 600  # 10 minutes for warning
+        very_long_threshold = 1800  # 30 minutes for severe warning
+        if status in ["Processing", "Starting", "Waiting"] and folder_name in folder_start_times:
+            elapsed = current_time - folder_start_times[folder_name]
+            if elapsed > very_long_threshold:
+                current_step = f"{current_step} 🔥 (very long: {format_time(elapsed)})"
+            elif elapsed > long_running_threshold:
+                current_step = f"{current_step} ⚠️ (long: {format_time(elapsed)})"
+        
+        # Create progress display with appropriate colors and actual status
+        if status == "Failed":
             # Extract error message if available
             error_msg = folder_status.get(f"{folder_name}_error", "Unknown error")
-            progress = f"[red]✗[/red] Failed: {error_msg}"
-        else:
-            # Use different spinner frames for visual variety
+            progress = f"[red]✗[/red] {error_msg}"
+            row_style = "red"
+            worker_display = "[red]Failed[/red]"
+        elif status == "Completed":
+            progress = "[green]✓[/green] Completed"
+            row_style = "green"
+            worker_display = "[green]Done[/green]"
+        elif status in ["Processing", "Starting"]:
+            # Active task - show with spinner
             spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-            frame = spinner_frames[int(time.time() * 2) % len(spinner_frames)]
-            # Get current step if available
-            current_step = folder_status.get(f"{folder_name}_step", "")
+            frame = spinner_frames[int(current_time * 2) % len(spinner_frames)]
+            
             if current_step:
-                progress = f"[yellow]{frame}[/yellow] {status}: {current_step}"
+                progress = f"[yellow]{frame}[/yellow] {current_step}"
             else:
                 progress = f"[yellow]{frame}[/yellow] {status}"
+            
+            # Determine row style and worker display based on queue
+            if queue_name == "cpu_intensive":
+                row_style = "purple"
+                worker_display = "[purple]CPU[/purple]"
+            elif queue_name == "io_intensive":
+                row_style = "orange3"
+                worker_display = "[orange3]I/O[/orange3]"
+            else:
+                row_style = "yellow"
+                worker_display = "[yellow]Active[/yellow]"
+        else:  # Waiting
+            # Check if this is waiting for IO queue after CPU completion
+            if current_step and "I/O queue" in current_step:
+                progress = f"⏳ {current_step}"
+                row_style = "cyan"
+                worker_display = "[cyan]Wait I/O[/cyan]"
+            else:
+                progress = "⏳ Waiting to start..."
+                row_style = "dim"
+                worker_display = "[dim]Waiting[/dim]"
         
-        table.add_row(worker_id, folder_name, progress)
+        # Add the row with appropriate styling
+        table.add_row(
+            str(idx), 
+            worker_display, 
+            f"[{row_style}]{folder_name}[/{row_style}]", 
+            progress, 
+            f"[{row_style}]{time_spent}[/{row_style}]"
+        )
     
     return table
 
@@ -203,20 +461,171 @@ def kill_process_tree(pid):
     except psutil.NoSuchProcess:
         pass
 
+def kill_all_python_processes():
+    """Kill all Python processes except the current one"""
+    current_pid = os.getpid()
+    killed_pids = set()
+    
+    # First pass: kill processes running our scripts
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            # Skip the current process
+            if proc.pid == current_pid:
+                continue
+                
+            # Check if it's a Python process
+            if 'python' in proc.name().lower():
+                # Check if it's one of our scripts
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if any(script in cmdline for script in CPU_INTENSIVE_SCRIPTS | IO_INTENSIVE_SCRIPTS):
+                    log.info(f"Killing Python process: {proc.pid} ({cmdline})")
+                    kill_process_tree(proc.pid)
+                    killed_pids.add(proc.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    # Second pass: kill any remaining Python processes that might be related
+    # This catches processes that might have been started by our scripts
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.pid == current_pid or proc.pid in killed_pids:
+                continue
+                
+            if 'python' in proc.name().lower():
+                cmdline = ' '.join(proc.cmdline()).lower()
+                # Check for common patterns in our scripts
+                if any(pattern in cmdline for pattern in [
+                    'fichero', 'weasel', 'celery', 'worker',
+                    'process', 'crop', 'enhance', 'transcribe'
+                ]):
+                    log.info(f"Killing related Python process: {proc.pid} ({cmdline})")
+                    kill_process_tree(proc.pid)
+                    killed_pids.add(proc.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    # Wait a moment for processes to die
+    time.sleep(1)
+    
+    # Final pass: force kill any remaining Python processes that match our patterns
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.pid == current_pid or proc.pid in killed_pids:
+                continue
+                
+            if 'python' in proc.name().lower():
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if any(pattern in cmdline for pattern in [
+                    'fichero', 'weasel', 'celery', 'worker',
+                    'process', 'crop', 'enhance', 'transcribe'
+                ]):
+                    log.info(f"Force killing Python process: {proc.pid} ({cmdline})")
+                    try:
+                        proc.kill()
+                    except psutil.NoSuchProcess:
+                        pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+def kill_celery_workers():
+    """Kill all Celery worker processes"""
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            cmdline = ' '.join(proc.cmdline()).lower()
+            if 'celery' in cmdline and 'worker' in cmdline:
+                log.info(f"Killing Celery worker: {proc.pid}")
+                kill_process_tree(proc.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+def purge_celery_tasks():
+    """Purge all pending tasks from Celery queues"""
+    try:
+        from celery.app.control import Control
+        control = Control(celery_app)
+        
+        # Revoke all tracked task IDs first
+        if active_task_ids:
+            log.info(f"Revoking {len(active_task_ids)} tracked tasks...")
+            for task_id in active_task_ids:
+                celery_app.control.revoke(task_id, terminate=True)
+            active_task_ids.clear()
+        
+        # Purge all tasks from all queues
+        log.info("Purging all pending Celery tasks...")
+        celery_app.control.purge()
+        
+        # Also revoke any active tasks that might not be tracked
+        inspect = control.inspect()
+        active_tasks = inspect.active()
+        
+        if active_tasks:
+            for worker, tasks in active_tasks.items():
+                for task in tasks:
+                    task_id = task.get('id')
+                    if task_id:
+                        celery_app.control.revoke(task_id, terminate=True)
+                        log.info(f"Revoked active task {task_id}")
+        
+        # Clear scheduled tasks too
+        scheduled = inspect.scheduled()
+        if scheduled:
+            for worker, tasks in scheduled.items():
+                for task in tasks:
+                    task_id = task.get('id')
+                    if task_id:
+                        celery_app.control.revoke(task_id, terminate=True)
+                        log.info(f"Revoked scheduled task {task_id}")
+        
+        # Clear reserved tasks
+        reserved = inspect.reserved()
+        if reserved:
+            for worker, tasks in reserved.items():
+                for task in tasks:
+                    task_id = task.get('id')
+                    if task_id:
+                        celery_app.control.revoke(task_id, terminate=True)
+                        log.info(f"Revoked reserved task {task_id}")
+        
+        log.info("All Celery tasks purged and revoked")
+    except Exception as e:
+        log.error(f"Error purging Celery tasks: {e}")
+
 def signal_handler(signum, frame):
-    """Handle interrupt signals by cleaning up processes"""
-    log.info("\nReceived interrupt signal. Cleaning up processes...")
+    """Handle interrupt signals by cleaning up processes and Celery tasks"""
+    log.info("\nReceived interrupt signal. Cleaning up...")
     
-    # Kill all tracked processes
-    for pid in current_processes:
-        kill_process_tree(pid)
-    
-    # Shutdown executor
-    if executor:
-        executor.shutdown(wait=False, cancel_futures=True)
-    
-    # Force exit
-    os._exit(1)
+    try:
+        # Kill all running Python scripts first
+        kill_all_python_processes()
+        
+        # Purge all Celery tasks
+        purge_celery_tasks()
+        
+        # Kill all tracked processes
+        for pid in current_processes:
+            kill_process_tree(pid)
+        
+        # Kill Celery workers
+        kill_celery_workers()
+        
+        # Shutdown executor
+        if executor:
+            executor.shutdown(wait=False, cancel_futures=True)
+        
+        # Clear status tracking
+        worker_assignments.clear()
+        folder_status.clear()
+        folder_start_times.clear()
+        folder_completion_times.clear()
+        
+        log.info("Cleanup complete. Exiting...")
+        # Use sys.exit instead of os._exit for cleaner shutdown
+        sys.exit(0)
+    except Exception as e:
+        log.error(f"Error during cleanup: {e}")
+        # Force exit if cleanup fails
+        os._exit(1)
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -418,15 +827,16 @@ def create_project_yml(template_path: Path, target_folder: Path, output_path: Pa
     with open(template_path, 'r') as f:
         content = f.read()
     
-    # Update project_folder to use the target folder path
+    # Update project_folder to use the target folder path, properly escaped
+    target_folder_str = str(target_folder.absolute()).replace('\\', '\\\\').replace('$', '\\$')
     content = re.sub(
         r'project_folder: ".*"',
-        f'project_folder: "{target_folder.absolute()}"',  # Use absolute path
+        f'project_folder: "{target_folder_str}"',  # Use escaped absolute path
         content
     )
     
     # Update fichero_root to use absolute path to the fichero directory
-    fichero_root = Path(__file__).parent.absolute()
+    fichero_root = str(Path(__file__).parent.absolute()).replace('\\', '\\\\').replace('$', '\\$')
     content = re.sub(
         r'fichero_root: ".*"',
         f'fichero_root: "{fichero_root}"',
@@ -479,10 +889,10 @@ def parse_project_yml(project_yml_path: Path) -> Dict:
         return yaml.safe_load(f)
 
 @celery_app.task(bind=True, name='process_folder')
-def process_folder(self, folder_path: str, template_yml: str, workflow_name: str, use_weasel: bool = True) -> bool:
+def process_folder(self, folder_path: str, template_yml: str, workflow_name: str, use_weasel: bool = False, steps: List[str] = None) -> bool:
     """
     Process a single folder using either Weasel workflow or direct script execution.
-    Creates project.yml and runs the specified workflow.
+    Can process specific steps if provided, otherwise processes the entire workflow.
     """
     folder_path = Path(folder_path)
     template_yml = Path(template_yml)
@@ -491,10 +901,31 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
     # Get worker-specific logger (for file logging only)
     worker_log = get_worker_logger(folder_path)
     
+    # Initialize display_worker variable
+    display_worker = "Unknown"
+    
     try:
-        # Update task state
-        self.update_state(state='PROGRESS', meta={'status': 'Starting processing', 'step': 'Initializing'})
-        update_status(folder_name, "Processing", "Starting", "Initializing")
+        # Get current worker name
+        worker_name = self.request.hostname
+        queue_name = self.request.delivery_info.get('routing_key', 'unknown')
+        
+        # Update task state with worker info
+        self.update_state(state='PROGRESS', meta={
+            'status': 'Starting processing',
+            'step': 'Initializing',
+            'worker': worker_name,
+            'queue': queue_name
+        })
+        
+        # Determine display worker based on queue
+        if queue_name == 'cpu_intensive':
+            display_worker = "CPU"
+        elif queue_name == 'io_intensive':
+            display_worker = "I/O"
+        else:
+            display_worker = f"{worker_name} ({queue_name})"
+            
+        update_status(folder_name, display_worker, "Starting", "Initializing")
         
         # Create project.yml for this folder
         project_yml = folder_path / "project.yml"
@@ -504,11 +935,11 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
         if "qwen-max" in workflow_name:
             if not os.getenv("DASHSCOPE_API_KEY"):
                 error_msg = "DASHSCOPE_API_KEY not found in environment variables"
-                update_status(folder_name, "Failed", error_msg)
+                update_status(folder_name, display_worker, "Failed", error=error_msg)
                 raise ValueError(error_msg)
         
         # Run the workflow
-        worker_log.info("Starting processing")
+        worker_log.info(f"Starting processing on worker {worker_name} ({queue_name})")
         
         # Change to the folder directory before running
         original_dir = os.getcwd()
@@ -518,54 +949,8 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
             if use_weasel:
                 # Use Weasel to run the workflow
                 cmd = f"weasel run '{workflow_name}'"
-                update_status(folder_name, "Processing", "Running Weasel workflow", "Starting Weasel")
-            else:
-                # Parse project.yml and run scripts directly
-                project_config = parse_project_yml(project_yml)
-                workflow_steps = project_config.get('workflows', {}).get(workflow_name)
-                commands = {cmd['name']: cmd for cmd in project_config.get('commands', [])}
-                vars_dict = project_config.get('vars', {})
+                update_status(folder_name, display_worker, "Processing", "Running Weasel workflow")
                 
-                if not workflow_steps:
-                    error_msg = f"Workflow {workflow_name} not found in project.yml"
-                    update_status(folder_name, "Failed", error_msg)
-                    return False
-                
-                # Run each script in the workflow
-                for step_name in workflow_steps:
-                    # Update task state
-                    self.update_state(state='PROGRESS', meta={'status': f'Running step: {step_name}'})
-                    update_status(folder_name, "Processing", f"Running step: {step_name}")
-                    
-                    command = commands.get(step_name)
-                    if not command:
-                        error_msg = f"Command {step_name} not found in project.yml"
-                        update_status(folder_name, "Failed", error_msg)
-                        return False
-                    
-                    # Get the script command
-                    script_cmd = command.get('script', [])[0]  # Take first script command
-                    if not script_cmd:
-                        error_msg = f"No script found for command {step_name}"
-                        update_status(folder_name, "Failed", error_msg)
-                        return False
-                    
-                    # Expand variables in the script command
-                    script_cmd = expand_vars(script_cmd, vars_dict)
-                    
-                    worker_log.info(f"Running command: {step_name}")
-                    worker_log.info(f"Script command: {script_cmd}")
-                    
-                    if not run_script_directly(script_cmd, str(folder_path), worker_log):
-                        error_msg = f"Command {step_name} failed"
-                        update_status(folder_name, "Failed", error_msg)
-                        return False
-                
-                worker_log.info("Successfully completed all commands")
-                update_status(folder_name, "Completed", "All steps completed successfully")
-                return True
-
-            if use_weasel:
                 process = subprocess.Popen(
                     cmd,
                     text=True,
@@ -584,20 +969,38 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
                     # Read output line by line
                     for line in iter(process.stdout.readline, ''):
                         if line:
+                            line = line.strip()
                             # Log to file
-                            worker_log.info(line.strip())
-                            # Update task state with progress
-                            self.update_state(state='PROGRESS', meta={'status': line.strip()})
-                            update_status(folder_name, "Processing", line.strip())
+                            worker_log.info(line)
+                            
+                            # Try to extract step name from Weasel output
+                            if "Running step:" in line:
+                                step = line.split("Running step:")[-1].strip()
+                                self.update_state(state='PROGRESS', meta={
+                                    'status': f'Running step: {step}',
+                                    'step': step,
+                                    'worker': worker_name,
+                                    'queue': queue_name
+                                })
+                                update_status(folder_name, display_worker, "Processing", step)
+                            else:
+                                # Update task state with progress
+                                self.update_state(state='PROGRESS', meta={
+                                    'status': line,
+                                    'step': line,
+                                    'worker': worker_name,
+                                    'queue': queue_name
+                                })
+                                update_status(folder_name, display_worker, "Processing", line)
                     
                     process.wait()
                     if process.returncode != 0:
                         error_msg = f"Process failed with return code {process.returncode}"
-                        update_status(folder_name, "Failed", error_msg)
+                        update_status(folder_name, display_worker, "Failed", error=error_msg)
                         return False
                     else:
                         worker_log.info("Successfully completed")
-                        update_status(folder_name, "Completed", "Weasel workflow completed successfully")
+                        update_status(folder_name, "Completed", "Completed", "Task completed successfully")
                         return True
                 except KeyboardInterrupt:
                     # Kill the entire process group
@@ -607,6 +1010,63 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
                 finally:
                     # Remove from tracked processes
                     current_processes.discard(process.pid)
+            else:
+                # Parse project.yml and run scripts directly
+                project_config = parse_project_yml(project_yml)
+                workflow_steps = steps if steps else project_config.get('workflows', {}).get(workflow_name, [])
+                commands = {cmd['name']: cmd for cmd in project_config.get('commands', [])}
+                vars_dict = project_config.get('vars', {})
+                
+                if not workflow_steps:
+                    error_msg = f"Workflow {workflow_name} not found in project.yml"
+                    update_status(folder_name, display_worker, "Failed", error=error_msg)
+                    return False
+                
+                # Run each script in the workflow
+                for step_name in workflow_steps:
+                    # Get the command for this step
+                    command = commands.get(step_name)
+                    if not command:
+                        error_msg = f"Command {step_name} not found in project.yml"
+                        update_status(folder_name, display_worker, "Failed", error=error_msg)
+                        return False
+                    
+                    # Get the script command
+                    script_cmd = command.get('script', [])[0]  # Take first script command
+                    if not script_cmd:
+                        error_msg = f"No script found for command {step_name}"
+                        update_status(folder_name, display_worker, "Failed", error=error_msg)
+                        return False
+                    
+                    # Update task state
+                    self.update_state(state='PROGRESS', meta={
+                        'status': f'Running step: {step_name}',
+                        'step': step_name,
+                        'worker': worker_name,
+                        'queue': queue_name
+                    })
+                    update_status(folder_name, display_worker, "Processing", step_name)
+                    
+                    # Expand variables in the script command
+                    script_cmd = expand_vars(script_cmd, vars_dict)
+                    
+                    worker_log.info(f"Running command: {step_name}")
+                    worker_log.info(f"Script command: {script_cmd}")
+                    
+                    if not run_script_directly(script_cmd, str(folder_path), worker_log):
+                        error_msg = f"Command {step_name} failed"
+                        update_status(folder_name, display_worker, "Failed", error=error_msg)
+                        return False
+                    
+                    # Force time update after each step
+                    if folder_name in folder_start_times:
+                        start_time = folder_start_times[folder_name]
+                        del folder_start_times[folder_name]
+                        folder_start_times[folder_name] = start_time
+                
+                worker_log.info("Successfully completed all commands")
+                update_status(folder_name, "Completed", "Completed", "Task completed successfully")
+                return True
         finally:
             # Always change back to original directory
             os.chdir(original_dir)
@@ -617,7 +1077,7 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
         # Print the full traceback for debugging
         import traceback
         worker_log.error(f"Full traceback:\n{traceback.format_exc()}")
-        update_status(folder_name, "Failed", error_msg)
+        update_status(folder_name, display_worker, "Failed", error=error_msg)
         return False
 
 @cli.command()
@@ -626,22 +1086,22 @@ def process_folders(
     template_yml: Path = typer.Argument(..., help="Template project.yml file"),
     workflow_name: str = typer.Argument(..., help="Name of the Weasel workflow to run"),
     input_folder: Optional[Path] = typer.Option(None, help="Optional: Folder containing subfolders to process. If not provided, will process existing folders in output_folder"),
-    use_weasel: bool = typer.Option(True, help="Whether to use Weasel or run scripts directly")
+    use_weasel: bool = typer.Option(False, help="Whether to use Weasel or run scripts directly")
 ):
     """
-    Process multiple folders in parallel using Celery tasks.
-    Each folder will get its own project.yml and be processed independently.
+    Process folders concurrently using Celery tasks with smart scheduling.
     
-    The process happens in two phases:
-    1. Preparation: Create folder structure and copy files (if input_folder provided)
-    2. Processing: Run workflows in parallel using Celery tasks
+    Strategy:
+    1. Prioritize completing folders that have started (IO tasks for CPU-completed folders)
+    2. Keep CPU cores busy even if IO queue is backed up (within limits)
+    3. Prevent excessive backlog by limiting how far CPU can run ahead of IO
+    4. Process folders in order to maintain predictable completion
     
-    Args:
-        output_folder: Base folder for output
-        template_yml: Template project.yml file
-        workflow_name: Name of the workflow to run
-        input_folder: Optional folder containing subfolders to process. If not provided, will process existing folders in output_folder
-        use_weasel: Whether to use Weasel or run scripts directly
+    This ensures:
+    - Maximum resource utilization (no idle cores)
+    - Folders complete as fast as possible
+    - Memory usage stays reasonable (limited backlog)
+    - Long-running tasks (5+ minutes) are visually flagged
     """
     try:
         # Validate inputs
@@ -675,57 +1135,205 @@ def process_folders(
             
             log.info(f"Found {len(prepared_folders)} existing folders to process")
         
-        # Phase 2: Process folders using Celery tasks
+        # Phase 2: Process folders concurrently
         console = Console()
         
-        # Initialize status for all folders as waiting
-        for folder in prepared_folders:
-            update_status(folder.name, "Waiting", "Waiting to start...")
+        # Parse template project.yml once to get workflow info
+        template_config = parse_project_yml(template_yml)
+        workflow_steps = template_config.get('workflows', {}).get(workflow_name, [])
+        commands = {cmd['name']: cmd for cmd in template_config.get('commands', [])}
         
-        # Submit all tasks to Celery at once
-        tasks = []
+        # Initialize status for all folders
         for folder in prepared_folders:
-            task = process_folder.delay(
-                str(folder),
-                str(template_yml),
-                workflow_name,
-                use_weasel
-            )
-            tasks.append((task, folder.name))
+            folder_name = folder.name
+            update_status(folder_name, "Waiting", "Waiting to start...")
         
-        # Monitor task progress with a more efficient update strategy
+        # Separate steps into CPU and IO
+        cpu_steps = []
+        io_steps = []
+        for step_name in workflow_steps:
+            command = commands.get(step_name)
+            if command:
+                script_cmd = command.get('script', [''])[0]
+                if get_queue_for_script(script_cmd) == 'cpu_intensive':
+                    cpu_steps.append(step_name)
+                else:
+                    io_steps.append(step_name)
+        
+        # Get worker concurrency settings
+        worker_concurrency = get_worker_concurrency()
+        log.info(f"Worker concurrency settings: CPU={worker_concurrency['cpu_intensive']}, IO={worker_concurrency['io_intensive']}")
+        
+        # Process folders in batches
+        active_tasks = {}  # folder_name -> task_info
+        pending_io_tasks = {}  # folder_name -> folder (waiting for CPU to complete)
+        max_cpu_tasks = worker_concurrency['cpu_intensive']
+        max_io_tasks = worker_concurrency['io_intensive']
+        
+        # Allow CPU queue to run ahead of IO queue, but not too far
+        # This prevents excessive backlog while keeping CPU cores busy
+        # Since IO tasks are much slower, allow a larger backlog
+        max_io_backlog = max(max_io_tasks * 3, 16)  # Allow 3x IO capacity or 16 folders, whichever is larger
+        
+        # Ensure we have at least 1 worker of each type
+        max_cpu_tasks = max(max_cpu_tasks, 1)
+        max_io_tasks = max(max_io_tasks, 1)
+        
         with Live(create_status_table(), refresh_per_second=1, auto_refresh=True) as live:
-            while tasks:
-                # Check all tasks in batches
-                for task, folder_name in tasks[:]:
-                    result = AsyncResult(task.id)
+            loop_counter = 0
+            while prepared_folders or active_tasks or pending_io_tasks:
+                # Count current tasks by type
+                current_cpu_tasks = sum(1 for task in active_tasks.values() if task['queue'] == 'cpu_intensive')
+                current_io_tasks = sum(1 for task in active_tasks.values() if task['queue'] == 'io_intensive')
+                
+                # Debug logging - only log every 10 iterations to reduce spam
+                if loop_counter % 10 == 0:
+                    log.info(f"Active: CPU={current_cpu_tasks}/{max_cpu_tasks}, IO={current_io_tasks}/{max_io_tasks}, " +
+                            f"IO Backlog={len(pending_io_tasks)}/{max_io_backlog}, Remaining={len(prepared_folders)}")
+                loop_counter += 1
+                
+                # Priority 1: Submit IO tasks for folders that completed CPU processing
+                # This helps complete folders faster
+                while pending_io_tasks and current_io_tasks < max_io_tasks:
+                    # Get the oldest folder waiting for IO processing (FIFO)
+                    # This ensures folders complete in roughly the order they started
+                    folder_name = next(iter(pending_io_tasks))
+                    folder = pending_io_tasks.pop(folder_name)
+                    
+                    # Submit IO task
+                    task = process_folder.apply_async(
+                        args=[str(folder), str(template_yml), workflow_name, use_weasel],
+                        queue='io_intensive',
+                        kwargs={'steps': io_steps}
+                    )
+                    active_task_ids.add(task.id)
+                    active_tasks[folder_name] = {
+                        'task_id': task.id,
+                        'queue': 'io_intensive',
+                        'steps': io_steps,
+                        'folder': folder
+                    }
+                    current_io_tasks += 1
+                    log.info(f"Submitted IO task for {folder_name}")
+                
+                # Priority 2: Submit new CPU tasks if we have capacity
+                # Allow CPU processing to continue even if IO queue is backed up (within limits)
+                # Account for tasks that are about to complete CPU and will need IO
+                potential_io_backlog = len(pending_io_tasks) + current_cpu_tasks
+                while (prepared_folders and 
+                       current_cpu_tasks < max_cpu_tasks and 
+                       cpu_steps and
+                       potential_io_backlog < max_io_backlog):
+                    folder = prepared_folders.pop(0)
+                    folder_name = folder.name
+                    
+                    # Submit CPU task
+                    task = process_folder.apply_async(
+                        args=[str(folder), str(template_yml), workflow_name, use_weasel],
+                        queue='cpu_intensive',
+                        kwargs={'steps': cpu_steps}
+                    )
+                    active_task_ids.add(task.id)
+                    active_tasks[folder_name] = {
+                        'task_id': task.id,
+                        'queue': 'cpu_intensive',
+                        'steps': cpu_steps,
+                        'folder': folder
+                    }
+                    current_cpu_tasks += 1
+                    potential_io_backlog += 1
+                    log.info(f"Submitted CPU task for {folder_name}")
+                
+                # If no CPU steps, directly submit to IO queue
+                if not cpu_steps and prepared_folders and current_io_tasks < max_io_tasks:
+                    folder = prepared_folders.pop(0)
+                    folder_name = folder.name
+                    
+                    # Submit IO task directly
+                    task = process_folder.apply_async(
+                        args=[str(folder), str(template_yml), workflow_name, use_weasel],
+                        queue='io_intensive',
+                        kwargs={'steps': io_steps}
+                    )
+                    active_task_ids.add(task.id)
+                    active_tasks[folder_name] = {
+                        'task_id': task.id,
+                        'queue': 'io_intensive',
+                        'steps': io_steps,
+                        'folder': folder
+                    }
+                    current_io_tasks += 1
+                    log.info(f"Submitted IO task for {folder_name} (no CPU steps)")
+                
+                # Check status of active tasks
+                completed_tasks = []
+                for folder_name, task_info in active_tasks.items():
+                    result = AsyncResult(task_info['task_id'])
+                    
                     if result.ready():
                         if result.successful():
-                            update_status(folder_name, "Completed", "Task completed successfully")
+                            # If CPU steps completed and we have IO steps, queue for IO processing
+                            if task_info['queue'] == 'cpu_intensive' and io_steps:
+                                pending_io_tasks[folder_name] = task_info['folder']
+                                # Update status to show waiting for IO
+                                update_status(folder_name, "Waiting", "Waiting", "Waiting for I/O queue...")
+                                log.info(f"CPU steps completed for {folder_name}, queuing for IO")
+                            else:
+                                # Task completed successfully
+                                update_status(folder_name, "Completed", "Completed", "All steps completed successfully")
+                                log.info(f"All steps completed for {folder_name}")
+                            completed_tasks.append(folder_name)
                         else:
-                            update_status(folder_name, "Failed", f"Task failed: {result.result}")
-                        tasks.remove((task, folder_name))
+                            # Task failed
+                            error_msg = str(result.result) if result.result else "Unknown error"
+                            update_status(folder_name, "Failed", "Failed", error=error_msg)
+                            log.error(f"Task failed for {folder_name}: {error_msg}")
+                            completed_tasks.append(folder_name)
                     else:
-                        # Update status with current progress
+                        # Update progress
                         if result.state == 'PROGRESS':
-                            update_status(folder_name, "Processing", result.info.get('status', 'Processing...'))
+                            meta = result.info
+                            if isinstance(meta, dict):
+                                status = meta.get('status', 'Processing...')
+                                worker = meta.get('worker', 'Unknown')
+                                queue = meta.get('queue', task_info['queue'])
+                                step = meta.get('step', status)
+                                
+                                # Determine display based on queue
+                                if queue == 'cpu_intensive':
+                                    update_status(folder_name, "CPU", "Processing", step)
+                                elif queue == 'io_intensive':
+                                    update_status(folder_name, "I/O", "Processing", step)
+                                else:
+                                    update_status(folder_name, f"{worker} ({queue})", "Processing", step)
                 
-                # Update the display
+                # Remove completed tasks
+                for folder_name in completed_tasks:
+                    if folder_name in active_tasks:
+                        del active_tasks[folder_name]
+                
+                # Update display
                 live.update(create_status_table(), refresh=True)
-                
-                # Adaptive sleep based on number of remaining tasks
-                if len(tasks) > 10:
-                    time.sleep(0.5)  # More frequent updates when many tasks are running
-                else:
-                    time.sleep(2)  # Slower updates when fewer tasks remain
-            
-            # Final update to show completion
-            live.update(create_status_table(), refresh=True)
-            console.print("[green]All folders processed successfully![/green]")
+                time.sleep(0.5)
+        
+        console.print("[green]All folders processed successfully![/green]")
             
     except KeyboardInterrupt:
         console.print("\n[yellow]Received keyboard interrupt. Cleaning up...[/yellow]")
+        purge_celery_tasks()
         sys.exit(0)
+    except Exception as e:
+        console.print(f"\n[red]Error: {str(e)}. Cleaning up...[/red]")
+        purge_celery_tasks()
+        raise
+
+@cli.command()
+def purge_tasks():
+    """Purge all pending Celery tasks from all queues"""
+    console = Console()
+    console.print("[yellow]Purging all Celery tasks...[/yellow]")
+    purge_celery_tasks()
+    console.print("[green]All tasks purged successfully![/green]")
 
 @cli.command()
 def worker_status():
@@ -792,7 +1400,7 @@ def example():
 
     [yellow]Options:[/yellow]
     --input-folder: Optional folder containing subfolders to process
-    --use-weasel: Whether to use Weasel or run scripts directly (default: True)
+    --use-weasel: Whether to use Weasel or run scripts directly (default: False)
     """)
 
 @cli.command()
@@ -834,6 +1442,279 @@ def prepare(
         
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
+        sys.exit(1)
+
+@cli.command()
+def reset_workers(
+    cpu_workers: Optional[int] = typer.Option(None, "--cpu", "-c", help="Number of CPU workers"),
+    io_workers: Optional[int] = typer.Option(None, "--io", "-i", help="Number of IO workers")
+):
+    """Reset all Celery workers and clear all tasks"""
+    console = Console()
+    console.print("[yellow]Resetting all Celery workers...[/yellow]")
+    
+    try:
+        # Kill all Celery workers
+        kill_celery_workers()
+        
+        # Purge all tasks
+        purge_celery_tasks()
+        
+        # Kill Redis if running
+        redis_pids = []
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if 'redis-server' in cmdline and not any(x in cmdline for x in ['launchd', 'init']):
+                    log.info(f"Killing Redis server: {proc.pid}")
+                    redis_pids.append(proc.pid)
+                    kill_process_tree(proc.pid)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # Wait a moment for processes to die
+        time.sleep(2)
+        
+        # Start Redis if not running
+        redis_running = False
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if 'redis-server' in cmdline and not any(x in cmdline for x in ['launchd', 'init']):
+                    redis_running = True
+                    break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        if not redis_running:
+            console.print("[yellow]Starting Redis server...[/yellow]")
+            redis_process = subprocess.Popen(['redis-server'], 
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+            time.sleep(2)  # Give Redis time to start
+            
+            # Check if Redis started successfully
+            if redis_process.poll() is not None:
+                out, err = redis_process.communicate()
+                console.print(f"[red]Failed to start Redis: {err.decode()}[/red]")
+                sys.exit(1)
+        
+        # Start new workers
+        console.print("[yellow]Starting new workers...[/yellow]")
+        
+        # Get CPU count and detect architecture
+        cpu_count = multiprocessing.cpu_count()
+        
+        # Check if we're on an M1/M2 Mac
+        is_m1_mac = False
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            try:
+                # Check CPU brand string for Apple
+                result = subprocess.run(['sysctl', '-n', 'machdep.cpu.brand_string'], 
+                                      capture_output=True, text=True)
+                if 'Apple' in result.stdout:
+                    is_m1_mac = True
+            except:
+                pass
+        
+        # Use provided values or smart defaults
+        if cpu_workers is None:
+            if is_m1_mac:
+                # M1/M2 Mac: use half the cores (performance cores)
+                cpu_workers = max(1, cpu_count // 2)
+            else:
+                # Other systems: use half the cores
+                cpu_workers = max(1, cpu_count // 2)
+        
+        if io_workers is None:
+            # IO workers can be much higher than CPU count since they're mostly idle
+            # Base it on expected IO task duration vs CPU task duration
+            # If IO tasks take 10x longer than CPU tasks, we need more IO workers
+            if is_m1_mac:
+                # M1/M2 Mac: 2x total cores for IO workers
+                io_workers = max(4, cpu_count * 2)
+            else:
+                # Other systems: 2x total cores for IO workers
+                io_workers = max(4, cpu_count * 2)
+        
+        console.print(f"[cyan]System: {'M1/M2 Mac' if is_m1_mac else 'Standard'} with {cpu_count} cores[/cyan]")
+        console.print(f"[cyan]Starting {cpu_workers} CPU workers and {io_workers} IO workers[/cyan]")
+        
+        # Start CPU worker
+        cpu_worker_cmd = [
+            'celery', '-A', 'fichero_director', 'worker',
+            '-Q', 'cpu_intensive',
+            '-n', 'cpu_worker@%h',
+            '-c', str(cpu_workers),
+            '--loglevel=INFO',
+            '--pidfile=cpu_worker.pid',
+            '--logfile=cpu_worker.log',
+            '--detach'  # Run in background
+        ]
+        subprocess.run(cpu_worker_cmd, check=True)
+        
+        # Start IO worker
+        io_worker_cmd = [
+            'celery', '-A', 'fichero_director', 'worker',
+            '-Q', 'io_intensive',
+            '-n', 'io_worker@%h',
+            '-c', str(io_workers),
+            '--loglevel=INFO',
+            '--pidfile=io_worker.pid',
+            '--logfile=io_worker.log',
+            '--detach'  # Run in background
+        ]
+        subprocess.run(io_worker_cmd, check=True)
+        
+        # Wait for workers to start
+        console.print("[yellow]Waiting for workers to start...[/yellow]")
+        max_retries = 10
+        retry_count = 0
+        workers_ready = False
+        
+        while retry_count < max_retries and not workers_ready:
+            try:
+                # Check worker status
+                result = subprocess.run(
+                    ['celery', '-A', 'fichero_director', 'status'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                if 'cpu_worker' in result.stdout and 'io_worker' in result.stdout:
+                    workers_ready = True
+                    break
+            except subprocess.CalledProcessError:
+                pass
+            
+            retry_count += 1
+            time.sleep(2)
+        
+        if not workers_ready:
+            console.print("[red]⚠️  Workers failed to start properly[/red]")
+            sys.exit(1)
+        
+        # Verify workers are running
+        cpu_worker_running = False
+        io_worker_running = False
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if 'celery' in cmdline and 'worker' in cmdline:
+                    if 'cpu_worker' in cmdline:
+                        cpu_worker_running = True
+                    elif 'io_worker' in cmdline:
+                        io_worker_running = True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        if cpu_worker_running and io_worker_running:
+            console.print(f"[green]✓ Workers reset successfully with {cpu_workers} CPU and {io_workers} IO workers[/green]")
+        else:
+            if not cpu_worker_running:
+                console.print("[red]⚠️  CPU worker failed to start[/red]")
+            if not io_worker_running:
+                console.print("[red]⚠️  IO worker failed to start[/red]")
+            sys.exit(1)
+            
+    except Exception as e:
+        console.print(f"[red]Error resetting workers: {str(e)}[/red]")
+        sys.exit(1)
+
+@cli.command()
+def stop_workers():
+    """Stop all Celery workers and Redis server gracefully"""
+    console = Console()
+    console.print("[yellow]Stopping all workers and Redis...[/yellow]")
+    
+    try:
+        # First kill all running Python scripts
+        kill_all_python_processes()
+        
+        # Purge all Celery tasks
+        purge_celery_tasks()
+        
+        # Kill Celery workers gracefully
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if 'celery' in cmdline and 'worker' in cmdline:
+                    log.info(f"Stopping Celery worker: {proc.pid}")
+                    # Try graceful shutdown first
+                    try:
+                        proc.terminate()
+                    except psutil.NoSuchProcess:
+                        continue
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # Wait a moment for workers to shut down
+        time.sleep(2)
+        
+        # Try to purge Redis data before stopping the server
+        try:
+            console.print("[yellow]Purging Redis data...[/yellow]")
+            subprocess.run(['redis-cli', 'FLUSHALL'], check=True)
+            subprocess.run(['redis-cli', 'FLUSHDB'], check=True)
+            console.print("[green]✓ Redis data purged successfully[/green]")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            console.print(f"[yellow]⚠️  Could not purge Redis data: {str(e)}[/yellow]")
+        
+        # Kill Redis if running
+        redis_running = False
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if 'redis-server' in cmdline and not any(x in cmdline for x in ['launchd', 'init']):
+                    log.info(f"Stopping Redis server: {proc.pid}")
+                    # Try graceful shutdown first
+                    try:
+                        proc.terminate()
+                    except psutil.NoSuchProcess:
+                        continue
+                    redis_running = True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # Wait a moment for Redis to shut down
+        time.sleep(2)
+        
+        # Force kill any remaining processes
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == 1:  # Skip launchd/init process
+                    continue
+                cmdline = ' '.join(proc.cmdline()).lower()
+                if ('celery' in cmdline and 'worker' in cmdline) or 'redis-server' in cmdline:
+                    log.info(f"Force killing process: {proc.pid}")
+                    try:
+                        proc.kill()
+                    except psutil.NoSuchProcess:
+                        continue
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+        
+        # Clear status tracking
+        worker_assignments.clear()
+        folder_status.clear()
+        folder_start_times.clear()
+        folder_completion_times.clear()
+        
+        console.print("[green]✓ All workers and Redis stopped successfully[/green]")
+            
+    except Exception as e:
+        console.print(f"[red]Error stopping workers: {str(e)}[/red]")
         sys.exit(1)
 
 if __name__ == "__main__":
