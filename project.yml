@@ -16,7 +16,7 @@ vars:
   version: "0.0.0"
   
   # Project paths - these should be configured per project
-  project_folder: "/Volumes/Files 2/test"  # This will be updated by fichero_director
+  project_folder: "/Volumes/Fichero/istmina/second"  # This will be updated by fichero_director
   fichero_root: "/Users/dtubb/code/fichero_main/fichero"  # This will be updated by fichero_director
   documents_folder: "${vars.project_folder}/documents"
   assets_folder: "${vars.project_folder}/assets"

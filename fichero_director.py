@@ -22,6 +22,27 @@ import time
 import concurrent.futures
 import json
 import shlex
+import re
+from celery import Celery
+from celery.result import AsyncResult
+
+# Set up Celery
+celery_app = Celery('fichero_director',
+             broker='redis://localhost:6379/0',
+             backend='redis://localhost:6379/0')
+
+# Configure Celery
+celery_app.conf.update(
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+    task_track_started=True,
+    task_time_limit=3600,  # 1 hour timeout
+    worker_max_tasks_per_child=1,  # Restart worker after each task
+    worker_prefetch_multiplier=1,  # Process one task at a time
+)
 
 # Set up rich logging for better console output
 logging.basicConfig(
@@ -80,10 +101,15 @@ def get_worker_logger(folder_path: Path) -> logging.Logger:
     
     return logger
 
-def update_status(folder_name: str, worker_id: str, status: str):
+def update_status(folder_name: str, worker_id: str, status: str, step: str = None, error: str = None):
     """Update the status of a folder"""
     worker_assignments[folder_name] = worker_id
     folder_status[folder_name] = status
+    
+    if step:
+        folder_status[f"{folder_name}_step"] = step
+    if error:
+        folder_status[f"{folder_name}_error"] = error
     
     # Track start time when status changes to Processing
     if status == "Processing" and folder_name not in folder_start_times:
@@ -115,31 +141,48 @@ def create_status_table() -> Table:
     table.add_column("Folder", style="green", width=40, no_wrap=True)
     table.add_column("Progress", style="yellow", width=50)
     
-    # Only show folders that have been assigned a worker or are waiting
-    active_folders = set(worker_assignments.keys())
-    waiting_folders = set(folder_status.keys()) - active_folders
+    # Get all folders and sort them alphanumerically
+    all_folders = sorted(folder_status.keys(), key=lambda x: x.lower())
     
-    # Show active folders first
-    for folder_name in sorted(active_folders):
-        worker_id = worker_assignments[folder_name]
-        status = folder_status[folder_name]
+    # Define status priority (lower number = higher priority)
+    status_priority = {
+        "Processing": 0,  # Highest priority
+        "Waiting": 1,
+        "Completed": 2,
+        "Failed": 2
+    }
+    
+    # Sort folders by status priority first, then by name
+    def get_folder_priority(folder_name):
+        status = folder_status.get(folder_name, "Waiting")
+        return (status_priority.get(status, 3), folder_name.lower())
+    
+    # Sort all folders by priority and name
+    sorted_folders = sorted(all_folders, key=get_folder_priority)
+    
+    for folder_name in sorted_folders:
+        worker_id = worker_assignments.get(folder_name, "Waiting")
+        status = folder_status.get(folder_name, "Waiting")
         
         # Create progress display
         if status == "Completed":
             progress = "[green]✓[/green] Completed"
         elif status == "Failed":
-            progress = "[red]✗[/red] Failed"
+            # Extract error message if available
+            error_msg = folder_status.get(f"{folder_name}_error", "Unknown error")
+            progress = f"[red]✗[/red] Failed: {error_msg}"
         else:
             # Use different spinner frames for visual variety
             spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
             frame = spinner_frames[int(time.time() * 2) % len(spinner_frames)]
-            progress = f"[yellow]{frame}[/yellow] {status}"
+            # Get current step if available
+            current_step = folder_status.get(f"{folder_name}_step", "")
+            if current_step:
+                progress = f"[yellow]{frame}[/yellow] {status}: {current_step}"
+            else:
+                progress = f"[yellow]{frame}[/yellow] {status}"
         
         table.add_row(worker_id, folder_name, progress)
-    
-    # Show waiting folders
-    for folder_name in sorted(waiting_folders):
-        table.add_row("Waiting", folder_name, "[yellow]⠼[/yellow] Waiting to start...")
     
     return table
 
@@ -180,7 +223,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 # Initialize Typer CLI app
-app = typer.Typer()
+cli = typer.Typer()
 
 def is_apfs(path: Path) -> bool:
     """
@@ -376,16 +419,18 @@ def create_project_yml(template_path: Path, target_folder: Path, output_path: Pa
         content = f.read()
     
     # Update project_folder to use the target folder path
-    content = content.replace(
-        'project_folder: "/Volumes/Files 2/test"',
-        f'project_folder: "{target_folder.absolute()}"'  # Use absolute path
+    content = re.sub(
+        r'project_folder: ".*"',
+        f'project_folder: "{target_folder.absolute()}"',  # Use absolute path
+        content
     )
     
     # Update fichero_root to use absolute path to the fichero directory
     fichero_root = Path(__file__).parent.absolute()
-    content = content.replace(
-        'fichero_root: "/Users/dtubb/code/fichero_main/fichero"',
-        f'fichero_root: "{fichero_root}"'
+    content = re.sub(
+        r'fichero_root: ".*"',
+        f'fichero_root: "{fichero_root}"',
+        content
     )
     
     # Write the modified content
@@ -416,12 +461,15 @@ def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     
     # Create documents folder with subfolder matching input folder name
     documents_folder = output_folder / "documents" / input_folder.name
-    if not documents_folder.exists():
-        # Smart copy the input folder contents to documents subfolder
-        # This will use APFS clone on macOS if available
-        smart_copy(input_folder, documents_folder)
-    else:
-        log.info(f"Documents subfolder already exists in {output_folder}, skipping copy")
+    
+    # Skip if documents folder already exists and has content
+    if documents_folder.exists() and any(documents_folder.iterdir()):
+        log.info(f"Documents subfolder already exists in {output_folder} with content, skipping copy")
+        return output_folder
+    
+    # Smart copy the input folder contents to documents subfolder
+    # This will use APFS clone on macOS if available
+    smart_copy(input_folder, documents_folder)
     
     return output_folder
 
@@ -430,29 +478,24 @@ def parse_project_yml(project_yml_path: Path) -> Dict:
     with open(project_yml_path, 'r') as f:
         return yaml.safe_load(f)
 
-def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, use_weasel: bool = True) -> None:
+@celery_app.task(bind=True, name='process_folder')
+def process_folder(self, folder_path: str, template_yml: str, workflow_name: str, use_weasel: bool = True) -> bool:
     """
     Process a single folder using either Weasel workflow or direct script execution.
     Creates project.yml and runs the specified workflow.
-    
-    Args:
-        folder_path: Path to the folder to process
-        template_yml: Path to the template project.yml
-        workflow_name: Name of the Weasel workflow to run
-        use_weasel: Whether to use Weasel or run scripts directly
     """
-    worker_id = multiprocessing.current_process().name
+    folder_path = Path(folder_path)
+    template_yml = Path(template_yml)
     folder_name = folder_path.name
-    
-    # Extract the worker number from the process name
-    # ProcessPoolExecutor-1 -> 1
-    worker_num = worker_id.split("-")[-1] if "-" in worker_id else worker_id
-    worker_id = f"Worker {worker_num}"
     
     # Get worker-specific logger (for file logging only)
     worker_log = get_worker_logger(folder_path)
     
     try:
+        # Update task state
+        self.update_state(state='PROGRESS', meta={'status': 'Starting processing', 'step': 'Initializing'})
+        update_status(folder_name, "Processing", "Starting", "Initializing")
+        
         # Create project.yml for this folder
         project_yml = folder_path / "project.yml"
         create_project_yml(template_yml, folder_path, project_yml)
@@ -460,10 +503,9 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
         # Check for DashScope API key if using Qwen Max
         if "qwen-max" in workflow_name:
             if not os.getenv("DASHSCOPE_API_KEY"):
-                raise ValueError(
-                    "DASHSCOPE_API_KEY not found in environment variables. "
-                    "Please set it in your .env file or environment."
-                )
+                error_msg = "DASHSCOPE_API_KEY not found in environment variables"
+                update_status(folder_name, "Failed", error_msg)
+                raise ValueError(error_msg)
         
         # Run the workflow
         worker_log.info("Starting processing")
@@ -476,6 +518,7 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
             if use_weasel:
                 # Use Weasel to run the workflow
                 cmd = f"weasel run '{workflow_name}'"
+                update_status(folder_name, "Processing", "Running Weasel workflow", "Starting Weasel")
             else:
                 # Parse project.yml and run scripts directly
                 project_config = parse_project_yml(project_yml)
@@ -484,20 +527,27 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
                 vars_dict = project_config.get('vars', {})
                 
                 if not workflow_steps:
-                    worker_log.error(f"Workflow {workflow_name} not found in project.yml")
+                    error_msg = f"Workflow {workflow_name} not found in project.yml"
+                    update_status(folder_name, "Failed", error_msg)
                     return False
                 
                 # Run each script in the workflow
                 for step_name in workflow_steps:
+                    # Update task state
+                    self.update_state(state='PROGRESS', meta={'status': f'Running step: {step_name}'})
+                    update_status(folder_name, "Processing", f"Running step: {step_name}")
+                    
                     command = commands.get(step_name)
                     if not command:
-                        worker_log.error(f"Command {step_name} not found in project.yml")
+                        error_msg = f"Command {step_name} not found in project.yml"
+                        update_status(folder_name, "Failed", error_msg)
                         return False
                     
                     # Get the script command
                     script_cmd = command.get('script', [])[0]  # Take first script command
                     if not script_cmd:
-                        worker_log.error(f"No script found for command {step_name}")
+                        error_msg = f"No script found for command {step_name}"
+                        update_status(folder_name, "Failed", error_msg)
                         return False
                     
                     # Expand variables in the script command
@@ -507,10 +557,12 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
                     worker_log.info(f"Script command: {script_cmd}")
                     
                     if not run_script_directly(script_cmd, str(folder_path), worker_log):
-                        worker_log.error(f"Command {step_name} failed")
+                        error_msg = f"Command {step_name} failed"
+                        update_status(folder_name, "Failed", error_msg)
                         return False
                 
                 worker_log.info("Successfully completed all commands")
+                update_status(folder_name, "Completed", "All steps completed successfully")
                 return True
 
             if use_weasel:
@@ -534,13 +586,18 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
                         if line:
                             # Log to file
                             worker_log.info(line.strip())
+                            # Update task state with progress
+                            self.update_state(state='PROGRESS', meta={'status': line.strip()})
+                            update_status(folder_name, "Processing", line.strip())
                     
                     process.wait()
                     if process.returncode != 0:
-                        worker_log.error(f"Process failed with return code {process.returncode}")
+                        error_msg = f"Process failed with return code {process.returncode}"
+                        update_status(folder_name, "Failed", error_msg)
                         return False
                     else:
                         worker_log.info("Successfully completed")
+                        update_status(folder_name, "Completed", "Weasel workflow completed successfully")
                         return True
                 except KeyboardInterrupt:
                     # Kill the entire process group
@@ -555,39 +612,37 @@ def process_folder(folder_path: Path, template_yml: Path, workflow_name: str, us
             os.chdir(original_dir)
         
     except Exception as e:
-        worker_log.error(f"Error: {str(e)}")
+        error_msg = str(e)
+        worker_log.error(f"Error: {error_msg}")
         # Print the full traceback for debugging
         import traceback
         worker_log.error(f"Full traceback:\n{traceback.format_exc()}")
+        update_status(folder_name, "Failed", error_msg)
         return False
 
-@app.command()
+@cli.command()
 def process_folders(
     output_folder: Path = typer.Argument(..., help="Base folder for output"),
     template_yml: Path = typer.Argument(..., help="Template project.yml file"),
     workflow_name: str = typer.Argument(..., help="Name of the Weasel workflow to run"),
     input_folder: Optional[Path] = typer.Option(None, help="Optional: Folder containing subfolders to process. If not provided, will process existing folders in output_folder"),
-    num_processors: int = typer.Option(4, help="Number of parallel processors to use"),
     use_weasel: bool = typer.Option(True, help="Whether to use Weasel or run scripts directly")
 ):
     """
-    Process multiple folders in parallel using either Weasel workflows or direct script execution.
+    Process multiple folders in parallel using Celery tasks.
     Each folder will get its own project.yml and be processed independently.
     
     The process happens in two phases:
     1. Preparation: Create folder structure and copy files (if input_folder provided)
-    2. Processing: Run workflows in parallel
+    2. Processing: Run workflows in parallel using Celery tasks
     
     Args:
         output_folder: Base folder for output
         template_yml: Template project.yml file
         workflow_name: Name of the workflow to run
         input_folder: Optional folder containing subfolders to process. If not provided, will process existing folders in output_folder
-        num_processors: Number of parallel processors to use
         use_weasel: Whether to use Weasel or run scripts directly
     """
-    global executor
-    
     try:
         # Validate inputs
         if not template_yml.exists():
@@ -602,7 +657,7 @@ def process_folders(
             if not input_folder.exists():
                 raise typer.BadParameter(f"Input folder {input_folder} does not exist")
             
-            # Get list of subfolders to process and sort them
+            # Get list of subfolders to process and sort them alphanumerically
             subfolders = sorted([f for f in input_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
             if not subfolders:
                 raise typer.BadParameter(f"No subfolders found in {input_folder}")
@@ -613,132 +668,173 @@ def process_folders(
                 prepared_folder = prepare_folder(folder, output_folder)
                 prepared_folders.append(prepared_folder)
         else:
-            # Process existing folders in output_folder
+            # Process existing folders in output_folder, sorted alphanumerically
             prepared_folders = sorted([f for f in output_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
             if not prepared_folders:
                 raise typer.BadParameter(f"No folders found in {output_folder}")
             
             log.info(f"Found {len(prepared_folders)} existing folders to process")
         
-        # Phase 2: Process folders in parallel
+        # Phase 2: Process folders using Celery tasks
         console = Console()
         
         # Initialize status for all folders as waiting
         for folder in prepared_folders:
             update_status(folder.name, "Waiting", "Waiting to start...")
         
-        with Live(create_status_table(), refresh_per_second=2, auto_refresh=True) as live:
-            # Use ProcessPoolExecutor with max_workers to control parallelism
-            executor = ProcessPoolExecutor(max_workers=num_processors)
-            try:
-                # Submit tasks and track them
-                futures = []
-                available_workers = set(f"Worker {i}" for i in range(1, num_processors + 1))
-                worker_assignments = {}  # future -> worker_id
+        # Submit all tasks to Celery at once
+        tasks = []
+        for folder in prepared_folders:
+            task = process_folder.delay(
+                str(folder),
+                str(template_yml),
+                workflow_name,
+                use_weasel
+            )
+            tasks.append((task, folder.name))
+        
+        # Monitor task progress with a more efficient update strategy
+        with Live(create_status_table(), refresh_per_second=1, auto_refresh=True) as live:
+            while tasks:
+                # Check all tasks in batches
+                for task, folder_name in tasks[:]:
+                    result = AsyncResult(task.id)
+                    if result.ready():
+                        if result.successful():
+                            update_status(folder_name, "Completed", "Task completed successfully")
+                        else:
+                            update_status(folder_name, "Failed", f"Task failed: {result.result}")
+                        tasks.remove((task, folder_name))
+                    else:
+                        # Update status with current progress
+                        if result.state == 'PROGRESS':
+                            update_status(folder_name, "Processing", result.info.get('status', 'Processing...'))
                 
-                # Submit tasks and assign workers
-                for folder in prepared_folders:
-                    # Wait for a worker to become available if none are free
-                    while not available_workers:
-                        # Check for completed futures
-                        done, _ = concurrent.futures.wait(
-                            [f for f, _ in futures],
-                            return_when=concurrent.futures.FIRST_COMPLETED,
-                            timeout=0.1
-                        )
-                        
-                        # Process completed futures
-                        for future in done:
-                            # Find the folder name and worker for this future
-                            folder_name = next(name for f, name in futures if f == future)
-                            worker_id = worker_assignments[future]
-                            futures.remove((future, folder_name))
-                            
-                            try:
-                                # Get result
-                                success = future.result()
-                                
-                                # Update status based on result
-                                if success:
-                                    update_status(folder_name, worker_id, "Completed")
-                                else:
-                                    update_status(folder_name, worker_id, "Failed")
-                                live.update(create_status_table(), refresh=True)
-                                
-                                # Return worker to available pool
-                                available_workers.add(worker_id)
-                                
-                            except Exception as e:
-                                # Update status to Failed
-                                update_status(folder_name, worker_id, "Failed")
-                                live.update(create_status_table(), refresh=True)
-                                available_workers.add(worker_id)
-                        
-                        # Update the table even if no futures completed
-                        live.update(create_status_table(), refresh=True)
-                    
-                    # Get next available worker
-                    worker_id = available_workers.pop()
-                    
-                    # Submit the task
-                    future = executor.submit(process_folder, folder, template_yml, workflow_name, use_weasel)
-                    futures.append((future, folder.name))
-                    worker_assignments[future] = worker_id
-                    
-                    # Update status to Processing immediately
-                    update_status(folder.name, worker_id, "Processing")
-                    live.update(create_status_table(), refresh=True)
-                
-                # Process remaining futures
-                while futures:
-                    # Get the next future that completes
-                    done, pending = concurrent.futures.wait(
-                        [f for f, _ in futures],
-                        return_when=concurrent.futures.FIRST_COMPLETED,
-                        timeout=0.1
-                    )
-                    
-                    for future in done:
-                        # Find the folder name and worker for this future
-                        folder_name = next(name for f, name in futures if f == future)
-                        worker_id = worker_assignments[future]
-                        futures.remove((future, folder_name))
-                        
-                        try:
-                            # Get result
-                            success = future.result()
-                            
-                            # Update status based on result
-                            if success:
-                                update_status(folder_name, worker_id, "Completed")
-                            else:
-                                update_status(folder_name, worker_id, "Failed")
-                            live.update(create_status_table(), refresh=True)
-                            
-                            # Return worker to available pool
-                            available_workers.add(worker_id)
-                            
-                        except Exception as e:
-                            # Update status to Failed
-                            update_status(folder_name, worker_id, "Failed")
-                            live.update(create_status_table(), refresh=True)
-                            available_workers.add(worker_id)
-                    
-                    # Update the table even if no futures completed
-                    live.update(create_status_table(), refresh=True)
-                
-                # Final update to show completion
+                # Update the display
                 live.update(create_status_table(), refresh=True)
-                console.print("[green]All folders processed successfully![/green]")
-            finally:
-                executor.shutdown(wait=True)
-                executor = None
+                
+                # Adaptive sleep based on number of remaining tasks
+                if len(tasks) > 10:
+                    time.sleep(0.5)  # More frequent updates when many tasks are running
+                else:
+                    time.sleep(2)  # Slower updates when fewer tasks remain
+            
+            # Final update to show completion
+            live.update(create_status_table(), refresh=True)
+            console.print("[green]All folders processed successfully![/green]")
+            
     except KeyboardInterrupt:
         console.print("\n[yellow]Received keyboard interrupt. Cleaning up...[/yellow]")
-        if executor:
-            executor.shutdown(wait=False, cancel_futures=True)
-            executor = None
         sys.exit(0)
 
+@cli.command()
+def worker_status():
+    """Check the status of Celery workers"""
+    from celery.app.control import Control
+    control = Control(celery_app)
+    
+    # Get active workers
+    active = control.inspect().active()
+    # Get registered workers
+    registered = control.inspect().registered()
+    # Get stats
+    stats = control.inspect().stats()
+    
+    if not stats:
+        print("No workers found")
+        return
+    
+    console = Console()
+    table = Table(title="Worker Status")
+    table.add_column("Worker", style="cyan")
+    table.add_column("Status", style="green")
+    table.add_column("Active Tasks", style="yellow")
+    table.add_column("Processed", style="magenta")
+    
+    for worker, info in stats.items():
+        # Get active tasks for this worker
+        active_tasks = len(active.get(worker, [])) if active else 0
+        # Get processed tasks count
+        processed = info.get('total', {}).get('processed', 0)
+        # Get worker status
+        status = "Active" if active_tasks > 0 else "Idle"
+        
+        table.add_row(
+            worker,
+            status,
+            str(active_tasks),
+            str(processed)
+        )
+    
+    console.print(table)
+
+@cli.command()
+def example():
+    """Show example usage of the process-folders command"""
+    console = Console()
+    console.print("\n[bold cyan]Example Usage:[/bold cyan]")
+    console.print("""
+    [yellow]Basic usage:[/yellow]
+    python fichero_director.py process-folders /Volumes/Fichero/output /path/to/template.yml my_workflow
+
+    [yellow]With all options:[/yellow]
+    python fichero_director.py process-folders \\
+        /Volumes/Fichero/output \\
+        /path/to/template.yml \\
+        my_workflow \\
+        --input-folder /Volumes/Fichero/input \\
+        --use-weasel
+
+    [yellow]Arguments:[/yellow]
+    - OUTPUT_FOLDER: Base folder for output (required)
+    - TEMPLATE_YML: Template project.yml file (required)
+    - WORKFLOW_NAME: Name of the workflow to run (required)
+
+    [yellow]Options:[/yellow]
+    --input-folder: Optional folder containing subfolders to process
+    --use-weasel: Whether to use Weasel or run scripts directly (default: True)
+    """)
+
+@cli.command()
+def prepare(
+    output_folder: Path = typer.Argument(..., help="Base folder for output"),
+    input_folder: Path = typer.Argument(..., help="Folder containing subfolders to prepare"),
+):
+    """
+    Prepare folders for processing by creating the required structure and copying files.
+    This is the first phase of the process, which:
+    1. Creates output folder structure
+    2. Creates assets folder
+    3. Creates documents folder with subfolder matching input folder name
+    4. Copies input files to documents subfolder
+    """
+    try:
+        # Validate inputs
+        if not input_folder.exists():
+            raise typer.BadParameter(f"Input folder {input_folder} does not exist")
+        
+        # Create output base folder
+        output_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Get list of subfolders to process and sort them
+        subfolders = sorted([f for f in input_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
+        if not subfolders:
+            raise typer.BadParameter(f"No subfolders found in {input_folder}")
+        
+        console = Console()
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Preparing folders...", total=len(subfolders))
+            
+            for folder in subfolders:
+                progress.update(task, description=f"[cyan]Preparing {folder.name}...")
+                prepared_folder = prepare_folder(folder, output_folder)
+                progress.advance(task)
+        
+        console.print(f"[green]Successfully prepared {len(subfolders)} folders in {output_folder}[/green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+        sys.exit(1)
+
 if __name__ == "__main__":
-    app() 
+    cli() 
