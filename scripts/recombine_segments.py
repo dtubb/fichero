@@ -94,8 +94,8 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         text_files = []
         missing_segments = 0
         for segment_path in sorted(segment_files, key=lambda x: numerical_sort(Path(x).stem)):
-            # Use SegmentHandler to get the correct path
-            full_path = input_folder / "documents" / segment_path
+            # Use SegmentHandler to resolve segment file paths properly
+            full_path = SegmentHandler.resolve_segment_file_path(input_folder, segment_path)
             console.print(f"[blue]Looking for segment file: {full_path}")
             if full_path.exists():
                 text_files.append(full_path)

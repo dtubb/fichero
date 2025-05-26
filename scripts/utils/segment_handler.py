@@ -90,15 +90,16 @@ class SegmentHandler:
     def get_segment_paths(source_path: Path) -> Dict:
         """
         Get segment folder and file paths.
-        Returns paths relative to the documents folder.
+        Returns paths relative to the documents folder (without assets/segments/documents/ prefix).
         """
         # Get relative path first
         rel_path = get_relative_path(source_path)
         
+        # Create segments folder path relative to documents folder
         if source_path.suffix:  # If it's a file
-            segments_folder = source_path.parent / f"{source_path.stem}_segments"
+            segments_folder = rel_path.parent / f"{source_path.stem}_segments"
         else:  # If it's a directory
-            segments_folder = source_path / f"{source_path.name}_segments"
+            segments_folder = rel_path.parent / f"{source_path.name}_segments"
             
         return {
             "segments_folder": segments_folder,
@@ -112,6 +113,14 @@ class SegmentHandler:
         Uses shorter format: segment_XXX.jpg where XXX is the zero-padded index.
         """
         return f"segment_{segment_index:03d}.jpg"
+
+    @staticmethod
+    def resolve_segment_file_path(base_folder: Path, segment_relative_path: str) -> Path:
+        """
+        Resolve a segment file path from base folder and relative path.
+        Handles the assets/segments/documents/ structure properly.
+        """
+        return base_folder / "assets" / "segments" / "documents" / segment_relative_path
 
     @staticmethod
     def is_processing(folder: Path) -> bool:

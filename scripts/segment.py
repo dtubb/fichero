@@ -27,7 +27,7 @@ console = Console()
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
-def deskew_image(pil_img: Image.Image, confidence_threshold=0.7) -> tuple[Image.Image, float]:
+def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.Image, float]:
     """
     Improved deskewing that uses multiple methods and prevents content cutoff.
     Returns (deskewed_image, confidence_score)
@@ -36,12 +36,14 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.7) -> tuple[Image.
     
     # Method 1: Try text baseline detection first (most accurate for text documents)
     baseline_angle = get_text_baseline_angle(pil_img)
-    baseline_confidence = 0.8 if abs(baseline_angle) > 0.1 else 0.0
+    # More conservative confidence based on actual angle magnitude and consistency
+    baseline_confidence = min(0.7, abs(baseline_angle) * 0.2) if abs(baseline_angle) > 0.2 else 0.0
     
     # Method 2: Get angle from Hough lines (similar to rotate.py)
     cv_img = np.array(pil_img.convert('L'))
     hough_angle = get_hough_angle(cv_img)
-    hough_confidence = 0.9 if abs(hough_angle) > 0.1 else 0.0
+    # Lower confidence for Hough method as it can be noisy
+    hough_confidence = min(0.6, abs(hough_angle) * 0.15) if abs(hough_angle) > 0.2 else 0.0
     
     # Method 3: Get angle from largest contour
     _, thresh = cv2.threshold(cv_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -51,7 +53,7 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.7) -> tuple[Image.
     contour_confidence = 0.0
     if contours:
         # Filter out very small contours that might be noise
-        significant_contours = [c for c in contours if cv2.contourArea(c) > 100]
+        significant_contours = [c for c in contours if cv2.contourArea(c) > 500]  # Increased threshold
         if significant_contours:
             largest_contour = max(significant_contours, key=cv2.contourArea)
             rot_rect = cv2.minAreaRect(largest_contour)
@@ -63,48 +65,63 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.7) -> tuple[Image.
             elif contour_angle > 45:
                 contour_angle = contour_angle - 90
             
-            if abs(contour_angle) > 0.1:
-                contour_confidence = 0.6  # Lower confidence for contour method
+            # Even lower confidence for contour method
+            contour_confidence = min(0.4, abs(contour_angle) * 0.1) if abs(contour_angle) > 0.3 else 0.0
     
-    # Calculate weighted average based on confidence
-    total_confidence = baseline_confidence + hough_confidence + contour_confidence
-    
-    if total_confidence < confidence_threshold:
-        # Low confidence - don't rotate
-        logging.info("Low confidence in rotation detection, skipping deskew")
-        return original_img, 0.0
-    
-    # Weighted average of angles
-    final_angle = (
-        (baseline_angle * baseline_confidence + 
-         hough_angle * hough_confidence + 
-         contour_angle * contour_confidence) / total_confidence
-    )
-    
-    # Check if angles agree (within 1 degree)
+    # Collect angles and confidences for analysis
     angles_with_confidence = []
     if baseline_confidence > 0:
-        angles_with_confidence.append(baseline_angle)
+        angles_with_confidence.append((baseline_angle, baseline_confidence))
     if hough_confidence > 0:
-        angles_with_confidence.append(hough_angle)
+        angles_with_confidence.append((hough_angle, hough_confidence))
     if contour_confidence > 0:
-        angles_with_confidence.append(contour_angle)
+        angles_with_confidence.append((contour_angle, contour_confidence))
     
-    if len(angles_with_confidence) > 1:
-        angle_variance = np.var(angles_with_confidence)
-        if angle_variance > 1.0:  # Angles disagree significantly
-            logging.info(f"Rotation methods disagree (variance: {angle_variance:.2f}), using conservative approach")
-            final_angle = final_angle * 0.5  # Reduce rotation amount
-            total_confidence *= 0.5
+    if not angles_with_confidence:
+        logging.info("No reliable rotation angles detected, skipping deskew")
+        return original_img, 0.0
+    
+    # Check agreement between methods
+    angles_only = [angle for angle, _ in angles_with_confidence]
+    if len(angles_only) > 1:
+        angle_variance = np.var(angles_only)
+        max_diff = max(angles_only) - min(angles_only)
+        
+        # If methods disagree significantly, be very conservative
+        if angle_variance > 0.5 or max_diff > 1.5:
+            logging.info(f"Rotation methods disagree significantly (variance: {angle_variance:.2f}, max_diff: {max_diff:.2f})")
+            # Only proceed if we have very strong evidence
+            if max([conf for _, conf in angles_with_confidence]) < 0.6:
+                logging.info("Insufficient confidence with disagreement, skipping rotation")
+                return original_img, 0.0
+            # Reduce all confidences
+            angles_with_confidence = [(angle, conf * 0.3) for angle, conf in angles_with_confidence]
+    
+    # Calculate weighted average
+    total_confidence = sum(conf for _, conf in angles_with_confidence)
+    if total_confidence < confidence_threshold:
+        logging.info(f"Total confidence {total_confidence:.2f} below threshold {confidence_threshold}, skipping deskew")
+        return original_img, 0.0
+    
+    final_angle = sum(angle * conf for angle, conf in angles_with_confidence) / total_confidence
     
     logging.info(f"Rotation angle: {final_angle:.2f}° (confidence: {total_confidence:.2f})")
+    logging.info(f"Individual angles: baseline={baseline_angle:.2f}°({baseline_confidence:.2f}), "
+                f"hough={hough_angle:.2f}°({hough_confidence:.2f}), "
+                f"contour={contour_angle:.2f}°({contour_confidence:.2f})")
     
-    # Don't rotate if angle is too small or confidence too low
-    if abs(final_angle) < 0.1 or total_confidence < confidence_threshold:
+    # Much more conservative angle limits
+    if abs(final_angle) < 0.2:  # Increased minimum threshold
+        logging.info("Angle too small, skipping rotation")
         return original_img, total_confidence
     
-    # Limit rotation to reasonable range
-    final_angle = max(min(final_angle, 3.0), -3.0)  # More conservative limit
+    # Limit rotation to very conservative range
+    final_angle = max(min(final_angle, 2.0), -2.0)  # Reduced from 3.0 to 2.0
+    
+    # Additional safety check: if angle is small but we're still rotating, reduce it further
+    if abs(final_angle) < 1.0:
+        final_angle *= 0.7  # Reduce small angles even more
+        logging.info(f"Applied small angle reduction, final angle: {final_angle:.2f}°")
     
     # Rotate with expansion to prevent cutoff
     # Calculate expansion needed
@@ -139,7 +156,13 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.7) -> tuple[Image.
         h = min(rotated.height - y, h + 2 * padding)
         rotated = rotated.crop((x, y, x + w, y + h))
     
-    return rotated, total_confidence
+    # Validate that rotation actually improved the image
+    if validate_rotation(original_img, rotated):
+        logging.info("Rotation validation passed - keeping rotated image")
+        return rotated, total_confidence
+    else:
+        logging.info("Rotation validation failed - keeping original image")
+        return original_img, 0.0
 
 def get_hough_angle(cv_img: np.ndarray) -> float:
     """
@@ -150,44 +173,70 @@ def get_hough_angle(cv_img: np.ndarray) -> float:
         # Apply Gaussian blur to reduce noise
         blurred = cv2.GaussianBlur(cv_img, (5, 5), 0)
         
-        # Edge detection with Canny
-        edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
+        # Edge detection with Canny - more conservative parameters
+        edges = cv2.Canny(blurred, 30, 100, apertureSize=3)  # Reduced thresholds
         
         # Use HoughLinesP for more control (similar to rotate.py)
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, 
-                               minLineLength=100, maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=80,  # Reduced threshold
+                               minLineLength=150, maxLineGap=15)  # Increased minLineLength
         
         if lines is None:
             return 0.0
         
         angles = []
+        line_lengths = []
+        
         for line in lines:
             x1, y1, x2, y2 = line[0]
-            # Calculate angle in degrees
+            
+            # Calculate line length and angle
+            length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
             angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-            # Focus on near-horizontal lines (within ±15 degrees)
-            if -15 <= angle <= 15:
+            
+            # Only consider longer lines (more reliable)
+            if length < 100:
+                continue
+                
+            # Focus on near-horizontal lines (within ±10 degrees) - more restrictive
+            if -10 <= angle <= 10:
                 angles.append(angle)
+                line_lengths.append(length)
             # Also check for lines near 90 degrees (vertical text)
-            elif 75 <= abs(angle) <= 105:
+            elif 80 <= abs(angle) <= 100:
                 # Convert to equivalent horizontal angle
                 if angle > 0:
                     angles.append(angle - 90)
                 else:
                     angles.append(angle + 90)
+                line_lengths.append(length)
         
-        if len(angles) < 3:  # Need at least 3 lines for confidence
+        if len(angles) < 5:  # Need more lines for confidence
             return 0.0
         
-        # Use median to reduce outlier influence
-        median_angle = np.median(angles)
+        # Weight angles by line length (longer lines are more reliable)
+        if line_lengths:
+            weights = np.array(line_lengths)
+            weights = weights / np.sum(weights)  # Normalize weights
+            weighted_angle = np.average(angles, weights=weights)
+        else:
+            weighted_angle = np.median(angles)
         
         # Only return angle if we have good consensus
         angle_std = np.std(angles)
-        if angle_std > 2.0:  # High variance means low confidence
+        if angle_std > 1.5:  # Reduced variance threshold
             return 0.0
-            
-        return median_angle if abs(median_angle) < 5.0 else 0.0
+        
+        # Additional check: remove outliers and recalculate
+        if len(angles) > 7:
+            # Remove angles that are more than 1.5 std devs from median
+            median_angle = np.median(angles)
+            filtered_angles = [a for a in angles if abs(a - median_angle) < 1.5 * angle_std]
+            if len(filtered_angles) >= 5:
+                weighted_angle = np.median(filtered_angles)
+                angle_std = np.std(filtered_angles)
+        
+        # Final validation
+        return weighted_angle if abs(weighted_angle) < 3.0 and angle_std < 1.0 else 0.0
         
     except Exception as e:
         logging.warning(f"Error in Hough angle detection: {e}")
@@ -211,14 +260,19 @@ def get_text_baseline_angle(img: Image.Image) -> float:
         
         # Group text by lines based on vertical proximity
         line_groups = []
-        line_threshold = 20  # pixels
+        line_threshold = 25  # Increased threshold for more robust grouping
         
+        # Only consider text with higher confidence
         for i in range(len(data['level'])):
-            if data['conf'][i] > 30 and data['text'][i].strip():
+            if data['conf'][i] > 50 and data['text'][i].strip() and len(data['text'][i].strip()) > 2:  # Higher confidence and longer text
                 x = data['left'][i]
                 y = data['top'][i] + data['height'][i] / 2
                 w = data['width'][i]
                 h = data['height'][i]
+                
+                # Skip very small text boxes (likely noise)
+                if w < 20 or h < 10:
+                    continue
                 
                 # Find which line group this belongs to
                 added = False
@@ -235,55 +289,101 @@ def get_text_baseline_angle(img: Image.Image) -> float:
                         'y_mean': y
                     })
         
-        # Calculate angle for each line with at least 3 words
+        # Calculate angle for each line with sufficient words
         angles = []
+        line_qualities = []  # Track quality of each line fit
+        
         for group in line_groups:
-            if len(group['points']) >= 3:
+            if len(group['points']) >= 4:  # Increased minimum points requirement
                 points = sorted(group['points'], key=lambda p: p[0])  # Sort by x
                 x_coords, y_coords = zip(*points)
                 
+                # Calculate line span (wider lines are more reliable)
+                line_span = max(x_coords) - min(x_coords)
+                if line_span < 200:  # Skip short lines
+                    continue
+                
                 # Use RANSAC-like approach for robust line fitting
-                if len(points) >= 5:
+                if len(points) >= 6:
                     # Try multiple subsets and find consensus
                     subset_angles = []
-                    for _ in range(min(10, len(points))):
+                    for _ in range(min(15, len(points))):  # More iterations
                         # Random subset of points
-                        indices = np.random.choice(len(points), size=min(4, len(points)), replace=False)
+                        indices = np.random.choice(len(points), size=min(5, len(points)), replace=False)
                         subset_x = [x_coords[i] for i in indices]
                         subset_y = [y_coords[i] for i in indices]
                         
-                        coeffs = np.polyfit(subset_x, subset_y, deg=1)
-                        angle = np.degrees(np.arctan(coeffs[0]))
-                        subset_angles.append(angle)
+                        try:
+                            coeffs = np.polyfit(subset_x, subset_y, deg=1)
+                            angle = np.degrees(np.arctan(coeffs[0]))
+                            if abs(angle) < 8.0:  # More restrictive angle range
+                                subset_angles.append(angle)
+                        except:
+                            continue
                     
-                    # Use median of subset angles
-                    angle = np.median(subset_angles)
+                    if len(subset_angles) >= 3:
+                        # Use median of subset angles
+                        angle = np.median(subset_angles)
+                        # Calculate quality based on consistency
+                        angle_std = np.std(subset_angles)
+                        quality = max(0, 1.0 - angle_std / 2.0) * (line_span / 1000.0)  # Weight by span
+                    else:
+                        continue
                 else:
                     # Direct fit for smaller groups
-                    coeffs = np.polyfit(x_coords, y_coords, deg=1)
-                    angle = np.degrees(np.arctan(coeffs[0]))
+                    try:
+                        coeffs = np.polyfit(x_coords, y_coords, deg=1)
+                        angle = np.degrees(np.arctan(coeffs[0]))
+                        # Calculate R-squared for quality assessment
+                        y_pred = np.polyval(coeffs, x_coords)
+                        ss_res = np.sum((y_coords - y_pred) ** 2)
+                        ss_tot = np.sum((y_coords - np.mean(y_coords)) ** 2)
+                        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+                        quality = r_squared * (line_span / 1000.0)
+                    except:
+                        continue
                 
-                if abs(angle) < 10.0:  # Reasonable angle range
+                if abs(angle) < 6.0 and quality > 0.1:  # More restrictive
                     angles.append(angle)
+                    line_qualities.append(quality)
         
-        if not angles:
+        if len(angles) < 2:  # Need at least 2 good lines
             return 0.0
         
-        # Remove outliers using IQR method
+        # Remove outliers using IQR method, but be more aggressive
         if len(angles) > 3:
             q1 = np.percentile(angles, 25)
             q3 = np.percentile(angles, 75)
             iqr = q3 - q1
-            lower_bound = q1 - 1.5 * iqr
-            upper_bound = q3 + 1.5 * iqr
-            angles = [a for a in angles if lower_bound <= a <= upper_bound]
+            lower_bound = q1 - 1.0 * iqr  # More aggressive outlier removal
+            upper_bound = q3 + 1.0 * iqr
+            
+            filtered_data = [(angle, quality) for angle, quality in zip(angles, line_qualities) 
+                           if lower_bound <= angle <= upper_bound]
+            
+            if filtered_data:
+                angles, line_qualities = zip(*filtered_data)
+            else:
+                return 0.0
         
         if not angles:
             return 0.0
         
-        # Return median angle, capped to reasonable range
-        median_angle = np.median(angles)
-        return max(min(median_angle, 5.0), -5.0)
+        # Weight by line quality
+        if line_qualities:
+            weights = np.array(line_qualities)
+            weights = weights / np.sum(weights)
+            final_angle = np.average(angles, weights=weights)
+        else:
+            final_angle = np.median(angles)
+        
+        # Final consistency check
+        angle_std = np.std(angles)
+        if angle_std > 1.0:  # Require good consistency
+            return 0.0
+        
+        # Return median angle, capped to very conservative range
+        return max(min(final_angle, 3.0), -3.0)  # Reduced from 5.0 to 3.0
         
     except Exception as e:
         logging.warning(f"Error in baseline angle detection: {e}")
@@ -657,6 +757,33 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     
     return segments
 
+def validate_rotation(original_img: Image.Image, rotated_img: Image.Image) -> bool:
+    """
+    Validate if rotation actually improved the image by comparing text detection quality.
+    Returns True if rotation should be kept, False if original is better.
+    """
+    try:
+        # Quick OCR confidence comparison
+        original_data = pytesseract.image_to_data(original_img, output_type=pytesseract.Output.DICT)
+        rotated_data = pytesseract.image_to_data(rotated_img, output_type=pytesseract.Output.DICT)
+        
+        # Calculate average confidence for text with reasonable confidence
+        def get_avg_confidence(data):
+            confidences = [data['conf'][i] for i in range(len(data['conf'])) 
+                          if data['conf'][i] > 0 and data['text'][i].strip()]
+            return np.mean(confidences) if confidences else 0
+        
+        original_conf = get_avg_confidence(original_data)
+        rotated_conf = get_avg_confidence(rotated_data)
+        
+        # Only keep rotation if it significantly improves confidence
+        improvement_threshold = 5.0  # Require at least 5 point improvement
+        return rotated_conf > original_conf + improvement_threshold
+        
+    except Exception as e:
+        logging.warning(f"Error in rotation validation: {e}")
+        return False  # Default to not rotating if validation fails
+
 def process_image(file_path: Path, out_path: Path) -> dict:
     """Process a single image file for segmentation"""
     try:
@@ -674,32 +801,30 @@ def process_image(file_path: Path, out_path: Path) -> dict:
         segments = adaptive_segment_image(image)
         logger.info(f"Created {len(segments)} segments for {rel_path}")
         
-        # Get segment paths using SegmentHandler
-        segment_paths = SegmentHandler.get_segment_paths(file_path)
-        segments_folder = segment_paths["segments_folder"]
+        # Follow the same pattern as crop.py, enhance.py, remove_background.py
+        # Create segments folder under the output path
+        segments_folder_name = f"{file_path.stem}_segments"
+        segments_dir = out_path.parent / segments_folder_name
+        segments_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created segments directory: {segments_dir}")
         
-        # Create the full segments directory path
-        full_segments_dir = out_path / segments_folder
-        full_segments_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created segments directory: {full_segments_dir}")
-        
-        segment_paths = []
         segment_info = []
+        segment_paths_list = []
         
         # Process and save segments
         for i, segment_data in enumerate(segments):
             roi = segment_data["image"]
             # Use SegmentHandler for consistent segment naming
             segment_name = SegmentHandler.make_segment_name(file_path.stem, i + 1)
-            out_segment_path = full_segments_dir / segment_name
+            out_segment_path = segments_dir / segment_name
             
             # Save as JPG with high quality
             roi.save(out_segment_path, "JPEG", quality=95, optimize=True, subsampling=0)
             logger.info(f"Saved segment {i+1}/{len(segments)}: {segment_name}")
             
-            # Create relative path for segment
-            segment_rel_path = segments_folder / segment_name
-            segment_paths.append(str(segment_rel_path))
+            # Follow the same pattern as crop.py - get relative path of the saved file
+            segment_rel_path = SegmentHandler.get_relative_path(out_segment_path)
+            segment_paths_list.append(str(segment_rel_path))
             segment_info.append({
                 "index": i,
                 "file_path": str(segment_rel_path),
@@ -711,7 +836,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
         
         logger.info(f"Completed processing {rel_path}")
         return {
-            "outputs": segment_paths,
+            "outputs": segment_paths_list,
             "source": str(rel_path),
             "parent_image": str(rel_path),
             "details": {

@@ -234,21 +234,8 @@ def transcribe_batch(
             for doc in batch:
                 path = Path(doc["path"])
                 
-                # Ensure consistent path handling with documents/ prefix
-                if self.base_folder:
-                    if 'documents' in str(self.base_folder):
-                        full_path = self.base_folder / path
-                    else:
-                        full_path = self.base_folder / 'documents' / path
-                else:
-                    if 'documents' in path.parts:
-                        full_path = path
-                    else:
-                        full_path = Path('documents') / path
-
-                # Ensure extension is preserved
-                if path.suffix:
-                    full_path = full_path.with_suffix(path.suffix)
+                # Use SegmentHandler to resolve segment file paths properly
+                full_path = SegmentHandler.resolve_segment_file_path(self.base_folder, str(path))
                 
                 # Create output path
                 parts = path.parts

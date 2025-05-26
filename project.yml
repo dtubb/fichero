@@ -30,7 +30,7 @@ vars:
   split_format: "jpg"  # Options: "png", "jxl", "jpg"
   rotate_format: "jpg"  # Options: "png", "jxl", "jpg"
   enhance_format: "jpg"  # Options: "png", "jxl", "jpg"
-  background_removed_format: "jxl"  # Options: "png" (with transparency), "jxl" (with transparency and better compression), "jpg" (white background, most compatible)
+  background_removed_format: "png"  # Options: "png" (with transparency), "jxl" (with transparency and better compression), "jpg" (white background, most compatible)
 
   # metadata
   documents_manifest_folder: "${vars.assets_folder}/manifests"
