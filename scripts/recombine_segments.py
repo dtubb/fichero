@@ -63,6 +63,23 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         source_path = Path(file_path)
         console.print(f"[blue]Initial source_path: {source_path}")
         
+        # Create output directory and subdirectories using SegmentHandler
+        output_path = output_folder / "documents" / source_path.parent / source_path.name
+        output_path = output_path.with_suffix('.txt')
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Skip if already exists and return proper manifest entry
+        if output_path.exists():
+            rel_path = SegmentHandler.get_relative_path(source_path)
+            output_rel_path = SegmentHandler.get_relative_path(output_path)
+            return {
+                "source": str(rel_path.with_suffix('.txt')),
+                "bg_removed": bg_mapping.get(str(rel_path)),
+                "outputs": [str(output_rel_path)],
+                "skipped": True,
+                "success": True
+            }
+        
         # Get corresponding segments
         segment_files = segments_mapping.get(str(source_path), [])
         console.print(f"[blue]Found {len(segment_files)} segments for {source_path}")

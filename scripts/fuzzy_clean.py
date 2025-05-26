@@ -4,6 +4,8 @@ from rich.console import Console
 import re
 from utils.batch import BatchProcessor
 from utils.processor import process_file
+from utils.segment_handler import SegmentHandler
+from utils.files import ensure_dirs
 import json
 
 console = Console()
@@ -435,13 +437,9 @@ class TextCleaner:
 def process_document(file_path: str, output_folder: Path) -> dict:
     """Process a single document file"""
     try:
-        # Convert to Path and normalize
+        # Use SegmentHandler for consistent path handling
         source_path = Path(file_path)
-        
-        # Get relative path from documents/
-        rel_path = source_path
-        if 'documents' in source_path.parts:
-            rel_path = Path(*source_path.parts[source_path.parts.index('documents')+1:])
+        rel_path = SegmentHandler.get_relative_path(source_path)
         
         # Look for input .txt file
         input_path = source_path.with_suffix('.txt')
@@ -451,6 +449,19 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             
         if not input_path.exists():
             raise FileNotFoundError(f"Input file not found: {input_path}")
+            
+        # Use relative path for output
+        out_path = output_folder / "documents" / rel_path.with_suffix('.txt')
+        ensure_dirs(out_path)
+        
+        # Skip if already exists and return proper manifest entry
+        if out_path.exists():
+            return {
+                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+                "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
+                "skipped": True,
+                "success": True
+            }
             
         # Read input text
         try:
@@ -467,10 +478,6 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         
         # Clean the text
         cleaned_text = TextCleaner.clean_text(text)
-        
-        # Use relative path for output
-        out_path = output_folder / "documents" / rel_path.with_suffix('.txt')
-        out_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Write cleaned text
         out_path.write_text(cleaned_text)
@@ -528,7 +535,7 @@ def fuzzy_clean(
         input_manifest=recombined_manifest,
         output_folder=transcriptions_folder,
         process_name="transcription",
-        processor_fn=lambda f, o: process_document(f, o),
+        processor_fn=process_document,  # Use process_document directly
         base_folder=recombined_folder,
         use_source=True  # Use source path from manifest since we're processing MD files
     )

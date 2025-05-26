@@ -25,6 +25,7 @@ import shlex
 import re
 from celery import Celery
 from celery.result import AsyncResult
+import tempfile
 
 # Set up Celery
 celery_app = Celery('fichero_director',
@@ -104,9 +105,10 @@ log = logging.getLogger("fichero_director")
 
 # Global executor for cleanup
 executor = None
-current_processes = set()
+current_processes = set()  # Track processes started by this instance
+instance_pid = os.getpid()  # Track this instance's PID
 # Track worker assignments and status
-worker_assignments = {}  # folder_name -> worker_id
+worker_assignments = {}
 folder_status = {}      # folder_name -> status
 folder_start_times = {} # folder_name -> start_time
 folder_completion_times = {} # folder_name -> completion_time
@@ -115,13 +117,29 @@ active_task_ids = set()  # Track all submitted task IDs for cleanup
 # Define CPU-intensive and I/O-intensive scripts
 CPU_INTENSIVE_SCRIPTS = {
     'crop.py', 'enhance.py', 'remove_background.py', 'rotate.py', 'segment.py',
-    'split.py'  # Image processing
+    'split.py', 'build_documents_manifest.py'  # Image processing and initial setup
 }
 
 IO_INTENSIVE_SCRIPTS = {
     'fuzzy_clean.py', 'llm_catalogue.py', 'llm_process.py', 'recombine_segments.py',
     'transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py',
-    'convert_to_word.py', 'build_documents_manifest.py'  # File I/O and API calls
+    'convert_to_word.py'  # File I/O and API calls
+}
+
+# Define script dependencies
+SCRIPT_DEPENDENCIES = {
+    'enhance.py': ['crop.py'],
+    'segment.py': ['enhance.py'],
+    'split.py': ['segment.py'],
+    'transcribe_qwen_max.py': ['split.py'],
+    'transcribe_lmstudio.py': ['split.py'],
+    'transcribe_qwen_2b.py': ['split.py'],
+    'transcribe_qwen_7b.py': ['split.py'],
+    'recombine_segments.py': ['transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py'],
+    'llm_catalogue.py': ['recombine_segments.py'],
+    'llm_process.py': ['llm_catalogue.py'],
+    'fuzzy_clean.py': ['llm_process.py'],
+    'convert_to_word.py': ['fuzzy_clean.py']
 }
 
 def get_queue_for_script(script_name: str) -> str:
@@ -592,28 +610,33 @@ def purge_celery_tasks():
         log.error(f"Error purging Celery tasks: {e}")
 
 def signal_handler(signum, frame):
-    """Handle interrupt signals by cleaning up processes and Celery tasks"""
-    log.info("\nReceived interrupt signal. Cleaning up...")
+    """Handle interrupt signals by cleaning up only processes started by this instance"""
+    log.info("\nReceived interrupt signal. Cleaning up processes started by this instance...")
     
     try:
-        # Kill all running Python scripts first
-        kill_all_python_processes()
-        
-        # Purge all Celery tasks
-        purge_celery_tasks()
-        
-        # Kill all tracked processes
+        # Only kill Python processes started by this instance
         for pid in current_processes:
-            kill_process_tree(pid)
+            try:
+                proc = psutil.Process(pid)
+                # Verify this is a process we started
+                if proc.ppid() == instance_pid or pid in current_processes:
+                    log.info(f"Killing process started by this instance: {pid}")
+                    kill_process_tree(pid)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
         
-        # Kill Celery workers
-        kill_celery_workers()
+        # Only purge tasks submitted by this instance
+        if active_task_ids:
+            log.info(f"Revoking {len(active_task_ids)} tracked tasks...")
+            for task_id in active_task_ids:
+                celery_app.control.revoke(task_id, terminate=True)
+            active_task_ids.clear()
         
-        # Shutdown executor
+        # Shutdown executor if it exists
         if executor:
             executor.shutdown(wait=False, cancel_futures=True)
         
-        # Clear status tracking
+        # Clear status tracking for this instance
         worker_assignments.clear()
         folder_status.clear()
         folder_start_times.clear()
@@ -667,6 +690,7 @@ def smart_copy(src: Path, dst: Path) -> None:
     """
     Copy files using the most efficient method available.
     On macOS with APFS, uses fast cloning if on same volume. Otherwise falls back to regular copy.
+    Only copies the contents of the source directory, not the directory itself.
     
     Args:
         src: Source path to copy from
@@ -708,25 +732,42 @@ def smart_copy(src: Path, dst: Path) -> None:
     # Only use APFS clone if on same volume and it's APFS
     if same_volume and is_apfs(dst.parent):
         try:
-            result = subprocess.run(
-                ["cp", "-Rc", str(src), str(dst)],  # Added -R for recursive cloning
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                log.info(f"Completed APFS clone of {src.name}")
-            else:
-                log.error(f"APFS clone failed with error: {result.stderr}")
-                raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+            # Create a temporary directory for the clone
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                # Clone to temp directory first
+                result = subprocess.run(
+                    ["cp", "-Rc", str(src), str(temp_path)],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    # Move contents from temp to destination
+                    for item in temp_path.iterdir():
+                        shutil.move(str(item), str(dst))
+                    log.info(f"Completed APFS clone of {src.name}")
+                else:
+                    log.error(f"APFS clone failed with error: {result.stderr}")
+                    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
         except subprocess.CalledProcessError as e:
             # Fallback to regular copy if clone fails
             log.info(f"APFS clone failed, falling back to regular copy for {src.name}")
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+            # Copy contents directly
+            for item in src.iterdir():
+                if item.is_file():
+                    shutil.copy2(str(item), str(dst))
+                else:
+                    shutil.copytree(str(item), str(dst / item.name), dirs_exist_ok=True)
             log.info(f"Completed regular copy of {src.name}")
     else:
         # Regular copy for cross-volume or non-APFS
         log.info(f"Using regular copy for {src.name} (cross-volume or non-APFS)")
-        shutil.copytree(src, dst, dirs_exist_ok=True)
+        # Copy contents directly
+        for item in src.iterdir():
+            if item.is_file():
+                shutil.copy2(str(item), str(dst))
+            else:
+                shutil.copytree(str(item), str(dst / item.name), dirs_exist_ok=True)
         log.info(f"Completed regular copy of {src.name}")
 
 def get_python_path() -> str:
@@ -817,35 +858,46 @@ def create_project_yml(template_path: Path, target_folder: Path, output_path: Pa
     """
     Create a new project.yml file for a specific folder.
     Just copies the template and updates the project_folder path.
-    
-    Args:
-        template_path: Path to the template project.yml
-        target_folder: The folder this project.yml is for
-        output_path: Where to save the new project.yml
     """
-    # Read the template file
-    with open(template_path, 'r') as f:
-        content = f.read()
+    log.info(f"Starting create_project_yml with:")
+    log.info(f"  template_path: {template_path}")
+    log.info(f"  target_folder: {target_folder}")
+    log.info(f"  output_path: {output_path}")
     
-    # Update project_folder to use the target folder path, properly escaped
-    target_folder_str = str(target_folder.absolute()).replace('\\', '\\\\').replace('$', '\\$')
-    content = re.sub(
-        r'project_folder: ".*"',
-        f'project_folder: "{target_folder_str}"',  # Use escaped absolute path
-        content
-    )
-    
-    # Update fichero_root to use absolute path to the fichero directory
-    fichero_root = str(Path(__file__).parent.absolute()).replace('\\', '\\\\').replace('$', '\\$')
-    content = re.sub(
-        r'fichero_root: ".*"',
-        f'fichero_root: "{fichero_root}"',
-        content
-    )
-    
-    # Write the modified content
-    with open(output_path, 'w') as f:
-        f.write(content)
+    try:
+        # Read the template file
+        log.info("Reading template file...")
+        with open(template_path, 'r') as f:
+            content = f.read()
+        log.info("Template file read successfully")
+        
+        # Update project_folder to use the target folder path, properly escaped
+        target_folder_str = str(target_folder.absolute()).replace('\\', '\\\\').replace('$', '\\$')
+        log.info(f"Updating project_folder to: {target_folder_str}")
+        content = re.sub(
+            r'project_folder: ".*"',
+            f'project_folder: "{target_folder_str}"',  # Use escaped absolute path
+            content
+        )
+        
+        # Update fichero_root to use absolute path to the fichero directory
+        fichero_root = str(Path(__file__).parent.absolute()).replace('\\', '\\\\').replace('$', '\\$')
+        log.info(f"Updating fichero_root to: {fichero_root}")
+        content = re.sub(
+            r'fichero_root: ".*"',
+            f'fichero_root: "{fichero_root}"',
+            content
+        )
+        
+        # Write the modified content
+        log.info(f"Writing project.yml to: {output_path}")
+        with open(output_path, 'w') as f:
+            f.write(content)
+        log.info("Project.yml written successfully")
+    except Exception as e:
+        log.error(f"Error creating project.yml: {str(e)}")
+        log.error(f"Full traceback:\n{traceback.format_exc()}")
+        raise
 
 def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     """
@@ -869,17 +921,22 @@ def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     assets_folder = output_folder / "assets"
     assets_folder.mkdir(exist_ok=True)
     
-    # Create documents folder with subfolder matching input folder name
-    documents_folder = output_folder / "documents" / input_folder.name
+    # Create documents folder
+    documents_folder = output_folder / "documents"
+    documents_folder.mkdir(exist_ok=True)
     
-    # Skip if documents folder already exists and has content
-    if documents_folder.exists() and any(documents_folder.iterdir()):
+    # Create subfolder in documents matching input folder name
+    documents_subfolder = documents_folder / input_folder.name
+    documents_subfolder.mkdir(exist_ok=True)
+    
+    # Skip if documents subfolder already exists and has content
+    if documents_subfolder.exists() and any(documents_subfolder.iterdir()):
         log.info(f"Documents subfolder already exists in {output_folder} with content, skipping copy")
         return output_folder
     
     # Smart copy the input folder contents to documents subfolder
     # This will use APFS clone on macOS if available
-    smart_copy(input_folder, documents_folder)
+    smart_copy(input_folder, documents_subfolder)
     
     return output_folder
 
@@ -929,7 +986,15 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
         
         # Create project.yml for this folder
         project_yml = folder_path / "project.yml"
+        log.info(f"Creating project.yml at {project_yml}")
+        log.info(f"Using template from {template_yml}")
+        log.info(f"Template exists: {template_yml.exists()}")
+        log.info(f"Folder path exists: {folder_path.exists()}")
+        log.info(f"Folder path is writable: {os.access(folder_path, os.W_OK)}")
+        
         create_project_yml(template_yml, folder_path, project_yml)
+        log.info(f"Project.yml created at {project_yml}")
+        log.info(f"Project.yml exists after creation: {project_yml.exists()}")
         
         # Check for DashScope API key if using Qwen Max
         if "qwen-max" in workflow_name:
@@ -1080,6 +1145,130 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
         update_status(folder_name, display_worker, "Failed", error=error_msg)
         return False
 
+def ensure_workers_running():
+    """Ensure Redis and Celery workers are running, start them if not"""
+    console = Console()
+    
+    # Check if Redis is running
+    redis_running = False
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.pid == 1:  # Skip launchd/init process
+                continue
+            cmdline = ' '.join(proc.cmdline()).lower()
+            if 'redis-server' in cmdline and not any(x in cmdline for x in ['launchd', 'init']):
+                redis_running = True
+                break
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    
+    # Start Redis if not running
+    if not redis_running:
+        console.print("[yellow]Starting Redis server...[/yellow]")
+        redis_process = subprocess.Popen(['redis-server'], 
+                       stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE)
+        time.sleep(2)  # Give Redis time to start
+        
+        # Check if Redis started successfully
+        if redis_process.poll() is not None:
+            out, err = redis_process.communicate()
+            console.print(f"[red]Failed to start Redis: {err.decode()}[/red]")
+            raise RuntimeError("Failed to start Redis server")
+    
+    # Check if Celery workers are running
+    workers_running = False
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.pid == 1:  # Skip launchd/init process
+                continue
+            cmdline = ' '.join(proc.cmdline()).lower()
+            if 'celery' in cmdline and 'worker' in cmdline:
+                workers_running = True
+                break
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    
+    # Start workers if not running
+    if not workers_running:
+        console.print("[yellow]Starting Celery workers...[/yellow]")
+        
+        # Get CPU count and detect architecture
+        cpu_count = multiprocessing.cpu_count()
+        
+        # Check if we're on an M1/M2 Mac
+        is_m1_mac = False
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            try:
+                result = subprocess.run(['sysctl', '-n', 'machdep.cpu.brand_string'], 
+                                      capture_output=True, text=True)
+                if 'Apple' in result.stdout:
+                    is_m1_mac = True
+            except:
+                pass
+        
+        # Calculate worker counts
+        if is_m1_mac:
+            cpu_workers = max(1, cpu_count // 2)
+            io_workers = max(4, cpu_count * 2)
+        else:
+            cpu_workers = max(1, cpu_count // 2)
+            io_workers = max(4, cpu_count * 2)
+        
+        # Start CPU worker
+        cpu_worker_cmd = [
+            'celery', '-A', 'fichero_director', 'worker',
+            '-Q', 'cpu_intensive',
+            '-n', 'cpu_worker@%h',
+            '-c', str(cpu_workers),
+            '--loglevel=INFO',
+            '--pidfile=cpu_worker.pid',
+            '--logfile=cpu_worker.log',
+            '--detach'  # Run in background
+        ]
+        subprocess.run(cpu_worker_cmd, check=True)
+        
+        # Start IO worker
+        io_worker_cmd = [
+            'celery', '-A', 'fichero_director', 'worker',
+            '-Q', 'io_intensive',
+            '-n', 'io_worker@%h',
+            '-c', str(io_workers),
+            '--loglevel=INFO',
+            '--pidfile=io_worker.pid',
+            '--logfile=io_worker.log',
+            '--detach'  # Run in background
+        ]
+        subprocess.run(io_worker_cmd, check=True)
+        
+        # Wait for workers to start
+        console.print("[yellow]Waiting for workers to start...[/yellow]")
+        max_retries = 10
+        retry_count = 0
+        workers_ready = False
+        
+        while retry_count < max_retries and not workers_ready:
+            try:
+                # Check worker status
+                result = subprocess.run(
+                    ['celery', '-A', 'fichero_director', 'status'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                if 'cpu_worker' in result.stdout and 'io_worker' in result.stdout:
+                    workers_ready = True
+                    break
+            except subprocess.CalledProcessError:
+                pass
+            
+            retry_count += 1
+            time.sleep(2)
+        
+        if not workers_ready:
+            console.print("[red]⚠️  Workers failed to start properly[/red]")
+            raise RuntimeError("Failed to start Celery workers")
+
 @cli.command()
 def process_folders(
     output_folder: Path = typer.Argument(..., help="Base folder for output"),
@@ -1103,12 +1292,16 @@ def process_folders(
     - Memory usage stays reasonable (limited backlog)
     - Long-running tasks (5+ minutes) are visually flagged
     """
+    console = Console()  # Initialize console at the start
     try:
+        # Ensure Redis and Celery workers are running
+        ensure_workers_running()
+        
         # Validate inputs
         if not template_yml.exists():
             raise typer.BadParameter(f"Template file {template_yml} does not exist")
         
-        # Create output base folder
+        # Create output base folder if it doesn't exist
         output_folder.mkdir(parents=True, exist_ok=True)
         
         # Get list of folders to process
@@ -1131,7 +1324,7 @@ def process_folders(
             # Process existing folders in output_folder, sorted alphanumerically
             prepared_folders = sorted([f for f in output_folder.iterdir() if f.is_dir()], key=lambda x: x.name.lower())
             if not prepared_folders:
-                raise typer.BadParameter(f"No folders found in {output_folder}")
+                raise typer.BadParameter(f"No folders found in {output_folder}. Please use --input-folder to specify input folders to process.")
             
             log.info(f"Found {len(prepared_folders)} existing folders to process")
         
@@ -1416,6 +1609,7 @@ def prepare(
     3. Creates documents folder with subfolder matching input folder name
     4. Copies input files to documents subfolder
     """
+    console = Console()
     try:
         # Validate inputs
         if not input_folder.exists():
@@ -1429,7 +1623,6 @@ def prepare(
         if not subfolders:
             raise typer.BadParameter(f"No subfolders found in {input_folder}")
         
-        console = Console()
         with Progress() as progress:
             task = progress.add_task("[cyan]Preparing folders...", total=len(subfolders))
             

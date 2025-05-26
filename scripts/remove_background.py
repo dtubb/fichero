@@ -4,9 +4,19 @@ from pathlib import Path
 import numpy as np
 import cv2
 from typing import Literal
+import subprocess
+import shutil
+import os
+from rich.console import Console
+import logging
 
 from utils.batch import BatchProcessor
 from utils.processor import process_file
+from utils.segment_handler import SegmentHandler
+from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+
+console = Console()
+logger = logging.getLogger(__name__)
 
 class BlackBackgroundRemoverMulti:
     """
@@ -189,75 +199,112 @@ def remove_background_from_image(image: Image.Image) -> tuple[Image.Image, dict]
     return out_pil, {"analysis": analysis_params}
 
 
-def process_image(file_path: Path, out_path: Path) -> dict:
+def check_cjxl_installed():
+    """Check if cjxl (JPEG XL encoder) is installed."""
+    return shutil.which('cjxl') is not None
+
+def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
     """
-    Process a single image file with the multi-object black background approach, then crop.
+    Save image as JPEG XL format using cjxl.
+    Returns True if successful, False otherwise.
     """
-    img = Image.open(file_path)
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
+    try:
+        # Save as temporary PNG first
+        temp_png = output_path.with_suffix('.temp.png')
+        image.save(temp_png, "PNG")
+        
+        # Convert to JXL using cjxl
+        cmd = ['cjxl', str(temp_png), str(output_path), '-e', str(effort), '-d', '0']  # -d 0 for lossless
+        process = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Clean up temp file
+        if temp_png.exists():
+            temp_png.unlink()
+        
+        if process.returncode != 0:
+            print(f"Warning: cjxl conversion failed: {process.stderr}")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"Warning: Failed to save as JXL: {str(e)}")
+        return False
 
-    bg_removed, params = remove_background_from_image(img)
-
-    # Get source folder structure from input path
-    source_dir = Path(*file_path.parts[file_path.parts.index('documents')+1:])
+def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -> dict:
+    """Process a single image file for background removal"""
+    # Use SegmentHandler for path handling
+    rel_path = SegmentHandler.get_relative_path(file_path)
     
-    # Save as PNG and ensure .png extension
-    out_path = out_path.with_suffix('.png')
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    bg_removed.save(out_path, "PNG", optimize=True, compress_level=9)  # Optimize PNG with maximum compression
+    try:
+        # Load image using the format utility
+        image, metadata = load_image(file_path)
+    except Exception as e:
+        logger.error(f"Failed to load image {file_path.name}: {e}")
+        return {"success": False, "error": f"Failed to load image: {e}"}
     
-    # Ensure output path in manifest also has .png extension
-    rel_path = source_dir.with_suffix('.png')
-
+    # Remove background and get parameters
+    bg_removed, params = remove_background_from_image(image)
+    
+    # Save the result using the format utility
+    final_path, actual_format = save_image(bg_removed, out_path, output_format)
+    
     details = {
-        "original_size": list(img.size),
+        "original_size": list(image.size),
         "bg_removed_size": list(bg_removed.size),
-        "bg_removal_params": params
+        "bg_removal_params": params,
+        "output_format": actual_format,
+        "input_metadata": metadata,
+        "file_size": os.path.getsize(final_path) if final_path.exists() else 0
     }
+    
+    # Get the relative path for the output file
+    output_rel_path = SegmentHandler.get_relative_path(final_path)
+    
     return {
-        "outputs": [str(rel_path)],
+        "outputs": [str(output_rel_path)],
+        "source": str(rel_path),
         "details": details
     }
 
-
-def process_document(file_path: str, output_folder: Path) -> dict:
-    """
-    Uses your existing `process_file` from utils.processor.
-    """
+def process_document(file_path: str, output_folder: Path, output_format: str = 'png') -> dict:
+    """Process a single document file"""
     file_path = Path(file_path)
-
+    
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o)
-
+        return process_image(Path(f), o, output_format)
+    
+    # Get supported extensions and create file_types dict
+    file_types = {ext: process_fn for ext in get_supported_extensions_list()}
+    
     return process_file(
         file_path=str(file_path),
         output_folder=output_folder,
         process_fn=process_fn,
-        file_types={
-            '.jpg': process_fn,
-            '.jpeg': process_fn,
-            '.tif': process_fn,
-            '.tiff': process_fn,
-            '.png': process_fn
-        }
+        file_types=file_types
     )
 
-
 def remove_background(
-    rotated_folder: Path = typer.Argument(..., help="Folder with input images"),
-    rotated_manifest: Path = typer.Argument(..., help="Manifest file"),
-    bgremoved_folder: Path = typer.Argument(..., help="Output folder")
+    source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
+    source_manifest: Path = typer.Argument(..., help="Manifest file"),
+    output_folder: Path = typer.Argument(..., help="Output folder for background removed images"),
+    output_format: str = typer.Option("png", "--format", "-f", 
+                                     help="Output format: png (with transparency), jxl (with transparency), or jpg (white background)",
+                                     callback=validate_format)
 ):
     """
     CLI for multi-object black/dark background removal with bounding box crop.
+    
+    Supports output formats:
+    - png: PNG with transparency (default)
+    - jxl: JPEG XL with transparency (requires cjxl installed)
+    - jpg: JPEG with white background
     """
     processor = BatchProcessor(
-        input_manifest=rotated_manifest,
-        output_folder=bgremoved_folder,
-        process_name="remove_multi_obj_black_bg",
-        base_folder=rotated_folder / "documents",
-        processor_fn=lambda f, o: process_document(f, o)
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="background_removed",
+        base_folder=source_folder,  # Paths in manifest already include documents/
+        processor_fn=lambda f, o: process_document(f, o, output_format)
     )
     processor.process()
 

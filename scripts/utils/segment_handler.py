@@ -5,7 +5,10 @@ import shutil
 import os
 import json
 import tempfile
-from rich.console import Console  # Add this import
+from rich.console import Console
+from .image_format import check_cjxl_installed, save_as_jxl, load_image
+from .files import get_relative_path, ensure_dirs
+import subprocess
 
 console = Console()
 
@@ -31,7 +34,7 @@ class SegmentHandler:
 
     @staticmethod
     def load_segment(segment_path: Union[str, Path], base_folder: Path = None) -> Image.Image:
-        """Load a segment image with proper path resolution"""
+        """Load a segment image with proper path resolution, including JXL support"""
         try:
             if base_folder:
                 full_path = base_folder / Path(segment_path)
@@ -40,11 +43,10 @@ class SegmentHandler:
                 
             if not full_path.exists():
                 raise FileNotFoundError(f"Segment not found: {full_path}")
-                
-            img = Image.open(full_path)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            return img
+            
+            # Use load_image to handle various formats
+            image, metadata = load_image(full_path)
+            return image
             
         except Exception as e:
             raise Exception(f"Error loading segment {segment_path}: {str(e)}")
@@ -57,17 +59,15 @@ class SegmentHandler:
     ) -> Dict:
         """Save segment output and return manifest entry"""
         out_path = out_path.with_suffix(extension)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Ensure parent directory exists
+        ensure_dirs(out_path)
         
         with open(out_path, 'w', encoding='utf-8') as f:
             f.write(output)
             
-        # Get relative path from documents/ onwards
-        parts = out_path.parts
-        if 'documents' in parts:
-            rel_path = Path(*parts[parts.index('documents')+1:])
-        else:
-            rel_path = out_path.name
+        # Get relative path
+        rel_path = get_relative_path(out_path)
             
         return {
             "outputs": [str(rel_path)],
@@ -75,38 +75,39 @@ class SegmentHandler:
         }
 
     @staticmethod
+    def get_relative_path(file_path: Path) -> Path:
+        """
+        Get relative path from documents/ onwards.
+        Always returns a relative path, removing any absolute path components.
+        """
+        return get_relative_path(file_path)
+
+    @staticmethod
     def get_segment_paths(source_path: Path) -> Dict:
-        """Get segment folder and file paths"""
+        """
+        Get segment folder and file paths.
+        Returns paths relative to the documents folder.
+        """
+        # Get relative path first
+        rel_path = get_relative_path(source_path)
+        
         if source_path.suffix:  # If it's a file
             segments_folder = source_path.parent / f"{source_path.stem}_segments"
         else:  # If it's a directory
             segments_folder = source_path / f"{source_path.name}_segments"
             
-        # Get parent path without documents prefix
-        parts = source_path.parts
-        if 'documents' in parts:
-            parent_path = Path(*parts[parts.index('documents')+1:])
-        else:
-            parent_path = source_path
-            
         return {
             "segments_folder": segments_folder,
-            "parent_path": parent_path
+            "parent_path": rel_path
         }
-
-    @staticmethod
-    def get_relative_path(file_path: Path) -> Path:
-        """Get relative path from documents onwards"""
-        parts = file_path.parts
-        if 'documents' in parts:
-            return Path(*parts[parts.index('documents')+1:])
-        return file_path
 
     @staticmethod 
     def make_segment_name(base_name: str, segment_index: int) -> str:
-        """Create standardized segment filename"""
-        stem = Path(base_name).stem
-        return f"{stem}_segment_{segment_index}.jpg"
+        """
+        Create standardized segment filename.
+        Uses shorter format: segment_XXX.jpg where XXX is the zero-padded index.
+        """
+        return f"segment_{segment_index:03d}.jpg"
 
     @staticmethod
     def is_processing(folder: Path) -> bool:
@@ -118,7 +119,7 @@ class SegmentHandler:
     def start_processing(folder: Path) -> None:
         """Mark folder as being processed"""
         # Ensure folder exists before creating lock file
-        folder.mkdir(parents=True, exist_ok=True)
+        ensure_dirs(folder)
         lock_file = folder / ".processing"
         lock_file.touch()
 
@@ -150,7 +151,7 @@ class SegmentHandler:
         """Process a folder with safety checks"""
         try:
             # Create folder first
-            folder.mkdir(parents=True, exist_ok=True)
+            ensure_dirs(folder)
 
             # If already complete and not processing, skip
             if SegmentHandler.is_complete(folder):

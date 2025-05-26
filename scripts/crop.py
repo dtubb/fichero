@@ -3,17 +3,20 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 import cv2
-from pdf2image import convert_from_path
 from datetime import datetime
 import logging
 from typing import Dict, Any, Optional, Tuple
 import os
 import json
 import yaml
-from utils.batch import BatchProcessor
-from utils.processor import process_file
 from rich.console import Console
 from PIL import ExifTags
+
+from utils.batch import BatchProcessor
+from utils.processor import process_file
+from utils.segment_handler import SegmentHandler
+from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+from utils.files import ensure_dirs
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
@@ -43,7 +46,8 @@ def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
     }
     
     try:
-        image = Image.open(image_path)
+        # Use load_image to handle various formats
+        image, metadata = load_image(image_path)
         width, height = image.size
         details["original_dimensions"] = {"width": width, "height": height}
         
@@ -105,8 +109,8 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         # Get true orientation and required rotation
         true_orientation, rotation_angle, orientation_details = get_image_orientation(image_path)
         
-        # Read original image and convert to PIL
-        original_pil = Image.open(image_path)
+        # Load image using the format utility
+        original_pil, metadata = load_image(image_path)
         orig_width, orig_height = original_pil.size
         
         # Apply rotation if needed
@@ -187,7 +191,8 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
             "method": "yolo",
             "padding": padding,
             "original_size": [orig_width, orig_height],
-            "cropped_size": [x2 - x1, y2 - y1]
+            "cropped_size": [x2 - x1, y2 - y1],
+            "orientation": orientation_details
         }
             
         return result, crop_info
@@ -198,13 +203,12 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
 def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
     """Try to detect document using contour detection"""
     try:
-        # Read image
-        img = cv2.imread(str(image_path))
-        if img is None:
-            return None
-            
+        # Load image using the format utility
+        image, metadata = load_image(image_path)
+        img_array = np.array(image)
+        
         # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         
         # Apply threshold
         _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
@@ -223,40 +227,38 @@ def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
         padding = 30
         x = max(0, x - padding)
         y = max(0, y - padding)
-        w = min(img.shape[1] - x, w + padding)
-        h = min(img.shape[0] - y, h + padding)
+        w = min(img_array.shape[1] - x, w + padding)
+        h = min(img_array.shape[0] - y, h + padding)
         
         # Crop the image
-        cropped = img[y:y+h, x:x+w]
+        cropped = img_array[y:y+h, x:x+w]
         
         # Convert to PIL Image
-        return Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
+        return Image.fromarray(cropped)
     except Exception as e:
         logger.warning(f"Contour detection failed: {e}")
         return None
 
-def process_image(file_path: Path, out_path: Path) -> dict:
+def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
     """Process a single image file"""
-    # Get source folder structure from input path
-    source_dir = Path(file_path).parts[1:]  # Skip the first part (documents)
+    # Use SegmentHandler for path handling
+    rel_path = SegmentHandler.get_relative_path(file_path)
     
-    # Verify file exists and is readable
+    # Verify file exists
     if not file_path.exists():
         logger.error(f"File does not exist: {file_path}")
         return {"success": False, "error": "File not found"}
     
     try:
-        # Try to open the image to verify it's readable
-        with Image.open(file_path) as img:
-            logger.debug(f"Successfully opened image: {file_path.name} (format: {img.format})")
+        # Load image using the format utility
+        image, metadata = load_image(file_path)
     except Exception as e:
-        logger.error(f"Failed to open image {file_path.name}: {e}")
-        return {"success": False, "error": f"Failed to open image: {e}"}
+        logger.error(f"Failed to load image {file_path.name}: {e}")
+        return {"success": False, "error": f"Failed to load image: {e}"}
     
     attempts = []
     
     # Try YOLO with original confidence threshold
-    logger.debug(f"Attempting YOLO detection with confidence 0.35 for {file_path.name}")
     result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.35)
     attempts.append({
         "method": "yolo",
@@ -266,7 +268,6 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # If YOLO fails, try with lower confidence
     if not result:
-        logger.debug(f"Attempting YOLO detection with confidence 0.15 for {file_path.name}")
         result = crop_with_yolo(file_path, out_path.parent, conf_threshold=0.15)
         attempts.append({
             "method": "yolo",
@@ -276,7 +277,6 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     
     # If YOLO still fails, try contour detection
     if not result:
-        logger.debug(f"Attempting contour detection for {file_path.name}")
         result = detect_with_contours(file_path)
         attempts.append({
             "method": "contour",
@@ -286,7 +286,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
             # For contour detection, create a simplified crop info
             crop_info = {
                 "method": "contour",
-                "original_size": list(Image.open(file_path).size),
+                "original_size": list(image.size),
                 "cropped_size": list(result.size)
             }
             result = (result, crop_info)
@@ -294,133 +294,76 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     # If all detection methods fail, use original image
     if not result:
         logger.warning(f"Using original image as fallback for {file_path.name}")
-        original = Image.open(file_path)
         crop_info = {
             "method": "original",
-            "original_size": list(original.size),
-            "cropped_size": list(original.size)
+            "original_size": list(image.size),
+            "cropped_size": list(image.size)
         }
-        result = (original, crop_info)
+        result = (image, crop_info)
         attempts.append({
             "method": "original",
             "success": True
         })
     
-    # Convert to JPG if needed
-    image, crop_info = result
-    if image.format != 'JPEG':
-        logger.debug(f"Converting {file_path.name} from {image.format} to JPEG")
-        image = image.convert('RGB')
+    # Get the processed image and crop info
+    processed_image, crop_info = result
     
-    # Save the result as JPG with lowercase extension
-    out_path = out_path.with_suffix('.jpg')
-    image.save(out_path, 'JPEG', quality=95)
-    logger.debug(f"Saved cropped image to {out_path}")
+    # Ensure output directory exists
+    ensure_dirs(out_path)
     
-    # Build output path preserving full source hierarchy
-    # Use the same directory structure but with lowercase .jpg extension
-    rel_path = Path(*source_dir[:-1]) / out_path.with_suffix('.jpg').name
+    # Save the result using the format utility with the specified output format
+    final_path, actual_format = save_image(processed_image, out_path, output_format)
     
-    # Add attempts to the crop info
+    # Add attempts, format info, and metadata to the crop info
     crop_info["attempts"] = attempts
+    crop_info["output_format"] = actual_format  # Store the actual format used
+    crop_info["input_metadata"] = metadata
+    
+    # Get the relative path for the output file
+    output_rel_path = SegmentHandler.get_relative_path(final_path)
     
     return {
-        "outputs": [str(rel_path)],
-        "details": crop_info  # Include the crop info in the details
+        "outputs": [str(output_rel_path)],  # Use the new output path
+        "source": str(rel_path),
+        "details": crop_info
     }
 
-def process_pdf(file_path: Path, out_path: Path) -> dict:
-    """Process a PDF file"""
-    # Get source folder structure from input path
-    source_dir = Path(file_path).parts[-4:-1]
-    
-    # Convert and process each page
-    images = convert_from_path(file_path, dpi=300)
-    outputs = []
-    details = {}
-    
-    # Create directory for PDF pages
-    pdf_dir = out_path.parent / f"{out_path.stem}"
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    
-    for i, image in enumerate(images):
-        logger.info(f"Processing page {i+1} of {len(images)} from {file_path.name}")
-        # Save original page as JPG
-        page_path = pdf_dir / f"page_{i + 1}.jpg"
-        image.save(page_path, "JPEG", quality=95)
-        
-        # Process with YOLO
-        result = crop_with_yolo(page_path, pdf_dir, conf_threshold=0.35)
-        
-        if result:
-            # Save cropped page as JPG
-            cropped_path = pdf_dir / f"page_{i + 1}_cropped.jpg"
-            result[0].save(cropped_path, "JPEG", quality=95)
-            
-            # Build relative path preserving hierarchy
-            rel_path = Path(*source_dir) / f"{out_path.stem}" / f"page_{i + 1}_cropped.jpg"
-            outputs.append(str(rel_path))
-            
-            details[f"page_{i + 1}"] = result[1]  # Include the crop info
-        else:
-            details[f"page_{i + 1}"] = {
-                "success": False,
-                "error": "No detection",
-                "original_size": list(image.size),
-                "attempts": [{
-                    "method": "yolo",
-                    "confidence": 0.35,
-                    "success": False
-                }]
-            }
-    
-    return {
-        "outputs": outputs,
-        "details": details
-    }
-
-def process_document(file_path: str, output_folder: Path) -> dict:
+def process_document(file_path: str, output_folder: Path, output_format: str = 'jpg') -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o)
+        return process_image(Path(f), o, output_format)
+    
+    # Get supported extensions and create file_types dict
+    file_types = {ext: process_fn for ext in get_supported_extensions_list()}
     
     return process_file(
         file_path=str(file_path),
         output_folder=output_folder,
         process_fn=process_fn,
-        file_types={
-            '.pdf': lambda f, o: process_pdf(Path(f), o),
-            '.jpg': process_fn,
-            '.jpeg': process_fn,
-            '.tif': process_fn,
-            '.tiff': process_fn,
-            '.png': process_fn
-        }
+        file_types=file_types
     )
 
 def crop(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
     output_folder: Path = typer.Argument(..., help="Output folder for cropped images"),
-    model_path: Path = typer.Option(..., help="Path to YOLO model file")
+    model_path: Path = typer.Option(..., "--model-path", help="Path to YOLOv8 model file"),
+    output_format: str = typer.Option("jpg", "--format", "-f", 
+                                     help="Output format: png, jxl, or jpg",
+                                     callback=validate_format)
 ):
-    """Crop images from documents using YOLO detection"""
+    """Crop document pages to remove borders"""
     global yolo_model
-    try:
-        yolo_model = YOLO(str(model_path))
-        logger.info(f"Successfully loaded YOLO model from {model_path}")
-    except Exception as e:
-        logger.error(f"Failed to load YOLO model from {model_path}: {e}")
-        raise
-
+    yolo_model = YOLO(str(model_path))
+    
     processor = BatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="crop",
         base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o)
+        processor_fn=lambda f, o: process_document(f, o, output_format)
     )
     processor.process()
 

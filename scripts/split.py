@@ -34,12 +34,16 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 import cv2
-from pdf2image import convert_from_path
 from utils.batch import BatchProcessor
 from utils.processor import process_file
+from utils.segment_handler import SegmentHandler
+from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
 from rich.console import Console
 import json
 from typing import Set
+import logging
+
+logger = logging.getLogger(__name__)
 
 console = Console()
 
@@ -661,125 +665,87 @@ def split_image(image: Image.Image, file_path: Path = None) -> tuple[list[Image.
     
     return [left_page, right_page], debug_info
 
-def process_image(file_path: Path, out_path: Path) -> dict:
+def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
     """Process a single image file for splitting"""
-    img = Image.open(file_path)
-    if (img.mode != 'RGB'):
-        img = img.convert('RGB')
+    # Use SegmentHandler for path handling
+    rel_path = SegmentHandler.get_relative_path(file_path)
     
-    parts, debug_info = split_image(img, file_path=file_path)
+    # Verify file exists
+    if not file_path.exists():
+        logger.error(f"File does not exist: {file_path}")
+        return {"success": False, "error": "File not found"}
+    
+    try:
+        # Load image using the format utility
+        image, metadata = load_image(file_path)
+    except Exception as e:
+        logger.error(f"Failed to load image {file_path.name}: {e}")
+        return {"success": False, "error": f"Failed to load image: {e}"}
+    
+    parts, debug_info = split_image(image, file_path=file_path)
     outputs = []
     
     details = convert_to_serializable({
-        "original_size": list(img.size),
-        "debug": debug_info
+        "original_size": list(image.size),
+        "debug": debug_info,
+        "output_format": output_format,
+        "input_metadata": metadata
     })
     
-    # Get source folder structure from input path
-    source_dir = Path(file_path).parts[-4:-1]  # Gets ['FHC', 'GHC_B05', etc]
-    
     for i, part in enumerate(parts):
-        # Create output filename with correct folder structure
+        # Create output filename
         if len(parts) > 1:
-            part_name = f"{out_path.stem}_part_{i+1}.jpg"
+            part_name = f"{rel_path.stem}_part_{i+1}"
         else:
-            part_name = f"{out_path.stem}.jpg"
+            part_name = f"{rel_path.stem}"
             
+        # Save the part using the format utility
         part_path = out_path.parent / part_name
-        part_path.parent.mkdir(parents=True, exist_ok=True)
-        part.save(part_path, "JPEG", quality=100)
+        final_path, actual_format = save_image(part, part_path, output_format)
         
-        # Build output path preserving full source hierarchy
-        rel_path = Path(*source_dir) / part_name
-        outputs.append(str(rel_path))
+        # Add to outputs using relative path
+        output_rel_path = SegmentHandler.get_relative_path(final_path)
+        outputs.append(str(output_rel_path))
         details[f"part_{i+1}_size"] = list(part.size)
     
     return {
         "outputs": outputs,
+        "source": str(rel_path),
         "details": details
     }
 
-def process_pdf(file_path: Path, out_path: Path) -> dict:
-    """Process a PDF file"""
-    outputs = []
-    details = {}
-    
-    # Convert PDF pages to images
-    images = convert_from_path(file_path, dpi=300)
-    
-    for i, image in enumerate(images):
-        # Process each page
-        if (image.mode != 'RGB'):
-            image = image.convert('RGB')
-            
-        # Split page if needed
-        parts, debug_info = split_image(image)
-        
-        for j, part in enumerate(parts):
-            # Create output filename
-            if (len(parts) > 1):
-                part_path = out_path.parent / f"{out_path.stem}_page_{i+1}_part_{j+1}.jpg"
-            else:
-                part_path = out_path.parent / f"{out_path.stem}_page_{i+1}.jpg"
-                
-            # Ensure directory exists
-            part_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Save split part
-            part.save(part_path, "JPEG", quality=100)
-            outputs.append(str(part_path.relative_to(part_path.parent.parent)))
-            
-        details[f"page_{i+1}"] = {
-            "original_size": list(image.size),
-            "parts": len(parts),
-            "debug": {
-                "aspect_ratio": float(debug_info["aspect_ratio"]),
-                "mid_region_start": int(debug_info["mid_region_start"]),
-                "mid_region_end": int(debug_info["mid_region_end"]),
-                "avg_darkness": float(debug_info["avg_darkness"]),
-                "split_point": int(debug_info["split_point"]) if debug_info["split_point"] else None,
-                "should_split": bool(debug_info["should_split"])
-            }
-        }
-    
-    return {
-        "outputs": outputs,
-        "details": details
-    }
-
-def process_document(file_path: str, output_folder: Path) -> dict:
+def process_document(file_path: str, output_folder: Path, output_format: str = 'jpg') -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o)
+        return process_image(Path(f), o, output_format)
+    
+    # Get supported extensions and create file_types dict
+    file_types = {ext: process_fn for ext in get_supported_extensions_list()}
     
     return process_file(
         file_path=str(file_path),
         output_folder=output_folder,
         process_fn=process_fn,
-        file_types={
-            '.pdf': process_pdf,
-            '.jpg': process_fn,
-            '.jpeg': process_fn,
-            '.tif': process_fn,
-            '.tiff': process_fn,
-            '.png': process_fn
-        }
+        file_types=file_types
     )
 
 def split(
-    crops_folder: Path = typer.Argument(..., help="Input crops folder"),
-    crops_manifest: Path = typer.Argument(..., help="Input crops manifest file"),
-    splits_folder: Path = typer.Argument(..., help="Output folder for split images")
+    source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
+    source_manifest: Path = typer.Argument(..., help="Manifest file"),
+    output_folder: Path = typer.Argument(..., help="Output folder for split images"),
+    output_format: str = typer.Option("jpg", "--format", "-f", 
+                                     help="Output format: png, jxl, or jpg",
+                                     callback=validate_format)
 ):
     """Split cropped book pages into individual pages"""
     processor = BatchProcessor(
-        input_manifest=crops_manifest,
-        output_folder=splits_folder,
-        process_name="split",  # Add required process_name parameter
-        base_folder=crops_folder / "documents",  # Add /documents to match crop.py's structure
-        processor_fn=lambda f, o: process_document(f, o)
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="split",
+        base_folder=source_folder,  # Paths in manifest already include documents/
+        processor_fn=lambda f, o: process_document(f, o, output_format)
     )
     processor.process()
 

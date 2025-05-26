@@ -10,17 +10,23 @@ from io import BytesIO
 import base64
 from openai import AsyncOpenAI
 import asyncio
+from datetime import datetime
+import logging
 from utils.batch import BatchProcessor
 from utils.processor import process_file
 from utils.segment_handler import SegmentHandler
+
+# Configure logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # Semaphore to limit concurrent API calls
 API_SEMAPHORE = asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
 
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
-    # Resize image if needed
-    max_size = 1500  # Slightly larger than 2B/7B models since Max can handle more
+    # Resize image if needed - more aggressive resizing for API
+    max_size = 1024  # Reduced from 1500 to 1024 for faster API processing
     width, height = image.size
     aspect_ratio = max(width, height) / float(min(width, height))
     
@@ -37,9 +43,9 @@ def encode_image(image: Image.Image) -> str:
             new_width = int((max_size / height) * width)
         image = image.resize((new_width, new_height), Image.LANCZOS)
     
-    # Encode resized image
+    # Encode resized image with more compression
     buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=85)  # Slightly reduced quality for better compression
+    image.save(buffered, format="JPEG", quality=80)  # Reduced quality for better compression
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 async def process_image(file_path: Path, out_path: Path) -> dict:
@@ -50,16 +56,39 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
         
         # Convert output path to .txt extension
         out_path = out_path.with_suffix('.txt')
+        
+        # Skip if already exists and return proper manifest entry
+        if out_path.exists():
+            rel_path = SegmentHandler.get_relative_path(file_path)
+            logger.info(f"Skipping existing file: {rel_path}")
+            return {
+                "outputs": [str(rel_path.with_suffix('.txt'))],
+                "source": str(rel_path),
+                "skipped": True,
+                "success": True
+            }
+        
         out_path.touch()
         
         try:
             # Add timestamp to show concurrent execution
-            from datetime import datetime
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            print(f"[cyan][{timestamp}] Starting to process: {file_path.name}")
+            logger.info(f"[{timestamp}] Starting to process: {file_path.name}")
             
             # Load and process image
-            image = Image.open(file_path).convert("RGB")
+            try:
+                # Convert to RGB and resize if needed
+                image = Image.open(file_path).convert("RGB")
+                # Log original size
+                orig_width, orig_height = image.size
+                logger.info(f"Original image size: {orig_width}x{orig_height}")
+            except Exception as e:
+                logger.error(f"Failed to open image {file_path}: {e}")
+                return {
+                    "error": f"Failed to open image: {e}",
+                    "outputs": [str(SegmentHandler.get_relative_path(out_path))],
+                    "source": str(SegmentHandler.get_relative_path(file_path))
+                }
             
             # Encode image for API
             base64_image = encode_image(image)
@@ -73,7 +102,7 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
             # Use semaphore to limit concurrent API calls
             async with API_SEMAPHORE:
                 timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-                print(f"[yellow][{timestamp}] Sending to Qwen API: {file_path.name}")
+                logger.info(f"[{timestamp}] Sending to Qwen API: {file_path.name}")
                 
                 # Get transcription using OpenAI-compatible method
                 completion = await client.chat.completions.create(
@@ -82,13 +111,13 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
                         "role": "user",
                         "content": [
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                            {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."},
+                            {"type": "text", "text": "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."}
                         ]
                     }]
                 )
             
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            print(f"[green][{timestamp}] Received response from Qwen API for: {file_path.name}")
+            logger.info(f"[{timestamp}] Received response from Qwen API for: {file_path.name}")
             
             # Extract transcription from response
             transcription = completion.choices[0].message.content
@@ -103,7 +132,16 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
                 "outputs": [str(rel_path.with_suffix('.txt'))],
                 "source": str(rel_path),
                 "details": {
-                    "has_content": bool(transcription.strip())
+                    "has_content": bool(transcription.strip()),
+                    "text_length": len(transcription.strip()),
+                    "processed_at": datetime.now().isoformat(),
+                    "model": "qwen-vl-max",
+                    "num_lines": len(transcription.strip().split('\n')),
+                    "parent_info": {
+                        "path": str(rel_path),
+                        "relative_path": str(rel_path),
+                        "original_size": f"{orig_width}x{orig_height}"
+                    }
                 }
             }
             
@@ -111,13 +149,17 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
             if 'segments' in str(rel_path):
                 parent_path = rel_path.parents[1]
                 result["parent_image"] = str(parent_path)
+                result["details"]["segment_info"] = {
+                    "segment_index": int(rel_path.stem.split('_')[-1]),
+                    "parent_path": str(parent_path)
+                }
             else:
                 result["parent_image"] = str(rel_path)
                 
             return result
             
         except Exception as e:
-            print(f"[red]Error processing image {file_path}: {str(e)}")
+            logger.error(f"Error processing image {file_path}: {str(e)}")
             # Return error but keep empty file
             return {
                 "error": str(e),
@@ -126,7 +168,7 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
             }
 
     except Exception as e:
-        print(f"[red]Error processing {file_path}: {e}")
+        logger.error(f"Error processing {file_path}: {e}")
         return {"error": str(e)}
 
 def transcribe_batch(
@@ -142,7 +184,7 @@ def transcribe_batch(
     load_dotenv()
     
     if not os.getenv('DASHSCOPE_API_KEY'):
-        print("[red]Error: DASHSCOPE_API_KEY environment variable not set")
+        logger.error("DASHSCOPE_API_KEY environment variable not set")
         return
 
     # Create a custom batch processor that handles async properly
@@ -182,10 +224,6 @@ def transcribe_batch(
                     rel_path = path
                 out_path = self.output_folder / "documents" / rel_path
                 
-                # Skip if already exists
-                if out_path.with_suffix('.txt').exists():
-                    continue
-                    
                 # Add to tasks
                 tasks.append(process_image(full_path, out_path))
             
@@ -211,19 +249,21 @@ def transcribe_batch(
             
             # Show time savings
             sequential_estimate = len(batch) * 8  # Assume ~8 seconds per image sequentially
-            print(f"\n[green]Batch of {len(batch)} images processed in {batch_time:.1f}s")
-            print(f"[dim]Sequential processing would take ~{sequential_estimate}s[/dim]")
-            print(f"[green]Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)[/green]\n")
+            logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
+            logger.info(f"Sequential processing would take ~{sequential_estimate}s")
+            logger.info(f"Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)")
             
             # Process results
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    print(f"[red]Error: {result}")
+                    logger.error(f"Error: {result}")
                     stats["failed"] += 1
                 elif isinstance(result, dict):
                     self.output_proc.save_entry(result)
                     if result.get("error"):
                         stats["failed"] += 1
+                    elif result.get("skipped"):
+                        stats["skipped"] += 1
                     else:
                         stats["processed"] += 1
                 
@@ -236,15 +276,18 @@ def transcribe_batch(
             # Show overall time savings summary
             if self.batch_times:
                 total_time = sum(self.batch_times)
-                total_images = result.get('processed', 0) + result.get('failed', 0)
+                total_images = result.get('processed', 0) + result.get('failed', 0) + result.get('skipped', 0)
                 sequential_estimate = total_images * 8
                 
-                print(f"\n[bold green]🚀 Async Processing Summary:[/bold green]")
-                print(f"Total images processed: {total_images}")
-                print(f"Total time: {total_time:.1f}s")
-                print(f"Sequential estimate: {sequential_estimate}s")
-                print(f"[bold green]Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)[/bold green]")
-                print(f"Average time per image: {total_time / total_images:.1f}s")
+                logger.info("🚀 Async Processing Summary:")
+                logger.info(f"Total images: {total_images}")
+                logger.info(f"Processed: {result.get('processed', 0)}")
+                logger.info(f"Skipped: {result.get('skipped', 0)}")
+                logger.info(f"Failed: {result.get('failed', 0)}")
+                logger.info(f"Total time: {total_time:.1f}s")
+                logger.info(f"Sequential estimate: {sequential_estimate}s")
+                logger.info(f"Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)")
+                logger.info(f"Average time per image: {total_time / total_images:.1f}s")
                 
             return result
 

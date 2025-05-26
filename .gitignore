@@ -67,3 +67,4 @@ cpu_worker.pid
 dump.rdb
 io_worker.log
 io_worker.pid
+projects/

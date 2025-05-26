@@ -11,6 +11,24 @@ numpy>=1.26.0
 pdf2image>=1.17.0
 pytesseract>=0.3.10
 ultralytics>=8.0.0
+rawpy>=0.18.0  # For RAW image format support
+pillow-heif>=0.14.0  # For HEIC/HEIF format support (fallback only)
+exifread>=3.0.0  # For metadata handling
+
+# Optional system dependencies for JPEG XL support:
+# - macOS: brew install libjxl
+# - Ubuntu/Debian: apt-get install libjxl-tools
+# - Windows: Download from https://github.com/libjxl/libjxl/releases
+
+# Required system dependencies for HEIC support:
+# - macOS: brew install libheif
+# - Ubuntu/Debian: apt-get install libheif-dev
+# - Windows: No additional dependencies needed
+
+# Optional system dependencies for RAW support:
+# - macOS: brew install libraw
+# - Ubuntu/Debian: apt-get install libraw-dev
+# - Windows: No additional dependencies needed
 
 # Machine learning and data processing
 scikit-learn>=1.4.0
@@ -19,6 +37,13 @@ transformers>=4.37.0
 
 # Document processing
 python-docx>=1.1.0
+
+# LLM and AI
+langchain>=0.1.0
+langchain-ollama>=0.0.1
+anthropic>=0.8.0
+dashscope>=1.13.0
+requests>=2.31.0
 
 # Utilities
 tqdm>=4.66.0
@@ -29,3 +54,4 @@ wxpython
 celery
 redis
 openai
+accelerate

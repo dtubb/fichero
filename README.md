@@ -7,6 +7,8 @@ Fichero processes archival materials (documents in JPG, PDF, TIFF format), and c
 - Processes archival materials (scanned documents, images, etc.)
 - Splits multi-page materials into single pages
 - Enhances image quality and removes backgrounds
+- **NEW**: Support for JPEG XL (JXL) format with transparency for better compression
+- **NEW**: Support for HEIC/HEIF and RAW image formats
 - Transcribe text using various AI models:
   - Qwen Max (full document or segmented processing)
   - Qwen 2B (full document or segmented processing)
@@ -27,11 +29,19 @@ cd fichero
    **On macOS:**
    ```bash
    brew install poppler  # Required for PDF processing
+   brew install libjxl   # Optional: For JPEG XL support
+   brew install libheif  # Optional: For HEIC/HEIF support
+   brew install libraw   # Optional: For RAW format support
+   brew install exiftool # Optional: For metadata handling
    ```
 
    **On Ubuntu/Debian:**
    ```bash
    sudo apt-get install poppler-utils  # Required for PDF processing
+   sudo apt-get install libjxl-tools   # Optional: For JPEG XL support
+   sudo apt-get install libheif-dev    # Optional: For HEIC/HEIF support
+   sudo apt-get install libraw-dev     # Optional: For RAW format support
+   sudo apt-get install libexif-dev    # Optional: For metadata handling
    ```
 
 3. Create and activate a virtual environment (choose one option):
@@ -52,6 +62,47 @@ cd fichero
 ```bash
 pip install -r requirements.txt
 ```
+
+## Configuration
+
+### Image Output Format
+
+Fichero now supports multiple output formats for background-removed images. You can configure this in your `project.yml`:
+
+```yaml
+vars:
+  # Image format configuration
+  crop_format: "jpg"  # Options: "png", "jxl", "jpg"
+  split_format: "jpg"  # Options: "png", "jxl", "jpg"
+  rotate_format: "jpg"  # Options: "png", "jxl", "jpg"
+  enhance_format: "jpg"  # Options: "png", "jxl", "jpg"
+  background_removed_format: "jxl"  # Options: "png" (with transparency), "jxl" (with transparency and better compression), "jpg" (white background)
+  segment_format: "png"  # Options: "png", "jxl", "jpg"
+```
+
+- **png**: PNG format with transparency support
+- **jxl**: JPEG XL format with transparency support and better compression (requires libjxl installed)
+- **jpg**: JPEG format with white background (no transparency)
+
+### Supported Input Formats
+
+Fichero supports a wide range of input formats:
+
+- **Common formats**: JPG, PNG, TIFF, PDF
+- **HEIC/HEIF**: High Efficiency Image Format (requires libheif)
+- **RAW formats**: Camera RAW formats (CR2, NEF, ARW, etc.)
+- **JPEG XL**: Next-generation image format (requires libjxl)
+
+The system will automatically handle format conversion and fall back to PNG if the requested format is not supported.
+
+### JPEG XL (JXL) Support
+
+JPEG XL offers superior compression while maintaining transparency. To use JXL format:
+
+1. Install libjxl tools (see Installation section)
+2. Set `background_removed_format: "jxl"` in your project.yml
+3. The system will automatically fall back to PNG if libjxl is not available
+
 
 ## Usage
 
