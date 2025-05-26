@@ -63,12 +63,17 @@ def get_relative_path(file_path: Union[str, Path], base_folder: Path = None) -> 
     if 'documents/' in path_str:
         parts = path_str.split('documents/')
         if len(parts) > 1:
-            return Path(parts[1])
+            # Handle special characters in the path
+            result = Path(parts[1])
+            # Ensure the path is properly escaped for special characters
+            return Path(str(result).replace(';', '\\;'))
     return rel_path
 
 def reconstruct_input_path(base_folder: Path, source_path: str) -> Path:
     """Build full input path from base folder and manifest source path"""
-    return base_folder / source_path
+    # Escape special characters in the source path
+    escaped_path = source_path.replace(';', '\\;')
+    return base_folder / escaped_path
 
 def get_relative_output_path(source_path: str) -> str:
     """Convert input manifest source path to output path"""

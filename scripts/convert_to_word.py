@@ -16,7 +16,7 @@ import subprocess
 from utils.batch import BatchProcessor
 from utils.processor import process_file
 from utils.segment_handler import SegmentHandler
-from utils.files import ensure_dirs
+from utils.files import ensure_dirs, get_relative_path
 from utils.manifest import ManifestProcessor
 
 console = Console()
@@ -114,7 +114,7 @@ def create_cover_page(doc, folder_name):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     # Use the full folder name as title, preserving all special characters
-    title = folder_name
+    title = str(folder_name)  # Ensure string conversion
     run = p.add_run(title)
     run.font.name = 'Times New Roman'
     run.font.size = Pt(24)
@@ -290,15 +290,22 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
             # Find the corresponding text file using consistent path handling
             text_path = output_folder.parent / "transcriptions" / "documents" / rel_path.with_suffix('.txt')
             if not text_path.exists():
-                console.print(f"[red]Text file not found: {text_path}")
-                return {
-                    "error": f"Text file not found: {text_path}",
-                    "source": str(rel_path),
-                    "success": False
-                }
+                # Try with raw path if not found
+                text_path = Path(str(text_path).replace(';', '\\;'))
+                if not text_path.exists():
+                    console.print(f"[red]Text file not found: {text_path}")
+                    return {
+                        "error": f"Text file not found: {text_path}",
+                        "source": str(rel_path),
+                        "success": False
+                    }
             
             # Read the text content
-            text = text_path.read_text(encoding='utf-8')
+            try:
+                text = text_path.read_text(encoding='utf-8')
+            except UnicodeDecodeError:
+                # Fallback to system default encoding if UTF-8 fails
+                text = text_path.read_text()
             
             # Add spread to manager
             spread_manager.add_spread(parent_folder, str(f), text, Path(f).stem)

@@ -448,7 +448,10 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             input_path = output_folder.parent / "documents" / rel_path.with_suffix('.txt')
             
         if not input_path.exists():
-            raise FileNotFoundError(f"Input file not found: {input_path}")
+            # Try with raw path if not found
+            input_path = Path(str(input_path).replace(';', '\\;'))
+            if not input_path.exists():
+                raise FileNotFoundError(f"Input file not found: {input_path}")
             
         # Use relative path for output
         out_path = output_folder / "documents" / rel_path.with_suffix('.txt')

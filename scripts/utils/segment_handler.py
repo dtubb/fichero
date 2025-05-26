@@ -19,7 +19,9 @@ class SegmentHandler:
     def exists(path: Union[str, Path], base_folder: Path = None) -> bool:
         """Check if segment exists"""
         if base_folder:
-            full_path = base_folder / Path(path)
+            # Escape special characters in the path
+            escaped_path = str(path).replace(';', '\\;')
+            full_path = base_folder / Path(escaped_path)
         else:
             full_path = Path(path)
         return full_path.exists()
@@ -37,7 +39,9 @@ class SegmentHandler:
         """Load a segment image with proper path resolution, including JXL support"""
         try:
             if base_folder:
-                full_path = base_folder / Path(segment_path)
+                # Escape special characters in the path
+                escaped_path = str(segment_path).replace(';', '\\;')
+                full_path = base_folder / Path(escaped_path)
             else:
                 full_path = Path(segment_path)
                 
