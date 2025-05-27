@@ -82,12 +82,12 @@ class ManifestProcessor:
             for entry in srsly.read_jsonl(self.manifest_path):
                 if "source" in entry:
                     # Store using source path as key without project prefix
-                    path = Path(entry["source"])
-                    if "documents" in path.parts:
-                        # Get path after 'documents'
-                        key = str(Path(*path.parts[path.parts.index("documents")+1:]))
+                    source = entry["source"]
+                    if "documents/" in source:
+                        # Get path after 'documents/'
+                        key = source.split("documents/", 1)[1]
                     else:
-                        key = str(path)
+                        key = source
                     self.entries[key] = entry
 
     def _write_manifest(self, manifest_path: Path):

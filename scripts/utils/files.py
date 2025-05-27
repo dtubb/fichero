@@ -20,18 +20,22 @@ def get_image_files(folder: Path, patterns: List[str] = None) -> List[Path]:
     if patterns is None:
         patterns = get_supported_extensions_list()
     files = []
-    for pattern in patterns:
-        # Handle both with and without dot prefix
-        ext = pattern if pattern.startswith('.') else f'.{pattern}'
-        # Try all case variations
-        files.extend(folder.glob(f"**/*{ext}"))  # lowercase
-        files.extend(folder.glob(f"**/*{ext.upper()}"))  # uppercase
-        files.extend(folder.glob(f"**/*{ext.capitalize()}"))  # capitalized
-        # Also try without the dot for the glob pattern
-        ext_no_dot = ext[1:] if ext.startswith('.') else ext
-        files.extend(folder.glob(f"**/*.{ext_no_dot}"))  # lowercase
-        files.extend(folder.glob(f"**/*.{ext_no_dot.upper()}"))  # uppercase
-        files.extend(folder.glob(f"**/*.{ext_no_dot.capitalize()}"))  # capitalized
+    
+    # Get all files recursively first
+    all_files = list(folder.rglob("*"))
+    
+    # Then filter by extension
+    for file_path in all_files:
+        if not file_path.is_file():
+            continue
+            
+        # Get extension in lowercase for comparison
+        ext = file_path.suffix.lower()
+        
+        # Check if extension matches any pattern (case-insensitive)
+        if any(ext == pattern.lower() or ext == f".{pattern.lower()}" for pattern in patterns):
+            files.append(file_path)
+            
     return sorted(set(files))  # Remove duplicates and sort
 
 def get_skip_files() -> List[str]:
@@ -42,6 +46,7 @@ def get_relative_path(file_path: Union[str, Path], base_folder: Path = None) -> 
     """
     Get relative path from documents/ onwards.
     Always returns a relative path, removing any absolute path components.
+    Handles special characters in paths consistently.
     """
     file_path = Path(file_path)
     
@@ -58,22 +63,23 @@ def get_relative_path(file_path: Union[str, Path], base_folder: Path = None) -> 
     except ValueError:
         rel_path = file_path
         
-    # Handle documents prefix
-    path_str = str(rel_path)
-    if 'documents/' in path_str:
-        parts = path_str.split('documents/')
-        if len(parts) > 1:
-            # Handle special characters in the path
-            result = Path(parts[1])
-            # Ensure the path is properly escaped for special characters
-            return Path(str(result).replace(';', '\\;'))
+    # Handle documents prefix by working with Path objects
+    parts = rel_path.parts
+    if 'documents' in parts:
+        # Find the index of 'documents' and get everything after it
+        doc_index = parts.index('documents')
+        if doc_index < len(parts) - 1:
+            return Path(*parts[doc_index + 1:])
     return rel_path
 
 def reconstruct_input_path(base_folder: Path, source_path: str) -> Path:
-    """Build full input path from base folder and manifest source path"""
-    # Escape special characters in the source path
-    escaped_path = source_path.replace(';', '\\;')
-    return base_folder / escaped_path
+    """
+    Build full input path from base folder and manifest source path.
+    Handles special characters in paths consistently.
+    """
+    # Convert source_path to Path to handle special characters properly
+    source_path = Path(source_path)
+    return base_folder / source_path
 
 def get_relative_output_path(source_path: str) -> str:
     """Convert input manifest source path to output path"""
