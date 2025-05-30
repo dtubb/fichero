@@ -53,5 +53,5 @@ psutil
 wxpython
 celery
 redis
-openai
+openai>=1.0.0
 accelerate

@@ -123,7 +123,7 @@ CPU_INTENSIVE_SCRIPTS = {
 IO_INTENSIVE_SCRIPTS = {
     'fuzzy_clean.py', 'llm_catalogue.py', 'llm_process.py', 'recombine_segments.py',
     'transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py',
-    'convert_to_word.py'  # File I/O and API calls
+    'convert_to_word.py', 'llm_process_catalogue_folder.py'  # File I/O and API calls
 }
 
 # Define script dependencies

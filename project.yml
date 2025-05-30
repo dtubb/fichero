@@ -56,6 +56,7 @@ vars:
   # Output folders
   word_folder: "${vars.assets_folder}/word"
   llm_processed_folder: "${vars.assets_folder}/llm_processed"
+  llm_catalogue_folder: "${vars.assets_folder}/llm_catalogue"  # Specific folder for catalogue processing
   
   # Manifest paths
   split_manifest: "${vars.split_image_folder}/split_manifest.jsonl"
@@ -66,6 +67,9 @@ vars:
   # LMStudio configuration
   lmstudio_url: "http://localhost:1234"
   lmstudio_model: "Qwen2.5-VL-3B-Instruct-8bit"  # Model name as shown in LM Studio
+
+  # LLM configuration
+  llm_prompt_config: "${vars.prompts_dir}/catalogue_folder_local_config.jsonl"  # Default prompt config file
 
 directories: ["${vars.scripts_dir}"]
 
@@ -117,7 +121,8 @@ workflows:
     - convert_to_word
 
   transcriptions-to-catalogue:
-    - catalogue_folder_local
+    - llm_process_catalogue_folder
+
 
 commands:
   - name: build_documents_manifest
@@ -238,18 +243,10 @@ commands:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
 
-  - name: catalogue_folder_local
-    help: "Generate catalog entries for multi-page documents using local LM Studio (folder-level processing)"
+  - name: llm_process_catalogue_folder
+    help: "Process transcribed documents through configurable LLM pipeline for catalogue generation"
     script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.assets_folder}/catalogue_folder\" --prompt-config \"${vars.prompts_dir}/catalogue_folder_local_config.jsonl\" --folder-mode"
+      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_catalogue_folder}\" --prompt-config \"${vars.llm_prompt_config}\" --folder-mode"
     outputs:
-      - ${vars.assets_folder}/catalogue_folder
-      - ${vars.assets_folder}/catalogue_folder/llm_process_manifest.jsonl
-
-  - name: llm_process
-    help: "Process transcribed documents through configurable LLM pipeline"
-    script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_processed_folder}\" --prompt-config \"${vars.prompts_dir}/prompt_config.jsonl\" --backend-type \"${vars.llm_backend}\" --model-name \"${vars.llm_model}\" --api-url \"${vars.llm_api_url}\""
-    outputs:
-      - ${vars.llm_processed_folder}
-      - ${vars.llm_processed_folder}/llm_process_manifest.jsonl
+      - ${vars.llm_catalogue_folder}
+      - ${vars.llm_catalogue_folder}/llm_process_manifest.jsonl

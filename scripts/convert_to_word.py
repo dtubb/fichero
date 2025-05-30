@@ -40,7 +40,8 @@ class SpreadManager:
                 "processed": False,
                 "spreads": [],
                 "needs_rebuild": True
-            }
+            }fat
+            
             
         # Check if spread exists
         for existing_spread in self.spreads[parent_folder]["spreads"]:
