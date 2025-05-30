@@ -425,6 +425,243 @@ class LLMProcessor:
         logger.info(f"  Model: {llm.model_name}")
         logger.info(f"  Steps configured: {len(prompt_config.get('steps', []))}")
 
+def get_llm_backend_from_step_config(step_config: Dict, global_llm_config: Dict = None) -> LLMBackend:
+    """Create LLM backend from step-specific configuration, falling back to global config"""
+    # Use step-specific llm config if available, otherwise fall back to global
+    llm_config = step_config.get("llm", global_llm_config or {})
+    
+    backend_type = llm_config.get("backend", "ollama")
+    model_name = llm_config.get("model", "mistral")
+    temperature = llm_config.get("temperature", 0.0)
+    api_key = llm_config.get("api_key")
+    api_url = llm_config.get("api_url")
+    max_tokens = llm_config.get("max_tokens", DEFAULT_MAX_TOKENS)
+    
+    if backend_type == "chatgpt" or backend_type == "openai":
+        return ChatGPTBackend(model_name, api_key, temperature, max_tokens)
+    elif backend_type == "claude" or backend_type == "anthropic":
+        return ClaudeBackend(model_name, api_key, temperature, max_tokens)
+    elif backend_type == "qwen":
+        return QwenBackend(model_name, api_key, temperature, max_tokens)
+    elif backend_type == "lmstudio":
+        api_url = api_url or "http://localhost:1234"
+        return LMStudioBackend(model_name, api_url, temperature, max_tokens)
+    elif backend_type == "ollama":
+        return OllamaBackend(model_name, temperature, max_tokens)
+    else:
+        raise ValueError(f"Unsupported backend type: {backend_type}")
+
+async def process_pages_async(
+    pages: List[Dict],  # List of {'path': Path, 'content': str, 'page_num': int}
+    llm: ChatGPTBackend,
+    prompt: str,
+    batch_size: int = 10,
+    output_folder: Path = None,
+    step_name: str = "async_step"
+) -> List[Dict]:
+    """Process pages asynchronously and save individual JSONL files"""
+    
+    console.print(f"[blue]Processing {len(pages)} pages asynchronously (batch size: {batch_size})")
+    
+    # Process pages in batches
+    results = await llm.process_pages_batch(pages, prompt, batch_size)
+    
+    # Save individual page results as JSONL if output folder specified
+    if output_folder:
+        pages_folder = output_folder / "pages" / step_name
+        pages_folder.mkdir(parents=True, exist_ok=True)
+        
+        for result in results:
+            page_num = result.get('page_num', 0)
+            page_file = pages_folder / f"page_{page_num:03d}.jsonl"
+            
+            # Convert result to JSONL format
+            jsonl_entry = {
+                "page_num": page_num,
+                "source_file": str(result.get('source_file', '')),  # Convert Path to string
+                "timestamp": result.get('timestamp', ''),
+                "step": step_name,
+                "result": result.get('result', '')
+            }
+            
+            # Try to parse result as JSON if it looks like JSON
+            try:
+                if isinstance(result.get('result'), str):
+                    result_text = result.get('result', '').strip()
+                    if result_text.startswith('{') or result_text.startswith('['):
+                        jsonl_entry["result"] = json.loads(result_text)
+            except json.JSONDecodeError:
+                # Keep as string if not valid JSON
+                pass
+            
+            # Save as JSONL (one line per file for individual pages)
+            with open(page_file, 'w', encoding='utf-8') as f:
+                f.write(srsly.json_dumps(jsonl_entry) + '\n')
+            
+            logger.info(f"Saved page {page_num} result to: {page_file}")
+    
+    # Convert any remaining Path objects to strings in the results
+    for result in results:
+        if 'source_file' in result and isinstance(result['source_file'], Path):
+            result['source_file'] = str(result['source_file'])
+    
+    console.print(f"[green]Completed async processing of {len(results)} pages")
+    return results
+
+def combine_page_results(
+    page_results: List[Dict],
+    llm: LLMBackend,
+    combine_prompt: str,
+    output_folder: Path = None,
+    step_name: str = "combine_step"
+) -> Dict:
+    """Combine multiple page results using a potentially different LLM"""
+    
+    console.print(f"[blue]Combining results from {len(page_results)} pages")
+    
+    if not page_results:
+        logger.warning("No page results to combine")
+        return {
+            'combined_result': "No page results found to combine",
+            'source_pages': 0,
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    # Prepare combined input for the LLM
+    combined_input = []
+    for result in page_results:
+        page_num = result.get('page_num', 0)
+        page_result = result.get('result', '')
+        
+        # Handle both parsed JSON and string results
+        if isinstance(page_result, dict) or isinstance(page_result, list):
+            combined_input.append(f"Page {page_num}: {json.dumps(page_result, indent=2)}")
+        elif isinstance(page_result, str) and page_result.strip():
+            # Try to parse as JSON for better formatting
+            try:
+                if page_result.strip().startswith('{') or page_result.strip().startswith('['):
+                    parsed_result = json.loads(page_result)
+                    combined_input.append(f"Page {page_num}: {json.dumps(parsed_result, indent=2)}")
+                else:
+                    combined_input.append(f"Page {page_num}: {page_result}")
+            except json.JSONDecodeError:
+                combined_input.append(f"Page {page_num}: {page_result}")
+        else:
+            logger.warning(f"Skipping empty result for page {page_num}")
+    
+    if not combined_input:
+        logger.warning("No valid page results found after processing")
+        return {
+            'combined_result': "No valid page results found",
+            'source_pages': len(page_results),
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    # Combine all page results into one text
+    all_pages_text = "\n\n".join(combined_input)
+    
+    # Check if the combined text is too long and chunk if necessary
+    # Estimate tokens (rough approximation: 1 token ~= 4 characters)
+    estimated_tokens = len(all_pages_text) // 4
+    max_tokens = getattr(llm, 'max_tokens', DEFAULT_MAX_TOKENS)
+    
+    # Reserve some tokens for the prompt and response
+    available_tokens = max_tokens - len(combine_prompt) // 4 - 2000  # Reserve 2000 for response
+    
+    if estimated_tokens > available_tokens:
+        logger.info(f"Text too long ({estimated_tokens} tokens), chunking into smaller pieces")
+        
+        # Split into chunks that fit within token limits
+        chunk_size = available_tokens * 4  # Convert back to characters
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        for page_text in combined_input:
+            if current_length + len(page_text) > chunk_size and current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                current_chunk = [page_text]
+                current_length = len(page_text)
+            else:
+                current_chunk.append(page_text)
+                current_length += len(page_text) + 2  # +2 for \n\n
+        
+        if current_chunk:
+            chunks.append("\n\n".join(current_chunk))
+        
+        logger.info(f"Split into {len(chunks)} chunks")
+        
+        # Process each chunk and combine results
+        chunk_results = []
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Processing chunk {i+1}/{len(chunks)}")
+            
+            chunk_prompt = f"{combine_prompt}\n\nThis is chunk {i+1} of {len(chunks)}. Please process this subset of pages:"
+            result = llm.process_text(chunk, chunk_prompt)
+            chunk_results.append(result)
+        
+        # Now combine the chunk results
+        if len(chunk_results) > 1:
+            final_combine_prompt = f"{combine_prompt}\n\nHere are the results from processing chunks. Please combine these into a final consolidated result:"
+            combined_chunks = "\n\n".join([f"Chunk {i+1}: {result}" for i, result in enumerate(chunk_results)])
+            combined_result = llm.process_text(combined_chunks, final_combine_prompt)
+        else:
+            combined_result = chunk_results[0]
+    else:
+        # Process all at once if it fits
+        logger.info(f"Processing all {len(page_results)} pages in one request ({estimated_tokens} tokens)")
+        combined_result = llm.process_text(all_pages_text, combine_prompt)
+    
+    # Save combined result
+    if output_folder:
+        combined_folder = output_folder / "combined"
+        combined_folder.mkdir(parents=True, exist_ok=True)
+        
+        combined_file = combined_folder / f"{step_name}_combined.jsonl"
+        
+        # Try to parse as JSON
+        final_result = combined_result
+        try:
+            if isinstance(combined_result, str):
+                result_text = combined_result.strip()
+                # Handle code blocks
+                if result_text.startswith('```json'):
+                    start = result_text.find('```json') + 7
+                    end = result_text.rfind('```')
+                    if end > start:
+                        result_text = result_text[start:end].strip()
+                elif result_text.startswith('```'):
+                    lines = result_text.split('\n')
+                    if lines[0].startswith('```') and lines[-1] == '```':
+                        result_text = '\n'.join(lines[1:-1])
+                
+                if result_text.startswith('{') or result_text.startswith('['):
+                    final_result = json.loads(result_text)
+                    logger.info("Successfully parsed final JSON result")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse final JSON result: {e}")
+            # Keep as string if not valid JSON
+        
+        jsonl_entry = {
+            "step": step_name,
+            "source_pages": len(page_results),
+            "timestamp": datetime.now().isoformat(),
+            "result": final_result
+        }
+        
+        # Save as JSONL
+        with open(combined_file, 'w', encoding='utf-8') as f:
+            f.write(srsly.json_dumps(jsonl_entry) + '\n')
+        
+        logger.info(f"Saved combined result to: {combined_file}")
+    
+    console.print(f"[green]Combined {len(page_results)} page results")
+    return {
+        'combined_result': final_result,
+        'source_pages': len(page_results),
+        'timestamp': datetime.now().isoformat()
+    }
+
 def get_llm_backend(config_or_backend_type: Union[Dict, str], model_name: Optional[str] = None, api_key: Optional[str] = None, api_url: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS) -> LLMBackend:
     """Flexible factory function to create an LLM backend from either a config dict or direct arguments."""
     if isinstance(config_or_backend_type, dict):
@@ -706,44 +943,219 @@ def process_folder_with_llm(
         folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Ensured directory exists: {folder}")
     
-    # Combine all documents with page numbers
-    combined_text = ""
-    page_metadata = []
+    # Get global LLM config for fallback
+    global_llm_config = prompt_config.get("llm", {})
     
-    for file_info in files:
-        page_num = file_info.get('page_num', 0)
-        file_path = file_info['path']
-        content = file_info['content']
+    all_results = {}
+    step_outputs = []  # Track all step output files
+    
+    # Process each step defined in prompt config
+    for step_idx, step in enumerate(prompt_config.get("steps", [])):
+        step_name = step.get("name", f"step_{step_idx}")
+        prompt = step.get("prompt", "")
         
-        # Add page marker
-        page_marker = f"\n\n[PAGE {page_num}]\n\n"
-        combined_text += page_marker + content
+        logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
+        logger.info(f"Prompt: {prompt[:100]}...")
         
-        page_metadata.append({
-            "page": page_num,
-            "file": str(file_path.name),  # Just the filename
-            "char_start": len(combined_text) - len(content),
-            "char_end": len(combined_text)
-        })
+        # Get step-specific LLM if configured
+        step_llm = llm  # Default to global LLM
+        if "llm" in step:
+            try:
+                step_llm = get_llm_backend_from_step_config(step, global_llm_config)
+                logger.info(f"Using step-specific LLM: {step_llm.model_name}")
+            except Exception as e:
+                logger.warning(f"Failed to create step-specific LLM, using global: {e}")
+        
+        # Check if this step should process pages asynchronously
+        if step.get("async_page_processing", False):
+            logger.info("Using async page processing")
+            
+            # Ensure we have a ChatGPT backend for async processing
+            if not isinstance(step_llm, ChatGPTBackend):
+                logger.error(f"Async processing requires ChatGPT backend, got {type(step_llm)}")
+                continue
+            
+            batch_size = step.get("async_batch_size", 10)
+            
+            # Process pages asynchronously
+            try:
+                # Run async function in event loop
+                try:
+                    # Check if there's an existing event loop
+                    loop = asyncio.get_running_loop()
+                    # If we're already in an async context, we need to use create_task
+                    # But since this function isn't async, we'll run in a new event loop
+                    page_results = asyncio.run(process_pages_async(
+                        files, step_llm, prompt, batch_size, output_folder, step_name
+                    ))
+                except RuntimeError:
+                    # No running event loop, create a new one
+                    page_results = asyncio.run(process_pages_async(
+                        files, step_llm, prompt, batch_size, output_folder, step_name
+                    ))
+                
+                # Clean up the results and parse JSON if needed
+                cleaned_results = []
+                for result in page_results:
+                    page_result = result.get('result', '')
+                    
+                    # Clean up JSON code blocks if present
+                    if isinstance(page_result, str):
+                        # Remove markdown code blocks
+                        if page_result.strip().startswith('```json'):
+                            page_result = page_result.strip()
+                            # Find the JSON content between ```json and ```
+                            start = page_result.find('```json') + 7
+                            end = page_result.rfind('```')
+                            if end > start:
+                                page_result = page_result[start:end].strip()
+                        elif page_result.strip().startswith('```'):
+                            # Handle other code block formats
+                            lines = page_result.strip().split('\n')
+                            if lines[0].startswith('```') and lines[-1] == '```':
+                                page_result = '\n'.join(lines[1:-1])
+                    
+                    # Try to parse as JSON
+                    if step.get("json", False):
+                        try:
+                            if isinstance(page_result, str) and page_result.strip():
+                                parsed_result = json.loads(page_result)
+                                result['result'] = parsed_result
+                                logger.info(f"Successfully parsed JSON for page {result.get('page_num', 0)}")
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Failed to parse JSON for page {result.get('page_num', 0)}: {e}")
+                            # Keep the original result
+                    
+                    cleaned_results.append(result)
+                
+                all_results[step_name] = cleaned_results
+                logger.info(f"Async processing completed: {len(cleaned_results)} pages processed")
+                
+                # Save the step result
+                step_file = steps_folder / f"{step_name}.json"
+                with open(step_file, 'w', encoding='utf-8') as f:
+                    f.write(srsly.json_dumps({
+                        "source": str(rel_folder),
+                        "step": step_name,
+                        "result": cleaned_results,
+                        "mode": "async_page_processing",
+                        "pages_processed": len(cleaned_results),
+                        "timestamp": datetime.now().isoformat()
+                    }, indent=2))
+                step_outputs.append(str(step_file.relative_to(output_folder)))
+                logger.info(f"Saved async step result to: {step_file}")
+                
+            except Exception as e:
+                logger.error(f"Error in async page processing: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                all_results[step_name] = []
+        
+        # Check if this step should combine previous results
+        elif step.get("combine_results", False):
+            logger.info("Combining previous step results")
+            
+            # Get previous step results
+            use_previous = step.get("use_previous", True)
+            if use_previous and step_idx > 0:
+                prev_step_name = prompt_config["steps"][step_idx-1].get("name", f"step_{step_idx-1}")
+                if prev_step_name in all_results:
+                    prev_results = all_results[prev_step_name]
+                    
+                    if isinstance(prev_results, list) and all(isinstance(r, dict) for r in prev_results):
+                        # Convert any PosixPath objects to strings in the results
+                        for result in prev_results:
+                            if 'source_file' in result and isinstance(result['source_file'], Path):
+                                result['source_file'] = str(result['source_file'])
+                        
+                        # Combine page results
+                        combined_result = combine_page_results(
+                            prev_results, step_llm, prompt, output_folder, step_name
+                        )
+                        all_results[step_name] = combined_result
+                        
+                        # Save the step result
+                        step_file = steps_folder / f"{step_name}.json"
+                        with open(step_file, 'w', encoding='utf-8') as f:
+                            f.write(srsly.json_dumps({
+                                "source": str(rel_folder),
+                                "step": step_name,
+                                "result": combined_result,
+                                "mode": "combine_results",
+                                "source_step": prev_step_name,
+                                "timestamp": datetime.now().isoformat()
+                            }, indent=2))
+                        step_outputs.append(str(step_file.relative_to(output_folder)))
+                        logger.info(f"Saved combine step result to: {step_file}")
+                    else:
+                        logger.warning(f"Previous step {prev_step_name} results not in expected format for combining")
+                else:
+                    logger.warning(f"Previous step {prev_step_name} not found for combining")
+        
+        # Default processing (existing functionality)
+        else:
+            # Combine all documents with page numbers (existing functionality)
+            combined_text = ""
+            page_metadata = []
+            
+            for file_info in files:
+                page_num = file_info.get('page_num', 0)
+                file_path = file_info['path']
+                content = file_info['content']
+                
+                # Add page marker
+                page_marker = f"\n\n[PAGE {page_num}]\n\n"
+                combined_text += page_marker + content
+                
+                page_metadata.append({
+                    "page": page_num,
+                    "file": str(file_path.name),  # Just the filename
+                    "char_start": len(combined_text) - len(content),
+                    "char_end": len(combined_text)
+                })
+            
+            console.print(f"[green]Combined text length: {len(combined_text)} characters")
+            
+            # Process the combined text as a single document (existing functionality)
+            result = process_document_with_llm(
+                doc_path=folder_path,
+                text_content=combined_text,
+                llm=step_llm,
+                prompt_config={"steps": [step]},  # Single step config
+                max_tokens=max_tokens,
+                output_folder=output_folder
+            )
+            
+            # Extract just the result for this step
+            step_result = result.get("details", {}).get("results", {}).get(step_name, "")
+            all_results[step_name] = step_result
     
-    console.print(f"[green]Combined text length: {len(combined_text)} characters")
-    
-    # Process the combined text as a single document
-    result = process_document_with_llm(
-        doc_path=folder_path,
-        text_content=combined_text,
-        llm=llm,
-        prompt_config=prompt_config,
-        max_tokens=max_tokens,
-        output_folder=output_folder
-    )
-    
-    # Add folder-specific metadata to result
-    result["folder_metadata"] = {
+    # Create final summary with folder-specific metadata
+    summary_file = documents_folder / f"{folder_name}_summary.json"
+    summary_data = {
         "source_folder": str(rel_folder),
-        "files_processed": [f['path'].name for f in files],
-        "total_pages": len(files),
-        "page_metadata": page_metadata
+        "config": prompt_config.get("name", "unnamed"),
+        "steps": list(all_results.keys()),
+        "step_outputs": step_outputs,
+        "results": all_results,
+        "folder_metadata": {
+            "files_processed": [f['path'].name for f in files],
+            "total_pages": len(files),
+        },
+        "timestamp": datetime.now().isoformat()
     }
     
-    return result 
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        f.write(srsly.json_dumps(summary_data, indent=2))
+    logger.info(f"Saved folder summary to: {summary_file}")
+    
+    return {
+        "outputs": [str(summary_file.relative_to(output_folder))],
+        "source": str(rel_folder),
+        "details": {
+            "steps": list(all_results.keys()),
+            "step_outputs": step_outputs,
+            "results": all_results
+        },
+        "folder_metadata": summary_data["folder_metadata"]
+    } 

@@ -57,6 +57,7 @@ vars:
   word_folder: "${vars.assets_folder}/word"
   llm_processed_folder: "${vars.assets_folder}/llm_processed"
   llm_catalogue_folder: "${vars.assets_folder}/llm_catalogue"  # Specific folder for catalogue processing
+  llm_ner_folder: "${vars.assets_folder}/llm_ner"  # Specific folder for NER processing
   
   # Manifest paths
   split_manifest: "${vars.split_image_folder}/split_manifest.jsonl"
@@ -70,6 +71,7 @@ vars:
 
   # LLM configuration
   llm_prompt_config: "${vars.prompts_dir}/catalogue_folder_local_config.jsonl"  # Default prompt config file
+  ner_prompt_config: "${vars.prompts_dir}/ner_async_config.jsonl"  # NER async processing config
 
 directories: ["${vars.scripts_dir}"]
 
@@ -123,6 +125,8 @@ workflows:
   transcriptions-to-catalogue:
     - llm_process_catalogue_folder
 
+  transcriptions-to-ner:
+    - llm_process_ner_async
 
 commands:
   - name: build_documents_manifest
@@ -250,3 +254,11 @@ commands:
     outputs:
       - ${vars.llm_catalogue_folder}
       - ${vars.llm_catalogue_folder}/llm_process_manifest.jsonl
+
+  - name: llm_process_ner_async
+    help: "Process transcribed documents through configurable LLM pipeline for NER processing"
+    script:
+      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_ner_folder}\" --prompt-config \"${vars.ner_prompt_config}\" --folder-mode"
+    outputs:
+      - ${vars.llm_ner_folder}
+      - ${vars.llm_ner_folder}/llm_process_manifest.jsonl
