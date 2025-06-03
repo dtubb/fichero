@@ -682,15 +682,255 @@ def get_llm_backend(config_or_backend_type: Union[Dict, str], model_name: Option
         else:
             raise ValueError(f"Unsupported backend type: {backend_type}")
 
+async def process_chunks_async(
+    chunks: List[Dict],  # List of {'text': str, 'tokens': int, 'start_idx': int}
+    llm: ChatGPTBackend,
+    prompt: str,
+    batch_size: int = 10,
+    output_folder: Path = None,
+    step_name: str = "async_step"
+) -> List[Dict]:
+    """Process chunks asynchronously and save individual JSONL files"""
+    
+    console.print(f"[blue]Processing {len(chunks)} chunks asynchronously (batch size: {batch_size})")
+    
+    semaphore = asyncio.Semaphore(batch_size)
+    
+    async def process_chunk_with_limit(chunk_info: Dict) -> Dict:
+        async with semaphore:
+            chunk_idx = chunk_info.get('start_idx', 0)
+            chunk_text = chunk_info.get('text', '')
+            
+            result = await llm.process_text_async(chunk_text, prompt)
+            
+            return {
+                'chunk_idx': chunk_idx,
+                'result': result,
+                'tokens': chunk_info.get('tokens', 0),
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    # Process all chunks concurrently
+    tasks = [process_chunk_with_limit(chunk) for chunk in chunks]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Filter out exceptions and return successful results
+    successful_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            console.print(f"[red]Error processing chunk {chunks[i].get('start_idx', i)}: {result}")
+        else:
+            successful_results.append(result)
+    
+    # Save individual chunk results as JSONL if output folder specified
+    if output_folder:
+        chunks_folder = output_folder / "chunks" / step_name
+        chunks_folder.mkdir(parents=True, exist_ok=True)
+        
+        for result in successful_results:
+            chunk_idx = result.get('chunk_idx', 0)
+            chunk_file = chunks_folder / f"chunk_{chunk_idx:03d}.jsonl"
+            
+            # Convert result to JSONL format
+            jsonl_entry = {
+                "chunk_idx": chunk_idx,
+                "tokens": result.get('tokens', 0),
+                "timestamp": result.get('timestamp', ''),
+                "step": step_name,
+                "result": result.get('result', '')
+            }
+            
+            # Try to parse result as JSON if it looks like JSON
+            try:
+                if isinstance(result.get('result'), str):
+                    result_text = result.get('result', '').strip()
+                    if result_text.startswith('{') or result_text.startswith('['):
+                        jsonl_entry["result"] = json.loads(result_text)
+            except json.JSONDecodeError:
+                # Keep as string if not valid JSON
+                pass
+            
+            # Save as JSONL
+            with open(chunk_file, 'w', encoding='utf-8') as f:
+                f.write(srsly.json_dumps(jsonl_entry) + '\n')
+            
+            logger.info(f"Saved chunk {chunk_idx} result to: {chunk_file}")
+    
+    console.print(f"[green]Completed async processing of {len(successful_results)} chunks")
+    return successful_results
+
+def estimate_tokens(text: str) -> int:
+    """More accurate token estimation for GPT models"""
+    # GPT models use ~4 chars per token on average, but this varies
+    # Add extra tokens for special characters and whitespace
+    words = text.split()
+    chars = len(text)
+    
+    # Count special characters that might use more tokens
+    special_chars = sum(1 for c in text if c in '.,;:!?()[]{}"\'')
+    
+    # Estimate tokens based on words and characters
+    word_tokens = len(words)  # Each word is at least one token
+    char_tokens = chars // 3  # More conservative estimate for characters
+    
+    # Take the larger of the two estimates
+    return max(word_tokens, char_tokens) + special_chars
+
+def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 100, pages_per_chunk: int = None) -> List[Dict[str, any]]:
+    """Intelligently chunk text by combining multiple pages when possible
+    
+    Args:
+        text: The text to chunk
+        max_tokens: Maximum tokens per chunk
+        overlap: Number of tokens to overlap between chunks
+        pages_per_chunk: If set, chunk by this many pages instead of token count
+    """
+    if not text.strip():
+        console.print("[yellow]Empty text provided for chunking")
+        return []
+    
+    chunks = []
+    
+    # Split by page markers
+    import re
+    page_pattern = r'\n\s*\[PAGE\s*(\d+)\]\s*\n'
+    page_matches = list(re.finditer(page_pattern, text))
+    
+    if not page_matches:
+        console.print("[yellow]No page markers found, falling back to paragraph chunking")
+        return chunk_text_intelligently(text, max_tokens, overlap)
+    
+    console.print(f"[green]Found {len(page_matches)} pages")
+    
+    # If pages_per_chunk is set, use that strategy
+    if pages_per_chunk:
+        console.print(f"[blue]Chunking by {pages_per_chunk} pages")
+        current_chunk = []
+        current_pages = []
+        current_page_nums = []
+        
+        for i, match in enumerate(page_matches):
+            # Get content for this page
+            start = match.end()
+            end = page_matches[i + 1].start() if i + 1 < len(page_matches) else len(text)
+            page_content = text[start:end].strip()
+            page_num = int(match.group(1))
+            
+            if not page_content:
+                continue
+                
+            current_chunk.append(page_content)
+            current_pages.append(page_num)
+            current_page_nums.append(page_num)
+            
+            # If we've reached the desired number of pages, save the chunk
+            if len(current_pages) >= pages_per_chunk:
+                chunk_text = '\n\n'.join(current_chunk)
+                if chunk_text.strip():
+                    chunks.append({
+                        'text': chunk_text,
+                        'tokens': estimate_tokens(chunk_text),
+                        'start_idx': len(chunks),
+                        'page_nums': current_page_nums.copy(),
+                        'is_complete_pages': True
+                    })
+                current_chunk = []
+                current_pages = []
+                current_page_nums = []
+        
+        # Add final chunk if there's anything left
+        if current_chunk:
+            chunk_text = '\n\n'.join(current_chunk)
+            if chunk_text.strip():
+                chunks.append({
+                    'text': chunk_text,
+                    'tokens': estimate_tokens(chunk_text),
+                    'start_idx': len(chunks),
+                    'page_nums': current_page_nums,
+                    'is_complete_pages': True
+                })
+    else:
+        # Original token-based chunking
+        current_chunk = []
+        current_tokens = 0
+        current_pages = []
+        current_page_nums = []
+        
+        for i, match in enumerate(page_matches):
+            # Get content for this page
+            start = match.end()
+            end = page_matches[i + 1].start() if i + 1 < len(page_matches) else len(text)
+            page_content = text[start:end].strip()
+            page_num = int(match.group(1))
+            
+            if not page_content:
+                continue
+                
+            page_tokens = estimate_tokens(page_content)
+            
+            # If adding this page would exceed limit and we have content
+            if current_tokens + page_tokens > max_tokens and current_chunk:
+                # Save current chunk
+                chunk_text = '\n\n'.join(current_chunk)
+                if chunk_text.strip():
+                    chunks.append({
+                        'text': chunk_text,
+                        'tokens': current_tokens,
+                        'start_idx': len(chunks),
+                        'page_nums': current_page_nums.copy(),
+                        'is_complete_pages': True
+                    })
+                
+                # Start new chunk
+                current_chunk = [page_content]
+                current_tokens = page_tokens
+                current_pages = [page_num]
+                current_page_nums = [page_num]
+            else:
+                # Add to current chunk
+                current_chunk.append(page_content)
+                current_tokens += page_tokens
+                current_pages.append(page_num)
+                current_page_nums.append(page_num)
+        
+        # Add final chunk
+        if current_chunk:
+            chunk_text = '\n\n'.join(current_chunk)
+            if chunk_text.strip():
+                chunks.append({
+                    'text': chunk_text,
+                    'tokens': current_tokens,
+                    'start_idx': len(chunks),
+                    'page_nums': current_page_nums,
+                    'is_complete_pages': True
+                })
+    
+    console.print(f"[blue]Created {len(chunks)} chunks")
+    for chunk in chunks:
+        console.print(f"[blue]Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
+    
+    return chunks
+
 def process_document_with_llm(
     doc_path: Path,
     text_content: str,
     llm: LLMBackend,
     prompt_config: Dict,
     max_tokens: int,
-    output_folder: Path
+    output_folder: Path,
+    json_field: Optional[str] = None  # New parameter to specify which JSON field to process
 ) -> dict:
-    """Process a single document through LLM pipeline"""
+    """Process a single document through LLM pipeline
+    
+    Args:
+        doc_path: Path to the document
+        text_content: Text content to process
+        llm: LLM backend to use
+        prompt_config: Configuration for the processing steps
+        max_tokens: Maximum tokens per chunk
+        output_folder: Folder to save results
+        json_field: Optional field name to extract from JSON input. If provided, only that field will be processed.
+    """
     
     # Convert to Path object if needed
     doc_path = Path(doc_path)
@@ -714,184 +954,150 @@ def process_document_with_llm(
         folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Ensured directory exists: {folder}")
     
-    # Check if we should use intelligent chunking
-    use_intelligent_chunking = prompt_config.get("intelligent_chunking", False)
-    chunk_overlap = prompt_config.get("chunk_overlap", 100)
-    
-    # Process text in chunks
-    logger.info("Chunking text...")
-    if use_intelligent_chunking:
-        chunks = chunk_text_by_structure(text_content, max_tokens, chunk_overlap)
-        logger.info(f"Using intelligent chunking:")
-        logger.info(f"  Chunks: {len(chunks)}")
-        logger.info(f"  Overlap: {chunk_overlap} tokens")
-        logger.info(f"  Max tokens per chunk: {max_tokens}")
-    else:
-        # Simple text chunking when intelligent_chunking is False
-        words = text_content.split()
-        text_chunks = []
-        current_chunk = []
-        current_tokens = 0
-        
-        for word in words:
-            if current_tokens + 1 > max_tokens and current_chunk:
-                text_chunks.append(' '.join(current_chunk))
-                current_chunk = [word]
-                current_tokens = 1
-            else:
-                current_chunk.append(word)
-                current_tokens += 1
-        
-        # Add the last chunk if it exists
-        if current_chunk:
-            text_chunks.append(' '.join(current_chunk))
-        
-        chunks = []
-        for i, chunk in enumerate(text_chunks):
-            if chunk.strip():  # Only add non-empty chunks
-                chunks.append({
-                    "text": chunk, 
-                    "tokens": len(chunk.split()), 
-                    "start_idx": i
-                })
-        logger.info(f"Using basic chunking:")
-        logger.info(f"  Chunks: {len(chunks)}")
-        logger.info(f"  Max tokens per chunk: {max_tokens}")
-    
     all_results = {}
     step_outputs = []  # Track all step output files
-    
-    # Validate chunks
-    if not chunks:
-        logger.warning("No chunks generated from text, skipping processing")
-        return {}
     
     # Process each step defined in prompt config
     for step_idx, step in enumerate(prompt_config.get("steps", [])):
         step_name = step.get("name", f"step_{step_idx}")
         prompt = step.get("prompt", "")
+        debug = step.get("debug", False)  # Get debug flag from step config
         
         logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
         logger.info(f"Prompt: {prompt[:100]}...")
+        if debug:
+            logger.info("Debug mode enabled for this step")
         
-        # Check if this step uses iterative refinement
-        if step.get("iterative_refinement", False):
-            logger.info("Using iterative refinement")
-            # Use iterative refinement for this step
-            refinement_prompt = step.get("refinement_prompt", None)
-            result = process_with_iterative_refinement(
-                chunks, llm, prompt, refinement_prompt
-            )
-            all_results[step_name] = result
+        # Create debug folder if needed
+        debug_folder = output_folder / "debug" / doc_stem if debug else None
+        if debug_folder:
+            debug_folder.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created debug folder: {debug_folder}")
+        
+        # Check if output file already exists
+        step_file = steps_folder / f"{step_name}.json"
+        if step_file.exists():
+            logger.info(f"Found existing output file for step {step_name}, loading results...")
+            try:
+                with open(step_file, 'r', encoding='utf-8') as f:
+                    step_data = json.load(f)
+                all_results[step_name] = step_data.get("result", {})
+                step_outputs.append(str(step_file.relative_to(output_folder)))
+                logger.info(f"Loaded existing results for step {step_name}")
+                continue
+            except Exception as e:
+                logger.warning(f"Failed to load existing results for step {step_name}: {e}")
+                logger.info("Will reprocess the step...")
+        
+        # Get max tokens from step config or use global max_tokens
+        step_max_tokens = step.get("llm", {}).get("max_tokens", max_tokens)
+        
+        # Calculate available tokens for input
+        # Reserve tokens for:
+        # - System message (~100 tokens)
+        # - Prompt
+        # - Response (at least 1000 tokens)
+        prompt_tokens = estimate_tokens(prompt)
+        system_tokens = 100
+        response_tokens = 1000
+        available_tokens = step_max_tokens - prompt_tokens - system_tokens - response_tokens
+        
+        logger.info(f"Token limits:")
+        logger.info(f"  Model max tokens: {step_max_tokens}")
+        logger.info(f"  Prompt tokens: {prompt_tokens}")
+        logger.info(f"  System tokens: {system_tokens}")
+        logger.info(f"  Response tokens: {response_tokens}")
+        logger.info(f"  Available for input: {available_tokens}")
+        
+        # Get chunking strategy from step config
+        chunking_strategy = step.get("chunking_strategy", "token_based")
+        chunk_overlap = step.get("chunk_overlap", 100)
+        pages_per_chunk = step.get("pages_per_chunk")
+        
+        # If we have a JSON field to process and the input is JSON
+        if json_field and isinstance(text_content, str):
+            try:
+                # Try to parse the input as JSON
+                input_json = json.loads(text_content)
+                if json_field in input_json:
+                    # Extract just the field we want to process
+                    text_content = json.dumps({json_field: input_json[json_field]}, indent=2)
+                    logger.info(f"Extracted field '{json_field}' from JSON input")
+                else:
+                    logger.warning(f"Field '{json_field}' not found in JSON input")
+            except json.JSONDecodeError:
+                logger.warning("Input is not valid JSON, processing as raw text")
+        
+        # Always process as one chunk if chunking_strategy is "none"
+        if chunking_strategy == "none":
+            # Process entire text at once
+            logger.info("Processing entire text without chunking")
+            chunks = [{
+                "text": text_content,
+                "tokens": estimate_tokens(text_content),
+                "start_idx": 0,
+                "page_nums": list(range(1, 53))  # Assuming 52 pages
+            }]
             
-            # Save the step result
+            # Process the single chunk
+            logger.info("Processing single chunk...")
+            result = llm.process_text(text_content, prompt)
+            
+            # Try to parse as JSON if specified
+            if step.get("json", False):
+                try:
+                    if result.strip().startswith('{') or result.strip().startswith('['):
+                        result = json.loads(result)
+                        logger.info("Successfully parsed JSON result")
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse JSON for {rel_path}")
+            
+            # Save the result
             step_file = steps_folder / f"{step_name}.json"
             with open(step_file, 'w', encoding='utf-8') as f:
                 f.write(srsly.json_dumps({
                     "source": str(rel_path),
                     "step": step_name,
                     "result": result,
-                    "mode": "iterative_refinement",
                     "timestamp": datetime.now().isoformat()
                 }, indent=2))
             step_outputs.append(str(step_file.relative_to(output_folder)))
             logger.info(f"Saved step result to: {step_file}")
             
-            # Also save chunk results for debugging
-            chunk_file = chunks_folder / f"{step_name}_chunks.json"
-            with open(chunk_file, 'w', encoding='utf-8') as f:
-                f.write(srsly.json_dumps({
-                    "source": str(rel_path),
-                    "step": step_name,
-                    "chunks": [{"idx": i, "tokens": c["tokens"]} for i, c in enumerate(chunks)],
-                    "mode": "iterative_refinement"
-                }, indent=2))
-            logger.info(f"Saved chunk info to: {chunk_file}")
+            parsed_result = clean_and_parse_llm_json(result, step)
+            all_results[step_name] = parsed_result
+            continue
+        elif chunking_strategy == "page_based" and pages_per_chunk:
+            logger.info(f"Using page-based chunking: {pages_per_chunk} pages per chunk")
+            chunks = chunk_text_by_structure(text_content, available_tokens, chunk_overlap, pages_per_chunk)
         else:
-            # Original chunk-by-chunk processing
-            logger.info("Processing chunks sequentially")
-            chunk_results = []
-            
-            for chunk_idx, chunk_info in enumerate(chunks):
-                # Validate chunk structure
-                if not isinstance(chunk_info, dict) or 'text' not in chunk_info:
-                    logger.warning(f"Skipping malformed chunk {chunk_idx}: {chunk_info}")
-                    continue
-                    
-                chunk_text = chunk_info.get('text', '')  # Initialize with default chunk text
-                if not chunk_text.strip():
-                    logger.warning(f"Skipping empty chunk {chunk_idx}")
-                    continue
-                
-                logger.info(f"Processing chunk {chunk_idx + 1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
-                
-                # Use previous step's output if chaining
-                if step.get("use_previous", False) and step_idx > 0:
-                    prev_step_name = prompt_config["steps"][step_idx-1].get("name", f"step_{step_idx-1}")
-                    if prev_step_name in all_results:
-                        prev_result = all_results[prev_step_name]
-                        if isinstance(prev_result, list):
-                            # Use specific chunk if available, otherwise use first result
-                            chunk_text = "\n\n".join(prev_result) if len(prev_result) > chunk_idx else prev_result[0] if prev_result else chunk_text
-                        else:
-                            # Use the previous result as text
-                            chunk_text = str(prev_result) if prev_result else chunk_text
-                        logger.info(f"Using output from previous step: {prev_step_name}")
-                    else:
-                        logger.warning(f"Previous step {prev_step_name} not found, using original chunk text")
-                
-                result = llm.process_text(chunk_text, prompt)
-                logger.info(f"Got result ({len(result)} chars)")
-                
-                # Try to parse as JSON if specified
-                if step.get("json", False):
-                    try:
-                        if result.strip().startswith('{') or result.strip().startswith('['):
-                            result = json.loads(result)
-                            logger.info("Successfully parsed JSON result")
-                    except json.JSONDecodeError:
-                        logger.warning(f"Failed to parse JSON for {rel_path}, chunk {chunk_idx}")
-                
-                chunk_results.append(result)
-
-                # Save individual chunk result
-                chunk_file = chunks_folder / f"{step_name}_chunk{chunk_idx}.json"
-                with open(chunk_file, 'w', encoding='utf-8') as f:
-                    f.write(srsly.json_dumps({
-                        "source": str(rel_path),
-                        "step": step_name,
-                        "chunk": chunk_idx,
-                        "result": result
-                    }, indent=2))
-                logger.info(f"Saved chunk result to: {chunk_file}")
-            
-            # Combine results if specified
-            if step.get("combine", False):
-                logger.info("Combining chunk results...")
-                if chunk_results and isinstance(chunk_results[0], (dict, list)):
-                    # Combine JSON results
-                    if isinstance(chunk_results[0], list):
-                        combined = []
-                        for r in chunk_results:
-                            if isinstance(r, list):
-                                combined.extend(r)
-                        all_results[step_name] = combined
-                        logger.info(f"Combined {len(combined)} list items")
-                    else:
-                        # For dicts, merge or take first
-                        all_results[step_name] = chunk_results[0]
-                        logger.info("Using first dictionary result")
-                elif chunk_results:
-                    # Combine text results
-                    all_results[step_name] = "\n\n".join(str(r) for r in chunk_results)
-                    logger.info(f"Combined {len(chunk_results)} text chunks")
-                else:
-                    # Handle empty results
-                    all_results[step_name] = ""
-                    logger.warning("No results to combine, using empty string")
-            else:
-                all_results[step_name] = chunk_results
-                logger.info(f"Kept {len(chunk_results)} separate results")
+            logger.info("Using token-based chunking")
+            chunks = chunk_text_by_structure(text_content, available_tokens, chunk_overlap)
+        
+        logger.info(f"Created {len(chunks)} chunks")
+        for chunk in chunks:
+            logger.info(f"Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
+        
+        # Check if all chunk files already exist
+        chunks_exist = True
+        chunk_results = []
+        for chunk in chunks:
+            chunk_file = chunks_folder / f"{step_name}_chunk{chunk['start_idx']}.json"
+            if not chunk_file.exists():
+                chunks_exist = False
+                break
+            try:
+                with open(chunk_file, 'r', encoding='utf-8') as f:
+                    chunk_data = json.load(f)
+                chunk_results.append(chunk_data.get("result", ""))
+            except Exception as e:
+                logger.warning(f"Failed to load chunk {chunk['start_idx']}: {e}")
+                chunks_exist = False
+                break
+        
+        if chunks_exist and chunk_results:
+            logger.info(f"Found existing chunk results for step {step_name}, using those")
+            all_results[step_name] = chunk_results
             
             # Save the step result
             step_file = steps_folder / f"{step_name}.json"
@@ -899,12 +1105,166 @@ def process_document_with_llm(
                 f.write(srsly.json_dumps({
                     "source": str(rel_path),
                     "step": step_name,
-                    "result": all_results[step_name],
+                    "result": chunk_results,
                     "chunks_processed": len(chunk_results),
                     "timestamp": datetime.now().isoformat()
                 }, indent=2))
             step_outputs.append(str(step_file.relative_to(output_folder)))
             logger.info(f"Saved step result to: {step_file}")
+            
+            parsed_result = clean_and_parse_llm_json(chunk_results, step)
+            all_results[step_name] = parsed_result
+        else:
+            # If we get here, we need to process chunks
+            logger.info("Processing chunks...")
+            
+            # Check if this step uses async chunk processing
+            if step.get("async", False) and isinstance(llm, ChatGPTBackend):
+                logger.info("Using async chunk processing")
+                
+                batch_size = step.get("async_batch_size", 10)
+                
+                try:
+                    # Run async function in event loop
+                    try:
+                        loop = asyncio.get_running_loop()
+                        chunk_results = asyncio.run(process_chunks_async(
+                            chunks, llm, prompt, batch_size, output_folder, step_name
+                        ))
+                    except RuntimeError:
+                        chunk_results = asyncio.run(process_chunks_async(
+                            chunks, llm, prompt, batch_size, output_folder, step_name
+                        ))
+                    
+                    # Clean up the results and parse JSON if needed
+                    cleaned_results = []
+                    for result in chunk_results:
+                        chunk_result = result.get('result', '')
+                        parsed_chunk_result = clean_and_parse_llm_json(chunk_result, step)
+                        result['result'] = parsed_chunk_result
+                        cleaned_results.append(result)
+                    
+                    all_results[step_name] = cleaned_results
+                    logger.info(f"Async processing completed: {len(cleaned_results)} chunks processed")
+                    
+                    # Save the step result
+                    step_file = steps_folder / f"{step_name}.json"
+                    with open(step_file, 'w', encoding='utf-8') as f:
+                        f.write(srsly.json_dumps({
+                            "source": str(rel_path),
+                            "step": step_name,
+                            "result": cleaned_results,
+                            "mode": "async_chunk_processing",
+                            "chunks_processed": len(cleaned_results),
+                            "timestamp": datetime.now().isoformat()
+                        }, indent=2))
+                    step_outputs.append(str(step_file.relative_to(output_folder)))
+                    logger.info(f"Saved async step result to: {step_file}")
+                    
+                except Exception as e:
+                    logger.error(f"Error in async chunk processing: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    all_results[step_name] = []
+            else:
+                # Process chunks sequentially
+                logger.info("Processing chunks sequentially")
+                chunk_results = []
+                
+                for chunk_idx, chunk_info in enumerate(chunks):
+                    # Validate chunk structure
+                    if not isinstance(chunk_info, dict) or 'text' not in chunk_info:
+                        logger.warning(f"Skipping malformed chunk {chunk_idx}: {chunk_info}")
+                        continue
+                        
+                    chunk_text = chunk_info.get('text', '')
+                    if not chunk_text.strip():
+                        logger.warning(f"Skipping empty chunk {chunk_idx}")
+                        continue
+                    
+                    logger.info(f"Processing chunk {chunk_idx + 1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
+                    
+                    # Use previous step's output if chaining
+                    if step.get("use_previous", False) and step_idx > 0:
+                        prev_step_name = prompt_config["steps"][step_idx-1].get("name", f"step_{step_idx-1}")
+                        if prev_step_name in all_results:
+                            prev_result = all_results[prev_step_name]
+                            if isinstance(prev_result, list):
+                                chunk_text = "\n\n".join(str(r) for r in prev_result) if len(prev_result) > chunk_idx else str(prev_result[0]) if prev_result else chunk_text
+                            else:
+                                chunk_text = str(prev_result) if prev_result else chunk_text
+                            logger.info(f"Using output from previous step: {prev_step_name}")
+                        else:
+                            logger.warning(f"Previous step {prev_step_name} not found, using original chunk text")
+                    
+                    # Add page numbers to the prompt
+                    page_nums = chunk_info.get('page_nums', [])
+                    if page_nums:
+                        page_info = f"\n\nThis text is from pages {page_nums[0]} to {page_nums[-1]} of the document."
+                        enhanced_prompt = f"{prompt}{page_info}"
+                        logger.info(f"Enhanced prompt with page numbers: {page_nums[0]} to {page_nums[-1]}")
+                    else:
+                        enhanced_prompt = prompt
+                    
+                    # Save debug info if enabled
+                    if debug:
+                        debug_file = debug_folder / f"{step_name}_chunk{chunk_idx}_input.json"
+                        with open(debug_file, 'w', encoding='utf-8') as f:
+                            f.write(srsly.json_dumps({
+                                "chunk_idx": chunk_idx,
+                                "page_nums": page_nums,
+                                "prompt": enhanced_prompt,
+                                "text": chunk_text,
+                                "tokens": chunk_info.get('tokens', 0),
+                                "timestamp": datetime.now().isoformat()
+                            }, indent=2))
+                        logger.info(f"Saved debug input to: {debug_file}")
+                    
+                    result = llm.process_text(chunk_text, enhanced_prompt)
+                    logger.info(f"Got result ({len(result)} chars)")
+                    
+                    if debug:
+                        debug_file = debug_folder / f"{step_name}_chunk{chunk_idx}_output.json"
+                        with open(debug_file, 'w', encoding='utf-8') as f:
+                            f.write(srsly.json_dumps({
+                                "chunk_idx": chunk_idx,
+                                "page_nums": page_nums,
+                                "result": result,
+                                "timestamp": datetime.now().isoformat()
+                            }, indent=2))
+                        logger.info(f"Saved debug output to: {debug_file}")
+                    
+                    # Use centralized JSON parsing
+                    parsed_result = clean_and_parse_llm_json(result, step)
+                    chunk_results.append(parsed_result)
+
+                    # Save individual chunk result
+                    chunk_file = chunks_folder / f"{step_name}_chunk{chunk_idx}.json"
+                    with open(chunk_file, 'w', encoding='utf-8') as f:
+                        f.write(srsly.json_dumps({
+                            "source": str(rel_path),
+                            "step": step_name,
+                            "chunk": chunk_idx,
+                            "page_nums": page_nums,
+                            "result": parsed_result
+                        }, indent=2))
+                    logger.info(f"Saved chunk result to: {chunk_file}")
+                
+                all_results[step_name] = chunk_results
+                logger.info(f"Processed {len(chunk_results)} chunks")
+                
+                # Save the step result
+                step_file = steps_folder / f"{step_name}.json"
+                with open(step_file, 'w', encoding='utf-8') as f:
+                    f.write(srsly.json_dumps({
+                        "source": str(rel_path),
+                        "step": step_name,
+                        "result": chunk_results,
+                        "chunks_processed": len(chunk_results),
+                        "timestamp": datetime.now().isoformat()
+                    }, indent=2))
+                step_outputs.append(str(step_file.relative_to(output_folder)))
+                logger.info(f"Saved step result to: {step_file}")
     
     # Save combined summary file
     logger.info("Creating summary file...")
@@ -1016,34 +1376,9 @@ def process_folder_with_llm(
                 cleaned_results = []
                 for result in page_results:
                     page_result = result.get('result', '')
-                    
-                    # Clean up JSON code blocks if present
-                    if isinstance(page_result, str):
-                        # Remove markdown code blocks
-                        if page_result.strip().startswith('```json'):
-                            page_result = page_result.strip()
-                            # Find the JSON content between ```json and ```
-                            start = page_result.find('```json') + 7
-                            end = page_result.rfind('```')
-                            if end > start:
-                                page_result = page_result[start:end].strip()
-                        elif page_result.strip().startswith('```'):
-                            # Handle other code block formats
-                            lines = page_result.strip().split('\n')
-                            if lines[0].startswith('```') and lines[-1] == '```':
-                                page_result = '\n'.join(lines[1:-1])
-                    
-                    # Try to parse as JSON
-                    if step.get("json", False):
-                        try:
-                            if isinstance(page_result, str) and page_result.strip():
-                                parsed_result = json.loads(page_result)
-                                result['result'] = parsed_result
-                                logger.info(f"Successfully parsed JSON for page {result.get('page_num', 0)}")
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to parse JSON for page {result.get('page_num', 0)}: {e}")
-                            # Keep the original result
-                    
+                    # Use centralized JSON parsing
+                    parsed_page_result = clean_and_parse_llm_json(page_result, step)
+                    result['result'] = parsed_page_result
                     cleaned_results.append(result)
                 
                 all_results[step_name] = cleaned_results
@@ -1178,119 +1513,75 @@ def process_folder_with_llm(
         "folder_metadata": summary_data["folder_metadata"]
     }
 
-def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 100) -> List[Dict[str, any]]:
-    """Intelligently chunk text by page boundaries first, then by paragraphs"""
-    if not text.strip():
-        console.print("[yellow]Empty text provided for chunking")
-        return []
-    
-    chunks = []
-    
-    # First, try to detect page boundaries
-    import re
-    page_pattern = r'\n\s*(?:PAGE|Page|page)\s*(\d+)\s*\n'
-    page_matches = list(re.finditer(page_pattern, text))
-    
-    if page_matches:
-        console.print(f"[green]Found {len(page_matches)} page boundaries, chunking by pages")
+# --- Additions for robust JSON parsing and combining ---
+def clean_and_parse_llm_json(result: str, step_config: Dict) -> Any:
+    """
+    Centralized function to clean and parse LLM JSON output consistently.
+    Returns parsed JSON object if step has json=True, otherwise returns original string.
+    """
+    if not step_config.get("json", False):
+        return result
         
-        # Split by pages
-        page_texts = []
-        last_end = 0
+    if not isinstance(result, str):
+        return result
         
-        for i, match in enumerate(page_matches):
-            if i == 0:
-                # Content before first page marker
-                if match.start() > 0:
-                    page_texts.append({
-                        'text': text[:match.start()].strip(),
-                        'page_num': 0,
-                        'is_header': True
-                    })
-            
-            # Get content for this page
-            start = match.end()
-            end = page_matches[i + 1].start() if i + 1 < len(page_matches) else len(text)
-            page_content = text[start:end].strip()
-            
-            if page_content:
-                page_texts.append({
-                    'text': page_content,
-                    'page_num': int(match.group(1)),
-                    'is_header': False
-                })
-        
-        # Now chunk pages that are too large
-        for page_info in page_texts:
-            page_text = page_info['text']
-            page_tokens = len(page_text.split())
-            
-            if page_tokens <= max_tokens:
-                # Page fits in one chunk
-                chunks.append({
-                    'text': page_text,
-                    'tokens': page_tokens,
-                    'start_idx': len(chunks),
-                    'page_num': page_info['page_num'],
-                    'is_complete_page': True
-                })
+    original_result = result
+    result = result.strip()
+    
+    # Clean up JSON code blocks if present
+    if result.startswith('```json'):
+        start = result.find('```json') + 7
+        end = result.rfind('```')
+        if end > start:
+            result = result[start:end].strip()
+    elif result.startswith('```'):
+        lines = result.split('\n')
+        if lines[0].startswith('```') and lines[-1] == '```':
+            result = '\n'.join(lines[1:-1])
+    
+    # Try to parse as JSON
+    try:
+        if result.startswith('{') or result.startswith('['):
+            parsed_result = json.loads(result)
+            logger.info("Successfully parsed JSON result")
+            return parsed_result
+        else:
+            logger.warning(f"JSON result doesn't start with {{ or [: {result[:100]}...")
+            return original_result
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse JSON: {e}")
+        logger.warning(f"Raw result preview: {result[:200]}...")
+        return original_result
+
+def combine_json_results(results: list) -> dict:
+    """
+    Combine a list of JSON results (dicts) from LLM outputs.
+    For each top-level key, concatenate lists and merge dicts by key.
+    """
+    from collections import defaultdict
+    combined = defaultdict(list)
+    for res in results:
+        if isinstance(res, str):
+            res = clean_and_parse_llm_json(res, {})
+        if not isinstance(res, dict):
+            continue
+        for k, v in res.items():
+            if isinstance(v, list):
+                combined[k].extend(v)
             else:
-                # Page too large, split by paragraphs
-                page_chunks = chunk_text_intelligently(page_text, max_tokens, overlap)
-                for i, chunk in enumerate(page_chunks):
-                    chunk['page_num'] = page_info['page_num']
-                    chunk['is_complete_page'] = False
-                    chunk['page_chunk_idx'] = i
-                    chunk['start_idx'] = len(chunks)
-                    chunks.append(chunk)
-    
-    else:
-        console.print("[yellow]No page boundaries found, chunking by paragraphs")
-        
-        # No pages found, chunk by paragraphs
-        paragraphs = text.split('\n\n')
-        current_chunk = []
-        current_tokens = 0
-        
-        for para in paragraphs:
-            if not para.strip():
-                continue
-                
-            para_tokens = len(para.split())
-            
-            # If adding this paragraph would exceed limit and we have content
-            if current_tokens + para_tokens > max_tokens and current_chunk:
-                chunk_text = '\n\n'.join(current_chunk)
-                if chunk_text.strip():
-                    chunks.append({
-                        'text': chunk_text,
-                        'tokens': current_tokens,
-                        'start_idx': len(chunks),
-                        'is_complete': len(current_chunk) == 1  # Complete if single paragraph
-                    })
-                
-                # Start new chunk with overlap if specified
-                if overlap > 0 and len(current_chunk) > 1:
-                    # Keep last paragraph for overlap
-                    current_chunk = [current_chunk[-1], para]
-                    current_tokens = len(current_chunk[0].split()) + para_tokens
-                else:
-                    current_chunk = [para]
-                    current_tokens = para_tokens
-            else:
-                current_chunk.append(para)
-                current_tokens += para_tokens
-        
-        # Add final chunk
-        if current_chunk:
-            chunk_text = '\n\n'.join(current_chunk)
-            if chunk_text.strip():
-                chunks.append({
-                    'text': chunk_text,
-                    'tokens': current_tokens,
-                    'start_idx': len(chunks),
-                    'is_complete': True
-                })
-    
-    console.print(f"[blue]Created {len(chunks)} chunks from text structure")
-    return chunks 
+                combined[k].append(v)
+    # Remove duplicates in lists (by name/date/event/reference for entities)
+    for k, v in combined.items():
+        if isinstance(v, list) and v and isinstance(v[0], dict):
+            seen = set()
+            unique = []
+            for item in v:
+                # Use 'name', 'date', 'event', or 'reference' as unique key
+                key = item.get('name') or item.get('date') or item.get('event') or item.get('reference')
+                if key and key not in seen:
+                    seen.add(key)
+                    unique.append(item)
+            combined[k] = unique
+    return dict(combined)
+
+# --- End additions --- 

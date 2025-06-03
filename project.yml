@@ -124,7 +124,10 @@ workflows:
     - convert_to_word
 
   transcriptions-to-catalogue:
-    - llm_process_catalogue_folder
+    - catalogue_folder
+
+  catalogue-to-word:
+      - catalogue_to_word
 
   transcriptions-to-ner:
     - llm_process_ner_async
@@ -139,8 +142,11 @@ workflows:
   transcriptions-to-ner-gpt4-word:
     - llm_process_ner_gpt4
     - llm_ner_to_word
-  
 
+  transcriptions-to-spacey-llm-ner-word:
+    - llm_process_spacey_ner_gpt4
+    - llm_ner_to_word
+    
 commands:
   - name: build_documents_manifest
     help: "Generate the documents manifest listing"
@@ -260,10 +266,10 @@ commands:
       - ${vars.segmented_transcriptions_folder}
       - ${vars.segmented_transcription_manifest}
 
-  - name: llm_process_catalogue_folder
+  - name: catalogue_folder
     help: "Process transcribed documents through configurable LLM pipeline for catalogue generation"
     script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_catalogue_folder}\" --prompt-config \"${vars.llm_prompt_config}\" --folder-mode"
+      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_catalogue_folder}\" --prompt-config \"${vars.prompts_dir}/catalogue_folder_local_config.jsonl\" --folder-mode"
     outputs:
       - ${vars.llm_catalogue_folder}
       - ${vars.llm_catalogue_folder}/llm_process_manifest.jsonl
@@ -283,6 +289,14 @@ commands:
     outputs:
       - ${vars.llm_ner_folder}/gpt4
       - ${vars.llm_ner_folder}/gpt4/llm_process_manifest.jsonl
+
+  - name: llm_process_spacey_ner_gpt4
+    help: "Process transcribed documents using spaCy NER followed by GPT-4 refinement"
+    script:
+      - "python ${vars.scripts_dir}/process_ner.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_ner_folder}/spacey_gpt4\" --prompt-config \"${vars.prompts_dir}/ner-hybrid.jsonl\" --backend-type chatgpt --model-name gpt-4.1"
+    outputs:
+      - ${vars.llm_ner_folder}/spacey_gpt4
+      - ${vars.llm_ner_folder}/spacey_gpt4/ner_process_manifest.jsonl
 
   - name: llm_ner_to_word
     help: "Convert LLM NER output to Word documents"

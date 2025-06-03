@@ -10,9 +10,22 @@ import json
 import srsly
 import re
 import ast
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Union
 
-console = Console()
+from utils.batch import BatchProcessor
+from utils.segment_handler import SegmentHandler
+from utils.files import ensure_dirs, get_relative_path
+from utils.processor import process_file
+
+# Initialize Typer app
 app = typer.Typer()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+console = Console()
 
 def set_document_properties(doc):
     """Set up initial document properties"""
@@ -55,85 +68,160 @@ def add_section(doc, title, content):
     p.paragraph_format.space_after = Pt(12)
     p.paragraph_format.line_spacing = 1.15
 
-def format_ner_results(ner_data):
-    """Format NER results into a clean, readable format"""
-    if not ner_data:
-        return "No named entities found."
+def add_table_section(doc, title, data_list):
+    """Add a section with a title and a table for a list of dicts."""
+    if not data_list:
+        return
+    # Add section title
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = p.add_run(title)
+    run.font.name = 'Helvetica Neue'
+    run.font.size = Pt(12)
+    run.font.bold = True
+    p.space_after = Pt(6)
+    # Get all unique keys for columns
+    columns = set()
+    for item in data_list:
+        if isinstance(item, dict):
+            columns.update(item.keys())
+    columns = list(columns)
+    if not columns:
+        return
+    # Add table
+    table = doc.add_table(rows=1, cols=len(columns))
+    table.style = 'Table Grid'
+    hdr_cells = table.rows[0].cells
+    for i, col in enumerate(columns):
+        hdr_cells[i].text = col.replace('_', ' ').title()
+        for paragraph in hdr_cells[i].paragraphs:
+            for run in paragraph.runs:
+                run.font.name = 'Helvetica Neue'
+                run.font.size = Pt(10)
+    for item in data_list:
+        row_cells = table.add_row().cells
+        for i, col in enumerate(columns):
+            val = item.get(col, "")
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val)
+            elif isinstance(val, dict):
+                val = json.dumps(val, ensure_ascii=False)
+            row_cells[i].text = str(val)
+            for paragraph in row_cells[i].paragraphs:
+                for run in paragraph.runs:
+                    run.font.name = 'Helvetica Neue'
+                    run.font.size = Pt(10)
+    # Set narrow column width for Dates table
+    if title.strip().lower() == 'dates' and len(columns) > 0:
+        table.columns[0].width = Inches(1.2)
+    doc.add_paragraph()  # Add space after table
+
+def format_value(value: Any, indent: int = 0) -> str:
+    """Format any value into a readable string with proper indentation"""
+    if value is None:
+        return "None"
     
-    # If input is a string, try to parse as JSON
-    if isinstance(ner_data, str):
+    # Handle strings that might be JSON
+    if isinstance(value, str):
         try:
-            ner_data = json.loads(ner_data)
-        except Exception:
-            return ner_data  # Return as-is if not JSON
+            # Try to parse as JSON
+            parsed = json.loads(value)
+            return format_value(parsed, indent)
+        except json.JSONDecodeError:
+            # If not JSON, check for markdown code blocks
+            if "```" in value:
+                # Extract content from code blocks
+                blocks = re.findall(r"```(?:json)?(.*?)```", value, re.DOTALL)
+                if blocks:
+                    try:
+                        parsed = json.loads(blocks[0].strip())
+                        return format_value(parsed, indent)
+                    except json.JSONDecodeError:
+                        pass
+            return value
     
-    formatted = []
-    # Format persons
-    if 'persons' in ner_data:
-        formatted.append("Persons:")
-        for person, pages in ner_data['persons'].items():
-            formatted.append(f"  • {person} (pages {', '.join(map(str, pages))})")
-        formatted.append("")
-    # Format organizations
-    if 'organizations' in ner_data:
-        formatted.append("Organizations:")
-        for org, pages in ner_data['organizations'].items():
-            formatted.append(f"  • {org} (pages {', '.join(map(str, pages))})")
-        formatted.append("")
-    # Format locations
-    if 'locations' in ner_data:
-        formatted.append("Locations:")
-        for loc, pages in ner_data['locations'].items():
-            formatted.append(f"  • {loc} (pages {', '.join(map(str, pages))})")
-        formatted.append("")
-    # Format dates
-    if 'dates' in ner_data:
-        formatted.append("Dates:")
-        for date, pages in ner_data['dates'].items():
-            formatted.append(f"  • {date} (pages {', '.join(map(str, pages))})")
-        formatted.append("")
-    return "\n".join(formatted)
+    # Handle dictionaries
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        lines = []
+        for k, v in value.items():
+            # Format key nicely
+            if isinstance(k, str):
+                # Convert snake_case or camelCase to Title Case
+                k = re.sub(r'[_\-]', ' ', k)
+                k = re.sub(r'([a-z])([A-Z])', r'\1 \2', k)
+                k = k.title()
+            # Format value with proper indentation
+            v_str = format_value(v, indent + 2)
+            if isinstance(v, (dict, list)):
+                lines.append(f"{' ' * indent}• {k}:")
+                lines.append(v_str)
+            else:
+                lines.append(f"{' ' * indent}• {k}: {v_str}")
+        return "\n".join(lines)
+    
+    # Handle lists
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        lines = []
+        for item in value:
+            item_str = format_value(item, indent + 2)
+            if isinstance(item, (dict, list)):
+                lines.append(f"{' ' * indent}•")
+                lines.append(item_str)
+            else:
+                lines.append(f"{' ' * indent}• {item_str}")
+        return "\n".join(lines)
+    
+    # Handle other types
+    return str(value)
 
-def format_dublin_core(dc_data):
-    """Format Dublin Core metadata into a clean, readable format, supporting multiple records in a string."""
-    if not dc_data:
-        return "No Dublin Core metadata available."
+def detect_content_type(data: Dict) -> str:
+    """Detect the type of content based on structure and keys"""
+    # Check for common patterns
+    if "persons" in data or "organizations" in data or "locations" in data:
+        return "ner"
+    if any(k.startswith("dc:") for k in data.keys()):
+        return "dublin_core"
+    if "summary" in data or "abstract" in data:
+        return "summary"
+    if "steps" in data and "results" in data:
+        return "pipeline"
+    return "generic"
 
-    records = []
-    # If the input is a string, extract all JSON objects and Python dicts
-    if isinstance(dc_data, str):
-        # Remove markdown code block markers and split into possible records
-        # Find all ```json ... ``` blocks
-        json_blocks = re.findall(r"```json(.*?)```", dc_data, re.DOTALL)
-        # Find all standalone Python dicts (not inside code blocks)
-        dict_blocks = re.findall(r"\{[^\{\}\n]+?:.*?\}", dc_data, re.DOTALL)
-        # If no code blocks, treat the whole string as one block
-        if not json_blocks and not dict_blocks:
-            json_blocks = [dc_data]
-        # Try to parse each block
-        for block in json_blocks:
-            try:
-                record = json.loads(block.strip())
-                records.append(record)
-            except Exception:
-                continue
-        for block in dict_blocks:
-            try:
-                record = ast.literal_eval(block.strip())
-                records.append(record)
-            except Exception:
-                continue
-    elif isinstance(dc_data, dict):
-        records = [dc_data]
-    elif isinstance(dc_data, list):
-        records = dc_data
+def format_content(data: Dict) -> str:
+    """Format content based on its detected type"""
+    content_type = detect_content_type(data)
+    
+    if content_type == "ner":
+        return format_ner_content(data)
+    elif content_type == "dublin_core":
+        return format_dublin_core_content(data)
+    elif content_type == "summary":
+        return format_summary_content(data)
+    elif content_type == "pipeline":
+        return format_pipeline_content(data)
     else:
-        return str(dc_data)
+        return format_value(data)
 
-    if not records:
-        return "No valid Dublin Core records found."
+def format_ner_content(data: Dict) -> str:
+    """Format NER content with entities and their occurrences"""
+    sections = []
+    for entity_type in ["persons", "organizations", "locations", "dates"]:
+        if entity_type in data:
+            entities = data[entity_type]
+            if entities:
+                sections.append(f"{entity_type.title()}:")
+                for entity, pages in entities.items():
+                    sections.append(f"  • {entity} (pages {', '.join(map(str, pages))})")
+                sections.append("")
+    return "\n".join(sections)
 
-    # Define the order and labels for Dublin Core fields
+def format_dublin_core_content(data: Dict) -> str:
+    """Format Dublin Core metadata"""
+    sections = []
     field_order = [
         ('dc:title', 'Title'),
         ('dc:creator', 'Creator'),
@@ -150,121 +238,166 @@ def format_dublin_core(dc_data):
         ('dc:description', 'Description'),
         ('dc:subject', 'Subjects')
     ]
-
-    formatted = []
-    for idx, dc_data in enumerate(records):
-        if len(records) > 1:
-            formatted.append(f"Record {idx+1}:")
-        for dc_key, label in field_order:
-            if dc_key in dc_data:
-                value = dc_data[dc_key]
-                if isinstance(value, list):
-                    formatted.append(f"{label}:")
-                    for item in value:
-                        if isinstance(item, dict):
-                            if 'name' in item and 'role' in item:
-                                formatted.append(f"  • {item['name']} ({item['role']})")
-                            else:
-                                formatted.append(f"  • {json.dumps(item)}")
+    
+    for dc_key, label in field_order:
+        if dc_key in data:
+            value = data[dc_key]
+            if isinstance(value, list):
+                sections.append(f"{label}:")
+                for item in value:
+                    if isinstance(item, dict):
+                        if 'name' in item and 'role' in item:
+                            sections.append(f"  • {item['name']} ({item['role']})")
                         else:
-                            formatted.append(f"  • {item}")
-                elif isinstance(value, dict):
-                    formatted.append(f"{label}:")
-                    for k, v in value.items():
-                        formatted.append(f"  • {k}: {v}")
+                            sections.append(f"  • {json.dumps(item)}")
+                    else:
+                        sections.append(f"  • {item}")
+            else:
+                sections.append(f"{label}: {value}")
+            sections.append("")
+    return "\n".join(sections)
+
+def format_summary_content(data: Dict) -> str:
+    """Format summary content with key points"""
+    sections = []
+    if "summary" in data:
+        sections.append("Summary:")
+        sections.append(data["summary"])
+        sections.append("")
+    if "key_points" in data:
+        sections.append("Key Points:")
+        for point in data["key_points"]:
+            sections.append(f"• {point}")
+    return "\n".join(sections)
+
+def format_pipeline_content(data: Dict) -> str:
+    """Format pipeline results with steps and their outputs"""
+    sections = []
+    if "steps" in data:
+        sections.append("Processing Steps:")
+        for step in data["steps"]:
+            sections.append(f"• {step}")
+        sections.append("")
+    if "results" in data:
+        sections.append("Results:")
+        for step_name, result in data["results"].items():
+            sections.append(f"\n{step_name.replace('_', ' ').title()}:")
+            sections.append(format_value(result, 2))
+    return "\n".join(sections)
+
+def process_document(file_path: str, output_folder: Path) -> dict:
+    """Process a single document file"""
+    file_path = Path(file_path)
+    
+    def process_fn(f: Path, o: Path) -> dict:
+        try:
+            # Read summary file
+            with open(f, 'r', encoding='utf-8') as fin:
+                data = json.load(fin)
+            
+            # Get folder name from the file path
+            folder_name = f.parent.name
+            
+            # Create new document
+            doc = Document()
+            set_document_properties(doc)
+            add_title(doc, folder_name)
+            
+            # Add metadata section if available
+            if "metadata" in data:
+                add_section(doc, "Metadata", format_value(data["metadata"]))
+            
+            # Process results
+            results = data.get("results", data)
+            
+            # Helper function to parse JSON strings
+            def try_parse_json(val):
+                if isinstance(val, str):
+                    try:
+                        return json.loads(val)
+                    except json.JSONDecodeError:
+                        return val
+                return val
+            
+            # 1. Summary
+            if "summary" in results:
+                summary_data = results["summary"]
+                if isinstance(summary_data, dict) and "summary" in summary_data:
+                    add_section(doc, "Summary", summary_data["summary"])
+                elif isinstance(summary_data, str):
+                    add_section(doc, "Summary", summary_data)
+            
+            # 2. Timeline
+            if "timeline_events" in results:
+                timeline_data = results["timeline_events"]
+                if isinstance(timeline_data, dict) and "timeline" in timeline_data:
+                    timeline = timeline_data["timeline"]
+                    if isinstance(timeline, list) and timeline and isinstance(timeline[0], dict):
+                        add_table_section(doc, "Timeline", timeline)
+            
+            # 3. NER data processing
+            table_keys = ["persons", "organizations", "locations", "dates", "key_events", "legal_refs"]
+            
+            if "extract_ner_multipage" in results:
+                ner_data = try_parse_json(results["extract_ner_multipage"])
+                if isinstance(ner_data, dict):
+                    for key in table_keys:
+                        if key in ner_data and isinstance(ner_data[key], list) and ner_data[key]:
+                            if isinstance(ner_data[key][0], dict):
+                                add_table_section(doc, key.replace('_', ' ').title(), ner_data[key])
                 else:
-                    formatted.append(f"{label}: {value}")
-                formatted.append("")
-        if len(records) > 1:
-            formatted.append("\n---\n")
-    return "\n".join(formatted).strip()
-
-def format_json_value(value):
-    """Format a JSON value into a readable string"""
-    if isinstance(value, dict):
-        formatted = []
-        for k, v in value.items():
-            if isinstance(v, list):
-                formatted.append(f"{k}:")
-                for item in v:
-                    formatted.append(f"  - {item}")
-            else:
-                formatted.append(f"{k}: {v}")
-        return "\n".join(formatted)
-    elif isinstance(value, list):
-        return "\n".join(f"- {item}" for item in value)
-    else:
-        return str(value)
-
-def process_single_file(input_file: Path, output_folder: Path):
-    """Process a single summary file"""
-    console.print(f"[green]Processing file: {input_file}")
-    
-    # Create output folder if it doesn't exist
-    output_folder.mkdir(parents=True, exist_ok=True)
-    
-    try:
-        # Read summary file
-        with open(input_file, 'r', encoding='utf-8') as f:
-            summary_data = json.load(f)
-        
-        # Get folder name from the file path
-        folder_name = input_file.parent.parent.name
-        
-        # Create new document
-        doc = Document()
-        set_document_properties(doc)
-        add_title(doc, folder_name)
-        
-        # Add metadata section
-        metadata = {
-            "Source": summary_data.get("source", ""),
-            "Config": summary_data.get("config", ""),
-            "Timestamp": summary_data.get("timestamp", ""),
-            "Steps": summary_data.get("steps", [])
-        }
-        add_section(doc, "Metadata", format_json_value(metadata))
-        
-        # Process results
-        results = summary_data.get("results", {})
-        for step_name, step_result in results.items():
-            # Try to parse JSON string if it's a string
-            if isinstance(step_result, str):
-                try:
-                    parsed_result = json.loads(step_result)
-                    step_result = parsed_result
-                except json.JSONDecodeError:
-                    pass
+                    add_section(doc, "NER Export Error", "NER data could not be parsed.")
             
-            # Format the result based on step type
-            if step_name == "extract_ner_multipage":
-                formatted_result = format_ner_results(step_result)
-            elif step_name == "dublin_core_complete":
-                formatted_result = format_dublin_core(step_result)
-            elif step_name == "summarize_comprehensive":
-                formatted_result = step_result  # Already a string
-            else:
-                formatted_result = format_json_value(step_result)
+            # 4. Process other table data directly from results
+            for key, value in results.items():
+                if key not in ["summary", "timeline_events", "extract_ner_multipage"]:
+                    parsed_value = try_parse_json(value)
+                    if key in table_keys and isinstance(parsed_value, list) and parsed_value:
+                        if isinstance(parsed_value[0], dict):
+                            add_table_section(doc, key.replace('_', ' ').title(), parsed_value)
+
+            # Save document
+            output_path = o / "documents-summary.docx"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            doc.save(str(output_path))
+            logger.info(f"Saved document: {output_path}")
             
-            add_section(doc, step_name.replace("_", " ").title(), formatted_result)
-        
-        # Save document
-        output_path = output_folder / f"{folder_name}-summary.docx"
-        doc.save(str(output_path))
-        console.print(f"[green]Saved document: {output_path}")
-        
-    except Exception as e:
-        console.print(f"[red]Error processing {input_file}: {str(e)}")
-        import traceback
-        console.print(f"[red]Traceback: {traceback.format_exc()}")
+            # Return manifest-compatible output
+            return {
+                "outputs": [str(output_path.relative_to(output_folder))],
+                "source": str(f.relative_to(f.parent.parent)),
+                "type": "document",
+                "details": {
+                    "has_content": True,
+                    "document_type": "word",
+                    "content_type": detect_content_type(data),
+                    "processed_at": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing {f}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                "error": str(e),
+                "source": str(f.relative_to(f.parent.parent)),
+                "type": "document"
+            }
+    
+    return process_file(
+        file_path=str(file_path),
+        output_folder=output_folder,
+        process_fn=process_fn
+    )
 
 @app.command()
-def process_file(
+def process_file_cmd(
     input_file: Path = typer.Argument(..., help="Input summary JSON file"),
     output_folder: Path = typer.Argument(..., help="Output folder for Word document")
 ):
     """Convert a single LLM output JSON file to a formatted Word document"""
-    process_single_file(input_file, output_folder)
+    process_document(input_file, output_folder)
 
 @app.command()
 def process_folder(
@@ -277,20 +410,17 @@ def process_folder(
     # Create output folder if it doesn't exist
     output_folder.mkdir(parents=True, exist_ok=True)
     
-    # Process each folder in the input directory
-    for folder_path in input_folder.iterdir():
-        if not folder_path.is_dir():
-            continue
-            
-        console.print(f"\nProcessing folder: {folder_path.name}")
-        
-        # Look for summary JSONL file
-        summary_file = folder_path / f"{folder_path.name}_summary.json"
-        if not summary_file.exists():
-            console.print(f"[yellow]Warning: No summary file found for {folder_path.name}")
-            continue
-        
-        process_single_file(summary_file, output_folder)
+    # Use BatchProcessor for consistent file handling
+    processor = BatchProcessor(
+        input_manifest=input_folder / "llm_process_manifest.jsonl",
+        output_folder=output_folder,
+        process_name="llm_to_word",
+        processor_fn=process_document,
+        base_folder=input_folder,
+        use_source=True  # Use source paths from manifest
+    )
+    
+    return processor.process()
 
 if __name__ == "__main__":
     app() 
