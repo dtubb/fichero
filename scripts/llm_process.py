@@ -146,11 +146,10 @@ class LLMProcessScript:
                     
                     # Save result using manifest processor
                     if hasattr(self, 'manifest_proc'):
-                        rel_folder = get_relative_path(folder)
-                        output_path = self.output_folder / "documents" / f"{rel_folder.name}_folder_summary.json"
+                        # Use just the folder name for source and outputs
                         self.manifest_proc.save_entry({
-                            "source": str(rel_folder),
-                            "outputs": [str(output_path.relative_to(self.output_folder))],
+                            "source": folder.name,
+                            "outputs": [f"{folder.name}_summary.json"],
                             "type": "folder",
                             "files_processed": len(files_data),
                             "model": self.llm.model_name
@@ -178,8 +177,8 @@ class LLMProcessScript:
     def process_document(self, file_path: Path, output_path: Path) -> Optional[Path]:
         """Process a single document"""
         try:
-            # Use get_relative_path for consistent path handling
-            rel_path = get_relative_path(file_path)
+            # Use SegmentHandler for consistent path handling
+            rel_path = SegmentHandler.get_relative_path(file_path)
             logger.info(f"Processing document: {rel_path}")
             
             # Read file content
@@ -198,9 +197,16 @@ class LLMProcessScript:
             
             # Save result to manifest
             output_path = self.output_folder / "documents" / rel_path.parent / f"{rel_path.stem}_summary.json"
+            ensure_dirs(output_path)
+            
+            # Save result
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+            
+            # Use consistent manifest entry format with just the file name
             self.manifest_proc.save_entry({
-                "source": str(rel_path),
-                "outputs": [str(output_path.relative_to(self.output_folder))],
+                "source": rel_path.name,
+                "outputs": [f"{rel_path.stem}_summary.json"],
                 "type": "document",
                 "text_length": len(text_content),
                 "model": self.llm.model_name

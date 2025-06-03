@@ -137,8 +137,8 @@ class BatchProcessor:
                 
                 # Use base folder directly without adding documents/ prefix
                 if self.base_folder:
-                    # Only add documents/ if it's not already in the base folder
-                    if "documents" not in str(self.base_folder):
+                    # Only add documents/ if it's not already in the base folder and path doesn't start with projects/
+                    if "documents" not in str(self.base_folder) and not str(path).startswith("projects/"):
                         full_path = self.base_folder / "documents" / path
                     else:
                         full_path = self.base_folder / path

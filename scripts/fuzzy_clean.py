@@ -406,9 +406,21 @@ class TextCleaner:
 
     @staticmethod
     def clean_line_spacing(text: str) -> str:
-        """Simple cleanup of multiple newlines"""
-        # Replace any sequence of 2 or more newlines with a single newline
-        text = re.sub(r'\n\n+', '\n', text)
+        """Clean up excessive whitespace while preserving paragraph breaks"""
+        # First split into lines and clean up internal whitespace
+        lines = text.splitlines()
+        cleaned_lines = []
+        for line in lines:
+            # Clean up internal whitespace but preserve the line
+            cleaned_line = re.sub(r'\s+', ' ', line).strip()
+            cleaned_lines.append(cleaned_line)
+        
+        # Join lines with newlines, preserving paragraph breaks
+        text = '\n'.join(cleaned_lines)
+        
+        # Replace 3 or more newlines with 2 newlines (preserving paragraph breaks)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
         return text.strip()
 
     @staticmethod
@@ -429,7 +441,7 @@ class TextCleaner:
         max_length = min(avg_length * 1.5, 72)
         text = TextCleaner.split_long_lines(text, int(max_length))
         
-        # Final cleanup of spacing
+        # Final cleanup of spacing while preserving paragraph breaks
         text = TextCleaner.clean_line_spacing(text)
         
         return text.strip()

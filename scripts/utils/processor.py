@@ -33,9 +33,9 @@ def process_file(
     try:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
-            
-        # Check if file type is supported using image_format.py
-        if file_types and file_path.suffix.lower() not in get_supported_extensions_list():
+        
+        # PATCH: Accept file if file_types is provided and extension is in file_types
+        if file_types and file_path.suffix.lower() not in file_types:
             raise ValueError(f"Unsupported file type: {file_path.suffix}")
         
         # Ensure output directory exists using utility function
@@ -49,7 +49,7 @@ def process_file(
                 "outputs": [str(rel_path)]  # Use original path for skipped files
             })
             return manifest_entry
-            
+        
         # Process only if file doesn't exist
         result = process_fn(file_path, out_path)
         if isinstance(result, dict):
@@ -57,7 +57,7 @@ def process_file(
             # The process_fn should return the correct output paths
             manifest_entry.update(result)
         manifest_entry["success"] = True
-            
+        
         return manifest_entry
         
     except Exception as e:

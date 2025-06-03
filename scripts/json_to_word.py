@@ -132,7 +132,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
         set_document_properties(doc)
         logger.info("Created new Word document with basic properties")
         
-        # Add title (use folder name or default)
+        # Add title (use folder name)
         folder_name = json_file_path.parent.name
         add_title(doc, folder_name)
         logger.info(f"Added document title: {folder_name}")
@@ -395,13 +395,25 @@ def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
 
 def process_document(file_path: str, output_folder: Path) -> Dict:
     """Process a single JSON document file"""
-    file_path = Path(file_path)
     
     def process_fn(f: Path, o: Path) -> Dict:
-        return convert_json_to_word(f, o)
+        # Get relative path using SegmentHandler
+        rel_path = SegmentHandler.get_relative_path(f)
+        logger.info(f"Processing document: {rel_path}")
+        
+        # Get the parent folder name for document grouping
+        parent_folder = f.parent.name
+        logger.info(f"Parent folder name: {parent_folder}")
+        
+        # Create output path using consistent path handling
+        doc_output_path = output_folder / "documents" / rel_path.parent / f"{parent_folder}_summary.docx"
+        ensure_dirs(doc_output_path)
+        
+        # Convert JSON to Word
+        return convert_json_to_word(f, doc_output_path)
     
     return process_file(
-        file_path=str(file_path),
+        file_path=file_path,
         output_folder=output_folder,
         process_fn=process_fn,
         file_types={'.json': process_fn}
@@ -419,12 +431,16 @@ def json_to_word(
     console.print(f"[cyan]Source manifest: {source_manifest}")
     console.print(f"[cyan]Output folder: {output_folder}")
     
+    # Ensure output directory exists
+    ensure_dirs(output_folder)
+    
     processor = BatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="json_to_word",
         base_folder=source_folder,
-        processor_fn=process_document
+        processor_fn=lambda f, o: process_document(f, o),
+        use_source=False  # Use output paths from manifest instead of source
     )
     
     result = processor.process()
