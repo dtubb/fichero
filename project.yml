@@ -57,6 +57,7 @@ vars:
   word_folder: "${vars.assets_folder}/word"
   llm_processed_folder: "${vars.assets_folder}/llm_processed"
   llm_catalogue_folder: "${vars.assets_folder}/llm_catalogue"  # Specific folder for catalogue processing
+  llm_catalogue_word_folder: "${vars.assets_folder}/llm_catalogue_word"  # Word documents from catalogue processing
   llm_ner_folder: "${vars.assets_folder}/llm_ner"  # Specific folder for NER processing
   
   # Manifest paths
@@ -99,7 +100,7 @@ workflows:
     - recombine_segments_qwen_max
     - fuzzy_clean
     - convert_to_word
-   
+
   archive-to-word-lmstudio:
     - build_documents_manifest
     - crop
@@ -123,11 +124,31 @@ workflows:
     - fuzzy_clean
     - convert_to_word
 
+  archive-to-catalogue-qwen-max-segmented:
+    - build_documents_manifest
+    - crop
+    - split
+    - rotate
+    - enhance
+    - remove_background
+    - segment
+    - transcribe_qwen_max_segments
+    - recombine_segments_qwen_max
+    - fuzzy_clean
+    - convert_to_word
+    - catalogue_folder
+    - catalogue_to_word
+
   transcriptions-to-catalogue:
     - catalogue_folder
 
+  transcriptions-to-catalogue-word:
+    - catalogue_folder
+    - catalogue_to_word
+
   catalogue-to-word:
-      - catalogue_to_word
+    - catalogue_folder
+    - catalogue_to_word
 
   transcriptions-to-ner:
     - llm_process_ner_async
@@ -273,6 +294,14 @@ commands:
     outputs:
       - ${vars.llm_catalogue_folder}
       - ${vars.llm_catalogue_folder}/llm_process_manifest.jsonl
+
+  - name: catalogue_to_word
+    help: "Convert catalogue JSON files to Word documents"
+    script:
+      - "python ${vars.scripts_dir}/json_to_word.py \"${vars.llm_catalogue_folder}\" \"${vars.llm_catalogue_folder}/llm_process_manifest.jsonl\" \"${vars.llm_catalogue_word_folder}\""
+    outputs:
+      - ${vars.llm_catalogue_word_folder}
+      - ${vars.llm_catalogue_word_folder}/json_to_word_manifest.jsonl
 
   - name: llm_process_ner_async
     help: "Process transcribed documents through configurable LLM pipeline for NER processing"

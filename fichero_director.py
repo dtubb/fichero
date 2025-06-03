@@ -26,6 +26,7 @@ import re
 from celery import Celery
 from celery.result import AsyncResult
 import tempfile
+from pathvalidate import sanitize_filename as pv_sanitize_filename, sanitize_filepath as pv_sanitize_filepath
 
 # Set up Celery
 celery_app = Celery('fichero_director',
@@ -121,9 +122,9 @@ CPU_INTENSIVE_SCRIPTS = {
 }
 
 IO_INTENSIVE_SCRIPTS = {
-    'fuzzy_clean.py', 'llm_catalogue.py', 'llm_process.py', 'recombine_segments.py',
+    'fuzzy_clean.py', 'llm_process.py',
     'transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py',
-    'convert_to_word.py', 'llm_process_catalogue_folder.py'  # File I/O and API calls
+    'recombine_segments.py', 'convert_to_word.py', 'json_to_word.py'  # File I/O and API calls
 }
 
 # Define script dependencies
@@ -136,8 +137,7 @@ SCRIPT_DEPENDENCIES = {
     'transcribe_qwen_2b.py': ['split.py'],
     'transcribe_qwen_7b.py': ['split.py'],
     'recombine_segments.py': ['transcribe_qwen_max.py', 'transcribe_lmstudio.py', 'transcribe_qwen_2b.py', 'transcribe_qwen_7b.py'],
-    'llm_catalogue.py': ['recombine_segments.py'],
-    'llm_process.py': ['llm_catalogue.py'],
+    'llm_process.py': ['recombine_segments.py'],
     'fuzzy_clean.py': ['llm_process.py'],
     'convert_to_word.py': ['fuzzy_clean.py']
 }
@@ -686,11 +686,132 @@ def is_apfs(path: Path) -> bool:
         log.error(f"Error checking APFS: {e}")
         return False
 
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a filename using pathvalidate library.
+    Preserves Unicode characters but replaces problematic characters with hyphens.
+    Problematic characters include:
+    - Special characters: , ; { } $ & . 
+    - Invalid filesystem characters: / \ : * ? " < > |
+    - Other problematic characters: # @ ! ~ ` ^ + = [ ] ( ) { }
+    Preserves the file extension.
+    """
+    # Split into name and extension
+    name, ext = os.path.splitext(filename)
+    
+    # First replace all problematic characters with hyphens
+    name = (name.replace(',', '-')
+                .replace(';', '-')
+                .replace('{', '-')
+                .replace('}', '-')
+                .replace(' ', '-')
+                .replace('$', '-')
+                .replace('&', '-')
+                # Filesystem invalid characters
+                .replace('/', '-')
+                .replace('\\', '-')
+                .replace(':', '-')
+                .replace('*', '-')
+                .replace('?', '-')
+                .replace('"', '-')
+                .replace('<', '-')
+                .replace('>', '-')
+                .replace('|', '-')
+                # Other problematic characters
+                .replace('#', '-')
+                .replace('@', '-')
+                .replace('!', '-')
+                .replace('~', '-')
+                .replace('`', '-')
+                .replace('^', '-')
+                .replace('+', '-')
+                .replace('=', '-')
+                .replace('[', '-')
+                .replace(']', '-')
+                .replace('(', '-')
+                .replace(')', '-'))
+    
+    # Use pathvalidate to sanitize the name
+    sanitized = pv_sanitize_filename(name)
+    
+    # Replace any remaining periods with hyphens
+    sanitized = sanitized.replace('.', '-')
+    
+    # Remove multiple consecutive hyphens
+    sanitized = re.sub(r'-+', '-', sanitized)
+    
+    # Remove leading/trailing hyphens
+    sanitized = sanitized.strip('-')
+    
+    # Recombine with extension
+    final_name = sanitized + ext
+    log.info(f"Sanitized filename: {filename} -> {final_name}")
+    
+    return final_name
+
+def sanitize_path(path: str) -> str:
+    """
+    Sanitize a path using pathvalidate library.
+    Preserves Unicode characters but replaces problematic characters with hyphens.
+    Problematic characters include:
+    - Special characters: , ; { } $ & . 
+    - Invalid filesystem characters: / \ : * ? " < > |
+    - Other problematic characters: # @ ! ~ ` ^ + = [ ] ( ) { }
+    """
+    # First replace all problematic characters with hyphens
+    path = (path.replace(',', '-')
+                .replace(';', '-')
+                .replace('{', '-')
+                .replace('}', '-')
+                .replace(' ', '-')
+                .replace('$', '-')
+                .replace('&', '-')
+                # Filesystem invalid characters
+                .replace('/', '-')
+                .replace('\\', '-')
+                .replace(':', '-')
+                .replace('*', '-')
+                .replace('?', '-')
+                .replace('"', '-')
+                .replace('<', '-')
+                .replace('>', '-')
+                .replace('|', '-')
+                # Other problematic characters
+                .replace('#', '-')
+                .replace('@', '-')
+                .replace('!', '-')
+                .replace('~', '-')
+                .replace('`', '-')
+                .replace('^', '-')
+                .replace('+', '-')
+                .replace('=', '-')
+                .replace('[', '-')
+                .replace(']', '-')
+                .replace('(', '-')
+                .replace(')', '-'))
+    
+    # Use pathvalidate to sanitize the path
+    sanitized = pv_sanitize_filepath(path)
+    
+    # Replace any remaining periods with hyphens
+    sanitized = sanitized.replace('.', '-')
+    
+    # Remove multiple consecutive hyphens
+    sanitized = re.sub(r'-+', '-', sanitized)
+    
+    # Remove leading/trailing hyphens
+    sanitized = sanitized.strip('-')
+    
+    log.info(f"Sanitized path: {path} -> {sanitized}")
+    
+    return sanitized
+
 def smart_copy(src: Path, dst: Path) -> None:
     """
     Copy files using the most efficient method available.
     On macOS with APFS, uses fast cloning if on same volume. Otherwise falls back to regular copy.
     Only copies the contents of the source directory, not the directory itself.
+    Sanitizes filenames during copy.
     
     Args:
         src: Source path to copy from
@@ -742,9 +863,15 @@ def smart_copy(src: Path, dst: Path) -> None:
                     text=True
                 )
                 if result.returncode == 0:
-                    # Move contents from temp to destination
+                    # Move contents from temp to destination, sanitizing filenames
                     for item in temp_path.iterdir():
-                        shutil.move(str(item), str(dst))
+                        # Use sanitize_filename for files and sanitize_path for directories
+                        if item.is_file():
+                            sanitized_name = sanitize_filename(item.name)
+                        else:
+                            sanitized_name = sanitize_path(item.name)
+                        sanitized_dst = dst / sanitized_name
+                        shutil.move(str(item), str(sanitized_dst))
                     log.info(f"Completed APFS clone of {src.name}")
                 else:
                     log.error(f"APFS clone failed with error: {result.stderr}")
@@ -752,22 +879,31 @@ def smart_copy(src: Path, dst: Path) -> None:
         except subprocess.CalledProcessError as e:
             # Fallback to regular copy if clone fails
             log.info(f"APFS clone failed, falling back to regular copy for {src.name}")
-            # Copy contents directly
+            # Copy contents directly with sanitized names
             for item in src.iterdir():
+                # Use sanitize_filename for files and sanitize_path for directories
                 if item.is_file():
-                    shutil.copy2(str(item), str(dst))
+                    sanitized_name = sanitize_filename(item.name)
                 else:
-                    shutil.copytree(str(item), str(dst / item.name), dirs_exist_ok=True)
+                    sanitized_name = sanitize_path(item.name)
+                sanitized_dst = dst / sanitized_name
+                if item.is_file():
+                    shutil.copy2(str(item), str(sanitized_dst))
+                    shutil.copy2(str(item), str(sanitized_dst))
+                else:
+                    shutil.copytree(str(item), str(sanitized_dst), dirs_exist_ok=True)
             log.info(f"Completed regular copy of {src.name}")
     else:
         # Regular copy for cross-volume or non-APFS
         log.info(f"Using regular copy for {src.name} (cross-volume or non-APFS)")
-        # Copy contents directly
+        # Copy contents directly with sanitized names
         for item in src.iterdir():
+            sanitized_name = sanitize_filename(item.name)
+            sanitized_dst = dst / sanitized_name
             if item.is_file():
-                shutil.copy2(str(item), str(dst))
+                shutil.copy2(str(item), str(sanitized_dst))
             else:
-                shutil.copytree(str(item), str(dst / item.name), dirs_exist_ok=True)
+                shutil.copytree(str(item), str(sanitized_dst), dirs_exist_ok=True)
         log.info(f"Completed regular copy of {src.name}")
 
 def get_python_path() -> str:
@@ -913,8 +1049,13 @@ def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     Returns:
         Path: Path to the prepared folder
     """
-    # Create the output folder with the same name as input
-    output_folder = output_base / input_folder.name
+    # Sanitize the folder name using sanitize_path
+    sanitized_folder_name = sanitize_path(input_folder.name)
+    log.info(f"Original folder name: {input_folder.name}")
+    log.info(f"Sanitized folder name: {sanitized_folder_name}")
+    
+    # Create the output folder with the sanitized name
+    output_folder = output_base / sanitized_folder_name
     output_folder.mkdir(parents=True, exist_ok=True)
     
     # Create assets folder for processed files
@@ -925,8 +1066,8 @@ def prepare_folder(input_folder: Path, output_base: Path) -> Path:
     documents_folder = output_folder / "documents"
     documents_folder.mkdir(exist_ok=True)
     
-    # Create subfolder in documents matching input folder name
-    documents_subfolder = documents_folder / input_folder.name
+    # Create subfolder in documents matching sanitized input folder name
+    documents_subfolder = documents_folder / sanitized_folder_name
     documents_subfolder.mkdir(exist_ok=True)
     
     # Skip if documents subfolder already exists and has content
