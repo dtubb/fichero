@@ -54,8 +54,8 @@ project_lock
 fichero/scripts/
 venv/
 scripts/catalogue_document.py
-scripts/llm_process.py
 scripts/llm_catalogue.py
+scripts/llm_to_word.py
 fichero.py
 fichero_gui/
 rename_docs.sh
