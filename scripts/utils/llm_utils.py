@@ -721,13 +721,31 @@ def process_document_with_llm(
     # Process text in chunks
     logger.info("Chunking text...")
     if use_intelligent_chunking:
-        chunks = chunk_text_intelligently(text_content, max_tokens, chunk_overlap)
+        chunks = chunk_text_by_structure(text_content, max_tokens, chunk_overlap)
         logger.info(f"Using intelligent chunking:")
         logger.info(f"  Chunks: {len(chunks)}")
         logger.info(f"  Overlap: {chunk_overlap} tokens")
         logger.info(f"  Max tokens per chunk: {max_tokens}")
     else:
-        text_chunks = chunk_text(text_content, max_tokens)
+        # Simple text chunking when intelligent_chunking is False
+        words = text_content.split()
+        text_chunks = []
+        current_chunk = []
+        current_tokens = 0
+        
+        for word in words:
+            if current_tokens + 1 > max_tokens and current_chunk:
+                text_chunks.append(' '.join(current_chunk))
+                current_chunk = [word]
+                current_tokens = 1
+            else:
+                current_chunk.append(word)
+                current_tokens += 1
+        
+        # Add the last chunk if it exists
+        if current_chunk:
+            text_chunks.append(' '.join(current_chunk))
+        
         chunks = []
         for i, chunk in enumerate(text_chunks):
             if chunk.strip():  # Only add non-empty chunks
@@ -1158,4 +1176,121 @@ def process_folder_with_llm(
             "results": all_results
         },
         "folder_metadata": summary_data["folder_metadata"]
-    } 
+    }
+
+def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 100) -> List[Dict[str, any]]:
+    """Intelligently chunk text by page boundaries first, then by paragraphs"""
+    if not text.strip():
+        console.print("[yellow]Empty text provided for chunking")
+        return []
+    
+    chunks = []
+    
+    # First, try to detect page boundaries
+    import re
+    page_pattern = r'\n\s*(?:PAGE|Page|page)\s*(\d+)\s*\n'
+    page_matches = list(re.finditer(page_pattern, text))
+    
+    if page_matches:
+        console.print(f"[green]Found {len(page_matches)} page boundaries, chunking by pages")
+        
+        # Split by pages
+        page_texts = []
+        last_end = 0
+        
+        for i, match in enumerate(page_matches):
+            if i == 0:
+                # Content before first page marker
+                if match.start() > 0:
+                    page_texts.append({
+                        'text': text[:match.start()].strip(),
+                        'page_num': 0,
+                        'is_header': True
+                    })
+            
+            # Get content for this page
+            start = match.end()
+            end = page_matches[i + 1].start() if i + 1 < len(page_matches) else len(text)
+            page_content = text[start:end].strip()
+            
+            if page_content:
+                page_texts.append({
+                    'text': page_content,
+                    'page_num': int(match.group(1)),
+                    'is_header': False
+                })
+        
+        # Now chunk pages that are too large
+        for page_info in page_texts:
+            page_text = page_info['text']
+            page_tokens = len(page_text.split())
+            
+            if page_tokens <= max_tokens:
+                # Page fits in one chunk
+                chunks.append({
+                    'text': page_text,
+                    'tokens': page_tokens,
+                    'start_idx': len(chunks),
+                    'page_num': page_info['page_num'],
+                    'is_complete_page': True
+                })
+            else:
+                # Page too large, split by paragraphs
+                page_chunks = chunk_text_intelligently(page_text, max_tokens, overlap)
+                for i, chunk in enumerate(page_chunks):
+                    chunk['page_num'] = page_info['page_num']
+                    chunk['is_complete_page'] = False
+                    chunk['page_chunk_idx'] = i
+                    chunk['start_idx'] = len(chunks)
+                    chunks.append(chunk)
+    
+    else:
+        console.print("[yellow]No page boundaries found, chunking by paragraphs")
+        
+        # No pages found, chunk by paragraphs
+        paragraphs = text.split('\n\n')
+        current_chunk = []
+        current_tokens = 0
+        
+        for para in paragraphs:
+            if not para.strip():
+                continue
+                
+            para_tokens = len(para.split())
+            
+            # If adding this paragraph would exceed limit and we have content
+            if current_tokens + para_tokens > max_tokens and current_chunk:
+                chunk_text = '\n\n'.join(current_chunk)
+                if chunk_text.strip():
+                    chunks.append({
+                        'text': chunk_text,
+                        'tokens': current_tokens,
+                        'start_idx': len(chunks),
+                        'is_complete': len(current_chunk) == 1  # Complete if single paragraph
+                    })
+                
+                # Start new chunk with overlap if specified
+                if overlap > 0 and len(current_chunk) > 1:
+                    # Keep last paragraph for overlap
+                    current_chunk = [current_chunk[-1], para]
+                    current_tokens = len(current_chunk[0].split()) + para_tokens
+                else:
+                    current_chunk = [para]
+                    current_tokens = para_tokens
+            else:
+                current_chunk.append(para)
+                current_tokens += para_tokens
+        
+        # Add final chunk
+        if current_chunk:
+            chunk_text = '\n\n'.join(current_chunk)
+            if chunk_text.strip():
+                chunks.append({
+                    'text': chunk_text,
+                    'tokens': current_tokens,
+                    'start_idx': len(chunks),
+                    'is_complete': True
+                })
+    
+    console.print(f"[blue]Created {len(chunks)} chunks from text structure")
+    return chunks 
