@@ -89,3 +89,16 @@ prompts/prompt_config_example.jsonl
 prompts/qwen_example.jsonl
 prompts/tasks.yml
 prompts/README_async_features.md
+documents summaires/documents_summary 2.json
+documents summaires/documents_summary 3.json
+documents summaires/documents_summary 4.json
+documents summaires/documents_summary 5.json
+documents summaires/documents_summary 6.json
+documents summaires/documents_summary 7.json
+documents summaires/documents_summary 8.json
+documents summaires/documents_summary 9.json
+documents summaires/documents_summary.json
+excel_output/~$output.xlsx
+excel_output/output.xlsx
+old code/excel.py
+.gitignore

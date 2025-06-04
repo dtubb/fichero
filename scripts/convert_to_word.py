@@ -117,7 +117,7 @@ def create_cover_page(doc, folder_name):
     # Use the full folder name as title, preserving all special characters
     title = str(folder_name)  # Ensure string conversion
     run = p.add_run(title)
-    run.font.name = 'Helvetica Neue'
+    run.font.name = 'Helvetica'
     run.font.size = Pt(24)
     run.font.bold = True
     
@@ -252,7 +252,7 @@ def create_spread(doc, image_path, text, filename):
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     title_run = title_p.add_run(filename)
-    title_run.font.name = 'Helvetica Neue'
+    title_run.font.name = 'Helvetica'
     title_run.font.size = Pt(12)
     title_run.font.bold = True
     title_p.space_after = Pt(12)  # Add space after title
@@ -261,7 +261,7 @@ def create_spread(doc, image_path, text, filename):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     run = p.add_run(text)
-    run.font.name = 'Helvetica Neue'
+    run.font.name = 'Helvetica'
     run.font.size = Pt(10)
     
     p.paragraph_format.space_before = Pt(0)
