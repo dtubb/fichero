@@ -13,6 +13,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from rich.console import Console
 import logging
 from typing import Dict, Any, Optional
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 # Import utility modules
 from utils.batch import BatchProcessor
@@ -32,22 +34,32 @@ def set_document_properties(doc):
     section.left_margin = section.right_margin = Inches(1)
     section.top_margin = section.bottom_margin = Inches(1)
 
-def add_title(doc, title):
-    """Add document title"""
+def add_section_title(doc, title):
+    """Add a Heading 2 section title in Helvetica"""
     p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run(title)
-    run.font.name = 'Arial'
-    run.font.size = Pt(24)
+    run.font.name = 'Helvetica'
+    run.font.size = Pt(16)
     run.font.bold = True
-    p.space_after = Pt(18)
+    p.space_after = Pt(8)
+    return p
+
+def add_title(doc, title):
+    """Add document title as H1 heading"""
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = p.add_run(title)
+    run.font.name = 'Helvetica'
+    run.font.size = Pt(18)  # H1 size
+    run.font.bold = True
+    p.space_after = Pt(12)  # Reduced space after title
 
 def add_section(doc, title, content):
     """Add a section with title and content"""
     # Add section title
     p = doc.add_paragraph()
     run = p.add_run(title)
-    run.font.name = 'Arial'
+    run.font.name = 'Helvetica'
     run.font.size = Pt(14)
     run.font.bold = True
     p.space_after = Pt(6)
@@ -55,9 +67,24 @@ def add_section(doc, title, content):
     # Add content
     p = doc.add_paragraph()
     run = p.add_run(content)
-    run.font.name = 'Arial'
+    run.font.name = 'Helvetica'
     run.font.size = Pt(11)
     p.space_after = Pt(12)
+
+def set_cell_bottom_padding(cell, padding_pt=6):
+    """Set bottom padding for a table cell in points (pt)"""
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcMar = tcPr.find(qn('w:tcMar'))
+    if tcMar is None:
+        tcMar = OxmlElement('w:tcMar')
+        tcPr.append(tcMar)
+    bottom = tcMar.find(qn('w:bottom'))
+    if bottom is None:
+        bottom = OxmlElement('w:bottom')
+        tcMar.append(bottom)
+    bottom.set(qn('w:w'), str(int(padding_pt * 20)))  # 1pt = 20 twips
+    bottom.set(qn('w:type'), 'dxa')
 
 def add_table_section(doc, title, data_list):
     """Add a section with a table"""
@@ -65,12 +92,7 @@ def add_table_section(doc, title, data_list):
         return
     
     # Add section title
-    p = doc.add_paragraph()
-    run = p.add_run(title)
-    run.font.name = 'Arial'
-    run.font.size = Pt(14)
-    run.font.bold = True
-    p.space_after = Pt(6)
+    add_section_title(doc, title)
     
     # Get all unique keys for columns
     columns = set()
@@ -92,9 +114,11 @@ def add_table_section(doc, title, data_list):
         hdr_cells[i].text = col.replace('_', ' ').title()
         for paragraph in hdr_cells[i].paragraphs:
             for run in paragraph.runs:
-                run.font.name = 'Arial'
+                run.font.name = 'Helvetica'
                 run.font.size = Pt(10)
                 run.font.bold = True
+            paragraph.space_after = Pt(6)
+        set_cell_bottom_padding(hdr_cells[i], 6)
     
     # Add data rows
     for item in data_list:
@@ -109,12 +133,14 @@ def add_table_section(doc, title, data_list):
                 row_cells[i].text = str(val)
                 for paragraph in row_cells[i].paragraphs:
                     for run in paragraph.runs:
-                        run.font.name = 'Arial'
+                        run.font.name = 'Helvetica'
                         run.font.size = Pt(9)
+                    paragraph.space_after = Pt(6)
+                set_cell_bottom_padding(row_cells[i], 6)
     
     doc.add_paragraph()  # Add space after table
 
-def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
+def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder: str) -> Dict:
     """Convert JSON file to Word document"""
     
     # Get relative path using SegmentHandler
@@ -132,213 +158,130 @@ def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
         set_document_properties(doc)
         logger.info("Created new Word document with basic properties")
         
-        # Add title (use folder name)
-        folder_name = json_file_path.parent.name
-        add_title(doc, folder_name)
-        logger.info(f"Added document title: {folder_name}")
+        # Add title (use passed parent folder name)
+        add_title(doc, parent_folder)
+        logger.info(f"Added document title: {parent_folder}")
         
         # Get results section
         results = data.get("results", {})
         logger.info(f"Found {len(results)} result sections to process")
         
-        # Helper function to parse JSON strings
-        def try_parse_json(val):
-            if isinstance(val, str):
-                try:
-                    return json.loads(val)
-                except json.JSONDecodeError:
-                    return val
-            return val
-        
         sections_added = 0
         
-        # 1. Add Summary
-        if "summary" in results:
-            summary_data = results["summary"]
-            if isinstance(summary_data, dict) and "summary" in summary_data:
-                add_section(doc, "Summary", summary_data["summary"])
-                sections_added += 1
-                logger.info("Added Summary section from dict")
-            elif isinstance(summary_data, str):
-                add_section(doc, "Summary", summary_data)
-                sections_added += 1
-                logger.info("Added Summary section from string")
+        # Define core sections that should come first
+        core_sections = {
+            "resumen": "Resumen",
+            "summary": "Resumen",
+            "personas_clave_y_etiquetas": "Personas Clave y Etiquetas",
+            "key_people_and_tags": "Personas Clave y Etiquetas"
+        }
         
-        # 2. Add Keywords as a heading and paragraph
-        if "key_people_and_tags" in results:
-            key_people_tags_data = results["key_people_and_tags"]
-            if isinstance(key_people_tags_data, dict) and "tags" in key_people_tags_data:
-                tags = key_people_tags_data["tags"]
-                if isinstance(tags, str):
-                    tag_list = [tag.strip() for tag in tags.split(";") if tag.strip()]
-                    tags_text = "; ".join(tag_list)
-                    # Add as a heading and paragraph
-                    p = doc.add_paragraph()
-                    run = p.add_run("Keywords")
-                    run.font.name = 'Arial'
-                    run.font.size = Pt(14)
-                    run.font.bold = True
-                    p.space_after = Pt(6)
-                    p = doc.add_paragraph(tags_text)
-                    for run in p.runs:
-                        run.font.name = 'Arial'
-                        run.font.size = Pt(11)
-                    p.space_after = Pt(12)
-                    sections_added += 1
-                    logger.info(f"Added Keywords section with {len(tag_list)} tags")
+        # Helper function to get field value with fallbacks
+        def get_field_value(data, field_name):
+            if isinstance(data, dict):
+                if field_name == "resumen":
+                    return data.get("resumen") or data.get("summary")
+                elif field_name == "etiquetas":
+                    return data.get("etiquetas") or data.get("tags")
+                elif field_name == "personas_clave":
+                    return data.get("personas_clave") or data.get("key_people")
+                elif field_name == "nombre":
+                    return data.get("nombre") or data.get("name")
+                elif field_name == "contexto":
+                    return data.get("contexto") or data.get("context")
+            return None
         
-        # 3. Add Key People (Name, Context) - always immediately after Keywords
-        if "key_people_and_tags" in results:
-            key_people_tags_data = results["key_people_and_tags"]
-            if isinstance(key_people_tags_data, dict):
-                if "key_people" in key_people_tags_data and isinstance(key_people_tags_data["key_people"], list):
-                    key_people_rows = []
-                    for item in key_people_tags_data["key_people"]:
-                        key_people_rows.append({
-                            "Name": item.get("name", ""),
-                            "Context": item.get("context", "")
-                        })
-                    if key_people_rows:
-                        # Add 'Key People' heading
-                        p = doc.add_paragraph()
-                        run = p.add_run("Key People")
-                        run.font.name = 'Arial'
-                        run.font.size = Pt(14)
-                        run.font.bold = True
-                        p.space_after = Pt(6)
-                        # Add table with explicit column order
-                        columns = ["Name", "Context"]
-                        table = doc.add_table(rows=1, cols=len(columns))
+        # Process core sections first
+        for section_key, section_title in core_sections.items():
+            if section_key in results:
+                section_data = results[section_key]
+                
+                # Handle summary/resumen
+                if section_key in ["resumen", "summary"]:
+                    summary_text = get_field_value(section_data, "resumen")
+                    if summary_text:
+                        add_section(doc, section_title, summary_text)
+                        sections_added += 1
+                
+                # Handle key people and tags
+                elif section_key in ["personas_clave_y_etiquetas", "key_people_and_tags"]:
+                    # Add tags/keywords
+                    if isinstance(section_data, dict):
+                        tags = get_field_value(section_data, "etiquetas")
+                        if isinstance(tags, str):
+                            tag_list = [tag.strip() for tag in tags.split(";") if tag.strip()]
+                            tags_text = "; ".join(tag_list)
+                            add_section(doc, "Palabras Clave", tags_text)
+                            sections_added += 1
+                        
+                        # Add key people table
+                        key_people = get_field_value(section_data, "personas_clave")
+                        if isinstance(key_people, list):
+                            key_people_rows = []
+                            for item in key_people:
+                                key_people_rows.append({
+                                    "Nombre": get_field_value(item, "nombre") or "",
+                                    "Contexto": get_field_value(item, "contexto") or ""
+                                })
+                            if key_people_rows:
+                                add_table_section(doc, "Personas Clave", key_people_rows)
+                                sections_added += 1
+        
+        # Process remaining sections in order
+        for section_key, section_data in results.items():
+            # Skip already processed core sections
+            if section_key in core_sections:
+                continue
+            
+            # Do NOT add a heading for the step/section here
+            
+            # Handle any section that contains a list of items
+            if isinstance(section_data, dict):
+                for category, items in section_data.items():
+                    if isinstance(items, list) and items:
+                        # Add a Heading 2 for the category
+                        category_title = category.replace('_', ' ').title()
+                        add_section_title(doc, category_title)
+                        # Get all fields from the first item, preserving order
+                        all_fields = list(items[0].keys())
+                        rows = []
+                        for item in items:
+                            row = {}
+                            for key in all_fields:
+                                val = item.get(key, "")
+                                if isinstance(val, list):
+                                    val = ", ".join(str(v) for v in val)
+                                elif isinstance(val, dict):
+                                    val = json.dumps(val, ensure_ascii=False)
+                                row[key] = str(val)
+                            rows.append(row)
+                        # Create and style table
+                        table = doc.add_table(rows=1, cols=len(all_fields))
                         table.style = 'Table Grid'
+                        # Add headers
                         hdr_cells = table.rows[0].cells
-                        for i, col in enumerate(columns):
-                            hdr_cells[i].text = col
+                        for i, col in enumerate(all_fields):
+                            hdr_cells[i].text = col.replace('_', ' ').title()
                             for paragraph in hdr_cells[i].paragraphs:
                                 for run in paragraph.runs:
-                                    run.font.name = 'Arial'
+                                    run.font.name = 'Helvetica'
                                     run.font.size = Pt(10)
                                     run.font.bold = True
-                        for row in key_people_rows:
+                                paragraph.space_after = Pt(6)
+                            set_cell_bottom_padding(hdr_cells[i], 6)
+                        # Add data rows
+                        for row in rows:
                             row_cells = table.add_row().cells
-                            for i, col in enumerate(columns):
+                            for i, col in enumerate(all_fields):
                                 row_cells[i].text = str(row.get(col, ""))
                                 for paragraph in row_cells[i].paragraphs:
                                     for run in paragraph.runs:
-                                        run.font.name = 'Arial'
+                                        run.font.name = 'Helvetica'
                                         run.font.size = Pt(9)
+                                    paragraph.space_after = Pt(6)
+                                set_cell_bottom_padding(row_cells[i], 6)
                         doc.add_paragraph()
                         sections_added += 1
-                        logger.info(f"Added Key People table with {len(key_people_rows)} entries")
-        
-        # 4. Add Timeline
-        if "timeline_events" in results:
-            timeline_data = results["timeline_events"]
-            if isinstance(timeline_data, dict) and "timeline" in timeline_data:
-                timeline = timeline_data["timeline"]
-                if isinstance(timeline, list) and timeline:
-                    add_table_section(doc, "Timeline", timeline)
-                    sections_added += 1
-                    logger.info(f"Added Timeline table with {len(timeline)} events")
-        
-        # 5. Process NER data from multiple steps
-        ner_data = {}
-        ner_step_names = [
-            "extract_ner_people_orgs_locations",
-            "extract_ner_dates_legal_rivers", 
-            "extract_ner_specialized_entities"
-        ]
-        for step_name in ner_step_names:
-            if step_name in results:
-                step_data = results[step_name]
-                if isinstance(step_data, dict):
-                    ner_data.update(step_data)
-                    logger.info(f"Added NER data from step: {step_name} (dict)")
-                elif isinstance(step_data, str):
-                    try:
-                        parsed_step_data = json.loads(step_data)
-                        if isinstance(parsed_step_data, dict):
-                            ner_data.update(parsed_step_data)
-                            logger.info(f"Added NER data from step: {step_name} (parsed JSON)")
-                    except json.JSONDecodeError:
-                        logger.warning(f"Failed to parse JSON for NER step: {step_name}")
-                        continue
-        
-        # Add NER tables with explicit column order, no sorting
-        ner_tables_added = 0
-        if ner_data:
-            logger.info(f"Processing NER data with {len(ner_data)} categories")
-            # Persons, Organizations, Locations: Name, Alternative Spellings, Context
-            for category in ["persons", "organizations", "locations"]:
-                if category in ner_data and isinstance(ner_data[category], list) and ner_data[category]:
-                    rows = []
-                    for item in ner_data[category]:
-                        rows.append({
-                            "Name": item.get("name", ""),
-                            "Alternative Spellings": ", ".join(item.get("alternative_spellings", [])) if isinstance(item.get("alternative_spellings", []), list) else item.get("alternative_spellings", ""),
-                            "Context": item.get("context", "")
-                        })
-                    columns = ["Name", "Alternative Spellings", "Context"]
-                    table = doc.add_table(rows=1, cols=len(columns))
-                    table.style = 'Table Grid'
-                    hdr_cells = table.rows[0].cells
-                    for i, col in enumerate(columns):
-                        hdr_cells[i].text = col
-                        for paragraph in hdr_cells[i].paragraphs:
-                            for run in paragraph.runs:
-                                run.font.name = 'Arial'
-                                run.font.size = Pt(10)
-                                run.font.bold = True
-                    for row in rows:
-                        row_cells = table.add_row().cells
-                        for i, col in enumerate(columns):
-                            row_cells[i].text = str(row.get(col, ""))
-                            for paragraph in row_cells[i].paragraphs:
-                                for run in paragraph.runs:
-                                    run.font.name = 'Arial'
-                                    run.font.size = Pt(9)
-                    doc.add_paragraph()
-                    ner_tables_added += 1
-                    logger.info(f"Added {category} NER table with {len(rows)} entries")
-            
-            # Dates, Legal Refs, Rivers: Name, Context
-            for category in ["dates", "legal_refs", "rivers"]:
-                if category in ner_data and isinstance(ner_data[category], list) and ner_data[category]:
-                    rows = []
-                    for item in ner_data[category]:
-                        rows.append({
-                            "Name": item.get("name", item.get("date", "")),
-                            "Context": item.get("context", "")
-                        })
-                    columns = ["Name", "Context"]
-                    table = doc.add_table(rows=1, cols=len(columns))
-                    table.style = 'Table Grid'
-                    hdr_cells = table.rows[0].cells
-                    for i, col in enumerate(columns):
-                        hdr_cells[i].text = col
-                        for paragraph in hdr_cells[i].paragraphs:
-                            for run in paragraph.runs:
-                                run.font.name = 'Arial'
-                                run.font.size = Pt(10)
-                                run.font.bold = True
-                    for row in rows:
-                        row_cells = table.add_row().cells
-                        for i, col in enumerate(columns):
-                            row_cells[i].text = str(row.get(col, ""))
-                            for paragraph in row_cells[i].paragraphs:
-                                for run in paragraph.runs:
-                                    run.font.name = 'Arial'
-                                    run.font.size = Pt(9)
-                    doc.add_paragraph()
-                    ner_tables_added += 1
-                    logger.info(f"Added {category} NER table with {len(rows)} entries")
-            
-            # All other categories: keep default behavior
-            for category in ner_data:
-                if category not in ["persons", "organizations", "locations", "dates", "legal_refs", "rivers"]:
-                    if isinstance(ner_data[category], list) and ner_data[category]:
-                        add_table_section(doc, category.replace('_', ' ').title(), ner_data[category])
-                        ner_tables_added += 1
-                        logger.info(f"Added {category} NER table with {len(ner_data[category])} entries")
         
         # Ensure output directory exists
         ensure_dirs(output_path)
@@ -352,8 +295,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
         # Get relative path for output
         output_rel_path = SegmentHandler.get_relative_path(output_path)
         
-        total_sections = sections_added + ner_tables_added
-        logger.info(f"Successfully created Word document with {total_sections} sections")
+        logger.info(f"Successfully created Word document with {sections_added} sections")
         logger.info(f"Output saved to: {output_rel_path}")
         
         return {
@@ -361,9 +303,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path) -> Dict:
             "source": str(rel_path),
             "success": True,
             "details": {
-                "sections_created": total_sections,
-                "main_sections": sections_added,
-                "ner_tables": ner_tables_added,
+                "sections_created": sections_added,
                 "output_format": "docx"
             }
         }
@@ -401,16 +341,19 @@ def process_document(file_path: str, output_folder: Path) -> Dict:
         rel_path = SegmentHandler.get_relative_path(f)
         logger.info(f"Processing document: {rel_path}")
         
-        # Get the parent folder name for document grouping
-        parent_folder = f.parent.name
+        # Get the main folder name by going up 4 parents from the JSON file
+        # Path structure: 1939-Fabriciano-Mosquera.../assets/llm_catalogue/documents/documents_summary.json
+        # We need to go up: documents -> llm_catalogue -> assets -> main_folder
+        file_path = Path(f)
+        parent_folder = file_path.parent.parent.parent.parent.name
         logger.info(f"Parent folder name: {parent_folder}")
         
-        # Create output path using consistent path handling
-        doc_output_path = output_folder / "documents" / rel_path.parent / f"{parent_folder}_summary.docx"
+        # Create output path using consistent path handling with catalogue suffix
+        doc_output_path = output_folder / "documents" / rel_path.parent / f"{parent_folder}-catalogue.docx"
         ensure_dirs(doc_output_path)
         
-        # Convert JSON to Word
-        return convert_json_to_word(f, doc_output_path)
+        # Convert JSON to Word - pass parent_folder to ensure consistency
+        return convert_json_to_word(f, doc_output_path, parent_folder)
     
     return process_file(
         file_path=file_path,
@@ -433,7 +376,7 @@ def json_to_word(
     
     # Ensure output directory exists
     ensure_dirs(output_folder)
-    
+
     processor = BatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
