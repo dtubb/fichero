@@ -44,7 +44,7 @@ celery_app.conf.update(
     task_time_limit=14400,  # 4 hour timeout for large folders
     
     # Optimize for M1 MacBook
-    worker_concurrency=6,  # Leave 2 cores for system
+    worker_concurrency=8,  # Leave 2 cores for system
     worker_max_memory_per_child=2048,  # 2GB per worker
     worker_max_tasks_per_child=10,  # Restart after 10 tasks to prevent memory leaks
     worker_prefetch_multiplier=1,  # Process one task at a time
@@ -692,7 +692,7 @@ def sanitize_filename(filename: str) -> str:
     Preserves Unicode characters but replaces problematic characters with hyphens.
     Problematic characters include:
     - Special characters: , ; { } $ & . 
-    - Invalid filesystem characters: / \ : * ? " < > |
+    - Invalid filesystem characters: / \\ : * ? " < > |
     - Other problematic characters: # @ ! ~ ` ^ + = [ ] ( ) { }
     Preserves the file extension.
     """
@@ -755,7 +755,7 @@ def sanitize_path(path: str) -> str:
     Preserves Unicode characters but replaces problematic characters with hyphens.
     Problematic characters include:
     - Special characters: , ; { } $ & . 
-    - Invalid filesystem characters: / \ : * ? " < > |
+    - Invalid filesystem characters: / \\ : * ? " < > |
     - Other problematic characters: # @ ! ~ ` ^ + = [ ] ( ) { }
     """
     # First replace all problematic characters with hyphens
@@ -1870,10 +1870,10 @@ def reset_workers(
             # If IO tasks take 10x longer than CPU tasks, we need more IO workers
             if is_m1_mac:
                 # M1/M2 Mac: 2x total cores for IO workers
-                io_workers = max(4, cpu_count * 2)
+                io_workers = max(4, cpu_count * 3)
             else:
                 # Other systems: 2x total cores for IO workers
-                io_workers = max(4, cpu_count * 2)
+                io_workers = max(4, cpu_count * 3)
         
         console.print(f"[cyan]System: {'M1/M2 Mac' if is_m1_mac else 'Standard'} with {cpu_count} cores[/cyan]")
         console.print(f"[cyan]Starting {cpu_workers} CPU workers and {io_workers} IO workers[/cyan]")

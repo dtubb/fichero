@@ -143,6 +143,7 @@ workflows:
     - catalogue_folder
 
   transcriptions-to-catalogue-word:
+    - convert_to_word
     - catalogue_folder
     - catalogue_to_word
 

@@ -102,3 +102,7 @@ excel_output/~$output.xlsx
 excel_output/output.xlsx
 old code/excel.py
 .gitignore
+excel_output/
+old code/
+build
+dist
