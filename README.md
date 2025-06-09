@@ -11,10 +11,14 @@ Fichero processes archival materials (documents in JPG, PDF, TIFF format), and c
 - **NEW**: Support for HEIC/HEIF and RAW image formats
 - Transcribe text using various AI models:
   - Qwen Max (full document or segmented processing)
-  - Qwen 2B (full document or segmented processing)
-  - Qwen 7B (full document or segmented processing)
+  - LM Studio Models (full document or segmented processing)
 - Cleans and format transcriptions
 - Generate Word documents with side-by-side layout
+- Processes text files using LLMs with configurable prompts.
+- Converts LLM JSON summary files to formatted Word (.docx) documents.
+- Converts JSON summary files to a single Excel (.xlsx) file (one row per JSON file).
+
+See each script's `--help` for full CLI usage and options.
 
 ## Installation
 
