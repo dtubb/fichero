@@ -1,0 +1,41 @@
+{
+  "name": "long_document_processor",
+  "description": "Optimized for processing very long documents (10k+ words)",
+  "intelligent_chunking": true,
+  "chunk_overlap": 200,
+  "llm": {
+    "backend": "claude",
+    "model": "claude-3-opus-20240229",
+    "temperature": 0.0
+  },
+  "steps": [
+    {
+      "name": "section_summaries",
+      "prompt": "Summarize this section of the document. Focus on: 1) Main topic/purpose, 2) Key facts and dates, 3) Important people mentioned, 4) Decisions or outcomes.",
+      "iterative_refinement": false,
+      "combine": false,
+      "json": false
+    },
+    {
+      "name": "comprehensive_summary",
+      "prompt": "Based on these section summaries, create a comprehensive summary of the entire document. Organize by themes and maintain chronological order where relevant.",
+      "use_previous": true,
+      "combine": true,
+      "json": false
+    },
+    {
+      "name": "document_outline",
+      "prompt": "Create a detailed outline of this document with main sections and subsections. Return as JSON with nested structure.",
+      "iterative_refinement": true,
+      "refinement_prompt": "Current outline:\n{previous}\n\nNew section:\n{current}\n\nUpdate the outline to include this new section. Add it in the appropriate place to maintain logical flow.",
+      "json": true
+    },
+    {
+      "name": "key_quotes",
+      "prompt": "Extract the most important quotes or passages from this section. Include context for each quote.",
+      "iterative_refinement": false,
+      "combine": false,
+      "json": false
+    }
+  ]
+} 

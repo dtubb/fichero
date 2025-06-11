@@ -1,0 +1,12 @@
+# Fichero Release Notes
+
+## 0.1.0 (January 2025)
+
+* Initial GUI version
+* Migrated from standalone script to briefcase app
+* Basic toga interface with navigation view
+
+## 0.0.1 (Previous versions)
+
+* Command-line interface with fichero_director.py
+* Document processing and transcription functionality 

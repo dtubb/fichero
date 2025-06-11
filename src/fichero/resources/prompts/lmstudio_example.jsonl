@@ -1,0 +1,24 @@
+{
+  "name": "lmstudio_local",
+  "description": "Local document processing with LMStudio",
+  "llm": {
+    "backend": "lmstudio",
+    "model": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
+    "temperature": 0.0,
+    "api_url": "http://localhost:1234"
+  },
+  "steps": [
+    {
+      "name": "extract_facts",
+      "prompt": "Extract factual information from this document. List each fact as a separate bullet point. Focus on: dates, names, places, events, and specific claims or statements.",
+      "combine": true,
+      "json": false
+    },
+    {
+      "name": "create_timeline",
+      "prompt": "Based on the dates and events mentioned, create a chronological timeline. Return as JSON with an array of objects, each having 'date' and 'event' fields.",
+      "combine": true,
+      "json": true
+    }
+  ]
+} 

@@ -1,0 +1,132 @@
+# This project was generated with 0.3.23 using template: https://github.com/beeware/briefcase-template @ v0.3.23
+[tool.briefcase]
+project_name = "Fichero"
+bundle = "ca.tubb.fichero"
+version = "0.1.0"
+url = "https://www.tubb.ca/fichero/"
+license.file = "LICENSE"
+author = "dtubb"
+author_email = "daniel@tubb.ca"
+
+# GUI Application
+[tool.briefcase.app.fichero]
+formal_name = "Fichero"
+description = "Document Processing and Transcription"
+long_description = """Fichero processes archival materials (documents in JPG, PDF, TIFF format), and crops, splits, enhances contrast, removes backgrounds, and then transcribes text using AI LLMs, before exporting them to Word documents.
+"""
+sources = [
+    "src/fichero",
+]
+test_sources = [
+    "tests",
+]
+console_app = true
+requires = [
+    "toga>=0.4.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "srsly>=2.4.8",
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.2.0",
+    "opencv-python>=4.9.0",
+    "numpy>=1.26.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.10",
+    "ultralytics>=8.0.0",
+    "rawpy>=0.18.0",
+    "pillow-heif>=0.14.0",
+    "exifread>=3.0.0",
+    "scikit-learn>=1.4.0",
+    "torch>=2.2.0",
+    "transformers>=4.37.0",
+    "python-docx>=1.1.0",
+    "langchain>=0.1.0",
+    "langchain-ollama>=0.0.1",
+    "anthropic>=0.8.0",
+    "dashscope>=1.13.0",
+    "requests>=2.31.0",
+    "tqdm>=4.66.0",
+    "python-magic>=0.4.27",
+    "psutil",
+    "celery",
+    "redis",
+    "openai>=1.0.0",
+    "accelerate",
+    "pathvalidate",
+]
+test_requires = [
+    "pytest",
+]
+
+# Platform-specific configurations for GUI
+[tool.briefcase.app.fichero.macOS]
+universal_build = true
+requires = [
+    "toga-cocoa>=0.4.0",
+    "std-nslog~=1.0.3",
+]
+
+[tool.briefcase.app.fichero.linux]
+requires = [
+    "toga-gtk>=0.4.0",
+    "pygobject < 3.52.1",
+]
+
+[tool.briefcase.app.fichero.windows]
+requires = [
+    "toga-winforms>=0.4.0",
+]
+
+# Build system requirements
+[build-system]
+requires = ["briefcase"]
+build-backend = "briefcase.backend"
+
+# Project metadata
+[project]
+name = "fichero"
+version = "0.1.0"
+description = "Document Processing and Transcription"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "dtubb", email = "daniel@tubb.ca"}
+]
+dependencies = [
+    "toga>=0.4.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "srsly>=2.4.8",
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.2.0",
+    "opencv-python>=4.9.0",
+    "numpy>=1.26.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.10",
+    "ultralytics>=8.0.0",
+    "rawpy>=0.18.0",
+    "pillow-heif>=0.14.0",
+    "exifread>=3.0.0",
+    "scikit-learn>=1.4.0",
+    "torch>=2.2.0",
+    "transformers>=4.37.0",
+    "python-docx>=1.1.0",
+    "langchain>=0.1.0",
+    "langchain-ollama>=0.0.1",
+    "anthropic>=0.8.0",
+    "dashscope>=1.13.0",
+    "requests>=2.31.0",
+    "tqdm>=4.66.0",
+    "python-magic>=0.4.27",
+    "psutil",
+    "celery",
+    "redis",
+    "openai>=1.0.0",
+    "accelerate",
+    "pathvalidate",
+]
+
+[project.scripts]
+fichero-cli = "fichero.cli:main"
+fichero-gui = "fichero.app:main" 

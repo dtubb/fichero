@@ -1,0 +1,47 @@
+{
+  "name": "ner_async_processing",
+  "description": "Extract named entities from multi-page documents using async processing with GPT-3.5, then combine with GPT-4",
+  "intelligent_chunking": false,
+  "chunk_overlap": 0,
+  "llm": {
+    "backend": "chatgpt",
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "top_p": 0.95,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "stop_sequences": [],
+    "timeout": 120,
+    "retry_attempts": 3,
+    "retry_delay": 5
+  },
+  "steps": [
+    {
+      "name": "extract_ner_per_page",
+      "prompt": "Extract named entities from this page. For each entity found, note the page number where it appears. Identify and classify:\n- Persons\n- Organizations\n- Locations\nReturn as JSON with these exact keys: persons (with page numbers), organizations (with page numbers), locations (with page numbers), dates (with page numbers). Say nothing else. Do not include any other text in your response. Return as valid JSON",
+      "async_page_processing": true,
+      "async_batch_size": 10,
+      "json": true,
+      "llm": {
+        "backend": "chatgpt",
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.0,
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "combine_ner_results",
+      "prompt": "Here are the NER results from multiple pages of a document. Please combine and consolidate these results into a single comprehensive JSON structure. For each entity:\n- Merge duplicate entries while preserving all page numbers\n- Maintain the same structure: persons, organizations, locations, dates\n- Keep all page number references\n- Remove any redundant information\nReturn as valid JSON with the same structure as the input. Say nothing else.",
+      "combine_results": true,
+      "use_previous": true,
+      "json": true,
+      "llm": {
+        "backend": "chatgpt",
+        "model": "gpt-4-32k",
+        "temperature": 0.0,
+        "max_tokens": 32768
+      }
+    }
+  ]
+} 
