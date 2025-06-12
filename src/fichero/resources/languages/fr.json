@@ -1,0 +1,9 @@
+{
+  "app_title": "Fichero",
+  "choose_folder": "Choisir un dossier…",
+  "description": "**Fichero** traite de grandes collections de documents numérisés — des centaines, voire des dizaines de milliers — en les rognant, en améliorant leur lisibilité, en les segmentant, en les transcrivant avec l’IA et en générant automatiquement un catalogue. Il exporte les résultats dans des fichiers Word et Excel.\n\nVous pouvez [en savoir plus](https://www.tubb.ca/fichero/) sur la façon dont cela fonctionne si cela vous intéresse, mais en résumé, Fichero utilise divers outils pour décomposer chaque étape, fait appel à des modèles de langage visuel avancés et traite plusieurs dossiers en parallèle.\n\nPour commencer, choisissez un dossier à traiter à l’aide du bouton ci-dessus.",
+  "help": "?",
+  "process": "Traiter le Dossier",
+  "folder_icon_label": "📁",
+  "folder_status": "Aucun dossier sélectionné"
+} 

@@ -27,6 +27,18 @@ from celery import Celery
 from celery.result import AsyncResult
 import tempfile
 from pathvalidate import sanitize_filename as pv_sanitize_filename, sanitize_filepath as pv_sanitize_filepath
+import redis
+
+def get_celery_module_name() -> str:
+    """
+    Get the correct module name for Celery based on the runtime environment.
+    When running under briefcase dev, use the full module path.
+    """
+    # Check if we're running as a module (under briefcase dev)
+    if __name__ != '__main__':
+        return 'fichero.director'
+    else:
+        return 'fichero_director'
 
 # Set up Celery
 celery_app = Celery('fichero_director',
@@ -1356,9 +1368,12 @@ def ensure_workers_running():
             cpu_workers = max(1, cpu_count // 2)
             io_workers = max(4, cpu_count * 2)
         
+        # Get the correct module name for Celery
+        celery_module = get_celery_module_name()
+        
         # Start CPU worker
         cpu_worker_cmd = [
-            'celery', '-A', 'fichero_director', 'worker',
+            'celery', '-A', celery_module, 'worker',
             '-Q', 'cpu_intensive',
             '-n', 'cpu_worker@%h',
             '-c', str(cpu_workers),
@@ -1371,7 +1386,7 @@ def ensure_workers_running():
         
         # Start IO worker
         io_worker_cmd = [
-            'celery', '-A', 'fichero_director', 'worker',
+            'celery', '-A', celery_module, 'worker',
             '-Q', 'io_intensive',
             '-n', 'io_worker@%h',
             '-c', str(io_workers),
@@ -1392,7 +1407,7 @@ def ensure_workers_running():
             try:
                 # Check worker status
                 result = subprocess.run(
-                    ['celery', '-A', 'fichero_director', 'status'],
+                    ['celery', '-A', celery_module, 'status'],
                     capture_output=True,
                     text=True,
                     check=True
@@ -1409,6 +1424,38 @@ def ensure_workers_running():
         if not workers_ready:
             console.print("[red]⚠️  Workers failed to start properly[/red]")
             raise RuntimeError("Failed to start Celery workers")
+
+def ensure_celery_backend():
+    """Ensure Celery is using Redis backend, not DisabledBackend"""
+    try:
+        # Check if we have a disabled backend
+        if 'Disabled' in str(type(celery_app.backend)):
+            log.info("Detected DisabledBackend, reconfiguring Celery to use Redis...")
+            
+            # Force reconfigure with Redis backend
+            celery_app.conf.update(
+                broker_url='redis://localhost:6379/0',
+                result_backend='redis://localhost:6379/0',
+                backend='redis://localhost:6379/0'
+            )
+            
+            # Recreate the backend
+            from celery.backends.redis import RedisBackend
+            celery_app.backend = RedisBackend(app=celery_app)
+            
+            log.info(f"Reconfigured backend type: {type(celery_app.backend)}")
+            
+        # Test the connection
+        try:
+            import redis
+            r = redis.Redis(host='localhost', port=6379, db=0)
+            r.ping()
+            log.info("Redis connection test: SUCCESS")
+        except Exception as e:
+            log.error(f"Redis connection test: FAILED - {e}")
+            
+    except Exception as e:
+        log.error(f"Error ensuring Celery backend: {e}")
 
 @cli.command()
 def process_folders(
@@ -1435,6 +1482,22 @@ def process_folders(
     """
     console = Console()  # Initialize console at the start
     try:
+        # Ensure Celery backend is properly configured
+        ensure_celery_backend()
+        
+        # Debug: Check Celery backend configuration
+        log.info(f"Celery backend type: {type(celery_app.backend)}")
+        log.info(f"Celery backend URL: {celery_app.backend.url if hasattr(celery_app.backend, 'url') else 'No URL'}")
+        log.info(f"Celery broker URL: {celery_app.broker_connection().as_uri()}")
+        
+        # Test Redis connection
+        try:
+            r = redis.Redis(host='localhost', port=6379, db=0)
+            r.ping()
+            log.info("Redis connection test: SUCCESS")
+        except Exception as e:
+            log.error(f"Redis connection test: FAILED - {e}")
+        
         # Ensure Redis and Celery workers are running
         ensure_workers_running()
         
@@ -1878,9 +1941,12 @@ def reset_workers(
         console.print(f"[cyan]System: {'M1/M2 Mac' if is_m1_mac else 'Standard'} with {cpu_count} cores[/cyan]")
         console.print(f"[cyan]Starting {cpu_workers} CPU workers and {io_workers} IO workers[/cyan]")
         
+        # Get the correct module name for Celery
+        celery_module = get_celery_module_name()
+        
         # Start CPU worker
         cpu_worker_cmd = [
-            'celery', '-A', 'fichero_director', 'worker',
+            'celery', '-A', celery_module, 'worker',
             '-Q', 'cpu_intensive',
             '-n', 'cpu_worker@%h',
             '-c', str(cpu_workers),
@@ -1893,7 +1959,7 @@ def reset_workers(
         
         # Start IO worker
         io_worker_cmd = [
-            'celery', '-A', 'fichero_director', 'worker',
+            'celery', '-A', celery_module, 'worker',
             '-Q', 'io_intensive',
             '-n', 'io_worker@%h',
             '-c', str(io_workers),
@@ -1914,7 +1980,7 @@ def reset_workers(
             try:
                 # Check worker status
                 result = subprocess.run(
-                    ['celery', '-A', 'fichero_director', 'status'],
+                    ['celery', '-A', celery_module, 'status'],
                     capture_output=True,
                     text=True,
                     check=True

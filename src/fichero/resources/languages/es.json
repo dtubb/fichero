@@ -1,0 +1,9 @@
+{
+  "app_title": "Fichero",
+  "choose_folder": "Elegir carpeta…",
+  "description": "*Fichero* procesa grandes colecciones de documentos digitalizados — cientos o incluso decenas de miles — recortándolos, mejorando su legibilidad, segmentándolos, transcribiéndolos con IA y generando automáticamente un catálogo. Exporta los resultados a archivos de Word y Excel a gran escala.\n\nPuedes [saber más](https://www.tubb.ca/fichero/) sobre cómo funciona, si te interesa, pero en resumen, Fichero utiliza varias herramientas para descomponer cada paso, recurre a modelos de lenguaje visual avanzados y trabaja en múltiples carpetas en paralelo.\n\nPara comenzar, elige una carpeta para procesar usando el botón de arriba.",
+  "help": "?",
+  "process": "Procesar Carpeta",
+  "folder_icon_label": "📁",
+  "folder_status": "Ninguna carpeta seleccionada"
+} 

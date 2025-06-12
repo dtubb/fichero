@@ -1,0 +1,10 @@
+{
+  "app_title": "Fichero",
+  "choose_folder": "Choose Folder…",
+  "description": "*Fichero* processes large collections of digitized documents—hundreds or even tens of thousands—by cropping, enhancing, segmenting, transcribing with AI, and auto-cataloguing. It outputs results to Word and Excel files.\n\nYou can [learn more](https://www.tubb.ca/fichero/) about how this is done, if you're interested, but the short version is that Fichero uses various tools to break down each step, calls out to Vision Large Language Models, and runs on various folders in parallel.\n\nTo start, choose a folder to process using the button above.",
+  "help": "?",
+  "process": "Process Folder",
+  "processing": "Processing",
+  "folder_icon_label": "📁",
+  "folder_status": "No folder selected"
+}
