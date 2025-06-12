@@ -108,3 +108,4 @@ build
 dist
 dump.rdb
 examples/
+logs

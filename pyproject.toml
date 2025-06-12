@@ -14,6 +14,7 @@ formal_name = "Fichero"
 description = "Document Processing and Transcription"
 long_description = """Fichero processes archival materials (documents in JPG, PDF, TIFF format), and crops, splits, enhances contrast, removes backgrounds, and then transcribes text using AI LLMs, before exporting them to Word documents.
 """
+icon = "src/fichero/resources/icons/fichero"
 sources = [
     "src/fichero",
 ]
@@ -28,17 +29,11 @@ requires = [
     "srsly>=2.4.8",
     "python-dotenv>=1.0.0",
     "Pillow>=10.2.0",
-    "opencv-python>=4.9.0",
     "numpy>=1.26.0",
     "pdf2image>=1.17.0",
     "pytesseract>=0.3.10",
-    "ultralytics>=8.0.0",
     "rawpy>=0.18.0",
-    "pillow-heif>=0.14.0",
     "exifread>=3.0.0",
-    "scikit-learn>=1.4.0",
-    "torch>=2.2.0",
-    "transformers>=4.37.0",
     "python-docx>=1.1.0",
     "langchain>=0.1.0",
     "langchain-ollama>=0.0.1",
@@ -60,7 +55,7 @@ test_requires = [
 
 # Platform-specific configurations for GUI
 [tool.briefcase.app.fichero.macOS]
-universal_build = true
+universal_build = false
 requires = [
     "toga-cocoa>=0.4.0",
     "std-nslog~=1.0.3",
@@ -100,17 +95,11 @@ dependencies = [
     "srsly>=2.4.8",
     "python-dotenv>=1.0.0",
     "Pillow>=10.2.0",
-    "opencv-python>=4.9.0",
     "numpy>=1.26.0",
     "pdf2image>=1.17.0",
     "pytesseract>=0.3.10",
-    "ultralytics>=8.0.0",
     "rawpy>=0.18.0",
-    "pillow-heif>=0.14.0",
     "exifread>=3.0.0",
-    "scikit-learn>=1.4.0",
-    "torch>=2.2.0",
-    "transformers>=4.37.0",
     "python-docx>=1.1.0",
     "langchain>=0.1.0",
     "langchain-ollama>=0.0.1",
