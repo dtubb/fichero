@@ -1,12 +1,17 @@
 # Fichero Release Notes
 
-## 0.1.0 (January 2025)
+## 0.0.4 – JUNE 15, 2025
+- Added Briefcase for easier packaging and  distributing of Fichero.
+- Integrated Toga for macOS/Windows/Linux GUI development. GUI is inspired, for now, by John Siracusa's [Hyperspace](https://hypercritical.co/2025/02/25/hyperspace).
+- Refactored the project structure by moving files into the `src` directory, needed for Toga and Brieface. 
+- Refactored code to work with the structure.
 
-* Initial GUI version
-* Migrated from standalone script to briefcase app
-* Basic toga interface with navigation view
+## 0.0.3 – JUNE 5, 2025
+- Added support for multi-step LLM processing, using llm_process.py, llm_utils.py, and a config file. Tested with OpenAI models. Config files set prompts, choose batch sizes, decide between sending pages individually or in groups up to chunk size based on max tokens, allow combining results, and sending previous results. ,
+- Added a config file to auto-catalogue by generating using LLMs named entity recognition for people, places, organizations, events, but also specific things we are interested in, e.g. mines, animals, plants, injuries; a timeline of events; most important people; ten tags or keywords; and a 150 word summary.
 
-## 0.0.1 (Previous versions)
+## 0.0.2 – MAY 25, 2025
+- Added support for running on multiple processors and in parallel, and doing asynchronous transcription calls. Fichero_director.py.
 
-* Command-line interface with fichero_director.py
-* Document processing and transcription functionality 
+## 0.0.1 – MAY 9, 2025
+- Initial development release, which crops, splits, rotates, enhances, removes background, and transcribes.

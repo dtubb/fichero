@@ -16,15 +16,16 @@ vars:
   version: "0.0.0"
   
   # Project paths - these should be configured per project
-  project_folder: "/Users/dtubb/code/fichero_main/fichero/projects/1947 Roberto Caicedo Contra Cia minera Chocó pacifico Demanda Ordinaria Laboral Andagoya"  # This will be updated by fichero_director
-  fichero_root: "/Users/dtubb/code/fichero_main/fichero"  # This will be updated by fichero_director
+  project_folder: "${vars.output_folder}"  # This will be updated by fichero_director
+  fichero_root: "${vars.fichero_root}"  # This will be updated by fichero_director
   documents_folder: "${vars.project_folder}/documents"
   assets_folder: "${vars.project_folder}/assets"
-  scripts_dir: "${vars.fichero_root}/scripts"
-  prompts_dir: "${vars.fichero_root}/prompts"
-  models_dir: "${vars.fichero_root}/models"
+  scripts_dir: "${vars.fichero_root}/src/fichero/tools"  # Updated to point to correct tools directory
+  prompts_dir: "${vars.fichero_root}/src/fichero/resources/prompts"  # Updated to point to new prompts directory
+  models_dir: "${vars.fichero_root}/src/fichero/resources/models"  # Updated to point to new models directory
+  
   yolo_model_path: "${vars.models_dir}/yolov8s-fichero.pt"  # Path to YOLO model
-
+  
   # Image format configuration
   crop_format: "jpg"  # Options: "png", "jxl", "jpg"
   split_format: "jpg"  # Options: "png", "jxl", "jpg"
@@ -78,6 +79,22 @@ vars:
 directories: ["${vars.scripts_dir}"]
 
 workflows:
+
+  default:
+    - build_documents_manifest
+    - crop
+    - split
+    - rotate
+    - enhance
+    - remove_background
+    - segment
+    - transcribe_qwen_max_segments
+    - recombine_segments_qwen_max
+    - fuzzy_clean
+    - convert_to_word
+    - catalogue_folder
+    - catalogue_to_word
+
   archive-to-word-qwen-max:
     - build_documents_manifest
     - crop

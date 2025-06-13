@@ -109,3 +109,4 @@ dist
 dump.rdb
 examples/
 logs
+src/fichero/resources/create_icons.sh

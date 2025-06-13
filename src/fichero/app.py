@@ -630,7 +630,13 @@ class FicheroApp(toga.App):
         desktop = Path.home() / "Desktop"
         folder_name = self.selected_folder.name
         output_folder = desktop / f"Fichero_Output_{folder_name}"
-        self.log_text.value = f"Starting Fichero processing...\nInput folder: {self.selected_folder}\nOutput folder: {output_folder}\n\n"
+        
+        # Find the config file path
+        config_path = Path(__file__).parent / "resources" / "plans" / "plans.yml"
+        
+        self.log_text.value = f"Starting Fichero processing...\n"
+        self.log_text.value += f"Input folder: {self.selected_folder}\n"
+        self.log_text.value += f"Output folder: {output_folder}\n\n"
         
         # Create log window content
         log_content = toga.Box(
@@ -648,7 +654,7 @@ class FicheroApp(toga.App):
         asyncio.create_task(self._start_director_process_async())
     
     async def _start_director_process_async(self):
-        """Start the director processing as a subprocess using the CLI entry point"""
+        """Start the director processing using direct function calls"""
         try:
             # Add processing info to log window
             self.log_text.value += f"Starting background processing...\n\n"
@@ -658,52 +664,25 @@ class FicheroApp(toga.App):
             folder_name = self.selected_folder.name
             output_folder = desktop / f"Fichero_Output_{folder_name}"
             
-            # Find the config file path
-            config_path = Path(__file__).parent / "resources" / "plans" / "plans.yml"
+            # Log the paths we're using
+            self.log_text.value += f"Input folder: {self.selected_folder}\n"
+            self.log_text.value += f"Output folder: {output_folder}\n\n"
             
-            self.log_text.value += f"Output folder: {output_folder}\n"
-            self.log_text.value += f"Config file: {config_path}\n"
-            self.log_text.value += f"Input folder: {self.selected_folder}\n\n"
+            # Import the async function
+            from fichero.director import process_folders_async
             
-            # Build the CLI command - this is the exact same command that works in CLI mode
-            cmd = [
-                sys.executable,
-                '-m', 'fichero',  # Use the CLI entry point that works
-                'process-folders',
-                str(output_folder),
-                str(config_path),
-                'archive-to-catalogue-qwen-max-segmented', 
-                '--input-folder', str(self.selected_folder),
-                '--no-use-weasel'
-            ]
-            
-            self.log_text.value += f"Running command: {' '.join(cmd)}\n\n"
-            
-            # Start the subprocess using the CLI entry point
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
+            # Call the function directly
+            success = await process_folders_async(
+                input_folder=self.selected_folder,
+                output_folder=output_folder
             )
             
-            # Read output line by line and update log window
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_text = line.decode('utf-8')
-                self.log_text.value += line_text
-                self.log_text.scroll_to_bottom()
-                
-            # Wait for process to complete
-            await process.wait()
-            
-            if process.returncode == 0:
+            if success:
                 self.log_text.value += f"\n✅ Processing completed successfully!\n"
                 print("✅ Document processing completed successfully!")
             else:
-                self.log_text.value += f"\n❌ Processing failed with exit code: {process.returncode}\n"
-                print(f"❌ Processing failed with exit code: {process.returncode}")
+                self.log_text.value += f"\n❌ Processing failed\n"
+                print("❌ Processing failed")
                 
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}"
@@ -714,7 +693,7 @@ class FicheroApp(toga.App):
             self.activity_indicator.stop()
             self.process_btn.enabled = True
             self.process_btn.text = _("process")
-    
+
     def set_language(self, language_code: str):
         """Change the app language and refresh UI"""
         translator.set_language(language_code)
