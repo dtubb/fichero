@@ -693,7 +693,7 @@ class FicheroApp(toga.App):
             # Define log callback to update GUI log window
             def log_callback(message):
                 self.log_text.value += message
-                
+            
             # Call the function with the prepared folders
             success = await process_folders_async(
                 folders=prepared_folders,
@@ -733,7 +733,7 @@ def main():
 
 if __name__ == "__main__":
     app = main()
-    app.main_loop()
+    app.main_loop() 
 
 # TODO: Future GUI Table Widget Implementation
 #

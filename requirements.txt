@@ -1,23 +1,23 @@
 # BeeWare's Briefcase for packaging, and Toga for GUI
-briefcase
-toga
+briefcase>=0.3.23,<0.4.0
+toga>=0.5.1,<0.6.0
 
 # Core dependencies
-typer>=0.9.0
-rich>=13.7.0
-srsly>=2.4.8
-python-dotenv>=1.0.0
+typer>=0.16.0,<1.0.0
+rich>=14.0.0,<15.0.0
+srsly>=2.5.1,<3.0.0
+python-dotenv>=1.1.0,<2.0.0
 
 # Image processing
-Pillow>=10.2.0
-opencv-python>=4.9.0
-numpy>=1.26.0
-pdf2image>=1.17.0
-pytesseract>=0.3.10
-ultralytics>=8.0.0
-rawpy>=0.18.0  # For RAW image format support
-pillow-heif>=0.14.0  # For HEIC/HEIF format support (fallback only) DOES NOT WORK IN BRIEEFCASE
-exifread>=3.0.0  # For metadata handling
+Pillow>=11.2.1,<12.0.0
+opencv-python>=4.11.0,<5.0.0
+numpy>=2.3.0,<3.0.0
+pdf2image>=1.17.0,<2.0.0
+pytesseract>=0.3.13,<1.0.0
+ultralytics>=8.3.0,<9.0.0
+rawpy>=0.25.0,<1.0.0  # For RAW image format support
+pillow-heif>=0.22.0,<1.0.0  # For HEIC/HEIF format support (fallback only) DOES NOT WORK IN BRIEFCASE
+exifread>=3.3.1,<4.0.0  # For metadata handling
 
 # Optional system dependencies for JPEG XL support:
 # - macOS: brew install libjxl
@@ -35,28 +35,29 @@ exifread>=3.0.0  # For metadata handling
 # - Windows: No additional dependencies needed
 
 # Machine learning and data processing
-scikit-learn>=1.4.0
-torch>=2.2.0
-transformers>=4.37.0
+scikit-learn>=1.7.0,<2.0.0
+torch>=2.7.1,<3.0.0
+transformers>=4.52.0,<5.0.0
 
 # Document processing
-python-docx>=1.1.0
+python-docx>=1.1.2,<2.0.0
 
 # LLM and AI
-langchain>=0.1.0
-langchain-ollama>=0.0.1
-anthropic>=0.8.0
-dashscope>=1.13.0
-requests>=2.31.0
+langchain>=0.3.25,<0.4.0
+langchain-ollama>=0.3.3,<1.0.0
+anthropic>=0.54.0,<1.0.0
+dashscope>=1.23.4,<2.0.0
+requests>=2.32.4,<3.0.0
 
 # Utilities
-tqdm>=4.66.0
-python-magic>=0.4.27 
+tqdm>=4.67.1,<5.0.0
+python-magic>=0.4.27,<1.0.0 
 
-psutil
-wxpython
-celery
-redis
-openai>=1.0.0
-accelerate
-pathvalidate
+# System and processing
+psutil>=7.0.0,<8.0.0
+wxpython>=4.2.3,<5.0.0
+celery>=5.5.3,<6.0.0
+redis>=6.2.0,<7.0.0
+openai>=1.86.0,<2.0.0
+accelerate>=1.7.0,<2.0.0
+pathvalidate>=3.2.3,<4.0.0
