@@ -34,3 +34,6 @@ logs
 src/fichero/resources/create_icons.sh
 old code/
 toga-examples/
+
+cpu_worker.log
+io_worker.log
