@@ -1,0 +1,154 @@
+[2025-06-12 18:10:55,771: INFO/MainProcess] missed heartbeat from io_worker@UNB-C02F45GAQ05P
+[2025-06-12 19:15:23,918: INFO/MainProcess] Task process_folder[2458c396-b346-480e-84e8-2876a6780799] received
+[2025-06-12 19:15:24,040: INFO/ForkPoolWorker-16] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_luke/luke/project.yml
+[2025-06-12 19:15:24,045: INFO/ForkPoolWorker-16] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 19:15:24,047: INFO/ForkPoolWorker-16] Template exists: True
+[2025-06-12 19:15:24,048: INFO/ForkPoolWorker-16] Folder path exists: True
+[2025-06-12 19:15:24,049: INFO/ForkPoolWorker-16] Folder path is writable: True
+[2025-06-12 19:15:24,049: INFO/ForkPoolWorker-16] Starting create_project_yml with:
+[2025-06-12 19:15:24,050: INFO/ForkPoolWorker-16]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 19:15:24,051: INFO/ForkPoolWorker-16]   target_folder: /Users/dtubb/Desktop/Fichero_Output_luke/luke
+[2025-06-12 19:15:24,052: INFO/ForkPoolWorker-16]   output_path: /Users/dtubb/Desktop/Fichero_Output_luke/luke/project.yml
+[2025-06-12 19:15:24,053: INFO/ForkPoolWorker-16] Reading template file...
+[2025-06-12 19:15:24,054: INFO/ForkPoolWorker-16] Template file read successfully
+[2025-06-12 19:15:24,055: INFO/ForkPoolWorker-16] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_luke/luke
+[2025-06-12 19:15:24,057: INFO/ForkPoolWorker-16] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 19:15:24,058: INFO/ForkPoolWorker-16] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_luke/luke/project.yml
+[2025-06-12 19:15:24,060: INFO/ForkPoolWorker-16] Project.yml written successfully
+[2025-06-12 19:15:24,061: INFO/ForkPoolWorker-16] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_luke/luke/project.yml
+[2025-06-12 19:15:24,062: INFO/ForkPoolWorker-16] Project.yml exists after creation: True
+[2025-06-12 19:15:24,206: INFO/ForkPoolWorker-16] Task process_folder[2458c396-b346-480e-84e8-2876a6780799] succeeded in 0.2837469170044642s: False
+[2025-06-12 20:03:39,069: INFO/MainProcess] missed heartbeat from io_worker@UNB-C02F45GAQ05P
+[2025-06-12 21:02:11,299: INFO/MainProcess] Task process_folder[81f6c984-823e-4f48-a660-7bd93d0d95fe] received
+[2025-06-12 21:02:11,360: INFO/ForkPoolWorker-17] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:02:11,361: INFO/ForkPoolWorker-17] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:02:11,361: INFO/ForkPoolWorker-17] Template exists: True
+[2025-06-12 21:02:11,362: INFO/ForkPoolWorker-17] Folder path exists: True
+[2025-06-12 21:02:11,362: INFO/ForkPoolWorker-17] Folder path is writable: True
+[2025-06-12 21:02:11,362: INFO/ForkPoolWorker-17] Starting create_project_yml with:
+[2025-06-12 21:02:11,363: INFO/ForkPoolWorker-17]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:02:11,363: INFO/ForkPoolWorker-17]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:02:11,364: INFO/ForkPoolWorker-17]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:02:11,364: INFO/ForkPoolWorker-17] Reading template file...
+[2025-06-12 21:02:11,364: INFO/ForkPoolWorker-17] Template file read successfully
+[2025-06-12 21:02:11,366: INFO/ForkPoolWorker-17] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:02:11,367: INFO/ForkPoolWorker-17] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:02:11,368: INFO/ForkPoolWorker-17] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:02:11,370: INFO/ForkPoolWorker-17] Project.yml written successfully
+[2025-06-12 21:02:11,370: INFO/ForkPoolWorker-17] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:02:11,373: INFO/ForkPoolWorker-17] Project.yml exists after creation: True
+[2025-06-12 21:02:25,045: INFO/ForkPoolWorker-17] Task process_folder[81f6c984-823e-4f48-a660-7bd93d0d95fe] succeeded in 13.713898750022054s: True
+[2025-06-12 21:02:25,074: INFO/MainProcess] Task process_folder[6962732b-d1a7-4232-8aed-51be1fe85822] received
+[2025-06-12 21:02:26,025: INFO/ForkPoolWorker-14] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:02:26,029: INFO/ForkPoolWorker-14] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:02:26,029: INFO/ForkPoolWorker-14] Template exists: True
+[2025-06-12 21:02:26,030: INFO/ForkPoolWorker-14] Folder path exists: True
+[2025-06-12 21:02:26,030: INFO/ForkPoolWorker-14] Folder path is writable: True
+[2025-06-12 21:02:26,031: INFO/ForkPoolWorker-14] Starting create_project_yml with:
+[2025-06-12 21:02:26,032: INFO/ForkPoolWorker-14]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:02:26,034: INFO/ForkPoolWorker-14]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:02:26,034: INFO/ForkPoolWorker-14]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:02:26,035: INFO/ForkPoolWorker-14] Reading template file...
+[2025-06-12 21:02:26,036: INFO/ForkPoolWorker-14] Template file read successfully
+[2025-06-12 21:02:26,037: INFO/ForkPoolWorker-14] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:02:26,039: INFO/ForkPoolWorker-14] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:02:26,040: INFO/ForkPoolWorker-14] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:02:26,041: INFO/ForkPoolWorker-14] Project.yml written successfully
+[2025-06-12 21:02:26,041: INFO/ForkPoolWorker-14] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:02:26,042: INFO/ForkPoolWorker-14] Project.yml exists after creation: True
+[2025-06-12 21:02:43,676: INFO/ForkPoolWorker-14] Task process_folder[6962732b-d1a7-4232-8aed-51be1fe85822] succeeded in 17.686878415988758s: True
+[2025-06-12 21:03:22,570: INFO/MainProcess] Task process_folder[6ae443cd-8eb2-477b-9343-615c45cac95a] received
+[2025-06-12 21:03:22,601: INFO/ForkPoolWorker-18] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:03:22,605: INFO/ForkPoolWorker-18] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:03:22,606: INFO/ForkPoolWorker-18] Template exists: True
+[2025-06-12 21:03:22,608: INFO/ForkPoolWorker-18] Folder path exists: True
+[2025-06-12 21:03:22,609: INFO/ForkPoolWorker-18] Folder path is writable: True
+[2025-06-12 21:03:22,610: INFO/ForkPoolWorker-18] Starting create_project_yml with:
+[2025-06-12 21:03:22,611: INFO/ForkPoolWorker-18]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:03:22,611: INFO/ForkPoolWorker-18]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:03:22,612: INFO/ForkPoolWorker-18]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:03:22,612: INFO/ForkPoolWorker-18] Reading template file...
+[2025-06-12 21:03:22,613: INFO/ForkPoolWorker-18] Template file read successfully
+[2025-06-12 21:03:22,613: INFO/ForkPoolWorker-18] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:03:22,614: INFO/ForkPoolWorker-18] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:03:22,615: INFO/ForkPoolWorker-18] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:03:22,616: INFO/ForkPoolWorker-18] Project.yml written successfully
+[2025-06-12 21:03:22,616: INFO/ForkPoolWorker-18] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:03:22,617: INFO/ForkPoolWorker-18] Project.yml exists after creation: True
+[2025-06-12 21:05:25,418: INFO/ForkPoolWorker-18] Task process_folder[6ae443cd-8eb2-477b-9343-615c45cac95a] succeeded in 122.83559520801646s: False
+[2025-06-12 21:06:20,576: INFO/MainProcess] Task process_folder[55224d5a-fdea-4392-84c9-af98fa239d27] received
+[2025-06-12 21:06:20,610: INFO/ForkPoolWorker-20] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:06:20,611: INFO/ForkPoolWorker-20] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:06:20,612: INFO/ForkPoolWorker-20] Template exists: True
+[2025-06-12 21:06:20,612: INFO/ForkPoolWorker-20] Folder path exists: True
+[2025-06-12 21:06:20,613: INFO/ForkPoolWorker-20] Folder path is writable: True
+[2025-06-12 21:06:20,613: INFO/ForkPoolWorker-20] Starting create_project_yml with:
+[2025-06-12 21:06:20,614: INFO/ForkPoolWorker-20]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:06:20,614: INFO/ForkPoolWorker-20]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:06:20,614: INFO/ForkPoolWorker-20]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:06:20,615: INFO/ForkPoolWorker-20] Reading template file...
+[2025-06-12 21:06:20,616: INFO/ForkPoolWorker-20] Template file read successfully
+[2025-06-12 21:06:20,616: INFO/ForkPoolWorker-20] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:06:20,618: INFO/ForkPoolWorker-20] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:06:20,618: INFO/ForkPoolWorker-20] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:06:20,619: INFO/ForkPoolWorker-20] Project.yml written successfully
+[2025-06-12 21:06:20,620: INFO/ForkPoolWorker-20] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:06:20,620: INFO/ForkPoolWorker-20] Project.yml exists after creation: True
+[2025-06-12 21:08:41,391: INFO/ForkPoolWorker-20] Task process_folder[55224d5a-fdea-4392-84c9-af98fa239d27] succeeded in 140.8025660419953s: True
+[2025-06-12 21:08:41,449: INFO/MainProcess] Task process_folder[0c9d99d0-61a9-43ed-85a2-05ce802dc7f8] received
+[2025-06-12 21:08:46,410: INFO/ForkPoolWorker-19] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:08:46,411: INFO/ForkPoolWorker-19] Using template from /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:08:46,412: INFO/ForkPoolWorker-19] Template exists: True
+[2025-06-12 21:08:46,412: INFO/ForkPoolWorker-19] Folder path exists: True
+[2025-06-12 21:08:46,413: INFO/ForkPoolWorker-19] Folder path is writable: True
+[2025-06-12 21:08:46,413: INFO/ForkPoolWorker-19] Starting create_project_yml with:
+[2025-06-12 21:08:46,413: INFO/ForkPoolWorker-19]   template_path: /Users/dtubb/code/fichero_main/fichero/src/fichero/resources/plans/plans.yml
+[2025-06-12 21:08:46,414: INFO/ForkPoolWorker-19]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:08:46,414: INFO/ForkPoolWorker-19]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:08:46,415: INFO/ForkPoolWorker-19] Reading template file...
+[2025-06-12 21:08:46,423: INFO/ForkPoolWorker-19] Template file read successfully
+[2025-06-12 21:08:46,423: INFO/ForkPoolWorker-19] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:08:46,424: INFO/ForkPoolWorker-19] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:08:46,424: INFO/ForkPoolWorker-19] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:08:46,425: INFO/ForkPoolWorker-19] Project.yml written successfully
+[2025-06-12 21:08:46,426: INFO/ForkPoolWorker-19] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:08:46,426: INFO/ForkPoolWorker-19] Project.yml exists after creation: True
+[2025-06-12 21:09:29,253: INFO/ForkPoolWorker-19] Task process_folder[0c9d99d0-61a9-43ed-85a2-05ce802dc7f8] succeeded in 42.856618874997366s: False
+[2025-06-12 21:12:59,140: INFO/MainProcess] Task process_folder[8bf4c5df-50eb-4e69-a36d-875be1a3ec3c] received
+[2025-06-12 21:12:59,177: INFO/ForkPoolWorker-21] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:12:59,179: INFO/ForkPoolWorker-21] Using template from /Users/dtubb/code/fichero_main/fichero/build/fichero/macos/app/Fichero.app/Contents/Resources/app/fichero/resources/plans/plans.yml
+[2025-06-12 21:12:59,179: INFO/ForkPoolWorker-21] Template exists: True
+[2025-06-12 21:12:59,179: INFO/ForkPoolWorker-21] Folder path exists: True
+[2025-06-12 21:12:59,180: INFO/ForkPoolWorker-21] Folder path is writable: True
+[2025-06-12 21:12:59,180: INFO/ForkPoolWorker-21] Starting create_project_yml with:
+[2025-06-12 21:12:59,181: INFO/ForkPoolWorker-21]   template_path: /Users/dtubb/code/fichero_main/fichero/build/fichero/macos/app/Fichero.app/Contents/Resources/app/fichero/resources/plans/plans.yml
+[2025-06-12 21:12:59,181: INFO/ForkPoolWorker-21]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:12:59,181: INFO/ForkPoolWorker-21]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:12:59,182: INFO/ForkPoolWorker-21] Reading template file...
+[2025-06-12 21:12:59,182: INFO/ForkPoolWorker-21] Template file read successfully
+[2025-06-12 21:12:59,182: INFO/ForkPoolWorker-21] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02
+[2025-06-12 21:12:59,183: INFO/ForkPoolWorker-21] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:12:59,184: INFO/ForkPoolWorker-21] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:12:59,185: INFO/ForkPoolWorker-21] Project.yml written successfully
+[2025-06-12 21:12:59,185: INFO/ForkPoolWorker-21] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/EAP1477_GHC_B05_Doc02/project.yml
+[2025-06-12 21:12:59,186: INFO/ForkPoolWorker-21] Project.yml exists after creation: True
+[2025-06-12 21:15:18,719: INFO/ForkPoolWorker-21] Task process_folder[8bf4c5df-50eb-4e69-a36d-875be1a3ec3c] succeeded in 139.56832150000264s: True
+[2025-06-12 21:15:18,749: INFO/MainProcess] Task process_folder[a7c5928a-cd56-43ab-94ee-2153dda787f1] received
+[2025-06-12 21:15:21,718: INFO/ForkPoolWorker-22] Creating project.yml at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:15:21,719: INFO/ForkPoolWorker-22] Using template from /Users/dtubb/code/fichero_main/fichero/build/fichero/macos/app/Fichero.app/Contents/Resources/app/fichero/resources/plans/plans.yml
+[2025-06-12 21:15:21,720: INFO/ForkPoolWorker-22] Template exists: True
+[2025-06-12 21:15:21,720: INFO/ForkPoolWorker-22] Folder path exists: True
+[2025-06-12 21:15:21,721: INFO/ForkPoolWorker-22] Folder path is writable: True
+[2025-06-12 21:15:21,721: INFO/ForkPoolWorker-22] Starting create_project_yml with:
+[2025-06-12 21:15:21,721: INFO/ForkPoolWorker-22]   template_path: /Users/dtubb/code/fichero_main/fichero/build/fichero/macos/app/Fichero.app/Contents/Resources/app/fichero/resources/plans/plans.yml
+[2025-06-12 21:15:21,722: INFO/ForkPoolWorker-22]   target_folder: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:15:21,722: INFO/ForkPoolWorker-22]   output_path: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:15:21,723: INFO/ForkPoolWorker-22] Reading template file...
+[2025-06-12 21:15:21,724: INFO/ForkPoolWorker-22] Template file read successfully
+[2025-06-12 21:15:21,724: INFO/ForkPoolWorker-22] Updating project_folder to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141
+[2025-06-12 21:15:21,725: INFO/ForkPoolWorker-22] Updating fichero_root to: /Users/dtubb/code/fichero_main/fichero
+[2025-06-12 21:15:21,725: INFO/ForkPoolWorker-22] Writing project.yml to: /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:15:21,726: INFO/ForkPoolWorker-22] Project.yml written successfully
+[2025-06-12 21:15:21,727: INFO/ForkPoolWorker-22] Project.yml created at /Users/dtubb/Desktop/Fichero_Output_demo/LFH_AHJM_DOC10141/project.yml
+[2025-06-12 21:15:21,727: INFO/ForkPoolWorker-22] Project.yml exists after creation: True
+[2025-06-12 21:18:22,865: INFO/ForkPoolWorker-22] Task process_folder[a7c5928a-cd56-43ab-94ee-2153dda787f1] succeeded in 181.15392058400903s: True

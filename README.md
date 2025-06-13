@@ -6,48 +6,28 @@ Fichero uses Beeware's Briefcase, and Toga for native macOS, Windows, Linux, as 
 
 ## Features
 
-### 🖥️ Native GUI Application
-- **macOS app** built with [BeeWare Toga](https://toga.readthedocs.io/) framework
-- Simple drag-and-drop interface for processing documents
-- Real-time processing logs and progress tracking
-- No command-line knowledge required
+Features
 
-### 🔧 Advanced Command-Line Tools
-- Powered by the [Weasel GitHub repository](https://github.com/explosion/weasel) workflow management system
-- Parallel processing with `fichero_director.py` for batch operations
-- Customizable workflows and processing pipelines
-
-### 📄 Document Processing
 - Processes archival materials (scanned documents, images, etc.)
 - Splits multi-page materials into single pages
 - Enhances image quality and removes backgrounds
-- **NEW**: Support for JPEG XL (JXL) format with transparency for better compression
-- **NEW**: Support for HEIC/HEIF and RAW image formats
-
-### 🤖 AI-Powered Transcription
+- NEW: Support for JPEG XL (JXL) format with transparency for better compression
+- NEW: Support for HEIC/HEIF and RAW image formats
 - Transcribe text using various AI models:
-  - Qwen Max (full document or segmented processing)
-  - LM Studio Models (full document or segmented processing)
-- Cleans and formats transcriptions
+- Qwen Max (full document or segmented processing)
+- LM Studio Models (full document or segmented processing)
+- Cleans and format transcriptions
 - Generate Word documents with side-by-side layout
-- Processes text files using LLMs with configurable prompts
-
-### 📊 Export Options
-- Converts LLM JSON summary files to formatted Word (.docx) documents
-- Converts JSON summary files to a single Excel (.xlsx) file (one row per JSON file)
+- Processes text files using LLMs with configurable prompts.
+- Converts LLM JSON summary files to formatted Word (.docx) documents.
+- Converts JSON summary files to a single Excel (.xlsx) file (one row per JSON file).
+- See each script's --help for full CLI usage and options.
 
 See each script's `--help` for full CLI usage and options.
 
 ## Installation
 
-### 📱 Quick Start - macOS App
 
-For most users, simply download and run the native macOS app:
-
-1. Download the latest `.dmg` file from the [Releases page](https://github.com/dtubb/fichero/releases)
-2. Open the `.dmg` file and drag Fichero to your Applications folder
-3. Launch Fichero from Applications or Spotlight
-4. On first launch, macOS may ask for permission - click "Open" to allow
 
 ### 🔧 Developer Installation
 
@@ -87,12 +67,6 @@ cd fichero
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-   **Option 2 - Using conda:**
-   ```bash
-   conda create -n fichero python=3.10
-   conda activate fichero
-   ```
-
 4. **Install Python dependencies:**
 ```bash
 pip install -r requirements.txt
@@ -114,9 +88,6 @@ Run the app in development mode (faster iteration):
 ```bash
 # Run the GUI app directly
 briefcase dev
-
-# Or run with specific logging
-briefcase dev --log
 ```
 
 ### 📦 Building for Distribution
@@ -134,17 +105,7 @@ briefcase build
 briefcase package
 ```
 
-### 🎨 App Icon
 
-The Fichero app uses custom icons located in `src/fichero/resources/icons/`:
-- `fichero.icns` - macOS app icon (generated from PNG)
-- `fichero.ico` - Windows app icon 
-- `fichero.png` - Linux/source icon
-
-To update the app icon:
-1. Replace `fichero.png` with your new icon (1024x1024 recommended)
-2. Regenerate platform-specific icons if needed
-3. Run `briefcase update --update-resources` to apply changes
 
 ### 🚀 Platform Support
 
@@ -214,11 +175,9 @@ JPEG XL offers superior compression while maintaining transparency. To use JXL f
 
 ## Usage
 
-### 🖥️ GUI App Usage (Recommended)
-
 The easiest way to use Fichero:
 
-1. **Launch the Fichero app** from your Applications folder
+1. **Launch the Fichero app**.
 2. **Click "Choose Folder"** to select a folder containing your documents
 3. **Click "Process"** to start processing
 4. The app will:
@@ -280,7 +239,7 @@ Where:
 
 ### Example Commands
 
-Process new folders with Weasel:
+Process new folders:
 ```bash
 python fichero_director.py \
   "/path/to/output" \
@@ -288,27 +247,6 @@ python fichero_director.py \
   "archive-to-word-qwen-max-segmented" \
   --input-folder "/path/to/input/folders" \
   --num-processors 4
-```
-
-Process new folders without Weasel (faster, after the first run becuase Weasel hashes the folders):
-```bash
-python fichero_director.py \
-  "/path/to/output" \
-  "project.yml" \
-  "archive-to-word-qwen-max-segmented" \
-  --input-folder "/path/to/input/folders" \
-  --num-processors 4 \
-  --no-weasel
-```
-
-Reprocess existing folders without Weasel:
-```bash
-python fichero_director.py \
-  "/path/to/output" \
-  "project.yml" \
-  "archive-to-word-qwen-max-segmented" \
-  --num-processors 4 \
-  --no-weasel
 ```
 
 ### Features

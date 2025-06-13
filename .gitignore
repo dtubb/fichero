@@ -15,92 +15,14 @@ scripts/not_working/
 *.ipynb_checkpoints/ 
 
 # Ignore
-site/
-static/
-pipelines/
-projects/17th_century
-projects/1948
-projects/aha
-projects/EAP1477_MFC_B03_Doc04_DominguezvsGarrido
-projects/ernestina
-projects/fhc
-projects/ghc
-projects/ghc_test
-projects/marshall_diary
-projects/numero18
-projects/sergio_notebooks
-projects/test
-projects/daniel
-projects/demo
-test_workflows.sh
-projects/demo_small/assets/crops/
-projects/demo_small/assets/splits/
-projects/demo_small/assets/rotated/
-projects/demo_small/assets/background_removed/
-projects/demo_small/assets/enhanced/
-projects/demo_small/assets/segments/
-projects/demo_small/assets/transcriptions/
-projects/demo_small/assets/segmented_transcriptions/
-projects/demo_small/assets/word/
-projects/demo_small/assets/recombined/
-projects/demo_small/assets/documents/
-projects/demo_small/assets/documents_manifest/
 
-project.lock
 .gitignore
 old_tools/
 .empty/
-project_lock
-fichero/scripts/
 venv/
-scripts/catalogue_document.py
-scripts/llm_catalogue.py
-scripts/llm_to_word.py
-fichero.py
-fichero_gui/
-rename_docs.sh
-dump.rdb
-cpu_woroker.llm_catalogue
-cpu_worker.log
-cpu_worker.pid
-dump.rdb
-io_worker.log
-io_worker.pid
-projects/
-scripts/llm_to_word.py
-scripts/process_ner.py
+
 output.txt
 cat_with_pages.sh
-prompts/catalogue_metadata.txt
-prompts/catalogue_summary_long.txt
-prompts/catalogue_summary_short.txt
-prompts/catalogue_summary.txt
-prompts/claude_example.jsonl
-prompts/example_optional_features_config.jsonl
-prompts/file_prompt_example.jsonl
-prompts/folder_prompt_example.jsonl
-prompts/iterative_refinement_example.jsonl
-prompts/lmstudio_example.jsonl
-prompts/long_document_example.jsonl
-prompts/ner_async_config.jsonl
-prompts/ner-chat-gpt4.jsonl
-prompts/ner-hybrid.jsonl
-prompts/prompt_config_example.jsonl
-prompts/qwen_example.jsonl
-prompts/tasks.yml
-prompts/README_async_features.md
-documents summaires/documents_summary 2.json
-documents summaires/documents_summary 3.json
-documents summaires/documents_summary 4.json
-documents summaires/documents_summary 5.json
-documents summaires/documents_summary 6.json
-documents summaires/documents_summary 7.json
-documents summaires/documents_summary 8.json
-documents summaires/documents_summary 9.json
-documents summaires/documents_summary.json
-excel_output/~$output.xlsx
-excel_output/output.xlsx
-old code/excel.py
 .gitignore
 excel_output/
 old code/
