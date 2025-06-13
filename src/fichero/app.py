@@ -669,12 +669,37 @@ class FicheroApp(toga.App):
             self.log_text.value += f"Output folder: {output_folder}\n\n"
             
             # Import the async function
-            from fichero.director import process_folders_async
+            from fichero.director import process_folders_async, prepare_folder
             
-            # Call the function directly
+            # Check if selected folder contains subfolders (same logic as CLI)
+            subfolders = [f for f in self.selected_folder.iterdir() if f.is_dir()]
+            
+            prepared_folders = []
+            
+            if subfolders:
+                # If input folder contains subfolders, process each subfolder individually
+                self.log_text.value += f"Found {len(subfolders)} subfolders to process\n\n"
+                
+                for folder in sorted(subfolders, key=lambda x: x.name.lower()):
+                    self.log_text.value += f"Preparing subfolder: {folder.name}\n"
+                    prepared_folder = prepare_folder(folder, output_folder)
+                    prepared_folders.append(prepared_folder)
+            else:
+                # If no subfolders, treat as single folder
+                self.log_text.value += f"No subfolders found, processing as single folder\n\n"
+                prepared_folder = prepare_folder(self.selected_folder, output_folder)
+                prepared_folders = [prepared_folder]
+            
+            # Define log callback to update GUI log window
+            def log_callback(message):
+                self.log_text.value += message
+                
+            # Call the function with the prepared folders
             success = await process_folders_async(
-                input_folder=self.selected_folder,
-                output_folder=output_folder
+                folders=prepared_folders,
+                template_yml=Path(__file__).parent / "resources" / "plans" / "plans.yml",
+                workflow_name="default",
+                log_callback=log_callback
             )
             
             if success:
@@ -708,4 +733,34 @@ def main():
 
 if __name__ == "__main__":
     app = main()
-    app.main_loop() 
+    app.main_loop()
+
+# TODO: Future GUI Table Widget Implementation
+#
+# For a proper table widget in the GUI (like the Rich CLI table), we could:
+#
+# 1. Create a new window with a table widget:
+#    - Use toga.DetailedList or custom table widget
+#    - Columns: #, Worker, Folder, Progress, Time
+#    - Auto-refresh every 1-2 seconds
+#
+# 2. Status window layout:
+#    status_window = toga.Window(title="Processing Status", size=(1000, 600))
+#    status_table = toga.DetailedList(
+#        accessors=["number", "worker", "folder", "progress", "time"],
+#        style=Pack(flex=1, margin=10)
+#    )
+#    
+# 3. Update function:
+#    def update_status_table():
+#        # Get status from Redis (same as create_status_text)
+#        # Update table rows with current progress
+#        # Use different row colors for different states
+#
+# 4. Integration:
+#    - Open status window when processing starts
+#    - Update table in real-time using asyncio timer
+#    - Close window when processing completes
+#
+# This would give us the exact same visual feedback as the CLI version
+# but in a proper GUI table format. 

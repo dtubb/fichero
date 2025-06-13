@@ -34,9 +34,7 @@ from utils.hierarchy import DocumentHierarchy
 
 app = typer.Typer()
 
-# Load configuration
-with open("project.yml", "r") as config_file:
-    config = yaml.safe_load(config_file)
+# Configuration is loaded per-execution from prompt config files
 
 class LLMProcessScript:
     def __init__(
