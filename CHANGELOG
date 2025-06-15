@@ -5,6 +5,12 @@
 - Added support for translation of the user interface.
 - Added about window.
 - Added dummy settings window.
+- ~~Add app settings. ~~
+- ~~Add document settings.~~
+- ~~Convert the main window to a document window~~
+- ~~Move project-specific state to document classes~~
+- ~~Allow multiple document windows~~
+- ~~Share worker pool across documents~~
 
 ## 0.0.4 – JUNE 13, 2025
 - Added Briefcase for easier packaging and  distributing of Fichero.
