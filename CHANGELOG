@@ -3,8 +3,9 @@
 ## 0.0.5 – JUNE 15, 2025
 - Added menus.
 - Added support for translation of the user interface.
-- Added about window.
+- Added About window.
 - Added dummy settings window.
+- ~~Get Apple Developer account notarize and Sign app.~~
 - ~~Add app settings. ~~
 - ~~Add document settings.~~
 - ~~Convert the main window to a document window~~
