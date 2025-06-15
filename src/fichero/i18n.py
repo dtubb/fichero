@@ -11,7 +11,7 @@ from typing import Dict, Optional
 class TranslationManager:
     """Simple translation manager for Fichero GUI"""
     
-    def __init__(self, default_language: str = "es"):
+    def __init__(self, default_language: str = "en"):
         self.default_language = default_language
         self.current_language = default_language
         self.translations: Dict[str, Dict[str, str]] = {}
@@ -20,7 +20,8 @@ class TranslationManager:
         # Load all available languages
         self._load_translations()
         
-        # Use Spanish as default (don't auto-detect system language)
+        # Try to detect and use system default language
+        self._detect_system_language()
     
     def _load_translations(self):
         """Load all translation files from the languages directory"""

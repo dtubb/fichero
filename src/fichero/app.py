@@ -13,6 +13,7 @@ import sys
 import os
 from pathlib import Path
 from . import director
+from .menus import MenuManager
 
 
 class FicheroApp(toga.App):
@@ -22,6 +23,14 @@ class FicheroApp(toga.App):
         
         # Store selected folder path
         self.selected_folder = None
+        
+        # Initialize menu manager and create commands
+        self.menu_manager = MenuManager(self)
+        commands = self.menu_manager.create_commands()
+        self.commands.add(*commands)
+        
+        # Customize any standard commands that Toga added automatically
+        self.menu_manager.customize_standard_commands()
         
         # Create all UI elements (no header - title is in window title bar)
         self._create_folder_selection_section()
@@ -550,8 +559,7 @@ class FicheroApp(toga.App):
         spacer = toga.Box(style=Pack(flex=1))
         
         self.footer_section = toga.Box(
-            children=[help_btn, 
-            spacer, self.activity_indicator, self.process_btn, ],
+            children=[help_btn, spacer, self.activity_indicator, self.process_btn],
             style=Pack(
                 direction=ROW,
                 margin=(10, 0, 20, 20)  # 10px from description (total 20px gap), 0 right (handled by elements), 20px bottom, 20px left
@@ -584,6 +592,8 @@ class FicheroApp(toga.App):
         """Handle help button click - open Fichero website"""
         print("🔘 Help button clicked - opening website")
         webbrowser.open("https://www.tubb.ca/fichero/")
+
+
 
     async def process_handler(self, widget):
         """Handle process button click - open log window and run director.py"""

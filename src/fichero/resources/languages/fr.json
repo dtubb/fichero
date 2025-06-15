@@ -1,9 +1,30 @@
 {
   "app_title": "Fichero",
-  "choose_folder": "Choisir un dossier…",
-  "description": "**Fichero** traite de grandes collections de documents numérisés — des centaines, voire des dizaines de milliers — en les rognant, en améliorant leur lisibilité, en les segmentant, en les transcrivant avec l’IA et en générant automatiquement un catalogue. Il exporte les résultats dans des fichiers Word et Excel.\n\nVous pouvez [en savoir plus](https://www.tubb.ca/fichero/) sur la façon dont cela fonctionne si cela vous intéresse, mais en résumé, Fichero utilise divers outils pour décomposer chaque étape, fait appel à des modèles de langage visuel avancés et traite plusieurs dossiers en parallèle.\n\nPour commencer, choisissez un dossier à traiter à l’aide du bouton ci-dessus.",
+  "choose_folder": "Choisir un Dossier…",
+  "description": "*Fichero* traite de grandes collections de documents numérisés—des centaines ou même des dizaines de milliers—en recadrant, améliorant, segmentant, transcrivant avec l'IA, et cataloguant automatiquement. Il génère des résultats dans des fichiers Word et Excel.\n\nVous pouvez [en apprendre plus](https://www.tubb.ca/fichero/) sur comment cela fonctionne, si cela vous intéresse, mais la version courte est que Fichero utilise divers outils pour décomposer chaque étape, fait appel aux Modèles de Langage Visual Larges, et s'exécute sur divers dossiers en parallèle.\n\nPour commencer, choisissez un dossier à traiter en utilisant le bouton ci-dessus.",
   "help": "?",
   "process": "Traiter le Dossier",
+  "processing": "Traitement en cours",
   "folder_icon_label": "📁",
-  "folder_status": "Aucun dossier sélectionné"
+  "folder_status": "Aucun dossier sélectionné",
+  
+  "menu_about": "À propos de Fichero",
+  "menu_preferences": "Préférences…",
+  "menu_quit": "Quitter Fichero",
+  "menu_help_website": "Site Web Fichero",
+  "menu_help_support": "Aide et Support",
+  "menu_cut": "Couper",
+  "menu_copy": "Copier",
+  "menu_paste": "Coller",
+  "menu_select_all": "Tout Sélectionner",
+  "menu_undo": "Annuler",
+  "menu_redo": "Rétablir",
+  "menu_zoom_in": "Zoom Avant",
+  "menu_zoom_out": "Zoom Arrière",
+  "menu_zoom_reset": "Taille Réelle",
+  "menu_fullscreen": "Plein Écran",
+  "menu_minimize": "Réduire",
+  "menu_close": "Fermer la Fenêtre",
+  
+  "about_acknowledgments": "[Fichero](http://www.tubb.ca/fichero/) transcrit et catalogue automatiquement les archives historiques en utilisant des modèles de langage visual larges et l'intelligence artificielle, s'exécutant localement ou dans le cloud.\n\n## questions\n**email** daniel@tubb.ca\n**site web** [https://www.tubb.ca/fichero/](https://www.tubb.ca/fichero/)\n\n## programmation\nDaniel Tubb\nAndrew Janco\n\n*Daniel a programmé avec [Cursor, l'éditeur de code IA](https://www.cursor.com), avec l'aide de [Claude Sonnet](https://www.anthropic.com/claude/sonnet). Andy sait ce qu'il fait.*\n\n## testeurs et contributeurs\nAnn Farnsworth-Alvear\nKelly López Roldán\nJavier R. Ardila\n\n## bibliothèques et dépendances\n[Python Software Foundation](https://python.org) \n[Toga GUI Toolkit](https://github.com/beeware/toga)\n[Briefcase](https://github.com/beeware/briefcase) \n\n## inspiration de l'interface utilisateur\n[John Siracusa](https://hypercritical.co) pour l'inspiration d'interface Hyperspace\n[Bare Bones Software](https://barebones.com) pour la conception du dialogue à propos de BBEdit\n\n## licence\nCe logiciel est publié sous une licence open source.\n\nCode source disponible à : [https://github.com/dtubb/fichero](https://github.com/dtubb/fichero)\n\nSignaler les bugs et contribuer à :\n[https://github.com/dtubb/fichero/issues](https://github.com/dtubb/fichero/issues)\n\n© 2025 Daniel Tubb\nTous droits réservés."
 } 

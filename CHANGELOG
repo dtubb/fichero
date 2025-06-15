@@ -1,6 +1,12 @@
 # Fichero Release Notes
 
-## 0.0.4 – JUNE 15, 2025
+## 0.0.5 – JUNE 15, 2025
+- Added menus.
+- Added support for translation of the user interface.
+- Added about window.
+- Added dummy settings window.
+
+## 0.0.4 – JUNE 13, 2025
 - Added Briefcase for easier packaging and  distributing of Fichero.
 - Integrated Toga for macOS/Windows/Linux GUI development. GUI is inspired, for now, by John Siracusa's [Hyperspace](https://hypercritical.co/2025/02/25/hyperspace).
 - Refactored the project structure by moving files into the `src` directory, needed for Toga and Brieface. 
