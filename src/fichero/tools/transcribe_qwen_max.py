@@ -20,8 +20,16 @@ from utils.segment_handler import SegmentHandler
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# Global API key (can be set by CLI argument or director)
+QWEN_API_KEY = None
+
 # Semaphore to limit concurrent API calls
 API_SEMAPHORE = asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
+
+def set_qwen_api_key(api_key: str):
+    """Helper function to set global API key (for use by director)"""
+    global QWEN_API_KEY
+    QWEN_API_KEY = api_key
 
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
@@ -93,9 +101,14 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
             # Encode image for API
             base64_image = encode_image(image)
             
+            # Get API key from global, then environment variable
+            api_key = QWEN_API_KEY or os.getenv("DASHSCOPE_API_KEY")
+            if not api_key:
+                raise ValueError("Qwen API key required")
+                
             # Initialize OpenAI client with DashScope endpoint
             client = AsyncOpenAI(
-                api_key=os.getenv("DASHSCOPE_API_KEY"),
+                api_key=api_key,
                 base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             )
             
@@ -183,8 +196,10 @@ def transcribe_batch(
     
     load_dotenv()
     
-    if not os.getenv('DASHSCOPE_API_KEY'):
-        logger.error("DASHSCOPE_API_KEY environment variable not set")
+    # Check API key from global or environment variable
+    api_key = QWEN_API_KEY or os.getenv('DASHSCOPE_API_KEY')
+    if not api_key:
+        logger.error("Qwen API key required: pass --api-key argument or set DASHSCOPE_API_KEY environment variable")
         return
 
     # Create a custom batch processor that handles async properly
@@ -301,8 +316,13 @@ def transcribe(
     background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
     transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
     testing: bool = typer.Option(False, help="Run on a small subset of data"),
+    api_key: str = typer.Option(None, "--api-key", help="Qwen API key (falls back to DASHSCOPE_API_KEY env var)"),
 ):
     """Batch transcription CLI using Qwen VL Max model"""
+    global QWEN_API_KEY
+    if api_key:
+        QWEN_API_KEY = api_key
+    
     transcribe_batch(
         background_removed_folder,
         background_removed_manifest,

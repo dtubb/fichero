@@ -2,11 +2,11 @@
 
 ## 0.0.5 – JUNE 15, 2025
 - Added menus.
-- Added support for translation of the user interface.
-- Added About window.
-- Added dummy settings window.
+- Added user interface translation support.
+- Added an About window, inspireed by BBedit.
+- Created settings window, that lets you edit API Keys for Open AI and Qwen.
+    - Added app settings for API Keys. API Keys are loaded from environment variables if available; otherwise, they can be set via the Settings window. API Keys are saved, encrypted, in the appropriate folder based on the operating system.
 - ~~Get Apple Developer account notarize and Sign app.~~
-- ~~Add app settings. ~~
 - ~~Add document settings.~~
 - ~~Convert the main window to a document window~~
 - ~~Move project-specific state to document classes~~

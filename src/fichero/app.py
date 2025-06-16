@@ -14,12 +14,23 @@ import os
 from pathlib import Path
 from . import director
 from .menus import MenuManager
+from .app_settings import get_app_settings
 
 
 class FicheroApp(toga.App):
     def startup(self):
         """Initialize the app with the new internationalized layout."""
         print("🚀 App starting up...")
+        
+        # Load settings and set environment variables
+        settings = get_app_settings(self)
+        api_servers = settings.get_api_servers()
+        
+        # Set environment variables for API keys
+        if api_servers.get("openai", {}).get("api_key"):
+            os.environ["OPENAI_API_KEY"] = api_servers["openai"]["api_key"]
+        if api_servers.get("qwen", {}).get("api_key"):
+            os.environ["DASHSCOPE_API_KEY"] = api_servers["qwen"]["api_key"]
         
         # Store selected folder path
         self.selected_folder = None

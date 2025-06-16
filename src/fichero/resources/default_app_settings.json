@@ -1,0 +1,19 @@
+{
+  "workers": {
+    "cpu_workers": 4,
+    "io_workers": 8,
+    "memory_per_worker_mb": 2048
+  },
+  "api_servers": {
+    "openai": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://api.openai.com/v1"
+    },
+    "qwen": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    }
+  }
+} 

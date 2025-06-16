@@ -1,343 +1,235 @@
-"""
-Settings window for Fichero application
-"""
-
 import toga
 from toga.style import Pack
-from toga.constants import COLUMN, ROW, CENTER
-from ..i18n import _, translator
-
+from toga.constants import COLUMN, ROW, CENTER, LEFT
+import srsly
+from pathlib import Path
+from ..i18n import _
+import os
 
 class SettingsWindow:
-    """Settings window for configuring Fichero options"""
-    
     def __init__(self, app):
-        """Initialize the settings window"""
         self.app = app
+        self.settings = self.load_settings()
+        self.window = None
+        
+    def load_settings(self) -> dict:
+        """Load app settings from user data directory"""
+        settings_path = self.app.paths.data / "app_settings.json"
+        
+        if not settings_path.exists():
+            # Copy default settings from resources
+            default_settings_path = self.app.paths.app / "resources" / "default_app_settings.json"
+            default_settings = srsly.read_json(default_settings_path)
+            
+            # Ensure data directory exists
+            if not self.app.paths.data.exists():
+                self.app.paths.data.mkdir(parents=True, exist_ok=True)
+            
+            # Save default settings
+            srsly.write_json(settings_path, default_settings)
+            return default_settings
+        
+        return srsly.read_json(settings_path)
+    
+    def save_settings(self):
+        """Save current settings to user data directory"""
+        from ..app_settings import get_app_settings
+        settings = get_app_settings(self.app)
+        settings.save_settings(self.settings)
+    
+    def show(self):
+        """Show the settings window"""
+        if self.window:
+            self.window.show()
+            return
+            
         self.window = toga.Window(
-            title=_("settings_title") if hasattr(_, '__call__') else "Settings",
-            size=(500, 600),
+            title=_("app_preferences"),
+            size=(430, 520),
             resizable=False
         )
         
-        # Initialize settings storage
-        self.settings = self._load_settings()
+        # Create tab bar style selector
+        self.current_tab = "api_servers"
         
-        # Create the UI
-        self._create_ui()
-    
-    def _load_settings(self):
-        """Load settings from storage (placeholder for now)"""
-        # TODO: Implement actual settings persistence
-        return {
-            'language': 'en',
-            'theme': 'system',
-            'auto_open_output': True,
-            'max_workers': 4,
-            'notification_enabled': True
-        }
-    
-    def _save_settings(self):
-        """Save settings to storage (placeholder for now)"""
-        # TODO: Implement actual settings persistence
-        print(f"Saving settings: {self.settings}")
-    
-    def _create_ui(self):
-        """Create the settings UI"""
-        # Main container
-        main_container = toga.Box(
+        # Tab buttons
+        self.api_tab_btn = toga.Button(
+            "🔑 " + _("api_servers"),
+            on_press=lambda w: self.switch_tab("api_servers"),
+            style=Pack(
+                width=150,
+                height=40,
+                margin_right=10,
+                font_size=12
+            )
+        )
+        
+        self.advanced_tab_btn = toga.Button(
+            "⚙️ " + _("advanced"),
+            on_press=lambda w: self.switch_tab("advanced"),
+            style=Pack(
+                width=150,
+                height=40,
+                font_size=12
+            )
+        )
+        
+        # Center the tab buttons
+        tab_spacer_left = toga.Box(style=Pack(flex=1))
+        tab_spacer_right = toga.Box(style=Pack(flex=1))
+        
+        tab_bar = toga.Box(
+            children=[
+                tab_spacer_left,
+                self.api_tab_btn,
+                self.advanced_tab_btn,
+                tab_spacer_right
+            ],
+            style=Pack(
+                direction=ROW,
+                margin=(20, 20, 20, 20)
+            )
+        )
+        
+        # Content area
+        self.content_box = toga.Box(
             style=Pack(
                 direction=COLUMN,
                 flex=1,
-                margin=20
+                margin=(0, 20, 20, 20)
             )
         )
         
-        # Language section
-        main_container.add(self._create_section_header("Language"))
-        main_container.add(self._create_language_section())
-        main_container.add(self._create_horizontal_separator())
+        # Main layout
+        main_box = toga.Box(
+            children=[tab_bar, self.content_box],
+            style=Pack(direction=COLUMN, flex=1)
+        )
         
-        # Processing section
-        main_container.add(self._create_section_header("Processing"))
-        main_container.add(self._create_processing_section())
-        main_container.add(self._create_horizontal_separator())
+        self.window.content = main_box
         
-        # Output section
-        main_container.add(self._create_section_header("Output"))
-        main_container.add(self._create_output_section())
-        main_container.add(self._create_horizontal_separator())
+        # Initialize all UI elements
+        self._initialize_all_ui_elements()
         
-        # Notification section
-        main_container.add(self._create_section_header("Notifications"))
-        main_container.add(self._create_notification_section())
+        # Show initial tab
+        self.switch_tab("api_servers")
         
-        # Spacer to push buttons to bottom
-        main_container.add(toga.Box(style=Pack(flex=1)))
+        # Set up auto-save on window close
+        self.window.on_close = self._auto_save_and_close
         
-        # Buttons section
-        main_container.add(self._create_buttons_section())
-        
-        # Set window content
-        self.window.content = main_container
-    
-    def show(self):
-        """Show the window"""
         self.window.show()
     
-    def hide(self):
-        """Hide the window"""
-        self.window.hide()
+    def _initialize_all_ui_elements(self):
+        """Initialize all UI elements so they exist for saving"""
+        # API Servers elements
+        self.openai_enabled = toga.Switch("Enabled", value=self.settings["api_servers"]["openai"]["enabled"])
+        self.openai_key = toga.PasswordInput(value=self.settings["api_servers"]["openai"]["api_key"], placeholder="sk-...")
+        self.qwen_enabled = toga.Switch("Enabled", value=self.settings["api_servers"]["qwen"]["enabled"])
+        self.qwen_key = toga.PasswordInput(value=self.settings["api_servers"]["qwen"]["api_key"], placeholder="sk-...")
+        
+        # Advanced elements
+        self.cpu_workers = toga.NumberInput(value=self.settings["workers"]["cpu_workers"])
+        self.io_workers = toga.NumberInput(value=self.settings["workers"]["io_workers"])
+        self.memory_per_worker = toga.NumberInput(value=self.settings["workers"]["memory_per_worker_mb"])
     
-    def _create_section_header(self, text):
-        """Create a section header label"""
-        return toga.Label(
-            text,
-            style=Pack(
-                font_size=14,
-                font_weight='bold',
-                margin=(15, 5, 5, 5)
-            )
-        )
+    def switch_tab(self, tab_name):
+        """Switch between tabs"""
+        self.current_tab = tab_name
+        
+        # Update button styles
+        if tab_name == "api_servers":
+            self.api_tab_btn.style.background_color = "#007AFF"
+            self.api_tab_btn.style.color = "#FFFFFF"
+            # Reset other button style
+            if hasattr(self.advanced_tab_btn.style, 'background_color'):
+                del self.advanced_tab_btn.style.background_color
+            if hasattr(self.advanced_tab_btn.style, 'color'):
+                del self.advanced_tab_btn.style.color
+        else:
+            self.advanced_tab_btn.style.background_color = "#007AFF"
+            self.advanced_tab_btn.style.color = "#FFFFFF"
+            # Reset other button style
+            if hasattr(self.api_tab_btn.style, 'background_color'):
+                del self.api_tab_btn.style.background_color
+            if hasattr(self.api_tab_btn.style, 'color'):
+                del self.api_tab_btn.style.color
+        
+        # Clear and rebuild content
+        self.content_box.clear()
+        
+        if tab_name == "api_servers":
+            self._build_api_servers_tab()
+        else:
+            self._build_advanced_tab()
     
-    def _create_horizontal_separator(self):
-        """Create a horizontal separator line"""
-        return toga.Box(
-            style=Pack(
-                height=1,
-                background_color='rgb(200, 200, 200)',
-                margin=(10, 20)
-            )
-        )
+    def _build_api_servers_tab(self):
+        """Build the API Servers tab content"""
+        
+        # OpenAI
+        self.content_box.add(toga.Label("OpenAI", style=Pack(font_size=12, margin_bottom=5)))
+        self.content_box.add(self.openai_enabled)
+        self.content_box.add(toga.Label("API Key:", style=Pack(font_size=12, margin_top=10)))
+        self.openai_key.style = Pack(margin=(10, 0, 20, 0))
+        self.content_box.add(self.openai_key)
+        
+        # Qwen
+        self.content_box.add(toga.Label("Qwen", style=Pack(font_size=12, margin_bottom=5, margin_top=20)))
+        self.content_box.add(self.qwen_enabled)
+        self.content_box.add(toga.Label("API Key:", style=Pack(font_size=12, margin_top=10)))
+        self.qwen_key.style = Pack(margin=(10, 0, 20, 0))
+        self.content_box.add(self.qwen_key)
     
-    def _create_language_section(self):
-        """Create language selection section"""
-        section = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=(0, 0, 0, 20)
-            )
-        )
+    def _build_advanced_tab(self):
+        """Build the Advanced tab content"""
         
-        # Language selection
-        language_box = toga.Box(
-            style=Pack(
-                direction=ROW,
-                align_items='start',
-                margin=(5, 0)
-            )
-        )
+        # Worker Performance
+        self.content_box.add(toga.Label("Worker Performance", style=Pack(font_size=12, margin_bottom=10)))
         
-        language_label = toga.Label(
-            "Language:", 
-            style=Pack(margin_right=10)
-        )
+        # CPU Workers
+        self.content_box.add(toga.Label("CPU Workers:", style=Pack(font_size=12, margin_bottom=5)))
+        self.cpu_workers.style = Pack(margin_bottom=20)
+        self.content_box.add(self.cpu_workers)
         
-        # Language dropdown
-        self.language_selection = toga.Selection(
-            items=[
-                ("English", "en"),
-                ("Español", "es"),
-                ("Français", "fr")
-            ],
-            style=Pack(width=150),
-            on_change=self._on_language_change
-        )
+        # IO Workers
+        self.content_box.add(toga.Label("I/O Workers:", style=Pack(font_size=12, margin_bottom=5)))
+        self.io_workers.style = Pack(margin_bottom=20)
+        self.content_box.add(self.io_workers)
         
-        # Set current language
-        current_lang = self.settings.get('language', 'en')
-        for item in self.language_selection.items:
-            if item.value == current_lang:
-                self.language_selection.value = item
-                break
-        
-        language_box.add(language_label)
-        language_box.add(self.language_selection)
-        section.add(language_box)
-        
-        return section
+        # Memory per Worker
+        self.content_box.add(toga.Label("Memory per Worker (MB):", style=Pack(font_size=12, margin_bottom=5)))
+        self.memory_per_worker.style = Pack(margin_bottom=20)
+        self.content_box.add(self.memory_per_worker)
     
-    def _create_processing_section(self):
-        """Create processing configuration section"""
-        section = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=(0, 0, 0, 20)
-            )
-        )
+    def _auto_save_and_close(self, widget):
+        """Auto-save settings when window closes"""
+        # Update settings from UI
+        self.settings["api_servers"]["openai"]["enabled"] = self.openai_enabled.value
+        self.settings["api_servers"]["openai"]["api_key"] = self.openai_key.value
         
-        # Max workers setting
-        workers_box = toga.Box(
-            style=Pack(
-                direction=ROW,
-                align_items='start',
-                margin=(5, 0)
-            )
-        )
+        self.settings["api_servers"]["qwen"]["enabled"] = self.qwen_enabled.value
+        self.settings["api_servers"]["qwen"]["api_key"] = self.qwen_key.value
         
-        workers_label = toga.Label(
-            "Max Workers:", 
-            style=Pack(margin_right=10)
-        )
+        self.settings["workers"]["cpu_workers"] = int(self.cpu_workers.value)
+        self.settings["workers"]["io_workers"] = int(self.io_workers.value)
+        self.settings["workers"]["memory_per_worker_mb"] = int(self.memory_per_worker.value)
         
-        self.workers_input = toga.NumberInput(
-            value=self.settings.get('max_workers', 4),
-            style=Pack(width=80),
-            on_change=self._on_workers_change
-        )
+        # Set environment variables for API keys
+        if self.settings["api_servers"]["openai"]["api_key"]:
+            os.environ["OPENAI_API_KEY"] = self.settings["api_servers"]["openai"]["api_key"]
+        if self.settings["api_servers"]["qwen"]["api_key"]:
+            os.environ["DASHSCOPE_API_KEY"] = self.settings["api_servers"]["qwen"]["api_key"]
         
-        workers_help = toga.Label(
-            "(1-16, higher = faster but uses more CPU)",
-            style=Pack(
-                font_size=10,
-                color='rgb(100, 100, 100)',
-                margin_left=10
-            )
-        )
+        # Save to file
+        self.save_settings()
         
-        workers_box.add(workers_label)
-        workers_box.add(self.workers_input)
-        workers_box.add(workers_help)
-        section.add(workers_box)
+        # Reload the app settings to reflect changes
+        from ..app_settings import reload_settings
+        reload_settings(self.app)
         
-        return section
-    
-    def _create_output_section(self):
-        """Create output configuration section"""
-        section = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=(0, 0, 0, 20)
-            )
-        )
+        # Reset window
+        self.window = None
         
-        # Auto-open output folder checkbox
-        self.auto_open_switch = toga.Switch(
-            text="Automatically open output folder when complete",
-            value=self.settings.get('auto_open_output', True),
-            style=Pack(margin=(5, 0)),
-            on_change=self._on_auto_open_change
-        )
+        print("Settings auto-saved and reloaded!")
         
-        section.add(self.auto_open_switch)
-        
-        return section
-    
-    def _create_notification_section(self):
-        """Create notification configuration section"""
-        section = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=(0, 0, 0, 20)
-            )
-        )
-        
-        # Notification enabled checkbox
-        self.notification_switch = toga.Switch(
-            text="Enable notifications when processing completes",
-            value=self.settings.get('notification_enabled', True),
-            style=Pack(margin=(5, 0)),
-            on_change=self._on_notification_change
-        )
-        
-        section.add(self.notification_switch)
-        
-        return section
-    
-    def _create_buttons_section(self):
-        """Create buttons section"""
-        buttons_box = toga.Box(
-            style=Pack(
-                direction=ROW,
-                align_items=CENTER,
-                margin=(20, 0, 0, 0)
-            )
-        )
-        
-        # Reset to defaults button
-        reset_btn = toga.Button(
-            "Reset to Defaults",
-            on_press=self._on_reset_defaults,
-            style=Pack(margin_right=10)
-        )
-        
-        # Cancel button
-        cancel_btn = toga.Button(
-            "Cancel",
-            on_press=self._on_cancel,
-            style=Pack(margin_right=10)
-        )
-        
-        # Save button (primary)
-        save_btn = toga.Button(
-            "Save",
-            on_press=self._on_save,
-            style=Pack(font_weight='bold')
-        )
-        
-        buttons_box.add(reset_btn)
-        buttons_box.add(cancel_btn)
-        buttons_box.add(save_btn)
-        
-        return buttons_box
-    
-    def _on_language_change(self, widget, **kwargs):
-        """Handle language selection change"""
-        if widget.value:
-            self.settings['language'] = widget.value.value
-    
-    def _on_workers_change(self, widget, **kwargs):
-        """Handle max workers change"""
-        self.settings['max_workers'] = int(widget.value)
-    
-    def _on_auto_open_change(self, widget, **kwargs):
-        """Handle auto-open output folder change"""
-        self.settings['auto_open_output'] = widget.value
-    
-    def _on_notification_change(self, widget, **kwargs):
-        """Handle notification setting change"""
-        self.settings['notification_enabled'] = widget.value
-    
-    def _on_reset_defaults(self, widget, **kwargs):
-        """Reset settings to defaults"""
-        self.settings = {
-            'language': 'en',
-            'theme': 'system',
-            'auto_open_output': True,
-            'max_workers': 4,
-            'notification_enabled': True
-        }
-        
-        # Update UI with default values
-        self._update_ui_from_settings()
-    
-    def _on_cancel(self, widget, **kwargs):
-        """Cancel settings changes and close window"""
-        # Reload original settings
-        self.settings = self._load_settings()
-        self.hide()
-    
-    def _on_save(self, widget, **kwargs):
-        """Save settings and close window"""
-        self._save_settings()
-        
-        # Apply language change if needed
-        if hasattr(translator, 'set_language'):
-            translator.set_language(self.settings['language'])
-            # Could trigger a UI refresh in main app here
-        
-        self.hide()
-    
-    def _update_ui_from_settings(self):
-        """Update UI elements to match current settings"""
-        # Update language selection
-        current_lang = self.settings.get('language', 'en')
-        for item in self.language_selection.items:
-            if item.value == current_lang:
-                self.language_selection.value = item
-                break
-        
-        # Update other controls
-        self.workers_input.value = self.settings.get('max_workers', 4)
-        self.auto_open_switch.value = self.settings.get('auto_open_output', True)
-        self.notification_switch.value = self.settings.get('notification_enabled', True) 
+        # Return True to allow the window to close
+        return True

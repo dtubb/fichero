@@ -24,8 +24,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
+# Global API keys (can be set by director or other callers)
+OPENAI_API_KEY = None
+QWEN_API_KEY = None
+CLAUDE_API_KEY = None
+
 # Default configuration values
 DEFAULT_MAX_TOKENS = 3072
+
+def set_api_keys(openai_key=None, qwen_key=None, claude_key=None):
+    """Helper function to set global API keys (for use by director)"""
+    global OPENAI_API_KEY, QWEN_API_KEY, CLAUDE_API_KEY
+    if openai_key:
+        OPENAI_API_KEY = openai_key
+    if qwen_key:
+        QWEN_API_KEY = qwen_key
+    if claude_key:
+        CLAUDE_API_KEY = claude_key
 
 class LLMBackend:
     """Base class for LLM backends. max_tokens is always set from config, argument, or defaults to DEFAULT_MAX_TOKENS."""
@@ -40,9 +55,10 @@ class LLMBackend:
 class ChatGPTBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        # Check: parameter -> global -> environment variable
+        self.api_key = api_key or OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OpenAI API key must be provided via argument or OPENAI_API_KEY env var.")
+            raise ValueError("OpenAI API key must be provided via argument, global variable, or OPENAI_API_KEY env var.")
         import openai
         self.client = openai.OpenAI(api_key=self.api_key)
         # Also create async client for concurrent processing
@@ -122,7 +138,8 @@ class ClaudeBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
         try:
-            key = api_key or os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+            # Check: parameter -> global -> environment variables
+            key = api_key or CLAUDE_API_KEY or os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
             self.client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
         except ImportError:
             raise ImportError("Please install anthropic package: pip install anthropic")
@@ -145,9 +162,10 @@ class ClaudeBackend(LLMBackend):
 class QwenBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
-        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
+        # Check: parameter -> global -> environment variables
+        self.api_key = api_key or QWEN_API_KEY or os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
         if not self.api_key:
-            raise ValueError("Qwen API key required. Set DASHSCOPE_API_KEY or QWEN_API_KEY environment variable or pass api_key")
+            raise ValueError("Qwen API key required. Set via argument, global variable, DASHSCOPE_API_KEY or QWEN_API_KEY environment variable")
 
     def process_text(self, text: str, prompt: str) -> str:
         try:

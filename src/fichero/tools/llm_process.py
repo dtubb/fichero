@@ -28,7 +28,8 @@ from utils.progress import ProcessingProgress, ProgressTracker
 from utils.llm_utils import (
     LLMBackend, ChatGPTBackend, ClaudeBackend, QwenBackend, LMStudioBackend, OllamaBackend,
     get_llm_backend, chunk_text_intelligently, process_with_iterative_refinement,
-    load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
+    load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor,
+    set_api_keys
 )
 from utils.hierarchy import DocumentHierarchy
 
@@ -230,7 +231,10 @@ def process_documents(
     batch_size: Annotated[int, typer.Option(help="Number of documents to process in each batch")] = 10,
     folder_mode: Annotated[bool, typer.Option(help="Process all files in a folder together as one document")] = False,
     hierarchical: Annotated[bool, typer.Option(help="Process documents in hierarchical order")] = False,
-    max_depth: Annotated[int, typer.Option(help="Maximum depth for hierarchical processing")] = 3
+    max_depth: Annotated[int, typer.Option(help="Maximum depth for hierarchical processing")] = 3,
+    openai_api_key: Annotated[Optional[str], typer.Option("--openai-api-key", help="OpenAI API key (falls back to OPENAI_API_KEY env var)")] = None,
+    qwen_api_key: Annotated[Optional[str], typer.Option("--qwen-api-key", help="Qwen API key (falls back to DASHSCOPE_API_KEY env var)")] = None,
+    claude_api_key: Annotated[Optional[str], typer.Option("--claude-api-key", help="Claude API key (falls back to ANTHROPIC_API_KEY env var)")] = None,
 ):
     """Process documents using LLM with configurable prompts
     
@@ -240,6 +244,15 @@ def process_documents(
     In hierarchical mode, documents are processed according to their folder structure,
     with support for level-specific processing.
     """
+    
+    # Inject API keys into global variables in llm_utils if provided
+    if openai_api_key or qwen_api_key or claude_api_key:
+        set_api_keys(
+            openai_key=openai_api_key,
+            qwen_key=qwen_api_key,
+            claude_key=claude_api_key
+        )
+        logger.info("Set global API keys from command line arguments")
     
     # Load prompt configuration
     logger.info("Loading prompt configuration...")
