@@ -15,7 +15,7 @@ class TranslationManager:
         self.default_language = default_language
         self.current_language = default_language
         self.translations: Dict[str, Dict[str, str]] = {}
-        self.resources_path = Path(__file__).parent / "resources" / "languages"
+        self.resources_path = Path(__file__).parent.parent / "resources" / "languages"
         
         # Load all available languages
         self._load_translations()

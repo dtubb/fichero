@@ -5,7 +5,7 @@ About window for Fichero application
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW, CENTER
-from ..i18n import _
+from ...utils import _
 import webbrowser
 
 
@@ -29,7 +29,7 @@ class AboutWindow:
     
     def _create_ui(self):
         """Create the about UI"""
-        # Main container with padding
+        # Main container with margin
         main_container = toga.Box(
             style=Pack(
                 direction=COLUMN,

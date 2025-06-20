@@ -4,14 +4,20 @@ import multiprocessing
 import platform
 import subprocess
 import logging
+import json
+import time
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Union
 from cryptography.fernet import Fernet
 import base64
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from .shared_data import get_shared_data, DataType
+
 logger = logging.getLogger(__name__)
+
+
 
 class AppSettings:
     """Central settings manager for Fichero app with proper fallback hierarchy"""
@@ -19,6 +25,11 @@ class AppSettings:
     def __init__(self, app=None):
         self.app = app
         self._init_encryption()  # Initialize encryption first
+        # Initialize shared data manager with proper Toga data directory
+        data_dir = None
+        if self.app and hasattr(self.app, 'paths'):
+            data_dir = self.app.paths.data / "shared_data"
+        self.shared_data = get_shared_data(namespace="fichero", default_ttl=3600, data_dir=data_dir)
         self.settings = self.load_settings()  # Then load settings
     
     def _init_encryption(self):
@@ -80,14 +91,22 @@ class AppSettings:
     def load_settings(self) -> Dict:
         """
         Load settings with fallback hierarchy:
-        1. User settings (app.paths.data/app_settings.json)
+        1. Shared store (if available)
         2. Default settings (resources/default_app_settings.json)  
         3. Environment variables (for API keys)
         4. Calculated defaults (for workers)
         """
         settings = {}
         
-        # 1. Try to load default settings first as base
+        # 1. Try to load from shared data first
+        shared_settings = self.shared_data.get(DataType.SETTINGS, "main_config")
+        if shared_settings is not None:
+            logger.info("Loaded settings from shared data")
+            # Decrypt API keys from shared settings
+            self._decrypt_api_keys(shared_settings)
+            return shared_settings
+        
+        # 2. Try to load default settings as base
         if self.app:
             default_path = self.app.paths.app / "resources" / "default_app_settings.json"
         else:
@@ -105,19 +124,6 @@ class AppSettings:
             logger.warning(f"Default settings not found at {default_path}")
             settings = self._get_fallback_settings()
         
-        # 2. Override with user settings if available
-        if self.app:
-            user_path = self.app.paths.data / "app_settings.json"
-            if user_path.exists():
-                try:
-                    user_settings = srsly.read_json(user_path)
-                    # Decrypt API keys from user settings
-                    self._decrypt_api_keys(user_settings)
-                    settings = self._merge_settings(settings, user_settings)
-                    logger.info(f"Loaded user settings from {user_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to load user settings: {e}")
-        
         # 3. Override API keys with environment variables if available, but only if settings are empty
         self._apply_env_overrides(settings)
         
@@ -127,21 +133,26 @@ class AppSettings:
         # 5. Set environment variables from loaded settings
         self._set_env_from_settings(settings)
         
+        # Save to shared data for future use (encrypt API keys first)
+        settings_for_shared = settings.copy()
+        self._encrypt_api_keys(settings_for_shared)
+        self.shared_data.set(DataType.SETTINGS, "main_config", settings_for_shared, immediate_save=True)
+        
         return settings
     
     def save_settings(self, settings: Dict):
-        """Save settings to user data directory with encrypted API keys"""
-        if self.app:
-            user_path = self.app.paths.data / "app_settings.json"
-            # Create a copy of settings to encrypt
-            settings_to_save = settings.copy()
-            # Encrypt API keys before saving
-            self._encrypt_api_keys(settings_to_save)
-            srsly.write_json(user_path, settings_to_save)
-            logger.info(f"Saved settings to {user_path}")
-            
-            # Set environment variables for scripts to use
-            self._set_env_from_settings(settings)
+        """Save settings to shared data store only"""
+        # Create a copy of settings to encrypt
+        settings_to_save = settings.copy()
+        # Encrypt API keys before saving
+        self._encrypt_api_keys(settings_to_save)
+        
+        # Save to shared data store only
+        self.shared_data.set(DataType.SETTINGS, "main_config", settings_to_save, immediate_save=True)
+        logger.info("Saved settings to shared data store")
+        
+        # Set environment variables for scripts to use
+        self._set_env_from_settings(settings)
     
     def _set_env_from_settings(self, settings: Dict):
         """Set environment variables from settings for scripts to use"""
@@ -295,6 +306,89 @@ class AppSettings:
     def get_memory_per_worker(self) -> int:
         """Get memory limit per worker in MB"""
         return self.get_worker_config().get("memory_per_worker_mb", 2048)
+    
+    # Generic shared data methods
+    def set_shared_setting(self, key: str, value: Any, ttl: Optional[int] = None, encrypt_api_keys: bool = False) -> bool:
+        """Set any setting in shared data with optional encryption
+        
+        Args:
+            key: Setting key
+            value: Setting value (will be JSON serialized)
+            ttl: Time to live in seconds (None uses default)
+            encrypt_api_keys: Whether to encrypt API keys in the value
+        
+        Returns:
+            True if successful
+        """
+        try:
+            value_to_store = value
+            if encrypt_api_keys and isinstance(value, dict):
+                value_to_store = value.copy()
+                self._encrypt_api_keys(value_to_store)
+            
+            return self.shared_data.set(DataType.SETTINGS, key, value_to_store, ttl)
+        except Exception as e:
+            logger.error(f"Failed to set shared setting {key}: {e}")
+            return False
+    
+    def get_shared_setting(self, key: str, default: Any = None, decrypt_api_keys: bool = False) -> Any:
+        """Get any setting from shared data with optional decryption
+        
+        Args:
+            key: Setting key
+            default: Default value if not found
+            decrypt_api_keys: Whether to decrypt API keys in the value
+        
+        Returns:
+            The setting value or default
+        """
+        try:
+            value = self.shared_data.get(DataType.SETTINGS, key, default)
+            
+            if decrypt_api_keys and isinstance(value, dict) and value != default:
+                value = value.copy()
+                self._decrypt_api_keys(value)
+            
+            return value
+        except Exception as e:
+            logger.error(f"Failed to get shared setting {key}: {e}")
+            return default
+    
+    def delete_shared_setting(self, key: str) -> bool:
+        """Delete a setting from shared data
+        
+        Args:
+            key: Setting key to delete
+        
+        Returns:
+            True if successful
+        """
+        return self.shared_data.delete(DataType.SETTINGS, key)
+    
+    def list_shared_settings(self, pattern: str = "*") -> list:
+        """List all shared settings matching pattern
+        
+        Args:
+            pattern: Pattern to match (supports wildcards)
+        
+        Returns:
+            List of setting keys
+        """
+        return self.shared_data.keys(DataType.SETTINGS, pattern)
+    
+    def get_shared_data_info(self) -> Dict[str, Any]:
+        """Get information about the shared data manager
+        
+        Returns:
+            Dictionary with data manager information
+        """
+        return self.shared_data.get_info()
+    
+    # Direct access to SharedDataManager for advanced use cases
+    @property
+    def shared_store(self):
+        """Backward compatibility: access to shared data manager"""
+        return self.shared_data
 
 # Global settings instance (will be initialized when needed)
 _app_settings = None
@@ -311,3 +405,53 @@ def reload_settings(app=None):
     global _app_settings
     _app_settings = AppSettings(app)
     return _app_settings 
+
+"""
+USAGE EXAMPLES - SHARED SETTINGS:
+
+# Basic shared settings usage
+settings = get_app_settings(app)
+
+# Store user preferences with TTL
+settings.set_shared_setting("user_theme", "dark", ttl=3600)
+settings.set_shared_setting("window_size", {"width": 1200, "height": 800})
+settings.set_shared_setting("recent_files", ["/path/to/file1.txt"], ttl=86400)
+
+# Get settings with defaults
+theme = settings.get_shared_setting("user_theme", default="light")
+window_size = settings.get_shared_setting("window_size", default={"width": 800, "height": 600})
+
+# Handle API keys securely
+api_config = {
+    "openai": {"api_key": "sk-...", "model": "gpt-4"},
+    "claude": {"api_key": "sk-ant-...", "model": "claude-3"}
+}
+settings.set_shared_setting("ai_config", api_config, encrypt_api_keys=True)
+retrieved_config = settings.get_shared_setting("ai_config", decrypt_api_keys=True)
+
+# List and manage settings
+all_settings = settings.list_shared_settings()  # Get all keys
+theme_settings = settings.list_shared_settings("*theme*")  # Pattern matching
+settings.delete_shared_setting("old_config")  # Cleanup
+
+# Get system info
+info = settings.get_shared_data_info()
+print(f"Using {info['backend']} backend with {info['settings_count']} settings")
+
+# Direct access to shared data manager for advanced use cases
+shared_data = settings.shared_data
+shared_data.set_setting("temp_flag", True, ttl=300)  # 5 minutes
+if shared_data.get_setting("temp_flag", False):
+    print("Temporary flag is still active")
+
+# PERSISTENCE & AUTO-SAVE:
+# Shared data automatically persists to ~/.fichero/shared_data/ in JSONL format
+shared_data.save_to_disk()  # Manual save
+shared_data.auto_save(interval=300)  # Auto-save every 5 minutes
+
+# EXPANDING THE SYSTEM:
+# When you need progress tracking, output streaming, etc., simply:
+# 1. Uncomment the data types in shared_data.py
+# 2. Add the specific methods you need  
+# 3. Use them like: shared_data.set_progress(), shared_data.append_output(), etc.
+""" 

@@ -1,0 +1,123 @@
+title: "Fichero Preferences"
+description: "Configure global application settings and API connections"
+style:
+  size: [690, 625]
+  resizable: false
+
+tabs:
+  - id: "appearance"
+    title: "Appearance"
+    icon: "resources/icons/settings_appearance.png"
+    window_title: "Appearance Preferences"
+    sections:
+      - title: "Language"
+        fields:
+          - id: "preferences.language"
+            type: "selection"
+            label: "Language"
+            options: ["en", "es", "fr"]
+
+  - id: "performance"
+    title: "Performance"
+    icon: "resources/icons/enhance.png"
+    window_title: "Performance Settings"
+    sections:
+      - title: "Worker Configuration"
+        description: "Configure processing performance"
+        fields:
+          - id: "workers.cpu_workers"
+            type: "number_input"
+            label: "CPU Workers"
+            min: 1
+            max: 32
+            help: "Number of CPU-intensive processing workers"
+          - id: "workers.io_workers"
+            type: "number_input"
+            label: "I/O Workers"
+            min: 1
+            max: 64
+            help: "Number of I/O workers for file operations"
+          - id: "workers.memory_per_worker_mb"
+            type: "number_input"
+            label: "Memory per Worker (MB)"
+            min: 512
+            max: 8192
+            step: 256
+            help: "Memory limit for each worker process"
+
+  - id: "ai"
+    title: "AI"
+    icon: "resources/icons/settings_ai.png"
+    window_title: "AI Configurations"
+    sections:
+      - title: "OpenAI Configuration"
+        fields:
+          - id: "api_servers.openai.api_key"
+            type: "password_input"
+            label: "API Key"
+            placeholder: "sk-..."
+            help: "Your OpenAI API key"
+          - id: "api_servers.openai.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "https://api.openai.com/v1"
+            
+      - title: "Qwen Configuration"
+        fields:
+          - id: "api_servers.qwen.api_key"
+            type: "password_input"
+            label: "API Key"
+            placeholder: "sk-..."
+            help: "Your Qwen/DashScope API key"
+          - id: "api_servers.qwen.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            
+      - title: "Claude Configuration"
+        fields:
+          - id: "api_servers.claude.api_key"
+            type: "password_input"
+            label: "API Key"
+            placeholder: "sk-ant-..."
+            help: "Your Anthropic API key"
+          - id: "api_servers.claude.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "https://api.anthropic.com"
+            
+      - title: "Ollama Configuration"
+        fields:
+          - id: "api_servers.ollama.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "http://localhost:11434"
+            help: "Local Ollama server endpoint"
+            
+      - title: "LMStudio Configuration"
+        fields:
+          - id: "api_servers.lmstudio.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "http://localhost:1234/v1"
+            help: "Local LMStudio server endpoint"
+            
+      - title: "Blackfish Configuration"
+        fields:
+          - id: "api_servers.blackfish.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "https://blackfish.example.com"
+            help: "Blackfish server endpoint"
+            
+      - title: "Hugging Face Configuration"
+        fields:
+          - id: "api_servers.huggingface.api_key"
+            type: "password_input"
+            label: "API Key"
+            placeholder: "hf_..."
+            help: "Your Hugging Face API token"
+          - id: "api_servers.huggingface.base_url"
+            type: "text_input"
+            label: "Base URL"
+            placeholder: "https://api-inference.huggingface.co" 

@@ -19,21 +19,6 @@ rawpy>=0.25.0,<1.0.0  # For RAW image format support
 pillow-heif>=0.22.0,<1.0.0  # For HEIC/HEIF format support (fallback only) DOES NOT WORK IN BRIEFCASE
 exifread>=3.3.1,<4.0.0  # For metadata handling
 
-# Optional system dependencies for JPEG XL support:
-# - macOS: brew install libjxl
-# - Ubuntu/Debian: apt-get install libjxl-tools
-# - Windows: Download from https://github.com/libjxl/libjxl/releases
-
-# Required system dependencies for HEIC support:
-# - macOS: brew install libheif
-# - Ubuntu/Debian: apt-get install libheif-dev
-# - Windows: No additional dependencies needed
-
-# Optional system dependencies for RAW support:
-# - macOS: brew install libraw
-# - Ubuntu/Debian: apt-get install libraw-dev
-# - Windows: No additional dependencies needed
-
 # Machine learning and data processing
 scikit-learn>=1.7.0,<2.0.0
 torch>=2.7.1,<3.0.0
@@ -51,7 +36,9 @@ requests>=2.32.4,<3.0.0
 
 # Utilities
 tqdm>=4.67.1,<5.0.0
-python-magic>=0.4.27,<1.0.0 
+python-magic>=0.4.27,<1.0.0
+pathvalidate>=3.2.3,<4.0.0
+cryptography>=45.0.0,<46.0.0
 
 # System and processing
 psutil>=7.0.0,<8.0.0
@@ -60,5 +47,18 @@ celery>=5.5.3,<6.0.0
 redis>=6.2.0,<7.0.0
 openai>=1.86.0,<2.0.0
 accelerate>=1.7.0,<2.0.0
-pathvalidate>=3.2.3,<4.0.0
-cryptography>=45.0.0,<46.0.0
+
+# Optional system dependencies for JPEG XL support:
+# - macOS: brew install libjxl
+# - Ubuntu/Debian: apt-get install libjxl-tools
+# - Windows: Download from https://github.com/libjxl/libjxl/releases
+
+# Required system dependencies for HEIC support:
+# - macOS: brew install libheif
+# - Ubuntu/Debian: apt-get install libheif-dev
+# - Windows: No additional dependencies needed
+
+# Optional system dependencies for RAW support:
+# - macOS: brew install libraw
+# - Ubuntu/Debian: apt-get install libraw-dev
+# - Windows: No additional dependencies needed

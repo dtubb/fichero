@@ -1,0 +1,104 @@
+title: "Plans Editor - {config_file.name}"
+description: "Configure project workflows, variables, and commands"
+style:
+  size: [690, 625]
+  resizable: false
+
+tabs:
+  - id: "general"
+    title: "General"
+    sections:
+      - title: "Project Information"
+        fields:
+          - id: "title"
+            type: "text_input"
+            label: "Project Title"
+            placeholder: "Enter project title"
+            validation:
+              required: true
+          - id: "description"
+            type: "multiline_text"
+            label: "Description"
+            height: 100
+            placeholder: "Project description..."
+
+  - id: "vars"
+    title: "Variables"
+    sections:
+      - title: "Basic Configuration"
+        fields:
+          - id: "vars.name"
+            type: "text_input"
+            label: "Project Name"
+            validation:
+              required: true
+          - id: "vars.language"
+            type: "selection"
+            label: "Language"
+            options: ["es", "en", "fr", "de", "pt", "it"]
+          - id: "vars.text_direction"
+            type: "selection"
+            label: "Text Direction"
+            options: ["horizontal-lr", "horizontal-rl", "vertical-lr", "vertical-rl"]
+          - id: "vars.version"
+            type: "text_input"
+            label: "Version"
+
+      - title: "Image Formats"
+        description: "Configure output formats for different processing steps"
+        fields:
+          - id: "vars.crop_format"
+            type: "selection"
+            label: "Crop Format"
+            options: ["jpg", "png", "jxl"]
+          - id: "vars.split_format"
+            type: "selection"
+            label: "Split Format"
+            options: ["jpg", "png", "jxl"]
+          - id: "vars.rotate_format"
+            type: "selection"
+            label: "Rotate Format"
+            options: ["jpg", "png", "jxl"]
+          - id: "vars.enhance_format"
+            type: "selection"
+            label: "Enhance Format"
+            options: ["jpg", "png", "jxl"]
+          - id: "vars.background_removed_format"
+            type: "selection"
+            label: "Background Removed Format"
+            options: ["png", "jxl", "jpg"]
+
+      - title: "LLM Configuration"
+        fields:
+          - id: "vars.lmstudio_url"
+            type: "text_input"
+            label: "LMStudio URL"
+            placeholder: "http://localhost:1234"
+          - id: "vars.lmstudio_model"
+            type: "text_input"
+            label: "LMStudio Model"
+            placeholder: "Model name"
+          - id: "vars.prompt"
+            type: "multiline_text"
+            label: "Default Prompt"
+            height: 80
+            placeholder: "Enter default transcription prompt..."
+
+  - id: "paths"
+    title: "Paths"
+    sections:
+      - title: "Key Paths"
+        description: "Main project directories (use ${vars.variable} for substitution)"
+        fields:
+          - id: "vars.project_folder"
+            type: "text_input"
+            label: "Project Folder"
+            help: "Main project directory"
+          - id: "vars.documents_folder"
+            type: "text_input"
+            label: "Documents Folder"
+            help: "Source documents location"
+          - id: "vars.assets_folder"
+            type: "text_input"
+            label: "Assets Folder"
+            help: "Processing outputs location" 

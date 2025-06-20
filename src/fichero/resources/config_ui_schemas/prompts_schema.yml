@@ -1,0 +1,130 @@
+title: "Prompts Editor - {config_file.name}"
+description: "Configure LLM processing steps and prompts"
+style:
+  size: [690, 625]
+  resizable: false
+
+tabs:
+  - id: "general"
+    title: "General"
+    sections:
+      - title: "Configuration Info"
+        fields:
+          - id: "name"
+            type: "text_input"
+            label: "Configuration Name"
+            validation:
+              required: true
+            help: "Unique name for this prompts configuration"
+          - id: "description"
+            type: "multiline_text"
+            label: "Description"
+            height: 60
+            help: "Brief description of what this config does"
+          - id: "intelligent_chunking"
+            type: "switch"
+            label: "Enable Intelligent Chunking"
+            help: "Use semantic chunking instead of fixed-size chunks"
+          - id: "chunk_overlap"
+            type: "number_input"
+            label: "Chunk Overlap"
+            min: 0
+            max: 1000
+            help: "Number of characters to overlap between chunks"
+
+  - id: "llm"
+    title: "LLM Settings"
+    sections:
+      - title: "Model Configuration"
+        fields:
+          - id: "llm.backend"
+            type: "selection"
+            label: "Backend"
+            options: ["openai", "anthropic", "local", "qwen"]
+            help: "LLM service provider"
+          - id: "llm.model"
+            type: "text_input"
+            label: "Model Name"
+            placeholder: "gpt-4o-mini"
+            help: "Specific model identifier"
+          - id: "llm.temperature"
+            type: "number_input"
+            label: "Temperature"
+            min: 0.0
+            max: 2.0
+            step: 0.1
+            help: "Controls randomness (0.0 = deterministic, 2.0 = very random)"
+          - id: "llm.max_tokens"
+            type: "number_input"
+            label: "Max Tokens"
+            min: 1
+            max: 1000000
+            help: "Maximum number of tokens in the response"
+          - id: "llm.top_p"
+            type: "number_input"
+            label: "Top P"
+            min: 0.0
+            max: 1.0
+            step: 0.05
+            help: "Nucleus sampling threshold"
+          - id: "llm.frequency_penalty"
+            type: "number_input"
+            label: "Frequency Penalty"
+            min: -2.0
+            max: 2.0
+            step: 0.1
+            help: "Penalize frequent tokens (reduce repetition)"
+          - id: "llm.presence_penalty"
+            type: "number_input"
+            label: "Presence Penalty"
+            min: -2.0
+            max: 2.0
+            step: 0.1
+            help: "Penalize existing tokens (encourage new topics)"
+
+      - title: "Request Settings"
+        fields:
+          - id: "llm.timeout"
+            type: "number_input"
+            label: "Timeout (seconds)"
+            min: 10
+            max: 600
+            help: "Request timeout in seconds"
+          - id: "llm.retry_attempts"
+            type: "number_input"
+            label: "Retry Attempts"
+            min: 1
+            max: 10
+            help: "Number of retry attempts on failure"
+          - id: "llm.retry_delay"
+            type: "number_input"
+            label: "Retry Delay (seconds)"
+            min: 1
+            max: 60
+            help: "Delay between retry attempts"
+
+  - id: "prompts"
+    title: "Prompts"
+    sections:
+      - title: "System Prompts"
+        fields:
+          - id: "prompts.system_prompt"
+            type: "multiline_text"
+            label: "System Prompt"
+            height: 120
+            help: "Base instructions for the LLM"
+          - id: "prompts.user_prompt_template"
+            type: "multiline_text"
+            label: "User Prompt Template"
+            height: 80
+            help: "Template for user prompts (use {content} for document content)"
+
+  - id: "steps"
+    title: "Processing Steps"
+    sections:
+      - title: "Steps Configuration"
+        description: "Complex step editing requires manual JSON editing for now"
+        fields:
+          - id: "steps_info"
+            type: "label"
+            label: "Steps configuration is complex and requires manual editing.\\nUse the 'Edit Raw JSON' button to modify processing steps." 

@@ -1,0 +1,43 @@
+# Default Application Settings
+# This file defines the default configuration for Fichero application
+# Users can modify these settings through the Preferences window
+
+title: "Fichero Application Settings"
+description: "Configure global application preferences and API settings"
+
+# Application Preferences
+preferences:
+  language: "en"
+
+# Worker Performance Configuration
+workers:
+  cpu_workers: 4
+  io_workers: 8
+  memory_per_worker_mb: 2048
+
+# API Server Configurations
+api_servers:
+  openai:
+    api_key: ""
+    base_url: "https://api.openai.com/v1"
+    
+  qwen:
+    api_key: ""
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    
+  claude:
+    api_key: ""
+    base_url: "https://api.anthropic.com"
+    
+  ollama:
+    base_url: "http://localhost:11434"
+    
+  lmstudio:
+    base_url: "http://localhost:1234/v1"
+    
+  blackfish:
+    base_url: "https://blackfish.example.com"
+    
+  huggingface:
+    api_key: ""
+    base_url: "https://api-inference.huggingface.co" 
