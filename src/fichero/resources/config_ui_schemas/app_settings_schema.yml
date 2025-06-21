@@ -1,14 +1,9 @@
-title: "Fichero Preferences"
+title: "Settings"
 description: "Configure global application settings and API connections"
-style:
-  size: [690, 625]
-  resizable: false
 
-tabs:
+sections:
   - id: "appearance"
     title: "Appearance"
-    icon: "resources/icons/settings_appearance.png"
-    window_title: "Appearance Preferences"
     sections:
       - title: "Language"
         fields:
@@ -19,9 +14,16 @@ tabs:
 
   - id: "performance"
     title: "Performance"
-    icon: "resources/icons/enhance.png"
-    window_title: "Performance Settings"
     sections:
+      - title: "Backend Configuration"
+        description: "Choose processing backend - affects both shared data and task processing"
+        fields:
+          - id: "workers.backend"
+            type: "selection"
+            label: "Backend Type"
+            options: ["python", "redis"]
+            help: "Python Manager and Processors (default, working). Redis + Celery (faster, shared data working, processing TBD)."
+            
       - title: "Worker Configuration"
         description: "Configure processing performance"
         fields:
@@ -47,13 +49,11 @@ tabs:
 
   - id: "ai"
     title: "AI"
-    icon: "resources/icons/settings_ai.png"
-    window_title: "AI Configurations"
     sections:
       - title: "OpenAI Configuration"
         fields:
           - id: "api_servers.openai.api_key"
-            type: "password_input"
+            type: "text_input"
             label: "API Key"
             placeholder: "sk-..."
             help: "Your OpenAI API key"
@@ -65,7 +65,7 @@ tabs:
       - title: "Qwen Configuration"
         fields:
           - id: "api_servers.qwen.api_key"
-            type: "password_input"
+            type: "text_input"
             label: "API Key"
             placeholder: "sk-..."
             help: "Your Qwen/DashScope API key"
@@ -77,7 +77,7 @@ tabs:
       - title: "Claude Configuration"
         fields:
           - id: "api_servers.claude.api_key"
-            type: "password_input"
+            type: "text_input"
             label: "API Key"
             placeholder: "sk-ant-..."
             help: "Your Anthropic API key"
@@ -113,7 +113,7 @@ tabs:
       - title: "Hugging Face Configuration"
         fields:
           - id: "api_servers.huggingface.api_key"
-            type: "password_input"
+            type: "text_input"
             label: "API Key"
             placeholder: "hf_..."
             help: "Your Hugging Face API token"
@@ -121,3 +121,5 @@ tabs:
             type: "text_input"
             label: "Base URL"
             placeholder: "https://api-inference.huggingface.co" 
+
+            

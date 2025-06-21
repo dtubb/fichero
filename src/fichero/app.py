@@ -1,6 +1,7 @@
 """
-Fichero - Document Processing and Transcription GUI
-Document-based application using Toga's document system
+Fichero
+Cross platform GUI (macOS, Windows, Linux) using Toga.
+Document-based application.
 """
 
 import toga
@@ -11,23 +12,21 @@ from pathlib import Path
 
 from .utils import _, translator, get_app_settings
 from .ui import MenuManager
-from .document import FicheroDocument
+from .document_model import FicheroDocument
 from . import director
 
 
 class FicheroApp(toga.App):
-    """Fichero document-based application"""
-    
     formal_name = "Fichero"
     app_id = "ca.tubb.fichero"
     app_name = "Fichero"
     description = "Document Processing and Transcription"
-    author = "David Tubb"
+    author = "Daniel Tubb"
     version = "0.0.5"
     home_page = "https://www.tubb.ca/fichero/"
     
     def startup(self):
-        """Initialize the app with document-based architecture"""
+        """Initialize the app with toga document-based architecture"""
         # Configure logging
         import logging
         logging.basicConfig(
@@ -39,6 +38,18 @@ class FicheroApp(toga.App):
         
         # Initialize settings and environment
         self._init_settings()
+        
+        # Initialize language system (needs settings, so goes right after)
+        from .utils.i18n import TranslationManager, set_global_translator
+        self.translator = TranslationManager(app=self)
+        set_global_translator(self.translator)
+        print(f"🌐 Language: {self.translator.current_language}")
+        
+        # Initialize document tracker and managers
+        from .document import init_document_tracker, init_app_auto_save_manager, init_session_manager
+        self.document_tracker = init_document_tracker(self)
+        self.auto_save_manager = init_app_auto_save_manager(self)
+        self.session_manager = init_session_manager(self)
         
         # Initialize menu system
         self.menu_manager = MenuManager(self)
@@ -52,76 +63,66 @@ class FicheroApp(toga.App):
         # This allows the document system to work properly
         self.main_window = None
         
-        # Set initial language after app is initialized
-        try:
-            # Use the translator's built-in language detection
-            # which already detects system language on initialization
-            print(f"🌐 Language initialized: {translator.current_language}")
-        except Exception as e:
-            print(f"⚠️ Warning: Language initialization issue: {e}")
-        
         print("✨ Fichero ready!")
-        
-        # If no documents are specified at startup, create a new document
-        # This is typical behavior for document-based apps
-        if not hasattr(self, '_documents_opened_at_startup'):
-            self.new_document()
+        # Managers handle their own lifecycle automatically!
 
     def _init_settings(self):
         """Initialize application settings and environment variables"""
         try:
-            # Load settings and set environment variables
+            # Initialize app preferences first (this creates the preferences file if needed)
+            from .config.core.app_preferences import get_app_preferences
+            app_prefs = get_app_preferences(self)
+            print("📋 App preferences initialized")
+            
+            # Load settings (environment variables are set automatically)
             settings = get_app_settings(self)
-            api_servers = settings.get_api_servers()
             
-            # Set environment variables for API keys
-            if api_servers.get("openai", {}).get("api_key"):
-                os.environ["OPENAI_API_KEY"] = api_servers["openai"]["api_key"]
-                print("🔑 OpenAI API key loaded")
-            
-            if api_servers.get("qwen", {}).get("api_key"):
-                os.environ["DASHSCOPE_API_KEY"] = api_servers["qwen"]["api_key"]
-                print("🔑 Qwen API key loaded")
-            
-            if api_servers.get("claude", {}).get("api_key"):
-                os.environ["ANTHROPIC_API_KEY"] = api_servers["claude"]["api_key"]
-                print("🔑 Claude API key loaded")
+            # Initialize shared data backend with user's preference
+            self._init_shared_data_backend(settings)
                 
         except Exception as e:
             print(f"⚠️ Warning: Failed to load settings: {e}")
 
+    def _init_shared_data_backend(self, settings):
+        """Initialize the shared data backend based on user settings"""
+        try:
+            # Get user's backend preference
+            backend_setting = settings.settings.get("workers", {}).get("backend", "python")
+            
+            # Convert setting to backend preference
+            if backend_setting == "redis":
+                prefer_backend = "redis"
+            else:  # "python" or anything else
+                prefer_backend = "manager"
+            
+            # Initialize shared data with the preference and proper app data directory
+            from .shared_data import reload_shared_data
+            app_data_dir = self.paths.data if hasattr(self, 'paths') else None
+            shared_data = reload_shared_data(prefer_backend=prefer_backend, data_dir=app_data_dir)
+            
+            print(f"🔧 Processing backend initialized: {shared_data.backend_name} ({'Redis+Celery' if backend_setting == 'redis' else 'Python Manager'})")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to initialize processing backend: {e}")
+
     def finalize(self):
         """Clean up when app closes"""
+        print("🔄 finalize() called - app is closing")
         try:
+            # Only app-specific cleanup needed (session save happens automatically)
             print("🧹 Cleaning up Redis and Celery workers...")
             director.stop_workers()
             print("✓ Cleanup completed")
         except Exception as e:
-            print(f"Warning: Error during cleanup: {e}")
+            print(f"❌ Error during cleanup: {e}")
+            import traceback
+            traceback.print_exc()
 
-    def set_language(self, language_code: str):
-        """Set the application language and refresh UI"""
-        try:
-            # Set the language using the translator
-            translator.set_language(language_code)
-            print(f"🌐 Language changed to: {language_code}")
-            
-            # Refresh main window title if it exists and is initialized
-            try:
-                if (hasattr(self, 'main_window') and 
-                    self.main_window and 
-                    hasattr(self.main_window, 'title')):
-                    self.main_window.title = _("app_title")
-                    print("✓ Main window title updated")
-            except Exception as title_error:
-                print(f"⚠️ Could not update main window title: {title_error}")
-            
-            # Note: In a full implementation, you'd want to refresh all open windows
-            # For now, user needs to restart or reopen windows to see language changes
-            
-        except Exception as e:
-            print(f"❌ Error setting language: {e}")
-            # Don't raise the exception - allow the app to continue running
+
+
+
+
+
 
     # Document operations (using Toga's document system)
     # These methods will be called automatically by Toga's standard document commands
@@ -129,9 +130,25 @@ class FicheroApp(toga.App):
     def new_document(self):
         """Create a new document using Toga's document system"""
         try:
+            # Check if there's already a blank document we can reuse
+            if hasattr(self, 'documents') and self.documents:
+                for existing_doc in self.documents:
+                    if hasattr(existing_doc, 'is_blank_document') and existing_doc.is_blank_document():
+                        # Found a blank document - bring it to front instead of creating new
+                        if hasattr(existing_doc, 'main_window') and existing_doc.main_window:
+                            existing_doc.main_window.show()
+                            print(f"📄 Brought existing blank document to front: {existing_doc.get_display_name()}")
+                            return existing_doc
+            
+            # No blank document found, create a new one
             doc = FicheroDocument(self)
             doc.create()  # This sets doc.main_window
             doc.main_window.show()  # Now show the window
+            
+            # Track the new document creation
+            self.document_tracker.document_created(doc)
+            print(f"📄 Created new document: {doc.get_display_name()}")
+            
             return doc
         except Exception as e:
             print(f"❌ Failed to create new document: {e}")
@@ -140,42 +157,85 @@ class FicheroApp(toga.App):
     def open_document(self, document_path: Path):
         """Open an existing document using Toga's document system"""
         try:
+            print(f"🔄 Opening document: {document_path}")
+            
+            # Validate document path
+            if not document_path.exists():
+                print(f"❌ Document does not exist: {document_path}")
+                return None
+            
+            # Create document instance
+            print(f"📄 Creating FicheroDocument instance...")
             doc = FicheroDocument(self, document_path)
+            
+            # Create document window
+            print(f"🪟 Creating document window...")
             doc.create()  # This sets doc.main_window
-            doc.main_window.show()  # Now show the window
+            
+            if not doc.main_window:
+                print(f"❌ Failed to create document window")
+                return None
+            
+            # Show the window  
+            print(f"👁️ Showing document window...")
+            doc.main_window.show()
+            
+            # Track the document opening
+            self.document_tracker.document_opened(document_path)
+            print(f"✅ Successfully opened document: {document_path.name}")
             return doc
         except Exception as e:
-            print(f"❌ Failed to open document: {e}")
+            print(f"❌ Failed to open document {document_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def save_document(self, document=None):
         """Save a document"""
         if document:
             document.write()
+            # Track the document saving if it has a path
+            if hasattr(document, 'path') and document.path:
+                self.document_tracker.document_saved(document.path)
+            elif hasattr(document, 'get_effective_path'):
+                effective_path = document.get_effective_path()
+                if effective_path:
+                    self.document_tracker.document_saved(effective_path)
     
     def close_document(self, document):
-        """Close a document"""
-        # Toga handles document closing automatically
-        return True
-
-    # Menu access points
-    
-    def show_preferences(self):
-        """Show application preferences"""
-        self.menu_manager._preferences_handler(None)
-    
-    def show_about(self):
-        """Show about dialog"""
-        self.menu_manager._about_handler(None)
-    
-    def edit_global_plans(self):
-        """Edit global plans template"""
-        self.menu_manager._edit_global_plans_handler(None)
-    
-    def edit_llm_configs(self):
-        """Edit LLM configurations"""
-        self.menu_manager._edit_llm_config_handler(None)
-
+        """Close a document with save prompt if needed"""
+        try:
+            # Check if document can be closed without prompting
+            if hasattr(document, 'can_close') and not document.can_close():
+                # Document has changes, prompt user to save
+                if hasattr(document, 'has_meaningful_changes') and document.has_meaningful_changes():
+                    try:
+                        # Try to show save dialog (this will work in actual Toga app)
+                        display_name = document.get_display_name() if hasattr(document, 'get_display_name') else "Untitled"
+                        
+                        # For now, auto-save if it's an auto-saved document with changes
+                        if hasattr(document, 'is_auto_saved_document') and document.is_auto_saved_document():
+                            print(f"💾 Auto-saving document with changes: {display_name}")
+                            if hasattr(document, '_auto_save'):
+                                document._auto_save()
+                        else:
+                            print(f"💾 Document has changes: {display_name}")
+                            # In a real implementation, you'd show a save dialog here
+                            # For now, we'll save automatically if it's an auto-saved document
+                            if hasattr(document, 'write'):
+                                document.write()
+                    except Exception as e:
+                        print(f"⚠️ Warning: Error handling document save: {e}")
+            
+            # Call document's close method to handle cleanup
+            if hasattr(document, 'close'):
+                document.close()
+            
+            # Toga handles document closing automatically
+            return True
+        except Exception as e:
+            print(f"⚠️ Warning: Error closing document: {e}")
+            return True  # Allow close even if cleanup fails
 
 def main():
     """Main entry point"""

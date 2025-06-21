@@ -1,9 +1,0 @@
-description: 'This project offers a workflow to process documents and create transcriptions
-  from archival materials.
-
-  Fichero will: - Read and process image files - Split multi-page documents into single
-  pages where needed - Transcribe images using AI models - Process transcriptions
-  to extract structured data - Enhance image quality and remove backgrounds
-
-  '
-title: 'Fichero: Document Processing and Transcription'

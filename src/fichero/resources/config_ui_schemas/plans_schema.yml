@@ -1,10 +1,7 @@
-title: "Plans Editor - {config_file.name}"
+title: "Plans - {config_file.name}"
 description: "Configure project workflows, variables, and commands"
-style:
-  size: [690, 625]
-  resizable: false
 
-tabs:
+sections:
   - id: "general"
     title: "General"
     sections:
@@ -19,7 +16,7 @@ tabs:
           - id: "description"
             type: "multiline_text"
             label: "Description"
-            height: 100
+            height: 200
             placeholder: "Project description..."
 
   - id: "vars"

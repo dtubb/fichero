@@ -8,8 +8,8 @@ import webbrowser
 import sys
 from pathlib import Path
 from ..utils import _
-from .windows import AboutWindow, AppSettingsWindow
-from .windows.config_windows import create_plans_editor_window, create_prompts_editor_window
+from .windows import AboutWindow
+from ..config.ui import create_plans_window, create_prompts_window, create_settings_window
 
 
 class MenuManager:
@@ -20,6 +20,8 @@ class MenuManager:
         self.app = app
         self.settings_window = None
         self.about_window = None
+        self.recent_documents_group = None
+        self.recent_document_commands = []
         
     def create_commands(self):
         """Create app-specific commands and customize standard ones
@@ -56,6 +58,15 @@ class MenuManager:
         
         # ===== ADD NON-STANDARD COMMANDS =====
         
+        # Create Open Recent submenu in File menu
+        self.recent_documents_group = toga.Group(_("menu_open_recent"), parent=toga.Group.FILE, order=1)
+        
+        # Initially populate with recent documents
+        self._update_recent_documents_menu()
+        
+        # Add recent document commands to the commands list
+        commands.extend(self.recent_document_commands)
+        
         # Preferences (create manually to control section placement)
         preferences_cmd = toga.Command(
             self._preferences_handler,
@@ -68,26 +79,22 @@ class MenuManager:
         
         # ===== APP-SPECIFIC COMMANDS =====
         
-        # Global configuration editors in App menu (after preferences)
+        # Configuration editors in App menu (after preferences)
         plans_editor_cmd = toga.Command(
             self._plans_editor_handler,
-            text="Plans Editor",
+            text=_("menu_plans"),
             group=toga.Group.APP,
-            section=3,
-            shortcut=toga.Key.MOD_1 + 'p'
+            section=3
         )
         commands.append(plans_editor_cmd)
         
         prompts_editor_cmd = toga.Command(
             self._prompts_editor_handler,
-            text="Prompts Editor", 
+            text=_("menu_prompts"), 
             group=toga.Group.APP,
-            section=3,
-            shortcut=toga.Key.MOD_1 + 'r'
+            section=3
         )
         commands.append(prompts_editor_cmd)
-        
-
         
         # Support command in Help menu  
         support_cmd = toga.Command(
@@ -110,7 +117,6 @@ class MenuManager:
             if sys.platform == 'darwin' and toga.Command.SAVE_ALL in self.app.commands:
                 save_all_cmd = self.app.commands[toga.Command.SAVE_ALL]
                 self.app.commands.discard(save_all_cmd)
-                print("🚫 Removed non-standard 'Save All' command on macOS")
                 
         except Exception as e:
             print(f"Note: Could not customize standard commands: {e}")
@@ -127,11 +133,11 @@ class MenuManager:
         self.about_window.show()
     
     def _preferences_handler(self, widget):
-        """Handle preferences command - show schema-driven settings window"""
-        print("⚙️ Preferences menu clicked - opening settings window")
+        """Handle preferences command - show integrated settings window"""
+        print("⚙️ Preferences menu clicked - opening integrated settings window")
         
         if self.settings_window is None:
-            self.settings_window = AppSettingsWindow(self.app)
+            self.settings_window = create_settings_window(self.app)
         
         self.settings_window.show()
     
@@ -146,57 +152,112 @@ class MenuManager:
         webbrowser.open("https://www.tubb.ca/fichero/support/")
     
     # ===== APP-SPECIFIC CONFIGURATION HANDLERS =====
+    
+    def _plans_editor_handler(self, widget):
+        """Handle plans command"""
+        print("📋 Plans menu clicked - opening plans library")
+        try:
+            plans_library = create_plans_window(self.app)
+            plans_library.show()
+        except Exception as e:
+            print(f"❌ Failed to open plans library: {e}")
+    
+    def _prompts_editor_handler(self, widget):
+        """Handle prompts command"""
+        print("📄 Prompts menu clicked - opening prompts library")
+        try:
+            prompts_library = create_prompts_window(self.app)
+            prompts_library.show()
+        except Exception as e:
+            print(f"❌ Failed to open prompts library: {e}")
+    
+    # ===== DOCUMENT OPERATIONS =====
     # Note: Document operations (NEW, OPEN, SAVE, etc.) are handled automatically
     # by Toga through the document system defined in FicheroDocument
     
-    def _plans_editor_handler(self, widget):
-        """Handle plans editor command"""
-        print("📋 Plans Editor menu clicked")
-        try:
-            plans_editor = create_plans_editor_window(self.app)
-            plans_editor.show()
-        except Exception as e:
-            print(f"❌ Failed to open plans editor: {e}")
+    # ===== OPEN RECENT MENU MANAGEMENT =====
     
-    def _prompts_editor_handler(self, widget):
-        """Handle prompts editor command"""
-        print("📄 Prompts Editor menu clicked")
+    def _update_recent_documents_menu(self):
+        """Update the Open Recent submenu with current recent documents"""
         try:
-            self._show_prompts_editor_selection()
-        except Exception as e:
-            print(f"❌ Failed to open prompts editor: {e}")
-    
-    def _show_prompts_editor_selection(self):
-        """Show a selection dialog for which prompts editor to open"""
-        prompts_dir = self.app.paths.app / "resources" / "prompts"
-        
-        if not prompts_dir.exists():
-            print(f"❌ Prompts directory not found: {prompts_dir}")
-            return
-        
-        # Find all JSONL config files
-        config_files = list(prompts_dir.glob("*.jsonl"))
-        
-        if not config_files:
-            print(f"❌ No JSONL config files found in {prompts_dir}")
-            return
-        
-        if len(config_files) == 1:
-            # If only one config file, open it directly
-            editor = create_prompts_editor_window(self.app, config_files[0])
-            editor.show()
-            print(f"📝 Opening {config_files[0].name}")
-        else:
-            # Multiple configs - for now, default to the English catalogue config
-            # TODO: In the future, show a selection dialog
-            default_config = prompts_dir / "catalogue_folder_local_config_english.jsonl"
-            if default_config.exists():
-                editor = create_prompts_editor_window(self.app, default_config)
-                editor.show()
-                print(f"📝 Opening default config: {default_config.name}")
+            # Clear existing recent document commands
+            for cmd in self.recent_document_commands:
+                if cmd in self.app.commands:
+                    self.app.commands.discard(cmd)
+            self.recent_document_commands.clear()
+            
+            # Get recent documents directly from document tracker
+            recent_documents = self.app.document_tracker.get_recent_documents()
+            
+            if not recent_documents:
+                # Add "No Recent Documents" placeholder
+                no_recent_cmd = toga.Command(
+                    lambda widget: None,  # Do nothing
+                    text=_("menu_no_recent_documents"),
+                    group=self.recent_documents_group,
+                    enabled=False
+                )
+                self.recent_document_commands.append(no_recent_cmd)
+                self.app.commands.add(no_recent_cmd)
             else:
-                # Fallback to first available config
-                editor = create_prompts_editor_window(self.app, config_files[0])
-                editor.show()
-                print(f"📝 Opening {config_files[0].name}")
-                print(f"💡 Found {len(config_files)} configs. Future versions will show selection dialog.") 
+                # Add commands for each recent document
+                for i, doc_path in enumerate(recent_documents):
+                    try:
+                        doc_path_obj = Path(doc_path)
+                        display_name = doc_path_obj.stem
+                        
+                        # Create command for this document with proper closure
+                        def create_handler(document_path):
+                            return lambda widget: self._open_recent_document(document_path)
+                        
+                        recent_cmd = toga.Command(
+                            create_handler(doc_path),
+                            text=f"{display_name}",
+                            group=self.recent_documents_group,
+                            order=i
+                        )
+                        self.recent_document_commands.append(recent_cmd)
+                        self.app.commands.add(recent_cmd)
+                        
+                    except Exception as e:
+                        print(f"⚠️ Failed to add recent document {doc_path}: {e}")
+                
+                # Add separator and "Clear Recent Documents" command
+                if recent_documents:
+                    clear_recent_cmd = toga.Command(
+                        self._clear_recent_documents,
+                        text=_("menu_clear_recent_documents"),
+                        group=self.recent_documents_group,
+                        order=len(recent_documents) + 1
+                    )
+                    self.recent_document_commands.append(clear_recent_cmd)
+                    self.app.commands.add(clear_recent_cmd)
+            
+            print(f"📋 Updated Open Recent menu with {len(recent_documents)} documents")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to update recent documents menu: {e}")
+    
+    def _open_recent_document(self, document_path: str):
+        """Handle opening a recent document"""
+        print(f"📂 Opening recent document: {document_path}")
+        try:
+            # Use the document tracker directly
+            self.app.document_tracker.open_recent_document(document_path)
+            # Menu will be updated automatically by the document tracker
+        except Exception as e:
+            print(f"❌ Failed to open recent document: {e}")
+    
+    def _clear_recent_documents(self, widget):
+        """Handle clearing recent documents list"""
+        print("🗑️ Clearing recent documents list")
+        try:
+            # Use the document tracker to clear recent documents
+            self.app.document_tracker.clear_recent_documents()
+            print("✅ Recent documents cleared")
+        except Exception as e:
+            print(f"❌ Failed to clear recent documents: {e}")
+    
+    def update_recent_documents(self):
+        """Public method to update recent documents menu - call this when a document is opened/saved"""
+        self._update_recent_documents_menu() 

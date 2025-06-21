@@ -1,5 +1,5 @@
 """
-CLI version that passes through to the director
+Fichero CLI version that just passes through to director.py
 """
 
 import typer

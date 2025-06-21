@@ -46,7 +46,9 @@ wxpython>=4.2.3,<5.0.0
 celery>=5.5.3,<6.0.0
 redis>=6.2.0,<7.0.0
 openai>=1.86.0,<2.0.0
-accelerate>=1.7.0,<2.0.0
+accelerate>=1.7.0,<2.0.0 
+
+ruamel.yaml>=0.18.0,<1.0.0
 
 # Optional system dependencies for JPEG XL support:
 # - macOS: brew install libjxl

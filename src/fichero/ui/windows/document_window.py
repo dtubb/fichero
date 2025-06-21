@@ -15,8 +15,8 @@ from typing import Optional, Any
 import logging
 
 from ...utils import _, translator
-from ...utils.plan_manager import PlanManager
-from ...utils.app_settings import get_app_settings
+from ...config.core.plan_manager import PlanManager
+from ...config.core.settings import get_app_settings
 
 
 class FicheroDocumentWindow(toga.DocumentWindow):
@@ -36,16 +36,17 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.current_workflow = None
         
         print("🎨 Creating window content...")
-        # Create the beautiful content like the original app
         content = self._create_content()
         print("✅ Window content created successfully")
         
         print("🏗️ Initializing DocumentWindow...")
-        # Initialize the DocumentWindow with the content (like official example)
         super().__init__(
             doc=doc,
             content=content
         )
+        
+        self._setup_window_handlers()
+        
         print("✅ FicheroDocumentWindow initialized successfully")
     
     def _create_content(self):
@@ -55,20 +56,15 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._create_description_section()
         self._create_footer()
         
-        # Assemble main layout - pin footer to bottom (exactly like original)
-        main_content = toga.Box(
-            children=[
-                toga.Box(
-                    children=[
-                        self.folder_section,
-                        self.description_section,
-                    ],
-                    style=Pack(direction=COLUMN, flex=1)
-                ),
-                self.footer_section
-            ],
-            style=Pack(direction=COLUMN, flex=1)
-        )
+        # Create main sections box
+        main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        main_sections.add(self.folder_section)
+        main_sections.add(self.description_section)
+        
+        # Assemble main layout
+        main_content = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        main_content.add(main_sections)
+        main_content.add(self.footer_section)
         
         # Schedule drawing after widget creation
         self._schedule_drawing()
@@ -81,15 +77,38 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Small delay to ensure window is fully created
             await asyncio.sleep(0.1)
             try:
-                self._draw_description_text()
+                self._draw_content_text()
                 self._draw_folder_background()
                 # Initialize plan/workflow dropdown after widgets are created
                 self._initialize_plan_workflow()
+                # IMPORTANT: Restore window position AFTER window is fully shown
+                self._restore_window_position_after_show()
             except Exception as e:
-                print(f"Drawing/initialization error: {e}")
+                print(f"❌ Drawing/initialization error: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Schedule the drawing and initialization
         asyncio.create_task(draw_after_show())
+
+    def _restore_window_position_after_show(self):
+        """Restore window position after the window is fully shown and realized"""
+        try:
+            # Get saved position and size from document
+            saved_position = self._document.get_window_position()
+            saved_size = self._document.get_window_size()
+            
+            # Apply to window if not default values
+            if saved_position != (100, 100):
+                self.position = saved_position
+                print(f"🪟 Restored window position: {saved_position}")
+            
+            if saved_size != (650, 406):
+                self.size = saved_size
+                print(f"🪟 Restored window size: {saved_size}")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to restore window position after show: {e}")
 
     def _create_folder_selection_section(self):
         """Create the folder selection section with icon and rounded gray canvas background"""
@@ -254,8 +273,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             background.close_path()
 
     def _create_description_section(self):
-        """Create the description section with canvas and rounded background"""
-        description_canvas = toga.Canvas(
+        """Create the description section with canvas that can be replaced with text widget"""
+        # Description canvas (shown initially)
+        self.description_canvas = toga.Canvas(
             style=Pack(
                 margin_top=20,
                 margin_right=20,
@@ -264,33 +284,38 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 flex=1,
                 height=200,
             ),
-            on_resize=self._draw_description_text,
+            on_resize=self._draw_content_text,
             on_press=self._handle_canvas_click
         )
         
-        # Store reference for drawing
-        self.description_canvas = description_canvas
-        
-        # Container for description
+        # Container for description - will switch between canvas and text widget
         self.description_section = toga.Box(
-            children=[description_canvas],
             style=Pack(
                 direction=COLUMN,
                 margin=(0, 0, 0, 0)
             )
         )
+        self.description_section.add(self.description_canvas)
+        
+        # Track current mode
+        self._showing_log = False
 
-    def _draw_description_text(self, canvas=None, **kwargs):
-        """Draw the description text on canvas with markdown support"""
+    def _draw_content_text(self, canvas=None, **kwargs):
+        """Draw description content on canvas"""
+        if self._showing_log:
+            return  # Don't draw on canvas when showing log
+            
         if canvas is None:
             canvas = self.description_canvas
             
-        # Clear canvas
-        canvas.context.clear()
-        
-        # Draw rounded rectangle background
+        # Clear and draw description
+        with canvas.context.Fill(color='rgb(255, 255, 255)') as clear_fill:
+            clear_fill.rect(0, 0, canvas.layout.content_width, canvas.layout.content_height)
         self._draw_rounded_background(canvas)
-        
+        self._draw_description_content(canvas)
+
+    def _draw_description_content(self, canvas):
+        """Draw the description text with markdown support"""
         # Store clickable link areas for mouse handling
         self.link_areas = []
         
@@ -329,6 +354,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Parse and render this paragraph
             current_y = self._render_paragraph(canvas, paragraph, left_padding, current_y, 
                                              max_width, regular_font, bold_font, line_height_multiplier)
+
+
 
     def _draw_rounded_background(self, canvas):
         """Draw a rounded rectangle background for the canvas"""
@@ -523,6 +550,64 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 webbrowser.open(link_area['url'])
                 break
 
+    def _switch_to_log_view(self):
+        """Switch to showing log content by replacing canvas with text widget"""
+        if not self._showing_log:
+            self._showing_log = True
+            
+            # Create log text widget
+            self.log_text = toga.MultilineTextInput(
+                style=Pack(
+                    margin_top=20,
+                    margin_right=20,
+                    margin_bottom=10,
+                    margin_left=20,
+                    flex=1,
+                    height=200,
+                    font_size=10,
+                    font_family="monospace"
+                ),
+                readonly=True,
+                value="=== Processing Log ===\n\n"
+            )
+            
+            # Replace canvas with text widget using proper Toga methods
+            self.description_section.clear()
+            self.description_section.add(self.log_text)
+
+    def _switch_to_description_view(self):
+        """Switch back to showing the description"""
+        if self._showing_log:
+            self._showing_log = False
+            # Replace text widget with canvas using proper Toga methods
+            self.description_section.clear()
+            self.description_section.add(self.description_canvas)
+            self._draw_content_text()
+
+    def _log_message(self, message):
+        """Add a message to the log display"""
+        try:
+            # Switch to log view if not already showing
+            if not self._showing_log:
+                self._switch_to_log_view()
+            
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            
+            # Add timestamp and message to text widget
+            new_message = f"[{timestamp}] {message}\n"
+            current_text = self.log_text.value or ""
+            self.log_text.value = current_text + new_message
+            
+            # Auto-scroll to bottom
+            try:
+                self.log_text.selection = (len(self.log_text.value), len(self.log_text.value))
+            except:
+                pass
+            
+        except Exception as e:
+            print(f"Error logging message: {e}")
+
     def _create_footer(self):
         """Create the footer with help button, gear menu, and process controls"""
         # Left side: Help button
@@ -597,73 +682,46 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         spacer = toga.Box(style=Pack(flex=1))
         
         self.footer_section = toga.Box(
-            children=[left_section, spacer, right_section],
             style=Pack(
                 direction=ROW,
                 margin=(10, 20, 20, 20),
                 align_items=CENTER
             )
         )
+        
+        # Add children using proper Toga methods
+        self.footer_section.add(left_section)
+        self.footer_section.add(spacer)
+        self.footer_section.add(right_section)
 
     # Plan Management Methods
     
     def _initialize_plan_workflow(self):
         """Initialize default plan and workflow selection"""
         try:
-            # First, try to get the active plan from AppSettings
-            app_settings = get_app_settings(self._app)
-            active_plan_path = app_settings.get_shared_setting("active_plans")
-            
-            # Get all available plan options
+            # Get all available plan options  
             plan_options = PlanManager.get_plan_dropdown_options(self._app)
             
-            # Try to find the active plan name from the file path
-            active_plan_name = None
-            if active_plan_path:
-                try:
-                    active_plan_file = Path(active_plan_path)
-                    if active_plan_file.exists():
-                        # Extract plan name (could be filename without extension or loaded from file)
-                        active_plan_name = active_plan_file.stem
-                        # Check if this plan name is in the available options
-                        if active_plan_name not in plan_options:
-                            active_plan_name = None
-                except Exception as e:
-                    print(f"⚠️ Could not load active plan from {active_plan_path}: {e}")
-            
-            # Use active plan if found, otherwise use first available plan
-            if active_plan_name and active_plan_name in plan_options:
-                selected_plan = active_plan_name
-                print(f"📋 Using active plan from settings: {selected_plan}")
-            elif plan_options and plan_options[0] not in ["No plans found", "Error loading plans", "Manage Plans..."]:
+            # Use first available plan (Catalogue should be first)
+            if plan_options and plan_options[0] not in ["No plans found", "Error loading plans", "Manage Plans..."]:
                 selected_plan = plan_options[0]
-                print(f"📋 Using first available plan: {selected_plan}")
             else:
                 print("⚠️ No plans available")
                 return
             
-            # Set the plan in the dropdown
-            if hasattr(self, 'plan_selector'):
-                self.plan_selector.value = selected_plan
-                self.current_plan = selected_plan
-                
-                # Update workflow options for the selected plan
-                workflow_options = PlanManager.get_workflow_dropdown_options(selected_plan, self._app)
-                self.workflow_selector.items = workflow_options
-                
-                # Set first workflow as default
-                if workflow_options and workflow_options[0] not in ["Select a plan first", "No workflows in plan", "Error loading workflows"]:
-                    default_workflow = workflow_options[0]
-                    self.workflow_selector.value = default_workflow
-                    self.current_workflow = default_workflow
-                    print(f"📋 Initialized with plan: {self.current_plan}, workflow: {self.current_workflow}")
-                else:
-                    print("⚠️ No workflows available in selected plan")
-            else:
-                print("⚠️ Plan selector not available")
-                
+            # Check if widgets exist
+            if not (hasattr(self, 'plan_selector') and hasattr(self, 'workflow_selector')):
+                print("⚠️ Plan or workflow selector not available")
+                return
+            
+            # Set plan - this will trigger _on_plan_change() which handles workflow loading
+            self.plan_selector.value = selected_plan
+            # Note: _on_plan_change() will set self.current_plan and load workflows automatically
+            
         except Exception as e:
             print(f"❌ Error initializing plan/workflow: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_plan_change(self, widget):
         """Handle plan selection change"""
@@ -686,28 +744,16 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self.current_plan = selection
             self.current_workflow = None  # Reset workflow selection
             
-            # Set this plan as active in AppSettings
+            # Set this plan as active in shared data
             try:
-                app_settings = get_app_settings(self._app)
-                # Find the file path for this plan name
-                # This is a simplified approach - we could enhance PlanManager to provide file paths
-                user_plans_dir = self._app.paths.data / "plans"
-                default_plans_dir = self._app.paths.app / "resources" / "plans"
-                
-                # Try user directory first, then default directory
-                plan_file = None
-                for plans_dir in [user_plans_dir, default_plans_dir]:
-                    if plans_dir.exists():
-                        for ext in ['.yml', '.yaml', '.json']:
-                            potential_file = plans_dir / f"{selection}{ext}"
-                            if potential_file.exists():
-                                plan_file = potential_file
-                                break
-                    if plan_file:
-                        break
+                # Get the file path for this plan using PlanManager
+                plan_file = PlanManager.get_plan_file_path(selection, self._app)
                 
                 if plan_file:
-                    app_settings.set_shared_setting("active_plans", str(plan_file), immediate_save=True)
+                    # Use shared data directly instead of going through AppSettings
+                    from fichero.shared_data import get_shared_data, DataType
+                    shared_data = get_shared_data(namespace="fichero")
+                    shared_data.set(DataType.SETTINGS, "active_plans", str(plan_file))
                     print(f"✅ Set active plan: {plan_file.name}")
                 else:
                     print(f"⚠️ Could not find file for plan: {selection}")
@@ -717,20 +763,36 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
             # Update workflow dropdown with workflows for this plan
             workflow_options = PlanManager.get_workflow_dropdown_options(selection, self._app)
-            self.workflow_selector.items = workflow_options
             
-            # Auto-select first workflow if available
-            if workflow_options and workflow_options[0] not in ["Select a plan first", "No workflows in plan", "Error loading workflows"]:
-                first_workflow = workflow_options[0]
-                self.workflow_selector.value = first_workflow
-                self.current_workflow = first_workflow
-                print(f"📋 Selected plan: {self.current_plan}, auto-selected workflow: {self.current_workflow}")
+            if workflow_options:
+                self.workflow_selector.items = workflow_options
+                
+                # Auto-select "default" workflow if it exists, otherwise first valid workflow
+                if workflow_options[0] not in ["Select a plan first", "No workflows in plan", "Error loading workflows"]:
+                    # Prefer "default" workflow if available
+                    if "default" in workflow_options:
+                        selected_workflow = "default"
+                        print(f"📋 Auto-selected 'default' workflow")
+                    else:
+                        selected_workflow = workflow_options[0]
+                        print(f"📋 Auto-selected first workflow: {selected_workflow}")
+                    
+                    self.workflow_selector.value = selected_workflow
+                    self.current_workflow = selected_workflow
+                else:
+                    # Error state - show the error message
+                    self.workflow_selector.value = workflow_options[0]
+                    self.current_workflow = None
             else:
-                self.workflow_selector.value = workflow_options[0] if workflow_options else "No workflows"
-                print(f"📋 Selected plan: {self.current_plan}, no workflows available")
+                # Fallback if no options returned
+                self.workflow_selector.items = ["No workflows available"]
+                self.workflow_selector.value = "No workflows available"
+                self.current_workflow = None
             
         except Exception as e:
             print(f"❌ Error handling plan change: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_workflow_change(self, widget):
         """Handle workflow selection change"""
@@ -749,17 +811,16 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     def _open_plans_manager(self):
         """Open the plans management window"""
         try:
-            from .config_windows import create_plans_editor_window
+            from ...config.ui import create_plans_window
             
             # If we have a current plan, try to open it for editing
             plan_file = None
             if hasattr(self, 'current_plan') and self.current_plan:
-                # Get plan file path using PlanManager if method exists
-                if hasattr(PlanManager, 'get_plan_file_path'):
-                    plan_file = PlanManager.get_plan_file_path(self.current_plan, self._app)
+                # Get plan file path using PlanManager
+                plan_file = PlanManager.get_plan_file_path(self.current_plan, self._app)
             
-            plans_editor = create_plans_editor_window(self._app, plan_file)
-            plans_editor.show()
+            plans_library = create_plans_window(self._app)
+            plans_library.show()
             print(f"📝 Opening plans manager{f' for plan: {self.current_plan}' if self.current_plan else ''}")
             
             # Refresh dropdowns after plans manager closes (in case plans were modified)
@@ -773,15 +834,16 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     async def choose_folder_handler(self, widget):
         """Handle folder selection"""
         try:
-            folder_path = await self.select_folder_dialog(
+            folder_path = await self.dialog(toga.SelectFolderDialog(
                 title=_("select_folder_title")
-            )
+            ))
             
             if folder_path:
                 self.selected_folder = Path(folder_path)
                 folder_name = self.selected_folder.name
                 self.choose_folder_btn.text = f"📁 {folder_name}"
                 self.process_btn.enabled = True
+                self._log_message(f"📁 Selected folder: {self.selected_folder}")
                 print(f"📁 Selected folder: {self.selected_folder}")
             
         except Exception as e:
@@ -789,16 +851,34 @@ class FicheroDocumentWindow(toga.DocumentWindow):
 
     def help_handler(self, widget):
         """Handle help button click"""
-        print("🔘 Help button clicked - opening website")
+        # Switch back to description view when help is clicked
+        self._switch_to_description_view()
         webbrowser.open("https://www.tubb.ca/fichero/")
 
     async def process_handler(self, widget):
         """Handle process button click"""
         if not self.selected_folder:
-            print("❌ No folder selected")
+            self._log_message("❌ No folder selected")
             return
         
-        print(f"🚀 Starting processing for folder: {self.selected_folder}")
+        if not self.current_plan:
+            self._log_message("❌ No plan selected")
+            return
+        
+        # Use default workflow if none selected
+        workflow_to_use = self.current_workflow
+        if not workflow_to_use:
+            # Try to get the first available workflow from the current plan
+            workflow_options = PlanManager.get_workflow_dropdown_options(self.current_plan, self._app)
+            if workflow_options and workflow_options[0] not in ["Select a plan first", "No workflows in plan", "Error loading workflows"]:
+                workflow_to_use = workflow_options[0]
+                self._log_message(f"📋 Using default workflow: {workflow_to_use}")
+            else:
+                self._log_message("❌ No workflows available in selected plan")
+                return
+        
+        self._log_message(f"🚀 Starting processing for folder: {self.selected_folder}")
+        self._log_message(f"📋 Using plan: {self.current_plan}, workflow: {workflow_to_use}")
         
         # Start activity indicator and disable process button
         self.activity_indicator.start()
@@ -806,14 +886,116 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.process_btn.text = _("processing") + "..."
         
         try:
-            print(f"🔄 Processing folder {self.selected_folder} for document {self._document.document_id}")
-            # Simulate processing
-            await asyncio.sleep(2)
-            print("✅ Processing completed!")
+            # Get the plan file path using PlanManager
+            plan_file = PlanManager.get_plan_file_path(self.current_plan, self._app)
+            if not plan_file or not plan_file.exists():
+                raise Exception(f"Plan file not found for {self.current_plan}")
+            
+            self._log_message(f"📄 Using plan file: {plan_file}")
+            
+            # Call director processing function
+            from ... import director
+            
+            # Create a temporary output folder in the same directory as the selected folder
+            output_folder = self.selected_folder.parent / f"{self.selected_folder.name}_processed"
+            output_folder.mkdir(exist_ok=True)
+            
+            self._log_message(f"🔄 Processing folder {self.selected_folder} with plan {self.current_plan}")
+            self._log_message(f"📁 Output will be saved to: {output_folder}")
+            
+            # Prepare folders first (similar to app_old.py)
+            self._log_message("🔧 Preparing folders for processing...")
+            
+            # Check if selected folder contains subfolders (same logic as CLI)
+            subfolders = [f for f in self.selected_folder.iterdir() if f.is_dir()]
+            prepared_folders = []
+            
+            if subfolders:
+                # If input folder contains subfolders, process each subfolder individually
+                self._log_message(f"Found {len(subfolders)} subfolders to prepare")
+                
+                for folder in sorted(subfolders, key=lambda x: x.name.lower()):
+                    self._log_message(f"Preparing subfolder: {folder.name}")
+                    prepared_folder = director.prepare_folder(folder, output_folder)
+                    prepared_folders.append(prepared_folder)
+            else:
+                # If no subfolders, treat as single folder
+                self._log_message("No subfolders found, processing as single folder")
+                prepared_folder = director.prepare_folder(self.selected_folder, output_folder)
+                prepared_folders = [prepared_folder]
+            
+            self._log_message(f"✅ Prepared {len(prepared_folders)} folders for processing")
+            
+            # Create log callback function to capture director output
+            def log_callback(message):
+                self._log_message(message.rstrip('\n'))  # Remove trailing newlines
+            
+            # Call the director's processing function asynchronously with log callback
+            success = await director.process_folders_async(
+                folders=prepared_folders,
+                template_yml=plan_file,
+                workflow_name=workflow_to_use,
+                log_callback=log_callback
+            )
+            
+            if success:
+                self._log_message("✅ Processing completed successfully!")
+                self._log_message("💡 Tip: You can select a new folder to process another batch.")
+                # You might want to show a success dialog here
+            else:
+                self._log_message("❌ Processing failed!")
+                # You might want to show an error dialog here
+                
         except Exception as e:
-            print(f"❌ Error processing: {e}")
+            self._log_message(f"❌ Error processing: {e}")
+            import traceback
+            self._log_message(f"Full error: {traceback.format_exc()}")
         finally:
             # Re-enable process button
             self.activity_indicator.stop()
             self.process_btn.enabled = True
             self.process_btn.text = _("process")
+    
+    def _setup_window_position(self):
+        """Set up window position from document settings - REMOVED IMMEDIATE RESTORATION"""
+        # Position restoration now happens in _restore_window_position_after_show()
+        # This method kept for compatibility but doesn't do immediate restoration
+        pass
+    
+    def _setup_window_handlers(self):
+        """Set up window event handlers for position tracking"""
+        try:
+            # Track window position and size changes
+            def on_position_change(widget, **kwargs):
+                try:
+                    if hasattr(widget, 'position') and hasattr(widget, 'size'):
+                        self._document.save_window_position(widget.position, widget.size)
+                except Exception as e:
+                    print(f"⚠️ Error saving window position: {e}")
+            
+            # Set up close handler to save position before closing
+            def on_close_handler(widget, **kwargs):
+                try:
+                    # Save position before closing
+                    if hasattr(widget, 'position') and hasattr(widget, 'size'):
+                        self._document.save_window_position(widget.position, widget.size)
+                    
+                    # Call document's close method for blank document handling
+                    return self._document.close()
+                except Exception as e:
+                    print(f"⚠️ Error in close handler: {e}")
+                    return True  # Allow close by default
+            
+            # Assign handlers (check if they exist and aren't already set)
+            if hasattr(self, 'on_move') and not getattr(self, '_move_handler_set', False):
+                self.on_move = on_position_change
+                self._move_handler_set = True
+            if hasattr(self, 'on_resize') and not getattr(self, '_resize_handler_set', False):
+                self.on_resize = on_position_change
+                self._resize_handler_set = True
+            if hasattr(self, 'on_close') and not getattr(self, '_close_handler_set', False):
+                self.on_close = on_close_handler
+                self._close_handler_set = True
+                
+        except Exception as e:
+            print(f"⚠️ Failed to set up window handlers: {e}")

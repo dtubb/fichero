@@ -1,3 +1,15 @@
+"""
+Fichero Director
+
+This is the main core logic for Fichero. 
+It is used to process folders and documents.
+
+It is a Celery app that uses Redis for task queuing and result storage.
+It orchestraes scripts.
+It is long and complex and needs to be refactored.
+What a mess.
+"""
+
 import typer
 import yaml
 import os
@@ -29,6 +41,7 @@ import tempfile
 from pathvalidate import sanitize_filename as pv_sanitize_filename, sanitize_filepath as pv_sanitize_filepath
 import redis
 import asyncio
+import traceback
 
 def get_celery_module_name() -> str:
     """
@@ -1253,9 +1266,75 @@ def get_python_path() -> str:
     """Get the Python executable path from the current environment"""
     return sys.executable
 
+def get_backend_type() -> str:
+    """Get the processing backend type from settings (python or redis)"""
+    try:
+        # Import here to avoid circular dependencies
+        try:
+            from fichero.config.core.settings import get_app_settings
+        except ImportError:
+            # Try the src path when running from development
+            from .config.core.settings import get_app_settings
+        
+        # Try to get settings, but pass None as app instance when used standalone
+        settings = get_app_settings(app=None)
+        backend_type = settings.get_backend_type()
+        log.debug(f"Backend type from settings: {backend_type}")
+        return backend_type
+        
+    except Exception as e:
+        log.warning(f"Could not get backend type from settings: {e}")
+        # Default to python backend
+        return "python"
+
+def should_use_celery() -> bool:
+    """Check if we should use Redis+Celery or Python Manager for processing"""
+    backend = get_backend_type()
+    use_celery = backend == "redis"
+    log.debug(f"Backend: {backend}, Use Celery: {use_celery}")
+    return use_celery
+
 def get_python_env() -> Dict[str, str]:
-    """Get the current environment variables"""
-    return os.environ.copy()
+    """Get the current environment variables with API keys from settings"""
+    env = os.environ.copy()
+    
+    # Add API keys from settings if available
+    try:
+        # Import here to avoid circular dependencies
+        try:
+            from fichero.config.core.settings import get_app_settings
+        except ImportError:
+            # Try the src path when running from development
+            from .config.core.settings import get_app_settings
+        
+        # Try to get settings, but pass None as app instance when used standalone
+        settings = get_app_settings(app=None)
+        api_servers = settings.get_api_servers()
+        
+        # Set API keys as environment variables
+        if api_servers.get("openai", {}).get("api_key"):
+            env["OPENAI_API_KEY"] = api_servers["openai"]["api_key"]
+            log.debug("OpenAI API key loaded from settings")
+        
+        if api_servers.get("qwen", {}).get("api_key"):
+            env["DASHSCOPE_API_KEY"] = api_servers["qwen"]["api_key"]
+            log.debug("Qwen API key loaded from settings")
+        
+        if api_servers.get("claude", {}).get("api_key"):
+            env["ANTHROPIC_API_KEY"] = api_servers["claude"]["api_key"]
+            log.debug("Claude API key loaded from settings")
+        
+        if api_servers.get("huggingface", {}).get("api_key"):
+            env["HUGGINGFACE_TOKEN"] = api_servers["huggingface"]["api_key"]
+            log.debug("HuggingFace API key loaded from settings")
+            
+        log.debug("API keys loaded from settings into environment")
+        
+    except Exception as e:
+        log.warning(f"Could not load API keys from settings: {e}")
+        # Continue with existing environment if settings fail
+        
+    return env
 
 def run_script_directly(script_path: str, cwd: str, worker_log: logging.Logger) -> bool:
     """Run a Python script directly and return success status"""
@@ -1388,6 +1467,7 @@ def create_plan_yml(template_path: Path, target_folder: Path, output_path: Path)
         log.info("Plan.yml written successfully")
     except Exception as e:
         log.error(f"Error creating plan.yml: {str(e)}")
+        import traceback
         log.error(f"Full traceback:\n{traceback.format_exc()}")
         raise
 
@@ -1438,6 +1518,39 @@ def prepare_folder(input_folder: Path, output_folder: Path) -> Path:
     
     return output_subfolder
 
+# Add this test task right before the @celery_app.task(bind=True, name='process_folder') line
+
+@celery_app.task(bind=True, name='test_task')
+def test_task(self, message: str) -> str:
+    """Simple test task to verify Celery is working"""
+    try:
+        import time
+        import os
+        import multiprocessing
+        
+        # Basic info
+        worker_name = self.request.hostname
+        process_name = multiprocessing.current_process().name
+        pid = os.getpid()
+        
+        # Update task state
+        self.update_state(state='PROGRESS', meta={
+            'message': f'Test task running: {message}',
+            'worker': worker_name,
+            'process': process_name,
+            'pid': pid
+        })
+        
+        # Sleep briefly to simulate work
+        time.sleep(1)
+        
+        result = f'Test completed: {message} on {worker_name} (PID: {pid})'
+        return result
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Test task failed: {str(e)}\n{traceback.format_exc()}"
+        return error_msg
 
 @celery_app.task(bind=True, name='process_folder')
 def process_folder(self, folder_path: str, template_yml: str, workflow_name: str, steps: List[str] = None) -> bool:
@@ -1744,7 +1857,7 @@ def process_folders(
     input_folder: Path = typer.Argument(..., help="Folder containing images or subfolders to process"),
     output_folder: Path = typer.Argument(..., help="Base folder for output"),
     workflow_name: str = typer.Argument("default", help="Name of the workflow to run (defaults to 'default')"),
-    template_yml: Optional[Path] = typer.Option(None, help="Template plan.yml file (defaults to resources/plans/plans.yml)")
+    template_yml: Optional[Path] = typer.Option(None, help="Template plan.yml file (defaults to resources/config_defaults/plans/Default Plan.yml)")
 ):
     """
     Process folders concurrently using Celery tasks with smart scheduling.
@@ -1763,10 +1876,26 @@ def process_folders(
     """
     console = Console()
     try:
-        # Set default template path if none provided
+        # Set default template path if none provided (command-line usage)
         if template_yml is None:
-            template_yml = Path(__file__).parent / "resources" / "plans" / "plans.yml"
-            log.info(f"Using default template: {template_yml}")
+            # Try to find the first available plan for command-line usage
+            try:
+                from .config.core.plan_manager import PlanManager
+                default_plans = PlanManager.get_plan_dropdown_options(app=None)
+                if default_plans and default_plans[0] not in ["No plans found", "Error loading plans", "Manage Plans..."]:
+                    plan_file = PlanManager.get_plan_file_path(default_plans[0], app=None)
+                    if plan_file and plan_file.exists():
+                        template_yml = plan_file
+                        log.info(f"Using first available plan for command-line: {template_yml}")
+                    else:
+                        raise FileNotFoundError("No valid plan file found")
+                else:
+                    raise FileNotFoundError("No plans available")
+            except Exception as e:
+                log.warning(f"Could not find any plans: {e}")
+                # Last fallback to hardcoded path for command-line usage
+                template_yml = Path(__file__).parent / "resources" / "config_defaults" / "plans" / "Default Plan.yml"
+                log.info(f"Using hardcoded fallback template for command-line: {template_yml}")
         
         # Ensure Celery backend is properly configured
         ensure_celery_backend()
@@ -2030,7 +2159,7 @@ def example():
     - WORKFLOW_NAME: Name of the workflow to run (defaults to 'default')
 
     [yellow]Options:[/yellow]
-    --template-yml: Template plan.yml file (defaults to resources/plans/plans.yml)
+            --template-yml: Template plan.yml file (defaults to resources/config_defaults/plans/Default Plan.yml)
     """)
 
 @cli.command()

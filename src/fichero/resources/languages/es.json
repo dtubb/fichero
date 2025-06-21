@@ -26,5 +26,28 @@
   "menu_minimize": "Minimizar",
   "menu_close": "Cerrar Ventana",
   
-  "about_acknowledgments": "[Fichero](http://www.tubb.ca/fichero/) transcribe y cataloga automáticamente archivos históricos utilizando modelos de lenguaje visual grande e inteligencia artificial, ejecutándose localmente o en la nube.\n\n## preguntas\n**email** daniel@tubb.ca\n**sitio web** [https://www.tubb.ca/fichero/](https://www.tubb.ca/fichero/)\n\n## programación\nDaniel Tubb\nAndrew Janco\n\n*Daniel programó con [Cursor, el editor de código IA](https://www.cursor.com), con ayuda de [Claude Sonnet](https://www.anthropic.com/claude/sonnet). Andy sabe lo que hace.*\n\n## probadores y colaboradores\nAnn Farnsworth-Alvear\nKelly López Roldán\nJavier R. Ardila\n\n## bibliotecas y dependencias\n[Python Software Foundation](https://python.org) \n[Toga GUI Toolkit](https://github.com/beeware/toga)\n[Briefcase](https://github.com/beeware/briefcase) \n\n## inspiración de interfaz de usuario\n[John Siracusa](https://hypercritical.co) por la inspiración de interfaz Hyperspace\n[Bare Bones Software](https://barebones.com) por el diseño del diálogo acerca de BBEdit\n\n## licencia\nEste software se publica bajo una licencia de código abierto.\n\nCódigo fuente disponible en: [https://github.com/dtubb/fichero](https://github.com/dtubb/fichero)\n\nReportar errores y contribuir en:\n[https://github.com/dtubb/fichero/issues](https://github.com/dtubb/fichero/issues)\n\n© 2025 Daniel Tubb\nTodos los derechos reservados."
+  "menu_new_document": "Nuevo Documento",
+  "menu_open_document": "Abrir…",
+  "menu_save_document": "Guardar",
+  "menu_save_document_as": "Guardar Como…",
+  "menu_edit_processing_plans": "Planes de Procesamiento…",
+  "menu_document_plans": "Planes de Documento…",
+  "menu_document_settings": "Configuración de Documento…",
+  "menu_global_plans_template": "Plantilla de Planes Globales…",
+  "menu_llm_config_editor": "Configuración de LLM…",
+  "menu_plans": "Planes…",
+  "menu_prompts": "Prompts…",
+  "menu_open_recent": "Abrir Recientes",
+  "menu_no_recent_documents": "No Hay Documentos Recientes",
+  "menu_clear_recent_documents": "Limpiar Documentos Recientes",
+  "select_folder_title": "Seleccionar Carpeta para Procesar",
+  
+  "about_acknowledgments": "[Fichero](http://www.tubb.ca/fichero/) transcribe y cataloga automáticamente archivos históricos utilizando modelos de lenguaje visual grande e inteligencia artificial, ejecutándose localmente o en la nube.\n\n## preguntas\n**email** daniel@tubb.ca\n**sitio web** [https://www.tubb.ca/fichero/](https://www.tubb.ca/fichero/)\n\n## programación\nDaniel Tubb\nAndrew Janco\n\n*Daniel programó con [Cursor, el editor de código IA](https://www.cursor.com), con ayuda de [Claude Sonnet](https://www.anthropic.com/claude/sonnet). Andy sabe lo que hace.*\n\n## probadores y colaboradores\nAnn Farnsworth-Alvear\nKelly López Roldán\nJavier R. Ardila\n\n## bibliotecas y dependencias\n[Python Software Foundation](https://python.org) \n[Toga GUI Toolkit](https://github.com/beeware/toga)\n[Briefcase](https://github.com/beeware/briefcase) \n\n## inspiración de interfaz de usuario\n[John Siracusa](https://hypercritical.co) por la inspiración de interfaz Hyperspace\n[Bare Bones Software](https://barebones.com) por el diseño del diálogo acerca de BBEdit\n\n## licencia\nEste software se publica bajo una licencia de código abierto.\n\nCódigo fuente disponible en: [https://github.com/dtubb/fichero](https://github.com/dtubb/fichero)\n\nReportar errores y contribuir en:\n[https://github.com/dtubb/fichero/issues](https://github.com/dtubb/fichero/issues)\n\n© 2025 Daniel Tubb\nTodos los derechos reservados.",
+  
+  "app_preferences": "Preferencias",
+  "api_servers": "Servidores API", 
+  "advanced": "Avanzado",
+  "worker_performance": "Rendimiento de Trabajadores",
+  "cancel": "Cancelar",
+  "save": "Guardar"
 } 
