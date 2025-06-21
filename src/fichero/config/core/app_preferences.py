@@ -12,6 +12,72 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def discover_app_data_directory(app=None) -> Path:
+    """
+    Discover the app data directory using Toga-compatible approach
+    
+    This follows the same pattern as shared_data backends:
+    1. Use app.paths.data if available (Toga app context)
+    2. Try to find existing Toga data directory
+    3. Fallback to user home directory
+    """
+    # 1. Use Toga app paths if available
+    if app and hasattr(app, 'paths') and hasattr(app.paths, 'data'):
+        return app.paths.data
+    
+    # 2. Try to find existing Toga data directories
+    # Toga typically creates directories in platform-specific locations
+    try:
+        import platform
+        import glob
+        
+        if platform.system() == "Darwin":  # macOS
+            # Look for any existing Fichero app data in standard location
+            app_support = Path.home() / "Library" / "Application Support"
+            if app_support.exists():
+                # Look for directories that might be Fichero's
+                patterns = [
+                    "*.fichero*",  # Any directory containing "fichero"
+                    "*fichero*",   # Case variations
+                    "*Fichero*"
+                ]
+                for pattern in patterns:
+                    matches = list(app_support.glob(pattern))
+                    for match in matches:
+                        if match.is_dir():
+                            # Check if it looks like a Fichero data directory
+                            if (match / "app_preferences.json").exists() or \
+                               (match / "settings").exists() or \
+                               (match / "shared_data").exists():
+                                return match
+        
+        elif platform.system() == "Windows":
+            # Windows: %APPDATA%
+            appdata = Path.home() / "AppData" / "Roaming"
+            if appdata.exists():
+                for pattern in ["*fichero*", "*Fichero*"]:
+                    matches = list(appdata.glob(pattern))
+                    for match in matches:
+                        if match.is_dir() and (match / "app_preferences.json").exists():
+                            return match
+        
+        elif platform.system() == "Linux":
+            # Linux: ~/.local/share
+            local_share = Path.home() / ".local" / "share"
+            if local_share.exists():
+                for pattern in ["*fichero*", "*Fichero*"]:
+                    matches = list(local_share.glob(pattern))
+                    for match in matches:
+                        if match.is_dir() and (match / "app_preferences.json").exists():
+                            return match
+    
+    except Exception as e:
+        logger.debug(f"Could not discover existing app data directory: {e}")
+    
+    # 3. Fallback to user home directory (same as shared_data backend)
+    return Path.home() / ".fichero"
+
+
 class AppPreferences:
     """Manages app preferences and state that users don't directly edit"""
     
@@ -22,12 +88,8 @@ class AppPreferences:
     
     def _get_preferences_file_path(self) -> Path:
         """Get the path to the app preferences file"""
-        if self.app and hasattr(self.app, 'paths'):
-            # Use app's data directory if available
-            return self.app.paths.data / "app_preferences.json"
-        else:
-            # Fallback to user home directory
-            return Path.home() / ".fichero" / "app_preferences.json"
+        app_data_dir = discover_app_data_directory(self.app)
+        return app_data_dir / "app_preferences.json"
     
     def _load_preferences(self) -> Dict[str, Any]:
         """Load preferences from file"""

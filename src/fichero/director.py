@@ -1163,8 +1163,13 @@ def smart_copy(src: Path, dst: Path) -> None:
     
     # If source is a file, copy it directly
     if src.is_file():
+        # Ensure destination filename is sanitized
+        if dst.name != sanitize_filename(dst.name):
+            sanitized_dst = dst.parent / sanitize_filename(dst.name)
+            log.info(f"Sanitizing destination filename: {dst.name} -> {sanitized_dst.name}")
+            dst = sanitized_dst
         shutil.copy2(str(src), str(dst))
-        log.info(f"Copied file: {src.name}")
+        log.info(f"Copied file: {src.name} -> {dst.name}")
         return
     
     # If source is a directory, copy its contents
@@ -1295,62 +1300,64 @@ def should_use_celery() -> bool:
     return use_celery
 
 def get_python_env() -> Dict[str, str]:
-    """Get the current environment variables with API keys from settings"""
-    env = os.environ.copy()
+    """Get minimal environment for subprocess execution with API key fallback"""
+    # Return minimal environment - tools get API keys via shared data system
+    # Only preserve essential system environment variables
+    essential_vars = ['PATH', 'PYTHONPATH', 'HOME', 'USER', 'SHELL']
+    env = {var: os.environ.get(var, '') for var in essential_vars if var in os.environ}
     
-    # Add API keys from settings if available
-    try:
-        # Import here to avoid circular dependencies
-        try:
-            from fichero.config.core.settings import get_app_settings
-        except ImportError:
-            # Try the src path when running from development
-            from .config.core.settings import get_app_settings
-        
-        # Try to get settings, but pass None as app instance when used standalone
-        settings = get_app_settings(app=None)
-        api_servers = settings.get_api_servers()
-        
-        # Set API keys as environment variables
-        if api_servers.get("openai", {}).get("api_key"):
-            env["OPENAI_API_KEY"] = api_servers["openai"]["api_key"]
-            log.debug("OpenAI API key loaded from settings")
-        
-        if api_servers.get("qwen", {}).get("api_key"):
-            env["DASHSCOPE_API_KEY"] = api_servers["qwen"]["api_key"]
-            log.debug("Qwen API key loaded from settings")
-        
-        if api_servers.get("claude", {}).get("api_key"):
-            env["ANTHROPIC_API_KEY"] = api_servers["claude"]["api_key"]
-            log.debug("Claude API key loaded from settings")
-        
-        if api_servers.get("huggingface", {}).get("api_key"):
-            env["HUGGINGFACE_TOKEN"] = api_servers["huggingface"]["api_key"]
-            log.debug("HuggingFace API key loaded from settings")
-            
-        log.debug("API keys loaded from settings into environment")
-        
-    except Exception as e:
-        log.warning(f"Could not load API keys from settings: {e}")
-        # Continue with existing environment if settings fail
-        
+    # Ensure the fichero module can be imported by adding src directory to PYTHONPATH
+    src_dir = str(Path(__file__).parent.parent)  # Get the src directory (parent of fichero)
+    current_pythonpath = env.get('PYTHONPATH', '')
+    if current_pythonpath:
+        env['PYTHONPATH'] = f"{src_dir}:{current_pythonpath}"
+    else:
+        env['PYTHONPATH'] = src_dir
+    log.info(f"🐍 Set PYTHONPATH for subprocess: {env['PYTHONPATH']}")
+    
+    # Ensure Homebrew paths are available for Tesseract OCR
+    if 'PATH' in env:
+        homebrew_paths = ['/opt/homebrew/bin', '/usr/local/bin']
+        current_path = env['PATH']
+        for hb_path in homebrew_paths:
+            if hb_path not in current_path:
+                env['PATH'] = f"{hb_path}:{current_path}"
+                current_path = env['PATH']
+    
+    # Remove the API key environment variable fallback - focusing on Redis/shared data access
+    log.info(f"🔧 Environment prepared with {len(env)} variables (no API key fallback - using Redis)")
+    
     return env
 
 def run_script_directly(script_path: str, cwd: str, worker_log: logging.Logger) -> bool:
     """Run a Python script directly and return success status"""
     try:
-        # Get the current Python executable
-        python_exe = get_python_path()
-        worker_log.info(f"Using Python: {python_exe}")
-        
-        # Get current environment
+        # Get minimal environment for subprocess
         env = get_python_env()
+        worker_log.debug(f"Subprocess environment prepared with {len(env)} essential variables")
         
-        # Use Popen to get process handle for cleanup
+        # Log PYTHONPATH for debugging
+        worker_log.info(f"🐍 Subprocess PYTHONPATH: {env.get('PYTHONPATH', 'Not set')}")
+        
+        # Parse the script command to avoid shell=True
+        parts = script_path.split()
+        if len(parts) < 2:
+            raise ValueError(f"Invalid script command: {script_path}")
+        
+        # Replace 'python' with the actual Python executable path
+        python_exe = get_python_path()
+        if parts[0] == 'python':
+            cmd = [python_exe] + parts[1:]
+        else:
+            cmd = parts
+        
+        worker_log.info(f"Executing command: {cmd}")
+        
+        # Use Popen WITHOUT shell=True to ensure environment variables are passed correctly
         process = subprocess.Popen(
-            script_path,
+            cmd,
             text=True,
-            shell=True,
+            shell=False,  # Changed from True to False
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -1384,7 +1391,7 @@ def run_script_directly(script_path: str, cwd: str, worker_log: logging.Logger) 
         return False
 
 def expand_vars(text: str, vars_dict: Dict) -> str:
-    """Expand variables in text using the vars dictionary"""
+    """Expand variables in text using the vars dictionary and environment variables"""
     def expand_nested(value):
         if isinstance(value, str):
             # First pass: expand direct variables
@@ -1411,6 +1418,9 @@ def expand_vars(text: str, vars_dict: Dict) -> str:
     for key, value in expanded_vars.items():
         result = result.replace(f"${{{key}}}", str(value))
         result = result.replace(f"${{vars.{key}}}", str(value))
+    
+    # Note: Environment variable expansion removed - no backward compatibility needed
+    # Plan.yml files should use vars_dict variables only
     
     # Convert relative paths to absolute paths
     if result.startswith("python "):
@@ -1486,9 +1496,14 @@ def prepare_folder(input_folder: Path, output_folder: Path) -> Path:
     Prepare a folder for processing by creating the required structure and copying files.
     Returns the path to the prepared folder.
     """
-    # Create output folder with same name as input folder
-    output_subfolder = output_folder / input_folder.name
+    # Create output folder with sanitized name
+    sanitized_folder_name = sanitize_path(input_folder.name)
+    output_subfolder = output_folder / sanitized_folder_name
     output_subfolder.mkdir(parents=True, exist_ok=True)
+    
+    # Log the sanitization if name changed
+    if sanitized_folder_name != input_folder.name:
+        log.info(f"Sanitized folder name: '{input_folder.name}' -> '{sanitized_folder_name}'")
     
     # Create assets folder
     assets_folder = output_subfolder / "assets"
@@ -1504,17 +1519,22 @@ def prepare_folder(input_folder: Path, output_folder: Path) -> Path:
         if item.name == '.DS_Store':
             continue
         if item.is_file():
-            smart_copy(item, documents_folder / item.name)
+            # Sanitize filename before copying
+            sanitized_name = sanitize_filename(item.name)
+            smart_copy(item, documents_folder / sanitized_name)
         elif item.is_dir():
             # For subdirectories, copy their contents
-            target_dir = documents_folder / item.name
+            sanitized_dir_name = sanitize_path(item.name)
+            target_dir = documents_folder / sanitized_dir_name
             target_dir.mkdir(exist_ok=True)
             for subitem in item.iterdir():
                 # Skip .DS_Store files in subdirectories too
                 if subitem.name == '.DS_Store':
                     continue
                 if subitem.is_file():
-                    smart_copy(subitem, target_dir / subitem.name)
+                    # Sanitize filename before copying
+                    sanitized_subname = sanitize_filename(subitem.name)
+                    smart_copy(subitem, target_dir / sanitized_subname)
     
     return output_subfolder
 
@@ -1599,6 +1619,15 @@ def process_folder(self, folder_path: str, template_yml: str, workflow_name: str
         # Store the actual queue name for counting, but display the friendly name
         update_status(folder_name, queue_name, "Starting", "Initializing")
         worker_log.info(f"Starting processing on {display_worker} worker")
+        
+        # Verify shared data backend is available for API key access
+        try:
+            from fichero.shared_data import get_shared_data
+            shared_data = get_shared_data()
+            worker_log.info(f"✅ Shared data backend available: {shared_data.backend_name}")
+        except Exception as e:
+            worker_log.warning(f"⚠️  Shared data backend not available: {e}")
+            worker_log.info("Tools will fall back to CLI arguments and environment variables")
         
         # Create plan.yml for this folder
         plan_yml = folder_path / "plan.yml"
@@ -1759,9 +1788,13 @@ def ensure_workers_running():
         
         log.info(f"Starting {cpu_workers} CPU workers and {io_workers} I/O workers")
         
+        # Get the directory where fichero module is located (src directory)
+        src_dir = Path(__file__).parent.parent
+        log.info(f"Running celery commands from directory: {src_dir}")
+        
         # Start CPU worker
         cpu_worker_cmd = [
-            'celery', '-A', 'fichero.director', 'worker',
+            'python', '-m', 'celery', '-A', 'fichero.director', 'worker',
             '-Q', 'cpu_intensive',
             '-n', 'cpu_worker@%h',
             '-c', str(cpu_workers),
@@ -1771,11 +1804,11 @@ def ensure_workers_running():
             '--detach'  # Run in background
         ]
         log.info(f"Starting CPU worker with command: {' '.join(cpu_worker_cmd)}")
-        subprocess.run(cpu_worker_cmd, check=True)
+        subprocess.run(cpu_worker_cmd, cwd=src_dir, check=True)
         
         # Start IO worker
         io_worker_cmd = [
-            'celery', '-A', 'fichero.director', 'worker',
+            'python', '-m', 'celery', '-A', 'fichero.director', 'worker',
             '-Q', 'io_intensive',
             '-n', 'io_worker@%h',
             '-c', str(io_workers),
@@ -1785,7 +1818,7 @@ def ensure_workers_running():
             '--detach'  # Run in background
         ]
         log.info(f"Starting I/O worker with command: {' '.join(io_worker_cmd)}")
-        subprocess.run(io_worker_cmd, check=True)
+        subprocess.run(io_worker_cmd, cwd=src_dir, check=True)
         
         # Wait for workers to start
         log.info("Waiting for workers to start...")
@@ -1798,7 +1831,8 @@ def ensure_workers_running():
             try:
                 # Check worker status
                 result = subprocess.run(
-                    ['celery', '-A', 'fichero.director', 'status'],
+                    ['python', '-m', 'celery', '-A', 'fichero.director', 'status'],
+                    cwd=src_dir,
                     capture_output=True,
                     text=True,
                     check=True
@@ -1916,6 +1950,15 @@ def process_folders(
         # Ensure Redis and Celery workers are running
         ensure_workers_running()
         
+        # Initialize shared data backend for API key distribution
+        try:
+            from fichero.shared_data import get_shared_data
+            shared_data = get_shared_data()
+            log.info(f"✅ Shared data backend initialized: {shared_data.backend_name}")
+        except Exception as e:
+            log.warning(f"⚠️  Shared data backend initialization failed: {e}")
+            log.info("Tools will fall back to CLI arguments and environment variables")
+        
         # Validate inputs
         if not template_yml.exists():
             raise typer.BadParameter(f"Template file {template_yml} does not exist")
@@ -1986,6 +2029,21 @@ def process_folders(
                 else:
                     io_steps.append(step)
         
+        # Track per-folder phases to ensure proper CPU → IO dependency
+        folder_phases = {}
+        for folder in prepared_folders:
+            if cpu_steps and io_steps:
+                folder_phases[folder.name] = "cpu"  # Start with CPU phase
+            elif cpu_steps:
+                folder_phases[folder.name] = "cpu_only"  # CPU only workflow
+            elif io_steps:
+                folder_phases[folder.name] = "io_only"  # IO only workflow
+            else:
+                folder_phases[folder.name] = "completed"  # No steps
+        
+        log.info(f"Workflow phases: CPU steps: {len(cpu_steps)}, IO steps: {len(io_steps)}")
+        log.info(f"Folder phases initialized: {dict(folder_phases)}")
+        
         # Process folders
         active_tasks = {}
         active_task_ids = set()
@@ -1996,7 +2054,8 @@ def process_folders(
         max_io_tasks = 8   # IO tasks are less memory intensive
         
         with Live(create_status_table(), refresh_per_second=1) as live:
-            while prepared_folders or active_tasks:
+            while (prepared_folders or active_tasks or 
+                   any(phase not in ["completed", "failed"] for phase in folder_phases.values())):
                 # Update status table
                 live.update(create_status_table())
                 
@@ -2008,7 +2067,19 @@ def process_folders(
                     
                     if result.ready():
                         if result.successful():
-                            completed_folders.add(folder_name)
+                            # Update folder phase when task completes
+                            current_phase = folder_phases.get(folder_name)
+                            if current_phase == "cpu":
+                                if io_steps:
+                                    folder_phases[folder_name] = "io"  # Advance to IO phase
+                                    log.info(f"Folder {folder_name} completed CPU phase, advancing to IO phase")
+                                else:
+                                    folder_phases[folder_name] = "completed"  # No IO phase
+                                    completed_folders.add(folder_name)
+                            elif current_phase in ["io", "cpu_only", "io_only"]:
+                                folder_phases[folder_name] = "completed"
+                                completed_folders.add(folder_name)
+                            
                             completed_tasks.append(folder_name)
                             if task_info['queue'] == 'cpu_intensive':
                                 current_cpu_tasks -= 1
@@ -2017,6 +2088,7 @@ def process_folders(
                         else:
                             error_msg = f"Task failed: {result.result}"
                             update_status(folder_name, task_info['queue'], "Failed", error_msg)
+                            folder_phases[folder_name] = "failed"
                             completed_tasks.append(folder_name)
                             if task_info['queue'] == 'cpu_intensive':
                                 current_cpu_tasks -= 1
@@ -2025,16 +2097,38 @@ def process_folders(
                 
                 # Remove completed tasks
                 for folder_name in completed_tasks:
-                    del active_tasks[folder_name]
-                    active_task_ids.discard(task_info['task_id'])
+                    # Remove task_id first before deleting from active_tasks
+                    if folder_name in active_tasks:
+                        active_task_ids.discard(active_tasks[folder_name]['task_id'])
+                        del active_tasks[folder_name]
                 
-                # Submit new tasks if we have capacity
-                if prepared_folders:
-                    # Try to submit CPU task first
-                    if current_cpu_tasks < max_cpu_tasks and cpu_steps:
-                        folder = prepared_folders.pop(0)
-                        folder_name = folder.name
+                # Submit new tasks if we have capacity - check per-folder phases
+                folders_to_process = []
+                
+                # Find folders ready for their next phase
+                for folder in prepared_folders[:]:  # Use slice to avoid modification during iteration
+                    folder_name = folder.name
+                    current_phase = folder_phases.get(folder_name, "completed")
+                    
+                    # Check if folder is ready for CPU phase
+                    if (current_phase in ["cpu", "cpu_only"] and 
+                        current_cpu_tasks < max_cpu_tasks and 
+                        cpu_steps and 
+                        folder_name not in active_tasks):
+                        folders_to_process.append((folder, "cpu"))
                         
+                    # Check if folder is ready for IO phase  
+                    elif (current_phase in ["io", "io_only"] and 
+                          current_io_tasks < max_io_tasks and 
+                          io_steps and 
+                          folder_name not in active_tasks):
+                        folders_to_process.append((folder, "io"))
+                
+                # Submit tasks for ready folders
+                for folder, phase in folders_to_process:
+                    folder_name = folder.name
+                    
+                    if phase == "cpu":
                         # Submit CPU task
                         task = process_folder.apply_async(
                             args=[str(folder), str(template_yml), workflow_name],
@@ -2050,12 +2144,8 @@ def process_folders(
                         }
                         current_cpu_tasks += 1
                         log.info(f"Submitted CPU task for {folder_name}")
-                    
-                    # If no CPU steps or CPU queue is full, try IO task
-                    elif current_io_tasks < max_io_tasks:
-                        folder = prepared_folders.pop(0)
-                        folder_name = folder.name
                         
+                    elif phase == "io":
                         # Submit IO task
                         task = process_folder.apply_async(
                             args=[str(folder), str(template_yml), workflow_name],
@@ -2071,13 +2161,20 @@ def process_folders(
                         }
                         current_io_tasks += 1
                         log.info(f"Submitted IO task for {folder_name}")
+                        
+                    # Break if we've reached capacity
+                    if (current_cpu_tasks >= max_cpu_tasks and 
+                        current_io_tasks >= max_io_tasks):
+                        break
                 
                 # Small delay to prevent CPU spinning
                 time.sleep(0.1)
         
         # Final status update
         console.print("\n[green]Processing completed![/green]")
-        console.print(f"Successfully processed {len(completed_folders)} folders")
+        completed_count = sum(1 for phase in folder_phases.values() if phase == "completed")
+        failed_count = sum(1 for phase in folder_phases.values() if phase == "failed")
+        console.print(f"Successfully processed {completed_count} folders, {failed_count} failed")
         
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
@@ -2314,9 +2411,12 @@ def reset_workers(
         # Get the correct module name for Celery
         celery_module = get_celery_module_name()
         
+        # Get the directory where fichero module is located (src directory)
+        src_dir = Path(__file__).parent.parent
+        
         # Start CPU worker
         cpu_worker_cmd = [
-            'celery', '-A', celery_module, 'worker',
+            'python', '-m', 'celery', '-A', celery_module, 'worker',
             '-Q', 'cpu_intensive',
             '-n', 'cpu_worker@%h',
             '-c', str(cpu_workers),
@@ -2325,11 +2425,11 @@ def reset_workers(
             '--logfile=cpu_worker.log',
             '--detach'  # Run in background
         ]
-        subprocess.run(cpu_worker_cmd, check=True)
+        subprocess.run(cpu_worker_cmd, cwd=src_dir, check=True)
         
         # Start IO worker
         io_worker_cmd = [
-            'celery', '-A', celery_module, 'worker',
+            'python', '-m', 'celery', '-A', celery_module, 'worker',
             '-Q', 'io_intensive',
             '-n', 'io_worker@%h',
             '-c', str(io_workers),
@@ -2338,7 +2438,7 @@ def reset_workers(
             '--logfile=io_worker.log',
             '--detach'  # Run in background
         ]
-        subprocess.run(io_worker_cmd, check=True)
+        subprocess.run(io_worker_cmd, cwd=src_dir, check=True)
         
         # Wait for workers to start
         console.print("[yellow]Waiting for workers to start...[/yellow]")
@@ -2350,7 +2450,8 @@ def reset_workers(
             try:
                 # Check worker status
                 result = subprocess.run(
-                    ['celery', '-A', celery_module, 'status'],
+                    ['python', '-m', 'celery', '-A', celery_module, 'status'],
+                    cwd=src_dir,
                     capture_output=True,
                     text=True,
                     check=True

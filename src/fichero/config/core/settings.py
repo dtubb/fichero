@@ -98,6 +98,10 @@ class AppSettings:
                 settings = ConfigLoader.load_config_file(active_file)
                 self._decrypt_api_keys(settings)  # Decrypt after loading
                 logger.info(f"Loaded settings from active file: {active_file.name}")
+                
+                # Sync API keys to shared data for cross-process access
+                self._sync_api_keys_to_shared_data(settings)
+                
                 return settings
         except Exception as e:
             logger.warning(f"Failed to load from active settings file: {e}")
@@ -131,7 +135,8 @@ class AppSettings:
         # 4. Calculate worker defaults if not set
         self._ensure_worker_defaults(settings)
         
-        # 5. Environment variables are only set by director.py when spawning workers
+        # 5. Sync API keys to shared data for cross-process access
+        self._sync_api_keys_to_shared_data(settings)
         
         return settings
     
@@ -226,6 +231,33 @@ class AppSettings:
         except:
             return False
     
+    def _sync_api_keys_to_shared_data(self, settings: Dict):
+        """Sync API keys to shared data for cross-process access"""
+        try:
+            from fichero.shared_data import get_shared_data
+            
+            # Use the backend preference from settings to avoid creating wrong global instance
+            backend_type = settings.get("workers", {}).get("backend", "python")
+            prefer_backend = "redis" if backend_type == "redis" else "manager"
+            
+            shared_data = get_shared_data(prefer_backend=prefer_backend)
+            
+            api_servers = settings.get("api_servers", {})
+            logger.info(f"Syncing API keys to shared data ({shared_data.backend_name}) for {len(api_servers)} providers")
+            
+            for provider, config in api_servers.items():
+                api_key = config.get("api_key")
+                if api_key and api_key.strip():
+                    # Store as structured setting: "api_key:provider" (permanent)
+                    shared_data.set_setting(f"api_key:{provider}", api_key)
+                    logger.info(f"✅ Synced {provider} API key to shared data")
+                else:
+                    logger.debug(f"⚠️ Skipping {provider} - empty or missing API key")
+        except Exception as e:
+            logger.error(f"❌ Failed to sync API keys to shared data: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+    
     # Convenience getter methods
     def get_worker_config(self) -> Dict:
         """Get worker configuration"""
@@ -260,6 +292,41 @@ class AppSettings:
     def get_backend_type(self) -> str:
         """Get the processing backend type (python or redis)"""
         return self.get_worker_config().get("backend", "python")
+    
+    def save_settings(self, file_path: Path, data: Dict[str, Any]) -> bool:
+        """Save settings with API key encryption"""
+        try:
+            # Create a copy to avoid modifying the original data
+            encrypted_data = data.copy()
+            
+            # Encrypt API keys before saving
+            self._encrypt_api_keys(encrypted_data)
+            
+            # Save using ConfigLoader
+            from .loader import ConfigLoader
+            ConfigLoader.save_config_file(file_path, encrypted_data)
+            
+            logger.info(f"✅ Saved settings with encrypted API keys to: {file_path.name}")
+            
+            # Update our internal settings and sync to shared data
+            self.settings = data  # Keep unencrypted version in memory
+            self._sync_api_keys_to_shared_data(self.settings)
+            
+            # Update active file reference
+            try:
+                from .app_preferences import get_app_preferences
+                app_prefs = get_app_preferences(self.app)
+                app_prefs.set_active_settings_file(file_path)
+            except Exception as e:
+                logger.warning(f"Failed to update active settings file reference: {e}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save settings: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
 
 
 # Global settings instance (will be initialized when needed)

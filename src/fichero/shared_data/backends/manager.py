@@ -19,11 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class ManagerStorageBackend(BaseStorageBackend):
-    """Python Manager backend for shared data storage with TTL and persistence"""
+    """Python Manager backend for shared data storage with persistence"""
     
-    def __init__(self, namespace: str = "fichero", default_ttl: Optional[int] = None, 
-                 data_dir: Optional[Path] = None):
-        super().__init__(namespace, default_ttl, data_dir)
+    def __init__(self, namespace: str = "fichero", data_dir: Optional[Path] = None, app=None):
+        super().__init__(namespace, data_dir, app)
         self.backend_name = "manager"
         self._init_manager()
         self._load_persisted_data()
@@ -32,39 +31,17 @@ class ManagerStorageBackend(BaseStorageBackend):
         """Initialize multiprocessing.Manager backend"""
         self.manager = Manager()
         self.store = self.manager.dict()
-        self.ttl_store = self.manager.dict()
         logger.info("SharedDataManager using multiprocessing.Manager backend")
     
-    def _is_expired(self, key: str) -> bool:
-        """Check if key is expired"""
-        ttl_key = f"ttl:{key}"
-        if ttl_key not in self.ttl_store:
-            return False
-        return time.time() > self.ttl_store[ttl_key]
+
     
-    def _cleanup_expired(self, key: str) -> bool:
-        """Remove expired key"""
-        if self._is_expired(key):
-            ttl_key = f"ttl:{key}"
-            if key in self.store:
-                del self.store[key]
-            if ttl_key in self.ttl_store:
-                del self.ttl_store[ttl_key]
-            return True
-        return False
-    
-    def set(self, data_type: DataType, key: str, value: Any, ttl: Optional[int] = None, 
-            immediate_save: bool = False) -> bool:
+    def set(self, data_type: DataType, key: str, value: Any, immediate_save: bool = False) -> bool:
         """Set data in Manager store"""
         try:
             namespaced_key = self._make_key(data_type, key)
             serialized_value = self._serialize(value)
-            effective_ttl = ttl or self.default_ttl
             
             self.store[namespaced_key] = serialized_value
-            if effective_ttl:
-                ttl_key = f"ttl:{namespaced_key}"
-                self.ttl_store[ttl_key] = time.time() + effective_ttl
             
             # Immediate save for critical data (like settings changes)
             if immediate_save:
@@ -80,9 +57,6 @@ class ManagerStorageBackend(BaseStorageBackend):
         try:
             namespaced_key = self._make_key(data_type, key)
             
-            if self._cleanup_expired(namespaced_key):
-                return default
-            
             val = self.store.get(namespaced_key, default)
             if val == default:
                 return default
@@ -95,17 +69,12 @@ class ManagerStorageBackend(BaseStorageBackend):
         """Delete data from Manager store"""
         try:
             namespaced_key = self._make_key(data_type, key)
-            success = False
             
             if namespaced_key in self.store:
                 del self.store[namespaced_key]
-                success = True
+                return True
             
-            ttl_key = f"ttl:{namespaced_key}"
-            if ttl_key in self.ttl_store:
-                del self.ttl_store[ttl_key]
-            
-            return success
+            return False
         except Exception as e:
             logger.error(f"Failed to delete {data_type.value} key {key}: {e}")
             return False
@@ -119,7 +88,6 @@ class ManagerStorageBackend(BaseStorageBackend):
             
             for key in all_keys:
                 if key.startswith(prefix):
-                    if not self._cleanup_expired(key):
                         clean_key = key.replace(prefix, "", 1)
                         if pattern == "*" or pattern in clean_key:
                             filtered_keys.append(clean_key)
@@ -136,7 +104,6 @@ class ManagerStorageBackend(BaseStorageBackend):
         try:
             info.update({
                 "total_keys": len(self.store),
-                "total_ttl_entries": len(self.ttl_store),
             })
         except Exception as e:
             logger.error(f"Failed to get Manager info: {e}")
@@ -173,26 +140,13 @@ class ManagerStorageBackend(BaseStorageBackend):
                         for entry in entries:
                             key = entry.get("key")
                             value = entry.get("value")
-                            ttl = entry.get("ttl")
-                            created_at = entry.get("created_at", time.time())
                             
                             if not key:
                                 continue  # Skip invalid entries
                             
-                            # Check if expired
-                            if ttl and (time.time() - created_at) > ttl:
-                                continue  # Skip expired entries
-                            
                             # Store the value
                             namespaced_key = self._make_key(data_type, key)
                             self.store[namespaced_key] = self._serialize(value)
-                            
-                            # Set TTL if specified
-                            if ttl:
-                                remaining_ttl = ttl - (time.time() - created_at)
-                                if remaining_ttl > 0:
-                                    ttl_key = f"ttl:{namespaced_key}"
-                                    self.ttl_store[ttl_key] = time.time() + remaining_ttl
                                     
                     except Exception as e:
                         logger.warning(f"Failed to load {data_type.value} data from {persistence_file}: {e}")
@@ -217,18 +171,8 @@ class ManagerStorageBackend(BaseStorageBackend):
                         if value is not None:
                             entry = {
                                 "key": key,
-                                "value": value,
-                                "created_at": time.time()
+                                "value": value
                             }
-                            
-                            # Check if there's a TTL
-                            namespaced_key = self._make_key(dt, key)
-                            ttl_key = f"ttl:{namespaced_key}"
-                            if ttl_key in self.ttl_store:
-                                remaining_time = self.ttl_store[ttl_key] - time.time()
-                                if remaining_time > 0:
-                                    entry["ttl"] = remaining_time
-                            
                             entries_to_save.append(entry)
                     except Exception as e:
                         logger.warning(f"Failed to serialize {dt.value} key {key}: {e}")

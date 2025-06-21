@@ -16,6 +16,7 @@ import logging
 from .segment_handler import SegmentHandler
 from .files import ensure_dirs, get_relative_path
 from .manifest import ManifestProcessor
+from .api_keys import get_openai_key, get_qwen_key, get_claude_key
 import srsly
 import asyncio
 
@@ -24,23 +25,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
-# Global API keys (can be set by director or other callers)
-OPENAI_API_KEY = None
-QWEN_API_KEY = None
-CLAUDE_API_KEY = None
-
 # Default configuration values
 DEFAULT_MAX_TOKENS = 3072
-
-def set_api_keys(openai_key=None, qwen_key=None, claude_key=None):
-    """Helper function to set global API keys (for use by director)"""
-    global OPENAI_API_KEY, QWEN_API_KEY, CLAUDE_API_KEY
-    if openai_key:
-        OPENAI_API_KEY = openai_key
-    if qwen_key:
-        QWEN_API_KEY = qwen_key
-    if claude_key:
-        CLAUDE_API_KEY = claude_key
 
 class LLMBackend:
     """Base class for LLM backends. max_tokens is always set from config, argument, or defaults to DEFAULT_MAX_TOKENS."""
@@ -55,10 +41,8 @@ class LLMBackend:
 class ChatGPTBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
-        # Check: parameter -> global -> environment variable
-        self.api_key = api_key or OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OpenAI API key must be provided via argument, global variable, or OPENAI_API_KEY env var.")
+        # Use new API key utility with three-tier fallback
+        self.api_key = get_openai_key(api_key)
         import openai
         self.client = openai.OpenAI(api_key=self.api_key)
         # Also create async client for concurrent processing
@@ -138,9 +122,9 @@ class ClaudeBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
         try:
-            # Check: parameter -> global -> environment variables
-            key = api_key or CLAUDE_API_KEY or os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
-            self.client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
+            # Use new API key utility with three-tier fallback
+            key = get_claude_key(api_key)
+            self.client = anthropic.Anthropic(api_key=key)
         except ImportError:
             raise ImportError("Please install anthropic package: pip install anthropic")
 
@@ -162,10 +146,8 @@ class ClaudeBackend(LLMBackend):
 class QwenBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
-        # Check: parameter -> global -> environment variables
-        self.api_key = api_key or QWEN_API_KEY or os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
-        if not self.api_key:
-            raise ValueError("Qwen API key required. Set via argument, global variable, DASHSCOPE_API_KEY or QWEN_API_KEY environment variable")
+        # Use new API key utility with three-tier fallback
+        self.api_key = get_qwen_key(api_key)
 
     def process_text(self, text: str, prompt: str) -> str:
         try:
@@ -236,12 +218,18 @@ def get_llm_backend_from_config(config: Dict) -> LLMBackend:
     api_key = llm_config.get("api_key")
     api_url = llm_config.get("api_url")
     max_tokens = llm_config.get("max_tokens", DEFAULT_MAX_TOKENS)
+    
+    # Handle provider-specific API keys from config
+    openai_api_key = llm_config.get("openai_api_key")
+    qwen_api_key = llm_config.get("qwen_api_key") 
+    claude_api_key = llm_config.get("claude_api_key")
+    
     if backend_type == "chatgpt" or backend_type == "openai":
-        return ChatGPTBackend(model_name, api_key, temperature, max_tokens)
+        return ChatGPTBackend(model_name, openai_api_key or api_key, temperature, max_tokens)
     elif backend_type == "claude" or backend_type == "anthropic":
-        return ClaudeBackend(model_name, api_key, temperature, max_tokens)
+        return ClaudeBackend(model_name, claude_api_key or api_key, temperature, max_tokens)
     elif backend_type == "qwen":
-        return QwenBackend(model_name, api_key, temperature, max_tokens)
+        return QwenBackend(model_name, qwen_api_key or api_key, temperature, max_tokens)
     elif backend_type == "lmstudio":
         api_url = api_url or "http://localhost:1234"
         return LMStudioBackend(model_name, api_url, temperature, max_tokens)
@@ -455,12 +443,17 @@ def get_llm_backend_from_step_config(step_config: Dict, global_llm_config: Dict 
     api_url = llm_config.get("api_url")
     max_tokens = llm_config.get("max_tokens", DEFAULT_MAX_TOKENS)
     
+    # Handle provider-specific API keys from config
+    openai_api_key = llm_config.get("openai_api_key")
+    qwen_api_key = llm_config.get("qwen_api_key") 
+    claude_api_key = llm_config.get("claude_api_key")
+    
     if backend_type == "chatgpt" or backend_type == "openai":
-        return ChatGPTBackend(model_name, api_key, temperature, max_tokens)
+        return ChatGPTBackend(model_name, openai_api_key or api_key, temperature, max_tokens)
     elif backend_type == "claude" or backend_type == "anthropic":
-        return ClaudeBackend(model_name, api_key, temperature, max_tokens)
+        return ClaudeBackend(model_name, claude_api_key or api_key, temperature, max_tokens)
     elif backend_type == "qwen":
-        return QwenBackend(model_name, api_key, temperature, max_tokens)
+        return QwenBackend(model_name, qwen_api_key or api_key, temperature, max_tokens)
     elif backend_type == "lmstudio":
         api_url = api_url or "http://localhost:1234"
         return LMStudioBackend(model_name, api_url, temperature, max_tokens)

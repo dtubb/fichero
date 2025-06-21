@@ -12,24 +12,26 @@ from openai import AsyncOpenAI
 import asyncio
 from datetime import datetime
 import logging
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
+# Import utilities with fallback for standalone execution
+try:
+    # Try absolute imports first (when run from app context)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.api_keys import get_qwen_key
+except ImportError:
+    # Fall back to relative imports (when run standalone)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.api_keys import get_qwen_key
 
 # Configure logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)  # Changed from WARNING to INFO
 logger = logging.getLogger(__name__)
-
-# Global API key (can be set by CLI argument or director)
-QWEN_API_KEY = None
 
 # Semaphore to limit concurrent API calls
 API_SEMAPHORE = asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
-
-def set_qwen_api_key(api_key: str):
-    """Helper function to set global API key (for use by director)"""
-    global QWEN_API_KEY
-    QWEN_API_KEY = api_key
 
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
@@ -56,7 +58,7 @@ def encode_image(image: Image.Image) -> str:
     image.save(buffered, format="JPEG", quality=80)  # Reduced quality for better compression
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-async def process_image(file_path: Path, out_path: Path) -> dict:
+async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None) -> dict:
     """Process a single image file, returning manifest-compatible output"""
     try:
         # Ensure output directory exists
@@ -101,10 +103,16 @@ async def process_image(file_path: Path, out_path: Path) -> dict:
             # Encode image for API
             base64_image = encode_image(image)
             
-            # Get API key from global, then environment variable
-            api_key = QWEN_API_KEY or os.getenv("DASHSCOPE_API_KEY")
+            # Get API key using three-tier fallback
+            logger.info(f"🔑 Attempting to get Qwen API key...")
+            api_key = get_qwen_key(api_key_cli)
+            if api_key:
+                logger.info(f"✅ Successfully obtained Qwen API key: {api_key[:10]}...{api_key[-4:]}")
+            else:
+                logger.error(f"❌ Failed to obtain Qwen API key from any source")
+                    
             if not api_key:
-                raise ValueError("Qwen API key required")
+                raise ValueError("Qwen API key required. Set via CLI argument, app settings, or DASHSCOPE_API_KEY environment variable.")
                 
             # Initialize OpenAI client with DashScope endpoint
             client = AsyncOpenAI(
@@ -189,6 +197,7 @@ def transcribe_batch(
     background_removed_manifest: Path,
     transcribed_folder: Path,
     testing: bool = False,
+    api_key_cli: str = None,
 ):
     """Batch transcription using Qwen VL Max model"""
     print(f"[green]Transcribing images in {background_removed_folder}")
@@ -196,18 +205,15 @@ def transcribe_batch(
     
     load_dotenv()
     
-    # Check API key from global or environment variable
-    api_key = QWEN_API_KEY or os.getenv('DASHSCOPE_API_KEY')
-    if not api_key:
-        logger.error("Qwen API key required: pass --api-key argument or set DASHSCOPE_API_KEY environment variable")
-        return
+    # API key validation happens in process_image() using utility
 
     # Create a custom batch processor that handles async properly
     class AsyncBatchProcessor(BatchProcessor):
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, api_key_cli=None, **kwargs):
             super().__init__(*args, **kwargs)
             self.pending_tasks = []
             self.batch_times = []  # Track time for each batch
+            self.api_key_cli = api_key_cli
             
         async def process_batch_async(self, batch: list):
             """Process a batch of files asynchronously"""
@@ -233,7 +239,7 @@ def transcribe_batch(
                 out_path = self.output_folder / "documents" / rel_path
                 
                 # Add to tasks
-                tasks.append(process_image(full_path, out_path))
+                tasks.append(process_image(full_path, out_path, self.api_key_cli))
             
             # Process all tasks concurrently
             if tasks:
@@ -306,7 +312,8 @@ def transcribe_batch(
         process_name="transcription",
         processor_fn=None,  # Not used in async version
         base_folder=background_removed_folder,
-        batch_size=5  # Process 5 images concurrently
+        batch_size=5,  # Process 5 images concurrently
+        api_key_cli=api_key_cli
     )
     
     return processor.process()
@@ -316,18 +323,15 @@ def transcribe(
     background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
     transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
     testing: bool = typer.Option(False, help="Run on a small subset of data"),
-    api_key: str = typer.Option(None, "--api-key", help="Qwen API key (falls back to DASHSCOPE_API_KEY env var)"),
+    api_key: str = typer.Option(None, "--api-key", help="Qwen API key (falls back to shared data, then DASHSCOPE_API_KEY env var)"),
 ):
     """Batch transcription CLI using Qwen VL Max model"""
-    global QWEN_API_KEY
-    if api_key:
-        QWEN_API_KEY = api_key
-    
     transcribe_batch(
         background_removed_folder,
         background_removed_manifest,
         transcribed_folder,
-        testing
+        testing,
+        api_key
     )
 
 if __name__ == "__main__":

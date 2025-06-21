@@ -86,19 +86,19 @@ class FicheroApp(toga.App):
     def _init_shared_data_backend(self, settings):
         """Initialize the shared data backend based on user settings"""
         try:
-            # Get user's backend preference
-            backend_setting = settings.settings.get("workers", {}).get("backend", "python")
+            # Get user's backend preference - default to Redis for better Celery integration
+            backend_setting = settings.settings.get("workers", {}).get("backend", "redis")
             
             # Convert setting to backend preference
-            if backend_setting == "redis":
-                prefer_backend = "redis"
-            else:  # "python" or anything else
+            if backend_setting == "python":
                 prefer_backend = "manager"
+            else:  # "redis" or anything else - default to Redis for Celery workers
+                prefer_backend = "redis"
             
             # Initialize shared data with the preference and proper app data directory
             from .shared_data import reload_shared_data
             app_data_dir = self.paths.data if hasattr(self, 'paths') else None
-            shared_data = reload_shared_data(prefer_backend=prefer_backend, data_dir=app_data_dir)
+            shared_data = reload_shared_data(prefer_backend=prefer_backend, data_dir=app_data_dir, app=self)
             
             print(f"🔧 Processing backend initialized: {shared_data.backend_name} ({'Redis+Celery' if backend_setting == 'redis' else 'Python Manager'})")
             

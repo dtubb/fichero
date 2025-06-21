@@ -19,19 +19,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
-# Import utility modules
-from utils.manifest import ManifestProcessor
-from utils.batch import BatchProcessor
-from utils.files import ensure_dirs, get_relative_path, batch_check_files
-from utils.segment_handler import SegmentHandler
-from utils.progress import ProcessingProgress, ProgressTracker
-from utils.llm_utils import (
-    LLMBackend, ChatGPTBackend, ClaudeBackend, QwenBackend, LMStudioBackend, OllamaBackend,
-    get_llm_backend, chunk_text_intelligently, process_with_iterative_refinement,
-    load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor,
-    set_api_keys
-)
-from utils.hierarchy import DocumentHierarchy
+# Import utility modules with fallback for standalone execution
+try:
+    # Try absolute imports first (when run from app context)
+    from fichero.tools.utils.manifest import ManifestProcessor
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.files import ensure_dirs, get_relative_path, batch_check_files
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.progress import ProcessingProgress, ProgressTracker
+    from fichero.tools.utils.llm_utils import (
+        LLMBackend, ChatGPTBackend, ClaudeBackend, QwenBackend, LMStudioBackend, OllamaBackend,
+        get_llm_backend, chunk_text_intelligently, process_with_iterative_refinement,
+        load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
+    )
+    from fichero.tools.utils.hierarchy import DocumentHierarchy
+except ImportError:
+    # Fall back to relative imports (when run standalone)
+    from utils.manifest import ManifestProcessor
+    from utils.batch import BatchProcessor
+    from utils.files import ensure_dirs, get_relative_path, batch_check_files
+    from utils.segment_handler import SegmentHandler
+    from utils.progress import ProcessingProgress, ProgressTracker
+    from utils.llm_utils import (
+        LLMBackend, ChatGPTBackend, ClaudeBackend, QwenBackend, LMStudioBackend, OllamaBackend,
+        get_llm_backend, chunk_text_intelligently, process_with_iterative_refinement,
+        load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
+    )
+    from utils.hierarchy import DocumentHierarchy
 
 app = typer.Typer()
 
@@ -218,6 +232,31 @@ class LLMProcessScript:
             logger.error(f"Error processing {file_path}: {str(e)}")
             return None
 
+def create_llm_backend_with_cli_keys(
+    backend_type: str,
+    model_name: str,
+    api_url: Optional[str] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 1000,
+    openai_api_key: Optional[str] = None,
+    qwen_api_key: Optional[str] = None,
+    claude_api_key: Optional[str] = None
+) -> LLMBackend:
+    """Create LLM backend with API keys from CLI arguments"""
+    if backend_type in ["chatgpt", "openai"]:
+        return ChatGPTBackend(model_name, openai_api_key, temperature, max_tokens)
+    elif backend_type in ["claude", "anthropic"]:
+        return ClaudeBackend(model_name, claude_api_key, temperature, max_tokens)
+    elif backend_type == "qwen":
+        return QwenBackend(model_name, qwen_api_key, temperature, max_tokens)
+    elif backend_type == "lmstudio":
+        api_url = api_url or "http://localhost:1234"
+        return LMStudioBackend(model_name, api_url, temperature, max_tokens)
+    elif backend_type == "ollama":
+        return OllamaBackend(model_name, temperature, max_tokens)
+    else:
+        raise ValueError(f"Unsupported backend type: {backend_type}")
+
 def process_documents(
     input_folder: Annotated[Path, typer.Argument(help="Input folder containing transcribed documents")],
     input_manifest: Annotated[Path, typer.Argument(help="Input manifest file")],
@@ -232,11 +271,16 @@ def process_documents(
     folder_mode: Annotated[bool, typer.Option(help="Process all files in a folder together as one document")] = False,
     hierarchical: Annotated[bool, typer.Option(help="Process documents in hierarchical order")] = False,
     max_depth: Annotated[int, typer.Option(help="Maximum depth for hierarchical processing")] = 3,
-    openai_api_key: Annotated[Optional[str], typer.Option("--openai-api-key", help="OpenAI API key (falls back to OPENAI_API_KEY env var)")] = None,
-    qwen_api_key: Annotated[Optional[str], typer.Option("--qwen-api-key", help="Qwen API key (falls back to DASHSCOPE_API_KEY env var)")] = None,
-    claude_api_key: Annotated[Optional[str], typer.Option("--claude-api-key", help="Claude API key (falls back to ANTHROPIC_API_KEY env var)")] = None,
+    openai_api_key: Annotated[Optional[str], typer.Option("--openai-api-key", help="OpenAI API key (overrides shared data and env var)")] = None,
+    qwen_api_key: Annotated[Optional[str], typer.Option("--qwen-api-key", help="Qwen API key (overrides shared data and env var)")] = None,
+    claude_api_key: Annotated[Optional[str], typer.Option("--claude-api-key", help="Claude API key (overrides shared data and env var)")] = None,
 ):
     """Process documents using LLM with configurable prompts
+    
+    API keys are resolved using three-tier fallback:
+    1. CLI argument (highest priority - for development/testing)
+    2. Shared data from app settings (production use)
+    3. Environment variable (fallback)
     
     In folder mode, all files in a folder are combined and processed together,
     with page numbers preserved. This is useful for multi-page documents.
@@ -244,15 +288,6 @@ def process_documents(
     In hierarchical mode, documents are processed according to their folder structure,
     with support for level-specific processing.
     """
-    
-    # Inject API keys into global variables in llm_utils if provided
-    if openai_api_key or qwen_api_key or claude_api_key:
-        set_api_keys(
-            openai_key=openai_api_key,
-            qwen_key=qwen_api_key,
-            claude_key=claude_api_key
-        )
-        logger.info("Set global API keys from command line arguments")
     
     # Load prompt configuration
     logger.info("Loading prompt configuration...")
@@ -273,10 +308,31 @@ def process_documents(
     logger.info("Initializing LLM backend...")
     if "llm" in config:
         logger.info("Using LLM settings from configuration file")
-        llm = get_llm_backend(config)
+        # For config-based LLM, we need to pass CLI keys to override any config keys
+        llm_config = config.copy()
+        
+        # Override API keys in config with CLI arguments if provided
+        if "llm" in llm_config:
+            if openai_api_key:
+                llm_config["llm"]["openai_api_key"] = openai_api_key
+            if qwen_api_key:
+                llm_config["llm"]["qwen_api_key"] = qwen_api_key
+            if claude_api_key:
+                llm_config["llm"]["claude_api_key"] = claude_api_key
+        
+        llm = get_llm_backend(llm_config)
     else:
         logger.info("Using LLM settings from command line")
-        llm = get_llm_backend(backend_type, model_name=model_name, api_url=api_url, temperature=temperature, max_tokens=max_tokens)
+        llm = create_llm_backend_with_cli_keys(
+            backend_type=backend_type,
+            model_name=model_name,
+            api_url=api_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            openai_api_key=openai_api_key,
+            qwen_api_key=qwen_api_key,
+            claude_api_key=claude_api_key
+        )
     
     # Initialize LLM processor
     processor = LLMProcessScript(

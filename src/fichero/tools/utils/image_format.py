@@ -8,15 +8,15 @@ from PIL import Image
 import subprocess
 import shutil
 from typing import Literal, Optional, Tuple, Union, Dict, List
-import rawpy
-import pillow_heif
+# import rawpy  # REMOVED: Not needed for document processing
+# import pillow_heif  # REMOVED: Does not work with Briefcase packaging
 import logging
 import typer
 
 logger = logging.getLogger(__name__)
 
-# Supported input formats
-InputFormat = Literal['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic', 'jxl', 'raw', 'cr2', 'nef', 'arw']
+# Supported input formats (RAW formats disabled for document processing)
+InputFormat = Literal['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic', 'jxl']  # removed: 'raw', 'cr2', 'nef', 'arw'
 # Supported output formats
 OutputFormat = Literal['jpg', 'png', 'jxl']
 # Type alias for backward compatibility
@@ -29,12 +29,13 @@ SUPPORTED_EXTENSIONS = {
     '.png': 'process_fn',
     '.tif': 'process_fn',
     '.tiff': 'process_fn',
-    '.heic': 'process_fn',
+    '.heic': 'process_fn',  # requires heif-convert system tool
     '.jxl': 'process_fn',
-    '.raw': 'process_fn',
-    '.cr2': 'process_fn',
-    '.nef': 'process_fn',
-    '.arw': 'process_fn'
+    # Removed RAW formats for document processing:
+    # '.raw': 'process_fn',
+    # '.cr2': 'process_fn',
+    # '.nef': 'process_fn',
+    # '.arw': 'process_fn'
 }
 
 SUPPORTED_EXTENSIONS_LIST = list(SUPPORTED_EXTENSIONS.keys())
@@ -67,7 +68,8 @@ def check_heif_installed() -> bool:
 
 def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
     """
-    Load an image file, handling various formats including RAW, HEIC, and JXL.
+    Load an image file, handling various formats including HEIC and JXL.
+    RAW formats are no longer supported (disabled for document processing).
     Returns (image, metadata) where metadata contains format info and any errors.
     """
     file_path = Path(file_path)
@@ -77,25 +79,27 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
     }
     
     try:
-        # Handle RAW formats
+        # Handle RAW formats - COMMENTED OUT: Not needed for document processing
         if file_path.suffix.lower() in ['.raw', '.cr2', '.nef', '.arw']:
-            try:
-                with rawpy.imread(str(file_path)) as raw:
-                    rgb = raw.postprocess(use_camera_wb=True, half_size=False, 
-                                        no_auto_bright=False, output_bps=8)
-                    image = Image.fromarray(rgb)
-                    metadata["raw_info"] = {
-                        "camera_make": raw.metadata.get('make', ''),
-                        "camera_model": raw.metadata.get('model', ''),
-                        "iso": raw.metadata.get('iso', 0),
-                        "exposure_time": raw.metadata.get('exposure_time', 0)
-                    }
-            except Exception as e:
-                metadata["errors"].append(f"RAW processing failed: {str(e)}")
-                # Fall back to PIL
-                image = Image.open(file_path)
+            metadata["errors"].append("RAW format support has been disabled for document processing")
+            raise ValueError("RAW format support has been disabled for document processing")
+            # try:
+            #     with rawpy.imread(str(file_path)) as raw:
+            #         rgb = raw.postprocess(use_camera_wb=True, half_size=False, 
+            #                             no_auto_bright=False, output_bps=8)
+            #         image = Image.fromarray(rgb)
+            #         metadata["raw_info"] = {
+            #             "camera_make": raw.metadata.get('make', ''),
+            #             "camera_model": raw.metadata.get('model', ''),
+            #             "iso": raw.metadata.get('iso', 0),
+            #             "exposure_time": raw.metadata.get('exposure_time', 0)
+            #         }
+            # except Exception as e:
+            #     metadata["errors"].append(f"RAW processing failed: {str(e)}")
+            #     # Fall back to PIL
+            #     image = Image.open(file_path)
         
-        # Handle HEIC format
+        # Handle HEIC format - PARTIALLY DISABLED: pillow_heif removed
         elif file_path.suffix.lower() == '.heic':
             try:
                 # First try using heif-convert system tool
@@ -106,20 +110,22 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
                     image = Image.open(temp_png)
                     temp_png.unlink()
                 else:
-                    # Fallback to pillow_heif if system tool not available
-                    try:
-                        heif_file = pillow_heif.read_heif(file_path)
-                        image = Image.frombytes(
-                            heif_file.mode, 
-                            heif_file.size, 
-                            heif_file.data,
-                            "raw",
-                        )
-                        if image.mode == 'RGBA':
-                            image = image.convert('RGB')
-                    except Exception as e:
-                        metadata["errors"].append(f"HEIC processing failed: {str(e)}")
-                        raise
+                    # Fallback to pillow_heif if system tool not available - DISABLED
+                    metadata["errors"].append("HEIC support requires heif-convert system tool (pillow_heif removed for Briefcase compatibility)")
+                    raise ValueError("HEIC support requires heif-convert system tool")
+                    # try:
+                    #     heif_file = pillow_heif.read_heif(file_path)
+                    #     image = Image.frombytes(
+                    #         heif_file.mode, 
+                    #         heif_file.size, 
+                    #         heif_file.data,
+                    #         "raw",
+                    #     )
+                    #     if image.mode == 'RGBA':
+                    #         image = image.convert('RGB')
+                    # except Exception as e:
+                    #     metadata["errors"].append(f"HEIC processing failed: {str(e)}")
+                    #     raise
             except Exception as e:
                 metadata["errors"].append(f"HEIC processing failed: {str(e)}")
                 raise

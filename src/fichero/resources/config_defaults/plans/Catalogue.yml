@@ -86,7 +86,7 @@ workflows:
     - catalogue_folder
     - catalogue_to_word
 
-  1) archive-to-transcriptions:
+  1) Archive to Segment:
     - build_documents_manifest
     - crop
     - split
@@ -94,18 +94,20 @@ workflows:
     - enhance
     - remove_background
     - segment
+
+  2) Transcribe:
     - transcribe_qwen_max_segments
 
-  2) transcriptions-to-recombined:
+  3) Recombine:
     - recombine_segments_qwen_max
 
-  3) recombined-to-fuzzy_clean:
+  4) Fuzzy Clean:
     - fuzzy_clean
 
-  4) Fuzzy Clean to Catalogue:
+  5) Catalogue:
     - catalogue_folder
   
-  5) Catalogue to Word:
+  6) Convert to Word:
     - convert_to_word
     - catalogue_to_word
 

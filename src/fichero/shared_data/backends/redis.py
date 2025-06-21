@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 class RedisStorageBackend(BaseStorageBackend):
     """Redis backend for shared data storage"""
     
-    def __init__(self, namespace: str = "fichero", default_ttl: Optional[int] = None, 
-                 data_dir: Optional[Path] = None, redis_url: str = "redis://localhost:6379"):
-        super().__init__(namespace, default_ttl, data_dir)
+    def __init__(self, namespace: str = "fichero", data_dir: Optional[Path] = None, 
+                 redis_url: str = "redis://localhost:6379", app=None):
+        super().__init__(namespace, data_dir, app)
         self.redis_url = redis_url
         self.backend_name = "redis"
         self._connect()
@@ -40,18 +40,13 @@ class RedisStorageBackend(BaseStorageBackend):
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Redis: {e}")
     
-    def set(self, data_type: DataType, key: str, value: Any, ttl: Optional[int] = None, 
-            immediate_save: bool = False) -> bool:
+    def set(self, data_type: DataType, key: str, value: Any, immediate_save: bool = False) -> bool:
         """Set data in Redis"""
         try:
             namespaced_key = self._make_key(data_type, key)
             serialized_value = self._serialize(value)
-            effective_ttl = ttl or self.default_ttl
             
-            if effective_ttl:
-                result = self.redis.setex(namespaced_key, effective_ttl, serialized_value)
-            else:
-                result = self.redis.set(namespaced_key, serialized_value)
+            result = self.redis.set(namespaced_key, serialized_value)
             
             # Redis auto-persists, so immediate_save is ignored
             return bool(result)

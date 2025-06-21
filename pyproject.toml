@@ -29,17 +29,11 @@ requires = [
     "srsly>=2.5.1,<3.0.0",
     "python-dotenv>=1.1.0,<2.0.0",
     "Pillow>=11.2.1,<12.0.0",
-    "opencv-python>=4.11.0,<5.0.0",
     "numpy>=2.3.0,<3.0.0",
     "pdf2image>=1.17.0,<2.0.0",
     "pytesseract>=0.3.13,<1.0.0",
-    "ultralytics>=8.3.0,<9.0.0",
     "rawpy>=0.25.0,<1.0.0",
-    "pillow-heif>=0.22.0,<1.0.0",
     "exifread>=3.3.1,<4.0.0",
-    "scikit-learn>=1.7.0,<2.0.0",
-    "torch>=2.7.1,<3.0.0",
-    "transformers>=4.52.0,<5.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
     "langchain-ollama>=0.3.3,<1.0.0",
@@ -49,7 +43,6 @@ requires = [
     "tqdm>=4.67.1,<5.0.0",
     "python-magic>=0.4.27,<1.0.0",
     "psutil>=7.0.0,<8.0.0",
-    "wxpython>=4.2.3,<5.0.0",
     "celery>=5.5.3,<6.0.0",
     "redis>=6.2.0,<7.0.0",
     "openai>=1.86.0,<2.0.0",
@@ -58,12 +51,14 @@ requires = [
     "cryptography>=45.0.0,<46.0.0",
     "ruamel.yaml>=0.18.0,<1.0.0",
 ]
-
-[tool.briefcase.app.fichero.document_type.fichero]
-description = "Fichero Document Processing Project"
-extension = "fichero"
-icon = "src/fichero/resources/icons/fichero"
-url = "https://www.tubb.ca/fichero/"
+test_requires = [
+    "pytest",
+    "redis>=6.2.0,<7.0.0",
+    "openai>=1.86.0,<2.0.0",
+    "accelerate>=1.7.0,<2.0.0",
+    "pathvalidate>=3.2.3,<4.0.0",
+    "cryptography>=45.0.0,<46.0.0",
+]
 
 # Platform-specific configurations for GUI
 [tool.briefcase.app.fichero.macOS]
@@ -107,17 +102,11 @@ dependencies = [
     "srsly>=2.5.1,<3.0.0",
     "python-dotenv>=1.1.0,<2.0.0",
     "Pillow>=11.2.1,<12.0.0",
-    "opencv-python>=4.11.0,<5.0.0",
     "numpy>=2.3.0,<3.0.0",
     "pdf2image>=1.17.0,<2.0.0",
     "pytesseract>=0.3.13,<1.0.0",
-    "ultralytics>=8.3.0,<9.0.0",
     "rawpy>=0.25.0,<1.0.0",
-    "pillow-heif>=0.22.0,<1.0.0",
     "exifread>=3.3.1,<4.0.0",
-    "scikit-learn>=1.7.0,<2.0.0",
-    "torch>=2.7.1,<3.0.0",
-    "transformers>=4.52.0,<5.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
     "langchain-ollama>=0.3.3,<1.0.0",
@@ -127,14 +116,12 @@ dependencies = [
     "tqdm>=4.67.1,<5.0.0",
     "python-magic>=0.4.27,<1.0.0",
     "psutil>=7.0.0,<8.0.0",
-    "wxpython>=4.2.3,<5.0.0",
     "celery>=5.5.3,<6.0.0",
     "redis>=6.2.0,<7.0.0",
     "openai>=1.86.0,<2.0.0",
     "accelerate>=1.7.0,<2.0.0",
     "pathvalidate>=3.2.3,<4.0.0",
     "cryptography>=45.0.0,<46.0.0",
-    "ruamel.yaml>=0.18.0,<1.0.0",
 ]
 
 [project.scripts]

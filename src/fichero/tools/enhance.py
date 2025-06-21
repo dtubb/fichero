@@ -53,8 +53,20 @@ class DocumentAnalyzer:
         try:
             ocr_data = pytesseract.image_to_data(binary, output_type=pytesseract.Output.DICT)
             confidences = [conf for conf in ocr_data['conf'] if conf != -1]
-        except pytesseract.TesseractError:
+        except UnicodeDecodeError as e:
+            # Tesseract binary error output can't be decoded as UTF-8
+            logger.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
+            logger.info("Falling back to morphological analysis")
+            return self._morphological_heuristic(binary)
+        except pytesseract.TesseractError as e:
             # If OCR fails entirely, default to morphological fallback
+            logger.warning(f"Tesseract OCR failed: {e}")
+            logger.info("Falling back to morphological analysis")
+            return self._morphological_heuristic(binary)
+        except Exception as e:
+            # Any other error with OCR
+            logger.warning(f"OCR failed during document type detection: {e}")
+            logger.info("Falling back to morphological analysis")
             return self._morphological_heuristic(binary)
         
         if not confidences:
@@ -156,14 +168,27 @@ def enhance_image(image: Image.Image) -> tuple[Image.Image, dict]:
 
 def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
     """Process a single image file for enhancement"""
-    # Use SegmentHandler for path handling
-    rel_path = SegmentHandler.get_relative_path(file_path)
+    logger.info(f"Processing image: {file_path}")
+    
+    try:
+        # Use SegmentHandler for path handling
+        rel_path = SegmentHandler.get_relative_path(file_path)
+    except Exception as e:
+        logger.error(f"Error in path handling: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return {"success": False, "error": f"Path handling error: {e}"}
     
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
+        logger.info(f"Image loaded successfully: {image.size}")
     except Exception as e:
         logger.error(f"Failed to load image {file_path.name}: {e}")
+        logger.error(f"File exists: {file_path.exists()}")
+        logger.error(f"Working directory: {Path.cwd()}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     # Enhance image and get parameters
@@ -194,7 +219,15 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o, output_format)
+        logger.info(f"Processing file: {f}")
+        try:
+            result = process_image(Path(f), o, output_format)
+            return result
+        except Exception as e:
+            logger.error(f"Error in process_fn: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise
     
     # Get supported extensions and create file_types dict
     file_types = {ext: process_fn for ext in get_supported_extensions_list()}

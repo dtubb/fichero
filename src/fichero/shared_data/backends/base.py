@@ -6,7 +6,7 @@ Common functionality shared by Redis and Manager backends
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Set
 from pathlib import Path
 from enum import Enum
 
@@ -25,14 +25,78 @@ class DataType(Enum):
     # LOGS = "logs"
 
 
+def discover_app_data_directory(app=None) -> Path:
+    """
+    Discover the app data directory using Toga-compatible approach
+    
+    This follows the same pattern used by app_preferences:
+    1. Use app.paths.data if available (Toga app context)
+    2. Try to find existing Toga data directory
+    3. Fallback to user home directory
+    """
+    # 1. Use Toga app paths if available
+    if app and hasattr(app, 'paths') and hasattr(app.paths, 'data'):
+        return app.paths.data
+    
+    # 2. Try to find existing Toga data directories
+    try:
+        import platform
+        
+        if platform.system() == "Darwin":  # macOS
+            app_support = Path.home() / "Library" / "Application Support"
+            if app_support.exists():
+                patterns = ["*.fichero*", "*fichero*", "*Fichero*"]
+                for pattern in patterns:
+                    matches = list(app_support.glob(pattern))
+                    for match in matches:
+                        if match.is_dir():
+                            # Check if it looks like a Fichero data directory
+                            if (match / "app_preferences.json").exists() or \
+                               (match / "settings").exists() or \
+                               (match / "shared_data").exists():
+                                return match
+        
+        elif platform.system() == "Windows":
+            appdata = Path.home() / "AppData" / "Roaming"
+            if appdata.exists():
+                for pattern in ["*fichero*", "*Fichero*"]:
+                    matches = list(appdata.glob(pattern))
+                    for match in matches:
+                        if match.is_dir() and ((match / "app_preferences.json").exists() or 
+                                             (match / "shared_data").exists()):
+                            return match
+        
+        elif platform.system() == "Linux":
+            local_share = Path.home() / ".local" / "share"
+            if local_share.exists():
+                for pattern in ["*fichero*", "*Fichero*"]:
+                    matches = list(local_share.glob(pattern))
+                    for match in matches:
+                        if match.is_dir() and ((match / "app_preferences.json").exists() or 
+                                             (match / "shared_data").exists()):
+                            return match
+    
+    except Exception as e:
+        logger.debug(f"Could not discover existing app data directory: {e}")
+    
+    # 3. Fallback to user home directory
+    return Path.home() / ".fichero"
+
+
 class BaseStorageBackend(ABC):
     """Abstract base class for storage backends"""
     
-    def __init__(self, namespace: str = "fichero", default_ttl: Optional[int] = None, 
-                 data_dir: Optional[Path] = None):
+    def __init__(self, namespace: str = "fichero", data_dir: Optional[Path] = None, app=None):
         self.namespace = namespace
-        self.default_ttl = default_ttl
-        self.data_dir = data_dir or Path.home() / ".fichero" / "shared_data"
+        self.app = app
+        
+        # Use provided data_dir, or discover app data directory
+        if data_dir:
+            self.data_dir = data_dir / "shared_data"
+        else:
+            app_data_dir = discover_app_data_directory(app)
+            self.data_dir = app_data_dir / "shared_data"
+            
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.backend_name = "base"
     
@@ -62,7 +126,6 @@ class BaseStorageBackend(ABC):
         info = {
             "backend": self.backend_name,
             "namespace": self.namespace,
-            "default_ttl": self.default_ttl,
             "data_dir": str(self.data_dir),
         }
         
@@ -78,8 +141,7 @@ class BaseStorageBackend(ABC):
     
     # Abstract methods that backends must implement
     @abstractmethod
-    def set(self, data_type: DataType, key: str, value: Any, ttl: Optional[int] = None, 
-            immediate_save: bool = False) -> bool:
+    def set(self, data_type: DataType, key: str, value: Any, immediate_save: bool = False) -> bool:
         """Set data"""
         pass
     
@@ -114,9 +176,9 @@ class BaseStorageBackend(ABC):
         pass
     
     # Convenience methods for settings (all backends support these)
-    def set_setting(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set_setting(self, key: str, value: Any) -> bool:
         """Set a setting value"""
-        return self.set(DataType.SETTINGS, key, value, ttl)
+        return self.set(DataType.SETTINGS, key, value)
     
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a setting value"""

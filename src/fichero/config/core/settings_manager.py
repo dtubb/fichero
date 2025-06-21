@@ -68,15 +68,18 @@ class SettingsManager(FileManager):
         }
     
     def load_file(self, file_path: Path) -> Dict[str, Any]:
-        """Simple load: just get file data and merge with defaults"""
+        """Load settings file and decrypt API keys for GUI display"""
         try:
             # Load file data
             file_data = super().load_file(file_path)
             
-            # Note: API key decryption will be handled by AppSettings after loading
-            # to avoid circular dependency during initialization
+            # Decrypt API keys for GUI display
+            # Import here to avoid circular dependency
+            from .settings import get_app_settings
+            app_settings = get_app_settings(self.app)
+            app_settings._decrypt_api_keys(file_data)
             
-            # Just merge with default template to ensure all fields exist
+            # Merge with default template to ensure all fields exist
             default_data = self.get_default_template()
             merged_data = self._merge_settings(default_data, file_data)
             
@@ -87,20 +90,19 @@ class SettingsManager(FileManager):
             return self.get_default_template()
     
     def save_file(self, file_path: Path, data: Dict[str, Any]) -> bool:
-        """Save settings file and set environment variables"""
+        """Save settings file with API key encryption"""
         try:
-            # Note: API key encryption should be handled by AppSettings before calling save_file
-            # to avoid circular dependency issues
+            # Use AppSettings to save with proper API key encryption
+            from .settings import get_app_settings
+            app_settings = get_app_settings(self.app)
+            success = app_settings.save_settings(file_path, data)
             
-            # Save to file
-            success = super().save_file(file_path, data)
-            if not success:
-                return False
+            if success:
+                logger.info(f"✅ Saved encrypted settings to {file_path.name}")
+            else:
+                logger.error(f"❌ Failed to save settings to {file_path.name}")
             
-            # Note: Environment variables are only set by director.py when spawning workers
-            logger.info(f"Saved settings from {file_path.name}")
-            
-            return True
+            return success
             
         except Exception as e:
             logger.error(f"Failed to save settings file: {e}")

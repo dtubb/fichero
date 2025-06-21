@@ -256,7 +256,17 @@ def get_text_baseline_angle(img: Image.Image) -> float:
             img.save(bio, format='PNG')
             bio.seek(0)
             img_array = np.array(Image.open(bio))
-            data = pytesseract.image_to_data(img_array, output_type=pytesseract.Output.DICT)
+            try:
+                data = pytesseract.image_to_data(img_array, output_type=pytesseract.Output.DICT)
+            except UnicodeDecodeError as e:
+                logging.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
+                return 0.0
+            except pytesseract.TesseractError as e:
+                logging.warning(f"Tesseract OCR failed: {e}")
+                return 0.0
+            except Exception as e:
+                logging.warning(f"OCR failed during baseline angle detection: {e}")
+                return 0.0
         
         # Group text by lines based on vertical proximity
         line_groups = []
@@ -610,7 +620,11 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
         merge_small_segments = False
     
     if height < 2500:
-        text_in_img = pytesseract.image_to_string(deskewed_img).strip()
+        try:
+            text_in_img = pytesseract.image_to_string(deskewed_img).strip()
+        except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
+            logging.warning(f"OCR failed for full image: {e}")
+            text_in_img = ""
         return [{
             "image": deskewed_img,
             "top": 0,
@@ -620,14 +634,18 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
         }]
     
     # Get Tesseract boxes
-    data = pytesseract.image_to_data(deskewed_img, output_type=pytesseract.Output.DICT)
-    tess_boxes = []
-    for i in range(len(data["level"])):
-        text = data["text"][i].strip()
-        if text:
-            top = data["top"][i]
-            bottom = top + data["height"][i]
-            tess_boxes.append((top, bottom))
+    try:
+        data = pytesseract.image_to_data(deskewed_img, output_type=pytesseract.Output.DICT)
+        tess_boxes = []
+        for i in range(len(data["level"])):
+            text = data["text"][i].strip()
+            if text:
+                top = data["top"][i]
+                bottom = top + data["height"][i]
+                tess_boxes.append((top, bottom))
+    except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
+        logging.warning(f"OCR failed for text box detection: {e}")
+        tess_boxes = []
     
     tess_boxes.sort(key=lambda x: x[0])
     
@@ -743,7 +761,11 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
             white_bg.paste(roi, (0, 0))
             roi = white_bg
         
-        text_in_segment = pytesseract.image_to_string(roi.convert('L')).strip()
+        try:
+            text_in_segment = pytesseract.image_to_string(roi.convert('L')).strip()
+        except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
+            logging.warning(f"OCR failed for segment text detection: {e}")
+            text_in_segment = ""
         segments.append({
             "image": roi,
             "top": actual_top,
@@ -764,8 +786,12 @@ def validate_rotation(original_img: Image.Image, rotated_img: Image.Image) -> bo
     """
     try:
         # Quick OCR confidence comparison
-        original_data = pytesseract.image_to_data(original_img, output_type=pytesseract.Output.DICT)
-        rotated_data = pytesseract.image_to_data(rotated_img, output_type=pytesseract.Output.DICT)
+        try:
+            original_data = pytesseract.image_to_data(original_img, output_type=pytesseract.Output.DICT)
+            rotated_data = pytesseract.image_to_data(rotated_img, output_type=pytesseract.Output.DICT)
+        except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
+            logging.warning(f"OCR failed during rotation validation: {e}")
+            return False  # Default to not rotating if OCR fails
         
         # Calculate average confidence for text with reasonable confidence
         def get_avg_confidence(data):

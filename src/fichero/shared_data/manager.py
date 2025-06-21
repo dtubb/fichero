@@ -34,18 +34,26 @@ def _get_backend_preference() -> Optional[str]:
         
         # Fallback: try to read directly from settings file
         try:
-            # Look for active settings file in common locations
-            # Try macOS app data directory first, then fallback to old location and defaults
-            import platform
-            app_data_paths = []
+            # Use Toga-compatible path discovery for settings
+            from .backends.base import discover_app_data_directory
             
-            if platform.system() == "Darwin":  # macOS
-                app_data_paths.append(Path.home() / "Library" / "Application Support" / "Fichero" / "settings" / "Default Settings.yml")
+            # Get proper app data directory using Toga path discovery
+            app_data_dir = discover_app_data_directory(app=None)
             
-            settings_paths = app_data_paths + [
-                Path.home() / ".fichero" / "settings" / "Default Settings.yml",  # Legacy fallback
-                Path(__file__).parent.parent / "resources" / "config_defaults" / "settings" / "Default Settings.yml"
-            ]
+            # Look for user settings files and defaults
+            settings_dir = app_data_dir / "settings"
+            settings_paths = []
+            
+            # Add all user settings files in the settings directory
+            if settings_dir.exists():
+                for settings_file in settings_dir.glob("*.yml"):
+                    if settings_file.name != "Default Settings.yml":  # User files first
+                        settings_paths.append(settings_file)
+                # Add default settings as fallback
+                settings_paths.append(settings_dir / "Default Settings.yml")
+            
+            # Add bundled defaults as final fallback
+            settings_paths.append(Path(__file__).parent.parent / "resources" / "config_defaults" / "settings" / "Default Settings.yml")
             
             for settings_path in settings_paths:
                 if settings_path.exists():
@@ -93,13 +101,13 @@ class SharedDataManager:
     Both backends provide the same interface and functionality.
     """
     
-    def __init__(self, namespace: str = "fichero", default_ttl: Optional[int] = None, 
-                 data_dir: Optional[Path] = None, prefer_backend: Optional[str] = None,
-                 redis_url: str = "redis://localhost:6379"):
+    def __init__(self, namespace: str = "fichero", data_dir: Optional[Path] = None, 
+                 prefer_backend: Optional[str] = None, redis_url: str = "redis://localhost:6379",
+                 app=None):
         self.namespace = namespace
-        self.default_ttl = default_ttl
         self.data_dir = data_dir
         self.redis_url = redis_url
+        self.app = app
         
         # Select backend
         self.backend = self._select_backend(prefer_backend)
@@ -113,26 +121,26 @@ class SharedDataManager:
         # Force specific backend if requested
         if prefer_backend == "manager":
             logger.info("Using Manager backend (forced)")
-            return ManagerStorageBackend(self.namespace, self.default_ttl, self.data_dir)
+            return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
         
         if prefer_backend == "redis":
             if not REDIS_AVAILABLE:
                 raise ImportError("Redis backend requested but redis package not available")
             logger.info("Using Redis backend (forced)")
-            return RedisStorageBackend(self.namespace, self.default_ttl, self.data_dir, self.redis_url)
+            return RedisStorageBackend(self.namespace, self.data_dir, self.redis_url, self.app)
         
         # Auto-select best backend
         if REDIS_AVAILABLE:
             try:
                 logger.info("Attempting Redis backend...")
-                return RedisStorageBackend(self.namespace, self.default_ttl, self.data_dir, self.redis_url)
+                return RedisStorageBackend(self.namespace, self.data_dir, self.redis_url, self.app)
             except Exception as e:
                 logger.warning(f"Redis backend failed: {e}")
                 logger.info("Falling back to Manager backend")
         else:
             logger.info("Redis not available, using Manager backend")
         
-        return ManagerStorageBackend(self.namespace, self.default_ttl, self.data_dir)
+        return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
     
     def _delegate_methods(self):
         """Delegate all methods to the selected backend"""
@@ -163,19 +171,18 @@ class SharedDataManager:
 # Global shared data manager instance
 _shared_data = None
 
-def get_shared_data(namespace: str = "fichero", default_ttl: Optional[int] = None, 
-                   data_dir: Optional[Path] = None, auto_save: bool = True,
-                   prefer_backend: Optional[str] = None,
-                   redis_url: str = "redis://localhost:6379") -> SharedDataManager:
+def get_shared_data(namespace: str = "fichero", data_dir: Optional[Path] = None, 
+                   auto_save: bool = True, prefer_backend: Optional[str] = None,
+                   redis_url: str = "redis://localhost:6379", app=None) -> SharedDataManager:
     """Get global shared data manager instance
     
     Args:
         namespace: Namespace for keys
-        default_ttl: Default time-to-live in seconds
         data_dir: Directory for persistence files
         auto_save: Enable automatic saving (Manager backend only)
         prefer_backend: Force specific backend ("redis" or "manager")
         redis_url: Redis connection URL
+        app: Toga app instance (for proper data directory)
     """
     global _shared_data
     if _shared_data is None:
@@ -183,18 +190,17 @@ def get_shared_data(namespace: str = "fichero", default_ttl: Optional[int] = Non
         if prefer_backend is None:
             prefer_backend = _get_backend_preference()
         
-        _shared_data = SharedDataManager(namespace, default_ttl, data_dir, prefer_backend, redis_url)
+        _shared_data = SharedDataManager(namespace, data_dir, prefer_backend, redis_url, app)
         if auto_save:
             _shared_data.auto_save()
     return _shared_data
 
-def reload_shared_data(namespace: str = "fichero", default_ttl: Optional[int] = None,
-                      data_dir: Optional[Path] = None, auto_save: bool = True,
-                      prefer_backend: Optional[str] = None,
-                      redis_url: str = "redis://localhost:6379") -> SharedDataManager:
+def reload_shared_data(namespace: str = "fichero", data_dir: Optional[Path] = None,
+                      auto_save: bool = True, prefer_backend: Optional[str] = None,
+                      redis_url: str = "redis://localhost:6379", app=None) -> SharedDataManager:
     """Force reload of shared data manager"""
     global _shared_data
-    _shared_data = SharedDataManager(namespace, default_ttl, data_dir, prefer_backend, redis_url)
+    _shared_data = SharedDataManager(namespace, data_dir, prefer_backend, redis_url, app)
     if auto_save:
         _shared_data.auto_save()
     return _shared_data 

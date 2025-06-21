@@ -69,10 +69,14 @@ class BatchProcessor:
                 
             # Process collected paths
             for path in paths_to_process:
-                # Skip if already processed
+                # Skip if already successfully processed (not failed)
                 if path in self.output_proc.entries:
-                    skipped_count += 1
-                    continue
+                    entry = self.output_proc.entries[path]
+                    # Only skip if the entry was successful and has outputs
+                    if entry.get("success", False) and entry.get("outputs"):
+                        skipped_count += 1
+                        continue
+                    # If failed or no outputs, reprocess it
                 documents.append({"path": path})
 
         total_files = len(documents)
