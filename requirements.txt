@@ -17,6 +17,7 @@ rawpy>=0.25.0,<1.0.0  # For RAW image format support
 exifread>=3.3.1,<4.0.0  # For reading EXIF data from images
 opencv-python  # Computer vision and image processing
 ultralytics
+scikit-learn
 # pillow-heif>=0.22.0,<1.0.0  # For HEIC/HEIF format support (fallback only) DOES NOT WORK IN BRIEFCASE - REMOVED
 
 # Machine learning and data processing
