@@ -478,7 +478,23 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         # The input file should already be the correct path from BatchProcessor
         input_path = source_path.with_suffix('.txt')
         if not input_path.exists():
-            raise FileNotFoundError(f"Input file not found: {input_path}")
+            # Create empty output file when input is missing (upstream step failed)
+            tool_logger.warning(f"Input file not found: {input_path} - creating empty output file")
+            
+            # Create empty file
+            out_path.write_text("")
+            
+            return {
+                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+                "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
+                "success": True,
+                "details": {
+                    "original_length": 0,
+                    "cleaned_length": 0,
+                    "reduction_percent": 0,
+                    "empty_due_to_missing_input": True
+                }
+            }
             
         # Read input text
         try:
@@ -487,10 +503,22 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             text = input_path.read_text()
         
         if not text.strip():
+            # Create empty output file when input is empty
+            tool_logger.info(f"Input file is empty: {input_path} - creating empty output file")
+            
+            # Create empty file
+            out_path.write_text("")
+            
             return {
                 "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
-                "error": "Empty file",
-                "success": False
+                "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
+                "success": True,
+                "details": {
+                    "original_length": 0,
+                    "cleaned_length": 0,
+                    "reduction_percent": 0,
+                    "empty_due_to_empty_input": True
+                }
             }
         
         # Clean the text

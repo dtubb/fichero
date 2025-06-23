@@ -1001,15 +1001,18 @@ class ActivityMonitorDisplay:
         self.stats_label.text = stats_text
     
     def _update_task_list(self):
-        """Update task list display"""
+        """Update task list display with enhanced status information"""
         if not self.task_table:
             return
         
         # Clear existing items
         self.task_table.data.clear()
         
-        # Get active tasks and separate them
+        # Get active tasks and recently completed tasks
         active_tasks = self.task_monitor.get_active_tasks()
+        completed_tasks = self.task_monitor.completed_tasks  # Use attribute directly
+        
+        # Separate active tasks by status
         running_tasks = []
         waiting_tasks = []
         
@@ -1019,7 +1022,7 @@ class ActivityMonitorDisplay:
             else:
                 running_tasks.append(task)
         
-        # Add running tasks first
+        # Add running tasks first with enhanced status
         for task in running_tasks:
             # Format duration in minutes
             duration_minutes = task.duration.total_seconds() / 60
@@ -1028,23 +1031,36 @@ class ActivityMonitorDisplay:
             # Get just the folder name (last part of path)
             folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
             
+            # Enhanced status description
+            if task.status == "running":
+                status_desc = f"Step: {task.current_step} | Progress: {task.overall_progress:.1f}%"
+            elif task.status == "completed":
+                status_desc = f"✅ Completed successfully"
+            elif task.status == "failed":
+                error_preview = task.error_message[:30] + "..." if task.error_message and len(task.error_message) > 30 else task.error_message
+                status_desc = f"❌ Failed: {error_preview or 'Unknown error'}"
+            elif task.status == "cancelled":
+                status_desc = f"🛑 Cancelled by user"
+            else:
+                status_desc = f"Status: {task.status}"
+            
             # Create detailed list item
             item = {
                 "title": f"{task.status_icon} {folder_name}",
-                "subtitle": f"Plan: {task.plan_name} | Step: {task.current_step} | Progress: {task.overall_progress:.1f}% | Duration: {duration_str} | Worker: {task.worker}",
+                "subtitle": f"Plan: {task.plan_name} | {status_desc} | Duration: {duration_str} | Worker: {task.worker}",
                 "icon": None,
                 "data": task
             }
             
             self.task_table.data.append(item)
         
-        # Add waiting tasks at the bottom
+        # Add waiting tasks with clearer status
         if waiting_tasks:
             # Add separator if we had running tasks
             if running_tasks:
                 self.task_table.data.append({
                     "title": "--- Waiting Tasks ---",
-                    "subtitle": "",
+                    "subtitle": "Queued for processing",
                     "icon": None,
                     "data": None
                 })
@@ -1060,18 +1076,60 @@ class ActivityMonitorDisplay:
                 # Create detailed list item for waiting task
                 item = {
                     "title": f"{task.status_icon} {folder_name}",
-                    "subtitle": f"Plan: {task.plan_name} | Waiting... | Progress: 0.0% | Duration: {duration_str} | Worker: queue",
+                    "subtitle": f"Plan: {task.plan_name} | Waiting in queue | Duration: {duration_str} | Position: {len(waiting_tasks) - waiting_tasks.index(task)}",
                     "icon": None,
                     "data": task
                 }
                 
                 self.task_table.data.append(item)
         
-        # Add message if no tasks
-        if not active_tasks:
+        # Add recent completions section
+        recent_completed = [t for t in completed_tasks if (datetime.now() - t.end_time).total_seconds() < 300]  # Last 5 minutes
+        if recent_completed and not active_tasks:
+            # Only show recent completions if no active tasks
             self.task_table.data.append({
-                "title": "No active tasks",
-                "subtitle": "All tasks completed or no tasks running",
+                "title": "--- Recently Completed ---",
+                "subtitle": "Completed in the last 5 minutes",
+                "icon": None,
+                "data": None
+            })
+            
+            for task in recent_completed[:5]:  # Show last 5
+                # Format completion time
+                time_ago = (datetime.now() - task.end_time).total_seconds()
+                if time_ago < 60:
+                    time_str = f"{int(time_ago)}s ago"
+                else:
+                    time_str = f"{int(time_ago/60)}m ago"
+                
+                # Get folder name
+                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
+                
+                # Status description
+                if task.status == "completed":
+                    status_desc = f"✅ Completed successfully {time_str}"
+                elif task.status == "failed":
+                    error_preview = task.error_message[:30] + "..." if task.error_message and len(task.error_message) > 30 else task.error_message
+                    status_desc = f"❌ Failed {time_str}: {error_preview or 'Unknown error'}"
+                elif task.status == "cancelled":
+                    status_desc = f"🛑 Cancelled {time_str}"
+                else:
+                    status_desc = f"{task.status} {time_str}"
+                
+                item = {
+                    "title": f"{task.status_icon} {folder_name}",
+                    "subtitle": f"Plan: {task.plan_name} | {status_desc}",
+                    "icon": None,
+                    "data": task
+                }
+                
+                self.task_table.data.append(item)
+        
+        # Add message if no tasks at all
+        if not self.task_table.data:
+            self.task_table.data.append({
+                "title": "No Active Tasks",
+                "subtitle": "Ready to process new folders",
                 "icon": None,
                 "data": None
             })
