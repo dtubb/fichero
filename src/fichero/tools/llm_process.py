@@ -11,6 +11,9 @@ import json
 import requests
 from datetime import datetime
 import srsly
+import asyncio
+import gc
+import warnings
 
 # Import utility modules with fallback for standalone execution
 try:
@@ -279,6 +282,7 @@ def process_documents_batch(
     Returns:
         Processing statistics dictionary
     """
+    llm = None
     try:
         # Handle case where prompt_config might be passed as boolean instead of Path
         if isinstance(prompt_config, bool):
@@ -347,6 +351,10 @@ def process_documents_batch(
             "error": str(e),
             "success": False
         }
+    finally:
+        # Clean up LLM backend resources
+        if llm and hasattr(llm, 'cleanup'):
+            llm.cleanup()
 
 def process_documents(
     input_folder: Annotated[Path, typer.Argument(help="Input folder containing transcribed documents")],
@@ -379,76 +387,83 @@ def process_documents(
     In hierarchical mode, documents are processed according to their folder structure,
     with support for level-specific processing.
     """
-    
-    # For CLI usage, use the full implementation with all parameters
-    # Load prompt configuration
-    tool_logger.info("Loading prompt configuration...")
-    config = load_prompt_config(prompt_config)
-    tool_logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
-    tool_logger.info(f"Description: {config.get('description', 'No description')}")
-    tool_logger.info(f"Steps: {len(config.get('steps', []))}")
-    tool_logger.info(f"Mode: {'Hierarchical' if hierarchical else 'Folder-level' if folder_mode else 'File-level'} processing")
-    
-    # Get max_tokens from config if not specified
-    if max_tokens is None:
-        max_tokens = config.get("llm", {}).get("max_tokens", 1000)
-        tool_logger.info(f"Using max_tokens from config: {max_tokens}")
-    else:
-        tool_logger.info(f"Using max_tokens from command line: {max_tokens}")
-    
-    # Initialize LLM backend
-    tool_logger.info("Initializing LLM backend...")
-    if "llm" in config:
-        tool_logger.info("Using LLM settings from configuration file")
-        # For config-based LLM, we need to pass CLI keys to override any config keys
-        llm_config = config.copy()
-        
-        # Override API keys in config with CLI arguments if provided
-        if "llm" in llm_config:
-            if openai_api_key:
-                llm_config["llm"]["openai_api_key"] = openai_api_key
-            if qwen_api_key:
-                llm_config["llm"]["qwen_api_key"] = qwen_api_key
-            if claude_api_key:
-                llm_config["llm"]["claude_api_key"] = claude_api_key
-        
-        llm = get_llm_backend(llm_config)
-    else:
-        tool_logger.info("Using LLM settings from command line")
-        llm = create_llm_backend_with_cli_keys(
-            backend_type=backend_type,
-            model_name=model_name,
-            api_url=api_url,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            openai_api_key=openai_api_key,
-            qwen_api_key=qwen_api_key,
-            claude_api_key=claude_api_key
-        )
-    
-    # Initialize LLM processor
-    processor = LLMProcessScript(
-        input_folder=input_folder,
-        output_folder=output_folder,
-        prompt_config=config,
-        llm=llm,
-        max_tokens=max_tokens,
-        input_manifest=input_manifest,
-        hierarchical=hierarchical,
-        folder_mode=folder_mode,
-        batch_size=batch_size
-    )
-    
-    processor.process_documents()
-
-if __name__ == "__main__":
+    llm = None
     try:
-        typer.run(process_documents)
+        # For CLI usage, use the full implementation with all parameters
+        # Load prompt configuration
+        tool_logger.info("Loading prompt configuration...")
+        config = load_prompt_config(prompt_config)
+        tool_logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
+        tool_logger.info(f"Description: {config.get('description', 'No description')}")
+        tool_logger.info(f"Steps: {len(config.get('steps', []))}")
+        tool_logger.info(f"Mode: {'Hierarchical' if hierarchical else 'Folder-level' if folder_mode else 'File-level'} processing")
+        
+        # Get max_tokens from config if not specified
+        if max_tokens is None:
+            max_tokens = config.get("llm", {}).get("max_tokens", 1000)
+            tool_logger.info(f"Using max_tokens from config: {max_tokens}")
+        else:
+            tool_logger.info(f"Using max_tokens from command line: {max_tokens}")
+        
+        # Initialize LLM backend
+        tool_logger.info("Initializing LLM backend...")
+        if "llm" in config:
+            tool_logger.info("Using LLM settings from configuration file")
+            # For config-based LLM, we need to pass CLI keys to override any config keys
+            llm_config = config.copy()
+            
+            # Override API keys in config with CLI arguments if provided
+            if "llm" in llm_config:
+                if openai_api_key:
+                    llm_config["llm"]["openai_api_key"] = openai_api_key
+                if qwen_api_key:
+                    llm_config["llm"]["qwen_api_key"] = qwen_api_key
+                if claude_api_key:
+                    llm_config["llm"]["claude_api_key"] = claude_api_key
+            
+            llm = get_llm_backend(llm_config)
+        else:
+            tool_logger.info("Using LLM settings from command line")
+            llm = create_llm_backend_with_cli_keys(
+                backend_type=backend_type,
+                model_name=model_name,
+                api_url=api_url,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                openai_api_key=openai_api_key,
+                qwen_api_key=qwen_api_key,
+                claude_api_key=claude_api_key
+            )
+        
+        # Initialize LLM processor
+        processor = LLMProcessScript(
+            input_folder=input_folder,
+            output_folder=output_folder,
+            prompt_config=config,
+            llm=llm,
+            max_tokens=max_tokens,
+            input_manifest=input_manifest,
+            hierarchical=hierarchical,
+            folder_mode=folder_mode,
+            batch_size=batch_size
+        )
+        
+        processor.process_documents()
     finally:
-        # Clean up asyncio resources to prevent ResourceWarnings
-        try:
-            import asyncio
-            import gc
+        # Clean up LLM backend resources
+        if llm and hasattr(llm, 'cleanup'):
+            llm.cleanup()
+
+def cleanup_resources():
+    """Clean up all resources to prevent ResourceWarnings"""
+    try:
+        import asyncio
+        import gc
+        import warnings
+        
+        # Suppress ResourceWarnings during cleanup
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
             
             # Get the current event loop if it exists
             try:
@@ -477,6 +492,12 @@ if __name__ == "__main__":
             # Force garbage collection to clean up any remaining resources
             gc.collect()
             
-        except Exception:
-            # Ignore cleanup errors
-            pass 
+    except Exception:
+        # Ignore cleanup errors
+        pass
+
+if __name__ == "__main__":
+    try:
+        typer.run(process_documents)
+    finally:
+        cleanup_resources() 

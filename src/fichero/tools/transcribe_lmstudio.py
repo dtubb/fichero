@@ -11,6 +11,8 @@ import base64
 import requests
 import asyncio
 from datetime import datetime
+import gc
+import warnings
 
 # Import utilities with fallback for standalone execution
 try:
@@ -72,6 +74,8 @@ class LMStudioTranscriber:
         self.api_url = api_url
         self.model_name = model_name
         self.prompt = prompt
+        # Create a session for connection pooling and proper cleanup
+        self.session = requests.Session()
 
     async def process_image(self, image: Image.Image) -> str:
         """Process an image using LMStudio's API"""
@@ -106,7 +110,7 @@ class LMStudioTranscriber:
                 
                 for attempt in range(max_retries):
                     try:
-                        response = requests.post(
+                        response = self.session.post(
                             f"{self.api_url}/chat/completions",
                             json=payload,
                             headers={"Content-Type": "application/json"}
@@ -140,8 +144,17 @@ class LMStudioTranscriber:
             tool_logger.error(f"Error in LMStudio processing: {e}")
             return ""
 
+    def cleanup(self):
+        """Clean up resources"""
+        try:
+            if hasattr(self, 'session'):
+                self.session.close()
+        except Exception as e:
+            tool_logger.warning(f"Error cleaning up LMStudio transcriber: {e}")
+
 async def process_image(file_path: Path, out_path: Path, api_url: str, model_name: str) -> dict:
     """Process a single image file, returning manifest-compatible output"""
+    transcriber = None
     try:
         # Ensure output directory exists
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -245,6 +258,10 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
     except Exception as e:
         tool_logger.error(f"Error processing {file_path}: {e}")
         return {"error": str(e)}
+    finally:
+        # Clean up transcriber resources
+        if transcriber:
+            transcriber.cleanup()
 
 def transcribe_batch(
     source_folder: Path,
@@ -401,14 +418,16 @@ def transcribe(
         testing
     )
 
-if __name__ == "__main__":
+def cleanup_resources():
+    """Clean up all resources to prevent ResourceWarnings"""
     try:
-        typer.run(transcribe)
-    finally:
-        # Clean up asyncio resources to prevent ResourceWarnings
-        try:
-            import asyncio
-            import gc
+        import asyncio
+        import gc
+        import warnings
+        
+        # Suppress ResourceWarnings during cleanup
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
             
             # Get the current event loop if it exists
             try:
@@ -437,6 +456,12 @@ if __name__ == "__main__":
             # Force garbage collection to clean up any remaining resources
             gc.collect()
             
-        except Exception:
-            # Ignore cleanup errors
-            pass 
+    except Exception:
+        # Ignore cleanup errors
+        pass
+
+if __name__ == "__main__":
+    try:
+        typer.run(transcribe)
+    finally:
+        cleanup_resources() 
