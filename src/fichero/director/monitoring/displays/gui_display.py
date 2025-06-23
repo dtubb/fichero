@@ -316,6 +316,10 @@ class DocumentProgressDisplay:
         self.progress_box = None
         self.is_showing_progress = False
         
+        # Auto-refresh for progress updates
+        self.auto_refresh_task: Optional[asyncio.Task] = None
+        self.current_task_ids = []
+        
         # Register for task updates
         self.task_monitor.register_callback(self._on_task_update)
         
@@ -333,10 +337,20 @@ class DocumentProgressDisplay:
             # Monitor the specific tasks
             self.current_task_ids = task_ids
             
+            # Start auto-refresh loop for progress updates
+            self._start_auto_refresh()
+            
             logger.info(f"Started progress display for {len(task_ids)} tasks")
             
         except Exception as e:
             logger.error(f"Failed to start progress display: {e}")
+    
+    def stop_processing(self):
+        """Stop progress display and cleanup"""
+        self._stop_auto_refresh()
+        self.current_task_ids = []
+        self.is_showing_progress = False
+        logger.info("Stopped progress display")
     
     def _create_progress_view(self):
         """Create progress view container"""
@@ -490,51 +504,245 @@ class DocumentProgressDisplay:
             logger.error(f"Error updating progress UI: {e}")
     
     async def _handle_task_completion(self, task: TaskInfo):
-        """Handle task completion"""
+        """Handle task completion with enhanced results display"""
         try:
             # Check if all tasks for this document are complete
             document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
             active_tasks = [t for t in document_tasks.values() if t.is_active]
             
             if not active_tasks:
-                # All tasks completed
+                # All tasks completed - gather results
                 completed_tasks = [t for t in document_tasks.values() if t.status == "completed"]
                 failed_tasks = [t for t in document_tasks.values() if t.status == "failed"]
+                all_tasks = list(document_tasks.values())
                 
-                # Stop activity indicator
+                # Stop activity indicator and reset button
                 self.document_window.activity_indicator.stop()
                 self.document_window.process_btn.enabled = True
                 self.document_window.process_btn.text = "Process"
+                self.document_window.process_btn.style.update(background_color=None, color=None)
                 
-                # Show completion dialog
-                if failed_tasks:
-                    await self.document_window.dialog(toga.InfoDialog(
-                        "❌ Processing Failed",
-                        f"{len(failed_tasks)} of {len(document_tasks)} tasks failed"
-                    ))
-                else:
-                    await self.document_window.dialog(toga.InfoDialog(
-                        "🎉 Processing Complete",
-                        "All folders have been processed successfully!"
-                    ))
-                
-                # Add return button
-                if self.progress_box:
-                    return_button = toga.Button(
-                        "🏠 Return to Main View",
-                        on_press=self._return_to_main_view,
-                        style=Pack(margin_top=20, width=200, padding=10)
-                    )
-                    self.progress_box.add(return_button)
+                # Create enhanced completion view
+                await self._show_completion_summary(completed_tasks, failed_tasks, all_tasks)
                     
         except Exception as e:
             logger.error(f"Error handling task completion: {e}")
     
-    def _return_to_main_view(self, widget):
-        """Return to description view"""
+    async def _show_completion_summary(self, completed_tasks, failed_tasks, all_tasks):
+        """Show enhanced completion summary with results access"""
+        if not self.progress_box:
+            return
+        
+        # Clear current progress widgets
+        self.progress_box.clear()
+        
+        # Determine overall result
+        total_tasks = len(all_tasks)
+        success_rate = len(completed_tasks) / total_tasks if total_tasks > 0 else 0
+        
+        if len(failed_tasks) == 0:
+            # Perfect success
+            title_icon = "🎉"
+            title_text = "Processing Complete!"
+            title_color = "#2e7d32"  # Green
+        elif success_rate >= 0.8:
+            # Mostly successful
+            title_icon = "✅"
+            title_text = "Processing Mostly Complete"
+            title_color = "#f57f17"  # Amber
+        else:
+            # Many failures
+            title_icon = "⚠️"
+            title_text = "Processing Completed with Issues"
+            title_color = "#d32f2f"  # Red
+        
+        # Title
+        title_label = toga.Label(
+            f"{title_icon} {title_text}",
+            style=Pack(
+                font_size=16,
+                font_weight='bold',
+                color=title_color,
+                margin_bottom=15,
+                text_align=CENTER
+            )
+        )
+        self.progress_box.add(title_label)
+        
+        # Results summary
+        summary_text = f"📊 Results: {len(completed_tasks)}/{total_tasks} folders completed"
+        if failed_tasks:
+            summary_text += f" • {len(failed_tasks)} failed"
+        
+        summary_label = toga.Label(
+            summary_text,
+            style=Pack(
+                font_size=12,
+                margin_bottom=20,
+                text_align=CENTER,
+                color="#555555"
+            )
+        )
+        self.progress_box.add(summary_label)
+        
+        # Output folder access
+        if completed_tasks:
+            output_path = getattr(completed_tasks[0], 'output_path', None)
+            if output_path:
+                # Output folder button
+                output_btn = toga.Button(
+                    f"📁 View Results ({Path(output_path).name})",
+                    on_press=lambda w: self._open_output_folder(output_path),
+                    style=Pack(
+                        margin_bottom=10,
+                        background_color="#1976d2",
+                        color="white",
+                        padding=8
+                    )
+                )
+                self.progress_box.add(output_btn)
+        
+        # Action buttons row
+        button_row = toga.Box(
+            style=Pack(direction=ROW, justify_content=CENTER, margin_top=10)
+        )
+        
+        # Activity Monitor button
+        activity_btn = toga.Button(
+            "📊 Activity Monitor",
+            on_press=lambda w: self._open_activity_monitor(),
+            style=Pack(margin_right=10, padding=6)
+        )
+        button_row.add(activity_btn)
+        
+        # Process Another button
+        process_btn = toga.Button(
+            "🔄 Process Another",
+            on_press=lambda w: self._return_to_main_view(),
+            style=Pack(margin_right=10, padding=6)
+        )
+        button_row.add(process_btn)
+        
+        # Back to Main button
+        back_btn = toga.Button(
+            "🏠 Back to Main",
+            on_press=lambda w: self._return_to_main_view(),
+            style=Pack(background_color='#1976d2', color='white', padding=6)
+        )
+        button_row.add(back_btn)
+        
+        self.progress_box.add(button_row)
+        
+        # Detailed results (if there were failures)
+        if failed_tasks:
+            await self._add_detailed_results(completed_tasks, failed_tasks)
+    
+    async def _add_detailed_results(self, completed_tasks, failed_tasks):
+        """Add detailed breakdown of results"""
+        # Separator
+        separator = toga.Divider(style=Pack(margin=(20, 0)))
+        self.progress_box.add(separator)
+        
+        # Details header
+        details_label = toga.Label(
+            "📋 Detailed Results",
+            style=Pack(
+                font_size=14,
+                font_weight='bold',
+                margin_bottom=10,
+                text_align=CENTER
+            )
+        )
+        self.progress_box.add(details_label)
+        
+        # Success list
+        if completed_tasks:
+            success_header = toga.Label(
+                f"✅ Completed ({len(completed_tasks)}):",
+                style=Pack(font_size=11, font_weight='bold', color="#2e7d32", margin_bottom=5)
+            )
+            self.progress_box.add(success_header)
+            
+            for task in completed_tasks[:5]:  # Show first 5
+                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
+                item_label = toga.Label(
+                    f"  • {folder_name}",
+                    style=Pack(font_size=10, margin_left=10, margin_bottom=2)
+                )
+                self.progress_box.add(item_label)
+            
+            if len(completed_tasks) > 5:
+                more_label = toga.Label(
+                    f"  ... and {len(completed_tasks) - 5} more",
+                    style=Pack(font_size=10, margin_left=10, margin_bottom=5, color="#666666")
+                )
+                self.progress_box.add(more_label)
+        
+        # Failure list
+        if failed_tasks:
+            failure_header = toga.Label(
+                f"❌ Failed ({len(failed_tasks)}):",
+                style=Pack(font_size=11, font_weight='bold', color="#d32f2f", margin_bottom=5)
+            )
+            self.progress_box.add(failure_header)
+            
+            for task in failed_tasks[:3]:  # Show first 3 failures
+                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
+                error_msg = task.error_message[:50] + "..." if task.error_message and len(task.error_message) > 50 else task.error_message
+                item_label = toga.Label(
+                    f"  • {folder_name}: {error_msg or 'Unknown error'}",
+                    style=Pack(font_size=10, margin_left=10, margin_bottom=2, color="#666666")
+                )
+                self.progress_box.add(item_label)
+                
+            if len(failed_tasks) > 3:
+                more_label = toga.Label(
+                    f"  ... and {len(failed_tasks) - 3} more failures",
+                    style=Pack(font_size=10, margin_left=10, color="#666666")
+                )
+                self.progress_box.add(more_label)
+    
+    def _open_output_folder(self, output_path):
+        """Open the output folder in system file manager"""
         try:
-            self.is_showing_progress = False
+            import subprocess
+            import platform
+            
+            path = Path(output_path)
+            if path.exists():
+                if platform.system() == "Darwin":  # macOS
+                    subprocess.run(["open", str(path)])
+                elif platform.system() == "Windows":
+                    subprocess.run(["explorer", str(path)])
+                else:  # Linux
+                    subprocess.run(["xdg-open", str(path)])
+            else:
+                logger.warning(f"Output path does not exist: {path}")
+        except Exception as e:
+            logger.error(f"Failed to open output folder: {e}")
+    
+    def _open_activity_monitor(self):
+        """Open the activity monitor window"""
+        try:
+            # Use the app's activity monitor functionality
+            if hasattr(self.document_window._app, 'show_activity_monitor'):
+                self.document_window._app.show_activity_monitor()
+            else:
+                logger.warning("Activity monitor not available")
+        except Exception as e:
+            logger.error(f"Failed to open activity monitor: {e}")
+    
+    def _return_to_main_view(self):
+        """Return to description view and reset for new processing"""
+        try:
+            # Stop progress monitoring
+            self.stop_processing()
+            
+            # Clear progress widgets
             self.progress_widgets.clear()
+            
+            # Reset document window button state
+            self.document_window._reset_to_process_button()
             
             # Notify the document window to return to description view
             if hasattr(self.document_window, 'content_display'):
@@ -542,6 +750,49 @@ class DocumentProgressDisplay:
             
         except Exception as e:
             logger.error(f"Error returning to main view: {e}")
+    
+    def _start_auto_refresh(self):
+        """Start auto-refresh task for progress updates"""
+        if not self.auto_refresh_task:
+            self.auto_refresh_task = asyncio.create_task(self._auto_refresh_loop())
+            logger.debug("Started auto-refresh for document progress")
+    
+    def _stop_auto_refresh(self):
+        """Stop auto-refresh task"""
+        if self.auto_refresh_task:
+            self.auto_refresh_task.cancel()
+            self.auto_refresh_task = None
+            logger.debug("Stopped auto-refresh for document progress")
+    
+    async def _auto_refresh_loop(self):
+        """Auto-refresh loop for progress updates"""
+        try:
+            while True:
+                await self._refresh_all_tasks()
+                await asyncio.sleep(2.0)  # Update every 2 seconds
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"Auto-refresh error in document progress: {e}")
+    
+    async def _refresh_all_tasks(self):
+        """Refresh progress for all current tasks"""
+        try:
+            if not self.current_task_ids or not self.is_showing_progress:
+                return
+            
+            # Get updated task information
+            for task_id in self.current_task_ids:
+                task = self.task_monitor.get_task(task_id)
+                if task:
+                    await self._update_progress_ui(task)
+                    
+                    # Check if task completed
+                    if task.status in ["completed", "failed", "cancelled"]:
+                        await self._handle_task_completion(task)
+            
+        except Exception as e:
+            logger.error(f"Error refreshing tasks: {e}")
 
 
 class ActivityMonitorDisplay:

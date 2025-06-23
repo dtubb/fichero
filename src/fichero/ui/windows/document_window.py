@@ -305,6 +305,136 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 return None
         return self.content_display
     
+    def _show_stopped_message(self, output_path, completed_tasks, failed_tasks):
+        """Show a custom stopped message with results and options"""
+        content_display = self._get_content_display()
+        if not content_display:
+            return
+        
+        # Mark as not showing progress so we can create custom content
+        content_display.is_showing_progress = False
+        
+        # Clear content and create stopped message view
+        content_display.content_section.clear()
+        
+        # Create main container
+        stopped_container = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                margin=(20, 20, 20, 20),
+                align_items=CENTER
+            )
+        )
+        
+        # Title
+        title_label = toga.Label(
+            "🛑 Processing Stopped",
+            style=Pack(
+                font_size=16,
+                font_weight='bold',
+                color='#d32f2f',
+                margin_bottom=15
+            )
+        )
+        stopped_container.add(title_label)
+        
+        # Results summary
+        total_tasks = completed_tasks + failed_tasks
+        if total_tasks > 0:
+            results_text = f"📊 Results: {completed_tasks} completed"
+            if failed_tasks > 0:
+                results_text += f", {failed_tasks} failed"
+        else:
+            results_text = "⏸️ Processing was interrupted before completion"
+            
+        results_label = toga.Label(
+            results_text,
+            style=Pack(
+                font_size=12,
+                margin_bottom=10,
+                text_align=CENTER
+            )
+        )
+        stopped_container.add(results_label)
+        
+        # Output location (if available)
+        if output_path:
+            output_label = toga.Label(
+                f"📁 Output: {output_path}",
+                style=Pack(
+                    font_size=11,
+                    color='#666666',
+                    margin_bottom=20,
+                    text_align=CENTER
+                )
+            )
+            stopped_container.add(output_label)
+        
+        # Action buttons
+        button_container = toga.Box(
+            style=Pack(direction=ROW, margin_top=10)
+        )
+        
+        # View Output button (if output exists)
+        if output_path and Path(output_path).exists():
+            view_output_btn = toga.Button(
+                "📁 View Output",
+                on_press=lambda w: self._open_output_folder(output_path),
+                style=Pack(margin_right=10)
+            )
+            button_container.add(view_output_btn)
+        
+        # Activity Monitor button
+        activity_btn = toga.Button(
+            "📊 Activity Monitor",
+            on_press=lambda w: self._open_activity_monitor(),
+            style=Pack(margin_right=10)
+        )
+        button_container.add(activity_btn)
+        
+        # Back button
+        back_btn = toga.Button(
+            "↩️ Back",
+            on_press=lambda w: content_display.show_description_view(),
+            style=Pack(background_color='#1976d2', color='white')
+        )
+        button_container.add(back_btn)
+        
+        stopped_container.add(button_container)
+        
+        # Add to content section
+        content_display.content_section.add(stopped_container)
+    
+    def _open_output_folder(self, output_path):
+        """Open the output folder in Finder/Explorer"""
+        try:
+            import subprocess
+            import platform
+            
+            path = Path(output_path)
+            if path.exists():
+                if platform.system() == "Darwin":  # macOS
+                    subprocess.run(["open", str(path)])
+                elif platform.system() == "Windows":
+                    subprocess.run(["explorer", str(path)])
+                else:  # Linux
+                    subprocess.run(["xdg-open", str(path)])
+            else:
+                logger.warning(f"Output path does not exist: {path}")
+        except Exception as e:
+            logger.error(f"Failed to open output folder: {e}")
+    
+    def _open_activity_monitor(self):
+        """Open the activity monitor window"""
+        try:
+            # Use the app's activity monitor functionality
+            if hasattr(self._app, 'show_activity_monitor'):
+                self._app.show_activity_monitor()
+            else:
+                logger.warning("Activity monitor not available")
+        except Exception as e:
+            logger.error(f"Failed to open activity monitor: {e}")
+    
     # Event Handlers - Thin Wrappers for Director
     
     async def choose_folder_handler(self, widget):
@@ -333,7 +463,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         webbrowser.open("https://www.tubb.ca/fichero/")
     
     async def stop_handler(self, widget):
-        """Handle stop button - cancel current processing"""
+        """Handle stop button - cancel current processing and show results"""
         try:
             if not self.current_task_ids:
                 return
@@ -341,30 +471,61 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Ask for confirmation
             confirm = await self.dialog(toga.QuestionDialog(
                 "Stop Processing",
-                "Are you sure you want to stop the current processing?",
-                "Stop", "Continue"
+                "Are you sure you want to stop the current processing?"
             ))
             
             if confirm:
-                # Cancel all current tasks via director
+                # Get task status before cancelling to show what was completed
                 director = self._app.director
+                completed_tasks = 0
+                failed_tasks = 0
+                output_path = None
+                
                 for task_id in self.current_task_ids:
                     try:
+                        status = director.get_task_status(task_id)
+                        if status and hasattr(status, 'value'):
+                            if status.value == "SUCCESS":
+                                completed_tasks += 1
+                            elif status.value == "FAILED":
+                                failed_tasks += 1
+                        
+                        # Get output path from task info
+                        if not output_path:
+                            task_info = director.get_task_info(task_id)
+                            if task_info:
+                                output_path = getattr(task_info, 'output_path', None)
+                        
+                        # Cancel the task
                         director.cancel_task(task_id)
                         logger.info(f"Cancelled task: {task_id}")
                     except Exception as e:
                         logger.warning(f"Could not cancel task {task_id}: {e}")
                 
+                # Store total tasks before clearing
+                total_tasks = len(self.current_task_ids)
+                
                 # Reset UI state
                 self._reset_to_process_button()
                 self.current_task_ids = []
                 
-                # Return to main view if progress is showing
+                # Stop progress monitoring in content display
                 content_display = self._get_content_display()
-                if content_display and content_display.is_showing_progress:
-                    content_display.show_description_view()
+                if content_display and content_display.progress_display:
+                    content_display.progress_display.stop_processing()
                 
-                await self.dialog(toga.InfoDialog("Stopped", "Processing has been stopped."))
+                # Show custom stopped message instead of returning to description
+                if content_display and content_display.is_showing_progress:
+                    self._show_stopped_message(output_path, completed_tasks, failed_tasks)
+                
+                # Show summary dialog
+                message = f"Processing stopped.\n\nCompleted: {completed_tasks}/{total_tasks} tasks"
+                if failed_tasks > 0:
+                    message += f"\nFailed: {failed_tasks}"
+                if output_path:
+                    message += f"\n\nOutput location:\n{output_path}"
+                
+                await self.dialog(toga.InfoDialog("Processing Stopped", message))
                 
         except Exception as e:
             logger.error(f"Error stopping processing: {e}")
@@ -387,29 +548,36 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Use default workflow if none selected
         workflow_to_use = self.current_workflow or "default"
         
-        # Ask user where to save output using Mac-style save dialog
+        # Ask user where to save output - default to Desktop
         try:
+            # Get desktop path cross-platform
+            desktop_path = Path.home() / "Desktop"
+            if not desktop_path.exists():
+                # Fallback to home directory if Desktop doesn't exist
+                desktop_path = Path.home()
+            
             folder_name = self.selected_folder.name
             suggested_name = f"{folder_name}_processed"
             
-            save_path = await self.dialog(toga.SaveFileDialog(
-                title="Save processed results as...",
-                suggested_filename=suggested_name
+            # Use SelectFolderDialog with desktop as initial directory
+            parent_path = await self.dialog(toga.SelectFolderDialog(
+                title="Choose where to save processed results...",
+                initial_directory=desktop_path
             ))
             
-            if not save_path:
+            if not parent_path:
                 return  # User cancelled
             
-            output_path = Path(save_path)
+            # Create the output path with suggested name
+            output_path = Path(parent_path) / suggested_name
             
-            # Ensure the path doesn't already exist, or confirm overwrite
+            # Ensure the path doesn't already exist, or confirm reprocessing
             if output_path.exists():
-                overwrite = await self.dialog(toga.QuestionDialog(
+                reprocess = await self.dialog(toga.QuestionDialog(
                     "Folder Exists",
-                    f"A folder named '{output_path.name}' already exists. Do you want to replace it?",
-                    "Replace", "Cancel"
+                    f"A folder named '{output_path.name}' already exists. Do you want to continue processing and replace it?"
                 ))
-                if overwrite is False:
+                if not reprocess:
                     return
             
             logger.info(f"User chose save location: {output_path}")
@@ -491,6 +659,12 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                     # All tasks completed - DocumentContentDisplay handles UI updates
                     # Just reset button states here
                     self._reset_to_process_button()
+                    
+                    # Stop progress monitoring in content display
+                    content_display = self._get_content_display()
+                    if content_display and content_display.progress_display:
+                        content_display.progress_display.stop_processing()
+                    
                     self.current_task_ids = []
                     break
                 
@@ -500,6 +674,11 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 logger.error(f"Error monitoring tasks: {e}")
                 # Reset button states on error
                 self._reset_to_process_button()
+                
+                # Stop progress monitoring on error
+                content_display = self._get_content_display()
+                if content_display and content_display.progress_display:
+                    content_display.progress_display.stop_processing()
                 break
 
     # Plan Management - Simplified

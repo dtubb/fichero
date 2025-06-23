@@ -40,19 +40,27 @@ class PythonProcessingBackend(ProcessingBackend):
         if app and hasattr(app, 'settings'):
             try:
                 from ...config.core.settings import get_app_settings
+                logger.info(f"Loading worker settings from app: {type(app)}")
                 app_settings = get_app_settings(app)
                 if app_settings:
+                    # Get worker values from settings
+                    cpu_from_settings = app_settings.get_cpu_workers()
+                    io_from_settings = app_settings.get_io_workers()
+                    logger.info(f"App settings returned: CPU={cpu_from_settings}, IO={io_from_settings}")
+                    
                     # Use settings from app configuration
-                    self.cpu_workers = cpu_workers or app_settings.get_cpu_workers()
-                    self.io_workers = io_workers or app_settings.get_io_workers()
+                    self.cpu_workers = cpu_workers or cpu_from_settings
+                    self.io_workers = io_workers or io_from_settings
                     logger.info(f"Using worker configuration from app settings: {self.cpu_workers} CPU, {self.io_workers} IO")
                 else:
+                    logger.warning("get_app_settings returned None, using defaults")
                     # Fallback to calculated defaults
                     self._set_default_workers(cpu_workers, io_workers)
             except Exception as e:
                 logger.warning(f"Could not load worker settings from app: {e}")
                 self._set_default_workers(cpu_workers, io_workers)
         else:
+            logger.info(f"No app context (app={app}, has_settings={hasattr(app, 'settings') if app else False}), using defaults")
             # No app context, use calculated defaults
             self._set_default_workers(cpu_workers, io_workers)
         
@@ -631,7 +639,7 @@ class PythonProcessingBackend(ProcessingBackend):
     def _set_default_workers(self, cpu_workers: int, io_workers: int):
         """Set default worker configuration"""
         self.cpu_workers = cpu_workers or max(2, multiprocessing.cpu_count() // 2)  # Half cores for CPU-intensive tasks
-        self.io_workers = io_workers or max(32, multiprocessing.cpu_count() * 4)  # Many more IO workers since they're not resource-intensive
+        self.io_workers = io_workers or multiprocessing.cpu_count()  # Use core count for IO workers (they're mostly waiting for API responses)
         logger.info(f"Using default worker configuration: {self.cpu_workers} CPU, {self.io_workers} IO")
     
  

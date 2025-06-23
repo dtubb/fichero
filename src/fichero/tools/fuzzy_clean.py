@@ -462,12 +462,6 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         source_path = Path(file_path)
         rel_path = SegmentHandler.get_relative_path(source_path)
         
-        # The input file should already be the correct path from BatchProcessor
-        input_path = source_path.with_suffix('.txt')
-        if not input_path.exists():
-            # Since file_path comes from recombined_folder, just use it directly
-                raise FileNotFoundError(f"Input file not found: {input_path}")
-            
         # Use relative path for output
         out_path = output_folder / "documents" / rel_path.with_suffix('.txt')
         ensure_dirs(out_path)
@@ -480,6 +474,11 @@ def process_document(file_path: str, output_folder: Path) -> dict:
                 "skipped": True,
                 "success": True
             }
+        
+        # The input file should already be the correct path from BatchProcessor
+        input_path = source_path.with_suffix('.txt')
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
             
         # Read input text
         try:
