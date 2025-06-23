@@ -341,7 +341,7 @@ class FileLibraryPanel(toga.Box):
                 size=(280, 120)
             )
             
-            container = toga.Box(style=Pack(direction=COLUMN, padding=15))
+            container = toga.Box(style=Pack(direction=COLUMN, margin=15))
             
             container.add(toga.Label(
                 f"Rename '{current_name}':",

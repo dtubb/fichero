@@ -3,19 +3,27 @@ from PIL import Image, ImageEnhance
 from pathlib import Path
 import numpy as np
 import cv2
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
-from rich.console import Console
+# Import utilities with fallback for standalone execution
+try:
+    # Try absolute imports first (when run from app context)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # Fall back to relative imports (when run standalone)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.tool_logger import get_tool_logger
 from typing import Literal
 import pytesseract
 from sklearn.cluster import KMeans
 from collections import Counter
-import logging
 
-console = Console()
-logger = logging.getLogger(__name__)
+tool_logger = get_tool_logger('enhance')
 
 DocumentType = Literal['handwritten', 'typescript', 'mixed']
 PaperType = Literal['lined', 'plain']
@@ -55,18 +63,18 @@ class DocumentAnalyzer:
             confidences = [conf for conf in ocr_data['conf'] if conf != -1]
         except UnicodeDecodeError as e:
             # Tesseract binary error output can't be decoded as UTF-8
-            logger.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
-            logger.info("Falling back to morphological analysis")
+            tool_logger.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
+            tool_logger.info("Falling back to morphological analysis")
             return self._morphological_heuristic(binary)
         except pytesseract.TesseractError as e:
             # If OCR fails entirely, default to morphological fallback
-            logger.warning(f"Tesseract OCR failed: {e}")
-            logger.info("Falling back to morphological analysis")
+            tool_logger.warning(f"Tesseract OCR failed: {e}")
+            tool_logger.info("Falling back to morphological analysis")
             return self._morphological_heuristic(binary)
         except Exception as e:
             # Any other error with OCR
-            logger.warning(f"OCR failed during document type detection: {e}")
-            logger.info("Falling back to morphological analysis")
+            tool_logger.warning(f"OCR failed during document type detection: {e}")
+            tool_logger.info("Falling back to morphological analysis")
             return self._morphological_heuristic(binary)
         
         if not confidences:
@@ -168,27 +176,27 @@ def enhance_image(image: Image.Image) -> tuple[Image.Image, dict]:
 
 def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
     """Process a single image file for enhancement"""
-    logger.info(f"Processing image: {file_path}")
+    tool_logger.info(f"Processing image: {file_path}")
     
     try:
         # Use SegmentHandler for path handling
         rel_path = SegmentHandler.get_relative_path(file_path)
     except Exception as e:
-        logger.error(f"Error in path handling: {e}")
+        tool_logger.error(f"Error in path handling: {e}")
         import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        tool_logger.error(f"Full traceback: {traceback.format_exc()}")
         return {"success": False, "error": f"Path handling error: {e}"}
     
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
-        logger.info(f"Image loaded successfully: {image.size}")
+        tool_logger.info(f"Image loaded successfully: {image.size}")
     except Exception as e:
-        logger.error(f"Failed to load image {file_path.name}: {e}")
-        logger.error(f"File exists: {file_path.exists()}")
-        logger.error(f"Working directory: {Path.cwd()}")
+        tool_logger.error(f"Failed to load image {file_path.name}: {e}")
+        tool_logger.error(f"File exists: {file_path.exists()}")
+        tool_logger.error(f"Working directory: {Path.cwd()}")
         import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        tool_logger.error(f"Full traceback: {traceback.format_exc()}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     # Enhance image and get parameters
@@ -219,14 +227,14 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        logger.info(f"Processing file: {f}")
+        tool_logger.info(f"Processing file: {f}")
         try:
             result = process_image(Path(f), o, output_format)
             return result
         except Exception as e:
-            logger.error(f"Error in process_fn: {e}")
+            tool_logger.error(f"Error in process_fn: {e}")
             import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
+            tool_logger.error(f"Full traceback: {traceback.format_exc()}")
             raise
     
     # Get supported extensions and create file_types dict
@@ -239,6 +247,30 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
         file_types=file_types
     )
 
+# Importable batch function - NO CLI dependencies
+def enhance_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    output_format: str = "jpg",
+    **kwargs
+) -> dict:
+    """
+    Enhance image quality of document pages - importable function
+    
+    Returns:
+        Processing statistics dictionary
+    """
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="enhance",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o, output_format)
+    )
+    return processor.process()
+
+# CLI wrapper for typer
 def enhance(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
@@ -248,14 +280,7 @@ def enhance(
                                      callback=validate_format)
 ):
     """Enhance image quality of document pages"""
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="enhance",
-        base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o, output_format)
-    )
-    processor.process()
+    return enhance_batch(source_folder, source_manifest, output_folder, output_format)
 
 if __name__ == "__main__":
     typer.run(enhance)

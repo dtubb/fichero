@@ -9,8 +9,9 @@ import uuid
 import logging
 from typing import Optional
 
-from ..utils import _, get_app_settings
-from .document_window import FicheroDocumentWindow
+from ..ui.i18n import _
+from ..utils import get_app_settings
+from ..ui.windows.document_window import FicheroDocumentWindow
 from .auto_save import AutoSaveManager
 from .document_state import DocumentStateManager
 from .window_manager import DocumentWindowManager
@@ -25,23 +26,32 @@ class FicheroDocument(toga.Document):
     extensions = ["fichero"]
     
     def __init__(self, app, path: Optional[Path] = None, test_mode: bool = False):
-        # Minimal initialization - just call super and store basic info
-        super().__init__(app)
-        
+        # Initialize basic properties first
         self.document_id = str(uuid.uuid4())
         self.is_modified = False
         self._test_mode = test_mode
         
+        # Store the app reference temporarily
+        self._temp_app = app
+        
+        # Set path if provided
         if path:
             self.path = path
-            
-        print(f"📄 FicheroDocument {self.document_id} created")
-    
-    def get_display_name(self) -> str:
-        """Get display name for the document"""
-        if hasattr(self, 'path') and self.path:
-            return self.path.stem
-        return "Untitled"
+        
+        if not test_mode:
+            # Call super().__init__ first to set up the app reference
+            super().__init__(app)
+        else:
+            # In test mode, store app reference without calling super or setting app property
+            self._app = app
+        
+        # Initialize managers
+        self.auto_save_manager = AutoSaveManager(self)
+        self.state_manager = DocumentStateManager(self)
+        self.window_manager = DocumentWindowManager(self)
+        
+        # Now initialize document structure after app is available
+        self._init_document_structure()
     
     def _init_document_structure(self):
         """Initialize or load document structure"""
@@ -74,25 +84,13 @@ class FicheroDocument(toga.Document):
             return None
         
         try:
-            print(f"📄 Creating window for document {self.document_id}")
-            # Create a simple DocumentWindow with minimal content for now
-            self.main_window = toga.DocumentWindow(
-                doc=self,
-                title=f"Fichero - {self.get_display_name()}"
-            )
-            
-            # Add simple placeholder content
-            content = toga.Box(
-                children=[
-                    toga.Label(f"Document: {self.get_display_name()}", style={"padding": 20})
-                ]
-            )
-            self.main_window.content = content
-            
-            print(f"✅ Created simple document window")
+            logger.info(f"Creating document window for document {self.document_id}")
+            # Create the main window using DocumentWindow
+            self.main_window = FicheroDocumentWindow(doc=self)
+            logger.info(f"Successfully created document window")
             return self.main_window
         except Exception as e:
-            print(f"❌ Failed to create document window: {e}")
+            logger.error(f"Failed to create document window: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -100,16 +98,44 @@ class FicheroDocument(toga.Document):
     def read(self):
         """Read document data from file"""
         if hasattr(self, 'path') and self.path:
-            print(f"📖 Reading document: {self.path}")
-            # Minimal implementation for now
+            self.state_manager.load_document(self.path)
     
     def write(self):
         """Write document data to file"""
         if hasattr(self, 'path') and self.path:
-            print(f"💾 Writing document: {self.path}")
-            # Minimal implementation - just create the directory
+            # User has chosen a specific save location
+            # Ensure document directory exists
             self.path.mkdir(parents=True, exist_ok=True)
+            
+            # Update document config with current path info
+            self.state_manager.document_config["title"] = self.path.name
+            if "vars" in self.state_manager.plans_config:
+                self.state_manager.plans_config["vars"]["name"] = self.path.name
+                self.state_manager.plans_config["vars"]["project_folder"] = str(self.path)
+                self.state_manager.plans_config["vars"]["documents_folder"] = str(self.path / "documents")
+                self.state_manager.plans_config["vars"]["assets_folder"] = str(self.path / "assets")
+            
+            # Save both configurations
+            self.state_manager.save_plans_config()
+            self.state_manager.save_document_config()
+            
+            # Clean up auto-save if this was previously auto-saved
+            self.auto_save_manager.cleanup_auto_save()
+            
             self.is_modified = False
+            logger.info(f"Saved document to: {self.path}")
+            
+            # Track the document save
+            from . import get_document_tracker
+            tracker = get_document_tracker()
+            if tracker:
+                tracker.document_saved(self.path)
+        else:
+            # No user-specified path, use auto-save
+            if self.auto_save_manager.auto_save():
+                logger.info("Document auto-saved successfully")
+            else:
+                logger.warning("Failed to auto-save document")
 
     # Delegation methods for easier access
     def get_effective_path(self) -> Optional[Path]:

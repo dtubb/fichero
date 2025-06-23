@@ -2,6 +2,23 @@ title: "Settings"
 description: "Configure global application settings and API connections"
 
 sections:
+  - id: "defaults"
+    title: "Defaults" 
+    sections:
+      - title: "Processing Defaults"
+        description: "Set default plan and workflow for new processing tasks"
+        fields:
+          - id: "default_plan"
+            type: "selection"
+            label: "Default Plan"
+            options: []  # Will be populated dynamically
+            help: "Plan to use when none specified (CLI and GUI)"
+          - id: "default_workflow" 
+            type: "selection"
+            label: "Default Workflow"
+            options: []  # Will be populated dynamically
+            help: "Workflow to use when 'default' is selected"
+
   - id: "appearance"
     title: "Appearance"
     sections:
@@ -22,7 +39,7 @@ sections:
             type: "selection"
             label: "Backend Type"
             options: ["python", "redis"]
-            help: "Python Manager and Processors (default, working). Redis + Celery (faster, shared data working, processing TBD)."
+            help: "Python: Local multiprocessing (no dependencies). Celery/Redis: Distributed processing (requires Celery + Redis server)."
             
       - title: "Worker Configuration"
         description: "Configure processing performance"
@@ -37,8 +54,8 @@ sections:
             type: "number_input"
             label: "I/O Workers"
             min: 1
-            max: 64
-            help: "Number of I/O workers for file operations"
+            max: 128
+            help: "Number of I/O workers for transcription and API calls (not resource-intensive)"
           - id: "workers.memory_per_worker_mb"
             type: "number_input"
             label: "Memory per Worker (MB)"

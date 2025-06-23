@@ -2,7 +2,6 @@ from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 import json
 from datetime import datetime
-from rich.console import Console
 import os
 import requests
 from langchain.schema import HumanMessage
@@ -12,7 +11,6 @@ import anthropic
 from http import HTTPStatus
 import dashscope
 from dashscope import Generation
-import logging
 from .segment_handler import SegmentHandler
 from .files import ensure_dirs, get_relative_path
 from .manifest import ManifestProcessor
@@ -20,10 +18,15 @@ from .api_keys import get_openai_key, get_qwen_key, get_claude_key
 import srsly
 import asyncio
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('llm_utils')
 
 # Default configuration values
 DEFAULT_MAX_TOKENS = 3072
@@ -36,7 +39,7 @@ class LLMBackend:
         self.max_tokens = max_tokens
 
     def process_text(self, text: str, prompt: str) -> str:
-        raise NotImplementedErrorno
+        raise NotImplementedError
 
 class ChatGPTBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
@@ -51,40 +54,82 @@ class ChatGPTBackend(LLMBackend):
     def process_text(self, text: str, prompt: str) -> str:
         try:
             max_tokens = min(self.max_tokens, 4096)  # GPT-3.5-turbo's limit
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"{prompt}\n\n{text}"}
-                ],
-                max_tokens=max_tokens,
-                temperature=self.temperature
-            )
-            return response.choices[0].message.content.strip()
+            
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0  # Start with 1 second delay
+            
+            for attempt in range(max_retries):
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": f"{prompt}\n\n{text}"}
+                        ],
+                        max_tokens=max_tokens,
+                        temperature=self.temperature
+                    )
+                    return response.choices[0].message.content.strip()
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"ChatGPT API call failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        tool_logger.error(f"ChatGPT API call failed after {max_retries} attempts: {e}")
+                        return ""
+                        
         except Exception as e:
-            console.print(f"[red]Error invoking ChatGPT: {e}")
+            tool_logger.error(f"Error invoking ChatGPT: {e}")
             return ""
 
     async def process_text_async(self, text: str, prompt: str) -> str:
         """Async version of process_text for concurrent processing"""
         try:
             max_tokens = min(self.max_tokens, 4096)  # GPT-3.5-turbo's limit
-            response = await self.async_client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"{prompt}\n\n{text}"}
-                ],
-                max_tokens=max_tokens,
-                temperature=self.temperature
-            )
-            return response.choices[0].message.content.strip()
+            
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0  # Start with 1 second delay
+            
+            for attempt in range(max_retries):
+                try:
+                    response = await self.async_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": f"{prompt}\n\n{text}"}
+                        ],
+                        max_tokens=max_tokens,
+                        temperature=self.temperature
+                    )
+                    return response.choices[0].message.content.strip()
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"ChatGPT async API call failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        tool_logger.error(f"ChatGPT async API call failed after {max_retries} attempts: {e}")
+                        return ""
+                        
         except Exception as e:
-            console.print(f"[red]Error invoking ChatGPT async: {e}")
+            tool_logger.error(f"Error invoking ChatGPT async: {e}")
             return ""
 
     async def process_pages_batch(self, pages: List[Dict], prompt: str, batch_size: int = 10) -> List[Dict]:
         """Process multiple pages concurrently with rate limiting"""
+        # Create semaphore dynamically within the correct event loop context
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop running, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         semaphore = asyncio.Semaphore(batch_size)
         
         async def process_page_with_limit(page_info: Dict) -> Dict:
@@ -104,19 +149,42 @@ class ChatGPTBackend(LLMBackend):
                     'timestamp': datetime.now().isoformat()
                 }
         
-        # Process all pages concurrently
-        tasks = [process_page_with_limit(page) for page in pages]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Filter out exceptions and return successful results
-        successful_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                console.print(f"[red]Error processing page {pages[i].get('page_num', i)}: {result}")
-            else:
-                successful_results.append(result)
-        
-        return successful_results
+        try:
+            # Process all pages concurrently
+            tasks = [process_page_with_limit(page) for page in pages]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Filter out exceptions and return successful results
+            successful_results = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    tool_logger.error(f"Error processing page {pages[i].get('page_num', i)}: {result}")
+                else:
+                    successful_results.append(result)
+            
+            return successful_results
+        finally:
+            # Clean up semaphore
+            try:
+                semaphore.release()
+            except Exception:
+                pass
+
+    def cleanup(self):
+        """Clean up resources"""
+        try:
+            if hasattr(self, 'async_client') and self.async_client:
+                # Close the async client session
+                if hasattr(self.async_client, '_session') and self.async_client._session:
+                    import asyncio
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if not loop.is_closed():
+                            loop.run_until_complete(self.async_client._session.close())
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
 class ClaudeBackend(LLMBackend):
     def __init__(self, model_name: str, api_key: Optional[str] = None, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
@@ -130,17 +198,34 @@ class ClaudeBackend(LLMBackend):
 
     def process_text(self, text: str, prompt: str) -> str:
         try:
-            response = self.client.messages.create(
-                model=self.model_name,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                messages=[
-                    {"role": "user", "content": f"{prompt}\n\n{text}"}
-                ]
-            )
-            return response.content[0].text.strip()
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0  # Start with 1 second delay
+            
+            for attempt in range(max_retries):
+                try:
+                    response = self.client.messages.create(
+                        model=self.model_name,
+                        max_tokens=self.max_tokens,
+                        temperature=self.temperature,
+                        messages=[
+                            {"role": "user", "content": f"{prompt}\n\n{text}"}
+                        ]
+                    )
+                    return response.content[0].text.strip()
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"Claude API call failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        tool_logger.error(f"Claude API call failed after {max_retries} attempts: {e}")
+                        return ""
+                        
         except Exception as e:
-            console.print(f"[red]Error invoking Claude: {e}")
+            tool_logger.error(f"Error invoking Claude: {e}")
             return ""
 
 class QwenBackend(LLMBackend):
@@ -151,20 +236,37 @@ class QwenBackend(LLMBackend):
 
     def process_text(self, text: str, prompt: str) -> str:
         try:
-            dashscope.api_key = self.api_key
-            response = Generation.call(
-                model=self.model_name,
-                prompt=f"{prompt}\n\n{text}",
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            if response.status_code == HTTPStatus.OK:
-                return response.output.text.strip()
-            else:
-                console.print(f"[red]Qwen API error: {response.code}: {response.message}")
-                return ""
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0  # Start with 1 second delay
+            
+            for attempt in range(max_retries):
+                try:
+                    dashscope.api_key = self.api_key
+                    response = Generation.call(
+                        model=self.model_name,
+                        prompt=f"{prompt}\n\n{text}",
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens
+                    )
+                    if response.status_code == HTTPStatus.OK:
+                        return response.output.text.strip()
+                    else:
+                        tool_logger.error(f"Qwen API error: {response.code}: {response.message}")
+                        return ""
+                        
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"Qwen API call failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        tool_logger.error(f"Qwen API call failed after {max_retries} attempts: {e}")
+                        return ""
+                        
         except Exception as e:
-            console.print(f"[red]Error invoking Qwen: {e}")
+            tool_logger.error(f"Error invoking Qwen: {e}")
             return ""
 
 class LMStudioBackend(LLMBackend):
@@ -174,40 +276,47 @@ class LMStudioBackend(LLMBackend):
 
     def process_text(self, text: str, prompt: str) -> str:
         try:
-            response = requests.post(
-                f"{self.api_url}/v1/chat/completions",
-                json={
-                    "model": self.model_name,
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful assistant. This is a new conversation."},
-                        {"role": "user", "content": f"{prompt}\n\n{text}"}
-                    ],
-                    "max_tokens": self.max_tokens,
-                    "temperature": self.temperature
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            response.raise_for_status()
-            result = response.json()
-            return result["choices"][0]["message"]["content"].strip()
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0  # Start with 1 second delay
+            
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(
+                        f"{self.api_url}/v1/chat/completions",
+                        json={
+                            "model": self.model_name,
+                            "messages": [
+                                {"role": "system", "content": "You are a helpful assistant. This is a new conversation."},
+                                {"role": "user", "content": f"{prompt}\n\n{text}"}
+                            ],
+                            "max_tokens": self.max_tokens,
+                            "temperature": self.temperature
+                        },
+                        headers={"Content-Type": "application/json"}
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    return result["choices"][0]["message"]["content"].strip()
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"LMStudio API call failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        tool_logger.error(f"LMStudio API call failed after {max_retries} attempts: {e}")
+                        return ""
+                        
         except Exception as e:
-            console.print(f"[red]Error invoking LMStudio: {e}")
+            tool_logger.error(f"Error invoking LMStudio: {e}")
             return ""
 
 class OllamaBackend(LLMBackend):
     def __init__(self, model_name: str, temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         super().__init__(model_name, temperature, max_tokens)
         self.llm = ChatOllama(model=model_name, format="json", num_ctx=1000, temperature=temperature)
-
-    def process_text(self, text: str, prompt: str) -> str:
-        try:
-            response = self.llm.invoke([HumanMessage(content=f"{prompt}\n\n{text}")])
-            if response:
-                return response.content.strip()
-            return ""
-        except Exception as e:
-            console.print(f"[red]Error invoking Ollama: {e}")
-            return ""
 
 def get_llm_backend_from_config(config: Dict) -> LLMBackend:
     """Create LLM backend from configuration. max_tokens is always set from config, or defaults to DEFAULT_MAX_TOKENS."""
@@ -241,7 +350,7 @@ def get_llm_backend_from_config(config: Dict) -> LLMBackend:
 def chunk_text_intelligently(text: str, max_tokens: int = 1000, overlap: int = 100) -> List[Dict[str, any]]:
     """Split text into intelligent chunks with overlap for context"""
     if not text.strip():
-        console.print("[yellow]Empty text provided for chunking")
+        tool_logger.warning("Empty text provided for chunking")
         return []
         
     paragraphs = text.split('\n\n')
@@ -306,12 +415,12 @@ def process_with_iterative_refinement(
     
     for i, chunk_info in enumerate(chunks):
         if not isinstance(chunk_info, dict) or 'text' not in chunk_info:
-            console.print(f"[yellow]Skipping malformed chunk {i}: {chunk_info}")
+            tool_logger.warning(f"Skipping malformed chunk {i}: {chunk_info}")
             continue
             
         chunk_text = chunk_info.get('text', '')
         if not chunk_text.strip():
-            console.print(f"[yellow]Skipping empty chunk {i}")
+            tool_logger.warning(f"Skipping empty chunk {i}")
             continue
         
         if i == 0:
@@ -325,7 +434,7 @@ def process_with_iterative_refinement(
             result = llm.process_text(chunk_text, refinement_request)
             accumulated_result = result
             
-        console.print(f"[blue]Processed chunk {i+1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
+        tool_logger.info(f"[blue]Processed chunk {i+1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
     
     return accumulated_result
 
@@ -368,7 +477,7 @@ def save_llm_result(
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(srsly.json_dumps(data, indent=2))
         
-    logger.info(f"Saved LLM result to: {output_path}")
+    tool_logger.info(f"Saved LLM result to: {output_path}")
     return output_path
 
 class LLMProcessor:
@@ -421,15 +530,15 @@ class LLMProcessor:
             raise RuntimeError(f"Failed to initialize manifest processor: {str(e)}")
         
         # Log initialization
-        logger.info(f"Initialized LLMProcessor:")
-        logger.info(f"  Input folder: {input_folder}")
-        logger.info(f"  Output folder: {output_folder}")
-        logger.info(f"  Steps folder: {self.steps_folder}")
-        logger.info(f"  Chunks folder: {self.chunks_folder}")
-        logger.info(f"  Documents folder: {self.documents_folder}")
-        logger.info(f"  Max tokens: {max_tokens}")
-        logger.info(f"  Model: {llm.model_name}")
-        logger.info(f"  Steps configured: {len(prompt_config.get('steps', []))}")
+        tool_logger.info(f"Initialized LLMProcessor:")
+        tool_logger.info(f"  Input folder: {input_folder}")
+        tool_logger.info(f"  Output folder: {output_folder}")
+        tool_logger.info(f"  Steps folder: {self.steps_folder}")
+        tool_logger.info(f"  Chunks folder: {self.chunks_folder}")
+        tool_logger.info(f"  Documents folder: {self.documents_folder}")
+        tool_logger.info(f"  Max tokens: {max_tokens}")
+        tool_logger.info(f"  Model: {llm.model_name}")
+        tool_logger.info(f"  Steps configured: {len(prompt_config.get('steps', []))}")
 
 def get_llm_backend_from_step_config(step_config: Dict, global_llm_config: Dict = None) -> LLMBackend:
     """Create LLM backend from step-specific configuration, falling back to global config"""
@@ -472,7 +581,7 @@ async def process_pages_async(
 ) -> List[Dict]:
     """Process pages asynchronously and save individual JSONL files"""
     
-    console.print(f"[blue]Processing {len(pages)} pages asynchronously (batch size: {batch_size})")
+    tool_logger.info(f"[blue]Processing {len(pages)} pages asynchronously (batch size: {batch_size})")
     
     # Process pages in batches
     results = await llm.process_pages_batch(pages, prompt, batch_size)
@@ -509,14 +618,14 @@ async def process_pages_async(
             with open(page_file, 'w', encoding='utf-8') as f:
                 f.write(srsly.json_dumps(jsonl_entry) + '\n')
             
-            logger.info(f"Saved page {page_num} result to: {page_file}")
+            tool_logger.info(f"Saved page {page_num} result to: {page_file}")
     
     # Convert any remaining Path objects to strings in the results
     for result in results:
         if 'source_file' in result and isinstance(result['source_file'], Path):
             result['source_file'] = str(result['source_file'])
     
-    console.print(f"[green]Completed async processing of {len(results)} pages")
+    tool_logger.info(f"[green]Completed async processing of {len(results)} pages")
     return results
 
 def combine_page_results(
@@ -528,10 +637,10 @@ def combine_page_results(
 ) -> Dict:
     """Combine multiple page results using a potentially different LLM"""
     
-    console.print(f"[blue]Combining results from {len(page_results)} pages")
+    tool_logger.info(f"[blue]Combining results from {len(page_results)} pages")
     
     if not page_results:
-        logger.warning("No page results to combine")
+        tool_logger.warning("No page results to combine")
         return {
             'combined_result': "No page results found to combine",
             'source_pages': 0,
@@ -558,10 +667,10 @@ def combine_page_results(
             except json.JSONDecodeError:
                 combined_input.append(f"Page {page_num}: {page_result}")
         else:
-            logger.warning(f"Skipping empty result for page {page_num}")
+            tool_logger.warning(f"Skipping empty result for page {page_num}")
     
     if not combined_input:
-        logger.warning("No valid page results found after processing")
+        tool_logger.warning("No valid page results found after processing")
         return {
             'combined_result': "No valid page results found",
             'source_pages': len(page_results),
@@ -580,7 +689,7 @@ def combine_page_results(
     available_tokens = max_tokens - len(combine_prompt) // 4 - 2000  # Reserve 2000 for response
     
     if estimated_tokens > available_tokens:
-        logger.info(f"Text too long ({estimated_tokens} tokens), chunking into smaller pieces")
+        tool_logger.info(f"Text too long ({estimated_tokens} tokens), chunking into smaller pieces")
         
         # Split into chunks that fit within token limits
         chunk_size = available_tokens * 4  # Convert back to characters
@@ -600,12 +709,12 @@ def combine_page_results(
         if current_chunk:
             chunks.append("\n\n".join(current_chunk))
         
-        logger.info(f"Split into {len(chunks)} chunks")
+        tool_logger.info(f"Split into {len(chunks)} chunks")
         
         # Process each chunk and combine results
         chunk_results = []
         for i, chunk in enumerate(chunks):
-            logger.info(f"Processing chunk {i+1}/{len(chunks)}")
+            tool_logger.info(f"Processing chunk {i+1}/{len(chunks)}")
             
             chunk_prompt = f"{combine_prompt}\n\nThis is chunk {i+1} of {len(chunks)}. Please process this subset of pages:"
             result = llm.process_text(chunk, chunk_prompt)
@@ -620,7 +729,7 @@ def combine_page_results(
             combined_result = chunk_results[0]
     else:
         # Process all at once if it fits
-        logger.info(f"Processing all {len(page_results)} pages in one request ({estimated_tokens} tokens)")
+        tool_logger.info(f"Processing all {len(page_results)} pages in one request ({estimated_tokens} tokens)")
         combined_result = llm.process_text(all_pages_text, combine_prompt)
     
     # Save combined result
@@ -635,7 +744,7 @@ def combine_page_results(
         try:
             if isinstance(combined_result, str):
                 result_text = combined_result.strip()
-                # Handle code blocks
+                # Clean up JSON code blocks if present
                 if result_text.startswith('```json'):
                     start = result_text.find('```json') + 7
                     end = result_text.rfind('```')
@@ -648,9 +757,9 @@ def combine_page_results(
                 
                 if result_text.startswith('{') or result_text.startswith('['):
                     final_result = json.loads(result_text)
-                    logger.info("Successfully parsed final JSON result")
+                    tool_logger.info("Successfully parsed final JSON result")
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse final JSON result: {e}")
+            tool_logger.warning(f"Failed to parse final JSON result: {e}")
             # Keep as string if not valid JSON
         
         jsonl_entry = {
@@ -664,9 +773,9 @@ def combine_page_results(
         with open(combined_file, 'w', encoding='utf-8') as f:
             f.write(srsly.json_dumps(jsonl_entry) + '\n')
         
-        logger.info(f"Saved combined result to: {combined_file}")
+        tool_logger.info(f"Saved combined result to: {combined_file}")
     
-    console.print(f"[green]Combined {len(page_results)} page results")
+    tool_logger.info(f"[green]Combined {len(page_results)} page results")
     return {
         'combined_result': final_result,
         'source_pages': len(page_results),
@@ -703,8 +812,15 @@ async def process_chunks_async(
 ) -> List[Dict]:
     """Process chunks asynchronously and save individual JSONL files"""
     
-    console.print(f"[blue]Processing {len(chunks)} chunks asynchronously (batch size: {batch_size})")
+    tool_logger.info(f"[blue]Processing {len(chunks)} chunks asynchronously (batch size: {batch_size})")
     
+    # Create semaphore dynamically within the correct event loop context
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop running, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     semaphore = asyncio.Semaphore(batch_size)
     
     async def process_chunk_with_limit(chunk_info: Dict) -> Dict:
@@ -721,54 +837,61 @@ async def process_chunks_async(
                 'timestamp': datetime.now().isoformat()
             }
     
-    # Process all chunks concurrently
-    tasks = [process_chunk_with_limit(chunk) for chunk in chunks]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Filter out exceptions and return successful results
-    successful_results = []
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            console.print(f"[red]Error processing chunk {chunks[i].get('start_idx', i)}: {result}")
-        else:
-            successful_results.append(result)
-    
-    # Save individual chunk results as JSONL if output folder specified
-    if output_folder:
-        chunks_folder = output_folder / "chunks" / step_name
-        chunks_folder.mkdir(parents=True, exist_ok=True)
+    try:
+        # Process all chunks concurrently
+        tasks = [process_chunk_with_limit(chunk) for chunk in chunks]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        for result in successful_results:
-            chunk_idx = result.get('chunk_idx', 0)
-            chunk_file = chunks_folder / f"chunk_{chunk_idx:03d}.jsonl"
+        # Filter out exceptions and return successful results
+        successful_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                tool_logger.error(f"Error processing chunk {chunks[i].get('start_idx', i)}: {result}")
+            else:
+                successful_results.append(result)
+        
+        # Save individual chunk results as JSONL if output folder specified
+        if output_folder:
+            chunks_folder = output_folder / "chunks" / step_name
+            chunks_folder.mkdir(parents=True, exist_ok=True)
             
-            # Convert result to JSONL format
-            jsonl_entry = {
-                "chunk_idx": chunk_idx,
-                "tokens": result.get('tokens', 0),
-                "timestamp": result.get('timestamp', ''),
-                "step": step_name,
-                "result": result.get('result', '')
-            }
-            
-            # Try to parse result as JSON if it looks like JSON
-            try:
-                if isinstance(result.get('result'), str):
-                    result_text = result.get('result', '').strip()
-                    if result_text.startswith('{') or result_text.startswith('['):
-                        jsonl_entry["result"] = json.loads(result_text)
-            except json.JSONDecodeError:
-                # Keep as string if not valid JSON
-                pass
-            
-            # Save as JSONL
-            with open(chunk_file, 'w', encoding='utf-8') as f:
-                f.write(srsly.json_dumps(jsonl_entry) + '\n')
-            
-            logger.info(f"Saved chunk {chunk_idx} result to: {chunk_file}")
-    
-    console.print(f"[green]Completed async processing of {len(successful_results)} chunks")
-    return successful_results
+            for result in successful_results:
+                chunk_idx = result.get('chunk_idx', 0)
+                chunk_file = chunks_folder / f"chunk_{chunk_idx:03d}.jsonl"
+                
+                # Convert result to JSONL format
+                jsonl_entry = {
+                    "chunk_idx": chunk_idx,
+                    "tokens": result.get('tokens', 0),
+                    "timestamp": result.get('timestamp', ''),
+                    "step": step_name,
+                    "result": result.get('result', '')
+                }
+                
+                # Try to parse result as JSON if it looks like JSON
+                try:
+                    if isinstance(result.get('result'), str):
+                        result_text = result.get('result', '').strip()
+                        if result_text.startswith('{') or result_text.startswith('['):
+                            jsonl_entry["result"] = json.loads(result_text)
+                except json.JSONDecodeError:
+                    # Keep as string if not valid JSON
+                    pass
+                
+                # Save as JSONL
+                with open(chunk_file, 'w', encoding='utf-8') as f:
+                    f.write(srsly.json_dumps(jsonl_entry) + '\n')
+                
+                tool_logger.info(f"Saved chunk {chunk_idx} result to: {chunk_file}")
+        
+        tool_logger.info(f"[green]Completed async processing of {len(successful_results)} chunks")
+        return successful_results
+    finally:
+        # Clean up semaphore
+        try:
+            semaphore.release()
+        except Exception:
+            pass
 
 def estimate_tokens(text: str) -> int:
     """More accurate token estimation for GPT models"""
@@ -797,7 +920,7 @@ def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 10
         pages_per_chunk: If set, chunk by this many pages instead of token count
     """
     if not text.strip():
-        console.print("[yellow]Empty text provided for chunking")
+        tool_logger.warning("Empty text provided for chunking")
         return []
     
     chunks = []
@@ -808,14 +931,14 @@ def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 10
     page_matches = list(re.finditer(page_pattern, text))
     
     if not page_matches:
-        console.print("[yellow]No page markers found, falling back to paragraph chunking")
+        tool_logger.warning("No page markers found, falling back to paragraph chunking")
         return chunk_text_intelligently(text, max_tokens, overlap)
     
-    console.print(f"[green]Found {len(page_matches)} pages")
+    tool_logger.info(f"[green]Found {len(page_matches)} pages")
     
     # If pages_per_chunk is set, use that strategy
     if pages_per_chunk:
-        console.print(f"[blue]Chunking by {pages_per_chunk} pages")
+        tool_logger.info(f"[blue]Chunking by {pages_per_chunk} pages")
         current_chunk = []
         current_pages = []
         current_page_nums = []
@@ -916,9 +1039,9 @@ def chunk_text_by_structure(text: str, max_tokens: int = 1000, overlap: int = 10
                     'is_complete_pages': True
                 })
     
-    console.print(f"[blue]Created {len(chunks)} chunks")
+    tool_logger.info(f"[blue]Created {len(chunks)} chunks")
     for chunk in chunks:
-        console.print(f"[blue]Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
+        tool_logger.info(f"[blue]Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
     
     return chunks
 
@@ -949,7 +1072,7 @@ def process_document_with_llm(
     
     # Use get_relative_path from files.py for consistent path handling
     rel_path = get_relative_path(doc_path)
-    logger.info(f"Processing document: {rel_path}")
+    tool_logger.info(f"Processing document: {rel_path}")
     
     # Create organized output structure
     doc_stem = rel_path.stem
@@ -963,7 +1086,7 @@ def process_document_with_llm(
     # Create the directories
     for folder in [steps_folder, chunks_folder, documents_folder]:
         folder.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Ensured directory exists: {folder}")
+        tool_logger.info(f"Ensured directory exists: {folder}")
     
     all_results = {}
     step_outputs = []  # Track all step output files
@@ -974,31 +1097,31 @@ def process_document_with_llm(
         prompt = step.get("prompt", "")
         debug = step.get("debug", False)  # Get debug flag from step config
         
-        logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
-        logger.info(f"Prompt: {prompt[:100]}...")
+        tool_logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
+        tool_logger.info(f"Prompt: {prompt[:100]}...")
         if debug:
-            logger.info("Debug mode enabled for this step")
+            tool_logger.info("Debug mode enabled for this step")
         
         # Create debug folder if needed
         debug_folder = output_folder / "debug" / doc_stem if debug else None
         if debug_folder:
             debug_folder.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Created debug folder: {debug_folder}")
+            tool_logger.info(f"Created debug folder: {debug_folder}")
         
         # Check if output file already exists
         step_file = steps_folder / f"{step_name}.json"
         if step_file.exists():
-            logger.info(f"Found existing output file for step {step_name}, loading results...")
+            tool_logger.info(f"Found existing output file for step {step_name}, loading results...")
             try:
                 with open(step_file, 'r', encoding='utf-8') as f:
                     step_data = json.load(f)
                 all_results[step_name] = step_data.get("result", {})
                 step_outputs.append(str(step_file.relative_to(output_folder)))
-                logger.info(f"Loaded existing results for step {step_name}")
+                tool_logger.info(f"Loaded existing results for step {step_name}")
                 continue
             except Exception as e:
-                logger.warning(f"Failed to load existing results for step {step_name}: {e}")
-                logger.info("Will reprocess the step...")
+                tool_logger.warning(f"Failed to load existing results for step {step_name}: {e}")
+                tool_logger.info("Will reprocess the step...")
         
         # Get max tokens from step config or use global max_tokens
         step_max_tokens = step.get("llm", {}).get("max_tokens", max_tokens)
@@ -1013,12 +1136,12 @@ def process_document_with_llm(
         response_tokens = 1000
         available_tokens = step_max_tokens - prompt_tokens - system_tokens - response_tokens
         
-        logger.info(f"Token limits:")
-        logger.info(f"  Model max tokens: {step_max_tokens}")
-        logger.info(f"  Prompt tokens: {prompt_tokens}")
-        logger.info(f"  System tokens: {system_tokens}")
-        logger.info(f"  Response tokens: {response_tokens}")
-        logger.info(f"  Available for input: {available_tokens}")
+        tool_logger.info(f"Token limits:")
+        tool_logger.info(f"  Model max tokens: {step_max_tokens}")
+        tool_logger.info(f"  Prompt tokens: {prompt_tokens}")
+        tool_logger.info(f"  System tokens: {system_tokens}")
+        tool_logger.info(f"  Response tokens: {response_tokens}")
+        tool_logger.info(f"  Available for input: {available_tokens}")
         
         # Get chunking strategy from step config
         chunking_strategy = step.get("chunking_strategy", "token_based")
@@ -1033,16 +1156,16 @@ def process_document_with_llm(
                 if json_field in input_json:
                     # Extract just the field we want to process
                     text_content = json.dumps({json_field: input_json[json_field]}, indent=2)
-                    logger.info(f"Extracted field '{json_field}' from JSON input")
+                    tool_logger.info(f"Extracted field '{json_field}' from JSON input")
                 else:
-                    logger.warning(f"Field '{json_field}' not found in JSON input")
+                    tool_logger.warning(f"Field '{json_field}' not found in JSON input")
             except json.JSONDecodeError:
-                logger.warning("Input is not valid JSON, processing as raw text")
+                tool_logger.warning("Input is not valid JSON, processing as raw text")
         
         # Always process as one chunk if chunking_strategy is "none"
         if chunking_strategy == "none":
             # Process entire text at once
-            logger.info("Processing entire text without chunking")
+            tool_logger.info("Processing entire text without chunking")
             chunks = [{
                 "text": text_content,
                 "tokens": estimate_tokens(text_content),
@@ -1051,7 +1174,7 @@ def process_document_with_llm(
             }]
             
             # Process the single chunk
-            logger.info("Processing single chunk...")
+            tool_logger.info("Processing single chunk...")
             result = llm.process_text(text_content, prompt)
             
             # Try to parse as JSON if specified
@@ -1059,9 +1182,9 @@ def process_document_with_llm(
                 try:
                     if result.strip().startswith('{') or result.strip().startswith('['):
                         result = json.loads(result)
-                        logger.info("Successfully parsed JSON result")
+                        tool_logger.info("Successfully parsed JSON result")
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse JSON for {rel_path}")
+                    tool_logger.warning(f"Failed to parse JSON for {rel_path}")
             
             # Save the result
             step_file = steps_folder / f"{step_name}.json"
@@ -1073,21 +1196,21 @@ def process_document_with_llm(
                     "timestamp": datetime.now().isoformat()
                 }, indent=2))
             step_outputs.append(str(step_file.relative_to(output_folder)))
-            logger.info(f"Saved step result to: {step_file}")
+            tool_logger.info(f"Saved step result to: {step_file}")
             
             parsed_result = clean_and_parse_llm_json(result, step)
             all_results[step_name] = parsed_result
             continue
         elif chunking_strategy == "page_based" and pages_per_chunk:
-            logger.info(f"Using page-based chunking: {pages_per_chunk} pages per chunk")
+            tool_logger.info(f"Using page-based chunking: {pages_per_chunk} pages per chunk")
             chunks = chunk_text_by_structure(text_content, available_tokens, chunk_overlap, pages_per_chunk)
         else:
-            logger.info("Using token-based chunking")
+            tool_logger.info("Using token-based chunking")
             chunks = chunk_text_by_structure(text_content, available_tokens, chunk_overlap)
         
-        logger.info(f"Created {len(chunks)} chunks")
+        tool_logger.info(f"Created {len(chunks)} chunks")
         for chunk in chunks:
-            logger.info(f"Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
+            tool_logger.info(f"Chunk {chunk['start_idx']}: Pages {chunk['page_nums']} ({chunk['tokens']} tokens)")
         
         # Check if all chunk files already exist
         chunks_exist = True
@@ -1102,12 +1225,12 @@ def process_document_with_llm(
                     chunk_data = json.load(f)
                 chunk_results.append(chunk_data.get("result", ""))
             except Exception as e:
-                logger.warning(f"Failed to load chunk {chunk['start_idx']}: {e}")
+                tool_logger.warning(f"Failed to load chunk {chunk['start_idx']}: {e}")
                 chunks_exist = False
                 break
         
         if chunks_exist and chunk_results:
-            logger.info(f"Found existing chunk results for step {step_name}, using those")
+            tool_logger.info(f"Found existing chunk results for step {step_name}, using those")
             all_results[step_name] = chunk_results
             
             # Save the step result
@@ -1121,17 +1244,17 @@ def process_document_with_llm(
                     "timestamp": datetime.now().isoformat()
                 }, indent=2))
             step_outputs.append(str(step_file.relative_to(output_folder)))
-            logger.info(f"Saved step result to: {step_file}")
+            tool_logger.info(f"Saved step result to: {step_file}")
             
             parsed_result = clean_and_parse_llm_json(chunk_results, step)
             all_results[step_name] = parsed_result
         else:
             # If we get here, we need to process chunks
-            logger.info("Processing chunks...")
+            tool_logger.info("Processing chunks...")
             
             # Check if this step uses async chunk processing
             if step.get("async", False) and isinstance(llm, ChatGPTBackend):
-                logger.info("Using async chunk processing")
+                tool_logger.info("Using async chunk processing")
                 
                 batch_size = step.get("async_batch_size", 10)
                 
@@ -1156,7 +1279,7 @@ def process_document_with_llm(
                         cleaned_results.append(result)
                     
                     all_results[step_name] = cleaned_results
-                    logger.info(f"Async processing completed: {len(cleaned_results)} chunks processed")
+                    tool_logger.info(f"Async processing completed: {len(cleaned_results)} chunks processed")
                     
                     # Save the step result
                     step_file = steps_folder / f"{step_name}.json"
@@ -1170,99 +1293,96 @@ def process_document_with_llm(
                             "timestamp": datetime.now().isoformat()
                         }, indent=2))
                     step_outputs.append(str(step_file.relative_to(output_folder)))
-                    logger.info(f"Saved async step result to: {step_file}")
+                    tool_logger.info(f"Saved async step result to: {step_file}")
                     
                 except Exception as e:
-                    logger.error(f"Error in async chunk processing: {e}")
+                    tool_logger.error(f"Error in async chunk processing: {e}")
                     import traceback
-                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    tool_logger.error(f"Traceback: {traceback.format_exc()}")
                     all_results[step_name] = []
             else:
                 # Process chunks sequentially
-                logger.info("Processing chunks sequentially")
+                tool_logger.info("Processing chunks sequentially")
                 chunk_results = []
                 
                 for chunk_idx, chunk_info in enumerate(chunks):
                     # Validate chunk structure
                     if not isinstance(chunk_info, dict) or 'text' not in chunk_info:
-                        logger.warning(f"Skipping malformed chunk {chunk_idx}: {chunk_info}")
+                        tool_logger.warning(f"Skipping malformed chunk {chunk_idx}: {chunk_info}")
                         continue
                         
                     chunk_text = chunk_info.get('text', '')
                     if not chunk_text.strip():
-                        logger.warning(f"Skipping empty chunk {chunk_idx}")
+                        tool_logger.warning(f"Skipping empty chunk {chunk_idx}")
                         continue
                     
-                    logger.info(f"Processing chunk {chunk_idx + 1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
+                    tool_logger.info(f"Processing chunk {chunk_idx + 1}/{len(chunks)} ({chunk_info.get('tokens', 0)} tokens)")
                     
-                    # Use previous step's output if chaining
-                    if step.get("use_previous", False) and step_idx > 0:
-                        prev_step_name = prompt_config["steps"][step_idx-1].get("name", f"step_{step_idx-1}")
-                        if prev_step_name in all_results:
-                            prev_result = all_results[prev_step_name]
-                            if isinstance(prev_result, list):
-                                chunk_text = "\n\n".join(str(r) for r in prev_result) if len(prev_result) > chunk_idx else str(prev_result[0]) if prev_result else chunk_text
-                            else:
-                                chunk_text = str(prev_result) if prev_result else chunk_text
-                            logger.info(f"Using output from previous step: {prev_step_name}")
-                        else:
-                            logger.warning(f"Previous step {prev_step_name} not found, using original chunk text")
+                    # Check if we should use output from previous step
+                    prev_step_name = step.get("use_previous_step")
+                    if prev_step_name and prev_step_name in all_results:
+                        tool_logger.info(f"Using output from previous step: {prev_step_name}")
+                        chunk_text = str(all_results[prev_step_name])
+                    elif prev_step_name:
+                        tool_logger.warning(f"Previous step {prev_step_name} not found, using original chunk text")
                     
-                    # Add page numbers to the prompt
+                    # Enhance prompt with page numbers if available
                     page_nums = chunk_info.get('page_nums', [])
                     if page_nums:
-                        page_info = f"\n\nThis text is from pages {page_nums[0]} to {page_nums[-1]} of the document."
-                        enhanced_prompt = f"{prompt}{page_info}"
-                        logger.info(f"Enhanced prompt with page numbers: {page_nums[0]} to {page_nums[-1]}")
+                        tool_logger.info(f"Enhanced prompt with page numbers: {page_nums[0]} to {page_nums[-1]}")
+                        enhanced_prompt = f"{prompt}\n\nThis text is from pages {page_nums[0]} to {page_nums[-1]}."
                     else:
                         enhanced_prompt = prompt
                     
-                    # Save debug info if enabled
-                    if debug:
-                        debug_file = debug_folder / f"{step_name}_chunk{chunk_idx}_input.json"
+                    # Save debug input if debug mode is enabled
+                    if debug_folder:
+                        debug_file = debug_folder / f"chunk{chunk_idx}_input.txt"
                         with open(debug_file, 'w', encoding='utf-8') as f:
-                            f.write(srsly.json_dumps({
-                                "chunk_idx": chunk_idx,
-                                "page_nums": page_nums,
-                                "prompt": enhanced_prompt,
-                                "text": chunk_text,
-                                "tokens": chunk_info.get('tokens', 0),
-                                "timestamp": datetime.now().isoformat()
-                            }, indent=2))
-                        logger.info(f"Saved debug input to: {debug_file}")
+                            f.write(f"Prompt: {enhanced_prompt}\n\nText: {chunk_text}")
+                        tool_logger.info(f"Saved debug input to: {debug_file}")
                     
+                    # Process the chunk
                     result = llm.process_text(chunk_text, enhanced_prompt)
-                    logger.info(f"Got result ({len(result)} chars)")
+                    tool_logger.info(f"Got result ({len(result)} chars)")
                     
-                    if debug:
-                        debug_file = debug_folder / f"{step_name}_chunk{chunk_idx}_output.json"
+                    # Save debug output if debug mode is enabled
+                    if debug_folder:
+                        debug_file = debug_folder / f"chunk{chunk_idx}_output.txt"
                         with open(debug_file, 'w', encoding='utf-8') as f:
-                            f.write(srsly.json_dumps({
-                                "chunk_idx": chunk_idx,
-                                "page_nums": page_nums,
-                                "result": result,
-                                "timestamp": datetime.now().isoformat()
-                            }, indent=2))
-                        logger.info(f"Saved debug output to: {debug_file}")
+                            f.write(result)
+                        tool_logger.info(f"Saved debug output to: {debug_file}")
                     
-                    # Use centralized JSON parsing
-                    parsed_result = clean_and_parse_llm_json(result, step)
-                    chunk_results.append(parsed_result)
-
-                    # Save individual chunk result
+                    # Try to parse as JSON if specified
+                    if step.get("json", False):
+                        try:
+                            if result.strip().startswith('{') or result.strip().startswith('['):
+                                result = json.loads(result)
+                        except json.JSONDecodeError:
+                            tool_logger.warning(f"Failed to parse JSON for chunk {chunk_idx}")
+                    
+                    # Save chunk result
                     chunk_file = chunks_folder / f"{step_name}_chunk{chunk_idx}.json"
                     with open(chunk_file, 'w', encoding='utf-8') as f:
                         f.write(srsly.json_dumps({
                             "source": str(rel_path),
                             "step": step_name,
-                            "chunk": chunk_idx,
-                            "page_nums": page_nums,
-                            "result": parsed_result
+                            "chunk_idx": chunk_idx,
+                            "result": result,
+                            "timestamp": datetime.now().isoformat()
                         }, indent=2))
-                    logger.info(f"Saved chunk result to: {chunk_file}")
+                    tool_logger.info(f"Saved chunk result to: {chunk_file}")
+                    
+                    chunk_results.append(result)
                 
-                all_results[step_name] = chunk_results
-                logger.info(f"Processed {len(chunk_results)} chunks")
+                tool_logger.info(f"Processed {len(chunk_results)} chunks")
+                
+                # Combine chunk results if specified
+                if step.get("combine_chunks", False):
+                    combine_prompt = step.get("combine_prompt", "Combine the following results into a single coherent response:")
+                    combined_result = combine_json_results(chunk_results)
+                    all_results[step_name] = combined_result
+                else:
+                    all_results[step_name] = chunk_results
                 
                 # Save the step result
                 step_file = steps_folder / f"{step_name}.json"
@@ -1270,15 +1390,29 @@ def process_document_with_llm(
                     f.write(srsly.json_dumps({
                         "source": str(rel_path),
                         "step": step_name,
-                        "result": chunk_results,
+                        "result": all_results[step_name],
                         "chunks_processed": len(chunk_results),
                         "timestamp": datetime.now().isoformat()
                     }, indent=2))
                 step_outputs.append(str(step_file.relative_to(output_folder)))
-                logger.info(f"Saved step result to: {step_file}")
+                tool_logger.info(f"Saved step result to: {step_file}")
+        
+        # Create summary file if specified
+        if step.get("create_summary", False):
+            tool_logger.info("Creating summary file...")
+            summary_file = documents_folder / f"{step_name}_summary.json"
+            with open(summary_file, 'w', encoding='utf-8') as f:
+                f.write(srsly.json_dumps({
+                    "source": str(rel_path),
+                    "step": step_name,
+                    "summary": all_results[step_name],
+                    "timestamp": datetime.now().isoformat()
+                }, indent=2))
+            step_outputs.append(str(summary_file.relative_to(output_folder)))
+            tool_logger.info(f"Saved summary to: {summary_file}")
     
     # Save combined summary file
-    logger.info("Creating summary file...")
+    tool_logger.info("Creating summary file...")
     summary_file = documents_folder / f"{doc_stem}_summary.json"
     with open(summary_file, 'w', encoding='utf-8') as f:
         f.write(srsly.json_dumps({
@@ -1289,7 +1423,7 @@ def process_document_with_llm(
             "results": all_results,
             "timestamp": datetime.now().isoformat()
         }, indent=2))
-    logger.info(f"Saved summary to: {summary_file}")
+    tool_logger.info(f"Saved summary to: {summary_file}")
     
     return {
         "outputs": [str(summary_file.relative_to(output_folder))],
@@ -1311,8 +1445,8 @@ def process_folder_with_llm(
 ) -> Dict:
     """Process an entire folder of documents as a cohesive unit through LLM pipeline"""
     
-    console.print(f"[blue]Processing folder: {folder_path}")
-    console.print(f"[green]Total files in folder: {len(files)}")
+    tool_logger.info(f"[blue]Processing folder: {folder_path}")
+    tool_logger.info(f"[green]Total files in folder: {len(files)}")
     
     # Convert to Path objects if needed
     folder_path = Path(folder_path)
@@ -1330,7 +1464,7 @@ def process_folder_with_llm(
     # Ensure directories exist
     for folder in [steps_folder, chunks_folder, documents_folder]:
         folder.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Ensured directory exists: {folder}")
+        tool_logger.info(f"Ensured directory exists: {folder}")
     
     # Get global LLM config for fallback
     global_llm_config = prompt_config.get("llm", {})
@@ -1343,25 +1477,25 @@ def process_folder_with_llm(
         step_name = step.get("name", f"step_{step_idx}")
         prompt = step.get("prompt", "")
         
-        logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
-        logger.info(f"Prompt: {prompt[:100]}...")
+        tool_logger.info(f"Processing step {step_idx + 1}/{len(prompt_config.get('steps', []))}: {step_name}")
+        tool_logger.info(f"Prompt: {prompt[:100]}...")
         
         # Get step-specific LLM if configured
         step_llm = llm  # Default to global LLM
         if "llm" in step:
             try:
                 step_llm = get_llm_backend_from_step_config(step, global_llm_config)
-                logger.info(f"Using step-specific LLM: {step_llm.model_name}")
+                tool_logger.info(f"Using step-specific LLM: {step_llm.model_name}")
             except Exception as e:
-                logger.warning(f"Failed to create step-specific LLM, using global: {e}")
+                tool_logger.warning(f"Failed to create step-specific LLM, using global: {e}")
         
         # Check if this step should process pages asynchronously
         if step.get("async_page_processing", False):
-            logger.info("Using async page processing")
+            tool_logger.info("Using async page processing")
             
             # Ensure we have a ChatGPT backend for async processing
             if not isinstance(step_llm, ChatGPTBackend):
-                logger.error(f"Async processing requires ChatGPT backend, got {type(step_llm)}")
+                tool_logger.error(f"Async processing requires ChatGPT backend, got {type(step_llm)}")
                 continue
             
             batch_size = step.get("async_batch_size", 10)
@@ -1393,7 +1527,7 @@ def process_folder_with_llm(
                     cleaned_results.append(result)
                 
                 all_results[step_name] = cleaned_results
-                logger.info(f"Async processing completed: {len(cleaned_results)} pages processed")
+                tool_logger.info(f"Async processing completed: {len(cleaned_results)} pages processed")
                 
                 # Save the step result
                 step_file = steps_folder / f"{step_name}.json"
@@ -1407,17 +1541,17 @@ def process_folder_with_llm(
                         "timestamp": datetime.now().isoformat()
                     }, indent=2))
                 step_outputs.append(str(step_file.relative_to(output_folder)))
-                logger.info(f"Saved async step result to: {step_file}")
+                tool_logger.info(f"Saved async step result to: {step_file}")
                 
             except Exception as e:
-                logger.error(f"Error in async page processing: {e}")
+                tool_logger.error(f"Error in async page processing: {e}")
                 import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
+                tool_logger.error(f"Traceback: {traceback.format_exc()}")
                 all_results[step_name] = []
         
         # Check if this step should combine previous results
         elif step.get("combine_results", False):
-            logger.info("Combining previous step results")
+            tool_logger.info("Combining previous step results")
             
             # Get previous step results
             use_previous = step.get("use_previous", True)
@@ -1450,11 +1584,11 @@ def process_folder_with_llm(
                                 "timestamp": datetime.now().isoformat()
                             }, indent=2))
                         step_outputs.append(str(step_file.relative_to(output_folder)))
-                        logger.info(f"Saved combine step result to: {step_file}")
+                        tool_logger.info(f"Saved combine step result to: {step_file}")
                     else:
-                        logger.warning(f"Previous step {prev_step_name} results not in expected format for combining")
+                        tool_logger.warning(f"Previous step {prev_step_name} results not in expected format for combining")
                 else:
-                    logger.warning(f"Previous step {prev_step_name} not found for combining")
+                    tool_logger.warning(f"Previous step {prev_step_name} not found for combining")
         
         # Default processing (existing functionality)
         else:
@@ -1478,7 +1612,7 @@ def process_folder_with_llm(
                     "char_end": len(combined_text)
                 })
             
-            console.print(f"[green]Combined text length: {len(combined_text)} characters")
+            tool_logger.info(f"Combined text length: {len(combined_text)} characters")
             
             # Process the combined text as a single document (existing functionality)
             result = process_document_with_llm(
@@ -1511,7 +1645,7 @@ def process_folder_with_llm(
     
     with open(summary_file, 'w', encoding='utf-8') as f:
         f.write(srsly.json_dumps(summary_data, indent=2))
-    logger.info(f"Saved folder summary to: {summary_file}")
+    tool_logger.info(f"Saved folder summary to: {summary_file}")
     
     return {
         "outputs": [str(summary_file.relative_to(output_folder))],
@@ -1554,14 +1688,14 @@ def clean_and_parse_llm_json(result: str, step_config: Dict) -> Any:
     try:
         if result.startswith('{') or result.startswith('['):
             parsed_result = json.loads(result)
-            logger.info("Successfully parsed JSON result")
+            tool_logger.info("Successfully parsed JSON result")
             return parsed_result
         else:
-            logger.warning(f"JSON result doesn't start with {{ or [: {result[:100]}...")
+            tool_logger.warning(f"JSON result doesn't start with {{ or [: {result[:100]}...")
             return original_result
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse JSON: {e}")
-        logger.warning(f"Raw result preview: {result[:200]}...")
+        tool_logger.warning(f"Failed to parse JSON: {e}")
+        tool_logger.warning(f"Raw result preview: {result[:200]}...")
         return original_result
 
 def combine_json_results(results: list) -> dict:

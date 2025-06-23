@@ -11,7 +11,8 @@ import base64
 from openai import AsyncOpenAI
 import asyncio
 from datetime import datetime
-import logging
+import sys
+
 # Import utilities with fallback for standalone execution
 try:
     # Try absolute imports first (when run from app context)
@@ -19,19 +20,28 @@ try:
     from fichero.tools.utils.processor import process_file
     from fichero.tools.utils.segment_handler import SegmentHandler
     from fichero.tools.utils.api_keys import get_qwen_key
+    from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # Fall back to relative imports (when run standalone)
     from utils.batch import BatchProcessor
     from utils.processor import process_file
     from utils.segment_handler import SegmentHandler
     from utils.api_keys import get_qwen_key
+    from utils.tool_logger import get_tool_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)  # Changed from WARNING to INFO
-logger = logging.getLogger(__name__)
+# Configure tool_logger
+tool_logger = get_tool_logger('transcribe_qwen_max')
 
-# Semaphore to limit concurrent API calls
-API_SEMAPHORE = asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
+# Don't create semaphore at module level - create it dynamically
+def get_api_semaphore():
+    """Get API semaphore for current event loop"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop running, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return asyncio.Semaphore(5)  # Limit to 5 concurrent API calls
 
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
@@ -58,6 +68,14 @@ def encode_image(image: Image.Image) -> str:
     image.save(buffered, format="JPEG", quality=80)  # Reduced quality for better compression
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
+async def close_async_client(client):
+    """Close AsyncOpenAI client session if possible."""
+    try:
+        if hasattr(client, '_session') and client._session:
+            await client._session.close()
+    except Exception:
+        pass
+
 async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None) -> dict:
     """Process a single image file, returning manifest-compatible output"""
     try:
@@ -70,7 +88,7 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
         # Skip if already exists and return proper manifest entry
         if out_path.exists():
             rel_path = SegmentHandler.get_relative_path(file_path)
-            logger.info(f"Skipping existing file: {rel_path}")
+            tool_logger.info(f"Skipping existing file: {rel_path}")
             return {
                 "outputs": [str(rel_path.with_suffix('.txt'))],
                 "source": str(rel_path),
@@ -83,7 +101,7 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
         try:
             # Add timestamp to show concurrent execution
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            logger.info(f"[{timestamp}] Starting to process: {file_path.name}")
+            tool_logger.info(f"[{timestamp}] Starting to process: {file_path.name}")
             
             # Load and process image
             try:
@@ -91,9 +109,9 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
                 image = Image.open(file_path).convert("RGB")
                 # Log original size
                 orig_width, orig_height = image.size
-                logger.info(f"Original image size: {orig_width}x{orig_height}")
+                tool_logger.info(f"Original image size: {orig_width}x{orig_height}")
             except Exception as e:
-                logger.error(f"Failed to open image {file_path}: {e}")
+                tool_logger.error(f"Failed to open image {file_path}: {e}")
                 return {
                     "error": f"Failed to open image: {e}",
                     "outputs": [str(SegmentHandler.get_relative_path(out_path))],
@@ -104,12 +122,12 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
             base64_image = encode_image(image)
             
             # Get API key using three-tier fallback
-            logger.info(f"🔑 Attempting to get Qwen API key...")
+            tool_logger.info(f"🔑 Attempting to get Qwen API key...")
             api_key = get_qwen_key(api_key_cli)
             if api_key:
-                logger.info(f"✅ Successfully obtained Qwen API key: {api_key[:10]}...{api_key[-4:]}")
+                tool_logger.info(f"✅ Successfully obtained Qwen API key: {api_key[:10]}...{api_key[-4:]}")
             else:
-                logger.error(f"❌ Failed to obtain Qwen API key from any source")
+                tool_logger.error(f"❌ Failed to obtain Qwen API key from any source")
                     
             if not api_key:
                 raise ValueError("Qwen API key required. Set via CLI argument, app settings, or DASHSCOPE_API_KEY environment variable.")
@@ -121,24 +139,44 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
             )
             
             # Use semaphore to limit concurrent API calls
-            async with API_SEMAPHORE:
+            async with get_api_semaphore():
                 timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-                logger.info(f"[{timestamp}] Sending to Qwen API: {file_path.name}")
+                tool_logger.info(f"[{timestamp}] Sending to Qwen API: {file_path.name}")
                 
-                # Get transcription using OpenAI-compatible method
-                completion = await client.chat.completions.create(
-                    model="qwen-vl-max",
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                            {"type": "text", "text": "Extract all text line by line. Do not number lines. SKIP UNREADABLE TEXT. PUT IN SQUARE BRACKETS [GUESSES AND UNCERTAIN] TEXT. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."}
-                        ]
-                    }]
-                )
+                # Retry logic for API calls
+                max_retries = 3
+                retry_delay = 1.0  # Start with 1 second delay
+                
+                for attempt in range(max_retries):
+                    try:
+                        # Get transcription using OpenAI-compatible method
+                        completion = await client.chat.completions.create(
+                            model="qwen-vl-max",
+                            messages=[{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                                    {"type": "text", "text": "Extract all text line by line. Do not number lines. SKIP UNREADABLE TEXT. PUT IN SQUARE BRACKETS [GUESSES AND UNCERTAIN] TEXT. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."}
+                                ]
+                            }]
+                        )
+                        
+                        # If we get here, the API call succeeded
+                        break
+                        
+                    except Exception as api_error:
+                        if attempt < max_retries - 1:
+                            tool_logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
+                            tool_logger.info(f"Retrying in {retry_delay:.1f} seconds...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            # Final attempt failed
+                            tool_logger.error(f"API call failed after {max_retries} attempts: {api_error}")
+                            raise api_error
             
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            logger.info(f"[{timestamp}] Received response from Qwen API for: {file_path.name}")
+            tool_logger.info(f"[{timestamp}] Received response from Qwen API for: {file_path.name}")
             
             # Extract transcription from response
             transcription = completion.choices[0].message.content
@@ -180,28 +218,27 @@ async def process_image(file_path: Path, out_path: Path, api_key_cli: str = None
             return result
             
         except Exception as e:
-            logger.error(f"Error processing image {file_path}: {str(e)}")
+            tool_logger.error(f"Error processing image {file_path}: {str(e)}")
             # Return error but keep empty file
             return {
                 "error": str(e),
                 "outputs": [str(SegmentHandler.get_relative_path(out_path))],
                 "source": str(SegmentHandler.get_relative_path(file_path))
             }
-
-    except Exception as e:
-        logger.error(f"Error processing {file_path}: {e}")
-        return {"error": str(e)}
+    finally:
+        await close_async_client(client)
 
 def transcribe_batch(
-    background_removed_folder: Path,
-    background_removed_manifest: Path,
-    transcribed_folder: Path,
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
     testing: bool = False,
     api_key_cli: str = None,
-):
+    **kwargs
+) -> dict:
     """Batch transcription using Qwen VL Max model"""
-    print(f"[green]Transcribing images in {background_removed_folder}")
-    print(f"[cyan]Using model qwen-vl-max")
+    tool_logger.info(f"[green]Transcribing images in {source_folder}")
+    tool_logger.info(f"[cyan]Using model qwen-vl-max")
     
     load_dotenv()
     
@@ -247,15 +284,20 @@ def transcribe_batch(
                 return results
             return []
 
-        def _process_batch(self, batch: list, stats: dict, progress, task):
+        def _process_batch(self, batch: list, stats: dict):
             """Override to use async processing"""
             import time
             batch_start = time.time()
             
-            # Get the current event loop
-            loop = asyncio.get_event_loop()
+            # Create or get event loop - handle threaded environments
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # No event loop in current thread, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             
-            # Run the async batch processing in the current event loop
+            # Run the async batch processing in the event loop
             results = loop.run_until_complete(self.process_batch_async(batch))
             
             batch_time = time.time() - batch_start
@@ -263,14 +305,14 @@ def transcribe_batch(
             
             # Show time savings
             sequential_estimate = len(batch) * 8  # Assume ~8 seconds per image sequentially
-            logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
-            logger.info(f"Sequential processing would take ~{sequential_estimate}s")
-            logger.info(f"Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)")
+            tool_logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
+            tool_logger.info(f"Sequential processing would take ~{sequential_estimate}s")
+            tool_logger.info(f"Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)")
             
             # Process results
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    logger.error(f"Error: {result}")
+                    tool_logger.error(f"Error: {result}")
                     stats["failed"] += 1
                 elif isinstance(result, dict):
                     self.output_proc.save_entry(result)
@@ -280,8 +322,6 @@ def transcribe_batch(
                         stats["skipped"] += 1
                     else:
                         stats["processed"] += 1
-                
-                progress.update(task, advance=1, **stats)
                 
         def process(self):
             """Override to add timing summary"""
@@ -293,25 +333,25 @@ def transcribe_batch(
                 total_images = result.get('processed', 0) + result.get('failed', 0) + result.get('skipped', 0)
                 sequential_estimate = total_images * 8
                 
-                logger.info("🚀 Async Processing Summary:")
-                logger.info(f"Total images: {total_images}")
-                logger.info(f"Processed: {result.get('processed', 0)}")
-                logger.info(f"Skipped: {result.get('skipped', 0)}")
-                logger.info(f"Failed: {result.get('failed', 0)}")
-                logger.info(f"Total time: {total_time:.1f}s")
-                logger.info(f"Sequential estimate: {sequential_estimate}s")
-                logger.info(f"Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)")
-                logger.info(f"Average time per image: {total_time / total_images:.1f}s")
+                tool_logger.info("🚀 Async Processing Summary:")
+                tool_logger.info(f"Total images: {total_images}")
+                tool_logger.info(f"Processed: {result.get('processed', 0)}")
+                tool_logger.info(f"Skipped: {result.get('skipped', 0)}")
+                tool_logger.info(f"Failed: {result.get('failed', 0)}")
+                tool_logger.info(f"Total time: {total_time:.1f}s")
+                tool_logger.info(f"Sequential estimate: {sequential_estimate}s")
+                tool_logger.info(f"Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)")
+                tool_logger.info(f"Average time per image: {total_time / total_images:.1f}s")
                 
             return result
 
     # Use the async batch processor
     processor = AsyncBatchProcessor(
-        input_manifest=background_removed_manifest,
-        output_folder=transcribed_folder,
-        process_name="transcription",
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="segmented_transcription",
         processor_fn=None,  # Not used in async version
-        base_folder=background_removed_folder,
+        base_folder=source_folder,
         batch_size=5,  # Process 5 images concurrently
         api_key_cli=api_key_cli
     )
@@ -319,20 +359,48 @@ def transcribe_batch(
     return processor.process()
 
 def transcribe(
-    background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
-    background_removed_manifest: Path = typer.Argument(..., help="Input background removed manifest"),
-    transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
+    source_folder: Path = typer.Argument(..., help="Input source images folder"),
+    source_manifest: Path = typer.Argument(..., help="Input source manifest"),
+    output_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
     testing: bool = typer.Option(False, help="Run on a small subset of data"),
     api_key: str = typer.Option(None, "--api-key", help="Qwen API key (falls back to shared data, then DASHSCOPE_API_KEY env var)"),
 ):
     """Batch transcription CLI using Qwen VL Max model"""
     transcribe_batch(
-        background_removed_folder,
-        background_removed_manifest,
-        transcribed_folder,
+        source_folder,
+        source_manifest,
+        output_folder,
         testing,
         api_key
     )
 
+def main():
+    try:
+        typer.run(transcribe)
+    finally:
+        # Clean up event loop if we created one
+        try:
+            import asyncio
+            import gc
+            # Try to close all event loops
+            loops_to_close = []
+            try:
+                loop = asyncio.get_running_loop()
+                loops_to_close.append(loop)
+            except RuntimeError:
+                pass
+            try:
+                loop = asyncio.get_event_loop()
+                if loop and not loop.is_closed():
+                    loops_to_close.append(loop)
+            except RuntimeError:
+                pass
+            for loop in set(loops_to_close):
+                if not loop.is_closed():
+                    loop.close()
+            gc.collect()
+        except Exception:
+            pass
+
 if __name__ == "__main__":
-    typer.run(transcribe) 
+    main() 

@@ -1,14 +1,23 @@
 import typer
-from pathlib import Path
-from rich.console import Console
-import re
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.files import ensure_dirs
 import json
+from pathlib import Path
+import re
 
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.segment_handler import SegmentHandler
+    from utils.files import ensure_dirs
+    from utils.tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('fuzzy_clean')
 
 class TextCleaner:
     @staticmethod
@@ -453,16 +462,10 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         source_path = Path(file_path)
         rel_path = SegmentHandler.get_relative_path(source_path)
         
-        # Look for input .txt file
+        # The input file should already be the correct path from BatchProcessor
         input_path = source_path.with_suffix('.txt')
         if not input_path.exists():
-            # Try with documents prefix if not found
-            input_path = output_folder.parent / "documents" / rel_path.with_suffix('.txt')
-            
-        if not input_path.exists():
-            # Try with raw path if not found
-            input_path = Path(str(input_path).replace(';', '\\;'))
-            if not input_path.exists():
+            # Since file_path comes from recombined_folder, just use it directly
                 raise FileNotFoundError(f"Input file not found: {input_path}")
             
         # Use relative path for output
@@ -527,11 +530,45 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         return result
         
     except Exception as e:
-        console.print(f"[red]Error processing {file_path}: {e}")
+        tool_logger.error(f"Error processing {file_path}: {e}")
         return {
             "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
             "error": str(e)
         }
+
+def fuzzy_clean_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    **kwargs
+) -> dict:
+    """
+    Clean up text from recombined transcriptions - importable function
+    
+    Args:
+        source_folder: Path to the recombined files
+        source_manifest: Path to the recombined manifest file
+        output_folder: Output folder for cleaned transcriptions
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    # Validate inputs
+    if not source_folder.exists():
+        raise FileNotFoundError(f"Recombined folder not found: {source_folder}")
+    if not source_manifest.exists():
+        raise FileNotFoundError(f"Recombined manifest not found: {source_manifest}")
+        
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="transcription",
+        processor_fn=process_document,
+        base_folder=source_folder,
+        use_source=True
+    )
+    
+    return processor.process()
 
 def fuzzy_clean(
     recombined_folder: Path = typer.Argument(..., help="Path to the recombined files"),
@@ -539,23 +576,7 @@ def fuzzy_clean(
     transcriptions_folder: Path = typer.Argument(..., help="Output folder for cleaned transcriptions")
 ):
     """Clean up text from recombined transcriptions"""
-    
-    # Validate inputs
-    if not recombined_folder.exists():
-        raise typer.BadParameter(f"Recombined folder not found: {recombined_folder}")
-    if not recombined_manifest.exists():
-        raise typer.BadParameter(f"Recombined manifest not found: {recombined_manifest}")
-        
-    processor = BatchProcessor(
-        input_manifest=recombined_manifest,
-        output_folder=transcriptions_folder,
-        process_name="transcription",
-        processor_fn=process_document,  # Use process_document directly
-        base_folder=recombined_folder,
-        use_source=True  # Use source path from manifest since we're processing MD files
-    )
-    
-    return processor.process()
+    return fuzzy_clean_batch(recombined_folder, recombined_manifest, transcriptions_folder)
 
 if __name__ == "__main__":
     typer.run(fuzzy_clean)

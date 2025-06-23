@@ -5,7 +5,7 @@ About window for Fichero application
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW, CENTER
-from ...utils import _
+from ..i18n import _
 import webbrowser
 
 

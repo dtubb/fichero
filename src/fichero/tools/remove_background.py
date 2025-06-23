@@ -7,16 +7,24 @@ from typing import Literal
 import subprocess
 import shutil
 import os
-from rich.console import Console
-import logging
 
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.tool_logger import get_tool_logger
 
-console = Console()
-logger = logging.getLogger(__name__)
+tool_logger = get_tool_logger('remove_background')
 
 class BlackBackgroundRemoverMulti:
     """
@@ -222,12 +230,12 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
             temp_png.unlink()
         
         if process.returncode != 0:
-            print(f"Warning: cjxl conversion failed: {process.stderr}")
+            tool_logger.warning(f"cjxl conversion failed: {process.stderr}")
             return False
             
         return True
     except Exception as e:
-        print(f"Warning: Failed to save as JXL: {str(e)}")
+        tool_logger.warning(f"Failed to save as JXL: {str(e)}")
         return False
 
 def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -> dict:
@@ -239,7 +247,7 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -
         # Load image using the format utility
         image, metadata = load_image(file_path)
     except Exception as e:
-        logger.error(f"Failed to load image {file_path.name}: {e}")
+        tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     # Remove background and get parameters
@@ -283,6 +291,35 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
         file_types=file_types
     )
 
+def remove_background_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    output_format: str,
+    **kwargs
+) -> dict:
+    """
+    Remove background from enhanced images - importable function
+    
+    Args:
+        source_folder: Source folder containing documents
+        source_manifest: Manifest file
+        output_folder: Output folder for background removed images
+        output_format: Output format (png, jxl, jpg)
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="background_removed",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o, output_format),
+        use_source=False
+    )
+    return processor.process()
+
 def remove_background(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
@@ -299,14 +336,7 @@ def remove_background(
     - jxl: JPEG XL with transparency (requires cjxl installed)
     - jpg: JPEG with white background
     """
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="background_removed",
-        base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o, output_format)
-    )
-    processor.process()
+    return remove_background_batch(source_folder, source_manifest, output_folder, output_format)
 
 
 if __name__ == "__main__":

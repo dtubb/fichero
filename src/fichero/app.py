@@ -1,7 +1,17 @@
 """
-Fichero
-Cross platform GUI (macOS, Windows, Linux) using Toga.
-Document-based application.
+Fichero GUI Application - Thin Wrapper
+
+Cross-platform GUI (macOS, Windows, Linux) using Toga and Briefcase.
+
+Architecture:
+- Thin wrapper: delegates ALL initialization to core/app_initializer.py
+- Extracts components (director, settings) for convenient access
+- Delegates ALL business logic to appropriate shared systems
+- Document-based application with Toga's document system
+
+Two-step process:
+1. Delegate initialization to shared app_initializer
+2. Extract components for clean method code
 """
 
 import toga
@@ -9,145 +19,101 @@ from toga.style import Pack
 import os
 import sys
 from pathlib import Path
-
-from .utils import _, translator, get_app_settings
+from .ui import _, translator
+from .utils import get_app_settings
 from .ui import MenuManager
-from .document_model import FicheroDocument
-from . import director
+from .document.document_model import FicheroDocument
+from .core.app_initializer import initialize_gui_app
+from .core.error_handler import create_gui_error_handler
+from . import __version__
 
 
 class FicheroApp(toga.App):
+    """Thin wrapper GUI application - delegates all business logic to shared systems"""
+    
+    # Application metadata
     formal_name = "Fichero"
     app_id = "ca.tubb.fichero"
-    app_name = "Fichero"
-    description = "Document Processing and Transcription"
+    description = "Multi-Step Document Processing"
     author = "Daniel Tubb"
-    version = "0.0.5"
+    version = __version__
     home_page = "https://www.tubb.ca/fichero/"
     
     def startup(self):
-        """Initialize the app with toga document-based architecture"""
-        # Configure logging
-        import logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+        """Initialize the app - delegates to shared initialization system"""
+        print("🚀 Fichero GUI starting up...")
         
-        print("🚀 Fichero starting up...")
-        
-        # Initialize settings and environment
-        self._init_settings()
-        
-        # Initialize language system (needs settings, so goes right after)
-        from .utils.i18n import TranslationManager, set_global_translator
-        self.translator = TranslationManager(app=self)
-        set_global_translator(self.translator)
-        print(f"🌐 Language: {self.translator.current_language}")
-        
-        # Initialize document tracker and managers
-        from .document import init_document_tracker, init_app_auto_save_manager, init_session_manager
-        self.document_tracker = init_document_tracker(self)
-        self.auto_save_manager = init_app_auto_save_manager(self)
-        self.session_manager = init_session_manager(self)
-        
-        # Initialize menu system
-        self.menu_manager = MenuManager(self)
-        commands = self.menu_manager.create_commands()
-        self.commands.add(*commands)
-        
-        # Customize standard commands
-        self.menu_manager.customize_standard_commands()
-        
-        # For document-based apps, main_window should be None
-        # This allows the document system to work properly
-        self.main_window = None
-        
-        print("✨ Fichero ready!")
-        # Managers handle their own lifecycle automatically!
-
-    def _init_settings(self):
-        """Initialize application settings and environment variables"""
+         # Initialize components immediately
         try:
-            # Initialize app preferences first (this creates the preferences file if needed)
-            from .config.core.app_preferences import get_app_preferences
-            app_prefs = get_app_preferences(self)
-            print("📋 App preferences initialized")
+            self.components, self.initializer = initialize_gui_app(app_context=self)
             
-            # Load settings (environment variables are set automatically)
-            settings = get_app_settings(self)
+            # Extract initialized components (same as CLI gets, plus GUI-specific)
+            self.settings = self.components['settings']
+            self.director = self.components['director']
+            self.translator = self.components['translator']
+            self.document_tracker = self.components['document_tracker']
+            self.auto_save_manager = self.components['auto_save_manager']
+            self.session_manager = self.components['session_manager']
             
-            # Initialize shared data backend with user's preference
-            self._init_shared_data_backend(settings)
-                
-        except Exception as e:
-            print(f"⚠️ Warning: Failed to load settings: {e}")
-
-    def _init_shared_data_backend(self, settings):
-        """Initialize the shared data backend based on user settings"""
-        try:
-            # Get user's backend preference - default to Redis for better Celery integration
-            backend_setting = settings.settings.get("workers", {}).get("backend", "redis")
-            
-            # Convert setting to backend preference
-            if backend_setting == "python":
-                prefer_backend = "manager"
-            else:  # "redis" or anything else - default to Redis for Celery workers
-                prefer_backend = "redis"
-            
-            # Initialize shared data with the preference and proper app data directory
-            from .shared_data import reload_shared_data
-            app_data_dir = self.paths.data if hasattr(self, 'paths') else None
-            shared_data = reload_shared_data(prefer_backend=prefer_backend, data_dir=app_data_dir, app=self)
-            
-            print(f"🔧 Processing backend initialized: {shared_data.backend_name} ({'Redis+Celery' if backend_setting == 'redis' else 'Python Manager'})")
+            print("✅ Fichero components initialized")
             
         except Exception as e:
-            print(f"⚠️ Warning: Failed to initialize processing backend: {e}")
-
-    def finalize(self):
-        """Clean up when app closes"""
-        print("🔄 finalize() called - app is closing")
-        try:
-            # Only app-specific cleanup needed (session save happens automatically)
-            print("🧹 Cleaning up Redis and Celery workers...")
-            director.stop_workers()
-            print("✓ Cleanup completed")
-        except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
+            print(f"❌ Failed to initialize Fichero: {e}")
+            print("Cannot continue without core services.")
             import traceback
             traceback.print_exc()
+            
+            # Show error dialog to user then quit
+            import asyncio
+            async def show_error_and_quit():
+                # Create a simple error dialog without main window
+                await self.error_dialog(
+                    "Initialization Error",
+                    f"Failed to initialize Fichero core services:\n\n{e}\n\nCannot continue without core services\n\nThe application will now exit."
+                )
+                self.exit()
+            
+            # Schedule the error dialog
+            asyncio.create_task(show_error_and_quit())
+            return
+        
+        # Initialize GUI-specific systems
+        self._setup_gui_interface()
+        
+        print("✨ Fichero GUI ready!")
 
-
-
-
-
-
-
-    # Document operations (using Toga's document system)
-    # These methods will be called automatically by Toga's standard document commands
-    
-    def new_document(self):
-        """Create a new document using Toga's document system"""
+    def _setup_gui_interface(self):
+        """Set up GUI-specific interface elements"""
         try:
-            # Check if there's already a blank document we can reuse
-            if hasattr(self, 'documents') and self.documents:
-                for existing_doc in self.documents:
-                    if hasattr(existing_doc, 'is_blank_document') and existing_doc.is_blank_document():
-                        # Found a blank document - bring it to front instead of creating new
-                        if hasattr(existing_doc, 'main_window') and existing_doc.main_window:
-                            existing_doc.main_window.show()
-                            print(f"📄 Brought existing blank document to front: {existing_doc.get_display_name()}")
-                            return existing_doc
+            # Initialize menu system
+            self.menu_manager = MenuManager(self)
+            commands = self.menu_manager.create_commands()
+            self.commands.add(*commands)
             
-            # No blank document found, create a new one
+            # Customize standard commands
+            self.menu_manager.customize_standard_commands()
+            
+            # Check for missing Window commands (debugging)
+            self.menu_manager.check_for_missing_window_commands()
+            
+            # For document-based apps, main_window should be None
+            # This allows the document system to work properly
+            self.main_window = None
+            
+        except Exception as e:
+            print(f"⚠️ Warning: GUI interface setup failed: {e}")
+
+    # Document operations - thin wrappers that delegate to document system
+    def new_document(self):
+        """Create a new document - delegates to document system"""
+        try:
             doc = FicheroDocument(self)
-            doc.create()  # This sets doc.main_window
-            doc.main_window.show()  # Now show the window
+            doc.create()
+            doc.main_window.show()
             
-            # Track the new document creation
-            self.document_tracker.document_created(doc)
-            print(f"📄 Created new document: {doc.get_display_name()}")
+            # Track via document system
+            if self.document_tracker:
+                self.document_tracker.document_created(doc)
             
             return doc
         except Exception as e:
@@ -155,105 +121,68 @@ class FicheroApp(toga.App):
             return None
     
     def open_document(self, document_path: Path):
-        """Open an existing document using Toga's document system"""
+        """Open an existing document - delegates to document system"""
         try:
-            print(f"🔄 Opening document: {document_path}")
-            
-            # Validate document path
-            if not document_path.exists():
-                print(f"❌ Document does not exist: {document_path}")
-                return None
-            
-            # Create document instance
-            print(f"📄 Creating FicheroDocument instance...")
             doc = FicheroDocument(self, document_path)
-            
-            # Create document window
-            print(f"🪟 Creating document window...")
-            doc.create()  # This sets doc.main_window
-            
-            if not doc.main_window:
-                print(f"❌ Failed to create document window")
-                return None
-            
-            # Show the window  
-            print(f"👁️ Showing document window...")
+            doc.create()
             doc.main_window.show()
             
-            # Track the document opening
-            self.document_tracker.document_opened(document_path)
-            print(f"✅ Successfully opened document: {document_path.name}")
+            # Track via document system
+            if self.document_tracker:
+                self.document_tracker.document_opened(document_path)
+            
             return doc
         except Exception as e:
-            print(f"❌ Failed to open document {document_path}: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Failed to open document: {e}")
             return None
     
     def save_document(self, document=None):
-        """Save a document"""
-        if document:
+        """Save a document - delegates to document system"""
+        if document and hasattr(document, 'write'):
             document.write()
-            # Track the document saving if it has a path
-            if hasattr(document, 'path') and document.path:
+            
+            # Track via document system
+            if self.document_tracker and hasattr(document, 'path') and document.path:
                 self.document_tracker.document_saved(document.path)
-            elif hasattr(document, 'get_effective_path'):
-                effective_path = document.get_effective_path()
-                if effective_path:
-                    self.document_tracker.document_saved(effective_path)
     
     def close_document(self, document):
-        """Close a document with save prompt if needed"""
+        """Close a document - delegates to document system"""
         try:
-            # Check if document can be closed without prompting
-            if hasattr(document, 'can_close') and not document.can_close():
-                # Document has changes, prompt user to save
-                if hasattr(document, 'has_meaningful_changes') and document.has_meaningful_changes():
-                    try:
-                        # Try to show save dialog (this will work in actual Toga app)
-                        display_name = document.get_display_name() if hasattr(document, 'get_display_name') else "Untitled"
-                        
-                        # For now, auto-save if it's an auto-saved document with changes
-                        if hasattr(document, 'is_auto_saved_document') and document.is_auto_saved_document():
-                            print(f"💾 Auto-saving document with changes: {display_name}")
-                            if hasattr(document, '_auto_save'):
-                                document._auto_save()
-                        else:
-                            print(f"💾 Document has changes: {display_name}")
-                            # In a real implementation, you'd show a save dialog here
-                            # For now, we'll save automatically if it's an auto-saved document
-                            if hasattr(document, 'write'):
-                                document.write()
-                    except Exception as e:
-                        print(f"⚠️ Warning: Error handling document save: {e}")
-            
-            # Call document's close method to handle cleanup
+            # Let document handle its own closing logic
             if hasattr(document, 'close'):
                 document.close()
-            
-            # Toga handles document closing automatically
             return True
         except Exception as e:
             print(f"⚠️ Warning: Error closing document: {e}")
-            return True  # Allow close even if cleanup fails
+            return True
+
+    def finalize(self):
+        """Clean up when app closes - delegates to shared cleanup system"""
+        print("🔄 Fichero GUI closing...")
+        try:
+            # Use shared cleanup wrapper (same pattern as CLI)
+            if hasattr(self, 'initializer') and self.initializer:
+                self.initializer.cleanup()
+        except Exception as e:
+            print(f"❌ Error during cleanup: {e}")
+            import traceback
+            traceback.print_exc()
+
 
 def main():
-    """Main entry point"""
-    try:
+    """Main entry point - delegates to shared error handling"""
+    error_handler = create_gui_error_handler()
+    
+    def run_app():
         app = FicheroApp(
             formal_name="Fichero",
             app_id="ca.tubb.fichero",
             document_types=[FicheroDocument]
         )
         app.main_loop()
-    except KeyboardInterrupt:
-        print("\n👋 Fichero interrupted by user")
-        sys.exit(0)
-    except Exception as e:
-        print(f"💥 Fichero crashed: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    
+    wrapped_app = error_handler.wrap_main_function(run_app, "GUI application")
+    wrapped_app()
 
 
 if __name__ == "__main__":

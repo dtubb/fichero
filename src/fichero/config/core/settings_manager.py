@@ -35,7 +35,7 @@ class SettingsManager(FileManager):
             "workers": {
                 "backend": "python",
                 "cpu_workers": 4,
-                "io_workers": 8,
+                "io_workers": 16,
                 "memory_per_worker_mb": 2048
             },
             "api_servers": {

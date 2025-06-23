@@ -1,11 +1,17 @@
-from rich.progress import Progress, TextColumn, BarColumn, SpinnerColumn
-from rich.console import Console
+"""
+Progress Tracking Utility
+
+Provides progress tracking and statistics without Rich progress bars.
+Uses tool_logger for consistent output across workflow and CLI contexts.
+"""
+
 from pathlib import Path
 from datetime import datetime
 import srsly
 import os
+from .tool_logger import get_tool_logger
 
-console = Console()
+tool_logger = get_tool_logger('progress')
 
 class ProcessingProgress:
     """Handle progress file tracking and stats"""
@@ -43,37 +49,51 @@ class ProcessingProgress:
         return self.stats.get("processed", 0)
 
 class ProgressTracker:
+    """
+    Simple progress tracker that uses tool_logger instead of Rich progress bars.
+    
+    Provides progress updates via logging rather than visual progress bars.
+    This eliminates Rich dependencies and works consistently in both workflow and CLI contexts.
+    """
     def __init__(self, total: int, task_name: str, progress_fields: dict):
         # Remove total from progress_fields since it's passed separately
         fields = progress_fields.copy()
         if 'total' in fields:
             del fields['total']
             
-        self.progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn(self._build_stats_display(fields))
-        )
-        self.task = self.progress.add_task(  # Store task ID as self.task
-            f"[green]{task_name}",
-            total=total,
-            **fields
-        )
+        self.total = total
+        self.task_name = task_name
         self.stats = fields
-
-    def _build_stats_display(self, fields: dict) -> str:
-        """Build progress bar stats display from fields"""
-        return " | ".join(f"{k.title()}: {{task.fields[{k}]}}" for k in fields.keys())
+        self.processed = 0
+        
+        # Log initial progress
+        tool_logger.info(f"Starting {task_name}: {total} items to process")
+        tool_logger.progress(f"Progress: 0/{total} (0%)")
 
     def update(self, advance: int = 1, **fields):
         """Update progress and stats"""
         self.stats.update(fields)
-        self.progress.update(self.task, advance=advance, **fields)
+        self.processed += advance
+        
+        # Calculate percentage
+        percentage = (self.processed / self.total) * 100 if self.total > 0 else 0
+        
+        # Log progress update
+        tool_logger.progress(f"Progress: {self.processed}/{self.total} ({percentage:.1f}%)")
+        
+        # Log stats if they changed significantly
+        if self.processed % 10 == 0 or self.processed == self.total:  # Log every 10 items or on completion
+            stats_str = ", ".join(f"{k}: {v}" for k, v in self.stats.items() if v > 0)
+            if stats_str:
+                tool_logger.info(f"Stats: {stats_str}")
 
     def __enter__(self):
-        return self.progress.__enter__()
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.progress.__exit__(exc_type, exc_val, exc_tb)
+        # Log completion
+        if exc_type is None:
+            tool_logger.success(f"Completed {self.task_name}: {self.processed}/{self.total} items")
+        else:
+            tool_logger.error(f"Failed {self.task_name}: {exc_val}")
+        return False  # Don't suppress exceptions

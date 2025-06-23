@@ -1,14 +1,26 @@
 import typer
 from pathlib import Path
-from rich.console import Console
-from utils.batch import BatchProcessor
-from utils.files import ensure_dirs
-from utils.segment_handler import SegmentHandler
+
+
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.files import ensure_dirs
+    from utils.segment_handler import SegmentHandler
+    from utils.tool_logger import get_tool_logger
+
 import json
 import re
 from collections import defaultdict
 
-console = Console()
+tool_logger = get_tool_logger('recombine_segments')
 
 def load_bg_removal_manifest(manifest_path: Path) -> dict:
     """Load background removal manifest and create source->output mapping"""
@@ -31,7 +43,7 @@ def numerical_sort(value):
 
 def group_segments_by_parent(manifest_path: Path) -> dict:
     """Group segment files by their parent image"""
-    console.print(f"[blue]Loading segments from manifest: {manifest_path}")
+    tool_logger.progress(f"Loading segments from manifest: {manifest_path}")
     groups = defaultdict(list)
     try:
         with open(manifest_path) as f:
@@ -45,23 +57,23 @@ def group_segments_by_parent(manifest_path: Path) -> dict:
                         # Use the output path from the manifest
                         output_path = entry["outputs"][0]
                         groups[parent].append(output_path)
-                        console.print(f"[blue]Added segment {output_path} to parent {parent}")
+                        tool_logger.debug(f"Added segment {output_path} to parent {parent}")
     except Exception as e:
-        console.print(f"[red]Error reading manifest {manifest_path}: {e}")
+        tool_logger.error(f"Error reading manifest {manifest_path}: {e}")
         raise
     
-    console.print(f"[blue]Found {len(groups)} parent images")
+    tool_logger.info(f"Found {len(groups)} parent images")
     return dict(groups)
 
 def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segments_mapping: dict, input_folder: Path) -> dict:
     """Process segments belonging to the same source image"""
     try:
-        console.print(f"\n[blue]====== Processing document ======")
-        console.print(f"[blue]Input file_path: {file_path}")
+        tool_logger.info("====== Processing document ======")
+        tool_logger.info(f"Input file_path: {file_path}")
         
         # Normalize the source path to match manifest entries
         source_path = Path(file_path)
-        console.print(f"[blue]Initial source_path: {source_path}")
+        tool_logger.debug(f"Initial source_path: {source_path}")
         
         # Create output directory and subdirectories using SegmentHandler
         output_path = output_folder / "documents" / source_path.parent / source_path.name
@@ -82,7 +94,7 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         
         # Get corresponding segments
         segment_files = segments_mapping.get(str(source_path), [])
-        console.print(f"[blue]Found {len(segment_files)} segments for {source_path}")
+        tool_logger.info(f"Found {len(segment_files)} segments for {source_path}")
         
         if not segment_files:
             return {
@@ -102,12 +114,12 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
                     full_path = input_folder / segment_path
             else:
                 full_path = Path(segment_path)
-            console.print(f"[blue]Looking for segment file: {full_path}")
+            tool_logger.debug(f"Looking for segment file: {full_path}")
             if full_path.exists():
                 text_files.append(full_path)
             else:
                 missing_segments += 1
-                console.print(f"[yellow]Skipping missing segment file {full_path} (likely empty region)")
+                tool_logger.warning(f"Skipping missing segment file {full_path} (likely empty region)")
                 
         if not text_files:
             return {
@@ -122,20 +134,20 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
                 text = text_file.read_text()
                 if text.strip():  # Only add non-empty segments
                     combined_text += text + "\n\n"  # Add double newline for better separation
-                    console.print(f"[blue]Added {len(text)} characters from {text_file}")
+                    tool_logger.debug(f"Added {len(text)} characters from {text_file}")
             except Exception as e:
-                console.print(f"[red]Error reading {text_file}: {e}")
+                tool_logger.error(f"Error reading {text_file}: {e}")
 
         # Create output directory and subdirectories using SegmentHandler
         output_path = output_folder / "documents" / source_path.parent / source_path.name
         output_path = output_path.with_suffix('.txt')
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        console.print(f"[blue]Writing combined output to: {output_path}")
+        tool_logger.progress(f"Writing combined output to: {output_path}")
         output_file_text = combined_text.strip()
         if output_file_text:  # Only write if we have content
             output_path.write_text(output_file_text)
-            console.print(f"[green]Successfully wrote {len(output_file_text)} characters")
+            tool_logger.success(f"Successfully wrote {len(output_file_text)} characters")
 
         # Get relative paths using SegmentHandler
         rel_path = SegmentHandler.get_relative_path(source_path)
@@ -151,36 +163,47 @@ def process_document(file_path: str, output_folder: Path, bg_mapping: dict, segm
         }
 
     except Exception as e:
-        console.print(f"[red]Error processing {file_path}: {e}")
+        tool_logger.error(f"Error processing {file_path}: {e}")
         return {
             "source": str(Path(file_path).with_suffix('.txt')),
             "error": str(e)
         }
 
-def recombine_segments(
-    input_folder: Path = typer.Argument(..., help="Path to the transcribed segments folder"),
-    output_folder: Path = typer.Argument(..., help="Output folder for recombined files"),
-    input_manifest: Path = typer.Argument(..., help="Path to the transcriptions manifest file"),
-    bg_removal_manifest: Path = typer.Argument(..., help="Path to the background removal manifest file")
-):
-    """Recombine transcribed segments back into full documents"""
+def recombine_segments_batch(
+    transcriptions_folder: Path,
+    output_folder: Path,
+    transcription_manifest: Path,
+    image_manifest: Path,
+    **kwargs
+) -> dict:
+    """
+    Recombine the transcribed segments from Qwen into single markdown files - importable function
     
+    Args:
+        transcriptions_folder: Path to the transcribed segments folder
+        output_folder: Output folder for recombined files
+        transcription_manifest: Path to the transcriptions manifest file
+        image_manifest: Path to the background removal manifest file
+        
+    Returns:
+        Processing statistics dictionary
+    """
     # Create output directories
     ensure_dirs(output_folder)
     ensure_dirs(output_folder / "documents")
     
     # Load manifests
-    bg_mapping = load_bg_removal_manifest(bg_removal_manifest)
-    segments_mapping = group_segments_by_parent(input_manifest)
+    bg_mapping = load_bg_removal_manifest(image_manifest)
+    segments_mapping = group_segments_by_parent(transcription_manifest)
     
     # Get unique parent images to process
     parent_images = list(segments_mapping.keys())
-    console.print(f"[green]Found {len(parent_images)} parent images to process")
+    tool_logger.info(f"Found {len(parent_images)} parent images to process")
     
     # Process each parent image
     results = []
     for parent in parent_images:
-        result = process_document(parent, output_folder, bg_mapping, segments_mapping, input_folder)
+        result = process_document(parent, output_folder, bg_mapping, segments_mapping, transcriptions_folder)
         results.append(result)
         
     try:
@@ -192,16 +215,25 @@ def recombine_segments(
             for result in results:
                 f.write(json.dumps(result) + '\n')
         
-        console.print(f"[green]Wrote manifest to {manifest_path}")
+        tool_logger.success(f"Wrote manifest to {manifest_path}")
     except Exception as e:
-        console.print(f"[red]Error writing manifest: {e}")
+        tool_logger.error(f"Error writing manifest: {e}")
         raise
     
     stats = {"processed": len([r for r in results if r.get("success")]),
              "failed": len([r for r in results if not r.get("success")])}
     
-    console.print(f"[green]\nRecombining completed. Processed: {stats['processed']}, Failed: {stats['failed']}")
+    tool_logger.success(f"Recombining completed. Processed: {stats['processed']}, Failed: {stats['failed']}")
     return stats
+
+def recombine_segments(
+    input_folder: Path = typer.Argument(..., help="Path to the transcribed segments folder"),
+    output_folder: Path = typer.Argument(..., help="Output folder for recombined files"),
+    input_manifest: Path = typer.Argument(..., help="Path to the transcriptions manifest file"),
+    bg_removal_manifest: Path = typer.Argument(..., help="Path to the background removal manifest file")
+):
+    """Recombine transcribed segments back into full documents"""
+    return recombine_segments_batch(input_folder, output_folder, input_manifest, bg_removal_manifest)
 
 if __name__ == "__main__":
     typer.run(recombine_segments)

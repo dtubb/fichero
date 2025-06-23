@@ -10,10 +10,17 @@ import shutil
 from typing import Literal, Optional, Tuple, Union, Dict, List
 # import rawpy  # REMOVED: Not needed for document processing
 # import pillow_heif  # REMOVED: Does not work with Briefcase packaging
-import logging
 import typer
 
-logger = logging.getLogger(__name__)
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('image_format')
 
 # Supported input formats (RAW formats disabled for document processing)
 InputFormat = Literal['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic', 'jxl']  # removed: 'raw', 'cr2', 'nef', 'arw'
@@ -107,7 +114,8 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
                     temp_png = file_path.with_suffix('.temp.png')
                     subprocess.run(['heif-convert', str(file_path), str(temp_png)], 
                                 capture_output=True, check=True)
-                    image = Image.open(temp_png)
+                    with Image.open(temp_png) as img:
+                        image = img.copy()
                     temp_png.unlink()
                 else:
                     # Fallback to pillow_heif if system tool not available - DISABLED
@@ -137,19 +145,24 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
                     temp_png = file_path.with_suffix('.temp.png')
                     subprocess.run(['djxl', str(file_path), str(temp_png)], 
                                 capture_output=True, check=True)
-                    image = Image.open(temp_png)
+                    with Image.open(temp_png) as img:
+                        image = img.copy()
                     temp_png.unlink()
                 except Exception as e:
                     metadata["errors"].append(f"JXL processing failed: {str(e)}")
                     # Try PIL as fallback
-                    image = Image.open(file_path)
+                    with Image.open(file_path) as img:
+                        image = img.copy()
             else:
                 metadata["errors"].append("djxl not installed, using PIL fallback")
-                image = Image.open(file_path)
+                with Image.open(file_path) as img:
+                    image = img.copy()
         
         # Handle standard formats with PIL
         else:
-            image = Image.open(file_path)
+            with Image.open(file_path) as img:
+                # Load the image data completely into memory
+                image = img.copy()
         
         # Ensure RGB mode
         if image.mode not in ['RGB', 'RGBA']:
@@ -170,15 +183,15 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
     try:
         # Save as temporary PNG first (cjxl works best with PNG input)
         temp_png = output_path.with_suffix('.temp.png')
-        logger.info(f"Saving temporary PNG to {temp_png}")
+        tool_logger.info(f"Saving temporary PNG to {temp_png}")
         image.save(temp_png, "PNG", optimize=True, compress_level=9)
         
         # Verify temp PNG exists and has content
         if not temp_png.exists():
-            logger.error("Temporary PNG file was not created")
+            tool_logger.error("Temporary PNG file was not created")
             return False
         if temp_png.stat().st_size == 0:
-            logger.error("Temporary PNG file is empty")
+            tool_logger.error("Temporary PNG file is empty")
             return False
             
         # Convert to JXL using archival settings
@@ -195,105 +208,87 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
             '-m', '0',  # Use varDCT mode (better for photographs)
             '--num_threads', '0'  # Use all available threads
         ]
-        logger.info(f"Running cjxl command: {' '.join(cmd)}")
-        process = subprocess.run(cmd, capture_output=True, text=True)
         
-        # Log full output for debugging
-        if process.stdout:
-            logger.info(f"cjxl stdout: {process.stdout}")
-        if process.stderr:
-            logger.error(f"cjxl stderr: {process.stderr}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
         
-        # Clean up temp PNG
+        # Clean up temp file
         if temp_png.exists():
             temp_png.unlink()
         
-        if process.returncode != 0:
-            logger.error(f"JXL conversion failed with return code {process.returncode}")
+        if result.returncode != 0:
+            tool_logger.error(f"cjxl failed: {result.stderr}")
             return False
             
-        # Verify the output file exists and has content
-        if not output_path.exists():
-            logger.error(f"JXL file was not created at {output_path}")
-            return False
-        if output_path.stat().st_size == 0:
-            logger.error("JXL file was created but is empty")
-            return False
-            
-        logger.info(f"Successfully saved JXL to {output_path}")
         return True
+        
     except Exception as e:
-        logger.error(f"Failed to save as JXL: {str(e)}")
+        tool_logger.error(f"Error saving as JXL: {e}")
+        # Clean up temp file on error
+        temp_png = output_path.with_suffix('.temp.png')
         if temp_png.exists():
             temp_png.unlink()
         return False
 
 def save_image(image: Image.Image, output_path: Path, format: OutputFormat = 'jpg') -> Tuple[Path, OutputFormat]:
     """
-    Save image in the specified format with appropriate settings.
-    Returns (final_output_path, actual_format_used)
+    Save image in the specified format with optimal settings for document processing.
+    Returns (output_path, actual_format_used).
     """
+    output_path = Path(output_path)
+    
+    # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Convert RGBA to RGB with white background if needed
-    if image.mode == 'RGBA':
-        white_bg = Image.new('RGB', image.size, 'white')
-        white_bg.paste(image, mask=image.split()[3])
-        image = white_bg
-    
-    if format == 'jxl':
-        if check_cjxl_installed():
-            out_path = output_path.with_suffix('.jxl')
-            if save_as_jxl(image, out_path):
-                return out_path, 'jxl'
-            # Fail if JXL conversion fails
-            raise RuntimeError("Failed to convert to JXL format")
+    try:
+        if format == 'jxl':
+            output_path = output_path.with_suffix('.jxl')
+            # Use specialized JXL saving
+            if save_as_jxl(image, output_path):
+                return output_path, 'jxl'
+            else:
+                # Fallback to PNG if JXL fails
+                tool_logger.warning(f"JXL save failed, falling back to PNG for {output_path}")
+                output_path = output_path.with_suffix('.png')
+                image.save(output_path, 'PNG', optimize=True, compress_level=9)
+                return output_path, 'png'
+        elif format == 'png':
+            output_path = output_path.with_suffix('.png')
+            image.save(output_path, 'PNG', optimize=True, compress_level=9)
+            return output_path, 'png'
+        elif format == 'jpg':
+            output_path = output_path.with_suffix('.jpg')
+            # Convert to RGB if needed for JPEG
+            if image.mode in ['RGBA', 'LA', 'P']:
+                # Create white background for transparent images
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = background
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
+            image.save(output_path, 'JPEG', quality=95, optimize=True, progressive=True)
+            return output_path, 'jpg'
         else:
-            raise RuntimeError("cjxl is not installed")
-    
-    if format == 'png':
-        out_path = output_path.with_suffix('.png')
-        # Use optimal PNG settings for archival quality
-        # optimize=True: Use zlib compression
-        # compress_level=9: Maximum compression
-        # pnginfo: Preserve any existing metadata
-        # quantize=True: Reduce color palette if possible
-        # colors=256: Use 256 colors for better compression
-        pnginfo = None
-        if hasattr(image, 'info'):
-            pnginfo = image.info.get('pnginfo')
-        
-        # Try to optimize the image for PNG
-        if image.mode == 'RGB':
-            # Convert to palette mode if possible (better compression)
-            try:
-                # First try to convert to palette mode
-                image = image.convert('P', palette=Image.Palette.ADAPTIVE, colors=256)
-            except Exception:
-                # If that fails, keep as RGB
-                pass
-        
-        image.save(out_path, "PNG", 
-                  optimize=True, 
-                  compress_level=9,
-                  pnginfo=pnginfo)
-        return out_path, 'png'
-    
-    # Default to JPG
-    out_path = output_path.with_suffix('.jpg')
-    # Use high quality JPG settings
-    # quality=95: Very high quality
-    # optimize=True: Use Huffman optimization
-    # subsampling=0: No chroma subsampling (better for text)
-    image.save(out_path, "JPEG", quality=95, optimize=True, subsampling=0)
-    return out_path, 'jpg'
+            raise ValueError(f"Unsupported output format: {format}")
+            
+    except Exception as e:
+        tool_logger.error(f"Error saving image {output_path}: {e}")
+        raise
 
 def validate_format(format_str: str) -> str:
     """
-    Validate the output format string.
-    Returns the lowercase format if valid, raises BadParameter if invalid.
+    Validate and normalize format string.
+    Returns the normalized format string or raises ValueError.
     """
-    valid_formats = ["jpg", "png", "jxl"]
-    if format_str.lower() not in valid_formats:
-        raise typer.BadParameter(f"Format must be one of: {', '.join(valid_formats)}")
-    return format_str.lower() 
+    format_str = format_str.lower().strip()
+    
+    # Handle common variations
+    if format_str in ['jpg', 'jpeg', 'jpe']:
+        return 'jpg'
+    elif format_str in ['png']:
+        return 'png'
+    elif format_str in ['jxl', 'jpegxl']:
+        return 'jxl'
+    else:
+        raise ValueError(f"Unsupported format: {format_str}") 

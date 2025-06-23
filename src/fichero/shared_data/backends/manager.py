@@ -28,24 +28,36 @@ class ManagerStorageBackend(BaseStorageBackend):
         self._load_persisted_data()
     
     def _init_manager(self):
-        """Initialize multiprocessing.Manager backend"""
-        self.manager = Manager()
-        self.store = self.manager.dict()
-        logger.info("SharedDataManager using multiprocessing.Manager backend")
+        """Initialize multiprocessing.Manager backend with fallback"""
+        try:
+            self.manager = Manager()
+            self.store = self.manager.dict()
+            self._lock = threading.RLock()  # Thread safety for concurrent access
+            self._use_fallback = False
+            logger.info("SharedDataManager using multiprocessing.Manager backend")
+        except Exception as e:
+            # Fallback to regular dict for environments where Manager() fails
+            logger.warning(f"Manager() failed, using fallback dict storage: {e}")
+            self.manager = None
+            self.store = {}  # Regular dict as fallback
+            self._lock = threading.RLock()  # Thread safety for concurrent access
+            self._use_fallback = True
+            logger.info("SharedDataManager using fallback dict backend")
     
 
     
     def set(self, data_type: DataType, key: str, value: Any, immediate_save: bool = False) -> bool:
-        """Set data in Manager store"""
+        """Set data in Manager store (thread-safe)"""
         try:
-            namespaced_key = self._make_key(data_type, key)
-            serialized_value = self._serialize(value)
-            
-            self.store[namespaced_key] = serialized_value
-            
-            # Immediate save for critical data (like settings changes)
-            if immediate_save:
-                self.save_to_disk(data_type)
+            with self._lock:
+                namespaced_key = self._make_key(data_type, key)
+                serialized_value = self._serialize(value)
+                
+                self.store[namespaced_key] = serialized_value
+                
+                # Immediate save for critical data (like settings changes)
+                if immediate_save:
+                    self.save_to_disk(data_type)
             
             return True
         except Exception as e:
@@ -53,14 +65,15 @@ class ManagerStorageBackend(BaseStorageBackend):
             return False
     
     def get(self, data_type: DataType, key: str, default: Any = None) -> Any:
-        """Get data from Manager store"""
+        """Get data from Manager store (thread-safe)"""
         try:
-            namespaced_key = self._make_key(data_type, key)
-            
-            val = self.store.get(namespaced_key, default)
-            if val == default:
-                return default
-            return self._deserialize(val)
+            with self._lock:
+                namespaced_key = self._make_key(data_type, key)
+                
+                val = self.store.get(namespaced_key, default)
+                if val == default:
+                    return default
+                return self._deserialize(val)
         except Exception as e:
             logger.error(f"Failed to get {data_type.value} key {key}: {e}")
             return default
@@ -104,6 +117,8 @@ class ManagerStorageBackend(BaseStorageBackend):
         try:
             info.update({
                 "total_keys": len(self.store),
+                "using_fallback": getattr(self, '_use_fallback', False),
+                "manager_available": self.manager is not None
             })
         except Exception as e:
             logger.error(f"Failed to get Manager info: {e}")
@@ -154,74 +169,103 @@ class ManagerStorageBackend(BaseStorageBackend):
             logger.warning(f"Failed to load persisted data: {e}")
     
     def save_to_disk(self, data_type: Optional[DataType] = None):
-        """Save data to disk for persistence"""
+        """Save data to disk for persistence (thread-safe)"""
         try:
-            data_types_to_save = [data_type] if data_type else list(DataType)
-            
-            for dt in data_types_to_save:
-                persistence_file = self._get_persistence_file(dt)
-                entries_to_save = []
+            with self._lock:
+                data_types_to_save = [data_type] if data_type else list(DataType)
                 
-                # Get all keys for this data type
-                keys = self.keys(dt)
-                
-                for key in keys:
-                    try:
-                        value = self.get(dt, key)
-                        if value is not None:
-                            entry = {
-                                "key": key,
-                                "value": value
-                            }
-                            entries_to_save.append(entry)
-                    except Exception as e:
-                        logger.warning(f"Failed to serialize {dt.value} key {key}: {e}")
-                
-                # Save to JSONL file
-                if entries_to_save:
-                    srsly.write_jsonl(persistence_file, entries_to_save)
-                    logger.info(f"Saved {len(entries_to_save)} {dt.value} entries to {persistence_file}")
-                elif persistence_file.exists():
-                    # Remove empty persistence files
-                    persistence_file.unlink()
-                    logger.info(f"Removed empty {dt.value} persistence file")
+                for dt in data_types_to_save:
+                    persistence_file = self._get_persistence_file(dt)
+                    entries_to_save = []
+                    
+                    # Get all keys for this data type
+                    keys = self.keys(dt)
+                    
+                    for key in keys:
+                        try:
+                            value = self.get(dt, key)
+                            if value is not None:
+                                entry = {
+                                    "key": key,
+                                    "value": value
+                                }
+                                entries_to_save.append(entry)
+                        except Exception as e:
+                            logger.warning(f"Failed to serialize {dt.value} key {key}: {e}")
+                    
+                    # Save to JSONL file
+                    if entries_to_save:
+                        srsly.write_jsonl(persistence_file, entries_to_save)
+                        logger.debug(f"Saved {len(entries_to_save)} {dt.value} entries to {persistence_file}")
+                    elif persistence_file.exists():
+                        # Remove empty persistence files
+                        persistence_file.unlink()
+                        logger.debug(f"Removed empty {dt.value} persistence file")
                     
         except Exception as e:
             logger.error(f"Failed to save data to disk: {e}")
     
     def auto_save(self, interval: int = 300):
-        """Enable automatic saving every interval seconds"""
-        def _save_periodically():
-            while True:
-                try:
-                    time.sleep(interval)
-                    self.save_to_disk()
-                except Exception as e:
-                    logger.error(f"Auto-save failed: {e}")
+        """Enable automatic saving every interval seconds (DISABLED for stability)"""
+        logger.info("Auto-save disabled for stability - using immediate saves instead")
         
         def _emergency_save(signum=None, frame=None):
-            """Emergency save on crash/signal"""
+            """Emergency save on crash/signal - non-blocking"""
             try:
                 logger.warning(f"Emergency save triggered (signal: {signum})")
-                self.save_to_disk()
-                logger.info("Emergency save completed")
+                # Use a thread to avoid blocking the signal handler
+                import threading
+                def _save_thread():
+                    try:
+                        self.save_to_disk()
+                        logger.info("Emergency save completed")
+                    except Exception as e:
+                        logger.error(f"Emergency save failed: {e}")
+                
+                # Start save in background thread (non-blocking)
+                save_thread = threading.Thread(target=_save_thread, daemon=True)
+                save_thread.start()
+                
+                # Don't wait for the thread to complete - let it run in background
+                
             except Exception as e:
-                logger.error(f"Emergency save failed: {e}")
+                logger.error(f"Emergency save handler failed: {e}")
         
-        # Start background thread for periodic saving
-        save_thread = threading.Thread(target=_save_periodically, daemon=True)
-        save_thread.start()
-        
-        # Register emergency save handlers
+        # Register emergency save handlers only (no background threads)
         atexit.register(self.save_to_disk)  # Normal exit
         
-        # Handle common crash signals
+        # Handle common crash signals (but don't block shutdown)
         try:
+            # Only register SIGTERM and SIGHUP - let SIGINT (Ctrl+C) be handled normally
             signal.signal(signal.SIGTERM, _emergency_save)  # Termination
-            signal.signal(signal.SIGINT, _emergency_save)   # Ctrl+C
             if hasattr(signal, 'SIGHUP'):
                 signal.signal(signal.SIGHUP, _emergency_save)   # Hangup
+            # Don't register SIGINT - let CLI handle Ctrl+C normally
         except Exception as e:
             logger.warning(f"Could not register signal handlers: {e}")
         
-        logger.info(f"Auto-save enabled: every {interval} seconds with crash protection") 
+        logger.info("Emergency save handlers registered (SIGTERM/SIGHUP only)")
+    
+    def cleanup(self):
+        """Clean up Manager backend resources"""
+        try:
+            # Save data before cleanup
+            self.save_to_disk()
+            
+            # Shutdown multiprocessing Manager if it exists
+            if hasattr(self, 'manager') and self.manager is not None:
+                logger.info("Shutting down multiprocessing Manager...")
+                try:
+                    # Close the manager to clean up background processes
+                    self.manager.shutdown()
+                    logger.info("Multiprocessing Manager shutdown completed")
+                except Exception as e:
+                    logger.warning(f"Error shutting down Manager: {e}")
+                finally:
+                    self.manager = None
+                    self.store = {}
+            
+            logger.info("Manager backend cleanup completed")
+            
+        except Exception as e:
+            logger.error(f"Error during Manager backend cleanup: {e}") 

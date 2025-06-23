@@ -1,6 +1,5 @@
 import typer
 from pathlib import Path
-from rich.console import Console
 from typing_extensions import Annotated
 from langchain_ollama.chat_models import ChatOllama
 import yaml
@@ -11,13 +10,7 @@ from typing import Dict, List, Optional
 import json
 import requests
 from datetime import datetime
-import logging
 import srsly
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-console = Console()
 
 # Import utility modules with fallback for standalone execution
 try:
@@ -33,6 +26,7 @@ try:
         load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
     )
     from fichero.tools.utils.hierarchy import DocumentHierarchy
+    from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # Fall back to relative imports (when run standalone)
     from utils.manifest import ManifestProcessor
@@ -46,6 +40,9 @@ except ImportError:
         load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
     )
     from utils.hierarchy import DocumentHierarchy
+    from utils.tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('llm_process')
 
 app = typer.Typer()
 
@@ -96,36 +93,36 @@ class LLMProcessScript:
             progress_file=self.output_folder / "llm_process_progress.jsonl"
         )
         
-        logger.info(f"Initialized LLMProcessScript:")
-        logger.info(f"  Input folder: {self.input_folder}")
-        logger.info(f"  Output folder: {self.output_folder}")
-        logger.info(f"  Hierarchical mode: {self.hierarchical}")
-        logger.info(f"  Folder mode: {self.folder_mode}")
-        logger.info(f"  Batch size: {self.batch_size}")
+        tool_logger.info(f"Initialized LLMProcessScript:")
+        tool_logger.info(f"  Input folder: {self.input_folder}")
+        tool_logger.info(f"  Output folder: {self.output_folder}")
+        tool_logger.info(f"  Hierarchical mode: {self.hierarchical}")
+        tool_logger.info(f"  Folder mode: {self.folder_mode}")
+        tool_logger.info(f"  Batch size: {self.batch_size}")
     
     def process_documents(self):
         """Process documents using LLM with configurable prompts"""
         try:
             if self.hierarchical:
-                logger.info("Running in hierarchical mode")
+                tool_logger.info("Running in hierarchical mode")
                 hierarchy = DocumentHierarchy(self.input_folder)
                 hierarchy.build_hierarchy()
                 hierarchy.process_nodes(self.process_document)
             elif self.folder_mode:
-                logger.info("Running in folder mode")
+                tool_logger.info("Running in folder mode")
                 # Get all folders in input directory
                 folders = [f for f in self.input_folder.iterdir() if f.is_dir()]
                 if not folders:
-                    logger.warning("No folders found in input directory")
+                    tool_logger.warning("No folders found in input directory")
                     return
                 
-                logger.info(f"Found {len(folders)} folders to process")
+                tool_logger.info(f"Found {len(folders)} folders to process")
                 for folder in folders:
-                    logger.info(f"Processing folder: {folder}")
+                    tool_logger.info(f"Processing folder: {folder}")
                     # Get all text files in folder
                     files = list(folder.glob("**/*.txt"))
                     if not files:
-                        logger.warning(f"No text files found in {folder}")
+                        tool_logger.warning(f"No text files found in {folder}")
                         continue
                     
                     # Build file data list
@@ -140,11 +137,11 @@ class LLMProcessScript:
                                 'page_num': idx + 1
                             })
                         except Exception as e:
-                            logger.error(f"Error reading {file_path}: {e}")
+                            tool_logger.error(f"Error reading {file_path}: {e}")
                             continue
                     
                     if not files_data:
-                        logger.warning(f"No valid files found in {folder}")
+                        tool_logger.warning(f"No valid files found in {folder}")
                         continue
                     
                     # Process folder with all files
@@ -168,7 +165,7 @@ class LLMProcessScript:
                             "model": self.llm.model_name
                         })
             else:
-                logger.info("Running in file-level mode")
+                tool_logger.info("Running in file-level mode")
                 # Use BatchProcessor for consistent file handling
                 processor = BatchProcessor(
                     input_manifest=self.input_manifest,
@@ -185,14 +182,18 @@ class LLMProcessScript:
             # Ensure final manifest is written for hierarchical and folder modes
             if hasattr(self, 'manifest_proc'):
                 self.manifest_proc._write_manifest(self.manifest_proc.manifest_path)
-                logger.info(f"Final manifest written to: {self.manifest_proc.manifest_path}")
+                tool_logger.info(f"Final manifest written to: {self.manifest_proc.manifest_path}")
+            
+            # Clean up LLM backend resources
+            if hasattr(self.llm, 'cleanup'):
+                self.llm.cleanup()
     
     def process_document(self, file_path: Path, output_path: Path) -> Optional[Path]:
         """Process a single document"""
         try:
             # Use SegmentHandler for consistent path handling
             rel_path = SegmentHandler.get_relative_path(file_path)
-            logger.info(f"Processing document: {rel_path}")
+            tool_logger.info(f"Processing document: {rel_path}")
             
             # Read file content
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -225,11 +226,11 @@ class LLMProcessScript:
                 "model": self.llm.model_name
             })
             
-            logger.info(f"Saved result to: {output_path}")
+            tool_logger.info(f"Saved result to: {output_path}")
             return output_path
             
         except Exception as e:
-            logger.error(f"Error processing {file_path}: {str(e)}")
+            tool_logger.error(f"Error processing {file_path}: {str(e)}")
             return None
 
 def create_llm_backend_with_cli_keys(
@@ -256,6 +257,96 @@ def create_llm_backend_with_cli_keys(
         return OllamaBackend(model_name, temperature, max_tokens)
     else:
         raise ValueError(f"Unsupported backend type: {backend_type}")
+
+def process_documents_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    prompt_config: Path,
+    folder_mode: bool = True,
+    **kwargs
+) -> dict:
+    """
+    Process transcribed documents through configurable LLM pipeline for catalogue generation - importable function
+    
+    Args:
+        source_folder: Input folder containing transcribed documents
+        source_manifest: Input manifest file
+        output_folder: Output folder for LLM results
+        prompt_config: JSONL file containing prompt configuration
+        folder_mode: Process all files in a folder together as one document
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    try:
+        # Handle case where prompt_config might be passed as boolean instead of Path
+        if isinstance(prompt_config, bool):
+            tool_logger.error(f"prompt_config parameter is boolean ({prompt_config}) instead of Path. This is likely a configuration error.")
+            return {
+                "error": f"prompt_config parameter is boolean ({prompt_config}) instead of Path",
+                "success": False
+            }
+        
+        # Validate prompt_config is a Path
+        if not isinstance(prompt_config, Path):
+            tool_logger.error(f"prompt_config parameter is {type(prompt_config)} instead of Path: {prompt_config}")
+            return {
+                "error": f"prompt_config parameter is {type(prompt_config)} instead of Path",
+                "success": False
+            }
+        
+        # Check if prompt_config file exists
+        if not prompt_config.exists():
+            tool_logger.error(f"Prompt config file not found: {prompt_config}")
+            return {
+                "error": f"Prompt config file not found: {prompt_config}",
+                "success": False
+            }
+        
+        # Load prompt configuration
+        tool_logger.info("Loading prompt configuration...")
+        config = load_prompt_config(prompt_config)
+        tool_logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
+        tool_logger.info(f"Description: {config.get('description', 'No description')}")
+        tool_logger.info(f"Steps: {len(config.get('steps', []))}")
+        tool_logger.info(f"Mode: {'Folder-level' if folder_mode else 'File-level'} processing")
+        
+        # Get max_tokens from config
+        max_tokens = config.get("llm", {}).get("max_tokens", 1000)
+        tool_logger.info(f"Using max_tokens from config: {max_tokens}")
+        
+        # Initialize LLM backend from config
+        tool_logger.info("Initializing LLM backend...")
+        llm = get_llm_backend(config)
+        
+        # Initialize LLM processor
+        processor = LLMProcessScript(
+            input_folder=source_folder,
+            output_folder=output_folder,
+            prompt_config=config,
+            llm=llm,
+            max_tokens=max_tokens,
+            input_manifest=source_manifest,
+            hierarchical=False,
+            folder_mode=folder_mode,
+            batch_size=10
+        )
+        
+        processor.process_documents()
+        
+        # Return basic stats
+        return {
+            "processed_folders" if folder_mode else "processed_files": 1,
+            "success": True
+        }
+        
+    except Exception as e:
+        tool_logger.error(f"Error in process_documents_batch: {str(e)}")
+        return {
+            "error": str(e),
+            "success": False
+        }
 
 def process_documents(
     input_folder: Annotated[Path, typer.Argument(help="Input folder containing transcribed documents")],
@@ -289,25 +380,26 @@ def process_documents(
     with support for level-specific processing.
     """
     
+    # For CLI usage, use the full implementation with all parameters
     # Load prompt configuration
-    logger.info("Loading prompt configuration...")
+    tool_logger.info("Loading prompt configuration...")
     config = load_prompt_config(prompt_config)
-    logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
-    logger.info(f"Description: {config.get('description', 'No description')}")
-    logger.info(f"Steps: {len(config.get('steps', []))}")
-    logger.info(f"Mode: {'Hierarchical' if hierarchical else 'Folder-level' if folder_mode else 'File-level'} processing")
+    tool_logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
+    tool_logger.info(f"Description: {config.get('description', 'No description')}")
+    tool_logger.info(f"Steps: {len(config.get('steps', []))}")
+    tool_logger.info(f"Mode: {'Hierarchical' if hierarchical else 'Folder-level' if folder_mode else 'File-level'} processing")
     
     # Get max_tokens from config if not specified
     if max_tokens is None:
         max_tokens = config.get("llm", {}).get("max_tokens", 1000)
-        logger.info(f"Using max_tokens from config: {max_tokens}")
+        tool_logger.info(f"Using max_tokens from config: {max_tokens}")
     else:
-        logger.info(f"Using max_tokens from command line: {max_tokens}")
+        tool_logger.info(f"Using max_tokens from command line: {max_tokens}")
     
     # Initialize LLM backend
-    logger.info("Initializing LLM backend...")
+    tool_logger.info("Initializing LLM backend...")
     if "llm" in config:
-        logger.info("Using LLM settings from configuration file")
+        tool_logger.info("Using LLM settings from configuration file")
         # For config-based LLM, we need to pass CLI keys to override any config keys
         llm_config = config.copy()
         
@@ -322,7 +414,7 @@ def process_documents(
         
         llm = get_llm_backend(llm_config)
     else:
-        logger.info("Using LLM settings from command line")
+        tool_logger.info("Using LLM settings from command line")
         llm = create_llm_backend_with_cli_keys(
             backend_type=backend_type,
             model_name=model_name,
@@ -350,4 +442,41 @@ def process_documents(
     processor.process_documents()
 
 if __name__ == "__main__":
-    typer.run(process_documents) 
+    try:
+        typer.run(process_documents)
+    finally:
+        # Clean up asyncio resources to prevent ResourceWarnings
+        try:
+            import asyncio
+            import gc
+            
+            # Get the current event loop if it exists
+            try:
+                loop = asyncio.get_running_loop()
+                # Cancel all pending tasks
+                pending_tasks = asyncio.all_tasks(loop)
+                if pending_tasks:
+                    for task in pending_tasks:
+                        if not task.done():
+                            task.cancel()
+                    
+                    # Wait briefly for tasks to cancel
+                    try:
+                        loop.run_until_complete(asyncio.wait(pending_tasks, timeout=1.0))
+                    except Exception:
+                        pass
+                
+                # Close the loop if it's not the main loop
+                if not loop.is_closed():
+                    loop.close()
+                    
+            except RuntimeError:
+                # No running event loop
+                pass
+            
+            # Force garbage collection to clean up any remaining resources
+            gc.collect()
+            
+        except Exception:
+            # Ignore cleanup errors
+            pass 

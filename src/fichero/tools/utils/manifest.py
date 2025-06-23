@@ -2,11 +2,18 @@ import srsly
 from pathlib import Path
 from datetime import datetime
 import os
-from rich.console import Console
 import tempfile
 import shutil
 
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('manifest')
 
 class ManifestProcessor:
     def __init__(self, manifest_path: Path, progress_file: Path = None):
@@ -36,7 +43,7 @@ class ManifestProcessor:
                     last_entry = srsly.json_loads(last_lines[-1])
                     return last_entry.get("processed_count", 0)
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not read progress file: {e}")
+            tool_logger.warning(f"Could not read progress file: {e}")
         return 0
 
     def write_progress(self, stats: dict):
@@ -100,8 +107,7 @@ class ManifestProcessor:
 
     def print_status(self):
         """Print initial status"""
-        console.print(f"\n[blue]Total files to process: {self.total_files}")
+        tool_logger.info(f"Total files to process: {self.total_files}")
         if self.processed > 0:
             pct = (self.processed / self.total_files) * 100
-            console.print(f"[yellow]Resuming from file {self.processed} ({pct:.1f}% complete)")
-        console.print("")
+            tool_logger.info(f"Resuming from file {self.processed} ({pct:.1f}% complete)")

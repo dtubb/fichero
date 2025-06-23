@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+Convert background-removed images and transcriptions to Word documents with side-by-side layout
+"""
+
 import typer
 from pathlib import Path
 from docx import Document
@@ -7,19 +12,30 @@ from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_BREAK
 from PIL import Image
 import io
-from rich.console import Console
 import json
 import tempfile
 import shutil
 import subprocess
 
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.files import ensure_dirs, get_relative_path
-from utils.manifest import ManifestProcessor
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.files import ensure_dirs, get_relative_path
+    from fichero.tools.utils.manifest import ManifestProcessor
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.files import ensure_dirs, get_relative_path
+    from utils.manifest import ManifestProcessor
+    from utils.tool_logger import get_tool_logger
 
-console = Console()
+tool_logger = get_tool_logger('convert_to_word')
 app = typer.Typer()
 
 # Update the grey color to a lighter shade
@@ -173,12 +189,12 @@ def load_image_with_jxl_support(image_path: Path) -> Image.Image:
                     temp_png.unlink()
                     return img
                 else:
-                    console.print(f"[yellow]Warning: djxl conversion failed for {image_path}: {process.stderr}")
+                    tool_logger.warning(f"djxl conversion failed for {image_path}: {process.stderr}")
             except Exception as e:
-                console.print(f"[yellow]Warning: Failed to convert JXL file {image_path}: {str(e)}")
+                tool_logger.warning(f"Failed to convert JXL file {image_path}: {str(e)}")
         else:
-            console.print(f"[yellow]Warning: djxl not installed, cannot read JXL file {image_path}")
-            console.print("Install with: brew install libjxl (macOS) or apt-get install libjxl-tools (Ubuntu/Debian)")
+            tool_logger.warning(f"djxl not installed, cannot read JXL file {image_path}")
+            tool_logger.info("Install with: brew install libjxl (macOS) or apt-get install libjxl-tools (Ubuntu/Debian)")
         
         # If JXL conversion failed, raise an exception
         raise ValueError(f"Cannot read JXL file {image_path} - djxl not available or conversion failed")
@@ -240,7 +256,7 @@ def create_spread(doc, image_path, text, filename):
         
         run.add_picture(img_byte_arr, width=Inches(width), height=Inches(height))
     except Exception as e:
-        console.print(f"[red]Error loading image {image_path}: {str(e)}")
+        tool_logger.error(f"Error loading image {image_path}: {str(e)}")
         run.add_text(f"[Error loading image: {str(e)}]")
 
     # Right page - Text
@@ -281,12 +297,12 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
         try:
             # Get relative path using SegmentHandler
             rel_path = SegmentHandler.get_relative_path(Path(f))
-            console.print(f"\nProcessing document: {f}")
-            console.print(f"Relative path: {rel_path}")
+            tool_logger.info(f"Processing document: {f}")
+            tool_logger.debug(f"Relative path: {rel_path}")
             
             # Get the parent folder name for document grouping
             parent_folder = Path(f).parent.name
-            console.print(f"[blue]Parent folder name: {parent_folder}")
+            tool_logger.info(f"Parent folder name: {parent_folder}")
             
             # Find the corresponding text file using consistent path handling
             text_path = output_folder.parent / "transcriptions" / "documents" / rel_path.with_suffix('.txt')
@@ -294,7 +310,7 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
                 # Try with raw path if not found
                 text_path = Path(str(text_path).replace(';', '\\;'))
                 if not text_path.exists():
-                    console.print(f"[red]Text file not found: {text_path}")
+                    tool_logger.error(f"Text file not found: {text_path}")
                     return {
                         "error": f"Text file not found: {text_path}",
                         "source": str(rel_path),
@@ -308,8 +324,26 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
                 # Fallback to system default encoding if UTF-8 fails
                 text = text_path.read_text()
             
+            # Check if the image file exists, try multiple extensions if not
+            image_path = Path(f)
+            if not image_path.exists():
+                # Try different extensions
+                for ext in ['.jpg', '.jpeg', '.png', '.jxl']:
+                    alt_path = image_path.with_suffix(ext)
+                    if alt_path.exists():
+                        tool_logger.info(f"Found image with different extension: {alt_path}")
+                        image_path = alt_path
+                        break
+                else:
+                    tool_logger.error(f"Image file not found: {f}")
+                    return {
+                        "error": f"Image file not found: {f}",
+                        "source": str(rel_path),
+                        "success": False
+                    }
+            
             # Add spread to manager
-            spread_manager.add_spread(parent_folder, str(f), text, Path(f).stem)
+            spread_manager.add_spread(parent_folder, str(image_path), text, Path(f).stem)
             
             # Get the final document path using consistent path handling
             doc_output_path = output_folder / "documents" / rel_path.parent / f"{parent_folder}.docx"
@@ -326,7 +360,7 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
             }
             
         except Exception as e:
-            console.print(f"[red]Error processing {f}: {str(e)}")
+            tool_logger.error(f"Error processing {f}: {str(e)}")
             return {
                 "error": str(e),
                 "source": str(rel_path)
@@ -344,14 +378,24 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
         }
     )
 
-@app.command()
-def convert_to_word(
-    background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
-    transcription_manifest: Path = typer.Argument(..., help="Input transcription manifest"),
-    word_folder: Path = typer.Argument(..., help="Output folder for Word documents")
-):
-    """Convert background-removed images and transcriptions to Word documents with side-by-side layout"""
-    console.print(f"[green]Converting images in {background_removed_folder} to Word documents")
+def convert_to_word_batch(
+    images_folder: Path,
+    transcription_manifest: Path,
+    output_folder: Path,
+    **kwargs
+) -> dict:
+    """
+    Convert background-removed images and transcriptions to Word documents with side-by-side layout - importable function
+    
+    Args:
+        images_folder: Input background removed images folder
+        transcription_manifest: Input transcription manifest
+        output_folder: Output folder for Word documents
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    tool_logger.info(f"Converting images in {images_folder} to Word documents")
     
     # Create temporary directory for spreads
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -360,11 +404,11 @@ def convert_to_word(
         # Create processor for PNG files
         processor = BatchProcessor(
             input_manifest=transcription_manifest,
-            output_folder=word_folder,
+            output_folder=output_folder,
             process_name="convert_to_word",
-            base_folder=background_removed_folder / "documents",  # Ensure documents/ is included
+            base_folder=images_folder,
             processor_fn=lambda f, o: process_document(f, o, spread_manager),
-            use_source=True  # Use source paths from manifest
+            use_source=True
         )
         
         results = processor.process()
@@ -372,7 +416,7 @@ def convert_to_word(
         # Process accumulated spreads and save complete documents
         for parent_folder in spread_manager.spreads:
             if not spread_manager.is_processed(parent_folder):
-                console.print(f"[yellow]Warning: Document for folder {parent_folder} was not processed")
+                tool_logger.warning(f"Document for folder {parent_folder} was not processed")
                 continue
                 
             try:
@@ -391,13 +435,22 @@ def convert_to_word(
                     out_path = spread_manager.get_path(parent_folder)
                     ensure_dirs(out_path)
                     doc.save(str(out_path))
-                    console.print(f"[green]Saved complete document: {out_path}")
+                    tool_logger.success(f"Saved complete document: {out_path}")
                 else:
-                    console.print(f"[yellow]Skipping unchanged document: {parent_folder}")
+                    tool_logger.info(f"Skipping unchanged document: {parent_folder}")
             except Exception as e:
-                console.print(f"[red]Error saving document for {parent_folder}: {str(e)}")
+                tool_logger.error(f"Error saving document for {parent_folder}: {str(e)}")
         
         return results
+
+@app.command()
+def convert_to_word(
+    background_removed_folder: Path = typer.Argument(..., help="Input background removed images folder"),
+    transcription_manifest: Path = typer.Argument(..., help="Input transcription manifest"),
+    word_folder: Path = typer.Argument(..., help="Output folder for Word documents")
+):
+    """Convert background-removed images and transcriptions to Word documents with side-by-side layout"""
+    return convert_to_word_batch(background_removed_folder, transcription_manifest, word_folder)
 
 if __name__ == "__main__":
     app()

@@ -177,8 +177,10 @@ class BaseStorageBackend(ABC):
     
     # Convenience methods for settings (all backends support these)
     def set_setting(self, key: str, value: Any) -> bool:
-        """Set a setting value"""
-        return self.set(DataType.SETTINGS, key, value)
+        """Set a setting value with immediate save for API keys"""
+        # API keys should be immediately saved for subprocess access
+        immediate_save = key.startswith("api_key:")
+        return self.set(DataType.SETTINGS, key, value, immediate_save=immediate_save)
     
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a setting value"""

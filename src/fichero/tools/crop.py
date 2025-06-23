@@ -4,32 +4,41 @@ from pathlib import Path
 import numpy as np
 import cv2
 from datetime import datetime
-import logging
 from typing import Dict, Any, Optional, Tuple
 import os
 import json
 import yaml
-from rich.console import Console
+
 from PIL import ExifTags
 
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
-from utils.files import ensure_dirs
+# Import utilities with fallback for standalone execution
+try:
+    # Try absolute imports first (when run from app context)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # Fall back to relative imports (when run standalone)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.files import ensure_dirs
+    from utils.tool_logger import get_tool_logger
 
-# Configure logging
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
-console = Console()
+# Configure tool_logger
+tool_logger = get_tool_logger('crop')
 
 # Load YOLO model
 try:
     from ultralytics import YOLO
     yolo_model = None  # Will be initialized with the path from command line
-    logger.info("YOLO model will be loaded with provided path")
+    tool_logger.info("YOLO model will be loaded with provided path")
 except Exception as e:
-    logger.error(f"Failed to import YOLO: {e}")
+    tool_logger.error(f"Failed to import YOLO: {e}")
     raise
 
 def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
@@ -144,7 +153,7 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
         )[0]
         
         if not results.boxes:
-            logger.warning("No detections found")
+            tool_logger.warning("No detections found")
             return None
             
         # Get the best detection (highest confidence)
@@ -177,7 +186,7 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
                 if exif is not None:
                     result.info['exif'] = exif
         except Exception as e:
-            logger.warning(f"Could not preserve EXIF data: {e}")
+            tool_logger.warning(f"Could not preserve EXIF data: {e}")
         
         # Create crop info dictionary
         crop_info = {
@@ -197,7 +206,7 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
             
         return result, crop_info
     except Exception as e:
-        logger.error(f"YOLO cropping failed: {e}")
+        tool_logger.error(f"YOLO cropping failed: {e}")
         return None
 
 def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
@@ -236,7 +245,7 @@ def detect_with_contours(image_path: Path) -> Optional[Image.Image]:
         # Convert to PIL Image
         return Image.fromarray(cropped)
     except Exception as e:
-        logger.warning(f"Contour detection failed: {e}")
+        tool_logger.warning(f"Contour detection failed: {e}")
         return None
 
 def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
@@ -246,14 +255,14 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     
     # Verify file exists
     if not file_path.exists():
-        logger.error(f"File does not exist: {file_path}")
+        tool_logger.error(f"File does not exist: {file_path}")
         return {"success": False, "error": "File not found"}
     
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
     except Exception as e:
-        logger.error(f"Failed to load image {file_path.name}: {e}")
+        tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     attempts = []
@@ -293,7 +302,7 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     
     # If all detection methods fail, use original image
     if not result:
-        logger.warning(f"Using original image as fallback for {file_path.name}")
+        tool_logger.warning(f"Using original image as fallback for {file_path.name}")
         crop_info = {
             "method": "original",
             "original_size": list(image.size),
@@ -345,6 +354,34 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
         file_types=file_types
     )
 
+# Importable batch function - NO CLI dependencies
+def crop_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    model_path: Path,
+    output_format: str = "jpg",
+    **kwargs
+) -> dict:
+    """
+    Crop document pages to remove borders - importable function
+    
+    Returns:
+        Processing statistics dictionary
+    """
+    global yolo_model
+    yolo_model = YOLO(str(model_path))
+    
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="crop",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o, output_format)
+    )
+    return processor.process()
+
+# CLI wrapper for typer
 def crop(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
@@ -355,17 +392,7 @@ def crop(
                                      callback=validate_format)
 ):
     """Crop document pages to remove borders"""
-    global yolo_model
-    yolo_model = YOLO(str(model_path))
-    
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="crop",
-        base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o, output_format)
-    )
-    processor.process()
+    return crop_batch(source_folder, source_manifest, output_folder, model_path, output_format)
 
 if __name__ == "__main__":
     typer.run(crop)

@@ -3,29 +3,30 @@ import cv2
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 from pathlib import Path
-from rich.console import Console
 import pytesseract
-import logging
 from io import BytesIO
 import os
 import re
 import shutil
 import subprocess
 
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import (
-    ImageFormat, 
-    save_image, 
-    load_image, 
-    get_supported_extensions_list, 
-    validate_format
-)
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.tool_logger import get_tool_logger
 
-console = Console()
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger(__name__)
+tool_logger = get_tool_logger('segment')
 
 def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.Image, float]:
     """
@@ -78,7 +79,7 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.
         angles_with_confidence.append((contour_angle, contour_confidence))
     
     if not angles_with_confidence:
-        logging.info("No reliable rotation angles detected, skipping deskew")
+        tool_logger.info("No reliable rotation angles detected, skipping deskew")
         return original_img, 0.0
     
     # Check agreement between methods
@@ -89,10 +90,10 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.
         
         # If methods disagree significantly, be very conservative
         if angle_variance > 0.5 or max_diff > 1.5:
-            logging.info(f"Rotation methods disagree significantly (variance: {angle_variance:.2f}, max_diff: {max_diff:.2f})")
+            tool_logger.info(f"Rotation methods disagree significantly (variance: {angle_variance:.2f}, max_diff: {max_diff:.2f})")
             # Only proceed if we have very strong evidence
             if max([conf for _, conf in angles_with_confidence]) < 0.6:
-                logging.info("Insufficient confidence with disagreement, skipping rotation")
+                tool_logger.info("Insufficient confidence with disagreement, skipping rotation")
                 return original_img, 0.0
             # Reduce all confidences
             angles_with_confidence = [(angle, conf * 0.3) for angle, conf in angles_with_confidence]
@@ -100,19 +101,19 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.
     # Calculate weighted average
     total_confidence = sum(conf for _, conf in angles_with_confidence)
     if total_confidence < confidence_threshold:
-        logging.info(f"Total confidence {total_confidence:.2f} below threshold {confidence_threshold}, skipping deskew")
+        tool_logger.info(f"Total confidence {total_confidence:.2f} below threshold {confidence_threshold}, skipping deskew")
         return original_img, 0.0
     
     final_angle = sum(angle * conf for angle, conf in angles_with_confidence) / total_confidence
     
-    logging.info(f"Rotation angle: {final_angle:.2f}° (confidence: {total_confidence:.2f})")
-    logging.info(f"Individual angles: baseline={baseline_angle:.2f}°({baseline_confidence:.2f}), "
+    tool_logger.info(f"Rotation angle: {final_angle:.2f}° (confidence: {total_confidence:.2f})")
+    tool_logger.info(f"Individual angles: baseline={baseline_angle:.2f}°({baseline_confidence:.2f}), "
                 f"hough={hough_angle:.2f}°({hough_confidence:.2f}), "
                 f"contour={contour_angle:.2f}°({contour_confidence:.2f})")
     
     # Much more conservative angle limits
     if abs(final_angle) < 0.2:  # Increased minimum threshold
-        logging.info("Angle too small, skipping rotation")
+        tool_logger.info("Angle too small, skipping rotation")
         return original_img, total_confidence
     
     # Limit rotation to very conservative range
@@ -121,7 +122,7 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.
     # Additional safety check: if angle is small but we're still rotating, reduce it further
     if abs(final_angle) < 1.0:
         final_angle *= 0.7  # Reduce small angles even more
-        logging.info(f"Applied small angle reduction, final angle: {final_angle:.2f}°")
+        tool_logger.info(f"Applied small angle reduction, final angle: {final_angle:.2f}°")
     
     # Rotate with expansion to prevent cutoff
     # Calculate expansion needed
@@ -158,10 +159,10 @@ def deskew_image(pil_img: Image.Image, confidence_threshold=0.8) -> tuple[Image.
     
     # Validate that rotation actually improved the image
     if validate_rotation(original_img, rotated):
-        logging.info("Rotation validation passed - keeping rotated image")
+        tool_logger.info("Rotation validation passed - keeping rotated image")
         return rotated, total_confidence
     else:
-        logging.info("Rotation validation failed - keeping original image")
+        tool_logger.info("Rotation validation failed - keeping original image")
         return original_img, 0.0
 
 def get_hough_angle(cv_img: np.ndarray) -> float:
@@ -239,7 +240,7 @@ def get_hough_angle(cv_img: np.ndarray) -> float:
         return weighted_angle if abs(weighted_angle) < 3.0 and angle_std < 1.0 else 0.0
         
     except Exception as e:
-        logging.warning(f"Error in Hough angle detection: {e}")
+        tool_logger.warning(f"Error in Hough angle detection: {e}")
         return 0.0
 
 def get_text_baseline_angle(img: Image.Image) -> float:
@@ -259,13 +260,13 @@ def get_text_baseline_angle(img: Image.Image) -> float:
             try:
                 data = pytesseract.image_to_data(img_array, output_type=pytesseract.Output.DICT)
             except UnicodeDecodeError as e:
-                logging.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
+                tool_logger.warning(f"Tesseract OCR not available or misconfigured in worker environment: {e}")
                 return 0.0
             except pytesseract.TesseractError as e:
-                logging.warning(f"Tesseract OCR failed: {e}")
+                tool_logger.warning(f"Tesseract OCR failed: {e}")
                 return 0.0
             except Exception as e:
-                logging.warning(f"OCR failed during baseline angle detection: {e}")
+                tool_logger.warning(f"OCR failed during baseline angle detection: {e}")
                 return 0.0
         
         # Group text by lines based on vertical proximity
@@ -396,7 +397,7 @@ def get_text_baseline_angle(img: Image.Image) -> float:
         return max(min(final_angle, 3.0), -3.0)  # Reduced from 5.0 to 3.0
         
     except Exception as e:
-        logging.warning(f"Error in baseline angle detection: {e}")
+        tool_logger.warning(f"Error in baseline angle detection: {e}")
         return 0.0
 
 def get_connected_component_lines(img: Image.Image, line_threshold=10, min_box_width=10, min_box_height=10) -> list:
@@ -605,13 +606,13 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
     rotation_confidence = confidence
     # Log if dimensions changed significantly
     if deskewed_img.size != img.size:
-        logging.info(f"Image dimensions changed from {img.size} to {deskewed_img.size} after deskewing")
+        tool_logger.info(f"Image dimensions changed from {img.size} to {deskewed_img.size} after deskewing")
     
     width, height = deskewed_img.size
     
     # Adjust thresholds based on whether we deskewed and confidence
     if rotation_confidence < 0.7:
-        logging.info(f"Low rotation confidence ({rotation_confidence:.2f}), using conservative segmentation")
+        tool_logger.info(f"Low rotation confidence ({rotation_confidence:.2f}), using conservative segmentation")
         # Increase minimum chunk height to avoid small segments that might be cut off
         MIN_CHUNK_HEIGHT = 200  # Increased from 100
         merge_small_segments = True
@@ -623,7 +624,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
         try:
             text_in_img = pytesseract.image_to_string(deskewed_img).strip()
         except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
-            logging.warning(f"OCR failed for full image: {e}")
+            tool_logger.warning(f"OCR failed for full image: {e}")
             text_in_img = ""
         return [{
             "image": deskewed_img,
@@ -644,7 +645,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
                 bottom = top + data["height"][i]
                 tess_boxes.append((top, bottom))
     except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
-        logging.warning(f"OCR failed for text box detection: {e}")
+        tool_logger.warning(f"OCR failed for text box detection: {e}")
         tess_boxes = []
     
     tess_boxes.sort(key=lambda x: x[0])
@@ -735,7 +736,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
                 if combined_height <= MAX_CHUNK_HEIGHT:
                     merged_segments.append((seg_top, next_bottom))
                     i += 2  # Skip the next segment since we merged it
-                    logging.info(f"Merged small segments: ({seg_top}-{seg_bottom}) + ({next_top}-{next_bottom})")
+                    tool_logger.info(f"Merged small segments: ({seg_top}-{seg_bottom}) + ({next_top}-{next_bottom})")
                     continue
             
             merged_segments.append((seg_top, seg_bottom))
@@ -764,7 +765,7 @@ def adaptive_segment_image(img: Image.Image, min_text_length=10) -> list:
         try:
             text_in_segment = pytesseract.image_to_string(roi.convert('L')).strip()
         except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
-            logging.warning(f"OCR failed for segment text detection: {e}")
+            tool_logger.warning(f"OCR failed for segment text detection: {e}")
             text_in_segment = ""
         segments.append({
             "image": roi,
@@ -790,7 +791,7 @@ def validate_rotation(original_img: Image.Image, rotated_img: Image.Image) -> bo
             original_data = pytesseract.image_to_data(original_img, output_type=pytesseract.Output.DICT)
             rotated_data = pytesseract.image_to_data(rotated_img, output_type=pytesseract.Output.DICT)
         except (UnicodeDecodeError, pytesseract.TesseractError, Exception) as e:
-            logging.warning(f"OCR failed during rotation validation: {e}")
+            tool_logger.warning(f"OCR failed during rotation validation: {e}")
             return False  # Default to not rotating if OCR fails
         
         # Calculate average confidence for text with reasonable confidence
@@ -807,7 +808,7 @@ def validate_rotation(original_img: Image.Image, rotated_img: Image.Image) -> bo
         return rotated_conf > original_conf + improvement_threshold
         
     except Exception as e:
-        logging.warning(f"Error in rotation validation: {e}")
+        tool_logger.warning(f"Error in rotation validation: {e}")
         return False  # Default to not rotating if validation fails
 
 def process_image(file_path: Path, out_path: Path) -> dict:
@@ -815,24 +816,24 @@ def process_image(file_path: Path, out_path: Path) -> dict:
     try:
         # Get relative path for logging
         rel_path = SegmentHandler.get_relative_path(file_path)
-        logger.info(f"Processing {rel_path}")
+        tool_logger.info(f"Processing {rel_path}")
             
         if not Path(file_path).exists():
             raise FileNotFoundError(f"Input file not found: {file_path}")
         
         # Load image using the format utility
         image, metadata = load_image(file_path)
-        logger.info(f"Loaded image {rel_path}, size: {image.size}")
+        tool_logger.info(f"Loaded image {rel_path}, size: {image.size}")
         
         segments = adaptive_segment_image(image)
-        logger.info(f"Created {len(segments)} segments for {rel_path}")
+        tool_logger.info(f"Created {len(segments)} segments for {rel_path}")
         
         # Follow the same pattern as crop.py, enhance.py, remove_background.py
         # Create segments folder under the output path
         segments_folder_name = f"{file_path.stem}_segments"
         segments_dir = out_path.parent / segments_folder_name
         segments_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created segments directory: {segments_dir}")
+        tool_logger.info(f"Created segments directory: {segments_dir}")
         
         segment_info = []
         segment_paths_list = []
@@ -844,9 +845,9 @@ def process_image(file_path: Path, out_path: Path) -> dict:
             segment_name = SegmentHandler.make_segment_name(file_path.stem, i + 1)
             out_segment_path = segments_dir / segment_name
             
-            # Save as JPG with high quality
-            roi.save(out_segment_path, "JPEG", quality=95, optimize=True, subsampling=0)
-            logger.info(f"Saved segment {i+1}/{len(segments)}: {segment_name}")
+            # Save as JPG with high quality using the format utility
+            final_path, actual_format = save_image(roi, out_segment_path, 'jpg')
+            tool_logger.info(f"Saved segment {i+1}/{len(segments)}: {segment_name}")
             
             # Follow the same pattern as crop.py - get relative path of the saved file
             segment_rel_path = SegmentHandler.get_relative_path(out_segment_path)
@@ -860,7 +861,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
                 "rotation_confidence": segment_data.get("rotation_confidence", 1.0)
             })
         
-        logger.info(f"Completed processing {rel_path}")
+        tool_logger.info(f"Completed processing {rel_path}")
         return {
             "outputs": segment_paths_list,
             "source": str(rel_path),
@@ -875,7 +876,7 @@ def process_image(file_path: Path, out_path: Path) -> dict:
             }
         }
     except Exception as e:
-        logger.error(f"Error processing {file_path.name}: {str(e)}")
+        tool_logger.error(f"Error processing {file_path.name}: {str(e)}")
         return {"error": str(e)}
 
 def process_document(file_path: str, output_folder: Path) -> dict:
@@ -895,21 +896,40 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         file_types=file_types
     )
 
+def segment_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    **kwargs
+) -> dict:
+    """
+    Segment images into text regions - importable function
+    
+    Args:
+        source_folder: Source folder containing images
+        source_manifest: Manifest file
+        output_folder: Output folder for segmented images
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="segment",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o),
+        use_source=False
+    )
+    return processor.process()
+
 def segment(
     source_folder: Path = typer.Argument(..., help="Source folder containing images"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
     output_folder: Path = typer.Argument(..., help="Output folder for segmented images")
 ):
     """Segment images into smaller chunks for better processing"""
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="segment",
-        base_folder=source_folder,  # Base folder for finding input files
-        processor_fn=lambda f, o: process_document(f, o),
-        use_source=False  # Use outputs from previous step
-    )
-    processor.process()
+    return segment_batch(source_folder, source_manifest, output_folder)
 
 if __name__ == "__main__":
     typer.run(segment)

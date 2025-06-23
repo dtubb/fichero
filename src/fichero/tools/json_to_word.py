@@ -10,23 +10,29 @@ from pathlib import Path
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from rich.console import Console
-import logging
 from typing import Dict, Any, Optional
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
-# Import utility modules
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.files import ensure_dirs
-from utils.manifest import ManifestProcessor
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.manifest import ManifestProcessor
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.files import ensure_dirs
+    from utils.manifest import ManifestProcessor
+    from utils.tool_logger import get_tool_logger
 
-# Configure logging
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
-console = Console()
+tool_logger = get_tool_logger('json_to_word')
 
 def set_document_properties(doc):
     """Set up basic document properties"""
@@ -145,26 +151,26 @@ def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder:
     
     # Get relative path using SegmentHandler
     rel_path = SegmentHandler.get_relative_path(json_file_path)
-    logger.info(f"Processing JSON file: {rel_path}")
+    tool_logger.info(f"Processing JSON file: {rel_path}")
     
     try:
         # Read JSON file
         with open(json_file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        logger.info(f"Successfully loaded JSON file with {len(data)} top-level keys")
+        tool_logger.info(f"Successfully loaded JSON file with {len(data)} top-level keys")
         
         # Create new document
         doc = Document()
         set_document_properties(doc)
-        logger.info("Created new Word document with basic properties")
+        tool_logger.info("Created new Word document with basic properties")
         
         # Add title (use passed parent folder name)
         add_title(doc, parent_folder)
-        logger.info(f"Added document title: {parent_folder}")
+        tool_logger.info(f"Added document title: {parent_folder}")
         
         # Get results section
         results = data.get("results", {})
-        logger.info(f"Found {len(results)} result sections to process")
+        tool_logger.info(f"Found {len(results)} result sections to process")
         
         sections_added = 0
         
@@ -295,8 +301,8 @@ def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder:
         # Get relative path for output
         output_rel_path = SegmentHandler.get_relative_path(output_path)
         
-        logger.info(f"Successfully created Word document with {sections_added} sections")
-        logger.info(f"Output saved to: {output_rel_path}")
+        tool_logger.info(f"Successfully created Word document with {sections_added} sections")
+        tool_logger.info(f"Output saved to: {output_rel_path}")
         
         return {
             "outputs": [str(output_rel_path)],
@@ -309,7 +315,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder:
         }
         
     except FileNotFoundError:
-        logger.error(f"JSON file not found: {json_file_path}")
+        tool_logger.error(f"JSON file not found: {json_file_path}")
         return {
             "outputs": [],
             "source": str(rel_path),
@@ -317,7 +323,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder:
             "error": "File not found"
         }
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in file {json_file_path}: {e}")
+        tool_logger.error(f"Invalid JSON in file {json_file_path}: {e}")
         return {
             "outputs": [],
             "source": str(rel_path),
@@ -325,7 +331,7 @@ def convert_json_to_word(json_file_path: Path, output_path: Path, parent_folder:
             "error": f"Invalid JSON: {e}"
         }
     except Exception as e:
-        logger.error(f"Error converting {json_file_path}: {e}")
+        tool_logger.error(f"Error converting {json_file_path}: {e}")
         return {
             "outputs": [],
             "source": str(rel_path),
@@ -339,14 +345,14 @@ def process_document(file_path: str, output_folder: Path) -> Dict:
     def process_fn(f: Path, o: Path) -> Dict:
         # Get relative path using SegmentHandler
         rel_path = SegmentHandler.get_relative_path(f)
-        logger.info(f"Processing document: {rel_path}")
+        tool_logger.info(f"Processing document: {rel_path}")
         
         # Get the main folder name by going up 4 parents from the JSON file
         # Path structure: 1939-Fabriciano-Mosquera.../assets/llm_catalogue/documents/documents_summary.json
         # We need to go up: documents -> llm_catalogue -> assets -> main_folder
         file_path = Path(f)
         parent_folder = file_path.parent.parent.parent.parent.name
-        logger.info(f"Parent folder name: {parent_folder}")
+        tool_logger.info(f"Parent folder name: {parent_folder}")
         
         # Create output path using consistent path handling with catalogue suffix
         doc_output_path = output_folder / "documents" / rel_path.parent / f"{parent_folder}-catalogue.docx"
@@ -362,17 +368,27 @@ def process_document(file_path: str, output_folder: Path) -> Dict:
         file_types={'.json': process_fn}
     )
 
-def json_to_word(
-    source_folder: Path = typer.Argument(..., help="Source folder containing JSON files"),
-    source_manifest: Path = typer.Argument(..., help="Manifest file from LLM processing"),
-    output_folder: Path = typer.Argument(..., help="Output folder for Word documents")
-):
-    """Convert JSON files from LLM processing to Word documents"""
+def json_to_word_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    **kwargs
+) -> dict:
+    """
+    Convert catalogue JSON files to Word documents - importable function
     
-    console.print(f"[blue]Converting JSON files to Word documents")
-    console.print(f"[cyan]Source folder: {source_folder}")
-    console.print(f"[cyan]Source manifest: {source_manifest}")
-    console.print(f"[cyan]Output folder: {output_folder}")
+    Args:
+        source_folder: Source folder containing JSON files
+        source_manifest: Manifest file from LLM processing
+        output_folder: Output folder for Word documents
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    tool_logger.info("Converting JSON files to Word documents")
+    tool_logger.info(f"Source folder: {source_folder}")
+    tool_logger.info(f"Source manifest: {source_manifest}")
+    tool_logger.info(f"Output folder: {output_folder}")
     
     # Ensure output directory exists
     ensure_dirs(output_folder)
@@ -383,15 +399,25 @@ def json_to_word(
         process_name="json_to_word",
         base_folder=source_folder,
         processor_fn=lambda f, o: process_document(f, o),
-        use_source=False  # Use output paths from manifest instead of source
+        use_source=False
     )
     
     result = processor.process()
     
-    console.print(f"[green]Conversion completed!")
-    console.print(f"[green]Processed: {result.get('processed', 0)}")
-    console.print(f"[yellow]Skipped: {result.get('skipped', 0)}")
-    console.print(f"[red]Failed: {result.get('failed', 0)}")
+    tool_logger.success("Conversion completed!")
+    tool_logger.success(f"Processed: {result.get('processed', 0)}")
+    tool_logger.info(f"Skipped: {result.get('skipped', 0)}")
+    tool_logger.error(f"Failed: {result.get('failed', 0)}")
+    
+    return result
+
+def json_to_word(
+    source_folder: Path = typer.Argument(..., help="Source folder containing JSON files"),
+    source_manifest: Path = typer.Argument(..., help="Manifest file from LLM processing"),
+    output_folder: Path = typer.Argument(..., help="Output folder for Word documents")
+):
+    """Convert JSON files from LLM processing to Word documents"""
+    return json_to_word_batch(source_folder, source_manifest, output_folder)
 
 if __name__ == "__main__":
     typer.run(json_to_word) 

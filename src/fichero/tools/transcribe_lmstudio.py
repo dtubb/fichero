@@ -11,17 +11,34 @@ import base64
 import requests
 import asyncio
 from datetime import datetime
-import logging
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
 
-# Configure logging
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
+# Import utilities with fallback for standalone execution
+try:
+    # Try absolute imports first (when run from app context)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # Fall back to relative imports (when run standalone)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.tool_logger import get_tool_logger
 
-# Semaphore to limit concurrent API calls
-API_SEMAPHORE = asyncio.Semaphore(1)  # Limit to 1 concurrent API call for LMStudio running locally.
+# Configure tool_logger
+tool_logger = get_tool_logger('transcribe_lmstudio')
+
+# Don't create semaphore at module level - create it dynamically
+def get_api_semaphore():
+    """Get API semaphore for current event loop"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop running, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return asyncio.Semaphore(1)  # Limit to 1 concurrent API call for LMStudio running locally.
 
 DEFAULT_PROMPT = "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."
 
@@ -62,7 +79,7 @@ class LMStudioTranscriber:
             # Encode image using consistent method
             base64_image = encode_image(image)
             if not base64_image:
-                logger.error("Failed to encode image - possibly too wide/tall")
+                tool_logger.error("Failed to encode image - possibly too wide/tall")
                 return ""
 
             # Prepare the request payload
@@ -82,25 +99,45 @@ class LMStudioTranscriber:
             }
 
             # Make the API request
-            async with API_SEMAPHORE:
-                response = requests.post(
-                    f"{self.api_url}/chat/completions",
-                    json=payload,
-                    headers={"Content-Type": "application/json"}
-                )
-                response.raise_for_status()
+            async with get_api_semaphore():
+                # Retry logic for API calls
+                max_retries = 3
+                retry_delay = 1.0  # Start with 1 second delay
+                
+                for attempt in range(max_retries):
+                    try:
+                        response = requests.post(
+                            f"{self.api_url}/chat/completions",
+                            json=payload,
+                            headers={"Content-Type": "application/json"}
+                        )
+                        response.raise_for_status()
+                        
+                        # If we get here, the API call succeeded
+                        break
+                        
+                    except Exception as api_error:
+                        if attempt < max_retries - 1:
+                            tool_logger.warning(f"LMStudio API call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
+                            tool_logger.info(f"Retrying in {retry_delay:.1f} seconds...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            # Final attempt failed
+                            tool_logger.error(f"LMStudio API call failed after {max_retries} attempts: {api_error}")
+                            raise api_error
 
             # Extract the transcription from the response
             result = response.json()
             if "choices" not in result:
-                logger.error(f"LMStudio API response missing 'choices': {result}")
+                tool_logger.error(f"LMStudio API response missing 'choices': {result}")
                 return ""
             transcription = result["choices"][0]["message"]["content"].strip()
 
             return transcription
 
         except Exception as e:
-            logger.error(f"Error in LMStudio processing: {e}")
+            tool_logger.error(f"Error in LMStudio processing: {e}")
             return ""
 
 async def process_image(file_path: Path, out_path: Path, api_url: str, model_name: str) -> dict:
@@ -115,7 +152,7 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
         # Skip if already exists and return proper manifest entry
         if out_path.exists():
             rel_path = SegmentHandler.get_relative_path(file_path)
-            logger.info(f"Skipping existing file: {rel_path}")
+            tool_logger.info(f"Skipping existing file: {rel_path}")
             return {
                 "outputs": [str(rel_path.with_suffix('.txt'))],
                 "source": str(rel_path),
@@ -128,7 +165,7 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
         try:
             # Add timestamp to show concurrent execution
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            logger.info(f"[{timestamp}] Starting to process: {file_path.name}")
+            tool_logger.info(f"[{timestamp}] Starting to process: {file_path.name}")
             
             # Initialize transcriber
             transcriber = LMStudioTranscriber(
@@ -143,9 +180,9 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
                 image = Image.open(file_path).convert("RGB")
                 # Log original size
                 orig_width, orig_height = image.size
-                logger.info(f"Original image size: {orig_width}x{orig_height}")
+                tool_logger.info(f"Original image size: {orig_width}x{orig_height}")
             except Exception as e:
-                logger.error(f"Failed to open image {file_path}: {e}")
+                tool_logger.error(f"Failed to open image {file_path}: {e}")
                 return {
                     "error": f"Failed to open image: {e}",
                     "outputs": [str(SegmentHandler.get_relative_path(out_path))],
@@ -153,12 +190,12 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
                 }
             
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            logger.info(f"[{timestamp}] Sending to LMStudio API: {file_path.name}")
+            tool_logger.info(f"[{timestamp}] Sending to LMStudio API: {file_path.name}")
             
             transcription = await transcriber.process_image(image)
             
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            logger.info(f"[{timestamp}] Received response from LMStudio API for: {file_path.name}")
+            tool_logger.info(f"[{timestamp}] Received response from LMStudio API for: {file_path.name}")
             
             # Save transcription
             with open(out_path, 'w', encoding='utf-8') as f:
@@ -197,7 +234,7 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
             return result
             
         except Exception as e:
-            logger.error(f"Error processing image {file_path}: {str(e)}")
+            tool_logger.error(f"Error processing image {file_path}: {str(e)}")
             # Return error but keep empty file
             return {
                 "error": str(e),
@@ -206,20 +243,21 @@ async def process_image(file_path: Path, out_path: Path, api_url: str, model_nam
             }
 
     except Exception as e:
-        logger.error(f"Error processing {file_path}: {e}")
+        tool_logger.error(f"Error processing {file_path}: {e}")
         return {"error": str(e)}
 
 def transcribe_batch(
-    segment_folder: Path,
-    segment_manifest: Path,
-    transcribed_folder: Path,
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
     api_url: str,
     model_name: str,
     testing: bool = False,
-):
+    **kwargs
+) -> dict:
     """Batch transcription using LMStudio"""
-    print(f"[green]Transcribing images in {segment_folder}")
-    print(f"[cyan]Using model {model_name}")
+    tool_logger.info(f"[green]Transcribing images in {source_folder}")
+    tool_logger.info(f"[cyan]Using model {model_name}")
     
     # Create a custom batch processor that handles async properly
     class AsyncBatchProcessor(BatchProcessor):
@@ -276,14 +314,14 @@ def transcribe_batch(
             
             # Show time savings
             sequential_estimate = len(batch) * 8  # Assume ~8 seconds per image sequentially
-            logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
-            logger.info(f"Sequential processing would take ~{sequential_estimate}s")
-            logger.info(f"Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)")
+            tool_logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
+            tool_logger.info(f"Sequential processing would take ~{sequential_estimate}s")
+            tool_logger.info(f"Time saved: {sequential_estimate - batch_time:.1f}s ({(sequential_estimate - batch_time) / sequential_estimate * 100:.0f}%)")
             
             # Process results
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    logger.error(f"Error: {result}")
+                    tool_logger.error(f"Error: {result}")
                     stats["failed"] += 1
                 elif isinstance(result, dict):
                     self.output_proc.save_entry(result)
@@ -306,34 +344,34 @@ def transcribe_batch(
                 total_images = result.get('processed', 0) + result.get('failed', 0) + result.get('skipped', 0)
                 sequential_estimate = total_images * 8
                 
-                logger.info("🚀 Async Processing Summary:")
-                logger.info(f"Total images: {total_images}")
-                logger.info(f"Processed: {result.get('processed', 0)}")
-                logger.info(f"Skipped: {result.get('skipped', 0)}")
-                logger.info(f"Failed: {result.get('failed', 0)}")
-                logger.info(f"Total time: {total_time:.1f}s")
-                logger.info(f"Sequential estimate: {sequential_estimate}s")
-                logger.info(f"Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)")
-                logger.info(f"Average time per image: {total_time / total_images:.1f}s")
+                tool_logger.info("🚀 Async Processing Summary:")
+                tool_logger.info(f"Total images: {total_images}")
+                tool_logger.info(f"Processed: {result.get('processed', 0)}")
+                tool_logger.info(f"Skipped: {result.get('skipped', 0)}")
+                tool_logger.info(f"Failed: {result.get('failed', 0)}")
+                tool_logger.info(f"Total time: {total_time:.1f}s")
+                tool_logger.info(f"Sequential estimate: {sequential_estimate}s")
+                tool_logger.info(f"Time saved: {sequential_estimate - total_time:.1f}s ({(sequential_estimate - total_time) / sequential_estimate * 100:.0f}%)")
+                tool_logger.info(f"Average time per image: {total_time / total_images:.1f}s")
                 
             return result
 
     # Use the async batch processor
     processor = AsyncBatchProcessor(
-        input_manifest=segment_manifest,
-        output_folder=transcribed_folder,
+        input_manifest=source_manifest,
+        output_folder=output_folder,
         process_name="transcription",
         processor_fn=None,  # Not used in async version
-        base_folder=segment_folder,
+        base_folder=source_folder,
         batch_size=1  # Process 1 image at a time for LMStudio
     )
     
     return processor.process()
 
 def transcribe(
-    segment_folder: Path = typer.Argument(..., help="Input segments folder"),
-    segment_manifest: Path = typer.Argument(..., help="Input segments manifest"),
-    transcribed_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
+    source_folder: Path = typer.Argument(..., help="Input source folder"),
+    source_manifest: Path = typer.Argument(..., help="Input source manifest"),
+    output_folder: Path = typer.Argument(..., help="Output folder for transcriptions"),
     api_url: str = typer.Option(
         "http://localhost:1234",
         "--api-url",
@@ -351,17 +389,54 @@ def transcribe(
     if not api_url.endswith('/v1'):
         api_url = f"{api_url}/v1"
     
-    print(f"Using LMStudio API: {api_url}")
-    print(f"Using model: {model_name}")
+    tool_logger.info(f"Using LMStudio API: {api_url}")
+    tool_logger.info(f"Using model: {model_name}")
 
     transcribe_batch(
-        segment_folder,
-        segment_manifest,
-        transcribed_folder,
+        source_folder,
+        source_manifest,
+        output_folder,
         api_url,
         model_name,
         testing
     )
 
 if __name__ == "__main__":
-    typer.run(transcribe) 
+    try:
+        typer.run(transcribe)
+    finally:
+        # Clean up asyncio resources to prevent ResourceWarnings
+        try:
+            import asyncio
+            import gc
+            
+            # Get the current event loop if it exists
+            try:
+                loop = asyncio.get_running_loop()
+                # Cancel all pending tasks
+                pending_tasks = asyncio.all_tasks(loop)
+                if pending_tasks:
+                    for task in pending_tasks:
+                        if not task.done():
+                            task.cancel()
+                    
+                    # Wait briefly for tasks to cancel
+                    try:
+                        loop.run_until_complete(asyncio.wait(pending_tasks, timeout=1.0))
+                    except Exception:
+                        pass
+                
+                # Close the loop if it's not the main loop
+                if not loop.is_closed():
+                    loop.close()
+                    
+            except RuntimeError:
+                # No running event loop
+                pass
+            
+            # Force garbage collection to clean up any remaining resources
+            gc.collect()
+            
+        except Exception:
+            # Ignore cleanup errors
+            pass 

@@ -3,15 +3,24 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 import cv2
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
-from rich.console import Console
-import logging
 
-console = Console()
-logger = logging.getLogger(__name__)
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('rotate')
 
 def hough_line_rotate(image: Image.Image, blur_kernel=(5, 5), canny_threshold1=50, canny_threshold2=150) -> tuple[Image.Image, dict]:
     """
@@ -64,7 +73,7 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
         # Load image using the format utility
         image, metadata = load_image(file_path)
     except Exception as e:
-        logger.error(f"Failed to load image {file_path.name}: {e}")
+        tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     # Rotate image and get debug info
@@ -110,6 +119,34 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
         file_types=file_types
     )
 
+def rotate_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    output_format: str = "jpg",
+    **kwargs
+) -> dict:
+    """
+    Rotate split document pages - importable function
+    
+    Args:
+        source_folder: Input splits folder
+        source_manifest: Input splits manifest file
+        output_folder: Output folder for rotated images
+        output_format: Output format (jpg, png, jxl)
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="rotate",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o, output_format)
+    )
+    return processor.process()
+
 def rotate(
     splits_folder: Path = typer.Argument(..., help="Input splits folder"),
     splits_manifest: Path = typer.Argument(..., help="Input splits manifest file"), 
@@ -119,14 +156,7 @@ def rotate(
                                      callback=validate_format)
 ):
     """Rotate split document pages"""
-    processor = BatchProcessor(
-        input_manifest=splits_manifest,
-        output_folder=rotated_folder,
-        process_name="rotate",
-        base_folder=splits_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o, output_format)
-    )
-    processor.process()
+    return rotate_batch(splits_folder, splits_manifest, rotated_folder, output_format)
 
 if __name__ == "__main__":
     typer.run(rotate)

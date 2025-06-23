@@ -1,11 +1,10 @@
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
-from rich.console import Console
 from .manifest import ManifestProcessor
-from .progress import ProgressTracker
+from .tool_logger import get_tool_logger
 import sys
 
-console = Console()
+tool_logger = get_tool_logger('batch')
 
 class BatchProcessor:
     """Handles batch processing of files with progress tracking and manifest management"""
@@ -30,8 +29,8 @@ class BatchProcessor:
         
         # Setup folders and files
         self.output_folder.mkdir(parents=True, exist_ok=True)
-        self.manifest_file = self.output_folder / f"{process_name}_manifest.jsonl"
-        self.progress_file = self.output_folder / f"{process_name}_progress.jsonl"
+        self.manifest_file = self.output_folder / f"{self.process_name}_manifest.jsonl"
+        self.progress_file = self.output_folder / f"{self.process_name}_progress.jsonl"
         
         # Initialize manifest processors
         self.input_proc = ManifestProcessor(manifest_path=self.input_manifest, progress_file=None)
@@ -42,10 +41,10 @@ class BatchProcessor:
         documents = []
         skipped_count = 0
         
-        console.print("Checking files to process...")
-        console.print(f"Base folder: {self.base_folder}")
-        console.print(f"Input manifest: {self.input_manifest}")
-        console.print(f"Output folder: {self.output_folder}")
+        tool_logger.info("Checking files to process...")
+        tool_logger.info(f"Base folder: {self.base_folder}")
+        tool_logger.info(f"Input manifest: {self.input_manifest}")
+        tool_logger.info(f"Output folder: {self.output_folder}")
         
         for doc in self.input_proc.stream_entries():
             # Skip directory entries
@@ -87,35 +86,30 @@ class BatchProcessor:
             "failed": 0
         }
 
-        console.print(f"\nTotal files: {stats['total']}")
-        console.print(f"Already processed: {stats['skipped']}")
-        console.print(f"To process: {total_files}\n")
+        tool_logger.info(f"Total files: {stats['total']}")
+        tool_logger.info(f"Already processed: {stats['skipped']}")
+        tool_logger.info(f"To process: {total_files}")
 
         if total_files == 0:
             return stats
 
-        # Setup progress tracking
-        tracker = ProgressTracker(
-            total=total_files,
-            task_name=f"{self.process_name.title()} files",
-            progress_fields=stats
-        )
-
+        # Process files in batches
+        tool_logger.progress(f"Processing {total_files} files...")
+        
         try:
-            with tracker.progress as progress:
-                current_batch = []
+            current_batch = []
+            
+            for doc in documents:
+                current_batch.append(doc)
                 
-                for doc in documents:
-                    current_batch.append(doc)
-                    
-                    if len(current_batch) >= self.batch_size:
-                        self._process_batch(current_batch, stats, progress, tracker.task)
-                        current_batch = []
-                        self.output_proc.write_progress(stats)
+                if len(current_batch) >= self.batch_size:
+                    self._process_batch(current_batch, stats)
+                    current_batch = []
+                    self.output_proc.write_progress(stats)
 
-                # Process remaining files
-                if current_batch:
-                    self._process_batch(current_batch, stats, progress, tracker.task)
+            # Process remaining files
+            if current_batch:
+                self._process_batch(current_batch, stats)
 
             # Ensure final manifest is saved after all processing
             self.output_proc._write_manifest(self.manifest_file)
@@ -124,16 +118,16 @@ class BatchProcessor:
             return stats
 
         except KeyboardInterrupt:
-            console.print("\n[yellow]Processing interrupted by user. Saving progress...")
+            tool_logger.warning("Processing interrupted by user. Saving progress...")
             self.output_proc._write_manifest(self.manifest_file)  # Save manifest
             self.output_proc.write_progress(stats)  # Save progress
             sys.exit(1)
         except Exception as e:
-            console.print(f"\n[red]Error occurred: {e}")
+            tool_logger.error(f"Error occurred: {e}")
             self.output_proc.write_progress(stats)
             raise
 
-    def _process_batch(self, batch: List[dict], stats: dict, progress, task):
+    def _process_batch(self, batch: List[dict], stats: dict):
         """Process a batch of files"""
         for doc in batch:
             try:
@@ -149,8 +143,9 @@ class BatchProcessor:
                 else:
                     full_path = path
 
-                # Ensure extension is preserved
-                if path.suffix:
+                # Only preserve extension if using source files (use_source=True)
+                # When use_source=False, let the processing function determine the output extension
+                if self.use_source and path.suffix:
                     full_path = full_path.with_suffix(path.suffix)
                 
                 result = self.processor_fn(str(full_path), self.output_folder)
@@ -168,16 +163,14 @@ class BatchProcessor:
                 else:
                     stats["processed"] += 1
                     
-                progress.update(task, advance=1, **stats)
-                
             except Exception as e:
-                console.print(f"[red]Error processing {doc['path']}: {e}")
+                tool_logger.error(f"Error processing {doc['path']}: {e}")
                 stats["failed"] += 1
-                progress.update(task, advance=1, **stats)
 
     def _print_stats(self, stats: dict):
         """Print final statistics"""
-        console.print(f"\n[green]Processing completed. Final statistics:")
-        console.print(f"Processed: {stats['processed']}")
-        console.print(f"Skipped: {stats['skipped']}")
-        console.print(f"Failed: {stats['failed']}")
+        tool_logger.success("Processing completed!")
+        tool_logger.info(f"Total: {stats['total']}")
+        tool_logger.info(f"Processed: {stats['processed']}")
+        tool_logger.info(f"Skipped: {stats['skipped']}")
+        tool_logger.info(f"Failed: {stats['failed']}")

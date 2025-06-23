@@ -1,76 +1,21 @@
 title: "Catalogue"
 description: > 
-  This project offers a workflow to create transcriptions and catalogue archival materials.
+  Transcribe, catalogues and export to Word documents archival materials using QWEN for transcription and Open AI for catalogue generation.
   
 vars:
   name: "Fichero"
-  language: "es"  # Default language, can be changed per project
-  text_direction: 'horizontal-lr' #['horizontal-lr', 'horizontal-rl', 'vertical-lr', 'vertical-rl']
-  version: "0.0.0"
+  language: "es"
+  version: "0.0.6"
   
-  # Project paths - these should be configured per project
-  project_folder: "${vars.output_folder}"  # This will be updated by fichero_director
-  fichero_root: "${vars.fichero_root}"  # This will be updated by fichero_director
-  documents_folder: "${vars.project_folder}/documents"
-  assets_folder: "${vars.project_folder}/assets"
-  scripts_dir: "${vars.fichero_root}/src/fichero/tools"  # Updated to point to correct tools directory
-  prompts_dir: "${vars.fichero_root}/src/fichero/resources/config_defaults/prompts"  # Updated to point to correct prompts directory
-  models_dir: "${vars.fichero_root}/src/fichero/resources/models"  # Updated to point to new models directory
+  # User-configurable file formats
+  crop_format: "jpg"
+  split_format: "jpg"
+  rotate_format: "jpg"
+  enhance_format: "jpg"
+  background_removed_format: "png"
   
-  yolo_model_path: "${vars.models_dir}/yolov8s-fichero.pt"  # Path to YOLO model
-  
-  # Image format configuration
-  crop_format: "jpg"  # Options: "png", "jxl", "jpg"
-  split_format: "jpg"  # Options: "png", "jxl", "jpg"
-  rotate_format: "jpg"  # Options: "png", "jxl", "jpg"
-  enhance_format: "jpg"  # Options: "png", "jxl", "jpg"
-  background_removed_format: "png"  # Options: "png" (with transparency), "jxl" (with transparency and better compression), "jpg" (white background, most compatible)
-
-  # metadata
-  documents_manifest_folder: "${vars.assets_folder}/manifests"
-  documents_manifest: "${vars.documents_manifest_folder}/documents_manifest.jsonl"
-  
-  # Processing folders
-  crops_folder: "${vars.assets_folder}/crops"
-  crop_manifest: "${vars.documents_manifest}"
-  crop_source_folder: "${vars.documents_folder}"
-  
-  split_image_folder: "${vars.assets_folder}/splits"
-  rotated_image_folder: "${vars.assets_folder}/rotated"
-  background_removed_image_folder: "${vars.assets_folder}/background_removed"
-  
-  # Processing folders
-  enhanced_image_folder: "${vars.assets_folder}/enhanced"
-  segmented_image_folder: "${vars.assets_folder}/segments"
-  transcriptions_folder: "${vars.assets_folder}/transcriptions"
-  segmented_transcriptions_folder: "${vars.assets_folder}/segmented_transcriptions"
-  prompt: "Extract all text line by line. Do not number lines. RETURN ONLY PLAIN TEXT. SAY NOTHING ELSE"
-  recombined_folder: "${vars.assets_folder}/recombined"
-  
-  # Output folders
-  word_folder: "${vars.assets_folder}/word"
-  llm_processed_folder: "${vars.assets_folder}/llm_processed"
-  llm_catalogue_folder: "${vars.assets_folder}/llm_catalogue"  # Specific folder for catalogue processing
-  llm_catalogue_word_folder: "${vars.assets_folder}/llm_catalogue_word"  # Word documents from catalogue processing
-  llm_ner_folder: "${vars.assets_folder}/llm_ner"  # Specific folder for NER processing
-  
-  # Manifest paths
-  split_manifest: "${vars.split_image_folder}/split_manifest.jsonl"
-  segment_manifest: "${vars.segmented_image_folder}/segment_manifest.jsonl"
-  transcription_manifest: "${vars.transcriptions_folder}/transcription_manifest.jsonl"
-  segmented_transcription_manifest: "${vars.segmented_transcriptions_folder}/transcription_manifest.jsonl"
-
-  # LMStudio configuration
-  lmstudio_url: "http://localhost:1234"
-  lmstudio_model: "Qwen2.5-VL-3B-Instruct-8bit"  # Model name as shown in LM Studio
-
-  # LLM configuration
-  llm_prompt_config: "${vars.prompts_dir}/Catalogue.jsonl"  # Default prompt config file
-
-directories: ["${vars.scripts_dir}"]
-
 workflows:
-
+  # Full workflow with segmentation (best for complex documents)
   default:
     - build_documents_manifest
     - crop
@@ -82,10 +27,24 @@ workflows:
     - transcribe_qwen_max_segments
     - recombine_segments_qwen_max
     - fuzzy_clean
-    - convert_to_word
     - catalogue_folder
+    - convert_to_word
     - catalogue_to_word
 
+  # Direct transcription workflow (no segmentation - faster for simple documents)
+  Direct (No Segmentation):
+    - build_documents_manifest
+    - crop
+    - split
+    - rotate
+    - enhance
+    - remove_background
+    - transcribe_qwen_max_direct
+    - catalogue_folder
+    - convert_to_word
+    - catalogue_to_word
+
+  # Individual step workflows for flexibility
   1) Archive to Segment:
     - build_documents_manifest
     - crop
@@ -95,185 +54,194 @@ workflows:
     - remove_background
     - segment
 
-  2) Transcribe:
+  2) Transcribe Segments:
     - transcribe_qwen_max_segments
 
-  3) Recombine:
+  3) Transcribe Direct:
+    - transcribe_qwen_max_direct
+
+  4) Recombine:
     - recombine_segments_qwen_max
 
-  4) Fuzzy Clean:
+  5) Fuzzy Clean:
     - fuzzy_clean
 
-  5) Catalogue:
+  6) Catalogue:
     - catalogue_folder
   
-  6) Convert to Word:
+  7) Convert to Word:
     - convert_to_word
     - catalogue_to_word
 
 commands:
   - name: build_documents_manifest
+    worker_type: "io"
     help: "Generate the documents manifest listing"
-    script:
-      - "python ${vars.scripts_dir}/build_documents_manifest.py \"${vars.documents_folder}\" \"${vars.documents_manifest}\""
+    function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    args:
+      source_folder: "documents"
+      output_manifest: "assets/manifests/documents_manifest.jsonl"
     outputs:
-      - ${vars.documents_manifest}
+      - "assets/manifests/documents_manifest.jsonl"
 
   - name: crop
+    worker_type: "cpu"
     help: "Crop documents using computer vision techniques"
-    script:
-      - "python ${vars.scripts_dir}/crop.py \"${vars.documents_folder}\" \"${vars.documents_manifest}\" \"${vars.crops_folder}\" --model-path \"${vars.yolo_model_path}\" --format \"${vars.crop_format}\""
+    function: "fichero.tools.crop.crop_batch"
+    args:
+      source_folder: "documents"
+      source_manifest: "assets/manifests/documents_manifest.jsonl"
+      output_folder: "assets/crops"
+      model_path: "yolov8s-fichero.pt"
+      output_format: "{crop_format}"
     outputs:
-      - ${vars.crops_folder}
-      - ${vars.crops_folder}/crop_manifest.jsonl
+      - "assets/crops"
+      - "assets/crops/crop_manifest.jsonl"
 
   - name: split
+    worker_type: "cpu"
     help: "Split cropped images"
-    script:
-      - "python ${vars.scripts_dir}/split.py \"${vars.crops_folder}\" \"${vars.crops_folder}/crop_manifest.jsonl\" \"${vars.split_image_folder}\" --format \"${vars.split_format}\""
+    function: "fichero.tools.split.split_batch"
+    args:
+      source_folder: "assets/crops"
+      source_manifest: "assets/crops/crop_manifest.jsonl"
+      output_folder: "assets/split"
+      output_format: "{split_format}"
     outputs:
-      - ${vars.split_image_folder}
-      - ${vars.split_manifest}
+      - "assets/split"
+      - "assets/split/split_manifest.jsonl"
 
   - name: rotate
+    worker_type: "cpu"
     help: "Rotate the split images to straighten text."
-    script:
-      - "python ${vars.scripts_dir}/rotate.py \"${vars.split_image_folder}\" \"${vars.split_manifest}\" \"${vars.rotated_image_folder}\" --format \"${vars.rotate_format}\""
+    function: "fichero.tools.rotate.rotate_batch"
+    args:
+      source_folder: "assets/split"
+      source_manifest: "assets/split/split_manifest.jsonl"
+      output_folder: "assets/rotated"
+      output_format: "{rotate_format}"
     outputs:
-      - ${vars.rotated_image_folder}
-      - ${vars.rotated_image_folder}/rotate_manifest.jsonl
+      - "assets/rotated"
+      - "assets/rotated/rotate_manifest.jsonl"
 
   - name: enhance
+    worker_type: "cpu"
     help: "Enhance image quality with contrast and clarity improvements"
-    script:
-      - "python ${vars.scripts_dir}/enhance.py \"${vars.rotated_image_folder}\" \"${vars.rotated_image_folder}/rotate_manifest.jsonl\" \"${vars.enhanced_image_folder}\" --format \"${vars.enhance_format}\""
+    function: "fichero.tools.enhance.enhance_batch"
+    args:
+      source_folder: "assets/rotated"
+      source_manifest: "assets/rotated/rotate_manifest.jsonl"
+      output_folder: "assets/enhanced"
+      output_format: "{enhance_format}"
     outputs:
-      - ${vars.enhanced_image_folder}
-      - ${vars.enhanced_image_folder}/enhance_manifest.jsonl
+      - "assets/enhanced"
+      - "assets/enhanced/enhance_manifest.jsonl"
 
   - name: remove_background
+    worker_type: "cpu"
     help: "Remove background from enhanced images"
-    script:
-      - "python ${vars.scripts_dir}/remove_background.py \"${vars.enhanced_image_folder}\" \"${vars.enhanced_image_folder}/enhance_manifest.jsonl\" \"${vars.background_removed_image_folder}\" --format \"${vars.background_removed_format}\""
+    function: "fichero.tools.remove_background.remove_background_batch"
+    args:
+      source_folder: "assets/enhanced"
+      source_manifest: "assets/enhanced/enhance_manifest.jsonl"
+      output_folder: "assets/background_removed"
+      output_format: "{background_removed_format}"
     outputs:
-      - ${vars.background_removed_image_folder}
-      - ${vars.background_removed_image_folder}/background_removed_manifest.jsonl
+      - "assets/background_removed"
+      - "assets/background_removed/background_removed_manifest.jsonl"
 
   - name: segment
+    worker_type: "cpu"
     help: "Segment images into text regions"
-    script:
-      - "python ${vars.scripts_dir}/segment.py \"${vars.background_removed_image_folder}\" \"${vars.background_removed_image_folder}/background_removed_manifest.jsonl\" \"${vars.segmented_image_folder}\""
+    function: "fichero.tools.segment.segment_batch"
+    args:
+      source_folder: "assets/background_removed"
+      source_manifest: "assets/background_removed/background_removed_manifest.jsonl"
+      output_folder: "assets/segmented"
     outputs:
-      - ${vars.segmented_image_folder}
-      - ${vars.segment_manifest}
-
-  - name: transcribe_qwen_max
-    help: "Transcribe documents using Alibaba Qwen"
-    script:
-      - "python ${vars.scripts_dir}/transcribe_qwen_max.py \"${vars.background_removed_image_folder}\" \"${vars.background_removed_image_folder}/background_removed_manifest.jsonl\" \"${vars.transcriptions_folder}\""
-    outputs:
-      - ${vars.transcriptions_folder}
-      - ${vars.transcription_manifest}
+      - "assets/segmented"
+      - "assets/segmented/segment_manifest.jsonl"
 
   - name: transcribe_qwen_max_segments
+    worker_type: "io"
     help: "Transcribe segmented images using Qwen VL Max model"
-    script:
-      - "python ${vars.scripts_dir}/transcribe_qwen_max.py \"${vars.segmented_image_folder}\" \"${vars.segment_manifest}\" \"${vars.segmented_transcriptions_folder}\""
+    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    args:
+      source_folder: "assets/segmented"
+      source_manifest: "assets/segmented/segment_manifest.jsonl"
+      output_folder: "assets/segmented_transcriptions"
     outputs:
-      - ${vars.segmented_transcriptions_folder}
-      - ${vars.segmented_transcription_manifest}
+      - "assets/segmented_transcriptions"
+      - "assets/segmented_transcriptions/segmented_transcription_manifest.jsonl"
 
-  - name: recombine_segments
-    help: "Recombine the transcribed segments into single markdown files"
-    script:
-      - "python ${vars.scripts_dir}/recombine_segments.py \"${vars.segmented_transcriptions_folder}\" \"${vars.recombined_folder}\" \"${vars.segmented_transcription_manifest}\" \"${vars.background_removed_image_folder}/background_removed_manifest.jsonl\""
+  - name: transcribe_qwen_max_direct
+    worker_type: "io"
+    help: "Transcribe background-removed images directly using Qwen VL Max model (no segmentation)"
+    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    args:
+      source_folder: "assets/background_removed"
+      source_manifest: "assets/background_removed/background_removed_manifest.jsonl"
+      output_folder: "assets/transcriptions"
     outputs:
-      - ${vars.recombined_folder}
-      - ${vars.recombined_folder}/recombine_manifest.jsonl
+      - "assets/transcriptions"
+      - "assets/transcriptions/transcription_manifest.jsonl"
 
   - name: recombine_segments_qwen_max
+    worker_type: "io"
     help: "Recombine the transcribed segments from Qwen into single markdown files"
-    script:
-      - "python ${vars.scripts_dir}/recombine_segments.py \"${vars.segmented_transcriptions_folder}\" \"${vars.recombined_folder}\" \"${vars.segmented_transcription_manifest}\" \"${vars.background_removed_image_folder}/background_removed_manifest.jsonl\""
+    function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    args:
+      transcriptions_folder: "assets/segmented_transcriptions"
+      output_folder: "assets/recombined"
+      transcription_manifest: "assets/segmented_transcriptions/segmented_transcription_manifest.jsonl"
+      image_manifest: "assets/background_removed/background_removed_manifest.jsonl"
     outputs:
-      - ${vars.recombined_folder}
-      - ${vars.recombined_folder}/recombine_manifest.jsonl
+      - "assets/recombined"
+      - "assets/recombined/recombine_manifest.jsonl"
 
   - name: fuzzy_clean
+    worker_type: "io"
     help: "Clean up text from recombined transcriptions"
-    script:
-      - "python ${vars.scripts_dir}/fuzzy_clean.py \"${vars.recombined_folder}\" \"${vars.recombined_folder}/recombine_manifest.jsonl\" \"${vars.transcriptions_folder}\""
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    args:
+      source_folder: "assets/recombined"
+      source_manifest: "assets/recombined/recombine_manifest.jsonl"
+      output_folder: "assets/transcriptions"
     outputs:
-      - ${vars.transcriptions_folder}
-      - ${vars.transcription_manifest}
+      - "assets/transcriptions"
+      - "assets/transcriptions/transcription_manifest.jsonl"
 
   - name: convert_to_word
+    worker_type: "io"
     help: "Convert background-removed images and transcriptions to Word documents with side-by-side layout"
-    script:
-      - "python ${vars.scripts_dir}/convert_to_word.py \"${vars.background_removed_image_folder}\" \"${vars.transcription_manifest}\" \"${vars.word_folder}\""
+    function: "fichero.tools.convert_to_word.convert_to_word_batch"
+    args:
+      images_folder: "assets/background_removed"
+      transcription_manifest: "assets/transcriptions/transcription_manifest.jsonl"
+      output_folder: "assets/word"
     outputs:
-      - ${vars.word_folder}
-
-  - name: transcribe_lmstudio
-    help: "Transcribe documents using local LMStudio model"
-    script:
-      - "python ${vars.scripts_dir}/transcribe_lmstudio.py \"${vars.background_removed_image_folder}\" \"${vars.background_removed_image_folder}/background_removed_manifest.jsonl\" \"${vars.transcriptions_folder}\" --model \"${vars.lmstudio_model}\""
-    outputs:
-      - ${vars.transcriptions_folder}
-      - ${vars.transcription_manifest}
-
-  - name: transcribe_lmstudio_segments
-    help: "Transcribe segmented documents using local LMStudio model"
-    script:
-      - "python ${vars.scripts_dir}/transcribe_lmstudio.py \"${vars.segmented_image_folder}/documents\" \"${vars.segment_manifest}\" \"${vars.segmented_transcriptions_folder}\" --model \"${vars.lmstudio_model}\""
-    outputs:
-      - ${vars.segmented_transcriptions_folder}
-      - ${vars.segmented_transcription_manifest}
+      - "assets/word"
 
   - name: catalogue_folder
+    worker_type: "io"
     help: "Process transcribed documents through configurable LLM pipeline for catalogue generation"
-    script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_catalogue_folder}\" --prompt-config \"${vars.prompts_dir}/Catalogue.jsonl\" --folder-mode"
+    function: "fichero.tools.llm_process.process_documents_batch"
+    args:
+      source_folder: "assets/transcriptions"
+      source_manifest: "assets/transcriptions/transcription_manifest.jsonl"
+      output_folder: "assets/llm_catalogue"
+      prompt_config: "Catalogue.jsonl"
+      folder_mode: true
     outputs:
-      - ${vars.llm_catalogue_folder}
-      - ${vars.llm_catalogue_folder}/llm_process_manifest.jsonl
+      - "assets/llm_catalogue"
 
   - name: catalogue_to_word
+    worker_type: "io"
     help: "Convert catalogue JSON files to Word documents"
-    script:
-      - "python ${vars.scripts_dir}/json_to_word.py \"${vars.llm_catalogue_folder}\" \"${vars.llm_catalogue_folder}/llm_process_manifest.jsonl\" \"${vars.llm_catalogue_word_folder}\""
+    function: "fichero.tools.json_to_word.json_to_word_batch"
+    args:
+      source_folder: "assets/llm_catalogue"
+      source_manifest: "assets/llm_catalogue/llm_process_manifest.jsonl"
+      output_folder: "assets/llm_catalogue_word"
     outputs:
-      - ${vars.llm_catalogue_word_folder}
-      - ${vars.llm_catalogue_word_folder}/json_to_word_manifest.jsonl
-
-  - name: llm_process_ner_async
-    help: "Process transcribed documents through configurable LLM pipeline for NER processing"
-    script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_ner_folder}\" --prompt-config \"${vars.ner_prompt_config}\" --folder-mode"
-    outputs:
-      - ${vars.llm_ner_folder}
-      - ${vars.llm_ner_folder}/llm_process_manifest.jsonl
-
-  - name: llm_process_ner_gpt4
-    help: "Process transcribed documents through configurable LLM pipeline for NER processing using GPT-4"
-    script:
-      - "python ${vars.scripts_dir}/llm_process.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_ner_folder}/gpt4\" --prompt-config \"${vars.ner_gpt4_prompt_config}\" --folder-mode"
-    outputs:
-      - ${vars.llm_ner_folder}/gpt4
-      - ${vars.llm_ner_folder}/gpt4/llm_process_manifest.jsonl
-
-  - name: llm_process_spacey_ner_gpt4
-    help: "Process transcribed documents using spaCy NER followed by GPT-4 refinement"
-    script:
-      - "python ${vars.scripts_dir}/process_ner.py \"${vars.transcriptions_folder}\" \"${vars.transcription_manifest}\" \"${vars.llm_ner_folder}/spacey_gpt4\" --prompt-config \"${vars.prompts_dir}/ner-hybrid.jsonl\" --backend-type chatgpt --model-name gpt-4.1"
-    outputs:
-      - ${vars.llm_ner_folder}/spacey_gpt4
-      - ${vars.llm_ner_folder}/spacey_gpt4/ner_process_manifest.jsonl
-
-  - name: llm_ner_to_word
-    help: "Convert LLM NER output to Word documents"
-    script:
-      - "python ${vars.scripts_dir}/llm_to_word.py \"${vars.llm_ner_folder}\" \"${vars.llm_ner_folder}/word_outputs\""
-    outputs:
-      - ${vars.llm_ner_folder}/word_outputs
-      - ${vars.llm_ner_folder}/word_outputs/llm_to_word_manifest.jsonl
+      - "assets/llm_catalogue_word"

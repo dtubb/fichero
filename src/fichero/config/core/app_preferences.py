@@ -106,7 +106,9 @@ class AppPreferences:
             "window_positions": {},
             "recent_documents": [],
             "open_documents": [],
-            "last_used_directories": {}
+            "last_used_directories": {},
+            "preferred_plan": None,
+            "preferred_workflow": None
         }
     
     def _save_preferences(self) -> bool:
@@ -269,6 +271,32 @@ class AppPreferences:
             if path.exists():
                 return path
         return None
+    
+    def get_preferred_plan(self) -> Optional[str]:
+        """Get user's preferred default plan"""
+        return self._preferences.get("preferred_plan")
+    
+    def set_preferred_plan(self, plan_name: Optional[str]) -> bool:
+        """Set user's preferred default plan"""
+        try:
+            self._preferences["preferred_plan"] = plan_name
+            return self._save_preferences()
+        except Exception as e:
+            logger.error(f"Failed to set preferred plan: {e}")
+            return False
+    
+    def get_preferred_workflow(self) -> Optional[str]:
+        """Get user's preferred default workflow"""
+        return self._preferences.get("preferred_workflow")
+    
+    def set_preferred_workflow(self, workflow_name: Optional[str]) -> bool:
+        """Set user's preferred default workflow"""
+        try:
+            self._preferences["preferred_workflow"] = workflow_name
+            return self._save_preferences()
+        except Exception as e:
+            logger.error(f"Failed to set preferred workflow: {e}")
+            return False
 
 
 # Global instance

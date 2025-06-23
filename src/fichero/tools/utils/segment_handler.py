@@ -5,12 +5,19 @@ import shutil
 import os
 import json
 import tempfile
-from rich.console import Console
 from .image_format import check_cjxl_installed, save_as_jxl, load_image
 from .files import get_relative_path, ensure_dirs
 import subprocess
 
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('segment_handler')
 
 class SegmentHandler:
     """Handles loading, saving, and path management for image segments"""
@@ -168,12 +175,12 @@ class SegmentHandler:
 
             # If already complete and not processing, skip
             if SegmentHandler.is_complete(folder):
-                console.print(f"[yellow]Skipping completed folder: {folder}")
+                tool_logger.info(f"Skipping completed folder: {folder}")
                 return True
 
             # If interrupted mid-processing, clean up folder contents but keep folder
             if SegmentHandler.is_processing(folder):
-                console.print(f"[yellow]Cleaning up interrupted processing: {folder}")
+                tool_logger.warning(f"Cleaning up interrupted processing: {folder}")
                 for item in folder.glob("*"):
                     if item.is_file():
                         item.unlink()
@@ -189,7 +196,7 @@ class SegmentHandler:
             finally:
                 SegmentHandler.finish_processing(folder)
         except Exception as e:
-            console.print(f"[red]Error in process_safely: {e}")
+            tool_logger.error(f"Error in process_safely: {e}")
             # Don't delete folder on error, but remove processing flag
             if folder.exists() and SegmentHandler.is_processing(folder):
                 SegmentHandler.finish_processing(folder)

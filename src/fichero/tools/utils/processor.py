@@ -1,11 +1,18 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Callable, Any
-from rich.console import Console
 from .image_format import get_supported_extensions_list
 from .files import get_relative_path, ensure_dirs
 
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('processor')
 
 def process_file(
     file_path: str,
@@ -35,7 +42,8 @@ def process_file(
             raise FileNotFoundError(f"File not found: {file_path}")
         
         # PATCH: Accept file if file_types is provided and extension is in file_types
-        if file_types and file_path.suffix.lower() not in file_types:
+        # Also accept files without extensions (they might be valid images)
+        if file_types and file_path.suffix.lower() not in file_types and file_path.suffix:
             raise ValueError(f"Unsupported file type: {file_path.suffix}")
         
         # Ensure output directory exists using utility function
@@ -61,6 +69,6 @@ def process_file(
         return manifest_entry
         
     except Exception as e:
-        console.print(f"[red]Error processing {file_path}: {str(e)}")
+        tool_logger.error(f"Error processing {file_path}: {str(e)}")
         manifest_entry["error"] = f"{type(e).__name__}: {str(e)}"
         return manifest_entry

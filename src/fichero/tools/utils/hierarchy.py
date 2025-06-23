@@ -1,19 +1,22 @@
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
-from rich.console import Console
 from datetime import datetime
 import json
-import logging
 from .batch import BatchProcessor
 from .manifest import ManifestProcessor
 from .progress import ProcessingProgress, ProgressTracker
 from .files import ensure_dirs
 from .segment_handler import SegmentHandler
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('hierarchy')
 
 class HierarchyNode:
     """Represents a node in the document hierarchy"""
@@ -64,10 +67,10 @@ class DocumentHierarchy:
             manifest_file=self.manifest_file
         )
         
-        logger.info(f"Initialized DocumentHierarchy:")
-        logger.info(f"  Base path: {self.base_path}")
-        logger.info(f"  Output folder: {self.output_folder}")
-        logger.info(f"  Process name: {self.process_name}")
+        tool_logger.info(f"Initialized DocumentHierarchy:")
+        tool_logger.info(f"  Base path: {self.base_path}")
+        tool_logger.info(f"  Output folder: {self.output_folder}")
+        tool_logger.info(f"  Process name: {self.process_name}")
         
     def build_hierarchy(self, max_depth: int = 3) -> HierarchyNode:
         """Build document hierarchy from directory structure"""
@@ -89,7 +92,7 @@ class DocumentHierarchy:
                     })
         
         _build_node(self.base_path, 0, self.root)
-        logger.info(f"Built hierarchy with max depth {max_depth}")
+        tool_logger.info(f"Built hierarchy with max depth {max_depth}")
         return self.root
         
     def process_hierarchy(
@@ -136,7 +139,7 @@ class DocumentHierarchy:
                     files_to_process.append(file_data)
                 
                 if files_to_process:
-                    logger.info(f"Processing {len(files_to_process)} files in {rel_path}")
+                    tool_logger.info(f"Processing {len(files_to_process)} files in {rel_path}")
                     # Process files in batches
                     batch_results = batch_processor.process_batch(files_to_process)
                     node_result["files"].extend(batch_results)
@@ -163,7 +166,7 @@ class DocumentHierarchy:
             # Apply level-specific processing if defined
             if level_processors and node.level in level_processors:
                 try:
-                    logger.info(f"Applying level {node.level} processor to {rel_path}")
+                    tool_logger.info(f"Applying level {node.level} processor to {rel_path}")
                     level_result = level_processors[node.level](
                         node.path,
                         node_result["files"],
@@ -171,7 +174,7 @@ class DocumentHierarchy:
                     )
                     node_result["level_processing"] = level_result
                 except Exception as e:
-                    logger.error(f"Error in level processing for {rel_path}: {e}")
+                    tool_logger.error(f"Error in level processing for {rel_path}: {e}")
                     node_result["success"] = False
                     node_result["level_processing_error"] = str(e)
             
@@ -195,47 +198,39 @@ class DocumentHierarchy:
         # Save final progress
         self.progress.save_progress(results, results["processed"])
         
-        logger.info(f"Hierarchy processing completed:")
-        logger.info(f"  Processed: {results['processed']}")
-        logger.info(f"  Skipped: {results['skipped']}")
-        logger.info(f"  Failed: {results['failed']}")
+        tool_logger.info(f"Hierarchy processing completed:")
+        tool_logger.info(f"  Processed: {results['processed']}")
+        tool_logger.info(f"  Skipped: {results['skipped']}")
+        tool_logger.info(f"  Failed: {results['failed']}")
         
         return results
         
     def save_hierarchy(self, output_path: Path) -> None:
         """Save hierarchy structure to JSON file"""
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        hierarchy_data = self.root.to_dict()
+        with open(output_path, 'w') as f:
+            json.dump(hierarchy_data, f, indent=2)
+        tool_logger.info(f"Saved hierarchy to {output_path}")
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                "base_path": str(self.base_path),
-                "hierarchy": self.root.to_dict(),
-                "timestamp": datetime.now().isoformat()
-            }, f, ensure_ascii=False, indent=2)
-            
-        logger.info(f"Saved hierarchy to: {output_path}")
-            
     @classmethod
     def load_hierarchy(cls, input_path: Path, output_folder: Path) -> 'DocumentHierarchy':
-        """Load hierarchy structure from JSON file"""
-        with open(input_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-        hierarchy = cls(Path(data["base_path"]), output_folder)
-        hierarchy.root = cls._dict_to_node(data["hierarchy"])
-        logger.info(f"Loaded hierarchy from: {input_path}")
+        """Load hierarchy from JSON file"""
+        with open(input_path, 'r') as f:
+            hierarchy_data = json.load(f)
+        
+        hierarchy = cls(Path(hierarchy_data["path"]), output_folder)
+        hierarchy.root = cls._dict_to_node(hierarchy_data)
         return hierarchy
         
     @staticmethod
     def _dict_to_node(data: Dict) -> HierarchyNode:
-        """Convert dictionary representation to HierarchyNode"""
+        """Convert dictionary back to HierarchyNode"""
         node = HierarchyNode(Path(data["path"]), data["level"])
         node.files = data["files"]
-        node.metadata = data.get("metadata", {})
+        node.metadata = data["metadata"]
         
         for child_data in data["children"]:
-            child = DocumentHierarchy._dict_to_node(child_data)
-            node.add_child(child)
+            child_node = DocumentHierarchy._dict_to_node(child_data)
+            node.add_child(child_node)
             
         return node 

@@ -9,12 +9,16 @@ from pathlib import Path
 import json
 import pandas as pd
 from typing import Any, Dict
-from rich.console import Console
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-console = Console()
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.tool_logger import get_tool_logger
+
+tool_logger = get_tool_logger('json_to_excel')
 
 def flatten_json(y: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
     """Flatten a nested json file, rendering lists as readable multi-line strings."""
@@ -57,7 +61,7 @@ def process_json_files(source_folder: Path) -> pd.DataFrame:
             rows.append(flat)
             all_keys.update(flat.keys())
         except Exception as e:
-            logger.error(f"Failed to process {json_file}: {e}")
+            tool_logger.error(f"Failed to process {json_file}: {e}")
     # Ensure all rows have all columns
     all_keys = sorted(all_keys)
     normalized_rows = []
@@ -71,9 +75,9 @@ def json_to_excel(
     output_file: Path = typer.Argument(..., help="Output Excel file (e.g. output.xlsx)")
 ):
     """Convert all JSON files in a folder to a single Excel file, one row per file."""
-    console.print(f"[blue]Converting JSON files to Excel document")
-    console.print(f"[cyan]Source folder: {source_folder}")
-    console.print(f"[cyan]Output file: {output_file}")
+    tool_logger.info("Converting JSON files to Excel document")
+    tool_logger.info(f"Source folder: {source_folder}")
+    tool_logger.info(f"Output file: {output_file}")
     try:
         df = process_json_files(source_folder)
 
@@ -117,9 +121,9 @@ def json_to_excel(
                 cell.font = Font(name='Helvetica', size=10)
                 cell.alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
         wb.save(output_file)
-        console.print(f"[green]Successfully wrote Excel file: {output_file}")
+        tool_logger.success(f"Successfully wrote Excel file: {output_file}")
     except Exception as e:
-        console.print(f"[red]Failed to convert JSON files: {e}")
+        tool_logger.error(f"Failed to convert JSON files: {e}")
 
 if __name__ == "__main__":
     typer.run(json_to_excel) 

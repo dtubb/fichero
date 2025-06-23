@@ -7,8 +7,8 @@ import toga
 import webbrowser
 import sys
 from pathlib import Path
-from ..utils import _
-from .windows import AboutWindow
+from .i18n import _
+from .windows import AboutWindow, ActivityMonitorWindow
 from ..config.ui import create_plans_window, create_prompts_window, create_settings_window
 
 
@@ -20,6 +20,7 @@ class MenuManager:
         self.app = app
         self.settings_window = None
         self.about_window = None
+        self.activity_monitor_window = None
         self.recent_documents_group = None
         self.recent_document_commands = []
         
@@ -29,7 +30,12 @@ class MenuManager:
         Toga automatically provides these commands for document-based apps:
         - NEW, OPEN, SAVE, SAVE_AS, SAVE_ALL (File menu) 
         - ABOUT, EXIT, VISIT_HOMEPAGE (App menu)
-        - Standard Edit commands on macOS (Undo, Redo, Cut, Copy, Paste)
+        
+        Toga may or may not automatically provide Window menu commands:
+        - Behavior seems inconsistent/platform-dependent
+        - We check for existing commands and only add if missing
+        
+        Edit menu commands must be added manually if needed.
         
         Only override standard commands when we need custom behavior.
         """
@@ -104,22 +110,224 @@ class MenuManager:
         )
         commands.append(support_cmd)
         
+
+        
+        # ===== WINDOW MANAGEMENT COMMANDS =====
+        
+        # Check if Toga has already added Window commands before adding our own
+        existing_window_commands = [cmd for cmd in self.app.commands if cmd.group == toga.Group.WINDOW]
+        existing_window_texts = [cmd.text for cmd in existing_window_commands if hasattr(cmd, 'text')]
+        
+        print(f"🔍 Existing Window commands before adding ours: {existing_window_texts}")
+        
+        if sys.platform == 'darwin':
+            print("🍎 macOS detected - adding standard Window commands:")
+            # Only add Window commands if they don't already exist
+            if 'Minimize' not in existing_window_texts:
+                minimize_cmd = toga.Command(
+                    self._minimize_window_handler,
+                    text="Minimize",
+                    group=toga.Group.WINDOW,
+                    section=0,
+                    shortcut=toga.Key.MOD_1 + 'm'
+                )
+                commands.append(minimize_cmd)
+                print("✅ Added Minimize command")
+            else:
+                print("ℹ️ Minimize command already exists - skipping")
+            
+            if 'Zoom' not in existing_window_texts:
+                zoom_cmd = toga.Command(
+                    self._zoom_window_handler,
+                    text="Zoom",
+                    group=toga.Group.WINDOW,
+                    section=0
+                )
+                commands.append(zoom_cmd)
+                print("✅ Added Zoom command")
+            else:
+                print("ℹ️ Zoom command already exists - skipping")
+            
+            if 'Bring All to Front' not in existing_window_texts:
+                bring_all_to_front_cmd = toga.Command(
+                    self._bring_all_to_front_handler,
+                    text="Bring All to Front",
+                    group=toga.Group.WINDOW,
+                    section=1
+                )
+                commands.append(bring_all_to_front_cmd)
+                print("✅ Added Bring All to Front command")
+            else:
+                print("ℹ️ Bring All to Front command already exists - skipping")
+                
+            print(f"📊 Total commands to be added to app: {len(commands)}")
+        else:
+            print("🖥️ Non-macOS platform - skipping Window commands")
+        
+        # Custom Activity Monitor command
+        activity_monitor_cmd = toga.Command(
+            self._activity_monitor_handler,
+            text="Activity Monitor",
+            group=toga.Group.WINDOW,
+            section=2,
+            shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + 'a'
+        )
+        commands.append(activity_monitor_cmd)
+        
+        # ===== COMMANDS MENU =====
+        
+        # Document processing commands
+        process_folder_cmd = toga.Command(
+            self._process_folder_handler,
+            text="Process Folder",
+            group=toga.Group.COMMANDS,
+            section=0,
+            shortcut=toga.Key.MOD_1 + 'p'
+        )
+        commands.append(process_folder_cmd)
+        
+        stop_processing_cmd = toga.Command(
+            self._stop_processing_handler,
+            text="Stop Processing",
+            group=toga.Group.COMMANDS,
+            section=0,
+            shortcut=toga.Key.MOD_1 + '.'
+        )
+        commands.append(stop_processing_cmd)
+        
+        # Document management commands
+        reveal_in_finder_cmd = toga.Command(
+            self._reveal_in_finder_handler,
+            text="Reveal in Finder",
+            group=toga.Group.COMMANDS,
+            section=1,
+            shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + 'r'
+        )
+        commands.append(reveal_in_finder_cmd)
+        
+
+        
         return commands
     
     def customize_standard_commands(self):
         """Customize text of automatically-added standard commands"""
         try:
-            # Customize the text of the Exit command
-            if toga.Command.EXIT in self.app.commands:
-                self.app.commands[toga.Command.EXIT].text = _("menu_quit")
+            # Debug: Show what commands Toga has automatically added
+            print("🔍 Debugging Toga's automatic commands:")
+            print(f"   Total commands: {len(self.app.commands)}")
+            
+            # Check for standard command IDs
+            standard_commands = [
+                toga.Command.NEW,
+                toga.Command.OPEN,
+                toga.Command.SAVE,
+                toga.Command.SAVE_AS,
+                toga.Command.ABOUT,
+                toga.Command.EXIT,
+                toga.Command.VISIT_HOMEPAGE
+            ]
+            
+            for cmd_id in standard_commands:
+                try:
+                    if cmd_id in self.app.commands:
+                        cmd = self.app.commands[cmd_id]
+                        # Handle commands that might not have text (like separators)
+                        text = getattr(cmd, 'text', '[no-text]') if hasattr(cmd, 'text') else '[no-text]'
+                        print(f"   ✅ {cmd_id}: '{text}' in group {cmd.group}")
+                    else:
+                        print(f"   ❌ {cmd_id}: Not found")
+                except Exception as e:
+                    print(f"   ⚠️ Error checking {cmd_id}: {e}")
+            
+            # Check Window menu commands specifically
+            try:
+                window_commands = [cmd for cmd in self.app.commands if cmd.group == toga.Group.WINDOW]
+                print(f"   Window menu commands: {len(window_commands)}")
+                for cmd in window_commands:
+                    try:
+                        # Skip separators which don't have text
+                        if hasattr(cmd, 'text'):
+                            print(f"      - '{cmd.text}' (id: {getattr(cmd, 'id', 'no-id')})")
+                        else:
+                            print(f"      - [Separator] (id: {getattr(cmd, 'id', 'no-id')})")
+                    except Exception as e:
+                        print(f"      - [Error reading command]: {e}")
+            except Exception as e:
+                print(f"   ⚠️ Error listing Window commands: {e}")
+            
+            # Customize the text of the Exit command (safely)
+            try:
+                if toga.Command.EXIT in self.app.commands:
+                    exit_cmd = self.app.commands[toga.Command.EXIT]
+                    if hasattr(exit_cmd, 'text'):
+                        exit_cmd.text = _("menu_quit")
+            except Exception as e:
+                print(f"⚠️ Error customizing Exit command: {e}")
             
             # On macOS, remove "Save All" as it's not standard for document apps
-            if sys.platform == 'darwin' and toga.Command.SAVE_ALL in self.app.commands:
-                save_all_cmd = self.app.commands[toga.Command.SAVE_ALL]
-                self.app.commands.discard(save_all_cmd)
+            try:
+                if sys.platform == 'darwin' and toga.Command.SAVE_ALL in self.app.commands:
+                    save_all_cmd = self.app.commands[toga.Command.SAVE_ALL]
+                    if hasattr(save_all_cmd, 'text'):  # Only remove if it's actually a command
+                        self.app.commands.discard(save_all_cmd)
+            except Exception as e:
+                print(f"⚠️ Error removing Save All command: {e}")
                 
         except Exception as e:
-            print(f"Note: Could not customize standard commands: {e}")
+            print(f"⚠️ Error in customize_standard_commands: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def check_for_missing_window_commands(self):
+        """Check if standard macOS Window commands are present (we add them manually)"""
+        try:
+            if sys.platform != 'darwin':
+                print("ℹ️ Non-macOS platform - Window menu commands not added")
+                return
+                
+            print("\n🔍 DETAILED WINDOW MENU ANALYSIS:")
+            
+            # Check if we have the standard Window commands we added manually
+            window_commands = [cmd for cmd in self.app.commands if cmd.group == toga.Group.WINDOW]
+            print(f"📊 Total Window menu items: {len(window_commands)}")
+            
+            # Detailed analysis of each command
+            print("📋 All Window menu items:")
+            for i, cmd in enumerate(window_commands):
+                try:
+                    if hasattr(cmd, 'text'):
+                        shortcut = getattr(cmd, 'shortcut', 'No shortcut')
+                        section = getattr(cmd, 'section', 'No section')
+                        enabled = getattr(cmd, 'enabled', 'Unknown')
+                        print(f"   {i+1}. '{cmd.text}' - Section: {section}, Shortcut: {shortcut}, Enabled: {enabled}")
+                    else:
+                        print(f"   {i+1}. [Separator or special item]")
+                except Exception as e:
+                    print(f"   {i+1}. [Error reading item]: {e}")
+            
+            # Check for expected commands
+            standard_window_commands = ['Minimize', 'Zoom', 'Bring All to Front']
+            existing_texts = [cmd.text for cmd in window_commands if hasattr(cmd, 'text')]
+            
+            print(f"\n📝 Expected standard commands: {standard_window_commands}")
+            print(f"✅ Commands found: {existing_texts}")
+            
+            missing_commands = [cmd for cmd in standard_window_commands if cmd not in existing_texts]
+            if missing_commands:
+                print(f"❌ MISSING commands: {missing_commands}")
+                print("   → These should be added to match macOS standards")
+            else:
+                print("✅ All standard macOS Window commands are present")
+            
+            # Check for unexpected commands
+            unexpected_commands = [cmd for cmd in existing_texts if cmd not in standard_window_commands and cmd != 'Activity Monitor']
+            if unexpected_commands:
+                print(f"❓ Unexpected commands: {unexpected_commands}")
+                
+        except Exception as e:
+            print(f"⚠️ Error in check_for_missing_window_commands: {e}")
+            import traceback
+            traceback.print_exc()
     
     # ===== COMMAND HANDLERS =====
     
@@ -260,4 +468,206 @@ class MenuManager:
     
     def update_recent_documents(self):
         """Public method to update recent documents menu - call this when a document is opened/saved"""
-        self._update_recent_documents_menu() 
+        self._update_recent_documents_menu()
+    
+
+    
+    # ===== DIALOG HELPERS =====
+    
+    def _show_info_dialog(self, title: str, message: str):
+        """Show an info dialog"""
+        try:
+            # Use async/await pattern for Toga dialogs
+            import asyncio
+            async def show_dialog():
+                await self.app.info_dialog(title, message)
+            asyncio.create_task(show_dialog())
+        except Exception as e:
+            print(f"Failed to show info dialog: {e}")
+    
+    def _show_error_dialog(self, title: str, message: str):
+        """Show an error dialog"""
+        try:
+            # Use async/await pattern for Toga dialogs
+            import asyncio
+            async def show_dialog():
+                await self.app.error_dialog(title, message)
+            asyncio.create_task(show_dialog())
+        except Exception as e:
+            print(f"Failed to show error dialog: {e}")
+    
+
+    
+    def _activity_monitor_handler(self, widget):
+        """Handle activity monitor command - show global activity monitor window"""
+        print("📊 Activity Monitor menu clicked - opening activity monitor window")
+        
+        try:
+            # Always create a fresh window to avoid window management issues
+            if self.activity_monitor_window is not None:
+                try:
+                    # Try to hide the existing window properly
+                    if hasattr(self.activity_monitor_window, 'hide') and not self.activity_monitor_window.closed:
+                        self.activity_monitor_window.hide()
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not close existing activity monitor: {e}")
+                finally:
+                    self.activity_monitor_window = None
+            
+            # Create new activity monitor window (with crash fix)
+            print("🔄 Creating new Activity Monitor window")
+            self.activity_monitor_window = ActivityMonitorWindow(self.app)
+            
+            # Show the window
+            self.activity_monitor_window.show()
+            print("✅ Activity Monitor window opened successfully")
+            
+        except Exception as e:
+            print(f"❌ Failed to open activity monitor: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Use sync error dialog since we're not in async context
+            try:
+                import asyncio
+                async def show_error():
+                    await self.app.error_dialog("Activity Monitor Error", f"Failed to open Activity Monitor: {e}")
+                asyncio.create_task(show_error())
+            except Exception as dialog_error:
+                print(f"❌ Also failed to show error dialog: {dialog_error}")
+    
+    # ===== WINDOW MANAGEMENT HANDLERS =====
+    
+    def _minimize_window_handler(self, widget):
+        """Handle minimize window command"""
+        print("🔹 Minimize command triggered")
+        try:
+            if self.app.current_window:
+                print(f"   Current window: {self.app.current_window}")
+                print(f"   Window type: {type(self.app.current_window)}")
+                
+                # Try multiple approaches for minimizing on macOS
+                if hasattr(self.app.current_window, 'minimize'):
+                    print("   Using window.minimize() method")
+                    self.app.current_window.minimize()
+                elif hasattr(self.app.current_window, 'state'):
+                    print("   Using window.state = MINIMIZED")
+                    import toga
+                    self.app.current_window.state = toga.WindowState.MINIMIZED
+                else:
+                    print("⚠️ Window minimize not supported - no minimize() method or state property")
+                    
+                print("✅ Minimize command completed")
+            else:
+                print("⚠️ No current window to minimize")
+        except Exception as e:
+            print(f"❌ Failed to minimize window: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _zoom_window_handler(self, widget):
+        """Handle zoom/maximize window command"""
+        print("🔹 Zoom command triggered")
+        try:
+            if self.app.current_window:
+                print(f"   Current window: {self.app.current_window}")
+                print(f"   Window type: {type(self.app.current_window)}")
+                
+                # Toggle between maximized and normal state
+                import toga
+                if hasattr(self.app.current_window, 'state'):
+                    current_state = self.app.current_window.state
+                    print(f"   Current state: {current_state}")
+                    
+                    if current_state == toga.WindowState.MAXIMIZED:
+                        print("   Changing to NORMAL state")
+                        self.app.current_window.state = toga.WindowState.NORMAL
+                    else:
+                        print("   Changing to MAXIMIZED state")
+                        self.app.current_window.state = toga.WindowState.MAXIMIZED
+                        
+                    print("✅ Zoom command completed")
+                else:
+                    print("⚠️ Window zoom not supported - no state property")
+            else:
+                print("⚠️ No current window to zoom")
+        except Exception as e:
+            print(f"❌ Failed to zoom window: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _bring_all_to_front_handler(self, widget):
+        """Handle bring all windows to front command"""
+        print("🔹 Bring All to Front command triggered")
+        try:
+            print(f"   Total app windows: {len(self.app.windows)}")
+            brought_count = 0
+            
+            # Bring all app windows to front
+            for i, window in enumerate(self.app.windows):
+                print(f"   Window {i+1}: {window} (closed: {window.closed})")
+                if not window.closed and hasattr(window, 'show'):
+                    window.show()  # This should bring window to front
+                    brought_count += 1
+                    
+            print(f"✅ Brought {brought_count} windows to front")
+        except Exception as e:
+            print(f"❌ Failed to bring windows to front: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # ===== COMMANDS MENU HANDLERS =====
+    
+    def _process_folder_handler(self, widget):
+        """Handle process folder command - delegate to current document"""
+        print("🚀 Process Folder command triggered")
+        try:
+            # Get the current document window
+            current_window = self.app.current_window
+            if hasattr(current_window, 'process_handler'):
+                # Trigger the process handler if not currently processing
+                if not hasattr(current_window, 'current_task_ids') or not current_window.current_task_ids:
+                    import asyncio
+                    asyncio.create_task(current_window.process_handler(widget))
+                else:
+                    print("⚠️ Document is already processing")
+            else:
+                print("⚠️ No active document window to process folder")
+        except Exception as e:
+            print(f"❌ Failed to process folder: {e}")
+    
+    def _stop_processing_handler(self, widget):
+        """Handle stop processing command"""
+        print("🛑 Stop Processing command triggered")
+        try:
+            # Get the current document window
+            current_window = self.app.current_window
+            if hasattr(current_window, 'current_task_ids') and current_window.current_task_ids:
+                # Trigger the stop handler if there are active tasks
+                import asyncio
+                asyncio.create_task(current_window.stop_handler(widget))
+            else:
+                print("⚠️ No active processing to stop")
+        except Exception as e:
+            print(f"❌ Failed to stop processing: {e}")
+    
+    def _reveal_in_finder_handler(self, widget):
+        """Handle reveal in finder command"""
+        print("📁 Reveal in Finder command triggered")
+        try:
+            # Get the current document window
+            current_window = self.app.current_window
+            if hasattr(current_window, '_document') and hasattr(current_window._document, 'selected_folder'):
+                selected_folder = current_window._document.selected_folder
+                if selected_folder and Path(selected_folder).exists():
+                    import subprocess
+                    subprocess.run(['open', '-R', str(selected_folder)])
+                else:
+                    self._show_info_dialog("No Folder", "No folder selected or folder doesn't exist.")
+            else:
+                self._show_info_dialog("No Document", "No active document to reveal folder for.")
+        except Exception as e:
+            print(f"❌ Failed to reveal in finder: {e}")
+            self._show_error_dialog("Reveal Error", f"Failed to reveal in Finder: {e}")
+
+ 

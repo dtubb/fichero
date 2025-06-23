@@ -34,18 +34,30 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 import cv2
-from utils.batch import BatchProcessor
-from utils.processor import process_file
-from utils.segment_handler import SegmentHandler
-from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
-from rich.console import Console
+
+# Support both standalone CLI usage and workflow executor imports
+try:
+    # When imported by workflow executor (absolute imports work)
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.tool_logger import get_tool_logger
+except ImportError:
+    # When run as standalone script (relative imports work)
+    from utils.batch import BatchProcessor
+    from utils.processor import process_file
+    from utils.segment_handler import SegmentHandler
+    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from utils.files import ensure_dirs
+    from utils.tool_logger import get_tool_logger
+
+import pytesseract
 import json
-from typing import Set
-import logging
+from typing import Dict, Any, Tuple, List, Set
 
-logger = logging.getLogger(__name__)
-
-console = Console()
+tool_logger = get_tool_logger('split')
 
 def analyze_page_content(img_array: np.ndarray) -> tuple[float, float, float]:
     """
@@ -672,14 +684,14 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     
     # Verify file exists
     if not file_path.exists():
-        logger.error(f"File does not exist: {file_path}")
+        tool_logger.error(f"File does not exist: {file_path}")
         return {"success": False, "error": "File not found"}
     
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
     except Exception as e:
-        logger.error(f"Failed to load image {file_path.name}: {e}")
+        tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     parts, debug_info = split_image(image, file_path=file_path)
@@ -695,9 +707,9 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     for i, part in enumerate(parts):
         # Create output filename
         if len(parts) > 1:
-            part_name = f"{rel_path.stem}_part_{i+1}"
+            part_name = f"{rel_path.stem}_part_{i+1}.{output_format}"
         else:
-            part_name = f"{rel_path.stem}"
+            part_name = f"{rel_path.stem}.{output_format}"
             
         # Save the part using the format utility
         part_path = out_path.parent / part_name
@@ -731,6 +743,33 @@ def process_document(file_path: str, output_folder: Path, output_format: str = '
         file_types=file_types
     )
 
+def split_batch(
+    source_folder: Path,
+    source_manifest: Path,
+    output_folder: Path,
+    output_format: str = "jpg"
+) -> dict:
+    """
+    Split cropped book pages into individual pages - importable function
+    
+    Args:
+        source_folder: Source folder containing documents
+        source_manifest: Manifest file
+        output_folder: Output folder for split images
+        output_format: Output format (jpg, png, jxl)
+        
+    Returns:
+        Processing statistics dictionary
+    """
+    processor = BatchProcessor(
+        input_manifest=source_manifest,
+        output_folder=output_folder,
+        process_name="split",
+        base_folder=source_folder,
+        processor_fn=lambda f, o: process_document(f, o, output_format)
+    )
+    return processor.process()
+
 def split(
     source_folder: Path = typer.Argument(..., help="Source folder containing documents"),
     source_manifest: Path = typer.Argument(..., help="Manifest file"),
@@ -740,14 +779,7 @@ def split(
                                      callback=validate_format)
 ):
     """Split cropped book pages into individual pages"""
-    processor = BatchProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name="split",
-        base_folder=source_folder,  # Paths in manifest already include documents/
-        processor_fn=lambda f, o: process_document(f, o, output_format)
-    )
-    processor.process()
+    return split_batch(source_folder, source_manifest, output_folder, output_format)
 
 if __name__ == "__main__":
     typer.run(split)

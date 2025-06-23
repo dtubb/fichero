@@ -13,7 +13,7 @@ preferences:
 workers:
   backend: "python"  # Options: "python", "redis". Python = Manager+Python, Redis = Redis+Celery
   cpu_workers: 4
-  io_workers: 8
+  io_workers: 16  # Increased for better transcription concurrency
   memory_per_worker_mb: 2048
 
 # API Server Configurations

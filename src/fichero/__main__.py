@@ -1,26 +1,25 @@
 """
 Entry point for Fichero - handles both GUI and CLI modes
-Run with:
+
+Briefcase usage:
     briefcase dev (gui)
     briefcase dev -- --help (cli)
-    python -m fichero --help (cli)
+
+Direct Python usage:
+    python -m fichero (gui - no args)
+    python -m fichero --help (cli - with args)
 """
 
 import sys
-from .app import main as gui_main
 
 def main():
-    # If no arguments are provided, run in GUI mode, using app.py
+    # No arguments = GUI mode
     if len(sys.argv) == 1:
-        gui_main()  # This already calls app.main_loop() internally
+        from .app import main as gui_main
+        gui_main()
 
+    # Arguments present = CLI mode
     else:
-        # If arguments are provided, run in CLI mode using cli.py
-        # Only import CLI when actually needed (lazy import)
-        # e.g. briefcase dev -- --help
-        # briefcase dev -- --help
-        # Requires -- to separate briefcase arguments from typer arguments
-
         from .cli import app as typer_app
         typer_app()
 

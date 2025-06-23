@@ -160,7 +160,7 @@ class AppSettings:
             "workers": {
                 "backend": "python",
                 "cpu_workers": 4,
-                "io_workers": 8,
+                "io_workers": 16,  # Increased for transcription concurrency
                 "memory_per_worker_mb": 2048
             },
             "api_servers": {
@@ -213,7 +213,7 @@ class AppSettings:
             workers["cpu_workers"] = max(1, cpu_count // 2)
         
         if "io_workers" not in workers or workers["io_workers"] <= 0:
-            workers["io_workers"] = max(4, cpu_count * 2)
+            workers["io_workers"] = max(16, cpu_count * 2)  # More IO workers for transcription
         
         if "memory_per_worker_mb" not in workers or workers["memory_per_worker_mb"] <= 0:
             workers["memory_per_worker_mb"] = 2048
@@ -234,7 +234,7 @@ class AppSettings:
     def _sync_api_keys_to_shared_data(self, settings: Dict):
         """Sync API keys to shared data for cross-process access"""
         try:
-            from fichero.shared_data import get_shared_data
+            from ...shared_data import get_shared_data
             
             # Use the backend preference from settings to avoid creating wrong global instance
             backend_type = settings.get("workers", {}).get("backend", "python")
@@ -283,14 +283,14 @@ class AppSettings:
     
     def get_io_workers(self) -> int:
         """Get number of IO workers"""
-        return self.get_worker_config().get("io_workers", 8)
+        return self.get_worker_config().get("io_workers", 16)  # Updated default
     
     def get_memory_per_worker(self) -> int:
         """Get memory limit per worker in MB"""
         return self.get_worker_config().get("memory_per_worker_mb", 2048)
     
     def get_backend_type(self) -> str:
-        """Get the processing backend type (python or redis)"""
+        """Get the processing backend type (python or redis/celery)"""
         return self.get_worker_config().get("backend", "python")
     
     def save_settings(self, file_path: Path, data: Dict[str, Any]) -> bool:
@@ -326,6 +326,63 @@ class AppSettings:
             logger.error(f"❌ Failed to save settings: {e}")
             import traceback
             logger.error(traceback.format_exc())
+            return False
+
+    def merge_overrides(self, overrides: Dict[str, Any]):
+        """Merge override settings into current settings (for CLI overrides)"""
+        if not overrides:
+            return
+        
+        def deep_merge(base_dict, override_dict):
+            """Deep merge override_dict into base_dict"""
+            for key, value in override_dict.items():
+                if key in base_dict and isinstance(base_dict[key], dict) and isinstance(value, dict):
+                    deep_merge(base_dict[key], value)
+                else:
+                    base_dict[key] = value
+        
+        deep_merge(self.settings, overrides)
+        
+        # Re-sync API keys to shared data after merge
+        self._sync_api_keys_to_shared_data(self.settings)
+        
+        logger.info(f"🔧 Merged override settings: {overrides}")
+
+    def set_worker_config(self, key: str, value: Any):
+        """Set a worker configuration value"""
+        if "workers" not in self.settings:
+            self.settings["workers"] = {}
+        
+        self.settings["workers"][key] = value
+        logger.info(f"🔧 Set worker config {key} = {value}")
+
+    def save(self) -> bool:
+        """Save current settings to the active settings file"""
+        try:
+            # Get the active settings file
+            from .app_preferences import get_app_preferences
+            app_prefs = get_app_preferences(self.app)
+            active_file = app_prefs.get_active_settings_file()
+            
+            if not active_file:
+                # No active file, create a new one
+                if self.app and hasattr(self.app, 'paths'):
+                    settings_dir = self.app.paths.data / "settings"
+                else:
+                    settings_dir = Path.home() / ".fichero" / "settings"
+                
+                settings_dir.mkdir(parents=True, exist_ok=True)
+                active_file = settings_dir / "User Settings.yml"
+                
+                # Set as active
+                app_prefs.set_active_settings_file(active_file)
+                logger.info(f"Created new settings file: {active_file}")
+            
+            # Save the settings
+            return self.save_settings(active_file, self.settings)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save settings: {e}")
             return False
 
 
