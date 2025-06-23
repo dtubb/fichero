@@ -29,22 +29,69 @@ class ManagerStorageBackend(BaseStorageBackend):
     
     def _init_manager(self):
         """Initialize multiprocessing.Manager backend with fallback"""
+        # Aggressively detect any bundled/packaged environment and use fallback
+        if self._is_bundled_or_problematic_environment():
+            logger.info("Detected bundled/packaged environment, using safe fallback dict storage")
+            self.manager = None
+            self.store = {}  # Regular dict as fallback
+            self._lock = threading.RLock()
+            self._use_fallback = True
+            return
+        
+        # For development environments, try Manager with simple fallback
         try:
+            logger.info("Attempting multiprocessing.Manager initialization...")
             self.manager = Manager()
             self.store = self.manager.dict()
-            self._lock = threading.RLock()  # Thread safety for concurrent access
+            self._lock = threading.RLock()
             self._use_fallback = False
             logger.info("SharedDataManager using multiprocessing.Manager backend")
         except Exception as e:
-            # Fallback to regular dict for environments where Manager() fails
+            # Any failure immediately falls back
             logger.warning(f"Manager() failed, using fallback dict storage: {e}")
             self.manager = None
             self.store = {}  # Regular dict as fallback
-            self._lock = threading.RLock()  # Thread safety for concurrent access
+            self._lock = threading.RLock()
             self._use_fallback = True
             logger.info("SharedDataManager using fallback dict backend")
     
-
+    def _is_bundled_or_problematic_environment(self) -> bool:
+        """Detect bundled apps or environments where Manager() might hang"""
+        import sys
+        import os
+        
+        # Check for any bundled app indicators
+        bundled_indicators = [
+            getattr(sys, 'frozen', False),  # PyInstaller, cx_Freeze
+            hasattr(sys, '_MEIPASS'),  # PyInstaller
+            'briefcase' in str(sys.executable).lower(),  # Briefcase
+            '.app/Contents/' in str(sys.executable),  # macOS app bundle
+            '.app/Contents/' in os.getcwd(),  # Running from app bundle
+            os.environ.get('BRIEFCASE_MAIN_MODULE'),  # Briefcase environment
+            'Fichero.app' in str(sys.executable),  # Our specific app
+            'app_packages' in str(sys.path),  # Briefcase app packages
+        ]
+        
+        if any(bundled_indicators):
+            return True
+        
+        # Check sys.path for bundled indicators
+        for path in sys.path:
+            if any(indicator in str(path).lower() for indicator in 
+                   ['briefcase', '.app/contents', 'app_packages', 'fichero.app']):
+                return True
+        
+        # Check if we're in a Toga app context (additional safety)
+        if self.app and hasattr(self.app, 'paths'):
+            return True
+        
+        # Check current working directory
+        cwd = os.getcwd()
+        if any(indicator in cwd.lower() for indicator in 
+               ['.app/contents', 'briefcase', 'fichero.app']):
+            return True
+        
+        return False
     
     def set(self, data_type: DataType, key: str, value: Any, immediate_save: bool = False) -> bool:
         """Set data in Manager store (thread-safe)"""
