@@ -194,18 +194,101 @@ class BlackBackgroundRemoverMulti:
         return cropped_rgba, params
 
 
-def remove_background_from_image(image: Image.Image) -> tuple[Image.Image, dict]:
-    """
-    Public pipeline: remove black background, keep multiple objects by heuristic, and crop.
-    """
-    img_array = np.array(image)
-    remover = BlackBackgroundRemoverMulti()
-    cropped_rgba, analysis_params = remover.remove_background(img_array)
+class AIBackgroundRemover:
+    """AI-powered background removal using rembg with local model caching"""
+    
+    def __init__(self):
+        self._session = None
+        self._setup_model_cache()
+    
+    def _setup_model_cache(self):
+        """Set up model caching in resources folder"""
+        try:
+            # Find the resources folder
+            current_file = Path(__file__)
+            src_folder = current_file.parent.parent  # Go up to fichero/
+            resources_folder = src_folder / "resources"
+            
+            # Create rembg_models folder if it doesn't exist
+            self.models_folder = resources_folder / "rembg_models"
+            self.models_folder.mkdir(exist_ok=True)
+            
+            # Set rembg cache directory to our models folder
+            os.environ['REMBG_HOME'] = str(self.models_folder)
+            tool_logger.info(f"AI models will be cached in: {self.models_folder}")
+            
+        except Exception as e:
+            tool_logger.warning(f"Could not set up model cache: {e}")
+            self.models_folder = None
+    
+    def _get_session(self):
+        """Get or create rembg session with default model"""
+        if self._session is None:
+            try:
+                import rembg
+                from rembg import new_session
+                tool_logger.info("Loading AI background removal model (this may take a moment on first use)...")
+                self._session = new_session()  # Use default model as it performed best (1.34s)
+                tool_logger.info("AI model loaded successfully")
+            except ImportError:
+                raise ImportError(
+                    "rembg is required for AI background removal. "
+                    "Install with: pip install rembg"
+                )
+        return self._session
+    
+    def remove_background(self, image: Image.Image) -> tuple[Image.Image, dict]:
+        """Remove background using AI model"""
+        try:
+            import rembg
+            from rembg import remove
+            
+            session = self._get_session()
+            result = remove(image, session=session)
+            
+            params = {
+                "method": "ai_background_removal",
+                "model": "default",
+                "original_size": list(image.size),
+                "result_size": list(result.size)
+            }
+            
+            return result, {"analysis": params}
+            
+        except Exception as e:
+            tool_logger.error(f"AI background removal failed: {e}")
+            # Fallback to OpenCV method
+            tool_logger.info("Falling back to OpenCV background removal")
+            return self._fallback_to_opencv(image)
+    
+    def _fallback_to_opencv(self, image: Image.Image) -> tuple[Image.Image, dict]:
+        """Fallback to OpenCV method if AI fails"""
+        img_array = np.array(image)
+        remover = BlackBackgroundRemoverMulti()
+        cropped_rgba, analysis_params = remover.remove_background(img_array)
+        out_pil = Image.fromarray(cropped_rgba, mode='RGBA')
+        return out_pil, {"analysis": analysis_params}
 
-    # Convert back to PIL
-    out_pil = Image.fromarray(cropped_rgba, mode='RGBA')
-    return out_pil, {"analysis": analysis_params}
-
+def remove_background_from_image(image: Image.Image, method: str = "opencv") -> tuple[Image.Image, dict]:
+    """
+    Public pipeline: remove background using specified method.
+    
+    Args:
+        image: PIL Image to process
+        method: "opencv" (fast, document-optimized) or "ai" (high quality, general purpose)
+    
+    Returns:
+        Tuple of (processed_image, analysis_params)
+    """
+    if method == "ai":
+        remover = AIBackgroundRemover()
+        return remover.remove_background(image)
+    else:  # Default to opencv
+        img_array = np.array(image)
+        remover = BlackBackgroundRemoverMulti()
+        cropped_rgba, analysis_params = remover.remove_background(img_array)
+        out_pil = Image.fromarray(cropped_rgba, mode='RGBA')
+        return out_pil, {"analysis": analysis_params}
 
 def check_cjxl_installed():
     """Check if cjxl (JPEG XL encoder) is installed."""
@@ -238,7 +321,7 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
         tool_logger.warning(f"Failed to save as JXL: {str(e)}")
         return False
 
-def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -> dict:
+def process_image(file_path: Path, out_path: Path, output_format: str = 'png', method: str = "opencv") -> dict:
     """Process a single image file for background removal"""
     # Use SegmentHandler for path handling
     rel_path = SegmentHandler.get_relative_path(file_path)
@@ -252,8 +335,8 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -
         tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
-    # Remove background and get parameters
-    bg_removed, params = remove_background_from_image(image)
+    # Remove background using specified method
+    bg_removed, params = remove_background_from_image(image, method)
     
     # Save the result using the format utility
     final_path, actual_format = save_image(bg_removed, out_path, output_format)
@@ -264,7 +347,8 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -
         "bg_removal_params": params,
         "output_format": actual_format,
         "input_metadata": metadata,
-        "file_size": os.path.getsize(final_path) if final_path.exists() else 0
+        "file_size": os.path.getsize(final_path) if final_path.exists() else 0,
+        "removal_method": method
     }
     
     # Get the relative path for the output file
@@ -276,12 +360,12 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png') -
         "details": details
     }
 
-def process_document(file_path: str, output_folder: Path, output_format: str = 'png') -> dict:
+def process_document(file_path: str, output_folder: Path, output_format: str = 'png', method: str = "opencv") -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o, output_format)
+        return process_image(Path(f), o, output_format, method)
     
     # Get supported extensions and create file_types dict
     file_types = {ext: process_fn for ext in get_supported_extensions_list()}
@@ -298,6 +382,7 @@ def remove_background_batch(
     source_manifest: Path,
     output_folder: Path,
     output_format: str,
+    method: str = "opencv",
     **kwargs
 ) -> dict:
     """
@@ -308,6 +393,7 @@ def remove_background_batch(
         source_manifest: Manifest file
         output_folder: Output folder for background removed images
         output_format: Output format (png, jxl, jpg)
+        method: Background removal method ("opencv" or "ai")
         
     Returns:
         Processing statistics dictionary
@@ -317,7 +403,7 @@ def remove_background_batch(
         output_folder=output_folder,
         process_name="background_removed",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format),
+        processor_fn=lambda f, o: process_document(f, o, output_format, method),
         use_source=False
     )
     return processor.process()
@@ -328,17 +414,22 @@ def remove_background(
     output_folder: Path = typer.Argument(..., help="Output folder for background removed images"),
     output_format: str = typer.Option("png", "--format", "-f", 
                                      help="Output format: png (with transparency), jxl (with transparency), or jpg (white background)",
-                                     callback=validate_format)
+                                     callback=validate_format),
+    method: str = typer.Option("opencv", "--method", "-m",
+                              help="Background removal method: 'opencv' (fast, document-optimized) or 'ai' (high quality, general purpose)")
 ):
     """
-    CLI for multi-object black/dark background removal with bounding box crop.
+    CLI for background removal with multiple methods:
+    
+    - opencv: Fast OpenCV-based method optimized for documents with black backgrounds
+    - ai: High-quality AI method using rembg (works on any background type)
     
     Supports output formats:
     - png: PNG with transparency (default)
     - jxl: JPEG XL with transparency (requires cjxl installed)
     - jpg: JPEG with white background
     """
-    return remove_background_batch(source_folder, source_manifest, output_folder, output_format)
+    return remove_background_batch(source_folder, source_manifest, output_folder, output_format, method)
 
 
 if __name__ == "__main__":

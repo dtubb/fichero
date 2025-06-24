@@ -52,7 +52,8 @@ requires = [
     "cryptography>=45.0.0,<46.0.0",
     "ruamel.yaml>=0.18.0,<1.0.0",
     "ultralytics",
-    "scikit-learn"
+    "scikit-learn",
+    "rembg"
 ]
 test_requires = [
     "pytest",
@@ -126,6 +127,10 @@ dependencies = [
     "accelerate>=1.7.0,<2.0.0",
     "pathvalidate>=3.2.3,<4.0.0",
     "cryptography>=45.0.0,<46.0.0",
+    "ruamel.yaml>=0.18.0,<1.0.0",
+    "ultralytics",
+    "scikit-learn",
+    "rembg",
 ]
 
 [project.scripts]

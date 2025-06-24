@@ -14,6 +14,9 @@ vars:
   enhance_format: "jpg"
   background_removed_format: "png"
   
+  # Background removal method
+  background_removal_method: "opencv"  # "opencv" (fast, document-optimized) or "ai" (high quality, slower)
+  
 workflows:
   # Full workflow with segmentation (best for complex documents)
   00) default:
@@ -147,6 +150,7 @@ commands:
       source_manifest: "assets/enhanced/enhance_manifest.jsonl"
       output_folder: "assets/background_removed"
       output_format: "{background_removed_format}"
+      method: "{background_removal_method}"
     outputs:
       - "assets/background_removed"
       - "assets/background_removed/background_removed_manifest.jsonl"
