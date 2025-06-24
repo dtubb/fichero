@@ -65,6 +65,15 @@ sections:
             label: "Background Removed Format"
             options: ["png", "jxl", "jpg"]
 
+      - title: "Processing Methods"
+        description: "Configure processing algorithms and methods"
+        fields:
+          - id: "vars.background_removal_method"
+            type: "selection"
+            label: "Background Removal Method"
+            options: ["opencv", "ai"]
+            help: "opencv: Fast, document-optimized | ai: High quality, general purpose"
+
       - title: "LLM Configuration"
         fields:
           - id: "vars.lmstudio_url"
@@ -98,4 +107,32 @@ sections:
           - id: "vars.assets_folder"
             type: "text_input"
             label: "Assets Folder"
-            help: "Processing outputs location" 
+            help: "Processing outputs location"
+
+  - id: "workflows"
+    title: "Workflows"
+    sections:
+      - title: "Workflow Management"
+        description: "Configure processing workflows - select workflow and enable/disable steps"
+        fields:
+          - id: "workflow_manager"
+            type: "workflow_editor"
+            label: "Workflow Editor"
+            help: "Select a workflow and enable/disable individual processing steps"
+
+  - id: "commands"
+    title: "Commands"
+    sections:
+      - title: "Command Configuration"
+        description: "View and configure available processing commands"
+        fields:
+          - id: "commands_editor"
+            type: "multiline_text"
+            label: "Commands (YAML)"
+            height: 500
+            help: "Configure processing commands, their parameters, and worker types."
+            placeholder: |
+              - name: crop
+                worker_type: "cpu"
+                help: "Crop documents"
+                function: "fichero.tools.crop.crop_batch" 

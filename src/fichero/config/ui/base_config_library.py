@@ -34,6 +34,7 @@ class WidgetType(Enum):
     SECTION = "section"
     GROUP = "group"
     CATEGORIES = "categories"
+    WORKFLOW_EDITOR = "workflow_editor"
 
 
 class UISchema:
@@ -427,6 +428,10 @@ class BaseConfigLibrary(ABC):
                 on_change=self._on_widget_change
             )
         
+        elif field_type == WidgetType.WORKFLOW_EDITOR:
+            # Create workflow editor - a combination of selection and step management
+            widget = self._create_workflow_editor_widget(field, data)
+        
         if widget:
             # Store widget reference for data extraction
             self.widgets[field_id] = widget
@@ -454,6 +459,171 @@ class BaseConfigLibrary(ABC):
         
         field_box.add(widget_container)
         return field_box
+    
+    def _create_workflow_editor_widget(self, field: Dict, data: Dict = None) -> toga.Box:
+        """Create a sophisticated workflow editor widget"""
+        container = toga.Box(style=Pack(direction=COLUMN, margin_bottom=3))
+        
+        # Get available workflows and commands from data
+        workflows = data.get('workflows', {}) if data else {}
+        commands = data.get('commands', []) if data else []
+        
+        # Create workflow selection dropdown
+        workflow_names = list(workflows.keys()) if workflows else ["default"]
+        workflow_selector = toga.Selection(
+            items=workflow_names,
+            style=Pack(margin_bottom=5, font_size=9)
+        )
+        
+        # Label for workflow selector
+        selector_label = toga.Label("Select Workflow:", style=Pack(font_size=9, margin_bottom=3))
+        container.add(selector_label)
+        
+        # Workflow selector with management buttons
+        workflow_management_box = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
+        workflow_management_box.add(workflow_selector)
+        
+        # Add workflow management buttons
+        new_workflow_btn = toga.Button(
+            "New",
+            style=Pack(margin_left=5, width=50, font_size=8),
+            on_press=lambda widget: self._create_new_workflow(workflows, workflow_selector, step_widgets)
+        )
+        
+        copy_workflow_btn = toga.Button(
+            "Copy",
+            style=Pack(margin_left=5, width=50, font_size=8),
+            on_press=lambda widget: self._copy_current_workflow(workflows, workflow_selector, step_widgets)
+        )
+        
+        workflow_management_box.add(new_workflow_btn)
+        workflow_management_box.add(copy_workflow_btn)
+        
+        container.add(workflow_management_box)
+        
+        # Create step management area
+        steps_label = toga.Label("Workflow Steps:", style=Pack(font_size=9, margin_bottom=3, margin_top=10))
+        container.add(steps_label)
+        
+        # Scrollable container for steps
+        steps_container = toga.ScrollContainer(
+            vertical=True,
+            style=Pack(height=200, margin_bottom=5)
+        )
+        
+        steps_box = toga.Box(style=Pack(direction=COLUMN))
+        
+        # Get available command names for step options
+        available_commands = [cmd.get('name', '') for cmd in commands if cmd.get('name')]
+        
+        # Create step checkboxes for current workflow
+        current_workflow = workflow_names[0] if workflow_names else "default"
+        current_steps = workflows.get(current_workflow, []) if workflows else []
+        
+        step_widgets = {}
+        for command_name in available_commands:
+            step_enabled = command_name in current_steps
+            
+            step_checkbox = toga.Switch(
+                command_name,
+                value=step_enabled,
+                style=Pack(margin_bottom=2, font_size=9),
+                on_change=self._on_workflow_step_change
+            )
+            
+            steps_box.add(step_checkbox)
+            step_widgets[command_name] = step_checkbox
+        
+        steps_container.content = steps_box
+        container.add(steps_container)
+        
+        # Store step widgets for later access in the main widgets dictionary
+        # This allows the PlansLibrary to access them during data extraction
+        container._workflow_step_widgets = step_widgets
+        container._workflow_selector = workflow_selector
+        
+        # Set up workflow selector change handler
+        def on_workflow_change(widget):
+            selected_workflow = widget.value
+            if selected_workflow and workflows:
+                workflow_steps = workflows.get(selected_workflow, [])
+                # Update step checkboxes
+                for cmd_name, checkbox in step_widgets.items():
+                    checkbox.value = cmd_name in workflow_steps
+            self._on_widget_change(widget)
+        
+        workflow_selector.on_change = on_workflow_change
+        
+        # Select first workflow by default
+        if workflow_names:
+            workflow_selector.value = workflow_names[0]
+        
+        return container
+    
+    def _on_workflow_step_change(self, widget):
+        """Handle workflow step enable/disable changes"""
+        self._on_widget_change(widget)
+    
+    def _create_new_workflow(self, workflows, workflow_selector, step_widgets):
+        """Create a new workflow"""
+        try:
+            # Generate a unique workflow name
+            base_name = "new_workflow"
+            counter = 1
+            new_name = base_name
+            
+            while new_name in workflows:
+                new_name = f"{base_name}_{counter}"
+                counter += 1
+            
+            # Add new empty workflow
+            workflows[new_name] = []
+            
+            # Update selector items
+            workflow_selector.items = list(workflows.keys())
+            workflow_selector.value = new_name
+            
+            # Clear all step checkboxes
+            for checkbox in step_widgets.values():
+                checkbox.value = False
+            
+            self._on_widget_change(workflow_selector)
+            
+        except Exception as e:
+            logger.error(f"Failed to create new workflow: {e}")
+    
+    def _copy_current_workflow(self, workflows, workflow_selector, step_widgets):
+        """Copy the currently selected workflow"""
+        try:
+            current_workflow = workflow_selector.value
+            if not current_workflow or current_workflow not in workflows:
+                return
+            
+            # Generate a unique name for the copy
+            base_name = f"{current_workflow}_copy"
+            counter = 1
+            new_name = base_name
+            
+            while new_name in workflows:
+                new_name = f"{current_workflow}_copy_{counter}"
+                counter += 1
+            
+            # Copy the workflow steps
+            workflows[new_name] = workflows[current_workflow].copy()
+            
+            # Update selector items
+            workflow_selector.items = list(workflows.keys())
+            workflow_selector.value = new_name
+            
+            # Update checkboxes to match copied workflow
+            copied_steps = workflows[new_name]
+            for cmd_name, checkbox in step_widgets.items():
+                checkbox.value = cmd_name in copied_steps
+            
+            self._on_widget_change(workflow_selector)
+            
+        except Exception as e:
+            logger.error(f"Failed to copy workflow: {e}")
     
     def _get_field_value(self, field_id: str, data: Dict, default: Any = None) -> Any:
         """Get field value from data using dot notation"""
@@ -578,6 +748,10 @@ class BaseConfigLibrary(ABC):
                 on_restore_defaults=self._handle_restore_defaults,
                 on_title_change=lambda section: self._update_window_title(file_path.stem, section)
             )
+            
+            # Call populate_data if the subclass has overridden it
+            if hasattr(self, 'populate_data') and self.populate_data != BaseConfigLibrary.populate_data:
+                self.populate_data(data)
             
         except Exception as e:
             logger.error(f"Failed to load file {file_path}: {e}")
