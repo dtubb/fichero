@@ -1,5 +1,5 @@
 import typer
-from PIL import Image
+from PIL import Image, ImageOps
 from pathlib import Path
 import numpy as np
 import cv2
@@ -8,8 +8,6 @@ from typing import Dict, Any, Optional, Tuple
 import os
 import json
 import yaml
-
-from PIL import ExifTags
 
 # Import utilities with fallback for standalone execution
 try:
@@ -41,92 +39,41 @@ except Exception as e:
     tool_logger.error(f"Failed to import YOLO: {e}")
     raise
 
-def get_image_orientation(image_path: Path) -> tuple[str, int, dict]:
-    """Get the true orientation of an image using EXIF data and required rotation angle.
-    Returns (orientation, rotation_angle, details) where:
-    - orientation is "vertical" or "horizontal"
-    - rotation_angle is the degrees needed to correct the image
-    - details is a dict with EXIF and processing information"""
+def apply_exif_rotation(image: Image.Image) -> tuple[Image.Image, dict]:
+    """Apply EXIF rotation to image using PIL's built-in function.
+    Returns (rotated_image, details) where details contains rotation information"""
     details = {
-        "exif_orientation": None,
-        "original_dimensions": None,
-        "rotation_applied": None,
+        "original_dimensions": list(image.size),
         "reason": None
     }
     
     try:
-        # Use load_image to handle various formats
-        image, metadata = load_image(image_path)
-        width, height = image.size
-        details["original_dimensions"] = {"width": width, "height": height}
+        # Use PIL's built-in EXIF transpose function
+        rotated_image = ImageOps.exif_transpose(image)
         
-        # Check for EXIF orientation tag
-        for orientation in ExifTags.TAGS.keys():
-            if ExifTags.TAGS[orientation] == 'Orientation':
-                try:
-                    exif = dict(image._getexif().items())
-                    if orientation in exif:
-                        exif_orientation = exif[orientation]
-                        details["exif_orientation"] = exif_orientation
-                        
-                        # EXIF orientation values and their meanings:
-                        # 1: Normal (0°)
-                        # 2: Mirrored (0°)
-                        # 3: Upside down (180°)
-                        # 4: Mirrored upside down (180°)
-                        # 5: Mirrored and rotated 90° CCW (90°)
-                        # 6: Rotated 90° CW (270°)
-                        # 7: Mirrored and rotated 90° CW (270°)
-                        # 8: Rotated 90° CCW (90°)
-                        
-                        if exif_orientation in [5, 6, 7, 8]:  # Vertical orientations
-                            # Calculate required rotation angle
-                            if exif_orientation == 6:  # 90° CW
-                                details["rotation_applied"] = 270
-                                details["reason"] = "EXIF orientation 6 (90° CW) requires 270° rotation to correct"
-                                return "vertical", 270, details
-                            elif exif_orientation == 8:  # 90° CCW
-                                details["rotation_applied"] = 90
-                                details["reason"] = "EXIF orientation 8 (90° CCW) requires 90° rotation to correct"
-                                return "vertical", 90, details
-                            elif exif_orientation == 5:  # Mirrored and rotated 90° CCW
-                                details["rotation_applied"] = 270
-                                details["reason"] = "EXIF orientation 5 (Mirrored 90° CCW) requires 270° rotation to correct"
-                                return "vertical", 270, details
-                            elif exif_orientation == 7:  # Mirrored and rotated 90° CW
-                                details["rotation_applied"] = 90
-                                details["reason"] = "EXIF orientation 7 (Mirrored 90° CW) requires 90° rotation to correct"
-                                return "vertical", 90, details
-                except (AttributeError, KeyError, IndexError) as e:
-                    details["reason"] = f"No valid EXIF data found: {str(e)}"
-        
-        # Fallback to dimension check if no EXIF data
-        if height > width:
-            details["reason"] = "No EXIF data, using dimensions (height > width) to determine vertical orientation"
-            return "vertical", 0, details
+        if rotated_image.size != image.size:
+            details["reason"] = f"EXIF rotation applied: {image.size} -> {rotated_image.size}"
+            details["final_dimensions"] = list(rotated_image.size)
         else:
-            details["reason"] = "No EXIF data, using dimensions (width >= height) to determine horizontal orientation"
-            return "horizontal", 0, details
+            details["reason"] = "No EXIF rotation needed"
+            details["final_dimensions"] = list(image.size)
+        
+        return rotated_image, details
+        
     except Exception as e:
-        details["reason"] = f"Error checking orientation: {str(e)}"
-        return "unknown", 0, details
+        details["reason"] = f"Error applying EXIF rotation: {str(e)}"
+        return image, details
 
 def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float = 0.35) -> Optional[Tuple[Image.Image, Dict[str, Any]]]:
     """Crop image using YOLOv8 model
     Returns tuple of (cropped_image, crop_info) where crop_info contains box coordinates and confidence"""
     try:
-        # Get true orientation and required rotation
-        true_orientation, rotation_angle, orientation_details = get_image_orientation(image_path)
-        
         # Load image using the format utility
         original_pil, metadata = load_image(image_path)
-        orig_width, orig_height = original_pil.size
         
-        # Apply rotation if needed
-        if rotation_angle > 0:
-            original_pil = original_pil.rotate(rotation_angle, expand=True)
-            # Update dimensions after rotation
-            orig_width, orig_height = original_pil.size
+        # Apply EXIF rotation using PIL's built-in function
+        original_pil, rotation_details = apply_exif_rotation(original_pil)
+        orig_width, orig_height = original_pil.size
         
         # Convert to numpy array for YOLO
         original_img = cv2.cvtColor(np.array(original_pil), cv2.COLOR_RGB2BGR)
@@ -201,7 +148,7 @@ def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float 
             "padding": padding,
             "original_size": [orig_width, orig_height],
             "cropped_size": [x2 - x1, y2 - y1],
-            "orientation": orientation_details
+            "rotation": rotation_details
         }
             
         return result, crop_info

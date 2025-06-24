@@ -520,7 +520,11 @@ class DocumentProgressDisplay:
                 self.document_window.activity_indicator.stop()
                 self.document_window.process_btn.enabled = True
                 self.document_window.process_btn.text = "Process"
-                self.document_window.process_btn.style.update(background_color=None, color=None)
+                # Reset button style by deleting custom properties
+                if hasattr(self.document_window.process_btn.style, 'background_color'):
+                    del self.document_window.process_btn.style.background_color
+                if hasattr(self.document_window.process_btn.style, 'color'):
+                    del self.document_window.process_btn.style.color
                 
                 # Create enhanced completion view
                 await self._show_completion_summary(completed_tasks, failed_tasks, all_tasks)

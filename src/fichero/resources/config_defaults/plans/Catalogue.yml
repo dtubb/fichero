@@ -16,7 +16,7 @@ vars:
   
 workflows:
   # Full workflow with segmentation (best for complex documents)
-  default:
+  00) default:
     - build_documents_manifest
     - crop
     - split
@@ -107,6 +107,7 @@ commands:
       source_manifest: "assets/crops/crop_manifest.jsonl"
       output_folder: "assets/split"
       output_format: "{split_format}"
+      disable_splitting: true
     outputs:
       - "assets/split"
       - "assets/split/split_manifest.jsonl"

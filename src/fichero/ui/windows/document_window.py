@@ -292,7 +292,10 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.process_btn.text = _("process")
         self.process_btn.on_press = self.process_handler
         # Reset button style to default (remove red background)
-        self.process_btn.style.update(background_color=None, color=None)
+        if hasattr(self.process_btn.style, 'background_color'):
+            del self.process_btn.style.background_color
+        if hasattr(self.process_btn.style, 'color'):
+            del self.process_btn.style.color
     
     def _get_content_display(self):
         """Lazily initialize DocumentContentDisplay when needed"""

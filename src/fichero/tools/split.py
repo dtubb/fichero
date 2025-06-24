@@ -30,7 +30,7 @@ Detection Thresholds:
 """
 
 import typer
-from PIL import Image
+from PIL import Image, ImageOps
 from pathlib import Path
 import numpy as np
 import cv2
@@ -653,7 +653,7 @@ def detect_split_point(image: Image.Image, threshold_ratio: float = 0.15, compar
     
     return should_split, split_x, avg_darkness, debug_info
 
-def split_image(image: Image.Image, file_path: Path = None) -> tuple[list[Image.Image], dict]:
+def split_image(image: Image.Image, file_path: Path = None, disable_splitting: bool = False) -> tuple[list[Image.Image], dict]:
     """
     Splits an image into left and right pages if needed.
     
@@ -665,6 +665,15 @@ def split_image(image: Image.Image, file_path: Path = None) -> tuple[list[Image.
     Returns:
         Tuple of (list of image parts, debug information)
     """
+    # If splitting is disabled, return original image
+    if disable_splitting:
+        debug_info = {
+            "splitting_disabled": True,
+            "should_split": False,
+            "reason": "Splitting disabled by parameter"
+        }
+        return [image], debug_info
+        
     should_split, split_point, avg_darkness, debug_info = detect_split_point(image, file_path=file_path)
     
     if (not should_split):
@@ -677,7 +686,7 @@ def split_image(image: Image.Image, file_path: Path = None) -> tuple[list[Image.
     
     return [left_page, right_page], debug_info
 
-def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -> dict:
+def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg', disable_splitting: bool = False) -> dict:
     """Process a single image file for splitting"""
     # Use SegmentHandler for path handling
     rel_path = SegmentHandler.get_relative_path(file_path)
@@ -690,11 +699,13 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
+        # Apply EXIF rotation
+        image = ImageOps.exif_transpose(image)
     except Exception as e:
         tool_logger.error(f"Failed to load image {file_path.name}: {e}")
         return {"success": False, "error": f"Failed to load image: {e}"}
     
-    parts, debug_info = split_image(image, file_path=file_path)
+    parts, debug_info = split_image(image, file_path=file_path, disable_splitting=disable_splitting)
     outputs = []
     
     details = convert_to_serializable({
@@ -726,12 +737,12 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
         "details": details
     }
 
-def process_document(file_path: str, output_folder: Path, output_format: str = 'jpg') -> dict:
+def process_document(file_path: str, output_folder: Path, output_format: str = 'jpg', disable_splitting: bool = False) -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o, output_format)
+        return process_image(Path(f), o, output_format, disable_splitting)
     
     # Get supported extensions and create file_types dict
     file_types = {ext: process_fn for ext in get_supported_extensions_list()}
@@ -747,7 +758,8 @@ def split_batch(
     source_folder: Path,
     source_manifest: Path,
     output_folder: Path,
-    output_format: str = "jpg"
+    output_format: str = "jpg",
+    disable_splitting: bool = False
 ) -> dict:
     """
     Split cropped book pages into individual pages - importable function
@@ -757,6 +769,7 @@ def split_batch(
         source_manifest: Manifest file
         output_folder: Output folder for split images
         output_format: Output format (jpg, png, jxl)
+        disable_splitting: If True, copy files without splitting
         
     Returns:
         Processing statistics dictionary
@@ -766,7 +779,7 @@ def split_batch(
         output_folder=output_folder,
         process_name="split",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format)
+        processor_fn=lambda f, o: process_document(f, o, output_format, disable_splitting)
     )
     return processor.process()
 
@@ -776,10 +789,12 @@ def split(
     output_folder: Path = typer.Argument(..., help="Output folder for split images"),
     output_format: str = typer.Option("jpg", "--format", "-f", 
                                      help="Output format: png, jxl, or jpg",
-                                     callback=validate_format)
+                                     callback=validate_format),
+    disable_splitting: bool = typer.Option(False, "--disable-splitting/--enable-splitting",
+                                          help="Disable image splitting (copy originals)")
 ):
     """Split cropped book pages into individual pages"""
-    return split_batch(source_folder, source_manifest, output_folder, output_format)
+    return split_batch(source_folder, source_manifest, output_folder, output_format, disable_splitting)
 
 if __name__ == "__main__":
     typer.run(split)

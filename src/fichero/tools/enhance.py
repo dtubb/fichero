@@ -1,5 +1,5 @@
 import typer
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 from pathlib import Path
 import numpy as np
 import cv2
@@ -190,6 +190,8 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'jpg') -
     try:
         # Load image using the format utility
         image, metadata = load_image(file_path)
+        # Apply EXIF rotation
+        image = ImageOps.exif_transpose(image)
         tool_logger.info(f"Image loaded successfully: {image.size}")
     except Exception as e:
         tool_logger.error(f"Failed to load image {file_path.name}: {e}")

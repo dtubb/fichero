@@ -1,7 +1,7 @@
 import typer
 import cv2
 import numpy as np
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from pathlib import Path
 import pytesseract
 from io import BytesIO
@@ -823,6 +823,8 @@ def process_image(file_path: Path, out_path: Path) -> dict:
         
         # Load image using the format utility
         image, metadata = load_image(file_path)
+        # Apply EXIF rotation
+        image = ImageOps.exif_transpose(image)
         tool_logger.info(f"Loaded image {rel_path}, size: {image.size}")
         
         segments = adaptive_segment_image(image)
