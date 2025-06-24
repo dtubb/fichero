@@ -53,6 +53,7 @@ requires = [
     "ruamel.yaml>=0.18.0,<1.0.0",
     "ultralytics",
     "scikit-learn"
+]
 test_requires = [
     "pytest",
     "redis>=6.2.0,<7.0.0",
