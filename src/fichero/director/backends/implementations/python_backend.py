@@ -37,25 +37,35 @@ class PythonProcessingBackend(ProcessingBackend):
         self.backend_name = "python"
         
         # Get worker configuration from app settings if available
-        if app and hasattr(app, 'settings'):
+        if app and (hasattr(app, 'settings') or isinstance(app, dict)):
             try:
-                from ...config.core.settings import get_app_settings
+                try:
+                    from fichero.config.core.settings import get_app_settings
+                except ImportError:
+                    from ...config.core.settings import get_app_settings
                 logger.info(f"Loading worker settings from app: {type(app)}")
-                app_settings = get_app_settings(app)
-                if app_settings:
-                    # Get worker values from settings
-                    cpu_from_settings = app_settings.get_cpu_workers()
-                    io_from_settings = app_settings.get_io_workers()
-                    logger.info(f"App settings returned: CPU={cpu_from_settings}, IO={io_from_settings}")
-                    
-                    # Use settings from app configuration
-                    self.cpu_workers = cpu_workers or cpu_from_settings
-                    self.io_workers = io_workers or io_from_settings
-                    logger.info(f"Using worker configuration from app settings: {self.cpu_workers} CPU, {self.io_workers} IO")
+                
+                # Handle both app object and settings dict
+                if isinstance(app, dict):
+                    # App is already the settings dictionary
+                    workers_config = app.get('workers', {})
+                    cpu_from_settings = workers_config.get('cpu_workers', 4)
+                    io_from_settings = workers_config.get('io_workers', 8)
+                    logger.info(f"Direct settings returned: CPU={cpu_from_settings}, IO={io_from_settings}")
                 else:
-                    logger.warning("get_app_settings returned None, using defaults")
-                    # Fallback to calculated defaults
-                    self._set_default_workers(cpu_workers, io_workers)
+                    # App is an app object, get settings via get_app_settings
+                    app_settings = get_app_settings(app)
+                    if app_settings:
+                        cpu_from_settings = app_settings.get_cpu_workers()
+                        io_from_settings = app_settings.get_io_workers()
+                        logger.info(f"App settings returned: CPU={cpu_from_settings}, IO={io_from_settings}")
+                    else:
+                        raise Exception("get_app_settings returned None")
+                
+                # Use settings from app configuration
+                self.cpu_workers = cpu_workers or cpu_from_settings
+                self.io_workers = io_workers or io_from_settings
+                logger.info(f"Using worker configuration from app settings: {self.cpu_workers} CPU, {self.io_workers} IO")
             except Exception as e:
                 logger.warning(f"Could not load worker settings from app: {e}")
                 self._set_default_workers(cpu_workers, io_workers)

@@ -73,6 +73,11 @@ sections:
             label: "Background Removal Method"
             options: ["opencv", "ai"]
             help: "opencv: Fast, document-optimized | ai: High quality, general purpose"
+          - id: "vars.background_removal_ai_model"
+            type: "selection"
+            label: "AI Model (when method = ai)"
+            options: ["default", "u2net", "u2net_human", "silueta"]
+            help: "default: 1.3s, balanced | u2net: 1.5s, general | u2net_human: 1.4s, people | silueta: 1.5s, fast"
 
       - title: "LLM Configuration"
         fields:
@@ -119,6 +124,8 @@ sections:
             type: "workflow_editor"
             label: "Workflow Editor"
             help: "Select a workflow and enable/disable individual processing steps"
+      
+
 
   - id: "commands"
     title: "Commands"

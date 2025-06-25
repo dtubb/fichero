@@ -56,10 +56,15 @@ class AppSettings:
         """Decrypt an encrypted string value"""
         if not encrypted or not self.fernet:
             return encrypted
+        
+        # If it doesn't look encrypted, return as-is
+        if not self._looks_encrypted(encrypted):
+            return encrypted
+            
         try:
             return self.fernet.decrypt(encrypted.encode()).decode()
         except Exception as e:
-            logger.warning(f"Failed to decrypt value: {e}")
+            # If decryption fails, probably wasn't encrypted
             return encrypted
     
     def _encrypt_api_keys(self, settings: Dict):
@@ -67,14 +72,53 @@ class AppSettings:
         api_servers = settings.get("api_servers", {})
         for provider in api_servers:
             if "api_key" in api_servers[provider]:
-                api_servers[provider]["api_key"] = self._encrypt_value(api_servers[provider]["api_key"])
+                api_key = api_servers[provider]["api_key"]
+                # Only encrypt if it doesn't look like already encrypted data
+                if api_key and not self._looks_encrypted(api_key):
+                    api_servers[provider]["api_key"] = self._encrypt_value(api_key)
     
     def _decrypt_api_keys(self, settings: Dict):
         """Decrypt API keys in settings"""
         api_servers = settings.get("api_servers", {})
         for provider in api_servers:
             if "api_key" in api_servers[provider]:
-                api_servers[provider]["api_key"] = self._decrypt_value(api_servers[provider]["api_key"])
+                api_key = api_servers[provider]["api_key"]
+                if api_key:
+                    looks_encrypted = self._looks_encrypted(api_key)
+                    logger.info(f"🔍 {provider} key looks_encrypted: {looks_encrypted} (len={len(api_key)})")
+                    
+                    # Only decrypt if it looks like encrypted data
+                    if looks_encrypted:
+                        decrypted = self._decrypt_value(api_key)
+                        api_servers[provider]["api_key"] = decrypted
+                        logger.info(f"🔓 {provider} decrypted: {decrypted[:10]}...{decrypted[-4:] if len(decrypted) > 4 else ''}")
+                    else:
+                        logger.info(f"⚠️ {provider} doesn't look encrypted, skipping: {api_key[:10]}...{api_key[-4:] if len(api_key) > 4 else ''}")
+    
+    def _looks_encrypted(self, value: str) -> bool:
+        """Check if a value looks like encrypted data"""
+        if not value:
+            logger.debug("❌ Empty value, not encrypted")
+            return False
+            
+        if len(value) < 50:
+            logger.debug(f"❌ Value too short ({len(value)} chars), not encrypted")
+            return False
+        
+        # Encrypted values are base64-encoded and typically much longer than API keys
+        # Real API keys are usually 20-60 chars, encrypted ones are 100+ chars
+        try:
+            # Check if it's valid base64 and significantly longer than typical API keys
+            import base64
+            base64.b64decode(value)
+            is_long_enough = len(value) > 80
+            logger.debug(f"✅ Valid base64, length {len(value)}, is_long_enough: {is_long_enough}")
+            return is_long_enough  # Encrypted API keys are much longer
+        except Exception as e:
+            logger.debug(f"❌ Not valid base64: {e}")
+            return False
+    
+
     
     def load_settings(self) -> Dict:
         """
@@ -232,31 +276,9 @@ class AppSettings:
             return False
     
     def _sync_api_keys_to_shared_data(self, settings: Dict):
-        """Sync API keys to shared data for cross-process access"""
-        try:
-            from ...shared_data import get_shared_data
-            
-            # Use the backend preference from settings to avoid creating wrong global instance
-            backend_type = settings.get("workers", {}).get("backend", "python")
-            prefer_backend = "redis" if backend_type == "redis" else "manager"
-            
-            shared_data = get_shared_data(prefer_backend=prefer_backend)
-            
-            api_servers = settings.get("api_servers", {})
-            logger.info(f"Syncing API keys to shared data ({shared_data.backend_name}) for {len(api_servers)} providers")
-            
-            for provider, config in api_servers.items():
-                api_key = config.get("api_key")
-                if api_key and api_key.strip():
-                    # Store as structured setting: "api_key:provider" (permanent)
-                    shared_data.set_setting(f"api_key:{provider}", api_key)
-                    logger.info(f"✅ Synced {provider} API key to shared data")
-                else:
-                    logger.debug(f"⚠️ Skipping {provider} - empty or missing API key")
-        except Exception as e:
-            logger.error(f"❌ Failed to sync API keys to shared data: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+        """DISABLED: SettingsManager now handles API key syncing"""
+        logger.debug("🚫 AppSettings API key sync disabled - SettingsManager handles this now")
+        pass
     
     # Convenience getter methods
     def get_worker_config(self) -> Dict:
@@ -294,7 +316,7 @@ class AppSettings:
         return self.get_worker_config().get("backend", "python")
     
     def save_settings(self, file_path: Path, data: Dict[str, Any]) -> bool:
-        """Save settings with API key encryption"""
+        """SIMPLE: Encrypt data and save to file"""
         try:
             # Create a copy to avoid modifying the original data
             encrypted_data = data.copy()
@@ -306,10 +328,8 @@ class AppSettings:
             from .loader import ConfigLoader
             ConfigLoader.save_config_file(file_path, encrypted_data)
             
-            logger.info(f"✅ Saved settings with encrypted API keys to: {file_path.name}")
-            
-            # Update our internal settings and sync to shared data
-            self.settings = data  # Keep unencrypted version in memory
+            # Keep unencrypted version in memory
+            self.settings = data.copy()
             self._sync_api_keys_to_shared_data(self.settings)
             
             # Update active file reference
@@ -320,12 +340,11 @@ class AppSettings:
             except Exception as e:
                 logger.warning(f"Failed to update active settings file reference: {e}")
             
+            logger.info(f"✅ Saved settings to: {file_path.name}")
             return True
             
         except Exception as e:
             logger.error(f"❌ Failed to save settings: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
             return False
 
     def merge_overrides(self, overrides: Dict[str, Any]):

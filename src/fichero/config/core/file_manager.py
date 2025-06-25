@@ -18,7 +18,6 @@ class FileManager(ABC):
     
     def __init__(self, app=None):
         self.app = app
-        self._cache = {}
         
     @abstractmethod
     def get_file_type(self) -> str:
@@ -104,16 +103,7 @@ class FileManager(ABC):
     def load_file(self, file_path: Path) -> Dict[str, Any]:
         """Load a configuration file"""
         try:
-            # Check cache first
-            cache_key = str(file_path)
-            if cache_key in self._cache:
-                return self._cache[cache_key].copy()
-            
             data = ConfigLoader.load_config_file(file_path)
-            
-            # Cache the data
-            self._cache[cache_key] = data.copy()
-            
             return data
         except Exception as e:
             logger.error(f"Failed to load file {file_path}: {e}")
@@ -123,11 +113,6 @@ class FileManager(ABC):
         """Save data to a configuration file"""
         try:
             ConfigLoader.save_config_file(file_path, data)
-            
-            # Update cache
-            cache_key = str(file_path)
-            self._cache[cache_key] = data.copy()
-            
             logger.info(f"Saved {file_path.name}")
             return True
             
@@ -247,12 +232,6 @@ class FileManager(ABC):
             
             # Delete the file
             file_path.unlink()
-            
-            # Remove from cache
-            cache_key = str(file_path)
-            if cache_key in self._cache:
-                del self._cache[cache_key]
-            
             logger.info(f"Deleted file: {file_path.name}")
             return True
             
@@ -284,13 +263,6 @@ class FileManager(ABC):
             
             # Rename the file
             old_path.rename(new_path)
-            
-            # Update cache
-            old_cache_key = str(old_path)
-            new_cache_key = str(new_path)
-            if old_cache_key in self._cache:
-                self._cache[new_cache_key] = self._cache[old_cache_key]
-                del self._cache[old_cache_key]
             
             # Update active file reference if this was the active file
             active_file = self.get_active_file()
@@ -337,9 +309,7 @@ class FileManager(ABC):
             # Fallback to filename
             return file_path.stem.replace("_", " ").title()
     
-    def clear_cache(self):
-        """Clear the file cache"""
-        self._cache.clear()
+
     
     def is_default_file(self, file_path: Path) -> bool:
         """Check if the file is a default file"""

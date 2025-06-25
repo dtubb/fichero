@@ -221,15 +221,30 @@ class AIBackgroundRemover:
             tool_logger.warning(f"Could not set up model cache: {e}")
             self.models_folder = None
     
-    def _get_session(self):
-        """Get or create rembg session with default model"""
-        if self._session is None:
+    def _get_session(self, model_name: str = "default"):
+        """Get or create rembg session with specified model"""
+        if self._session is None or getattr(self, '_current_model', None) != model_name:
             try:
                 import rembg
                 from rembg import new_session
-                tool_logger.info("Loading AI background removal model (this may take a moment on first use)...")
-                self._session = new_session()  # Use default model as it performed best (1.34s)
-                tool_logger.info("AI model loaded successfully")
+                tool_logger.info(f"Loading AI background removal model '{model_name}' (this may take a moment on first use)...")
+                
+                # Map user-friendly names to rembg model names
+                model_mapping = {
+                    "default": None,  # Default model
+                    "u2net": "u2net",
+                    "u2net_human": "u2net_human_seg", 
+                    "silueta": "silueta"
+                }
+                
+                rembg_model = model_mapping.get(model_name, None)
+                if rembg_model:
+                    self._session = new_session(rembg_model)
+                else:
+                    self._session = new_session()  # Default
+                
+                self._current_model = model_name
+                tool_logger.info(f"AI model '{model_name}' loaded successfully")
             except ImportError:
                 raise ImportError(
                     "rembg is required for AI background removal. "
@@ -237,18 +252,18 @@ class AIBackgroundRemover:
                 )
         return self._session
     
-    def remove_background(self, image: Image.Image) -> tuple[Image.Image, dict]:
+    def remove_background(self, image: Image.Image, ai_model: str = "default") -> tuple[Image.Image, dict]:
         """Remove background using AI model"""
         try:
             import rembg
             from rembg import remove
             
-            session = self._get_session()
+            session = self._get_session(ai_model)
             result = remove(image, session=session)
             
             params = {
                 "method": "ai_background_removal",
-                "model": "default",
+                "model": ai_model,
                 "original_size": list(image.size),
                 "result_size": list(result.size)
             }
@@ -269,20 +284,31 @@ class AIBackgroundRemover:
         out_pil = Image.fromarray(cropped_rgba, mode='RGBA')
         return out_pil, {"analysis": analysis_params}
 
-def remove_background_from_image(image: Image.Image, method: str = "opencv") -> tuple[Image.Image, dict]:
+# Shared AI background remover instance - models loaded once and reused
+_shared_ai_remover = None
+
+def get_ai_remover() -> AIBackgroundRemover:
+    """Get shared AI background remover instance - creates it only once"""
+    global _shared_ai_remover
+    if _shared_ai_remover is None:
+        _shared_ai_remover = AIBackgroundRemover()
+    return _shared_ai_remover
+
+def remove_background_from_image(image: Image.Image, method: str = "opencv", ai_model: str = "default") -> tuple[Image.Image, dict]:
     """
     Public pipeline: remove background using specified method.
     
     Args:
         image: PIL Image to process
         method: "opencv" (fast, document-optimized) or "ai" (high quality, general purpose)
+        ai_model: AI model to use when method="ai" ("default", "u2net", "u2net_human", "silueta")
     
     Returns:
         Tuple of (processed_image, analysis_params)
     """
     if method == "ai":
-        remover = AIBackgroundRemover()
-        return remover.remove_background(image)
+        remover = get_ai_remover()  # Use shared instance instead of creating new one
+        return remover.remove_background(image, ai_model)
     else:  # Default to opencv
         img_array = np.array(image)
         remover = BlackBackgroundRemoverMulti()
@@ -321,7 +347,7 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
         tool_logger.warning(f"Failed to save as JXL: {str(e)}")
         return False
 
-def process_image(file_path: Path, out_path: Path, output_format: str = 'png', method: str = "opencv") -> dict:
+def process_image(file_path: Path, out_path: Path, output_format: str = 'png', method: str = "opencv", ai_model: str = "default") -> dict:
     """Process a single image file for background removal"""
     # Use SegmentHandler for path handling
     rel_path = SegmentHandler.get_relative_path(file_path)
@@ -336,7 +362,7 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png', m
         return {"success": False, "error": f"Failed to load image: {e}"}
     
     # Remove background using specified method
-    bg_removed, params = remove_background_from_image(image, method)
+    bg_removed, params = remove_background_from_image(image, method, ai_model)
     
     # Save the result using the format utility
     final_path, actual_format = save_image(bg_removed, out_path, output_format)
@@ -348,7 +374,8 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png', m
         "output_format": actual_format,
         "input_metadata": metadata,
         "file_size": os.path.getsize(final_path) if final_path.exists() else 0,
-        "removal_method": method
+        "removal_method": method,
+        "ai_model": ai_model if method == "ai" else None
     }
     
     # Get the relative path for the output file
@@ -360,12 +387,12 @@ def process_image(file_path: Path, out_path: Path, output_format: str = 'png', m
         "details": details
     }
 
-def process_document(file_path: str, output_folder: Path, output_format: str = 'png', method: str = "opencv") -> dict:
+def process_document(file_path: str, output_folder: Path, output_format: str = 'png', method: str = "opencv", ai_model: str = "default") -> dict:
     """Process a single document file"""
     file_path = Path(file_path)
     
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o, output_format, method)
+        return process_image(Path(f), o, output_format, method, ai_model)
     
     # Get supported extensions and create file_types dict
     file_types = {ext: process_fn for ext in get_supported_extensions_list()}
@@ -383,6 +410,7 @@ def remove_background_batch(
     output_folder: Path,
     output_format: str,
     method: str = "opencv",
+    ai_model: str = "default",
     **kwargs
 ) -> dict:
     """
@@ -394,6 +422,7 @@ def remove_background_batch(
         output_folder: Output folder for background removed images
         output_format: Output format (png, jxl, jpg)
         method: Background removal method ("opencv" or "ai")
+        ai_model: AI model to use when method="ai" ("default", "u2net", "u2net_human", "silueta")
         
     Returns:
         Processing statistics dictionary
@@ -403,7 +432,7 @@ def remove_background_batch(
         output_folder=output_folder,
         process_name="background_removed",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format, method),
+        processor_fn=lambda f, o: process_document(f, o, output_format, method, ai_model),
         use_source=False
     )
     return processor.process()
@@ -416,7 +445,9 @@ def remove_background(
                                      help="Output format: png (with transparency), jxl (with transparency), or jpg (white background)",
                                      callback=validate_format),
     method: str = typer.Option("opencv", "--method", "-m",
-                              help="Background removal method: 'opencv' (fast, document-optimized) or 'ai' (high quality, general purpose)")
+                              help="Background removal method: 'opencv' (fast, document-optimized) or 'ai' (high quality, general purpose)"),
+    ai_model: str = typer.Option("default", "--ai-model", "-a",
+                                help="AI model when method='ai': 'default' (1.3s), 'u2net' (1.5s), 'u2net_human' (1.4s), 'silueta' (1.5s)")
 ):
     """
     CLI for background removal with multiple methods:
@@ -424,12 +455,18 @@ def remove_background(
     - opencv: Fast OpenCV-based method optimized for documents with black backgrounds
     - ai: High-quality AI method using rembg (works on any background type)
     
+    AI Models (when method='ai'):
+    - default: Best balanced performance (1.3s)
+    - u2net: General purpose, good quality (1.5s)  
+    - u2net_human: Optimized for people/portraits (1.4s)
+    - silueta: Fast AI option (1.5s)
+    
     Supports output formats:
     - png: PNG with transparency (default)
     - jxl: JPEG XL with transparency (requires cjxl installed)
     - jpg: JPEG with white background
     """
-    return remove_background_batch(source_folder, source_manifest, output_folder, output_format, method)
+    return remove_background_batch(source_folder, source_manifest, output_folder, output_format, method, ai_model)
 
 
 if __name__ == "__main__":

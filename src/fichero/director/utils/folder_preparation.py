@@ -151,6 +151,11 @@ def prepare_folder(input_folder: Path, output_folder: Path) -> Path:
                 dst_path = dst_folder / sanitized_name
                 dst_path.parent.mkdir(parents=True, exist_ok=True)
                 
+                # Skip if file already exists (avoid unnecessary copying)
+                if dst_path.exists():
+                    logger.debug(f"Skipped existing file: {item.name} -> {sanitized_name}")
+                    continue
+                
                 # Try APFS clone first (fast), fall back to regular copy
                 if not _try_apfs_clone(item, dst_path):
                     shutil.copy2(str(item), str(dst_path))

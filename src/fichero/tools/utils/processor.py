@@ -51,10 +51,12 @@ def process_file(
         
         # For skipped files, keep the expected output path
         if out_path.exists():
+            # Get the relative path for the output file (not the input file)
+            output_rel_path = get_relative_path(out_path)
             manifest_entry.update({
                 "success": True,
                 "skipped": True,
-                "outputs": [str(rel_path)]  # Use original path for skipped files
+                "outputs": [str(output_rel_path)]  # Use actual output path for skipped files
             })
             return manifest_entry
         

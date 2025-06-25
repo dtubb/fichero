@@ -99,6 +99,7 @@ def get_api_key(provider: str, cli_arg: Optional[str] = None) -> Optional[str]:
         api_key = shared_data.get_setting(f"api_key:{provider}")
         if api_key:
             tool_logger.info(f"🔑 Using shared data for {provider} API key ({shared_data.backend_name})")
+            tool_logger.info(f"🔍 DEBUG: {provider} key from shared data: {api_key[:20]}...{api_key[-10:]} (len={len(api_key)})")
             return api_key
         else:
             tool_logger.debug(f"No {provider} API key found in shared data")

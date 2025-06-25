@@ -161,8 +161,14 @@ class FileLibraryPanel(toga.Box):
         try:
             active_file = self.file_manager.get_active_file()
             
-            # Clear existing data
-            self.tree_view.data.clear()
+            # Clear existing data with error handling
+            try:
+                self.tree_view.data.clear()
+                logger.debug("Tree view data cleared")
+            except Exception as e:
+                logger.error(f"Error clearing tree view: {e}")
+                return
+            
             self.file_data.clear()
             
             # Get file information from file manager
@@ -183,37 +189,59 @@ class FileLibraryPanel(toga.Box):
             default_files = [f for f in files if f["folder_type"] == "default"]
             custom_files = [f for f in files if f["folder_type"] == "custom"]
             
-            # Add Default folder
-            self.default_folder_node = self.tree_view.data.append({
-                "name": "📁 Default"
-            })
+            # Add Default folder with error handling
+            try:
+                self.default_folder_node = self.tree_view.data.append({
+                    "name": "📁 Default"
+                })
+                logger.debug("Default folder node created")
+            except Exception as e:
+                logger.error(f"Error creating default folder node: {e}")
+                return
             
             # Add default files
             for file_info in default_files:
-                display_name = self._get_display_name(file_info)
-                node_data = {
-                    "name": display_name,
-                    "file_path": str(file_info["path"])
-                }
-                self.default_folder_node.append(node_data)
+                try:
+                    display_name = self._get_display_name(file_info)
+                    node_data = {
+                        "name": display_name,
+                        "file_path": str(file_info["path"])
+                    }
+                    self.default_folder_node.append(node_data)
+                except Exception as e:
+                    logger.error(f"Error adding default file {file_info.get('name', 'unknown')}: {e}")
             
-            # Add Custom folder
-            self.custom_folder_node = self.tree_view.data.append({
-                "name": "📁 Custom"
-            })
+            # Add Custom folder with error handling
+            try:
+                self.custom_folder_node = self.tree_view.data.append({
+                    "name": "📁 Custom"
+                })
+                logger.debug("Custom folder node created")
+            except Exception as e:
+                logger.error(f"Error creating custom folder node: {e}")
+                return
             
             # Add custom files
             for file_info in custom_files:
-                display_name = self._get_display_name(file_info)
-                node_data = {
-                    "name": display_name,
-                    "file_path": str(file_info["path"])
-                }
-                self.custom_folder_node.append(node_data)
+                try:
+                    display_name = self._get_display_name(file_info)
+                    node_data = {
+                        "name": display_name,
+                        "file_path": str(file_info["path"])
+                    }
+                    self.custom_folder_node.append(node_data)
+                except Exception as e:
+                    logger.error(f"Error adding custom file {file_info.get('name', 'unknown')}: {e}")
             
-            # Expand folders
-            self.tree_view.expand(self.default_folder_node)
-            self.tree_view.expand(self.custom_folder_node)
+            # Expand folders with error handling
+            try:
+                if self.default_folder_node:
+                    self.tree_view.expand(self.default_folder_node)
+                if self.custom_folder_node:
+                    self.tree_view.expand(self.custom_folder_node)
+                logger.debug("Tree view folders expanded")
+            except Exception as e:
+                logger.error(f"Error expanding tree view folders: {e}")
             
         except Exception as e:
             logger.error(f"Failed to refresh files: {e}")
@@ -387,13 +415,45 @@ class FileLibraryPanel(toga.Box):
                 if self.file_manager.get_active_file() == file_path:
                     self.file_manager.set_active_file(new_file_path)
                 
-                self.refresh_files()
-                self.update_active_file_indicator()
+                # Schedule GUI updates on next tick to avoid timing issues
+                self._schedule_safe_refresh()
             else:
                 logger.warning(f"Failed to rename file: {file_path.name}")
                 
         except Exception as e:
             logger.error(f"Failed to perform rename: {e}")
+    
+    def _schedule_safe_refresh(self):
+        """Schedule a safe GUI refresh with defensive error handling"""
+        try:
+            # Just do the refresh with better error handling
+            self._safe_refresh()
+        except Exception as e:
+            logger.error(f"Failed to schedule refresh: {e}")
+    
+    def _safe_refresh(self, widget=None):
+        """Safely refresh GUI components with error handling"""
+        try:
+            logger.debug("Performing safe GUI refresh after rename")
+            
+            # Refresh files list first
+            try:
+                self.refresh_files()
+                logger.debug("File list refresh completed")
+            except Exception as e:
+                logger.error(f"Error refreshing file list: {e}")
+            
+            # Update active file indicator separately
+            try:
+                self.update_active_file_indicator()
+                logger.debug("Active file indicator updated")
+            except Exception as e:
+                logger.error(f"Error updating active file indicator: {e}")
+            
+            logger.debug("GUI refresh completed")
+        except Exception as e:
+            logger.error(f"Critical error during GUI refresh: {e}")
+            # Don't re-raise to avoid crashes
     
     def _handle_import(self, widget):
         """Handle import file button"""

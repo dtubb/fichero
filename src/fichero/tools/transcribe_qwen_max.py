@@ -26,31 +26,6 @@ except ImportError:
 # Configure tool_logger
 tool_logger = get_tool_logger('transcribe_qwen_max')
 
-# Enhanced timeout and retry configuration
-API_TIMEOUT = 120.0  # Increased from 60 to 120 seconds
-MAX_RETRIES = 5      # Increased from 3 to 5 retries
-INITIAL_RETRY_DELAY = 2.0  # Increased initial delay
-
-def is_timeout_error(error: Exception) -> bool:
-    """Check if error is a timeout-related error"""
-    error_str = str(error).lower()
-    timeout_indicators = [
-        'timeout', 'timed out', 'request timed out',
-        'connection timeout', 'read timeout',
-        'deadline exceeded', 'timeout exceeded'
-    ]
-    return any(indicator in error_str for indicator in timeout_indicators)
-
-def is_recoverable_error(error: Exception) -> bool:
-    """Check if error is recoverable and worth retrying"""
-    error_str = str(error).lower()
-    recoverable_indicators = [
-        'timeout', 'timed out', 'connection',
-        'network', 'temporary', 'busy',
-        'rate limit', 'throttling', 'overloaded'
-    ]
-    return any(indicator in error_str for indicator in recoverable_indicators)
-
 # Base 64 encoding format
 def encode_image(image: Image.Image) -> str:
     """Encode image to base64 for API"""
@@ -78,7 +53,7 @@ def encode_image(image: Image.Image) -> str:
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
-    """Process a single image file synchronously with enhanced timeout handling"""
+    """Process a single image file synchronously"""
     # Ensure output directory exists
     out_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -110,35 +85,38 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
             tool_logger.info(f"Original image size: {orig_width}x{orig_height}")
         except Exception as e:
             tool_logger.error(f"Failed to open image {file_path}: {e}")
+            # Save error to transcription file
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(f"[ERROR] Failed to open image: {e}")
             return {
                 "error": f"Failed to open image: {e}",
                 "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                "source": str(SegmentHandler.get_relative_path(file_path)),
-                "recoverable": False
+                "source": str(SegmentHandler.get_relative_path(file_path))
             }
         
         # Encode image for API
         base64_image = encode_image(image)
         
-        # Initialize synchronous OpenAI client with increased timeout
+        # Initialize synchronous OpenAI client with doubled timeout
         client = OpenAI(
             api_key=api_key,
             base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            timeout=API_TIMEOUT
+            timeout=120.0  # Doubled from 60 to 120 seconds
         )
         
         try:
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
             tool_logger.info(f"[{timestamp}] Sending to Qwen API: {file_path.name}")
             
-            # Enhanced retry logic for API calls with timeout-specific handling
-            retry_delay = INITIAL_RETRY_DELAY
+            # Retry logic for API calls
+            max_retries = 3
+            retry_delay = 1.0
             
-            for attempt in range(MAX_RETRIES):
+            for attempt in range(max_retries):
                 try:
-                    tool_logger.info(f"🌐 Calling Qwen API (attempt {attempt + 1}/{MAX_RETRIES}) for: {file_path.name}")
+                    tool_logger.info(f"🌐 Calling Qwen API (attempt {attempt + 1}/{max_retries}) for: {file_path.name}")
                     
-                    # Synchronous API call with increased timeout
+                    # Synchronous API call with doubled timeout
                     completion = client.chat.completions.create(
                         model="qwen-vl-max",
                         messages=[{
@@ -148,50 +126,40 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
                                 {"type": "text", "text": "Extract all text line by line. Do not number lines. SKIP UNREADABLE TEXT. PUT IN SQUARE BRACKETS [GUESSES AND UNCERTAIN] TEXT. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."}
                             ]
                         }],
-                        timeout=API_TIMEOUT
+                        timeout=120  # Doubled from 60 to 120 seconds
                     )
                     tool_logger.info(f"✅ API call succeeded for: {file_path.name}")
                     break
                     
                 except Exception as api_error:
-                    is_timeout = is_timeout_error(api_error)
-                    is_recoverable = is_recoverable_error(api_error)
+                    # Check for 401 API key errors - these should stop everything
+                    error_str = str(api_error).lower()
+                    is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
                     
-                    if attempt < MAX_RETRIES - 1:
-                        if is_timeout:
-                            tool_logger.warning(f"⏰ Timeout error (attempt {attempt + 1}/{MAX_RETRIES}): {api_error}")
-                            tool_logger.info(f"🔄 Retrying with longer delay in {retry_delay:.1f} seconds...")
-                        elif is_recoverable:
-                            tool_logger.warning(f"🔄 Recoverable error (attempt {attempt + 1}/{MAX_RETRIES}): {api_error}")
-                            tool_logger.info(f"🔄 Retrying in {retry_delay:.1f} seconds...")
-                        else:
-                            tool_logger.warning(f"❌ Non-recoverable error (attempt {attempt + 1}/{MAX_RETRIES}): {api_error}")
-                            tool_logger.info(f"🔄 Final retry attempt in {retry_delay:.1f} seconds...")
-                        
+                    if is_auth_error:
+                        tool_logger.error(f"🔑 FATAL: Invalid API key error: {api_error}")
+                        # Save error to file and raise to stop batch processing
+                        with open(out_path, 'w', encoding='utf-8') as f:
+                            f.write(f"[ERROR] Invalid API key: {api_error}")
+                        raise ValueError(f"Invalid API key - processing stopped: {api_error}")
+                    
+                    if attempt < max_retries - 1:
+                        tool_logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
+                        tool_logger.info(f"Retrying in {retry_delay:.1f} seconds...")
                         time.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
+                        retry_delay *= 2
                     else:
-                        # Final attempt failed - but make timeout errors non-fatal
-                        if is_timeout:
-                            tool_logger.error(f"⏰ TIMEOUT: API call failed after {MAX_RETRIES} attempts: {api_error}")
-                            tool_logger.warning(f"⚠️ Skipping {file_path.name} due to persistent timeout - continuing with other files")
-                            return {
-                                "error": f"Timeout after {MAX_RETRIES} attempts: {api_error}",
-                                "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                                "source": str(SegmentHandler.get_relative_path(file_path)),
-                                "timeout": True,
-                                "recoverable": True,
-                                "attempts": MAX_RETRIES
-                            }
-                        else:
-                            tool_logger.error(f"❌ API call failed after {MAX_RETRIES} attempts: {api_error}")
-                            return {
-                                "error": f"API failed after {MAX_RETRIES} attempts: {api_error}",
-                                "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                                "source": str(SegmentHandler.get_relative_path(file_path)),
-                                "recoverable": is_recoverable,
-                                "attempts": MAX_RETRIES
-                            }
+                        # Final attempt failed - continue with other files (don't raise)
+                        tool_logger.error(f"❌ API call failed after {max_retries} attempts: {api_error}")
+                        tool_logger.warning(f"⚠️ Continuing with other files...")
+                        # Save error to transcription file
+                        with open(out_path, 'w', encoding='utf-8') as f:
+                            f.write(f"[ERROR] API call failed after {max_retries} attempts: {api_error}")
+                        return {
+                            "error": f"API call failed after {max_retries} attempts: {api_error}",
+                            "outputs": [str(SegmentHandler.get_relative_path(out_path))],
+                            "source": str(SegmentHandler.get_relative_path(file_path))
+                        }
         
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
             tool_logger.info(f"[{timestamp}] Received response from Qwen API for: {file_path.name}")
@@ -208,7 +176,6 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
             result = {
                 "outputs": [str(rel_path.with_suffix('.txt'))],
                 "source": str(rel_path),
-                "success": True,
                 "details": {
                     "has_content": bool(transcription.strip()),
                     "text_length": len(transcription.strip()),
@@ -238,21 +205,30 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
             
         except Exception as e:
             tool_logger.error(f"API processing failed for {file_path}: {str(e)}")
-            # Make sure this doesn't stop the entire batch
+            # Check if this is a fatal API key error
+            error_str = str(e).lower()
+            is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
+            if is_auth_error:
+                tool_logger.error(f"🔑 FATAL: Invalid API key error in API processing: {e}")
+                raise ValueError(f"Invalid API key - processing stopped: {e}")
+            # Otherwise continue with other files
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(f"[ERROR] API processing failed: {e}")
             return {
-                "error": f"Processing failed: {str(e)}",
+                "error": str(e),
                 "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                "source": str(SegmentHandler.get_relative_path(file_path)),
-                "recoverable": is_recoverable_error(e)
+                "source": str(SegmentHandler.get_relative_path(file_path))
             }
         
     except Exception as e:
         tool_logger.error(f"Error processing image {file_path}: {str(e)}")
+        # Save error to transcription file
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(f"[ERROR] Error processing image: {e}")
         return {
             "error": str(e),
             "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-            "source": str(SegmentHandler.get_relative_path(file_path)),
-            "recoverable": False
+            "source": str(SegmentHandler.get_relative_path(file_path))
         }
 
 def transcribe_batch(
@@ -274,20 +250,42 @@ def transcribe_batch(
     if not api_key:
         raise ValueError("Qwen API key required")
     
+    # Test API key validity before starting any processing
+    tool_logger.info("🔑 Testing API key validity before starting batch processing...")
+    try:
+        test_client = OpenAI(
+            api_key=api_key,
+            base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            timeout=30.0
+        )
+        # Make a minimal API call to test the key
+        test_response = test_client.chat.completions.create(
+            model="qwen-vl-max",
+            messages=[{
+                "role": "user", 
+                "content": [{"type": "text", "text": "test"}]
+            }],
+            timeout=30
+        )
+        tool_logger.info("✅ API key validated successfully")
+    except Exception as e:
+        error_str = str(e).lower()
+        if "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str:
+            tool_logger.error(f"🔑 FATAL: Invalid API key detected before processing started: {e}")
+            raise ValueError(f"Invalid API key - processing stopped: {e}")
+        else:
+            tool_logger.warning(f"⚠️ API key test failed (but may be transient): {e}")
+            tool_logger.info("Proceeding with batch processing...")
+    
     # Create a custom batch processor that handles parallel processing
     class ParallelBatchProcessor(BatchProcessor):
         def __init__(self, *args, api_key=None, **kwargs):
             super().__init__(*args, **kwargs)
             self.api_key = api_key
-            self.current_workers = 5  # Start with 5 workers
-            self.timeout_count = 0
-            self.total_processed = 0
-            self.batch_count = 0
             
         def process_batch_parallel(self, batch: list):
-            """Process a batch of files using adaptive parallel processing"""
-            self.batch_count += 1
-            tool_logger.info(f"⚡ Starting parallel processing for {len(batch)} files (Batch {self.batch_count})")
+            """Process a batch of files using parallel processing"""
+            tool_logger.info(f"⚡ Starting parallel processing for {len(batch)} files")
             
             # Prepare file tasks
             file_tasks = []
@@ -317,21 +315,12 @@ def transcribe_batch(
                 tool_logger.warning("⚠️ No tasks created for batch")
                 return []
             
-            # Adaptive worker count based on timeout history
-            timeout_rate = self.timeout_count / max(self.total_processed, 1)
-            
-            if timeout_rate > 0.3 and self.current_workers > 1:  # More than 30% timeouts
-                self.current_workers = max(1, self.current_workers - 1)
-                tool_logger.warning(f"🔻 High timeout rate ({timeout_rate:.1%}), reducing workers to {self.current_workers}")
-            elif timeout_rate < 0.1 and self.current_workers < 5:  # Less than 10% timeouts
-                self.current_workers = min(5, self.current_workers + 1)
-                tool_logger.info(f"🔺 Low timeout rate ({timeout_rate:.1%}), increasing workers to {self.current_workers}")
-            
-            # Use adaptive worker count
-            max_workers = min(self.current_workers, len(file_tasks))
-            tool_logger.info(f"🧵 Using ThreadPoolExecutor with {max_workers} workers (adaptive: {timeout_rate:.1%} timeout rate)")
+            # Process using ThreadPoolExecutor with synchronous functions - start with 5 workers
+            max_workers = min(5, len(file_tasks))  # Start with 5 workers as requested
+            tool_logger.info(f"🧵 Using ThreadPoolExecutor with {max_workers} workers")
             
             results = []
+            api_key_error_detected = False
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all tasks
@@ -340,38 +329,35 @@ def transcribe_batch(
                     for full_path, out_path, api_key in file_tasks
                 }
                 
-                # Collect results as they complete with enhanced error handling
+                # Collect results as they complete
                 for future in concurrent.futures.as_completed(future_to_path):
                     file_path = future_to_path[future]
                     try:
                         result = future.result()
                         results.append(result)
-                        
-                        # Log different types of completion
-                        if result.get("timeout"):
-                            tool_logger.warning(f"⏰ Timeout (but continuing): {file_path.name}")
-                        elif result.get("error"):
-                            tool_logger.warning(f"⚠️ Error (but continuing): {file_path.name}")
-                        else:
-                            tool_logger.info(f"✅ Completed processing: {file_path.name}")
-                            
+                        tool_logger.info(f"✅ Completed processing: {file_path.name}")
                     except Exception as e:
-                        # This should rarely happen now since process_image_sync catches most errors
-                        is_timeout = is_timeout_error(e)
-                        is_recoverable = is_recoverable_error(e)
-                        
-                        if is_timeout:
-                            tool_logger.error(f"⏰ Thread timeout {file_path.name}: {e}")
-                        else:
-                            tool_logger.error(f"❌ Thread failed {file_path.name}: {e}")
+                        # Check if this is a fatal API key error that should stop everything
+                        error_str = str(e).lower()
+                        is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
+                        if is_auth_error:
+                            tool_logger.error(f"🔑 FATAL: Invalid API key error detected, stopping ALL processing immediately: {e}")
+                            api_key_error_detected = True
                             
+                            # Cancel all remaining futures
+                            for pending_future in future_to_path:
+                                if not pending_future.done():
+                                    pending_future.cancel()
+                                    tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
+                            
+                            # Raise immediately to stop everything
+                            raise ValueError(f"Invalid API key - all processing stopped: {e}")
+                        
+                        tool_logger.error(f"❌ Failed processing {file_path.name}: {e}")
                         results.append({
                             "error": str(e),
-                            "outputs": [str(SegmentHandler.get_relative_path(file_path.with_suffix('.txt')))],
-                            "source": str(SegmentHandler.get_relative_path(file_path)),
-                            "timeout": is_timeout,
-                            "recoverable": is_recoverable,
-                            "thread_error": True
+                            "outputs": [],
+                            "source": str(file_path)
                         })
             
             tool_logger.info(f"✅ Parallel processing complete, got {len(results)} results")
@@ -393,54 +379,19 @@ def transcribe_batch(
             time_saved = sequential_estimate - batch_time
             tool_logger.info(f"Time saved: {time_saved:.1f}s ({(time_saved / sequential_estimate * 100):.0f}%)")
             
-            # Process results with enhanced error categorization and adaptive tracking
-            batch_timeout_count = 0
-            recoverable_errors = 0
-            batch_processed = 0
-            
+            # Process results
             for result in results:
                 if isinstance(result, dict):
                     self.output_proc.save_entry(result)
                     if result.get("error"):
-                        if result.get("timeout"):
-                            batch_timeout_count += 1
-                            self.timeout_count += 1  # Track global timeouts
-                            tool_logger.warning(f"⏰ Timeout: {result.get('source', 'unknown')}")
-                        elif result.get("recoverable"):
-                            recoverable_errors += 1
                         stats["failed"] += 1
                     elif result.get("skipped"):
                         stats["skipped"] += 1
-                    elif result.get("success"):
-                        stats["processed"] += 1
-                        batch_processed += 1
                     else:
-                        stats["processed"] += 1  # Default to processed if no clear status
-                        batch_processed += 1
-                        
-                    # Track total processed for adaptive algorithm
-                    self.total_processed += 1
-            
-            # Log batch timeout summary and adaptive adjustments
-            if batch_timeout_count > 0:
-                batch_timeout_rate = batch_timeout_count / len(results)
-                tool_logger.warning(f"⏰ Batch {self.batch_count}: {batch_timeout_count}/{len(results)} files timed out ({batch_timeout_rate:.1%})")
-                
-                # Immediate adjustment for very high timeout rates in this batch
-                if batch_timeout_rate > 0.5 and self.current_workers > 1:
-                    old_workers = self.current_workers
-                    self.current_workers = max(1, self.current_workers - 1)
-                    tool_logger.warning(f"🚨 Emergency reduction: {old_workers} → {self.current_workers} workers due to {batch_timeout_rate:.1%} timeout rate")
-                    
-            if recoverable_errors > 0:
-                tool_logger.info(f"🔄 {recoverable_errors} recoverable errors occurred")
-                
-            # Log adaptive status
-            global_timeout_rate = self.timeout_count / max(self.total_processed, 1)
-            tool_logger.info(f"📊 Global stats: {self.timeout_count}/{self.total_processed} timeouts ({global_timeout_rate:.1%}), using {self.current_workers} workers")
+                        stats["processed"] += 1
                 
         def process(self):
-            """Override to add timing summary with enhanced error reporting"""
+            """Override to add timing summary"""
             result = super().process()
             
             # Show overall summary
@@ -448,23 +399,9 @@ def transcribe_batch(
             
             tool_logger.info("🚀 Parallel Processing Summary:")
             tool_logger.info(f"Total images: {total_images}")
-            tool_logger.info(f"✅ Processed: {result.get('processed', 0)}")
-            tool_logger.info(f"⏭️ Skipped: {result.get('skipped', 0)}")
-            tool_logger.info(f"❌ Failed: {result.get('failed', 0)}")
-            
-            # Count timeout and recoverable errors from manifest
-            if hasattr(self, 'output_proc') and hasattr(self.output_proc, 'manifest_data'):
-                timeout_errors = sum(1 for entry in self.output_proc.manifest_data if entry.get('timeout'))
-                recoverable_errors = sum(1 for entry in self.output_proc.manifest_data if entry.get('recoverable') and not entry.get('timeout'))
-                
-                if timeout_errors > 0:
-                    tool_logger.warning(f"⏰ Timeout errors: {timeout_errors} (these files can be retried later)")
-                if recoverable_errors > 0:
-                    tool_logger.info(f"🔄 Other recoverable errors: {recoverable_errors}")
-                
-                if timeout_errors > 0 or recoverable_errors > 0:
-                    tool_logger.info(f"💡 Enhanced timeout handling: Doubled timeout to {API_TIMEOUT}s, increased retries to {MAX_RETRIES}")
-                    tool_logger.info(f"💡 Timeout errors are now non-fatal and don't stop batch processing")
+            tool_logger.info(f"Processed: {result.get('processed', 0)}")
+            tool_logger.info(f"Skipped: {result.get('skipped', 0)}")
+            tool_logger.info(f"Failed: {result.get('failed', 0)}")
                 
             return result
 

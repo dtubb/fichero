@@ -521,17 +521,41 @@ class BaseConfigLibrary(ABC):
         current_steps = workflows.get(current_workflow, []) if workflows else []
         
         step_widgets = {}
+        
+        # Build dependency information for visualization
+        command_dependencies = {}
+        for cmd in commands:
+            cmd_name = cmd.get('name', '')
+            dependencies = cmd.get('depends_on', [])
+            command_dependencies[cmd_name] = dependencies
+        
         for command_name in available_commands:
             step_enabled = command_name in current_steps
             
+            # Create step container with checkbox and dependency info
+            step_container = toga.Box(style=Pack(direction=COLUMN, margin_bottom=3))
+            
+            # Main checkbox for the step
             step_checkbox = toga.Switch(
                 command_name,
                 value=step_enabled,
-                style=Pack(margin_bottom=2, font_size=9),
+                style=Pack(margin_bottom=1, font_size=9),
                 on_change=self._on_workflow_step_change
             )
             
-            steps_box.add(step_checkbox)
+            step_container.add(step_checkbox)
+            
+            # Add dependency information if available
+            dependencies = command_dependencies.get(command_name, [])
+            if dependencies:
+                dep_text = f"   ↳ Depends on: {', '.join(dependencies)}"
+                dep_label = toga.Label(
+                    dep_text,
+                    style=Pack(font_size=8, margin_left=15, margin_bottom=2, color="#666666")
+                )
+                step_container.add(dep_label)
+            
+            steps_box.add(step_container)
             step_widgets[command_name] = step_checkbox
         
         steps_container.content = steps_box
