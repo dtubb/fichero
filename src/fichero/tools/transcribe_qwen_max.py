@@ -149,7 +149,18 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
                         time.sleep(retry_delay)
                         retry_delay *= 2
                     else:
-                        # Final attempt failed - continue with other files (don't raise)
+                        # Final attempt failed - check if this is a connection error that should stop everything
+                        error_str = str(api_error).lower()
+                        is_connection_error = "connection error" in error_str
+                        
+                        if is_connection_error:
+                            tool_logger.error(f"🌐 FATAL: Connection error after {max_retries} attempts: {api_error}")
+                            # Save error to file and raise to stop batch processing
+                            with open(out_path, 'w', encoding='utf-8') as f:
+                                f.write(f"[ERROR] API call failed after {max_retries} attempts: {api_error}")
+                            raise ValueError(f"Connection error after {max_retries} attempts - processing stopped: {api_error}")
+                        
+                        # Other errors - continue with other files (don't raise)
                         tool_logger.error(f"❌ API call failed after {max_retries} attempts: {api_error}")
                         tool_logger.warning(f"⚠️ Continuing with other files...")
                         # Save error to transcription file
@@ -337,9 +348,11 @@ def transcribe_batch(
                         results.append(result)
                         tool_logger.info(f"✅ Completed processing: {file_path.name}")
                     except Exception as e:
-                        # Check if this is a fatal API key error that should stop everything
+                        # Check if this is a fatal error that should stop everything
                         error_str = str(e).lower()
                         is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
+                        is_connection_error = "connection error" in error_str
+                        
                         if is_auth_error:
                             tool_logger.error(f"🔑 FATAL: Invalid API key error detected, stopping ALL processing immediately: {e}")
                             api_key_error_detected = True
@@ -352,6 +365,18 @@ def transcribe_batch(
                             
                             # Raise immediately to stop everything
                             raise ValueError(f"Invalid API key - all processing stopped: {e}")
+                        
+                        elif is_connection_error:
+                            tool_logger.error(f"🌐 FATAL: Connection error detected, stopping ALL processing immediately: {e}")
+                            
+                            # Cancel all remaining futures
+                            for pending_future in future_to_path:
+                                if not pending_future.done():
+                                    pending_future.cancel()
+                                    tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
+                            
+                            # Raise immediately to stop everything
+                            raise ValueError(f"Connection error - all processing stopped: {e}")
                         
                         tool_logger.error(f"❌ Failed processing {file_path.name}: {e}")
                         results.append({

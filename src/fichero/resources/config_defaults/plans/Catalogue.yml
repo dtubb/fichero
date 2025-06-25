@@ -17,7 +17,7 @@ vars:
   # Background removal method
   background_removal_method: "ai"      # "opencv" (fast, document-optimized) or "ai" (high quality, slower)
   # AI model for background removal (when method is "ai")
-  background_removal_ai_model: "u2net"    # "default", "u2net", "u2net_human", "silueta"
+  background_removal_ai_model: "u2net_human"    # "default", "u2net", "u2net_human", "silueta"
   project_folder: ''
   documents_folder: ''
   assets_folder: ''

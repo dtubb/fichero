@@ -64,9 +64,17 @@ class CoreCommands:
         error_handler = create_cli_error_handler(self.console)
         
         try:
-            # Basic validation
+            # Basic validation with helpful error messaging
             if not input_folder.exists():
                 self.console.print(f"❌ Input folder does not exist: {input_folder}", style="red")
+                
+                # Check if this looks like a path splitting issue (common with spaces)
+                input_str = str(input_folder)
+                if ' ' in input_str and not (input_str.startswith('"') and input_str.endswith('"')):
+                    self.console.print("💡 Tip: Paths with spaces need quotes, e.g.:", style="dim")
+                    self.console.print(f'   python -m fichero process "{input_folder}"', style="dim")
+                    self.console.print("   Or escape spaces with backslashes", style="dim")
+                
                 raise typer.Exit(1)
             
             if not self.director or not FicheroDirector.is_initialized():
