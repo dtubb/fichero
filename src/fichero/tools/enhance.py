@@ -3,6 +3,7 @@ from PIL import Image, ImageEnhance, ImageOps
 from pathlib import Path
 import numpy as np
 import cv2
+
 # Import utilities with fallback for standalone execution
 try:
     # Try absolute imports first (when run from app context)
@@ -11,6 +12,7 @@ try:
     from fichero.tools.utils.segment_handler import SegmentHandler
     from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # Fall back to relative imports (when run standalone)
     from utils.batch import BatchProcessor
@@ -18,12 +20,16 @@ except ImportError:
     from utils.segment_handler import SegmentHandler
     from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from utils.tool_logger import get_tool_logger
+    from utils.parallel_batch_processor import create_parallel_batch_processor
+
 from typing import Literal
 import pytesseract
 from sklearn.cluster import KMeans
 from collections import Counter
 
 tool_logger = get_tool_logger('enhance')
+
+
 
 DocumentType = Literal['handwritten', 'typescript', 'mixed']
 PaperType = Literal['lined', 'plain']
@@ -255,6 +261,7 @@ def enhance_batch(
     source_manifest: Path,
     output_folder: Path,
     output_format: str = "jpg",
+    parallel_workers: int = 1,
     **kwargs
 ) -> dict:
     """
@@ -263,12 +270,17 @@ def enhance_batch(
     Returns:
         Processing statistics dictionary
     """
-    processor = BatchProcessor(
+    # Create parallel-enabled batch processor using shared utility
+    ParallelEnhanceProcessor = create_parallel_batch_processor("enhance", BatchProcessor, process_image)
+    
+    processor = ParallelEnhanceProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="enhance",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format)
+        processor_fn=lambda f, o: process_document(f, o, output_format),  # Fallback for sequential
+        output_format=output_format,
+        parallel_workers=parallel_workers
     )
     return processor.process()
 

@@ -255,6 +255,21 @@ class PythonProcessingBackend(ProcessingBackend):
             logger.warning(f"Error determining executor for task {task.task_id}: {e}")
             return self.io_executor  # Safe default for transcription tasks
     
+    def _get_parallel_workers_for_task(self, task: FolderTask) -> int:
+        """Determine how many parallel workers to allow for this task based on current load"""
+        with self._lock:
+            # Count currently active tasks (excluding this one which isn't started yet)
+            active_count = len([t for t, status in self.active_tasks.items() 
+                              if status in [ProcessingStatus.PENDING, ProcessingStatus.RUNNING]])
+            
+            # Simple logic: Multiple folders = sequential tools, Single folder = parallel tools
+            if active_count > 1:
+                logger.info(f"Multiple folders active ({active_count}), using sequential tool processing for task {task.task_id}")
+                return 1  # Multiple folders: tools run sequentially to avoid overwhelming system
+            else:
+                logger.info(f"Single folder processing, enabling parallel tool processing for task {task.task_id} ({self.cpu_workers} workers)")
+                return self.cpu_workers  # Single folder: tools can use all configured CPU workers for speed
+    
     def get_status(self, task_id: str) -> ProcessingStatus:
         """Get current status of a task"""
         with self._lock:
@@ -559,6 +574,9 @@ class PythonProcessingBackend(ProcessingBackend):
                 self.task_executors = getattr(self, 'task_executors', {})
                 self.task_executors[task.task_id] = executor
             
+            # Determine parallel workers based on current load
+            parallel_workers = self._get_parallel_workers_for_task(task)
+            
             # Execute workflow with full integration
             result = executor.execute_workflow(
                 task_id=task.task_id,
@@ -566,7 +584,8 @@ class PythonProcessingBackend(ProcessingBackend):
                 output_path=task.output_path,
                 workflow_name=task.workflow_name,
                 plan_config=task.plan_config,
-                variables=task.variables
+                variables=task.variables,
+                parallel_workers=parallel_workers
             )
             
             # Clean up executor reference

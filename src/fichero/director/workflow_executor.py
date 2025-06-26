@@ -42,7 +42,8 @@ class WorkflowExecutor:
             clear_workflow_context()
 
     def execute_workflow(self, task_id: str, folder_path: Path, output_path: Path, 
-                        workflow_name: str, plan_config: Dict, variables: Dict) -> ProcessingResult:
+                        workflow_name: str, plan_config: Dict, variables: Dict, 
+                        parallel_workers: int = 1) -> ProcessingResult:
         """Execute workflow steps until completion or first error"""
         start_time = time.time()
         workflow_logger = None
@@ -89,7 +90,7 @@ class WorkflowExecutor:
                         "step": step_name
                     })
                 
-                result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger)
+                result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger, parallel_workers)
                 
                 # Stop on any error - check both success field and failed count
                 if not result.get('success', True) or result.get('failed', 0) > 0:
@@ -159,7 +160,7 @@ class WorkflowExecutor:
         self._cancelled = True
     
     def _execute_step(self, step_name: str, command_config: Dict, output_path: Path, 
-                     variables: Dict, workflow_logger: WorkflowLogger) -> Dict:
+                     variables: Dict, workflow_logger: WorkflowLogger, parallel_workers: int = 1) -> Dict:
         """Execute a single step"""
         step_start = time.time()
         
@@ -227,6 +228,9 @@ class WorkflowExecutor:
                 else:
                     # For non-string values (like booleans, integers), pass through as-is
                     expanded_args[key] = value
+            
+            # Add parallel processing parameter for tools that support it
+            expanded_args['parallel_workers'] = parallel_workers
             
             # Log step start
             workflow_logger.log_step_start(step_name, function_path, expanded_args)

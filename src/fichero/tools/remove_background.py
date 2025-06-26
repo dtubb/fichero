@@ -16,6 +16,7 @@ try:
     from fichero.tools.utils.segment_handler import SegmentHandler
     from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # When run as standalone script (relative imports work)
     from utils.batch import BatchProcessor
@@ -23,6 +24,7 @@ except ImportError:
     from utils.segment_handler import SegmentHandler
     from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from utils.tool_logger import get_tool_logger
+    from utils.parallel_batch_processor import create_parallel_batch_processor
 
 tool_logger = get_tool_logger('remove_background')
 
@@ -47,6 +49,8 @@ class BlackBackgroundRemoverMulti:
         F) Crop to bounding box of alpha
         G) Return final RGBA + debug params
         """
+        # DEBUG: Log that OpenCV method is being executed
+        tool_logger.info(f"🔧 DEBUG: BlackBackgroundRemoverMulti.remove_background() executing OpenCV method")
 
         # Convert to grayscale
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
@@ -306,10 +310,15 @@ def remove_background_from_image(image: Image.Image, method: str = "opencv", ai_
     Returns:
         Tuple of (processed_image, analysis_params)
     """
+    # DEBUG: Log the method being used for each image
+    tool_logger.info(f"🔧 DEBUG: remove_background_from_image called with method='{method}', ai_model='{ai_model}'")
+    
     if method == "ai":
+        tool_logger.info(f"🤖 Using AI background removal with model: {ai_model}")
         remover = get_ai_remover()  # Use shared instance instead of creating new one
         return remover.remove_background(image, ai_model)
     else:  # Default to opencv
+        tool_logger.info(f"🔧 Using OpenCV background removal (BlackBackgroundRemoverMulti)")
         img_array = np.array(image)
         remover = BlackBackgroundRemoverMulti()
         cropped_rgba, analysis_params = remover.remove_background(img_array)
@@ -411,6 +420,7 @@ def remove_background_batch(
     output_format: str,
     method: str = "opencv",
     ai_model: str = "default",
+    parallel_workers: int = 1,
     **kwargs
 ) -> dict:
     """
@@ -427,13 +437,35 @@ def remove_background_batch(
     Returns:
         Processing statistics dictionary
     """
-    processor = BatchProcessor(
+    # DEBUG: Log the actual parameters received
+    tool_logger.info(f"🔧 DEBUG: remove_background_batch called with:")
+    tool_logger.info(f"   method = '{method}' (type: {type(method)})")
+    tool_logger.info(f"   ai_model = '{ai_model}' (type: {type(ai_model)})")
+    tool_logger.info(f"   output_format = '{output_format}'")
+    tool_logger.info(f"   parallel_workers = {parallel_workers}")
+    tool_logger.info(f"   **kwargs = {kwargs}")
+    
+    # Log which method will actually be used
+    if method == "ai":
+        tool_logger.info(f"🤖 Will use AI background removal with model: {ai_model}")
+    else:
+        tool_logger.info(f"🔧 Will use OpenCV background removal (fast, document-optimized)")
+    # Create parallel-enabled batch processor using shared utility
+    # Create a custom processing function that includes method and ai_model parameters
+    def process_with_method(file_path, out_path, output_format):
+        return process_image(file_path, out_path, output_format, method, ai_model)
+    
+    ParallelRemoveBackgroundProcessor = create_parallel_batch_processor("remove_background", BatchProcessor, process_with_method)
+    
+    processor = ParallelRemoveBackgroundProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="background_removed",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format, method, ai_model),
-        use_source=False
+        processor_fn=lambda f, o: process_document(f, o, output_format, method, ai_model),  # Fallback for sequential
+        use_source=False,
+        output_format=output_format,
+        parallel_workers=parallel_workers
     )
     return processor.process()
 

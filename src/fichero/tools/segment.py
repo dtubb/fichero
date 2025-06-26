@@ -18,6 +18,7 @@ try:
     from fichero.tools.utils.segment_handler import SegmentHandler
     from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # When run as standalone script (relative imports work)
     from utils.batch import BatchProcessor
@@ -25,6 +26,7 @@ except ImportError:
     from utils.segment_handler import SegmentHandler
     from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from utils.tool_logger import get_tool_logger
+    from utils.parallel_batch_processor import create_parallel_batch_processor
 
 tool_logger = get_tool_logger('segment')
 
@@ -902,6 +904,7 @@ def segment_batch(
     source_folder: Path,
     source_manifest: Path,
     output_folder: Path,
+    parallel_workers: int = 1,
     **kwargs
 ) -> dict:
     """
@@ -915,13 +918,21 @@ def segment_batch(
     Returns:
         Processing statistics dictionary
     """
-    processor = BatchProcessor(
+    # Create parallel-enabled batch processor using shared utility
+    # Segment doesn't use output_format (always saves as JPG), so ignore the third parameter
+    def process_for_parallel(file_path, out_path, output_format):
+        return process_image(file_path, out_path)
+    
+    ParallelSegmentProcessor = create_parallel_batch_processor("segment", BatchProcessor, process_for_parallel)
+    
+    processor = ParallelSegmentProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="segment",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o),
-        use_source=False
+        processor_fn=lambda f, o: process_document(f, o),  # Fallback for sequential
+        use_source=False,
+        parallel_workers=parallel_workers
     )
     return processor.process()
 

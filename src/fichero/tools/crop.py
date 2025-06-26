@@ -9,6 +9,7 @@ import os
 import json
 import yaml
 
+
 # Import utilities with fallback for standalone execution
 try:
     # Try absolute imports first (when run from app context)
@@ -18,6 +19,7 @@ try:
     from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from fichero.tools.utils.files import ensure_dirs
     from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # Fall back to relative imports (when run standalone)
     from utils.batch import BatchProcessor
@@ -26,6 +28,8 @@ except ImportError:
     from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from utils.files import ensure_dirs
     from utils.tool_logger import get_tool_logger
+    from utils.parallel_batch_processor import create_parallel_batch_processor
+
 
 # Configure tool_logger
 tool_logger = get_tool_logger('crop')
@@ -38,6 +42,8 @@ try:
 except Exception as e:
     tool_logger.error(f"Failed to import YOLO: {e}")
     raise
+
+
 
 def apply_exif_rotation(image: Image.Image) -> tuple[Image.Image, dict]:
     """Apply EXIF rotation to image using PIL's built-in function.
@@ -308,6 +314,7 @@ def crop_batch(
     output_folder: Path,
     model_path: Path,
     output_format: str = "jpg",
+    parallel_workers: int = 1,
     **kwargs
 ) -> dict:
     """
@@ -319,13 +326,19 @@ def crop_batch(
     global yolo_model
     yolo_model = YOLO(str(model_path))
     
-    processor = BatchProcessor(
+    # Create parallel-enabled batch processor using shared utility
+    ParallelCropProcessor = create_parallel_batch_processor("crop", BatchProcessor, process_image)
+    
+    processor = ParallelCropProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="crop",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format)
+        processor_fn=lambda f, o: process_document(f, o, output_format),  # Fallback for sequential
+        output_format=output_format,
+        parallel_workers=parallel_workers
     )
+    
     return processor.process()
 
 # CLI wrapper for typer

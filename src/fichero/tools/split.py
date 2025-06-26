@@ -44,6 +44,7 @@ try:
     from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from fichero.tools.utils.files import ensure_dirs
     from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # When run as standalone script (relative imports work)
     from utils.batch import BatchProcessor
@@ -52,6 +53,7 @@ except ImportError:
     from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
     from utils.files import ensure_dirs
     from utils.tool_logger import get_tool_logger
+    from utils.parallel_batch_processor import create_parallel_batch_processor
 
 import pytesseract
 import json
@@ -759,7 +761,8 @@ def split_batch(
     source_manifest: Path,
     output_folder: Path,
     output_format: str = "jpg",
-    disable_splitting: bool = False
+    disable_splitting: bool = False,
+    parallel_workers: int = 1
 ) -> dict:
     """
     Split cropped book pages into individual pages - importable function
@@ -774,12 +777,18 @@ def split_batch(
     Returns:
         Processing statistics dictionary
     """
-    processor = BatchProcessor(
+    # Create parallel-enabled batch processor using shared utility
+    ParallelSplitProcessor = create_parallel_batch_processor("split", BatchProcessor, 
+        lambda file_path, out_path, output_format: process_image(file_path, out_path, output_format, disable_splitting))
+    
+    processor = ParallelSplitProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="split",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(f, o, output_format, disable_splitting)
+        processor_fn=lambda f, o: process_document(f, o, output_format, disable_splitting),  # Fallback for sequential
+        output_format=output_format,
+        parallel_workers=parallel_workers
     )
     return processor.process()
 

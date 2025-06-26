@@ -145,7 +145,8 @@ class CeleryBackend(ProcessingBackend):
         
         @self.celery_app.task(bind=True, name='fichero.process_folder')
         def process_folder_task(self, folder_path: str, output_path: str, 
-                               workflow_name: str, plan_config: Dict, variables: Dict) -> Dict:
+                               workflow_name: str, plan_config: Dict, variables: Dict, 
+                               parallel_workers: int = 1) -> Dict:
             """Celery task for processing a single folder"""
             try:
                 # Update task state
@@ -168,7 +169,8 @@ class CeleryBackend(ProcessingBackend):
                     output_path=Path(output_path),
                     workflow_name=workflow_name,
                     plan_config=plan_config,
-                    variables=variables
+                    variables=variables,
+                    parallel_workers=parallel_workers
                 )
                 
                 # Return result
@@ -202,6 +204,9 @@ class CeleryBackend(ProcessingBackend):
                 # Determine which queue to use based on task characteristics
                 queue_name = self._get_queue_for_task(task)
                 
+                # Determine parallel workers based on current load
+                parallel_workers = self._get_parallel_workers_for_task(task)
+                
                 # Submit to Celery with specific queue
                 async_result = self.process_folder_task.apply_async(
                     args=[
@@ -209,7 +214,8 @@ class CeleryBackend(ProcessingBackend):
                         str(task.output_path),
                         task.workflow_name,
                         task.plan_config,
-                        task.variables
+                        task.variables,
+                        parallel_workers
                     ],
                     task_id=task.task_id,
                     queue=queue_name
@@ -271,6 +277,21 @@ class CeleryBackend(ProcessingBackend):
         except Exception as e:
             logger.warning(f"Error determining queue for task {task.task_id}: {e}")
             return 'io_intensive'  # Safe default for transcription tasks
+    
+    def _get_parallel_workers_for_task(self, task: FolderTask) -> int:
+        """Determine how many parallel workers to allow for this task based on current load"""
+        with self._lock:
+            # Count currently active tasks
+            active_count = len(self.active_tasks)
+            
+            # Simple logic: Multiple folders = sequential tools, Single folder = parallel tools
+            # More conservative for Celery since we don't know cluster configuration
+            if active_count > 1:
+                logger.info(f"Multiple tasks active in cluster ({active_count}), using sequential tool processing for task {task.task_id}")
+                return 1  # Multiple folders: tools run sequentially to avoid overwhelming cluster
+            else:
+                logger.info(f"Single task processing, enabling parallel tool processing for task {task.task_id} (3 workers)")
+                return 3  # Single folder: tools can use parallel processing (conservative for distributed environment)
     
     def get_status(self, task_id: str) -> ProcessingStatus:
         """Get current status of a task"""
