@@ -18,6 +18,11 @@ sections:
             label: "Default Workflow"
             options: []  # Will be populated dynamically
             help: "Workflow to use when 'default' is selected"
+          - id: "preferences.folder_processing_order"
+            type: "selection"
+            label: "Folder Processing Order"
+            options: ["alphabetical", "reverse_alphabetical", "least_images_first", "most_images_first"]
+            help: "Order in which multiple folders are processed: alphabetical (A-Z), reverse alphabetical (Z-A), least images first (fastest folders first), or most images first (largest folders first)"
 
   - id: "appearance"
     title: "Appearance"

@@ -110,6 +110,27 @@ class FolderProcessor:
         
             return False
         
+        def _count_images_recursive(folder: Path) -> int:
+            """Recursively count all images in folder tree"""
+            count = 0
+            try:
+                for item in folder.iterdir():
+                    if item.name.startswith('.'):
+                        continue  # Skip hidden files/folders
+                        
+                    if item.is_file():
+                        # Check if it's a supported image file
+                        if item.suffix.lower() in image_extensions:
+                            count += 1
+                    elif item.is_dir():
+                        # Recursively count in subdirectories
+                        count += _count_images_recursive(item)
+                    
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Cannot access folder {folder}: {e}")
+        
+            return count
+        
         # Only look at immediate children of root_folder
         try:
             for item in root_folder.iterdir():
@@ -125,8 +146,37 @@ class FolderProcessor:
         except (PermissionError, OSError) as e:
             logger.warning(f"Cannot access root folder {root_folder}: {e}")
         
-        # Sort by path for consistent ordering
-        folders_with_images.sort(key=lambda x: str(x).lower())
+        # Get sorting preference from settings
+        try:
+            from ..config.core.settings import get_app_settings
+            app_settings = get_app_settings(self.director.app)
+            if app_settings:
+                folder_order = app_settings.get_setting('preferences', {}).get('folder_processing_order', 'alphabetical')
+            else:
+                folder_order = 'alphabetical'  # Default fallback
+        except Exception as e:
+            logger.warning(f"Could not load folder ordering preference: {e}")
+            folder_order = 'alphabetical'  # Default fallback
+            
+        # Sort folders according to preference
+        if folder_order == 'reverse_alphabetical':
+            folders_with_images.sort(key=lambda x: str(x).lower(), reverse=True)
+            logger.info(f"Sorting {len(folders_with_images)} folders in reverse alphabetical order (Z-A)")
+        elif folder_order == 'least_images_first':
+            # Count images and sort by count (ascending)
+            folder_counts = [(folder, _count_images_recursive(folder)) for folder in folders_with_images]
+            folder_counts.sort(key=lambda x: x[1])  # Sort by count ascending
+            folders_with_images = [folder for folder, count in folder_counts]
+            logger.info(f"Sorting {len(folders_with_images)} folders by image count (least first): {[(f.name, c) for f, c in folder_counts]}")
+        elif folder_order == 'most_images_first':
+            # Count images and sort by count (descending)
+            folder_counts = [(folder, _count_images_recursive(folder)) for folder in folders_with_images]
+            folder_counts.sort(key=lambda x: x[1], reverse=True)  # Sort by count descending
+            folders_with_images = [folder for folder, count in folder_counts]
+            logger.info(f"Sorting {len(folders_with_images)} folders by image count (most first): {[(f.name, c) for f, c in folder_counts]}")
+        else:  # 'alphabetical' or unknown
+            folders_with_images.sort(key=lambda x: str(x).lower())
+            logger.info(f"Sorting {len(folders_with_images)} folders in alphabetical order (A-Z)")
         
         return folders_with_images
     
