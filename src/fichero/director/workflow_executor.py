@@ -48,6 +48,12 @@ class WorkflowExecutor:
         start_time = time.time()
         workflow_logger = None
         
+        # Log which folder is being processed for order tracking
+        folder_name = folder_path.name
+        logger.info(f"🎯 STARTING WORKFLOW for folder: '{folder_name}' (task: {task_id[:8]}...)")
+        logger.info(f"📁 Processing folder: {folder_path}")
+        logger.info(f"⚙️ Workflow: '{workflow_name}' with {parallel_workers} parallel workers")
+        
         try:
             # Get workflow steps
             workflows = plan_config.get('workflows', {})
@@ -64,6 +70,9 @@ class WorkflowExecutor:
             
             # Create logger
             workflow_logger = WorkflowLogger(output_path, workflow_name, task_id)
+            
+            # Log workflow steps for this folder
+            logger.info(f"📋 Workflow steps for '{folder_name}': {workflow_steps}")
             
             # Notify start
             if self.progress_callback:
@@ -108,6 +117,10 @@ class WorkflowExecutor:
                             "failed_step": step_name
                         })
                     
+                    # Log failed completion
+                    execution_time = time.time() - start_time
+                    logger.error(f"❌ FAILED WORKFLOW for folder: '{folder_name}' at step '{step_name}' after {execution_time:.1f}s (task: {task_id[:8]}...)")
+                    
                     return ProcessingResult(
                         task_id=task_id, success=False, folder_path=folder_path,
                         output_path=output_path, error_message=error_msg,
@@ -133,6 +146,10 @@ class WorkflowExecutor:
                     "total_steps": len(workflow_steps)
                 })
             
+            # Log successful completion
+            execution_time = time.time() - start_time
+            logger.info(f"✅ COMPLETED WORKFLOW for folder: '{folder_name}' in {execution_time:.1f}s (task: {task_id[:8]}...)")
+            
             return ProcessingResult(
                 task_id=task_id, success=True, folder_path=folder_path,
                 output_path=output_path, execution_time=time.time() - start_time
@@ -148,6 +165,10 @@ class WorkflowExecutor:
                     "success": False,
                     "error": error_msg
                 })
+            
+            # Log exception completion
+            execution_time = time.time() - start_time
+            logger.error(f"💥 EXCEPTION in workflow for folder: '{folder_name}' after {execution_time:.1f}s (task: {task_id[:8]}...): {error_msg}")
             
             return ProcessingResult(
                 task_id=task_id, success=False, folder_path=folder_path,

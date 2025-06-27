@@ -315,6 +315,67 @@ class AppSettings:
         """Get the processing backend type (python or redis/celery)"""
         return self.get_worker_config().get("backend", "python")
     
+    def get_setting(self, path: str, default=None):
+        """
+        Get any setting using dot notation path.
+        
+        Examples:
+        - get_setting('workers.cpu_workers') -> 4
+        - get_setting('api_servers.openai.api_key') -> 'sk-...'
+        - get_setting('preferences.folder_processing_order') -> 'alphabetical'
+        - get_setting('preferences', {}) -> entire preferences dict
+        
+        Args:
+            path: Dot-separated path to the setting (e.g., 'workers.cpu_workers')
+            default: Default value if setting not found
+            
+        Returns:
+            The setting value or default if not found
+        """
+        try:
+            keys = path.split('.')
+            value = self.settings
+            
+            for key in keys:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    return default
+                    
+            return value
+        except Exception as e:
+            logger.debug(f"Failed to get setting '{path}': {e}")
+            return default
+    
+    def set_setting(self, path: str, value):
+        """
+        Set any setting using dot notation path.
+        
+        Examples:
+        - set_setting('workers.cpu_workers', 8)
+        - set_setting('preferences.folder_processing_order', 'least_images_first')
+        
+        Args:
+            path: Dot-separated path to the setting
+            value: Value to set
+        """
+        try:
+            keys = path.split('.')
+            current = self.settings
+            
+            # Navigate to the parent of the target key
+            for key in keys[:-1]:
+                if key not in current:
+                    current[key] = {}
+                current = current[key]
+            
+            # Set the final value
+            current[keys[-1]] = value
+            logger.info(f"🔧 Set setting '{path}' = {value}")
+            
+        except Exception as e:
+            logger.error(f"Failed to set setting '{path}': {e}")
+    
     def save_settings(self, file_path: Path, data: Dict[str, Any]) -> bool:
         """SIMPLE: Encrypt data and save to file"""
         try:

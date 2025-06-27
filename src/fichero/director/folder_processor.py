@@ -151,32 +151,47 @@ class FolderProcessor:
             from ..config.core.settings import get_app_settings
             app_settings = get_app_settings(self.director.app)
             if app_settings:
-                folder_order = app_settings.get_setting('preferences', {}).get('folder_processing_order', 'alphabetical')
+                folder_order = app_settings.get_setting('preferences.folder_processing_order', 'alphabetical')
+                logger.info(f"🔧 DEBUG: Loaded folder order setting: '{folder_order}' from app settings")
             else:
                 folder_order = 'alphabetical'  # Default fallback
+                logger.warning(f"🔧 DEBUG: No app settings found, using default: '{folder_order}'")
         except Exception as e:
             logger.warning(f"Could not load folder ordering preference: {e}")
             folder_order = 'alphabetical'  # Default fallback
+            logger.warning(f"🔧 DEBUG: Exception occurred, using default: '{folder_order}'")
+        
+        # Log original order before sorting
+        original_order = [f.name for f in folders_with_images]
+        logger.info(f"🔧 DEBUG: Original folder order: {original_order}")
             
         # Sort folders according to preference
         if folder_order == 'reverse_alphabetical':
             folders_with_images.sort(key=lambda x: str(x).lower(), reverse=True)
-            logger.info(f"Sorting {len(folders_with_images)} folders in reverse alphabetical order (Z-A)")
+            logger.info(f"✅ Sorting {len(folders_with_images)} folders in reverse alphabetical order (Z-A)")
         elif folder_order == 'least_images_first':
             # Count images and sort by count (ascending)
             folder_counts = [(folder, _count_images_recursive(folder)) for folder in folders_with_images]
-            folder_counts.sort(key=lambda x: x[1])  # Sort by count ascending
+            logger.info(f"🔧 DEBUG: Folder image counts before sorting: {[(f.name, c) for f, c in folder_counts]}")
+            folder_counts.sort(key=lambda x: x[1])  # Sort by count ascending (least first)
+            logger.info(f"🔧 DEBUG: Folder image counts after sorting (ascending): {[(f.name, c) for f, c in folder_counts]}")
             folders_with_images = [folder for folder, count in folder_counts]
-            logger.info(f"Sorting {len(folders_with_images)} folders by image count (least first): {[(f.name, c) for f, c in folder_counts]}")
+            logger.info(f"✅ Sorted {len(folders_with_images)} folders by image count (LEAST FIRST): {[f.name for f in folders_with_images]}")
         elif folder_order == 'most_images_first':
             # Count images and sort by count (descending)
             folder_counts = [(folder, _count_images_recursive(folder)) for folder in folders_with_images]
-            folder_counts.sort(key=lambda x: x[1], reverse=True)  # Sort by count descending
+            logger.info(f"🔧 DEBUG: Folder image counts before sorting: {[(f.name, c) for f, c in folder_counts]}")
+            folder_counts.sort(key=lambda x: x[1], reverse=True)  # Sort by count descending (most first)
+            logger.info(f"🔧 DEBUG: Folder image counts after sorting (descending): {[(f.name, c) for f, c in folder_counts]}")
             folders_with_images = [folder for folder, count in folder_counts]
-            logger.info(f"Sorting {len(folders_with_images)} folders by image count (most first): {[(f.name, c) for f, c in folder_counts]}")
+            logger.info(f"✅ Sorted {len(folders_with_images)} folders by image count (MOST FIRST): {[f.name for f in folders_with_images]}")
         else:  # 'alphabetical' or unknown
             folders_with_images.sort(key=lambda x: str(x).lower())
-            logger.info(f"Sorting {len(folders_with_images)} folders in alphabetical order (A-Z)")
+            logger.info(f"✅ Sorted {len(folders_with_images)} folders in alphabetical order (A-Z)")
+        
+        # Log final processing order
+        final_order = [f.name for f in folders_with_images]
+        logger.info(f"🎯 FINAL PROCESSING ORDER: {final_order}")
         
         return folders_with_images
     
