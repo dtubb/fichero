@@ -1,21 +1,21 @@
 # Fichero
 
-Fichero processes archival materials (documents in JPG, PDF, TIFF format), and crops, splits, enhances contrast, removes backgrounds, and then transcribes text using AI LLMs, before exporting them to Word documents, with the image of the document on the right verso page, and the recto page as the text. 
+Fichero processes archival materials (documents in JPG, PDF, TIFF formats) by cropping, splitting, enhancing contrast, removing backgrounds, and then transcribing text using AI LLMs. The processed documents are exported to Word documents, with the image of the document on the right verso page and the recto page as the text.
 
-Follow along on the Fichero [website](https://www.tubb.ca/fichero/)
+Follow along on the Fichero [website](https://www.tubb.ca/fichero/).
 
 Fichero:
 
 - Processes archival materials (scanned documents, images, etc.)
 - Splits multi-page materials into single pages
 - Enhances image quality and removes backgrounds
-- Transcribe text using:
+- Transcribes text using:
    - Qwen Max (full document or segmented processing)
    - LM Studio Models (full document or segmented processing)
-- Cleans and format transcriptions
-- Generate Word documents with side-by-side layout
-- Processes text files using LLMs with configurable prompts.
-- Converts output to formatted Word (.docx) documents.
+- Cleans and formats transcriptions
+- Generates Word documents with a side-by-side layout
+- Processes text files using LLMs with configurable prompts
+- Converts output to formatted Word (.docx) documents
 
 ## Installation
 
