@@ -34,14 +34,18 @@ except ImportError:
 # Configure tool_logger
 tool_logger = get_tool_logger('crop')
 
-# Load YOLO model
+# Load YOLO model (optional)
 try:
     from ultralytics import YOLO
     yolo_model = None  # Will be initialized with the path from command line
+    YOLO_AVAILABLE = True
     tool_logger.info("YOLO model will be loaded with provided path")
+except ImportError:
+    YOLO_AVAILABLE = False
+    tool_logger.warning("YOLO not available - will use contour-based cropping as fallback")
 except Exception as e:
-    tool_logger.error(f"Failed to import YOLO: {e}")
-    raise
+    YOLO_AVAILABLE = False
+    tool_logger.warning(f"Failed to import YOLO: {e} - will use contour-based cropping as fallback")
 
 
 
@@ -73,6 +77,10 @@ def apply_exif_rotation(image: Image.Image) -> tuple[Image.Image, dict]:
 def crop_with_yolo(image_path: Path, output_folder: Path, conf_threshold: float = 0.35) -> Optional[Tuple[Image.Image, Dict[str, Any]]]:
     """Crop image using YOLOv8 model
     Returns tuple of (cropped_image, crop_info) where crop_info contains box coordinates and confidence"""
+    if not YOLO_AVAILABLE:
+        tool_logger.warning("YOLO not available - cannot perform YOLO-based cropping")
+        return None
+        
     try:
         # Load image using the format utility
         original_pil, metadata = load_image(image_path)
@@ -324,7 +332,16 @@ def crop_batch(
         Processing statistics dictionary
     """
     global yolo_model
-    yolo_model = YOLO(str(model_path))
+    if YOLO_AVAILABLE:
+        try:
+            yolo_model = YOLO(str(model_path))
+            tool_logger.info("YOLO model loaded successfully")
+        except Exception as e:
+            tool_logger.warning(f"Failed to load YOLO model: {e} - will use contour-based cropping")
+            yolo_model = None
+    else:
+        tool_logger.info("YOLO not available - using contour-based cropping")
+        yolo_model = None
     
     # Create parallel-enabled batch processor using shared utility
     ParallelCropProcessor = create_parallel_batch_processor("crop", BatchProcessor, process_image)

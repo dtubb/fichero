@@ -1,17 +1,32 @@
 # Fichero Release Notes
 
+## 0.0.6 – JULY 1, 2025
+- Added settings for Plans, Projects, and Prompts. 
+- Major refactor of Director.py
+- Wrote backend to run on Python, and not require REDIS and Celery.
+- Rewrote plans format, to not rely on Weasel.
+- Removed Weasel backend.
+- Tested on 50 folders, consiting on 7992 images.
+- Added rembg (AI background removal), which is now optional. If not available, the app falls back to contour-based background removal. The GUI disables the AI background removal option if rembg is not present on Mac. This ensures  compatibility for ARM Macs and other platforms where rembg/scikit-image is problematic.
+- Made ultralytics optional in crop.py so we can build for mac. 
+  - Added YOLO_AVAILABLE flag to check if YOLO is available
+  - Added fallback to contour-based cropping when YOLO is not available
+  - Updated crop_with_yolo() to return None if YOLO not available
+  - Updated crop_batch() to handle YOLO loading failures gracefully
+
+- To Do:
+    - Remove library for settings window.
+    - Update activity monmitor window
+    - Hook up or remove all GUI elements.
+    - Build and run. 
+    - Add in PDF export. 
+
 ## 0.0.5 – JUNE 15, 2025
 - Added menus.
 - Added user interface translation support.
 - Added an About window, inspireed by BBedit.
 - Created settings window, that lets you edit API Keys for Open AI and Qwen.
     - Added app settings for API Keys. API Keys are loaded from environment variables if available; otherwise, they can be set via the Settings window. API Keys are saved, encrypted, in the appropriate folder based on the operating system.
-- ~~Get Apple Developer account notarize and Sign app.~~
-- ~~Add document settings.~~
-- ~~Convert the main window to a document window~~
-- ~~Move project-specific state to document classes~~
-- ~~Allow multiple document windows~~
-- ~~Share worker pool across documents~~
 
 ## 0.0.4 – JUNE 13, 2025
 - Added Briefcase for easier packaging and  distributing of Fichero.

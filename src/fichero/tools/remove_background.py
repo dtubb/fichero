@@ -28,6 +28,14 @@ except ImportError:
 
 tool_logger = get_tool_logger('remove_background')
 
+try:
+    import rembg
+    from rembg import remove, new_session
+    REMBG_AVAILABLE = True
+except ImportError:
+    REMBG_AVAILABLE = False
+    # Fallback: will use contour-based background removal
+
 class BlackBackgroundRemoverMulti:
     """
     A pipeline that:
@@ -229,8 +237,6 @@ class AIBackgroundRemover:
         """Get or create rembg session with specified model"""
         if self._session is None or getattr(self, '_current_model', None) != model_name:
             try:
-                import rembg
-                from rembg import new_session
                 tool_logger.info(f"Loading AI background removal model '{model_name}' (this may take a moment on first use)...")
                 
                 # Map user-friendly names to rembg model names
@@ -259,9 +265,6 @@ class AIBackgroundRemover:
     def remove_background(self, image: Image.Image, ai_model: str = "default") -> tuple[Image.Image, dict]:
         """Remove background using AI model"""
         try:
-            import rembg
-            from rembg import remove
-            
             session = self._get_session(ai_model)
             result = remove(image, session=session)
             
@@ -314,9 +317,17 @@ def remove_background_from_image(image: Image.Image, method: str = "opencv", ai_
     tool_logger.info(f"🔧 DEBUG: remove_background_from_image called with method='{method}', ai_model='{ai_model}'")
     
     if method == "ai":
-        tool_logger.info(f"🤖 Using AI background removal with model: {ai_model}")
-        remover = get_ai_remover()  # Use shared instance instead of creating new one
-        return remover.remove_background(image, ai_model)
+        if REMBG_AVAILABLE:
+            tool_logger.info(f"🤖 Using AI background removal with model: {ai_model}")
+            remover = get_ai_remover()  # Use shared instance instead of creating new one
+            return remover.remove_background(image, ai_model)
+        else:
+            tool_logger.info("AI background removal is not available. Falling back to OpenCV method.")
+            img_array = np.array(image)
+            remover = BlackBackgroundRemoverMulti()
+            cropped_rgba, analysis_params = remover.remove_background(img_array)
+            out_pil = Image.fromarray(cropped_rgba, mode='RGBA')
+            return out_pil, {"analysis": analysis_params}
     else:  # Default to opencv
         tool_logger.info(f"🔧 Using OpenCV background removal (BlackBackgroundRemoverMulti)")
         img_array = np.array(image)
@@ -447,7 +458,10 @@ def remove_background_batch(
     
     # Log which method will actually be used
     if method == "ai":
-        tool_logger.info(f"🤖 Will use AI background removal with model: {ai_model}")
+        if REMBG_AVAILABLE:
+            tool_logger.info(f"🤖 Will use AI background removal with model: {ai_model}")
+        else:
+            tool_logger.info("AI background removal is not available. Falling back to OpenCV method.")
     else:
         tool_logger.info(f"🔧 Will use OpenCV background removal (fast, document-optimized)")
     # Create parallel-enabled batch processor using shared utility

@@ -24,7 +24,6 @@ except ImportError:
 
 from typing import Literal
 import pytesseract
-from sklearn.cluster import KMeans
 from collections import Counter
 
 tool_logger = get_tool_logger('enhance')
