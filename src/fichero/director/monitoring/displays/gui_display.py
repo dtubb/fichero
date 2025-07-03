@@ -27,6 +27,48 @@ from fichero.utils.text_spinner import get_spinner_frame, get_progress_bar
 logger = logging.getLogger(__name__)
 
 
+def get_worker_icon(worker_type: str) -> str:
+    """
+    Get a nice icon for worker types.
+    
+    Args:
+        worker_type: Worker type (cpu, io, celery)
+    
+    Returns:
+        Unicode icon for the worker
+    """
+    worker_lower = worker_type.lower()
+    
+    if worker_lower in ("cpu", "cpu_worker"):
+        return "⚡"  # Lightning bolt for fast CPU processing
+    elif worker_lower in ("io", "io_worker"):
+        return "📁"  # Folder for file I/O operations
+    elif worker_lower in ("celery", "redis"):
+        return "🔄"  # Circular arrows for distributed processing
+    else:
+        return "⚙️"  # Generic gear for unknown workers
+
+
+def get_backend_icon(backend_name: str) -> str:
+    """
+    Get a nice icon for backend types.
+    
+    Args:
+        backend_name: Backend name (python, redis, celery)
+    
+    Returns:
+        Unicode icon for the backend
+    """
+    backend_lower = backend_name.lower()
+    
+    if backend_lower in ("python", "local"):
+        return "🐍"  # Python snake
+    elif backend_lower in ("redis", "celery"):
+        return "🔴"  # Red circle for Redis
+    else:
+        return "⚙️"  # Generic gear for unknown backends
+
+
 def get_status_icon(status: str, worker: str = "", progress: float = 0) -> str:
     """
     Get status icon with text spinner for running tasks, using task monitor's base icons.
@@ -34,7 +76,7 @@ def get_status_icon(status: str, worker: str = "", progress: float = 0) -> str:
     Args:
         status: Task status (pending, running, submitted, processing, completed, failed, cancelled)
         worker: Worker type (cpu, io) for running tasks
-        progress: Progress percentage (0-100)
+        progress: Progress percentage (0-100) - not used in display to avoid duplication
     
     Returns:
         Status string with appropriate indicator
@@ -42,16 +84,12 @@ def get_status_icon(status: str, worker: str = "", progress: float = 0) -> str:
     # Debug logging
     logger.debug(f"get_status_icon called with status='{status}', worker='{worker}', progress={progress}")
     
-    if status in ("running", "active", "submitted", "processing"):
-        # Use text spinner for running tasks
+    if status == "running":
+        # Use text spinner for running tasks (no text)
         spinner = get_spinner_frame('circle')
-        if progress > 0:
-            return f"{spinner} {progress:.0f}%"
-        else:
-            return f"{spinner} Running"
+        return f"{spinner}"
     else:
         # For non-running tasks, use the task monitor's status icon
-        # We'll get this from the task object instead of duplicating the logic
         return "○"  # Default fallback
 
 
@@ -390,18 +428,13 @@ class DocumentProgressDisplay:
         try:
             # Create progress view
             self._create_progress_view()
-            
             # Monitor the specific tasks
             self.current_task_ids = task_ids
-            
             # Mark as showing progress
             self.is_showing_progress = True
-            
-            # Start auto-refresh loop for progress updates
+            # Start auto-refresh loop for progress updates (always)
             self._start_auto_refresh()
-            
             logger.info(f"Started progress display for {len(task_ids)} tasks")
-            
         except Exception as e:
             logger.error(f"Failed to start progress display: {e}")
     
@@ -413,20 +446,20 @@ class DocumentProgressDisplay:
         logger.info("Stopped progress display")
     
     def _create_progress_view(self):
-        """Create progress view with simplified layout - only essential info"""
+        """Create progress view with same structure as Activity Monitor (only for this document)"""
         if not self.is_showing_progress:
             self.is_showing_progress = True
             
             self.progress_container = toga.Box(style=Pack(direction=COLUMN, margin=3, flex=1))
             self.task_table = toga.Table(
-                headings=["Folder", "Status", "Progress"],
-                accessors=["folder", "status", "progress"],
+                headings=["Folder", "Status"],
+                accessors=["folder", "status"],
                 style=Pack(flex=1, margin=0),
                 missing_value="",
                 on_select=self._on_task_select
             )
             try:
-                self.task_table.column_widths = [200, 150, 100]  # Wider columns for essential info
+                self.task_table.column_widths = [200, 350]  # Wider status column
             except AttributeError:
                 pass
             self.progress_container.add(self.task_table)
@@ -529,7 +562,7 @@ class DocumentProgressDisplay:
             logger.error(f"Error updating progress UI: {e}")
     
     def _update_task_table(self):
-        """Update the task table with current document tasks - optimized to update existing items"""
+        """Update the task table with current document tasks using format_task_row (same as Activity Monitor)"""
         if not self.task_table:
             return
         
@@ -547,6 +580,7 @@ class DocumentProgressDisplay:
             # Get backend info
             backend_info = self.task_monitor.get_backend_info()
             backend_name = backend_info.get('backend_name', 'Unknown')
+            backend_icon = get_backend_icon(backend_name)
             
             # Get statistics
             stats = self.task_monitor.get_session_stats()
@@ -556,7 +590,7 @@ class DocumentProgressDisplay:
             if active_count > 0:
                 status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
             else:
-                status_text = f"Ready ({backend_name})"
+                status_text = f"Ready {backend_icon}"
             
             self.status_bar.text = status_text
             
@@ -625,19 +659,20 @@ class DocumentProgressDisplay:
             logger.error(f"Auto-refresh error in document progress: {e}")
     
     async def _refresh_all_tasks(self):
-        """Refresh progress for all current tasks"""
+        """Refresh progress for all current tasks (always for this document)"""
         try:
-            if not self.current_task_ids or not self.is_showing_progress:
+            if not self.is_showing_progress:
                 return
-            
-            # Update the task table
+            # Always update the table and status bar for all document tasks
             self._update_task_table()
-            
-            # Update status bar
             self._update_status_bar()
-            
         except Exception as e:
             logger.error(f"Error refreshing tasks: {e}", exc_info=True)
+    
+    def update_display(self):
+        """Manually trigger a display update (table and status bar)"""
+        self._update_task_table()
+        self._update_status_bar()
 
 
 class ActivityMonitorDisplay:
@@ -704,14 +739,14 @@ class ActivityMonitorDisplay:
         
 
         self.task_table = toga.Table(
-            headings=["Folder", "Status", "Progress"],
-            accessors=["folder", "status", "progress"],
+            headings=["Folder", "Status"],
+            accessors=["folder", "status"],
             style=Pack(flex=1, margin=0),
             missing_value="",
             on_select=self._on_task_select
         )
         try:
-            self.task_table.column_widths = [200, 150, 100]  # Wider columns for essential info
+            self.task_table.column_widths = [200, 350]  # Wider status column
         except AttributeError:
             pass
         main_box.add(self.task_table)
@@ -729,14 +764,6 @@ class ActivityMonitorDisplay:
             style=Pack(margin=(2, 2), font_size=9, width=24, height=24)
         )
         button_bar.add(stop_btn)
-        
-        # Refresh button (simple text symbol)
-        refresh_btn = toga.Button(
-            "↻",
-            on_press=self._refresh_handler,
-            style=Pack(margin=(2, 2), font_size=9, width=24, height=24)
-        )
-        button_bar.add(refresh_btn)
         
         bottom_bar.add(button_bar)
         
@@ -768,21 +795,25 @@ class ActivityMonitorDisplay:
             self.status_bar.text = "No task selected"
     
     def _cancel_all_handler(self, widget):
-        """Handle cancel all button"""
-        try:
-            cancelled_count = self.task_monitor.cancel_all_tasks()
-            self.status_bar.text = f"Cancelled {cancelled_count} tasks"
-            self._update_display()
-        except Exception as e:
-            self.status_bar.text = f"Error cancelling tasks: {e}"
-    
-    def _refresh_handler(self, widget):
-        """Handle refresh button"""
-        try:
-            self._update_display()
-            self.status_bar.text = "Refreshed"
-        except Exception as e:
-            self.status_bar.text = f"Error refreshing: {e}"
+        """Handle cancel all button with confirmation dialog"""
+        async def confirm_and_cancel():
+            try:
+                # Show confirmation dialog
+                from toga import QuestionDialog
+                result = await self.window.app.dialog(QuestionDialog(
+                    "Stop All Tasks",
+                    "Are you sure you want to stop all tasks?"
+                ))
+                if not result:
+                    self.status_bar.text = "Cancellation aborted"
+                    return
+                cancelled_count = self.task_monitor.cancel_all_tasks()
+                self.status_bar.text = f"Cancelled {cancelled_count} tasks"
+                self._update_display()
+            except Exception as e:
+                self.status_bar.text = f"Error cancelling tasks: {e}"
+        import asyncio
+        asyncio.create_task(confirm_and_cancel())
     
     def _start_auto_refresh(self):
         """Start auto-refresh task"""
@@ -866,18 +897,25 @@ class ActivityMonitorDisplay:
             worker_display = get_worker_display_name(task.worker, getattr(task, 'executor_type', ''))
             
             # Create tree item data
-            if task.status in ("running", "active", "submitted", "processing"):
-                # Use animated spinner for running tasks
-                status_icon = get_status_icon(task.status, task.worker, task.overall_progress)
-                status_text = f"{status_icon} {task.current_step or 'Processing'}"
+            if task.status == "running":
+                # Only true running tasks get spinner
+                status_icon = get_status_icon(task.status, task.worker)
+                worker_icon = get_worker_icon(getattr(task, 'executor_type', ''))
+                backend_icon = get_backend_icon(getattr(task, 'backend_type', 'python'))
+                percent = f" ({task.overall_progress:.0f}%)" if task.overall_progress > 0 else ""
+                status_text = f"{status_icon} {worker_icon} {backend_icon} {task.current_step or ''}{percent}"
+            elif task.status in ("pending", "submitted"):
+                # Show waiting with worker and backend icons, no spinner
+                worker_icon = get_worker_icon(getattr(task, 'executor_type', ''))
+                backend_icon = get_backend_icon(getattr(task, 'backend_type', 'python'))
+                status_text = f"○ {worker_icon} {backend_icon} Waiting"
             else:
-                # Use task monitor's status icon for non-running tasks
+                # Use task monitor's status icon for completed/failed tasks
                 status_text = f"{task.status_icon} {task.status.title()}"
             
             tree_item_data = {
                 "status": status_text,
                 "folder": folder_name,
-                "progress": f"{task.overall_progress:.0f}%",
                 "task_id": task.task_id,
                 "status_text": task.status,
                 "folder_full": task.folder_name
@@ -920,7 +958,6 @@ class ActivityMonitorDisplay:
                     table_item = {
                         'folder': item.get('folder', ''),
                         'status': item.get('status', ''),
-                        'progress': item.get('progress', ''),
                         'task_id': item.get('task_id', ''),
                         'status_text': item.get('status_text', ''),
                         'folder_full': item.get('folder_full', '')
@@ -930,7 +967,6 @@ class ActivityMonitorDisplay:
                     table_item = {
                         'folder': getattr(item, 'folder', ''),
                         'status': getattr(item, 'status', ''),
-                        'progress': getattr(item, 'progress', ''),
                         'task_id': getattr(item, 'task_id', ''),
                         'status_text': getattr(item, 'status_text', ''),
                         'folder_full': getattr(item, 'folder_full', '')
@@ -948,6 +984,7 @@ class ActivityMonitorDisplay:
             # Get backend info
             backend_info = self.task_monitor.get_backend_info()
             backend_name = backend_info.get('backend_name', 'Unknown')
+            backend_icon = get_backend_icon(backend_name)
             
             # Get statistics
             stats = self.task_monitor.get_session_stats()
@@ -957,7 +994,7 @@ class ActivityMonitorDisplay:
             if active_count > 0:
                 status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
             else:
-                status_text = f"Ready ({backend_name})"
+                status_text = f"Ready {backend_icon}"
             
             self.status_bar.text = status_text
             

@@ -28,6 +28,48 @@ from ..task_monitor import TaskMonitor, TaskInfo
 logger = logging.getLogger(__name__)
 
 
+def get_worker_icon(worker_type: str) -> str:
+    """
+    Get a nice icon for worker types.
+    
+    Args:
+        worker_type: Worker type (cpu, io, celery)
+    
+    Returns:
+        Unicode icon for the worker
+    """
+    worker_lower = worker_type.lower()
+    
+    if worker_lower in ("cpu", "cpu_worker"):
+        return "⚡"  # Lightning bolt for fast CPU processing
+    elif worker_lower in ("io", "io_worker"):
+        return "📁"  # Folder for file I/O operations
+    elif worker_lower in ("celery", "redis"):
+        return "🔄"  # Circular arrows for distributed processing
+    else:
+        return "⚙️"  # Generic gear for unknown workers
+
+
+def get_backend_icon(backend_name: str) -> str:
+    """
+    Get a nice icon for backend types.
+    
+    Args:
+        backend_name: Backend name (python, redis, celery)
+    
+    Returns:
+        Unicode icon for the backend
+    """
+    backend_lower = backend_name.lower()
+    
+    if backend_lower in ("python", "local"):
+        return "🐍"  # Python snake
+    elif backend_lower in ("redis", "celery"):
+        return "🔴"  # Red circle for Redis
+    else:
+        return "⚙️"  # Generic gear for unknown backends
+
+
 class CLITaskDisplay:
     """
     Simple CLI display for tasks.
@@ -143,10 +185,15 @@ class CLITaskDisplay:
         stats = self.task_monitor.get_session_stats()
         active_count = stats['active_tasks']
         
+        # Get backend info for icon
+        backend_info = self.task_monitor.get_backend_info()
+        backend_name = backend_info.get('backend_name', 'Unknown')
+        backend_icon = get_backend_icon(backend_name)
+        
         if active_count > 0:
             status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
         else:
-            status_text = "Ready"
+            status_text = f"Ready {backend_icon}"
         
         status_panel = Panel(
             status_text,
@@ -212,10 +259,15 @@ class CLITaskDisplay:
         stats = self.task_monitor.get_session_stats()
         active_count = stats['active_tasks']
         
+        # Get backend info for icon
+        backend_info = self.task_monitor.get_backend_info()
+        backend_name = backend_info.get('backend_name', 'Unknown')
+        backend_icon = get_backend_icon(backend_name)
+        
         if active_count > 0:
             status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
         else:
-            status_text = "Ready"
+            status_text = f"Ready {backend_icon}"
         
         status_panel = Panel(
             status_text,
@@ -242,16 +294,15 @@ class CLITaskDisplay:
         self.console.print(table)
     
     def _create_tasks_table(self, tasks_dict: Dict[str, TaskInfo], title: str):
-        """Create a Rich table for tasks - simplified with only essential info"""
+        """Create a Rich table for tasks - only Folder and Status"""
         table = Table(title=title)
         table.add_column("Folder", width=25)
-        table.add_column("Status", width=15)
-        table.add_column("Progress", width=10)
+        table.add_column("Status", width=40)
         platform_name = "cli"
         for task in tasks_dict.values():
             row = format_task_row(task, platform_name)
             table.add_row(
-                row["folder"], str(row["status"]), str(row["progress"])
+                row["folder"], str(row["status"])
             )
         return table
     
@@ -384,26 +435,27 @@ def format_task_row(task, platform_name=None):
     if platform_name is None:
         platform_name = platform.system().lower()
 
-    # Spinner/Status
+    # Get worker and backend icons
+    worker_icon = get_worker_icon(getattr(task, 'executor_type', ''))
+    backend_icon = get_backend_icon(getattr(task, 'backend_type', 'python'))
+    
+    # Spinner/Status with worker and backend icons
     if task.status == "running":
-        status_widget = "⏳"
-    elif task.status == "pending":
-        status_widget = "○"
+        percent = f" ({task.overall_progress:.0f}%)" if task.overall_progress > 0 else ""
+        status_widget = f"⏳ {worker_icon} {backend_icon}{percent}"
+    elif task.status in ("pending", "submitted"):
+        status_widget = f"○ {worker_icon} {backend_icon} Waiting"
     elif task.status == "completed":
-        status_widget = "●"
+        status_widget = "● Completed"
     elif task.status == "failed":
-        status_widget = "✗"
+        status_widget = "✗ Failed"
     elif task.status == "cancelled":
-        status_widget = "⏹"
+        status_widget = "⏹ Cancelled"
     else:
         status_widget = "?"
-
-    # Progress
-    progress_widget = f"{task.overall_progress:.0f}%"
 
     return {
         "folder": task.folder_name,
         "status": status_widget,
-        "progress": progress_widget,
         "task_id": task.task_id,  # for selection/cancellation
     } 

@@ -8,9 +8,32 @@ Focuses on status displays, configuration, and system information.
 import logging
 import platform
 import sys
-from typing import Dict, Any
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+from ...director import FicheroDirector
 
 logger = logging.getLogger(__name__)
+
+
+def get_backend_icon(backend_name: str) -> str:
+    """
+    Get a nice icon for backend types.
+    
+    Args:
+        backend_name: Backend name (python, redis, celery)
+    
+    Returns:
+        Unicode icon for the backend
+    """
+    backend_lower = backend_name.lower()
+    
+    if backend_lower in ("python", "local"):
+        return "🐍"  # Python snake
+    elif backend_lower in ("redis", "celery"):
+        return "🔴"  # Red circle for Redis
+    else:
+        return "⚙️"  # Generic gear for unknown backends
 
 
 class CLIDisplayHelper:
