@@ -30,28 +30,32 @@ class CLIDisplayHelper:
         logger.info("CLIDisplayHelper initialized")
     
     def display_status(self, console):
-        """Display current status for CLI"""
-        if console:
-            # Use task monitor session stats for more accurate information
-            if hasattr(self.director, 'task_monitor') and self.director.task_monitor:
-                stats = self.director.task_monitor.get_session_stats()
-                console.print("\n📊 Director Status:")
-                console.print(f"   Backend: {self.director.backend.backend_name if self.director.backend else 'none'}")
-                console.print(f"   Initialized: {self.director.backend.is_initialized if self.director.backend else False}")
-                console.print(f"   Active tasks: {stats.get('active_tasks', 0)}")
-                console.print(f"   Session tasks: {stats.get('session_tasks', 0)}")
-                console.print(f"   Completed: {stats.get('completed_tasks', 0)}")
-                console.print(f"   Failed: {stats.get('failed_tasks', 0)}")
+        """Display simplified director status"""
+        if not console:
+            return
+
+        # Use task monitor session stats for more accurate information
+        if hasattr(self.director, 'task_monitor') and self.director.task_monitor:
+            stats = self.director.task_monitor.get_session_stats()
+            active_count = stats.get('active_tasks', 0)
+            
+            console.print("\n📊 Director Status:")
+            console.print(f"   Backend: {self.director.backend.backend_name if self.director.backend else 'none'}")
+            if active_count > 0:
+                console.print(f"   Status: Processing {active_count} folder{'s' if active_count != 1 else ''}")
             else:
-                # Fallback to director stats
-                stats = self.director.get_stats()
-                console.print("\n📊 Director Status:")
-                console.print(f"   Backend: {stats.get('backend_type', 'none')}")
-                console.print(f"   Initialized: {stats.get('is_initialized', False)}")
-                console.print(f"   Active tasks: {stats.get('active_tasks', 0)}")
-                console.print(f"   Total submitted: {stats.get('total_submitted', 0)}")
-                console.print(f"   Total completed: {stats.get('total_completed', 0)}")
-                console.print(f"   Total failed: {stats.get('total_failed', 0)}")
+                console.print("   Status: Ready")
+        else:
+            # Fallback to director stats
+            stats = self.director.get_stats()
+            active_count = stats.get('active_tasks', 0)
+            
+            console.print("\n📊 Director Status:")
+            console.print(f"   Backend: {stats.get('backend_type', 'none')}")
+            if active_count > 0:
+                console.print(f"   Status: Processing {active_count} folder{'s' if active_count != 1 else ''}")
+            else:
+                console.print("   Status: Ready")
     
     def configure_settings(self, console, show_defaults: bool = False, 
                           backend: str = None, cpu_workers: int = None,
@@ -157,27 +161,24 @@ class CLIDisplayHelper:
             logger.error(f"Failed to display available plans: {e}")
     
     def display_system_info(self, console):
-        """Display system information for CLI"""
+        """Display simplified system information for CLI"""
         if console:
             console.print("\n🖥️  System Information:")
             console.print(f"   Platform: {platform.system()} {platform.release()}")
             console.print(f"   Python: {sys.version.split()[0]}")
-            console.print(f"   Architecture: {platform.machine()}")
             
             console.print(f"\n📊 Director Info:")
             stats = self.director.get_stats()
-            console.print(f"   Instance ID: {stats.get('instance_id', 'unknown')}")
             console.print(f"   Backend: {stats.get('backend_type', 'none')}")
-            console.print(f"   Initialized: {stats.get('is_initialized', False)}")
             
             # Show task monitor stats if available
             if hasattr(self.director, 'task_monitor') and self.director.task_monitor:
                 task_stats = self.director.task_monitor.get_session_stats()
-                console.print(f"\n📈 Current Session:")
-                console.print(f"   Active tasks: {task_stats.get('active_tasks', 0)}")
-                console.print(f"   Session tasks: {task_stats.get('session_tasks', 0)}")
-                console.print(f"   Completed: {task_stats.get('completed_tasks', 0)}")
-                console.print(f"   Failed: {task_stats.get('failed_tasks', 0)}")
+                active_count = task_stats.get('active_tasks', 0)
+                if active_count > 0:
+                    console.print(f"   Status: Processing {active_count} folder{'s' if active_count != 1 else ''}")
+                else:
+                    console.print("   Status: Ready")
             
             if self.director.backend:
                 console.print(f"\n🔧 Backend Details:")

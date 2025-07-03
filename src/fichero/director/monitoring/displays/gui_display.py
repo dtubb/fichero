@@ -413,20 +413,20 @@ class DocumentProgressDisplay:
         logger.info("Stopped progress display")
     
     def _create_progress_view(self):
-        """Create progress view with tree-based layout similar to activity monitor"""
+        """Create progress view with simplified layout - only essential info"""
         if not self.is_showing_progress:
             self.is_showing_progress = True
             
             self.progress_container = toga.Box(style=Pack(direction=COLUMN, margin=3, flex=1))
             self.task_table = toga.Table(
-                headings=["Folder", "Status", "Step", "Progress", "Worker", "Backend", "Duration", "Error"],
-                accessors=["folder", "status", "step", "progress", "worker", "backend", "duration", "error"],
+                headings=["Folder", "Status", "Progress"],
+                accessors=["folder", "status", "progress"],
                 style=Pack(flex=1, margin=0),
                 missing_value="",
                 on_select=self._on_task_select
             )
             try:
-                self.task_table.column_widths = [120, 120, 120, 80, 120, 100, 80, 200]
+                self.task_table.column_widths = [200, 150, 100]  # Wider columns for essential info
             except AttributeError:
                 pass
             self.progress_container.add(self.task_table)
@@ -462,12 +462,9 @@ class DocumentProgressDisplay:
             # Update status bar with task details
             folder = getattr(selection, 'folder', 'Unknown')
             status = getattr(selection, 'status', 'Unknown')
-            step = getattr(selection, 'step', '')
             progress = getattr(selection, 'progress', '')
             
             status_text = f"Selected: {folder} ({status})"
-            if step:
-                status_text += f" - Step: {step}"
             if progress:
                 status_text += f" - Progress: {progress}"
             
@@ -542,37 +539,27 @@ class DocumentProgressDisplay:
         self.task_table.data = table_data
     
     def _update_status_bar(self):
-        """Update status bar with document statistics"""
+        """Update status bar with simplified statistics - only essential info"""
         if not self.status_bar:
             return
         
         try:
-            # Get tasks for this document
-            document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
+            # Get backend info
+            backend_info = self.task_monitor.get_backend_info()
+            backend_name = backend_info.get('backend_name', 'Unknown')
             
-            # Count by status
-            active_count = len([t for t in document_tasks.values() if t.is_active])
-            completed_count = len([t for t in document_tasks.values() if t.status == "completed"])
-            failed_count = len([t for t in document_tasks.values() if t.status == "failed"])
-            total_count = len(document_tasks)
+            # Get statistics
+            stats = self.task_monitor.get_session_stats()
+            active_count = stats['active_tasks']
             
-            # Create status text
-            status_parts = []
-            status_parts.append(f"Total: {total_count}")
-            status_parts.append(f"Active: {active_count}")
-            status_parts.append(f"Completed: {completed_count}")
-            status_parts.append(f"Failed: {failed_count}")
-            
-            # Add progress info if there are active tasks
+            # Simple status text - only show what matters
             if active_count > 0:
-                running_tasks = [t for t in document_tasks.values() if t.status == "running"]
-                if running_tasks:
-                    avg_progress = sum(t.overall_progress for t in running_tasks) / len(running_tasks)
-                    status_parts.append(f"Avg Progress: {avg_progress:.1f}%")
+                status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
+            else:
+                status_text = f"Ready ({backend_name})"
             
-            status_text = " | ".join(status_parts)
             self.status_bar.text = status_text
-                    
+            
         except Exception as e:
             self.status_bar.text = f"Error updating status: {e}"
     
@@ -717,14 +704,14 @@ class ActivityMonitorDisplay:
         
 
         self.task_table = toga.Table(
-            headings=["Folder", "Status", "Worker"],
-            accessors=["folder", "status", "worker"],
+            headings=["Folder", "Status", "Progress"],
+            accessors=["folder", "status", "progress"],
             style=Pack(flex=1, margin=0),
             missing_value="",
             on_select=self._on_task_select
         )
         try:
-            self.task_table.column_widths = [200, 150, 100]  # Adjusted for worker column
+            self.task_table.column_widths = [200, 150, 100]  # Wider columns for essential info
         except AttributeError:
             pass
         main_box.add(self.task_table)
@@ -882,15 +869,15 @@ class ActivityMonitorDisplay:
             if task.status in ("running", "active", "submitted", "processing"):
                 # Use animated spinner for running tasks
                 status_icon = get_status_icon(task.status, task.worker, task.overall_progress)
-                status_text = f"{status_icon} {task.current_step or 'Waiting'} ({duration_str})"
+                status_text = f"{status_icon} {task.current_step or 'Processing'}"
             else:
                 # Use task monitor's status icon for non-running tasks
-                status_text = f"{task.status_icon} ({duration_str})"
+                status_text = f"{task.status_icon} {task.status.title()}"
             
             tree_item_data = {
                 "status": status_text,
                 "folder": folder_name,
-                "worker": worker_display,
+                "progress": f"{task.overall_progress:.0f}%",
                 "task_id": task.task_id,
                 "status_text": task.status,
                 "folder_full": task.folder_name
@@ -933,7 +920,7 @@ class ActivityMonitorDisplay:
                     table_item = {
                         'folder': item.get('folder', ''),
                         'status': item.get('status', ''),
-                        'worker': item.get('worker', ''),
+                        'progress': item.get('progress', ''),
                         'task_id': item.get('task_id', ''),
                         'status_text': item.get('status_text', ''),
                         'folder_full': item.get('folder_full', '')
@@ -943,7 +930,7 @@ class ActivityMonitorDisplay:
                     table_item = {
                         'folder': getattr(item, 'folder', ''),
                         'status': getattr(item, 'status', ''),
-                        'worker': getattr(item, 'worker', ''),
+                        'progress': getattr(item, 'progress', ''),
                         'task_id': getattr(item, 'task_id', ''),
                         'status_text': getattr(item, 'status_text', ''),
                         'folder_full': getattr(item, 'folder_full', '')
@@ -953,7 +940,7 @@ class ActivityMonitorDisplay:
             self.task_table.data = table_data
     
     def _update_status_bar(self):
-        """Update status bar with statistics"""
+        """Update status bar with simplified statistics - only essential info"""
         if not self.status_bar:
             return
         
@@ -961,24 +948,17 @@ class ActivityMonitorDisplay:
             # Get backend info
             backend_info = self.task_monitor.get_backend_info()
             backend_name = backend_info.get('backend_name', 'Unknown')
-            backend_status = backend_info.get('status', 'Unknown')
             
             # Get statistics
             stats = self.task_monitor.get_session_stats()
+            active_count = stats['active_tasks']
             
-            # Create status text
-            status_parts = []
-            status_parts.append(f"Backend: {backend_name} ({backend_status})")
-            status_parts.append(f"Active: {stats['active_tasks']}")
-            status_parts.append(f"Completed: {stats['completed_tasks']}")
-            status_parts.append(f"Failed: {stats['failed_tasks']}")
+            # Simple status text - only show what matters
+            if active_count > 0:
+                status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
+            else:
+                status_text = f"Ready ({backend_name})"
             
-            # Add performance info if available
-            if stats.get('average_duration', 0) > 0:
-                avg_duration = stats['average_duration'] / 60  # Convert to minutes
-                status_parts.append(f"Avg: {avg_duration:.1f}m")
-            
-            status_text = " | ".join(status_parts)
             self.status_bar.text = status_text
             
         except Exception as e:
@@ -1024,30 +1004,15 @@ def format_task_row(task, platform_name=None):
     else:
         status_widget = "?"
 
-    # Step progress
-    step_info = f"{task.current_step or 'Waiting'} ({task.completed_steps}/{task.total_steps})"
     # Progress
     if is_macos:
         progress_widget = toga.ProgressBar(max=100, value=task.overall_progress)
     else:
         progress_widget = f"{task.overall_progress:.0f}%"
-    # Worker
-    worker_display = f"{task.executor_type.upper()} {task.worker}"
-    # Backend
-    backend = task.executor_type.capitalize()
-    # Duration
-    duration = f"{task.duration.total_seconds()/60:.1f}m"
-    # Error
-    error = task.error_message if task.status == "failed" else ""
 
     return {
         "folder": task.folder_name,
         "status": status_widget,
-        "step": step_info,
         "progress": progress_widget,
-        "worker": worker_display,
-        "backend": backend,
-        "duration": duration,
-        "error": error,
         "task_id": task.task_id,  # for selection/cancellation
     } 

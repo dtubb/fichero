@@ -138,42 +138,36 @@ class CLITaskDisplay:
             self._show_static_activity_monitor()
     
     def _show_static_activity_monitor(self):
-        """Show current state of all tasks (one-time)"""
-        # Backend info
-        backend_info = self.task_monitor.get_backend_info()
-        backend_panel = Panel(
-            f"Backend: {backend_info.get('backend_name', 'Unknown')}\n"
-            f"Status: {backend_info.get('status', 'Unknown')}",
-            title="🔧 Backend Status",
+        """Show current state of all tasks (one-time) - simplified"""
+        # Simple status
+        stats = self.task_monitor.get_session_stats()
+        active_count = stats['active_tasks']
+        
+        if active_count > 0:
+            status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
+        else:
+            status_text = "Ready"
+        
+        status_panel = Panel(
+            status_text,
+            title="Status",
             border_style="blue"
         )
         
-        # Statistics
-        stats = self.task_monitor.get_session_stats()
-        stats_panel = Panel(
-            f"Active: {stats['active_tasks']}\n"
-            f"Session: {stats['session_tasks']}\n"
-            f"Completed: {stats['completed_tasks']}\n"
-            f"Failed: {stats['failed_tasks']}",
-            title="📊 Statistics",
-            border_style="green"
-        )
-        
-        # Show top panels
-        top_panels = Columns([backend_panel, stats_panel])
-        self.console.print(top_panels)
+        # Show status panel
+        self.console.print(status_panel)
         self.console.print()
         
         # Active tasks table
         active_tasks = self.task_monitor.get_active_tasks()
-        self._show_tasks_table(active_tasks, "⚡ Active Tasks")
+        self._show_tasks_table(active_tasks, "Active Tasks")
         
-        # Recent failed tasks
+        # Recent failed tasks (only if any exist)
         failed_tasks = self.task_monitor.get_failed_tasks()
         if failed_tasks:
             self.console.print()
-            failed_dict = {t.task_id: t for t in failed_tasks[-5:]}  # Last 5 failures
-            self._show_tasks_table(failed_dict, "❌ Recent Failures")
+            failed_dict = {t.task_id: t for t in failed_tasks[-3:]}  # Last 3 failures
+            self._show_tasks_table(failed_dict, "Recent Failures")
     
     def _show_live_activity_monitor(self):
         """Show live updating activity monitor"""
@@ -213,36 +207,30 @@ class CLITaskDisplay:
             self.is_monitoring = False
     
     def _create_activity_layout(self):
-        """Create the live activity monitor layout"""
-        # Backend info
-        backend_info = self.task_monitor.get_backend_info()
-        backend_panel = Panel(
-            f"Backend: {backend_info.get('backend_name', 'Unknown')}\n"
-            f"Status: {backend_info.get('status', 'Unknown')}\n"
-            f"Updated: {datetime.now().strftime('%H:%M:%S')}",
-            title="🔧 Backend",
-            border_style="blue"
-        )
-        
-        # Statistics
+        """Create the live activity monitor layout - simplified"""
+        # Simple status
         stats = self.task_monitor.get_session_stats()
-        stats_panel = Panel(
-            f"Active: {stats['active_tasks']}\n"
-            f"Session: {stats['session_tasks']}\n"
-            f"Completed: {stats['completed_tasks']}\n"
-            f"Failed: {stats['failed_tasks']}",
-            title="📊 Stats",
-            border_style="green"
+        active_count = stats['active_tasks']
+        
+        if active_count > 0:
+            status_text = f"Processing {active_count} folder{'s' if active_count != 1 else ''}"
+        else:
+            status_text = "Ready"
+        
+        status_panel = Panel(
+            status_text,
+            title="Status",
+            border_style="blue"
         )
         
         # Tasks table
         active_tasks = self.task_monitor.get_active_tasks()
-        tasks_table = self._create_tasks_table(active_tasks, "⚡ Active Tasks")
+        tasks_table = self._create_tasks_table(active_tasks, "Active Tasks")
         
         # Create layout
         layout = Layout()
         layout.split_column(
-            Layout(Columns([backend_panel, stats_panel]), size=8),
+            Layout(status_panel, size=4),
             Layout(tasks_table)
         )
         
@@ -254,22 +242,16 @@ class CLITaskDisplay:
         self.console.print(table)
     
     def _create_tasks_table(self, tasks_dict: Dict[str, TaskInfo], title: str):
-        """Create a Rich table for tasks"""
+        """Create a Rich table for tasks - simplified with only essential info"""
         table = Table(title=title)
-        table.add_column("Folder", width=20)
-        table.add_column("Status", width=8)
-        table.add_column("Step", width=20)
-        table.add_column("Progress", width=8)
-        table.add_column("Worker", width=14)
-        table.add_column("Backend", width=10)
-        table.add_column("Duration", width=8)
-        table.add_column("Error", width=20)
+        table.add_column("Folder", width=25)
+        table.add_column("Status", width=15)
+        table.add_column("Progress", width=10)
         platform_name = "cli"
         for task in tasks_dict.values():
             row = format_task_row(task, platform_name)
             table.add_row(
-                row["folder"], str(row["status"]), row["step"], str(row["progress"]),
-                row["worker"], row["backend"], row["duration"], row["error"]
+                row["folder"], str(row["status"]), str(row["progress"])
             )
         return table
     
@@ -401,7 +383,6 @@ def clear_history(task_monitor: TaskMonitor, console: Console = None):
 def format_task_row(task, platform_name=None):
     if platform_name is None:
         platform_name = platform.system().lower()
-    is_macos = platform_name == "darwin"
 
     # Spinner/Status
     if task.status == "running":
@@ -417,27 +398,12 @@ def format_task_row(task, platform_name=None):
     else:
         status_widget = "?"
 
-    # Step progress
-    step_info = f"{task.current_step or 'Waiting'} ({task.completed_steps}/{task.total_steps})"
     # Progress
     progress_widget = f"{task.overall_progress:.0f}%"
-    # Worker
-    worker_display = f"{task.executor_type.upper()} {task.worker}"
-    # Backend
-    backend = task.executor_type.capitalize()
-    # Duration
-    duration = f"{task.duration.total_seconds()/60:.1f}m"
-    # Error
-    error = task.error_message if task.status == "failed" else ""
 
     return {
         "folder": task.folder_name,
         "status": status_widget,
-        "step": step_info,
         "progress": progress_widget,
-        "worker": worker_display,
-        "backend": backend,
-        "duration": duration,
-        "error": error,
         "task_id": task.task_id,  # for selection/cancellation
     } 
