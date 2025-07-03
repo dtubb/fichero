@@ -79,42 +79,14 @@ class PlansManager(FileManager):
             return False
     
     def get_active_file(self) -> Path:
-        """Get the currently active plans file"""
-        try:
-            if not self.app:
-                return None
-            
-            # Use simple shared storage for active file tracking
-            from fichero.shared_data import get_shared_data, DataType
-            shared_data = get_shared_data(namespace="fichero")
-            active_file_str = shared_data.get(DataType.SETTINGS, "active_plans")
-            
-            if active_file_str:
-                active_file = Path(active_file_str)
-                if active_file.exists():
-                    return active_file
-            
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get active plans file: {e}")
-            return None
+        """DEPRECATED: Plans don't need active file tracking"""
+        logger.warning("get_active_file() is deprecated - plans don't use active file tracking")
+        return None
     
     def set_active_file(self, file_path: Path) -> bool:
-        """Set the active plans file"""
-        try:
-            if not self.app:
-                return False
-            
-            # Use simple shared storage for active file tracking
-            from fichero.shared_data import get_shared_data, DataType
-            shared_data = get_shared_data(namespace="fichero")
-            shared_data.set(DataType.SETTINGS, "active_plans", str(file_path), immediate_save=True)
-            
-            logger.info(f"Set active plans file: {file_path.name}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to set active plans file: {e}")
-            return False
+        """DEPRECATED: Plans don't need active file tracking"""
+        logger.warning("set_active_file() is deprecated - plans don't use active file tracking")
+        return True
     
     def get_workflows(self, file_path: Path) -> List[str]:
         """Get list of workflows for a specific plan"""

@@ -13,6 +13,8 @@ from typing import Dict, Any, List, Optional, Tuple, Callable, Union
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
+import yaml
+import srsly
 
 from ..core.loader import ConfigLoader
 from .components.file_library_panel import FileLibraryPanel
@@ -41,11 +43,13 @@ class UISchema:
     """Represents a UI schema for automatic generation"""
     
     def __init__(self, title: str, description: str = "", sections: List[Dict] = None, 
-                 content_sections: List[Dict] = None):
+                 content_sections: List[Dict] = None, window_title: str = None, window_size: List[int] = None):
         self.title = title
         self.description = description
         self.sections = sections or []  # These are the "tabs" from YAML
         self.content_sections = content_sections or []  # Direct sections if no tabs
+        self.window_title = window_title
+        self.window_size = tuple(window_size) if window_size else None
 
 
 def load_ui_schema_from_file(file_path: Path) -> UISchema:
@@ -61,7 +65,9 @@ def load_ui_schema_from_file(file_path: Path) -> UISchema:
             title=schema_data.get('title', 'Configuration'),
             description=schema_data.get('description', ''),
             sections=schema_data.get('sections', []),  # Main sections from schema
-            content_sections=schema_data.get('content_sections', [])  # Direct content sections if no main sections
+            content_sections=schema_data.get('content_sections', []),  # Direct content sections if no main sections
+            window_title=schema_data.get('window_title'),
+            window_size=schema_data.get('window_size')
         )
     
     except Exception as e:
@@ -71,12 +77,18 @@ def load_ui_schema_from_file(file_path: Path) -> UISchema:
 
 class BaseConfigLibrary(ABC):
     """
-    Base configuration library with file library on left and full configuration interface on right
+    Base configuration library with flexible layout support:
+    - Three-panel layout: Library panel (left) + Section sidebar (middle) + Content panel (right) - for Plans/Prompts
+    - Two-panel layout: OptionContainer tabs + Content panel - for Settings
     """
     
-    def __init__(self, app):
+    def __init__(self, app, use_file_library=True, use_option_container=False):
         self.app = app
-        self.file_manager = self.create_file_manager()
+        self.use_file_library = use_file_library
+        self.use_option_container = use_option_container
+        
+        # Only create file manager if we're using file library
+        self.file_manager = self.create_file_manager() if use_file_library else None
         
         # Data state
         self.current_file = None
@@ -89,20 +101,24 @@ class BaseConfigLibrary(ABC):
         self.library_panel = None
         self.section_panel = None
         self.content_panel = None
+        self.option_container = None  # For settings layout
         
         # Field tracking for data extraction and validation
         self.widgets = {}
         self.validators = {}
         self.change_handlers = {}
+        self.button_handlers = {}
         
         self._create_window()
         self._setup_window_close_handler()
+        # Load the default file/content after window is created
+        self._load_default_file()
     
     # Abstract methods that subclasses must implement
     
     @abstractmethod
     def create_file_manager(self):
-        """Create and return the appropriate file manager"""
+        """Create and return the appropriate file manager (optional for settings)"""
         pass
     
     @abstractmethod
@@ -114,6 +130,14 @@ class BaseConfigLibrary(ABC):
     def populate_data(self, data: Dict[str, Any]):
         """Populate UI widgets with data"""
         pass
+    
+    def initialize_settings_data(self) -> Dict[str, Any]:
+        """Initialize settings data (override for settings windows)"""
+        return {}
+    
+    def save_settings_data(self, data: Dict[str, Any]) -> bool:
+        """Save settings data (override for settings windows)"""
+        return True
     
     # Core functionality
     
@@ -157,15 +181,49 @@ class BaseConfigLibrary(ABC):
             self.window.on_close = close_with_save
 
     def _create_window(self):
-        """Create the integrated window with three panels side by side"""
-        window_title = f"{self.file_manager.get_file_type().title()}" if self.file_manager else "Configuration"
-        
+        """Create the integrated window with flexible layout support"""
+        if self.use_option_container:
+            # Settings window
+            # Try to get window properties from schema
+            try:
+                schema = self.get_schema()
+                window_title = getattr(schema, 'window_title', "Fichero Settings")
+                window_size = getattr(schema, 'window_size', None)
+                if window_size is None:
+                    window_size = (425, 500)
+            except Exception as e:
+                logger.warning(f"Could not load schema for window properties: {e}")
+                window_title = "Fichero Settings"
+                window_size = (425, 500)
+        else:
+            # Plans/Prompts window
+            window_title = f"{self.file_manager.get_file_type().title()}" if self.file_manager else "Configuration"
+            # Try to get window properties from schema
+            try:
+                schema = self.get_schema()
+                window_title = getattr(schema, 'window_title', window_title)
+                window_size = getattr(schema, 'window_size', None)
+                if window_size is None:
+                    window_size = (1000, 700)
+            except Exception as e:
+                logger.warning(f"Could not load schema for window properties: {e}")
+                window_size = (1000, 700)
+
         self.window = toga.Window(
             title=window_title,
-            size=(1000, 700),
-            resizable=False
+            size=window_size,
+            resizable=True
         )
         
+        if self.use_option_container:
+            # Two-panel layout for settings: OptionContainer + Content
+            self._create_option_container_layout()
+        else:
+            # Three-panel layout for plans/prompts: Library + Section + Content
+            self._create_three_panel_layout()
+    
+    def _create_three_panel_layout(self):
+        """Create the traditional three-panel layout (Library + Section + Content)"""
         # Create three panels using consistent helper methods
         self.library_panel = self._create_library_panel()
         self.section_panel = self._create_section_panel()  
@@ -179,15 +237,40 @@ class BaseConfigLibrary(ABC):
         
         self.window.content = window_content
     
+    def _create_option_container_layout(self):
+        """Create the two-panel layout with OptionContainer for settings"""
+        # Create OptionContainer for navigation
+        self.option_container = toga.OptionContainer(style=Pack(flex=1, margin=(20, 20, 0, 20)))  # 20px margins on top, right, left, but not bottom
+        
+        # Create content panel (will be used by individual tabs)
+        self.content_panel = self._create_content_panel()
+        
+        # Create Restore Defaults button
+        restore_btn = toga.Button(
+            "Restore Defaults",
+            on_press=self._handle_restore_defaults,
+            style=Pack(margin=(10, 20, 10, 20), width=100)  # Normal height, 100px width, 20px left/right margins
+        )
+        
+        # Window content - OptionContainer takes most space, button at bottom
+        window_content = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        window_content.add(self.option_container)
+        window_content.add(restore_btn)
+        
+        self.window.content = window_content
+        
     def _create_library_panel(self) -> FileLibraryPanel:
         """Create the file library panel using the dedicated component"""
+        if not self.use_file_library:
+            # Return a dummy panel for settings (should not be used)
+            return toga.Box(style=Pack(width=0))
+        
         return FileLibraryPanel(
             file_manager=self.file_manager,
             on_file_select=self._on_file_select,
             on_new_file=self._handle_new,
             on_delete_file=self._handle_delete,
             on_duplicate_file=self._handle_duplicate,
-
             on_import_file=self._handle_import,
             on_export_file=self._handle_export,
             on_restore_defaults=self._handle_restore_defaults
@@ -215,12 +298,25 @@ class BaseConfigLibrary(ABC):
                                    on_title_change: Callable = None):
         """Create UI content from schema - populates category and content areas directly"""
         
+        logger.info(f"create_content_from_schema called with schema: {schema.title}, data: {len(data) if data else 0} keys")
+        
         # Store callback handlers for later use
         if on_restore_defaults:
             self._restore_defaults_handler = on_restore_defaults
         if on_title_change:
             self._title_change_handler = on_title_change
         
+        if self.use_option_container:
+            # OptionContainer layout for settings
+            logger.info("Using OptionContainer layout for settings")
+            self._populate_option_container(schema, data)
+        else:
+            # Traditional three-panel layout for plans/prompts
+            logger.info("Using three-panel layout for plans/prompts")
+            self._populate_three_panel_layout(schema, data)
+    
+    def _populate_three_panel_layout(self, schema: UISchema, data: Dict = None):
+        """Populate the traditional three-panel layout"""
         # Create content based on schema structure
         if schema.sections:
             self._populate_section_sidebar(schema.sections, data)
@@ -235,6 +331,65 @@ class BaseConfigLibrary(ABC):
             self.content_panel.content = content
         else:
             self.content_panel.content = toga.Label("No content defined in schema")
+    
+    def _populate_option_container(self, schema: UISchema, data: Dict = None):
+        """Populate the OptionContainer layout for settings"""
+        logger.info(f"Populating OptionContainer with schema: {schema.title}, data: {len(data) if data else 0} keys")
+        if data:
+            logger.info(f"Data keys: {list(data.keys())}")
+        logger.info(f"Schema sections: {len(schema.sections)}")
+        logger.info(f"Schema content_sections: {len(schema.content_sections)}")
+        
+        # Create content based on schema structure
+        if schema.sections:
+            logger.info(f"Creating tabs from {len(schema.sections)} sections")
+            # Build content list for OptionContainer
+            content_list = []
+            for i, section in enumerate(schema.sections):
+                section_title = section.get('title', f'Section {i}')
+                logger.info(f"Creating tab: {section_title}")
+                section_content = self._create_sectioned_interface(section.get('sections', []), data)
+                
+                # Add tab without icon (macOS doesn't support OptionContainer icons)
+                content_list.append((section_title, section_content))
+                logger.info(f"Added tab: {section_title}")
+            
+            # Recreate the OptionContainer with the new content
+            self.option_container = toga.OptionContainer(
+                content=content_list,
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        elif schema.content_sections:
+            logger.info(f"Creating single tab from {len(schema.content_sections)} content sections")
+            # Direct sections become a single tab
+            content = self._create_sectioned_interface(schema.content_sections, data)
+            self.option_container = toga.OptionContainer(
+                content=[("Settings", content)],
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        else:
+            logger.warning("No sections or content_sections found in schema")
+            # No content defined
+            self.option_container = toga.OptionContainer(
+                content=[("Settings", toga.Label("No content defined in schema"))],
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        
+        # Update the window content to use the new OptionContainer
+        window_content = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        window_content.add(self.option_container)
+        
+        # Re-add the Restore Defaults button
+        restore_btn = toga.Button(
+            "Restore Defaults",
+            on_press=self._handle_restore_defaults,
+            style=Pack(margin=(10, 20, 10, 20), width=100)
+        )
+        window_content.add(restore_btn)
+        
+        self.window.content = window_content
+        
+        logger.info(f"OptionContainer now has {len(self.option_container.content)} tabs")
     
     def _populate_section_sidebar(self, sections: List[Dict], data: Dict = None):
         """Populate the section panel with navigation tree"""
@@ -300,7 +455,7 @@ class BaseConfigLibrary(ABC):
         container = toga.Box(style=Pack(
             direction=COLUMN, 
             flex=1,
-            margin=(0, 20, 0, 0)   # 20px right margin on all controls.
+            margin=(20, 20, 0, 20)   # 20px margins on top, right, left, but not bottom
         ))
         
         for section in sections:
@@ -351,6 +506,7 @@ class BaseConfigLibrary(ABC):
         field_id = field['id']
         field_type = WidgetType(field['type'])
         current_value = self._get_field_value(field_id, data, field.get('default'))
+        logger.debug(f"Creating widget for {field_id}: type={field_type}, value={current_value}")
         
         # Container for the field - horizontal layout
         field_box = toga.Box(style=Pack(direction=ROW, margin_bottom=5))  # 5pt spacing between rows
@@ -428,6 +584,13 @@ class BaseConfigLibrary(ABC):
                 on_change=self._on_widget_change
             )
         
+        elif field_type == WidgetType.BUTTON:
+            widget = toga.Button(
+                field.get('label', 'Button'),
+                style=Pack(margin_bottom=3, font_size=9, width=120),
+                on_press=self._on_button_press
+            )
+        
         elif field_type == WidgetType.WORKFLOW_EDITOR:
             # Create workflow editor - a combination of selection and step management
             widget = self._create_workflow_editor_widget(field, data)
@@ -444,6 +607,10 @@ class BaseConfigLibrary(ABC):
             if field.get('on_change'):
                 self.change_handlers[field_id] = field['on_change']
             
+            # Add button handler if specified
+            if field.get('on_press'):
+                self.button_handlers[field_id] = field['on_press']
+            
             widget_container.add(widget)
         
         # Help text (below widget)
@@ -452,7 +619,8 @@ class BaseConfigLibrary(ABC):
                 field['help'],
                 style=Pack(
                     margin_top=3,
-                    font_size=9
+                    font_size=9,
+                    width=280  # Constrain width to force wrapping
                 )
             )
             widget_container.add(help_label)
@@ -663,6 +831,7 @@ class BaseConfigLibrary(ABC):
                     value = value[key]
                 else:
                     return default
+            logger.debug(f"Field {field_id}: {value} (default: {default})")
             return value
         except:
             return default
@@ -692,6 +861,8 @@ class BaseConfigLibrary(ABC):
                     value = widget.value
                 else:
                     continue
+                
+                logger.debug(f"Extracted {field_id}: {value}")
                 
                 # Set nested values using dot notation
                 self._set_nested_value(data, field_id, value)
@@ -731,7 +902,33 @@ class BaseConfigLibrary(ABC):
     
     def _load_default_file(self):
         """Load the first available file or active file"""
-        active_file = self.file_manager.get_active_file()
+        if not self.use_file_library:
+            # For settings, initialize with default data
+            logger.info("Loading settings data (use_file_library=False)")
+            data = self.initialize_settings_data()
+            logger.info(f"Settings data loaded: {len(data)} keys")
+            self.original_data = data.copy()
+            self.current_file = None  # Settings don't have a specific file
+            
+            # Create UI content
+            schema = self.get_schema()
+            logger.info(f"Creating UI content with schema: {schema.title}")
+            self.create_content_from_schema(
+                schema=schema,
+                data=data,
+                on_restore_defaults=self._handle_restore_defaults,
+                on_title_change=lambda section: self._update_window_title("Settings", section)
+            )
+            return
+        
+        # Traditional file-based loading for plans/prompts
+        # Try to get active file first (if file manager supports it)
+        active_file = None
+        try:
+            active_file = self.file_manager.get_active_file()
+        except Exception:
+            # File manager doesn't support active file tracking
+            pass
         
         if active_file and active_file.exists():
             self._load_file(active_file)
@@ -744,13 +941,22 @@ class BaseConfigLibrary(ABC):
     
     def _on_file_select(self, file_path: Path, file_info: Dict):
         """Handle file selection from the library panel"""
+        if not self.use_file_library:
+            # Settings don't have file selection
+            return
+        
         self._load_file(file_path)
         self.current_file = file_path
         # Update the active file indicator without refreshing the tree
-        self.library_panel.update_active_file_indicator()
+        if self.library_panel:
+            self.library_panel.update_active_file_indicator()
     
     def _load_file(self, file_path: Path):
         """Load a configuration file into the editor"""
+        if not self.use_file_library:
+            # Settings don't load individual files
+            return
+        
         try:
             # Load file data using file manager
             data = self.file_manager.load_file(file_path)
@@ -758,8 +964,12 @@ class BaseConfigLibrary(ABC):
             self.current_file = file_path
             self.is_editing_default = self.file_manager.is_default_file(file_path)
             
-            # Set as active file in file manager immediately
-            self.file_manager.set_active_file(file_path)
+            # Try to set as active file in file manager (if supported)
+            try:
+                self.file_manager.set_active_file(file_path)
+            except Exception:
+                # File manager doesn't support active file tracking
+                pass
             
             # Update window title with file name
             self._update_window_title(file_path.stem)
@@ -792,6 +1002,35 @@ class BaseConfigLibrary(ABC):
     
     def _perform_save(self):
         """Perform save operation - used by both manual and auto-save"""
+        if not self.use_file_library:
+            # For settings, save to shared data
+            try:
+                logger.info("Performing settings save...")
+                # Extract data from currently visible UI widgets
+                widget_data = self.extract_data()
+                logger.info(f"Extracted widget data: {list(widget_data.keys())}")
+                
+                # Merge with original data to preserve sections not currently visible
+                merged_data = self.original_data.copy() if self.original_data else {}
+                self._deep_merge_data(merged_data, widget_data)
+                logger.info(f"Merged data keys: {list(merged_data.keys())}")
+                
+                # Save to shared data (settings-specific)
+                success = self.save_settings_data(merged_data)
+                if success:
+                    # Update original data to the merged result
+                    self.original_data = merged_data.copy()
+                    logger.info("✅ Settings save completed successfully")
+                else:
+                    logger.error("❌ Settings save failed")
+                
+                return success
+                
+            except Exception as e:
+                logger.error(f"Settings save failed: {e}")
+                return False
+        
+        # Traditional file-based saving for plans/prompts
         if not self.current_file:
             return False
         
@@ -828,7 +1067,8 @@ class BaseConfigLibrary(ABC):
             
             # Set as currently editing file and update indicator
             self.file_manager.set_active_file(self.current_file)
-            self.library_panel.update_active_file_indicator()
+            if self.library_panel:
+                self.library_panel.update_active_file_indicator()
             
             return True
             
@@ -846,8 +1086,27 @@ class BaseConfigLibrary(ABC):
                 # Replace/add the value
                 base[key] = value
     
-    def _handle_restore_defaults(self):
+    def _handle_restore_defaults(self, widget=None):
         """Handle restore defaults button"""
+        if not self.use_file_library:
+            # For settings, delete user settings file and reload defaults
+            try:
+                self.settings_manager.delete_user_settings()
+                # Reload UI with default data
+                default_data = self.initialize_settings_data()
+                self.original_data = default_data.copy()
+                schema = self.get_schema()
+                self.create_content_from_schema(
+                    schema=schema,
+                    data=default_data,
+                    on_restore_defaults=self._handle_restore_defaults,
+                    on_title_change=lambda section: self._update_window_title("Settings", section)
+                )
+            except Exception as e:
+                logger.error(f"Failed to restore settings defaults: {e}")
+            return
+        
+        # Traditional file-based restore for plans/prompts
         if not self.current_file:
             return
         
@@ -860,31 +1119,42 @@ class BaseConfigLibrary(ABC):
                     if default_file.exists():
                         # Load the default file and update indicator
                         self._load_file(default_file)
-                        self.library_panel.update_active_file_indicator()
+                        if self.library_panel:
+                            self.library_panel.update_active_file_indicator()
                         return
             
             # If already editing default or no default found, just reload current file
             self._load_file(self.current_file)
-            self.library_panel.update_active_file_indicator()
+            if self.library_panel:
+                self.library_panel.update_active_file_indicator()
             
         except Exception as e:
             logger.error(f"Failed to restore defaults: {e}")
     
     def _handle_new(self):
         """Handle new file creation"""
+        if not self.use_file_library:
+            # Settings don't create new files
+            return
+        
         try:
             new_file_path = self.file_manager.create_new_file()
             if new_file_path:
                 # Load new file first (this sets it as active), then refresh library panel
                 self._load_file(new_file_path)
-                self.library_panel.refresh_files()
-                self.library_panel.update_active_file_indicator()
+                if self.library_panel:
+                    self.library_panel.refresh_files()
+                    self.library_panel.update_active_file_indicator()
             
         except Exception as e:
             logger.error(f"Failed to create new file: {e}")
     
     def _handle_delete(self, file_info: Dict):
         """Handle file deletion"""
+        if not self.use_file_library:
+            # Settings don't delete files
+            return
+        
         try:
             file_path = file_info["file_path"]
             
@@ -902,13 +1172,18 @@ class BaseConfigLibrary(ABC):
                     self.section_panel.clear()
                 
                 # Refresh library panel
-                self.library_panel.refresh_files()
+                if self.library_panel:
+                    self.library_panel.refresh_files()
             
         except Exception as e:
             logger.error(f"Failed to delete file: {e}")
     
     def _handle_duplicate(self, file_info: Dict):
         """Handle file duplication"""
+        if not self.use_file_library:
+            # Settings don't duplicate files
+            return
+        
         try:
             source_file = file_info["file_path"]
             
@@ -916,16 +1191,19 @@ class BaseConfigLibrary(ABC):
             if new_file_path:
                 # Load duplicated file first (this sets it as active), then refresh library panel
                 self._load_file(new_file_path)
-                self.library_panel.refresh_files()
-                self.library_panel.update_active_file_indicator()
+                if self.library_panel:
+                    self.library_panel.refresh_files()
+                    self.library_panel.update_active_file_indicator()
             
         except Exception as e:
             logger.error(f"Failed to duplicate file: {e}")
     
-
-    
     def _handle_import(self):
         """Handle file import with file picker"""
+        if not self.use_file_library:
+            # Settings don't import files
+            return
+        
         try:
             file_type = self.file_manager.get_file_type() if self.file_manager else "file"
             extensions = self.file_manager.get_file_extensions() if self.file_manager else ['.yml', '.json']
@@ -984,6 +1262,10 @@ class BaseConfigLibrary(ABC):
     
     def _handle_export(self, file_info: Dict):
         """Handle file export with file picker"""
+        if not self.use_file_library:
+            # Settings don't export files
+            return
+        
         try:
             file_path = file_info["file_path"]
             
@@ -1012,12 +1294,32 @@ class BaseConfigLibrary(ABC):
         except Exception as e:
             logger.error(f"Failed to export file: {e}")
     
+
+    
     def _on_widget_change(self, widget):
         """Handle widget value changes - trigger immediate auto-save"""
-        if not self.current_file:
+        # For settings windows (use_file_library=False), current_file is None but we still want to save
+        # For file-based windows, only save if we have a current file
+        if self.use_file_library and not self.current_file:
             return
         
+        logger.info(f"Widget changed, triggering auto-save (use_file_library={self.use_file_library})")
         self._perform_save()
+    
+    def _on_button_press(self, widget):
+        """Handle button presses - delegate to settings window if available"""
+        # Find which button was pressed
+        for field_id, stored_widget in self.widgets.items():
+            if stored_widget is widget:
+                logger.info(f"Button pressed: {field_id}")
+                
+                # Call custom button handler if available
+                if field_id in self.button_handlers:
+                    try:
+                        self.button_handlers[field_id](widget)
+                    except Exception as e:
+                        logger.error(f"Error in button handler for {field_id}: {e}")
+                break
     
     # Keep old method name for backward compatibility
     def _handle_save(self, widget=None):

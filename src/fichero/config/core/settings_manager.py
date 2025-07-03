@@ -20,16 +20,16 @@ logger = logging.getLogger(__name__)
 
 class SettingsManager(FileManager):
     """
-    ULTRA SIMPLE settings manager: One class does everything.
+    SIMPLIFIED settings manager: User file → Default file fallback.
     
     🔄 FLOW:
     GUI requests data → load_file() → decrypt → return decrypted data
     GUI saves data → save_file() → encrypt → save to disk
     
     ✅ BENEFITS:
-    - No cache (files are tiny)
-    - No dependencies (self-contained encryption)
-    - No multiple sources of truth
+    - No active file tracking (just use user file)
+    - No complex hierarchy (file → fallback only)
+    - No AppPreferences dependency
     - Always fresh from disk
     - Always decrypted for GUI
     """
@@ -58,7 +58,7 @@ class SettingsManager(FileManager):
                 "backend": "python",
                 "cpu_workers": 4,
                 "io_workers": 16,
-                "memory_per_worker_mb": 2048
+        
             },
             "api_servers": {
                 "openai": {
@@ -90,7 +90,7 @@ class SettingsManager(FileManager):
         }
     
     def load_file(self, file_path: Path) -> Dict[str, Any]:
-        """SUPER SIMPLE: Load file, decrypt, return to GUI - no dependencies"""
+        """SIMPLE: Load file, decrypt, return to GUI - no dependencies"""
         try:
             # Load file directly
             from .loader import ConfigLoader
@@ -113,10 +113,8 @@ class SettingsManager(FileManager):
             logger.error(f"Failed to load settings: {e}")
             return self.get_default_template()
     
-
-    
     def save_file(self, file_path: Path, data: Dict[str, Any]) -> bool:
-        """SUPER SIMPLE: Take GUI data, encrypt, save to file - no dependencies"""
+        """SIMPLE: Take GUI data, encrypt, save to file - no dependencies"""
         try:
             # Make a copy to encrypt
             encrypted_data = data.copy()
@@ -136,6 +134,99 @@ class SettingsManager(FileManager):
             
         except Exception as e:
             logger.error(f"Failed to save settings: {e}")
+            return False
+    
+    def load_settings(self) -> Dict[str, Any]:
+        """SIMPLE: Load settings with user file → default file fallback"""
+        try:
+            # 1. Try user settings file
+            user_file = self.get_user_settings_path()
+            logger.info(f"Looking for user settings at: {user_file}")
+            if user_file and user_file.exists():
+                logger.info(f"Found user settings file: {user_file}")
+                return self.load_file(user_file)
+            
+            # 2. Fallback to default file
+            default_file = self.get_default_settings_path()
+            logger.info(f"Looking for default settings at: {default_file}")
+            if default_file and default_file.exists():
+                logger.info(f"Found default settings file: {default_file}")
+                return self.load_file(default_file)
+            
+            # 3. Return template if no files exist
+            logger.info("No settings files found, using default template")
+            return self.get_default_template()
+            
+        except Exception as e:
+            logger.error(f"Failed to load settings: {e}")
+            return self.get_default_template()
+    
+    def save_settings(self, data: Dict[str, Any]) -> bool:
+        """SIMPLE: Save to user settings file"""
+        try:
+            user_file = self.get_user_settings_path()
+            logger.info(f"Saving settings to: {user_file}")
+            if user_file:
+                success = self.save_file(user_file, data)
+                if success:
+                    logger.info(f"✅ Settings saved successfully to {user_file}")
+                else:
+                    logger.error(f"❌ Failed to save settings to {user_file}")
+                return success
+            logger.error("No user settings path available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to save settings: {e}")
+            return False
+    
+    def get_user_settings_path(self) -> Path:
+        """Get the path to the user settings file"""
+        try:
+            # Use proper user settings directory, not Toga's config path
+            if self.app and hasattr(self.app, 'paths'):
+                # Use app.paths.data for user settings (same as other config files)
+                logger.info(f"App paths: data={self.app.paths.data}, app={self.app.paths.app}, config={self.app.paths.config}")
+                user_dir = self.app.paths.data / "settings"
+                user_dir.mkdir(parents=True, exist_ok=True)
+                user_file = user_dir / "settings.yml"
+                logger.info(f"User settings path: {user_file}")
+                return user_file
+            else:
+                # Fallback for CLI usage
+                cli_path = Path.home() / ".fichero" / "settings.yml"
+                logger.info(f"CLI settings path: {cli_path}")
+                return cli_path
+        except Exception as e:
+            logger.error(f"Failed to get user settings path: {e}")
+            return None
+    
+    def get_default_settings_path(self) -> Path:
+        """Get the path to the default settings file"""
+        try:
+            if self.app and hasattr(self.app, 'paths'):
+                default_path = self.app.paths.app / "resources" / "config_defaults" / "settings" / "default.settings.yml"
+                logger.info(f"Default settings path: {default_path}")
+                return default_path
+            else:
+                # Fallback for CLI usage
+                cli_default_path = Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "settings" / "default.settings.yml"
+                logger.info(f"CLI default settings path: {cli_default_path}")
+                return cli_default_path
+        except Exception as e:
+            logger.error(f"Failed to get default settings path: {e}")
+            return None
+    
+    def delete_user_settings(self):
+        """Delete the user settings file (do not touch default file)"""
+        try:
+            user_file = self.get_user_settings_path()
+            if user_file and user_file.exists():
+                user_file.unlink()
+                logger.info(f"Deleted user settings file: {user_file}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to delete user settings file: {e}")
             return False
     
     # ==================== ENCRYPTION METHODS ====================
@@ -257,32 +348,4 @@ class SettingsManager(FileManager):
                 result[key] = self._merge_settings(result[key], value)
             else:
                 result[key] = value
-        return result
-    
-
-    
-    def get_active_file(self) -> Path:
-        """Get the currently active settings file"""
-        try:
-            # Use app preferences for active file tracking
-            from .app_preferences import get_app_preferences
-            app_prefs = get_app_preferences(self.app)
-            return app_prefs.get_active_settings_file()
-        except Exception as e:
-            logger.error(f"Failed to get active settings file: {e}")
-            return None
-    
-    def set_active_file(self, file_path: Path) -> bool:
-        """Set the active settings file"""
-        try:
-            # Use app preferences for active file tracking
-            from .app_preferences import get_app_preferences
-            app_prefs = get_app_preferences(self.app)
-            success = app_prefs.set_active_settings_file(file_path)
-            
-            if success:
-                logger.info(f"Set active settings file: {file_path.name}")
-            return success
-        except Exception as e:
-            logger.error(f"Failed to set active settings file: {e}")
-            return False 
+        return result 

@@ -107,7 +107,7 @@ class ConfigurationManager:
                 "backend": workers_config.get('backend', 'python'),
                 "cpu_workers": workers_config.get('cpu_workers'),
                 "io_workers": workers_config.get('io_workers'),
-                "memory_per_worker": workers_config.get('memory_per_worker')
+        
             }
         
         return summary 

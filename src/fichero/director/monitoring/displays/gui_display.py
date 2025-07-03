@@ -7,9 +7,11 @@ Provides both Activity Monitor window and document progress widgets.
 
 import asyncio
 import logging
+import platform
 from typing import Optional, Dict, List, Callable
 from datetime import datetime
 from pathlib import Path
+import io
 
 try:
     import toga
@@ -20,8 +22,66 @@ except ImportError:
     TOGA_AVAILABLE = False
 
 from ..task_monitor import TaskMonitor, TaskInfo
+from fichero.utils.text_spinner import get_spinner_frame, get_progress_bar
 
 logger = logging.getLogger(__name__)
+
+
+def get_status_icon(status: str, worker: str = "", progress: float = 0) -> str:
+    """
+    Get status icon with text spinner for running tasks, using task monitor's base icons.
+    
+    Args:
+        status: Task status (pending, running, submitted, processing, completed, failed, cancelled)
+        worker: Worker type (cpu, io) for running tasks
+        progress: Progress percentage (0-100)
+    
+    Returns:
+        Status string with appropriate indicator
+    """
+    # Debug logging
+    logger.debug(f"get_status_icon called with status='{status}', worker='{worker}', progress={progress}")
+    
+    if status in ("running", "active", "submitted", "processing"):
+        # Use text spinner for running tasks
+        spinner = get_spinner_frame('circle')
+        if progress > 0:
+            return f"{spinner} {progress:.0f}%"
+        else:
+            return f"{spinner} Running"
+    else:
+        # For non-running tasks, use the task monitor's status icon
+        # We'll get this from the task object instead of duplicating the logic
+        return "○"  # Default fallback
+
+
+def get_worker_display_name(worker: str, executor_type: str = "") -> str:
+    """
+    Get human-readable worker display name.
+    
+    Args:
+        worker: Worker identifier
+        executor_type: Type of executor (cpu, io, celery)
+    
+    Returns:
+        Human-readable worker name
+    """
+    if not worker or worker == "unknown":
+        return "Unknown"
+    
+    # Handle different worker formats
+    if worker.startswith("CPU-"):
+        return f"CPU Thread {worker[4:]}"
+    elif worker.startswith("IO-"):
+        return f"IO Thread {worker[3:]}"
+    elif worker.startswith("celery"):
+        return f"Celery Worker {worker[7:]}"
+    elif executor_type == "cpu":
+        return f"CPU Thread {worker}"
+    elif executor_type == "io":
+        return f"IO Thread {worker}"
+    else:
+        return worker
 
 
 class DocumentContentDisplay:
@@ -55,7 +115,7 @@ class DocumentContentDisplay:
     def _create_content_section(self):
         """Create the main content section"""
         self.content_section = toga.Box(
-            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0))
+            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0), flex=1)
         )
     
     def _show_description_view(self):
@@ -71,7 +131,6 @@ class DocumentContentDisplay:
                 margin_bottom=10,
                 margin_left=20,
                 flex=1,
-                height=200,
             ),
             on_resize=self._draw_content_text,
             on_press=self._handle_canvas_click
@@ -130,22 +189,22 @@ class DocumentContentDisplay:
         text = _("description")
         
         line_height_multiplier = 1.8
-        left_padding = 15
-        top_padding = 15
-        right_padding = 10
-        max_width = canvas.layout.content_width - left_padding - right_padding
+        left_margin = 15
+        top_margin = 15
+        right_margin = 10
+        max_width = canvas.layout.content_width - left_margin - right_margin
         
         paragraphs = text.split('\n\n')
-        current_y = top_padding
+        current_y = top_margin
         
         for paragraph_idx, paragraph in enumerate(paragraphs):
             if paragraph_idx > 0:
                 current_y += regular_font.size * line_height_multiplier * 0.8
             
-            current_y = self._render_paragraph(canvas, paragraph, left_padding, current_y, 
+            current_y = self._render_paragraph(canvas, paragraph, left_margin, current_y, 
                                              max_width, regular_font, bold_font, line_height_multiplier)
     
-    def _render_paragraph(self, canvas, text, left_padding, start_y, max_width, 
+    def _render_paragraph(self, canvas, text, left_margin, start_y, max_width, 
                           regular_font, bold_font, line_height_multiplier):
         """Render paragraph with markdown formatting"""
         import re
@@ -217,7 +276,7 @@ class DocumentContentDisplay:
                 else:
                     if current_line_elements:
                         current_y = self._render_line(canvas, current_line_elements, 
-                                                    left_padding, current_y, line_height_multiplier)
+                                                    left_margin, current_y, line_height_multiplier)
                     
                     current_line_elements = [{
                         **element,
@@ -228,13 +287,13 @@ class DocumentContentDisplay:
         
         if current_line_elements:
             current_y = self._render_line(canvas, current_line_elements, 
-                                        left_padding, current_y, line_height_multiplier)
+                                        left_margin, current_y, line_height_multiplier)
         
         return current_y
     
-    def _render_line(self, canvas, elements, left_padding, y_position, line_height_multiplier):
+    def _render_line(self, canvas, elements, left_margin, y_position, line_height_multiplier):
         """Render a line of formatted text elements"""
-        current_x = left_padding
+        current_x = left_margin
         
         for element in elements:
             color = 'rgb(0, 100, 200)' if element['color'] == 'blue' else 'rgb(0, 0, 0)'
@@ -299,7 +358,7 @@ class DocumentContentDisplay:
 class DocumentProgressDisplay:
     """
     Progress display for document windows.
-    Shows progress for tasks from a specific document.
+    Shows progress for tasks from a specific document using a tree-based layout.
     """
     
     def __init__(self, document_window, document_id: str):
@@ -311,9 +370,10 @@ class DocumentProgressDisplay:
         self.task_monitor = TaskMonitor.get_instance(document_window._app.director, f"gui_doc_{document_id}")
         
         # UI state
-        self.progress_widgets: Dict[str, Dict] = {}
         self.progress_container = None
-        self.progress_box = None
+        self.task_table = None
+        self.status_bar = None
+        self.button_bar = None
         self.is_showing_progress = False
         
         # Auto-refresh for progress updates
@@ -331,11 +391,11 @@ class DocumentProgressDisplay:
             # Create progress view
             self._create_progress_view()
             
-            # Initialize progress widgets for each folder
-            self._initialize_folder_progress(folders)
-            
             # Monitor the specific tasks
             self.current_task_ids = task_ids
+            
+            # Mark as showing progress
+            self.is_showing_progress = True
             
             # Start auto-refresh loop for progress updates
             self._start_auto_refresh()
@@ -353,105 +413,94 @@ class DocumentProgressDisplay:
         logger.info("Stopped progress display")
     
     def _create_progress_view(self):
-        """Create progress view container"""
+        """Create progress view with tree-based layout similar to activity monitor"""
         if not self.is_showing_progress:
             self.is_showing_progress = True
             
-            # Create scrollable progress container
-            self.progress_container = toga.ScrollContainer(
-                style=Pack(
-                    margin_top=20,
-                    margin_right=20,
-                    margin_bottom=10,
-                    margin_left=20,
-                    flex=1,
-                    height=200,
-                )
+            self.progress_container = toga.Box(style=Pack(direction=COLUMN, margin=3, flex=1))
+            self.task_table = toga.Table(
+                headings=["Folder", "Status", "Step", "Progress", "Worker", "Backend", "Duration", "Error"],
+                accessors=["folder", "status", "step", "progress", "worker", "backend", "duration", "error"],
+                style=Pack(flex=1, margin=0),
+                missing_value="",
+                on_select=self._on_task_select
             )
+            try:
+                self.task_table.column_widths = [120, 120, 120, 80, 120, 100, 80, 200]
+            except AttributeError:
+                pass
+            self.progress_container.add(self.task_table)
             
-            self.progress_box = toga.Box(
-                style=Pack(direction=COLUMN, margin=10)
+            # Bottom bar: button first, then status text
+            bottom_bar = toga.Box(style=Pack(direction=ROW, margin=(5, 10, 0, 0)))
+            self.button_bar = self._create_button_bar()
+            bottom_bar.add(self.button_bar)
+            self.status_bar = toga.Label(
+                "Ready to process",
+                style=Pack(font_size=10, color="#666666", margin_left=3)
             )
-            
-            self.progress_container.content = self.progress_box
+            bottom_bar.add(self.status_bar)
+            spacer = toga.Box(style=Pack(flex=1))
+            bottom_bar.add(spacer)
+            self.progress_container.add(bottom_bar)
     
-    def _initialize_folder_progress(self, folders: List[Path]):
-        """Initialize progress widgets for each folder"""
-        if not self.is_showing_progress or not self.progress_box:
-            return
-        
-        self.progress_widgets.clear()
-        self.progress_box.clear()
-        
-        # Header
-        header = toga.Label(
-            f"🚀 Processing {len(folders)} folder{'s' if len(folders) != 1 else ''}:",
-            style=Pack(margin_bottom=15, font_size=14, font_weight='bold')
+    def _create_button_bar(self):
+        """Create compact button bar for document progress with only Stop"""
+        button_box = toga.Box(style=Pack(direction=ROW), margin=(0, 0 ,0, 0))
+        stop_btn = toga.Button(
+            "■",
+            on_press=self._stop_processing_handler,
+            style=Pack(margin=(3, 3), font_size=9)
         )
-        self.progress_box.add(header)
-        
-        # Create progress widgets
-        for folder in folders:
-            folder_widget = self._create_folder_progress_widget(folder)
-            self.progress_widgets[folder.name] = folder_widget
-            self.progress_box.add(folder_widget['container'])
-            
-            # Add separator between folders
-            separator = toga.Divider(style=Pack(margin=(10, 0)))
-            self.progress_box.add(separator)
+        button_box.add(stop_btn)
+        return button_box
     
-    def _create_folder_progress_widget(self, folder: Path) -> Dict:
-        """Create progress widget for a single folder"""
-        container = toga.Box(
-            style=Pack(direction=COLUMN, margin=(5, 0, 15, 0))
-        )
-        
-        # Header with folder name and status
-        header_row = toga.Box(
-            style=Pack(direction=ROW, align_items=CENTER, margin_bottom=8)
-        )
-        
-        status_icon = toga.Label(
-            "⏳",
-            style=Pack(font_size=16, width=30, margin_right=10)
-        )
-        
-        # Get just the folder name (last part of path)
-        folder_name = folder.name
-        
-        folder_label = toga.Label(
-            f"📁 {folder_name}",
-            style=Pack(flex=1, font_size=12, font_weight='bold')
-        )
-        
-        header_row.add(status_icon)
-        header_row.add(folder_label)
-        
-        # Progress percentage (instead of bar)
-        progress_label = toga.Label(
-            "0.0%",
-            style=Pack(width=60, margin_bottom=5, font_size=11, font_weight='bold')
-        )
-        
-        # Status text
-        status_text = toga.Label(
-            "Waiting to start...",
-            style=Pack(font_size=10, color='#666666')
-        )
-        
-        # Assemble widget
-        container.add(header_row)
-        container.add(progress_label)
-        container.add(status_text)
-        
-        return {
-            'container': container,
-            'status_icon': status_icon,
-            'folder_label': folder_label,
-            'progress_label': progress_label,
-            'status_text': status_text,
-            'folder': folder
-        }
+    def _on_task_select(self, widget):
+        """Handle task selection"""
+        selection = widget.selection
+        if selection:
+            # Update status bar with task details
+            folder = getattr(selection, 'folder', 'Unknown')
+            status = getattr(selection, 'status', 'Unknown')
+            step = getattr(selection, 'step', '')
+            progress = getattr(selection, 'progress', '')
+            
+            status_text = f"Selected: {folder} ({status})"
+            if step:
+                status_text += f" - Step: {step}"
+            if progress:
+                status_text += f" - Progress: {progress}"
+            
+            self.status_bar.text = status_text
+        else:
+            self.status_bar.text = "No task selected"
+    
+    def _stop_processing_handler(self, widget):
+        """Handle stop processing button"""
+        try:
+            # Cancel only selected tasks
+            selected = self.task_table.selection
+            cancelled_count = 0
+            if selected:
+                if isinstance(selected, list):
+                    selected_tasks = selected
+                else:
+                    selected_tasks = [selected]
+                for row in selected_tasks:
+                    task_id = getattr(row, "task_id", None)
+                    if task_id and self.task_monitor.cancel_task(task_id):
+                        cancelled_count += 1
+            self.status_bar.text = f"Stopped {cancelled_count} tasks"
+            
+            # Reset document window button state
+            self.document_window._reset_to_process_button()
+            
+            # Return to main view
+            if hasattr(self.document_window, 'content_display'):
+                self.document_window.content_display.show_description_view()
+                
+        except Exception as e:
+            self.status_bar.text = f"Error stopping processing: {e}"
     
     def _on_task_update(self, event_type: str, task: TaskInfo):
         """Handle task updates from TaskMonitor"""
@@ -473,38 +522,62 @@ class DocumentProgressDisplay:
     async def _update_progress_ui(self, task: TaskInfo):
         """Update progress UI for a task"""
         try:
-            folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-            if folder_name in self.progress_widgets:
-                widgets = self.progress_widgets[folder_name]
-                
-                # Update status icon
-                widgets['status_icon'].text = task.status_icon
-                
-                # Update progress label
-                if task.status == "running" and task.overall_progress > 0:
-                    widgets['progress_label'].text = f"{task.overall_progress:.1f}%"
-                elif task.status == "completed":
-                    widgets['progress_label'].text = "100.0%"
-                elif task.status == "failed":
-                    widgets['progress_label'].text = "Failed"
-                else:
-                    widgets['progress_label'].text = "Waiting"
-                
-                # Update status text
-                if task.current_step:
-                    widgets['status_text'].text = f"🔧 {task.current_step}"
-                elif task.status == "completed":
-                    widgets['status_text'].text = "🎉 Completed successfully!"
-                elif task.status == "failed":
-                    widgets['status_text'].text = f"❌ {task.error_message or 'Processing failed'}"
-                else:
-                    widgets['status_text'].text = f"📊 {task.status.title()}"
+            # Update the task table
+            self._update_task_table()
+            
+            # Update status bar with overall progress
+            self._update_status_bar()
                     
         except Exception as e:
             logger.error(f"Error updating progress UI: {e}")
     
+    def _update_task_table(self):
+        """Update the task table with current document tasks - optimized to update existing items"""
+        if not self.task_table:
+            return
+        
+        platform_name = platform.system().lower()
+        document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
+        table_data = [format_task_row(task, platform_name) for task in document_tasks.values()]
+        self.task_table.data = table_data
+    
+    def _update_status_bar(self):
+        """Update status bar with document statistics"""
+        if not self.status_bar:
+            return
+        
+        try:
+            # Get tasks for this document
+            document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
+            
+            # Count by status
+            active_count = len([t for t in document_tasks.values() if t.is_active])
+            completed_count = len([t for t in document_tasks.values() if t.status == "completed"])
+            failed_count = len([t for t in document_tasks.values() if t.status == "failed"])
+            total_count = len(document_tasks)
+            
+            # Create status text
+            status_parts = []
+            status_parts.append(f"Total: {total_count}")
+            status_parts.append(f"Active: {active_count}")
+            status_parts.append(f"Completed: {completed_count}")
+            status_parts.append(f"Failed: {failed_count}")
+            
+            # Add progress info if there are active tasks
+            if active_count > 0:
+                running_tasks = [t for t in document_tasks.values() if t.status == "running"]
+                if running_tasks:
+                    avg_progress = sum(t.overall_progress for t in running_tasks) / len(running_tasks)
+                    status_parts.append(f"Avg Progress: {avg_progress:.1f}%")
+            
+            status_text = " | ".join(status_parts)
+            self.status_bar.text = status_text
+                    
+        except Exception as e:
+            self.status_bar.text = f"Error updating status: {e}"
+    
     async def _handle_task_completion(self, task: TaskInfo):
-        """Handle task completion with enhanced results display"""
+        """Handle task completion"""
         try:
             # Check if all tasks for this document are complete
             document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
@@ -514,246 +587,30 @@ class DocumentProgressDisplay:
                 # All tasks completed - gather results
                 completed_tasks = [t for t in document_tasks.values() if t.status == "completed"]
                 failed_tasks = [t for t in document_tasks.values() if t.status == "failed"]
-                all_tasks = list(document_tasks.values())
                 
                 # Stop activity indicator and reset button
                 self.document_window.activity_indicator.stop()
                 self.document_window.process_btn.enabled = True
                 self.document_window.process_btn.text = "Process"
-                # Reset button style by deleting custom properties
+                # Reset button style
                 if hasattr(self.document_window.process_btn.style, 'background_color'):
                     del self.document_window.process_btn.style.background_color
                 if hasattr(self.document_window.process_btn.style, 'color'):
                     del self.document_window.process_btn.style.color
                 
-                # Create enhanced completion view
-                await self._show_completion_summary(completed_tasks, failed_tasks, all_tasks)
+                # Update status bar with completion message
+                total_tasks = len(document_tasks)
+                success_rate = len(completed_tasks) / total_tasks if total_tasks > 0 else 0
+                
+                if len(failed_tasks) == 0:
+                    self.status_bar.text = f"✅ All {total_tasks} tasks completed successfully!"
+                elif success_rate >= 0.8:
+                    self.status_bar.text = f"✅ {len(completed_tasks)}/{total_tasks} tasks completed ({len(failed_tasks)} failed)"
+                else:
+                    self.status_bar.text = f"⚠️ {len(completed_tasks)}/{total_tasks} tasks completed ({len(failed_tasks)} failed)"
                     
         except Exception as e:
             logger.error(f"Error handling task completion: {e}")
-    
-    async def _show_completion_summary(self, completed_tasks, failed_tasks, all_tasks):
-        """Show enhanced completion summary with results access"""
-        if not self.progress_box:
-            return
-        
-        # Clear current progress widgets
-        self.progress_box.clear()
-        
-        # Determine overall result
-        total_tasks = len(all_tasks)
-        success_rate = len(completed_tasks) / total_tasks if total_tasks > 0 else 0
-        
-        if len(failed_tasks) == 0:
-            # Perfect success
-            title_icon = "🎉"
-            title_text = "Processing Complete!"
-            title_color = "#2e7d32"  # Green
-        elif success_rate >= 0.8:
-            # Mostly successful
-            title_icon = "✅"
-            title_text = "Processing Mostly Complete"
-            title_color = "#f57f17"  # Amber
-        else:
-            # Many failures
-            title_icon = "⚠️"
-            title_text = "Processing Completed with Issues"
-            title_color = "#d32f2f"  # Red
-        
-        # Title
-        title_label = toga.Label(
-            f"{title_icon} {title_text}",
-            style=Pack(
-                font_size=16,
-                font_weight='bold',
-                color=title_color,
-                margin_bottom=15,
-                text_align=CENTER
-            )
-        )
-        self.progress_box.add(title_label)
-        
-        # Results summary
-        summary_text = f"📊 Results: {len(completed_tasks)}/{total_tasks} folders completed"
-        if failed_tasks:
-            summary_text += f" • {len(failed_tasks)} failed"
-        
-        summary_label = toga.Label(
-            summary_text,
-            style=Pack(
-                font_size=12,
-                margin_bottom=20,
-                text_align=CENTER,
-                color="#555555"
-            )
-        )
-        self.progress_box.add(summary_label)
-        
-        # Output folder access
-        if completed_tasks:
-            output_path = getattr(completed_tasks[0], 'output_path', None)
-            if output_path:
-                # Output folder button
-                output_btn = toga.Button(
-                    f"📁 View Results ({Path(output_path).name})",
-                    on_press=lambda w: self._open_output_folder(output_path),
-                    style=Pack(
-                        margin_bottom=10,
-                        background_color="#1976d2",
-                        color="white",
-                        padding=8
-                    )
-                )
-                self.progress_box.add(output_btn)
-        
-        # Action buttons row
-        button_row = toga.Box(
-            style=Pack(direction=ROW, justify_content=CENTER, margin_top=10)
-        )
-        
-        # Activity Monitor button
-        activity_btn = toga.Button(
-            "📊 Activity Monitor",
-            on_press=lambda w: self._open_activity_monitor(),
-            style=Pack(margin_right=10, padding=6)
-        )
-        button_row.add(activity_btn)
-        
-        # Process Another button
-        process_btn = toga.Button(
-            "🔄 Process Another",
-            on_press=lambda w: self._return_to_main_view(),
-            style=Pack(margin_right=10, padding=6)
-        )
-        button_row.add(process_btn)
-        
-        # Back to Main button
-        back_btn = toga.Button(
-            "🏠 Back to Main",
-            on_press=lambda w: self._return_to_main_view(),
-            style=Pack(background_color='#1976d2', color='white', padding=6)
-        )
-        button_row.add(back_btn)
-        
-        self.progress_box.add(button_row)
-        
-        # Detailed results (if there were failures)
-        if failed_tasks:
-            await self._add_detailed_results(completed_tasks, failed_tasks)
-    
-    async def _add_detailed_results(self, completed_tasks, failed_tasks):
-        """Add detailed breakdown of results"""
-        # Separator
-        separator = toga.Divider(style=Pack(margin=(20, 0)))
-        self.progress_box.add(separator)
-        
-        # Details header
-        details_label = toga.Label(
-            "📋 Detailed Results",
-            style=Pack(
-                font_size=14,
-                font_weight='bold',
-                margin_bottom=10,
-                text_align=CENTER
-            )
-        )
-        self.progress_box.add(details_label)
-        
-        # Success list
-        if completed_tasks:
-            success_header = toga.Label(
-                f"✅ Completed ({len(completed_tasks)}):",
-                style=Pack(font_size=11, font_weight='bold', color="#2e7d32", margin_bottom=5)
-            )
-            self.progress_box.add(success_header)
-            
-            for task in completed_tasks[:5]:  # Show first 5
-                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                item_label = toga.Label(
-                    f"  • {folder_name}",
-                    style=Pack(font_size=10, margin_left=10, margin_bottom=2)
-                )
-                self.progress_box.add(item_label)
-            
-            if len(completed_tasks) > 5:
-                more_label = toga.Label(
-                    f"  ... and {len(completed_tasks) - 5} more",
-                    style=Pack(font_size=10, margin_left=10, margin_bottom=5, color="#666666")
-                )
-                self.progress_box.add(more_label)
-        
-        # Failure list
-        if failed_tasks:
-            failure_header = toga.Label(
-                f"❌ Failed ({len(failed_tasks)}):",
-                style=Pack(font_size=11, font_weight='bold', color="#d32f2f", margin_bottom=5)
-            )
-            self.progress_box.add(failure_header)
-            
-            for task in failed_tasks[:3]:  # Show first 3 failures
-                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                error_msg = task.error_message[:50] + "..." if task.error_message and len(task.error_message) > 50 else task.error_message
-                item_label = toga.Label(
-                    f"  • {folder_name}: {error_msg or 'Unknown error'}",
-                    style=Pack(font_size=10, margin_left=10, margin_bottom=2, color="#666666")
-                )
-                self.progress_box.add(item_label)
-                
-            if len(failed_tasks) > 3:
-                more_label = toga.Label(
-                    f"  ... and {len(failed_tasks) - 3} more failures",
-                    style=Pack(font_size=10, margin_left=10, color="#666666")
-                )
-                self.progress_box.add(more_label)
-    
-    def _open_output_folder(self, output_path):
-        """Open the output folder in system file manager"""
-        try:
-            import subprocess
-            import platform
-            
-            path = Path(output_path)
-            if path.exists():
-                if platform.system() == "Darwin":  # macOS
-                    subprocess.run(["open", str(path)])
-                elif platform.system() == "Windows":
-                    subprocess.run(["explorer", str(path)])
-                else:  # Linux
-                    subprocess.run(["xdg-open", str(path)])
-            else:
-                logger.warning(f"Output path does not exist: {path}")
-        except Exception as e:
-            logger.error(f"Failed to open output folder: {e}")
-    
-    def _open_activity_monitor(self):
-        """Open the activity monitor window"""
-        try:
-            # Use the app's activity monitor functionality
-            if hasattr(self.document_window._app, 'show_activity_monitor'):
-                self.document_window._app.show_activity_monitor()
-            else:
-                logger.warning("Activity monitor not available")
-        except Exception as e:
-            logger.error(f"Failed to open activity monitor: {e}")
-    
-    def _return_to_main_view(self):
-        """Return to description view and reset for new processing"""
-        try:
-            # Stop progress monitoring
-            self.stop_processing()
-            
-            # Clear progress widgets
-            self.progress_widgets.clear()
-            
-            # Reset document window button state
-            self.document_window._reset_to_process_button()
-            
-            # Notify the document window to return to description view
-            if hasattr(self.document_window, 'content_display'):
-                self.document_window.content_display.show_description_view()
-            
-        except Exception as e:
-            logger.error(f"Error returning to main view: {e}")
     
     def _start_auto_refresh(self):
         """Start auto-refresh task for progress updates"""
@@ -772,8 +629,9 @@ class DocumentProgressDisplay:
         """Auto-refresh loop for progress updates"""
         try:
             while True:
+                logger.debug("Auto-refresh: updating task table and status bar")
                 await self._refresh_all_tasks()
-                await asyncio.sleep(2.0)  # Update every 2 seconds
+                await asyncio.sleep(0.1)  # Update every 0.1 seconds for smooth spinner
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -785,24 +643,21 @@ class DocumentProgressDisplay:
             if not self.current_task_ids or not self.is_showing_progress:
                 return
             
-            # Get updated task information
-            for task_id in self.current_task_ids:
-                task = self.task_monitor.get_task(task_id)
-                if task:
-                    await self._update_progress_ui(task)
-                    
-                    # Check if task completed
-                    if task.status in ["completed", "failed", "cancelled"]:
-                        await self._handle_task_completion(task)
+            # Update the task table
+            self._update_task_table()
+            
+            # Update status bar
+            self._update_status_bar()
             
         except Exception as e:
-            logger.error(f"Error refreshing tasks: {e}")
+            logger.error(f"Error refreshing tasks: {e}", exc_info=True)
 
 
 class ActivityMonitorDisplay:
     """
     Activity Monitor display for system-wide task monitoring.
     Shows all tasks across all document windows and CLI instances.
+    Uses a tree-based layout similar to macOS Finder.
     """
     
     def __init__(self, app):
@@ -816,9 +671,9 @@ class ActivityMonitorDisplay:
         self.auto_refresh_task: Optional[asyncio.Task] = None
         
         # UI components
-        self.backend_status_label = None
-        self.stats_label = None
         self.task_table = None
+        self.status_bar = None
+        self.button_bar = None
         
         logger.info("ActivityMonitorDisplay initialized")
     
@@ -851,96 +706,96 @@ class ActivityMonitorDisplay:
             logger.info("Activity monitor display closed")
     
     def _create_window(self):
-        """Create the activity monitor window"""
+        """Create the activity monitor window with table-based layout and toolbar"""
         self.window = toga.Window(
             title="Fichero Activity Monitor",
-            size=(800, 600),
+            size=(425, 600),
             resizable=True
         )
         
-        # Create main container
-        main_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
+        main_box = toga.Box(style=Pack(direction=COLUMN, margin=0))
         
-        # Backend status section
-        backend_section = self._create_backend_section()
-        main_box.add(backend_section)
+
+        self.task_table = toga.Table(
+            headings=["Folder", "Status", "Worker"],
+            accessors=["folder", "status", "worker"],
+            style=Pack(flex=1, margin=0),
+            missing_value="",
+            on_select=self._on_task_select
+        )
+        try:
+            self.task_table.column_widths = [200, 150, 100]  # Adjusted for worker column
+        except AttributeError:
+            pass
+        main_box.add(self.task_table)
         
-        # Stats section
-        stats_section = self._create_stats_section()
-        main_box.add(stats_section)
+        # Bottom bar: buttons on left, status text on right
+        bottom_bar = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 0, 0)))
         
-        # Task list section
-        task_section = self._create_task_section()
-        main_box.add(task_section)
+        # Button bar with icon buttons
+        button_bar = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 0, 0)))
         
-        # No control buttons - just monitoring
+        # Stop button (simple text symbol)
+        stop_btn = toga.Button(
+            "■",
+            on_press=self._cancel_all_handler,
+            style=Pack(margin=(2, 2), font_size=9, width=24, height=24)
+        )
+        button_bar.add(stop_btn)
+        
+        # Refresh button (simple text symbol)
+        refresh_btn = toga.Button(
+            "↻",
+            on_press=self._refresh_handler,
+            style=Pack(margin=(2, 2), font_size=9, width=24, height=24)
+        )
+        button_bar.add(refresh_btn)
+        
+        bottom_bar.add(button_bar)
+        
+        # Status text on right
+        self.status_bar = toga.Label(
+            "Ready",
+            style=Pack(font_size=9, color="#666666", margin_left=3, margin_top=6, margin_right=3)
+        )
+        bottom_bar.add(self.status_bar)
+        spacer = toga.Box(style=Pack(flex=1))
+        bottom_bar.add(spacer)
+        main_box.add(bottom_bar)
         
         self.window.content = main_box
-        
-        # Remove problematic close handler that causes crashes
-        # Let Toga handle window closing naturally
-        
-        # Initial update
         self._update_display()
     
-    def _create_backend_section(self):
-        """Create backend status section"""
-        section = toga.Box(style=Pack(direction=COLUMN, margin_bottom=10))
-        
-        # Title
-        title = toga.Label(
-            "Backend Status",
-            style=Pack(font_size=14, font_weight='bold', margin_bottom=5)
-        )
-        section.add(title)
-        
-        # Status label
-        self.backend_status_label = toga.Label(
-            "Backend: Loading...",
-            style=Pack(font_size=11, margin_bottom=10)
-        )
-        section.add(self.backend_status_label)
-        
-        return section
+
     
-    def _create_stats_section(self):
-        """Create statistics section"""
-        section = toga.Box(style=Pack(direction=COLUMN, margin_bottom=10))
-        
-        # Title
-        title = toga.Label(
-            "Task Statistics",
-            style=Pack(font_size=14, font_weight='bold', margin_bottom=5)
-        )
-        section.add(title)
-        
-        # Stats label
-        self.stats_label = toga.Label(
-            "Loading statistics...",
-            style=Pack(font_size=11, margin_bottom=10)
-        )
-        section.add(self.stats_label)
-        
-        return section
+    def _on_task_select(self, widget):
+        """Handle task selection"""
+        selection = widget.selection
+        if selection:
+            # Update status bar with task details
+            task_id = getattr(selection, 'task_id', 'Unknown')
+            folder = getattr(selection, 'folder', 'Unknown')
+            status = getattr(selection, 'status', 'Unknown')
+            self.status_bar.text = f"Selected: {folder} ({status}) - Task ID: {task_id}"
+        else:
+            self.status_bar.text = "No task selected"
     
-    def _create_task_section(self):
-        """Create task list section"""
-        section = toga.Box(style=Pack(direction=COLUMN, margin_bottom=10, flex=1))
-        
-        # Title
-        title = toga.Label(
-            "Active Tasks",
-            style=Pack(font_size=14, font_weight='bold', margin_bottom=5)
-        )
-        section.add(title)
-        
-        # Task table
-        self.task_table = toga.DetailedList(
-            style=Pack(flex=1, margin_bottom=10)
-        )
-        section.add(self.task_table)
-        
-        return section
+    def _cancel_all_handler(self, widget):
+        """Handle cancel all button"""
+        try:
+            cancelled_count = self.task_monitor.cancel_all_tasks()
+            self.status_bar.text = f"Cancelled {cancelled_count} tasks"
+            self._update_display()
+        except Exception as e:
+            self.status_bar.text = f"Error cancelling tasks: {e}"
+    
+    def _refresh_handler(self, widget):
+        """Handle refresh button"""
+        try:
+            self._update_display()
+            self.status_bar.text = "Refreshed"
+        except Exception as e:
+            self.status_bar.text = f"Error refreshing: {e}"
     
     def _start_auto_refresh(self):
         """Start auto-refresh task"""
@@ -958,7 +813,7 @@ class ActivityMonitorDisplay:
         try:
             while True:
                 self._update_display()
-                await asyncio.sleep(1.0)  # Update every second
+                await asyncio.sleep(0.1)  # Update every 0.1 seconds for smooth spinner
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -967,179 +822,167 @@ class ActivityMonitorDisplay:
     def _update_display(self):
         """Update all display components"""
         try:
-            # Update backend status
-            self._update_backend_status()
-            
-            # Update statistics
-            self._update_statistics()
-            
-            # Update task list
-            self._update_task_list()
-            
+            self._update_task_table()
+            self._update_status_bar()
         except Exception as e:
-            logger.error(f"Display update error: {e}")
+            logger.error(f"Display update error: {e}", exc_info=True)
     
-    def _update_backend_status(self):
-        """Update backend status display"""
-        if not self.backend_status_label:
-            return
-        
-        backend_info = self.task_monitor.get_backend_info()
-        status_text = f"Backend: {backend_info.get('backend_name', 'Unknown')}"
-        status_text += f" | Status: {backend_info.get('status', 'Unknown')}"
-        
-        self.backend_status_label.text = status_text
-    
-    def _update_statistics(self):
-        """Update statistics display"""
-        if not self.stats_label:
-            return
-        
-        # Statistics
-        stats = self.task_monitor.get_session_stats()
-        stats_text = f"Active Tasks: {stats['active_tasks']} | "
-        stats_text += f"Session: {stats['session_tasks']} | "
-        stats_text += f"Completed: {stats['completed_tasks']} | "
-        stats_text += f"Failed: {stats['failed_tasks']}"
-        
-        self.stats_label.text = stats_text
-    
-    def _update_task_list(self):
-        """Update task list display with enhanced status information"""
+    def _update_task_table(self):
+        """Update the task table with current data - optimized to update existing items"""
         if not self.task_table:
             return
         
-        # Clear existing items
-        self.task_table.data.clear()
+        # Get all tasks (active + recent completed)
+        all_tasks = self.task_monitor.get_all_tasks()
         
-        # Get active tasks and recently completed tasks
-        active_tasks = self.task_monitor.get_active_tasks()
-        completed_tasks = self.task_monitor.completed_tasks  # Use attribute directly
+        # Sort tasks by processing order
+        def sort_key(task):
+            # Simple status priority for sorting: running -> pending -> failed -> completed
+            status_priority = {
+                "running": 0,
+                "pending": 1, 
+                "failed": 2,
+                "completed": 3
+            }
+            priority = status_priority.get(task.status, 1)
+            
+            if task.status == "running":
+                return (priority, task.start_time or datetime.min)
+            elif task.status == "pending":
+                return (priority, task.created_at)
+            else:  # failed or completed
+                return (priority, task.end_time or datetime.min)
         
-        # Separate active tasks by status
-        running_tasks = []
-        waiting_tasks = []
+        sorted_tasks = sorted(all_tasks.values(), key=sort_key)
         
-        for task in active_tasks.values():
-            if task.status == "pending":
-                waiting_tasks.append(task)
-            else:
-                running_tasks.append(task)
+        # Create a map of current task IDs to their data
+        current_task_map = {}
+        for item in self.task_table.data:
+            task_id = getattr(item, 'task_id', None)
+            if task_id:
+                current_task_map[task_id] = item
         
-        # Add running tasks first with enhanced status
-        for task in running_tasks:
-            # Format duration in minutes
+        # Update existing items and add new ones
+        new_data = []
+        for task in sorted_tasks:
+            # Debug logging
+            logger.debug(f"Processing task {task.task_id}: status='{task.status}', progress={task.overall_progress}")
+            
+            # Format duration
             duration_minutes = task.duration.total_seconds() / 60
             duration_str = f"{duration_minutes:.1f}m"
             
-            # Get just the folder name (last part of path)
+            # Get folder name (last part of path)
             folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
             
-            # Enhanced status description
-            if task.status == "running":
-                status_desc = f"Step: {task.current_step} | Progress: {task.overall_progress:.1f}%"
-            elif task.status == "completed":
-                status_desc = f"✅ Completed successfully"
-            elif task.status == "failed":
-                error_preview = task.error_message[:30] + "..." if task.error_message and len(task.error_message) > 30 else task.error_message
-                status_desc = f"❌ Failed: {error_preview or 'Unknown error'}"
-            elif task.status == "cancelled":
-                status_desc = f"🛑 Cancelled by user"
-            else:
-                status_desc = f"Status: {task.status}"
+            # Get worker display name
+            worker_display = get_worker_display_name(task.worker, getattr(task, 'executor_type', ''))
             
-            # Create detailed list item
-            item = {
-                "title": f"{task.status_icon} {folder_name}",
-                "subtitle": f"Plan: {task.plan_name} | {status_desc} | Duration: {duration_str} | Worker: {task.worker}",
-                "icon": None,
-                "data": task
+            # Create tree item data
+            if task.status in ("running", "active", "submitted", "processing"):
+                # Use animated spinner for running tasks
+                status_icon = get_status_icon(task.status, task.worker, task.overall_progress)
+                status_text = f"{status_icon} {task.current_step or 'Waiting'} ({duration_str})"
+            else:
+                # Use task monitor's status icon for non-running tasks
+                status_text = f"{task.status_icon} ({duration_str})"
+            
+            tree_item_data = {
+                "status": status_text,
+                "folder": folder_name,
+                "worker": worker_display,
+                "task_id": task.task_id,
+                "status_text": task.status,
+                "folder_full": task.folder_name
             }
             
-            self.task_table.data.append(item)
+            # Check if we have an existing item for this task
+            if task.task_id in current_task_map:
+                # Update existing item in place
+                existing_item = current_task_map[task.task_id]
+                for key, value in tree_item_data.items():
+                    if hasattr(existing_item, key):
+                        setattr(existing_item, key, value)
+                new_data.append(existing_item)
+            else:
+                # Create new item
+                new_data.append(tree_item_data)
         
-        # Add waiting tasks with clearer status
-        if waiting_tasks:
-            # Add separator if we had running tasks
-            if running_tasks:
-                self.task_table.data.append({
-                    "title": "--- Waiting Tasks ---",
-                    "subtitle": "Queued for processing",
-                    "icon": None,
-                    "data": None
-                })
-            
-            for task in waiting_tasks:
-                # Format duration in minutes
-                duration_minutes = task.duration.total_seconds() / 60
-                duration_str = f"{duration_minutes:.1f}m"
-                
-                # Get just the folder name (last part of path)
-                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                
-                # Create detailed list item for waiting task
-                item = {
-                    "title": f"{task.status_icon} {folder_name}",
-                    "subtitle": f"Plan: {task.plan_name} | Waiting in queue | Duration: {duration_str} | Position: {len(waiting_tasks) - waiting_tasks.index(task)}",
-                    "icon": None,
-                    "data": task
-                }
-                
-                self.task_table.data.append(item)
+        # Only update the table data if there are actual changes
+        current_task_ids = []
+        for item in self.task_table.data:
+            if hasattr(item, 'task_id'):
+                current_task_ids.append(item.task_id)
+            elif isinstance(item, dict):
+                current_task_ids.append(item.get('task_id', ''))
         
-        # Add recent completions section
-        recent_completed = [t for t in completed_tasks if (datetime.now() - t.end_time).total_seconds() < 300]  # Last 5 minutes
-        if recent_completed and not active_tasks:
-            # Only show recent completions if no active tasks
-            self.task_table.data.append({
-                "title": "--- Recently Completed ---",
-                "subtitle": "Completed in the last 5 minutes",
-                "icon": None,
-                "data": None
-            })
-            
-            for task in recent_completed[:5]:  # Show last 5
-                # Format completion time
-                time_ago = (datetime.now() - task.end_time).total_seconds()
-                if time_ago < 60:
-                    time_str = f"{int(time_ago)}s ago"
+        new_task_ids = []
+        for item in new_data:
+            if hasattr(item, 'task_id'):
+                new_task_ids.append(item.task_id)
+            elif isinstance(item, dict):
+                new_task_ids.append(item.get('task_id', ''))
+            else:
+                new_task_ids.append('')
+        
+        if len(new_task_ids) != len(current_task_ids) or new_task_ids != current_task_ids:
+            # Create simple data format for Toga Table: list of dictionaries
+            table_data = []
+            for item in new_data:
+                if isinstance(item, dict):
+                    table_item = {
+                        'folder': item.get('folder', ''),
+                        'status': item.get('status', ''),
+                        'worker': item.get('worker', ''),
+                        'task_id': item.get('task_id', ''),
+                        'status_text': item.get('status_text', ''),
+                        'folder_full': item.get('folder_full', '')
+                    }
                 else:
-                    time_str = f"{int(time_ago/60)}m ago"
-                
-                # Get folder name
-                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                
-                # Status description
-                if task.status == "completed":
-                    status_desc = f"✅ Completed successfully {time_str}"
-                elif task.status == "failed":
-                    error_preview = task.error_message[:30] + "..." if task.error_message and len(task.error_message) > 30 else task.error_message
-                    status_desc = f"❌ Failed {time_str}: {error_preview or 'Unknown error'}"
-                elif task.status == "cancelled":
-                    status_desc = f"🛑 Cancelled {time_str}"
-                else:
-                    status_desc = f"{task.status} {time_str}"
-                
-                item = {
-                    "title": f"{task.status_icon} {folder_name}",
-                    "subtitle": f"Plan: {task.plan_name} | {status_desc}",
-                    "icon": None,
-                    "data": task
-                }
-                
-                self.task_table.data.append(item)
+                    # Handle Toga objects
+                    table_item = {
+                        'folder': getattr(item, 'folder', ''),
+                        'status': getattr(item, 'status', ''),
+                        'worker': getattr(item, 'worker', ''),
+                        'task_id': getattr(item, 'task_id', ''),
+                        'status_text': getattr(item, 'status_text', ''),
+                        'folder_full': getattr(item, 'folder_full', '')
+                    }
+                table_data.append(table_item)
+            
+            self.task_table.data = table_data
+    
+    def _update_status_bar(self):
+        """Update status bar with statistics"""
+        if not self.status_bar:
+            return
         
-        # Add message if no tasks at all
-        if not self.task_table.data:
-            self.task_table.data.append({
-                "title": "No Active Tasks",
-                "subtitle": "Ready to process new folders",
-                "icon": None,
-                "data": None
-            })
-    
-    # Pure monitoring - no manual controls needed
-    
+        try:
+            # Get backend info
+            backend_info = self.task_monitor.get_backend_info()
+            backend_name = backend_info.get('backend_name', 'Unknown')
+            backend_status = backend_info.get('status', 'Unknown')
+            
+            # Get statistics
+            stats = self.task_monitor.get_session_stats()
+            
+            # Create status text
+            status_parts = []
+            status_parts.append(f"Backend: {backend_name} ({backend_status})")
+            status_parts.append(f"Active: {stats['active_tasks']}")
+            status_parts.append(f"Completed: {stats['completed_tasks']}")
+            status_parts.append(f"Failed: {stats['failed_tasks']}")
+            
+            # Add performance info if available
+            if stats.get('average_duration', 0) > 0:
+                avg_duration = stats['average_duration'] / 60  # Convert to minutes
+                status_parts.append(f"Avg: {avg_duration:.1f}m")
+            
+            status_text = " | ".join(status_parts)
+            self.status_bar.text = status_text
+            
+        except Exception as e:
+            self.status_bar.text = f"Error updating status: {e}"
 
 
 
@@ -1156,3 +999,55 @@ def create_document_progress_display(document_window, document_id: str):
 def create_activity_monitor_display(app):
     """Create an activity monitor display"""
     return ActivityMonitorDisplay(app) 
+
+def format_task_row(task, platform_name=None):
+    if platform_name is None:
+        platform_name = platform.system().lower()
+    is_macos = platform_name == "darwin"
+
+    # Spinner/Status
+    if task.status == "running":
+        if is_macos:
+            spinner = toga.ActivityIndicator()
+            spinner.start()
+            status_widget = spinner
+        else:
+            status_widget = "⏳"
+    elif task.status == "pending":
+        status_widget = "○"
+    elif task.status == "completed":
+        status_widget = "●"
+    elif task.status == "failed":
+        status_widget = "✗"
+    elif task.status == "cancelled":
+        status_widget = "⏹"
+    else:
+        status_widget = "?"
+
+    # Step progress
+    step_info = f"{task.current_step or 'Waiting'} ({task.completed_steps}/{task.total_steps})"
+    # Progress
+    if is_macos:
+        progress_widget = toga.ProgressBar(max=100, value=task.overall_progress)
+    else:
+        progress_widget = f"{task.overall_progress:.0f}%"
+    # Worker
+    worker_display = f"{task.executor_type.upper()} {task.worker}"
+    # Backend
+    backend = task.executor_type.capitalize()
+    # Duration
+    duration = f"{task.duration.total_seconds()/60:.1f}m"
+    # Error
+    error = task.error_message if task.status == "failed" else ""
+
+    return {
+        "folder": task.folder_name,
+        "status": status_widget,
+        "step": step_info,
+        "progress": progress_widget,
+        "worker": worker_display,
+        "backend": backend,
+        "duration": duration,
+        "error": error,
+        "task_id": task.task_id,  # for selection/cancellation
+    } 

@@ -86,7 +86,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._create_content_section()
         self._create_footer()
         
-        # Assemble layout
+        # Assemble layout - content section gets more space, no margin to footer
         main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
         main_sections.add(self.folder_section)
         main_sections.add(self.content_section)
@@ -274,7 +274,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.footer_section = toga.Box(
             style=Pack(
                 direction=ROW,
-                margin=(10, 20, 20, 20),
+                margin=(0, 20, 20, 20),
                 align_items=CENTER
             )
         )
@@ -288,14 +288,12 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     def _reset_to_process_button(self):
         """Reset button back to process state"""
         self.activity_indicator.stop()
+        # Re-add footer section to show buttons again
+        if hasattr(self, '_main_content') and self._main_content:
+            self._main_content.add(self.footer_section)
         self.process_btn.enabled = bool(self.selected_folder and self.current_plan)
         self.process_btn.text = _("process")
         self.process_btn.on_press = self.process_handler
-        # Reset button style to default (remove red background)
-        if hasattr(self.process_btn.style, 'background_color'):
-            del self.process_btn.style.background_color
-        if hasattr(self.process_btn.style, 'color'):
-            del self.process_btn.style.color
     
     def _get_content_display(self):
         """Lazily initialize DocumentContentDisplay when needed"""
@@ -590,12 +588,11 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             await self.dialog(toga.InfoDialog("Error", f"Failed to select save location: {e}"))
             return
         
-        # Start activity indicator and change to stop button
+        # Start activity indicator and hide the footer buttons during processing
         self.activity_indicator.start()
-        self.process_btn.enabled = True
-        self.process_btn.text = "🛑 Stop"
-        self.process_btn.on_press = self.stop_handler
-        self.process_btn.style.update(background_color="#ff4444", color="#ffffff")
+        # Store reference to footer and remove it from main content
+        self._main_content = self.content
+        self._main_content.remove(self.footer_section)
         
         try:
             # Get director service (app should have initialized it)
@@ -631,6 +628,10 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             content_display = self._get_content_display()
             if content_display:
                 content_display.show_progress_view(self.current_task_ids, detected_folders)
+            
+            # Automatically open activity monitor for stop functionality
+            if hasattr(self._app, 'show_activity_monitor'):
+                self._app.show_activity_monitor()
             
             # Start monitoring task completion
             asyncio.create_task(self._monitor_task_completion())

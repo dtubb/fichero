@@ -31,7 +31,7 @@ class BackendAvailabilityChecker:
         availability = {
             "python": {
                 "available": True,
-                "details": "Multiprocessing backend (always available)"
+                "details": "ThreadPoolExecutor backend (always available, Mac app compatible)"
             }
         }
         

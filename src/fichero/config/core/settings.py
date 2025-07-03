@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from .loader import ConfigLoader
+from .settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -122,76 +123,32 @@ class AppSettings:
     
     def load_settings(self) -> Dict:
         """
-        Simple settings loading hierarchy:
-        1. Currently active settings file (via AppPreferences)
-        2. Default settings file
-        3. Environment variables (for API keys)  
+        SIMPLIFIED settings loading: User file → Default file fallback
+        
+        1. User settings file (app.paths.config / "settings.yml")
+        2. Default settings file (app.paths.app / "resources" / "default.settings.yml")
+        3. Environment variables (for API keys only)
         4. Calculated defaults (for workers)
         """
-        settings = {}
-        
-        # 1. Try to load from currently active file via AppPreferences
         try:
-            # Import here to avoid circular dependency
-            from .app_preferences import get_app_preferences
-            app_prefs = get_app_preferences(self.app)
-            active_file = app_prefs.get_active_settings_file()
+            # Use simplified settings manager
+            settings_manager = SettingsManager(self.app)
+            settings = settings_manager.load_settings()
             
-            if active_file and active_file.exists():
-                # Load the file and then decrypt API keys
-                settings = ConfigLoader.load_config_file(active_file)
-                self._decrypt_api_keys(settings)  # Decrypt after loading
-                logger.info(f"Loaded settings from active file: {active_file.name}")
-                
-                # Sync API keys to shared data for cross-process access
-                self._sync_api_keys_to_shared_data(settings)
-                
-                return settings
+            # Override API keys with environment variables if settings are empty
+            self._apply_env_overrides(settings)
+            
+            # Calculate worker defaults if not set
+            self._ensure_worker_defaults(settings)
+            
+            # Sync API keys to shared data for cross-process access
+            self._sync_api_keys_to_shared_data(settings)
+            
+            return settings
+            
         except Exception as e:
-            logger.warning(f"Failed to load from active settings file: {e}")
-        
-        # 2. Try to load default settings as base
-        default_path = self._get_default_settings_path()
-        if default_path and default_path.exists():
-            try:
-                settings = ConfigLoader.load_config_file(default_path)
-                logger.info(f"Loaded default settings from {default_path}")
-                
-                # Set this as the active settings file if none was set
-                try:
-                    from .app_preferences import get_app_preferences
-                    app_prefs = get_app_preferences(self.app)
-                    if not app_prefs.get_active_settings_file():
-                        app_prefs.set_active_settings_file(default_path)
-                        logger.info(f"Set default settings as active: {default_path.name}")
-                except Exception as e:
-                    logger.warning(f"Failed to set default settings as active: {e}")
-                    
-            except Exception as e:
-                logger.warning(f"Failed to load default settings: {e}")
-                settings = self._get_fallback_settings()
-        else:
-            settings = self._get_fallback_settings()
-        
-        # 3. Override API keys with environment variables if settings are empty
-        self._apply_env_overrides(settings)
-        
-        # 4. Calculate worker defaults if not set
-        self._ensure_worker_defaults(settings)
-        
-        # 5. Sync API keys to shared data for cross-process access
-        self._sync_api_keys_to_shared_data(settings)
-        
-        return settings
-    
-    def _get_default_settings_path(self) -> Optional[Path]:
-        """Get path to default settings file"""
-        if self.app and hasattr(self.app, 'paths'):
-            return self.app.paths.app / "resources" / "config_defaults" / "settings" / "Default Settings.yml"
-        else:
-            return Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "settings" / "Default Settings.yml"
-    
-
+            logger.warning(f"Failed to load settings: {e}")
+            return self._get_fallback_settings()
     
     def _get_fallback_settings(self) -> Dict:
         """Hardcoded fallback settings if no files found"""
@@ -205,7 +162,7 @@ class AppSettings:
                 "backend": "python",
                 "cpu_workers": 4,
                 "io_workers": 16,  # Increased for transcription concurrency
-                "memory_per_worker_mb": 2048
+        
             },
             "api_servers": {
                 "openai": {
@@ -259,8 +216,7 @@ class AppSettings:
         if "io_workers" not in workers or workers["io_workers"] <= 0:
             workers["io_workers"] = max(16, cpu_count * 2)  # More IO workers for transcription
         
-        if "memory_per_worker_mb" not in workers or workers["memory_per_worker_mb"] <= 0:
-            workers["memory_per_worker_mb"] = 2048
+
         
         settings["workers"] = workers
     
@@ -307,9 +263,7 @@ class AppSettings:
         """Get number of IO workers"""
         return self.get_worker_config().get("io_workers", 16)  # Updated default
     
-    def get_memory_per_worker(self) -> int:
-        """Get memory limit per worker in MB"""
-        return self.get_worker_config().get("memory_per_worker_mb", 2048)
+
     
     def get_backend_type(self) -> str:
         """Get the processing backend type (python or redis/celery)"""
@@ -377,32 +331,19 @@ class AppSettings:
             logger.error(f"Failed to set setting '{path}': {e}")
     
     def save_settings(self, file_path: Path, data: Dict[str, Any]) -> bool:
-        """SIMPLE: Encrypt data and save to file"""
+        """SIMPLE: Use SettingsManager to save settings"""
         try:
-            # Create a copy to avoid modifying the original data
-            encrypted_data = data.copy()
+            # Use simplified settings manager
+            settings_manager = SettingsManager(self.app)
+            success = settings_manager.save_settings(data)
             
-            # Encrypt API keys before saving
-            self._encrypt_api_keys(encrypted_data)
+            if success:
+                # Keep unencrypted version in memory
+                self.settings = data.copy()
+                self._sync_api_keys_to_shared_data(self.settings)
+                logger.info(f"✅ Saved settings using SettingsManager")
             
-            # Save using ConfigLoader
-            from .loader import ConfigLoader
-            ConfigLoader.save_config_file(file_path, encrypted_data)
-            
-            # Keep unencrypted version in memory
-            self.settings = data.copy()
-            self._sync_api_keys_to_shared_data(self.settings)
-            
-            # Update active file reference
-            try:
-                from .app_preferences import get_app_preferences
-                app_prefs = get_app_preferences(self.app)
-                app_prefs.set_active_settings_file(file_path)
-            except Exception as e:
-                logger.warning(f"Failed to update active settings file reference: {e}")
-            
-            logger.info(f"✅ Saved settings to: {file_path.name}")
-            return True
+            return success
             
         except Exception as e:
             logger.error(f"❌ Failed to save settings: {e}")
@@ -437,29 +378,18 @@ class AppSettings:
         logger.info(f"🔧 Set worker config {key} = {value}")
 
     def save(self) -> bool:
-        """Save current settings to the active settings file"""
+        """SIMPLE: Save current settings using SettingsManager"""
         try:
-            # Get the active settings file
-            from .app_preferences import get_app_preferences
-            app_prefs = get_app_preferences(self.app)
-            active_file = app_prefs.get_active_settings_file()
+            # Use simplified settings manager
+            settings_manager = SettingsManager(self.app)
+            success = settings_manager.save_settings(self.settings)
             
-            if not active_file:
-                # No active file, create a new one
-                if self.app and hasattr(self.app, 'paths'):
-                    settings_dir = self.app.paths.data / "settings"
-                else:
-                    settings_dir = Path.home() / ".fichero" / "settings"
-                
-                settings_dir.mkdir(parents=True, exist_ok=True)
-                active_file = settings_dir / "User Settings.yml"
-                
-                # Set as active
-                app_prefs.set_active_settings_file(active_file)
-                logger.info(f"Created new settings file: {active_file}")
+            if success:
+                logger.info("✅ Settings saved successfully")
+            else:
+                logger.error("❌ Failed to save settings")
             
-            # Save the settings
-            return self.save_settings(active_file, self.settings)
+            return success
             
         except Exception as e:
             logger.error(f"❌ Failed to save settings: {e}")

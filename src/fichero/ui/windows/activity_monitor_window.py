@@ -48,4 +48,9 @@ class ActivityMonitorWindow:
     @property
     def is_visible(self):
         """Check if the activity monitor is visible"""
-        return self.display and self.display.is_visible 
+        return self.display and self.display.is_visible
+    
+    @property
+    def closed(self):
+        """Check if the activity monitor window is closed"""
+        return self.display is None or (hasattr(self.display, 'window') and self.display.window is None) 

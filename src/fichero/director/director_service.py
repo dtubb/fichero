@@ -427,12 +427,12 @@ class FicheroDirector:
     
     def configure_settings(self, console, show_defaults: bool = False, 
                           backend: str = None, cpu_workers: int = None,
-                          io_workers: int = None, memory_per_worker: int = None,
+                          io_workers: int = None,
                           plan: str = None, workflow: str = None):
         """Configure settings for CLI"""
         return self.cli_display_helper.configure_settings(
             console, show_defaults, backend, cpu_workers, 
-            io_workers, memory_per_worker, plan, workflow
+            io_workers, plan, workflow
         )
     
     def display_available_plans(self, console):

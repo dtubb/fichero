@@ -1,8 +1,8 @@
 """
 Simple Python Backend for Local Document Processing
 
-Uses subprocess to run workflows directly on folders.
-Perfect for Mac GUI - no errant threads, clean shutdown.
+Uses ThreadPoolExecutor for both CPU and IO tasks.
+Perfect for Mac GUI - no subprocesses, clean shutdown.
 """
 
 import json
@@ -12,7 +12,7 @@ import time
 import multiprocessing
 from typing import Dict, List, Optional
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 from .base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
@@ -20,89 +20,16 @@ from .base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingSta
 logger = logging.getLogger(__name__)
 
 
-def execute_folder_process(task: FolderTask) -> ProcessingResult:
-    """
-    Module-level function for ProcessPool execution.
-    This must be at module level to be picklable for ProcessPoolExecutor.
-    """
-    try:
-        # This runs in a separate process, so we need to be careful about imports and state
-        import os
-        import sys
-        import logging
-        import multiprocessing
-        from pathlib import Path
-        
-        # Set up logging for the process
-        logger = logging.getLogger(__name__)
-        
-        # Log the process execution
-        logger.info(f"Processing folder (ProcessPool): {task.folder_path}")
-        
-        # Update status in main process (we'll handle this via result checking)
-        worker_id = f"CPU-{os.getpid()}"
-        
-        # Get parallel workers for this task - more conservative for ProcessPool
-        # Since we're in a separate process, we need to calculate this independently
-        parallel_workers = min(2, multiprocessing.cpu_count() // 2)  # Conservative for stability
-        
-        logger.info(f"Task {task.task_id} running on CPU worker: {worker_id} (process: {os.getpid()}) with {parallel_workers} parallel workers")
-        
-        # Import and execute workflow
-        from ...workflow_executor import WorkflowExecutor
-        
-        # Create executor without callback (processes can't share callbacks easily)
-        # We'll handle progress via the main process checking results
-        executor = WorkflowExecutor()
-        
-        # Execute workflow
-        result = executor.execute_workflow(
-            task_id=task.task_id,
-            folder_path=task.folder_path,
-            output_path=task.output_path,
-            workflow_name=task.workflow_name,
-            plan_config=task.plan_config,
-            variables=task.variables,
-            parallel_workers=parallel_workers
-        )
-        
-        if result.success:
-            logger.info(f"Successfully processed folder (ProcessPool): {task.folder_path} ({result.execution_time:.1f}s)")
-        else:
-            logger.error(f"Failed to process folder (ProcessPool): {task.folder_path} - {result.error_message}")
-        
-        return result
-        
-    except Exception as e:
-        import traceback
-        error_msg = f"ProcessPool execution error: {e}"
-        
-        # Log the full traceback in the process
-        logger.error(f"Error processing folder (ProcessPool): {task.folder_path}")
-        logger.error(f"Exception: {e}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Create error result
-        return ProcessingResult(
-            task_id=task.task_id,
-            success=False,
-            folder_path=task.folder_path,
-            output_path=task.output_path,
-            error_message=error_msg,
-            execution_time=0.0
-        )
-
-
 class PythonProcessingBackend(ProcessingBackend):
     """
-    Python backend using mixed ThreadPoolExecutor and ProcessPoolExecutor.
+    Python backend using ThreadPoolExecutor for both CPU and IO tasks.
     
     Features:
-    - ProcessPoolExecutor for CPU-intensive work (true parallelism)
+    - ThreadPoolExecutor for CPU-intensive work (libraries release GIL)
     - ThreadPoolExecutor for IO-bound work (handles more concurrent tasks)
     - Intelligent task routing based on workflow characteristics
     - Progress tracking via callback
-    - Safe for GUI use with proper resource management
+    - Safe for Mac GUI use with no subprocesses
     """
     
     def __init__(self, app=None, cpu_workers: int = None, io_workers: int = None):
@@ -147,8 +74,8 @@ class PythonProcessingBackend(ProcessingBackend):
             # No app context, use calculated defaults
             self._set_default_workers(cpu_workers, io_workers)
         
-        # Mixed executors for optimal performance
-        self.cpu_executor: Optional[ProcessPoolExecutor] = None  # Changed to ProcessPoolExecutor
+        # ThreadPoolExecutor for both CPU and IO tasks (Mac app compatible)
+        self.cpu_executor: Optional[ThreadPoolExecutor] = None  # Changed to ThreadPoolExecutor
         self.io_executor: Optional[ThreadPoolExecutor] = None
         
         # Task tracking
@@ -156,13 +83,14 @@ class PythonProcessingBackend(ProcessingBackend):
         self.task_results: Dict[str, ProcessingResult] = {}
         self.task_futures: Dict[str, any] = {}
         self.task_executor_types: Dict[str, str] = {}  # Track which executor type each task uses
+        self.task_executors: Dict[str, any] = {}  # Track workflow executors for cancellation
         self._lock = threading.Lock()
         
         self._initialized = False
         self._progress_callback = None
         logger.info(f"System has {multiprocessing.cpu_count()} CPU cores")
-        logger.info(f"Configured with {self.cpu_workers} CPU workers (ProcessPool) and {self.io_workers} IO workers (ThreadPool)")
-        logger.info(f"ProcessPool will enable true multi-core parallelism for CPU-intensive tasks")
+        logger.info(f"Configured with {self.cpu_workers} CPU workers (ThreadPool) and {self.io_workers} IO workers (ThreadPool)")
+        logger.info(f"ThreadPool will use libraries that release GIL for CPU-intensive tasks")
     
     @property
     def is_initialized(self) -> bool:
@@ -236,9 +164,9 @@ class PythonProcessingBackend(ProcessingBackend):
         
         # Start executors if needed
         if self.cpu_executor is None:
-            # Use ProcessPoolExecutor for CPU-intensive work to bypass GIL
-            self.cpu_executor = ProcessPoolExecutor(max_workers=self.cpu_workers)
-            logger.info(f"Created CPU executor (ProcessPool) with {self.cpu_workers} workers")
+            # Use ThreadPoolExecutor for CPU-intensive work (libraries release GIL)
+            self.cpu_executor = ThreadPoolExecutor(max_workers=self.cpu_workers, thread_name_prefix="fichero-cpu")
+            logger.info(f"Created CPU executor (ThreadPool) with {self.cpu_workers} workers")
             logger.info(f"CPU executor object: {self.cpu_executor}")
         
         if self.io_executor is None:
@@ -265,13 +193,9 @@ class PythonProcessingBackend(ProcessingBackend):
                 
                 logger.info(f"Task {task.task_id} assigned to {executor_type} executor (workflow: {task.workflow_name})")
                 
-                # Submit to appropriate executor
-                if executor_type == "cpu":
-                    # For ProcessPool, we need to use a wrapper function that's picklable
-                    future = executor.submit(execute_folder_process, task)
-                else:
-                    # For ThreadPool, use the regular method
-                    future = executor.submit(self._execute_single_folder, task)
+                # Submit to appropriate executor (both use ThreadPool now)
+                # Use consistent execution method for both CPU and IO tasks
+                future = executor.submit(self._execute_single_folder, task)
                     
                 self.task_futures[task.task_id] = future
                 self.task_executor_types[task.task_id] = executor_type  # Store executor type
@@ -326,9 +250,9 @@ class PythonProcessingBackend(ProcessingBackend):
                         logger.warning(f"  Step '{step_name}' not found in commands, defaulting to io-bound")
                         io_bound_steps += 1
                 
-                # Use ProcessPool for CPU-intensive workflows, ThreadPool for IO-bound
+                # Use ThreadPool for CPU-intensive workflows, ThreadPool for IO-bound
                 if cpu_intensive_steps > io_bound_steps:
-                    logger.info(f"Workflow '{task.workflow_name}' classified as CPU-intensive ({cpu_intensive_steps} cpu vs {io_bound_steps} io steps) → ProcessPool")
+                    logger.info(f"Workflow '{task.workflow_name}' classified as CPU-intensive ({cpu_intensive_steps} cpu vs {io_bound_steps} io steps) → ThreadPool")
                     return self.cpu_executor, "cpu"
                 else:
                     logger.info(f"Workflow '{task.workflow_name}' classified as IO-bound ({io_bound_steps} io vs {cpu_intensive_steps} cpu steps) → ThreadPool")
@@ -349,15 +273,19 @@ class PythonProcessingBackend(ProcessingBackend):
             active_count = len([t for t, status in self.active_tasks.items() 
                               if status in [ProcessingStatus.PENDING, ProcessingStatus.RUNNING]])
             
-            # More aggressive parallelism strategy
-            if active_count <= 2:
-                # Few folders: Use full parallelism
-                parallel_workers = self.cpu_workers
-                logger.info(f"Low load ({active_count} folders), enabling full parallel tool processing for task {task.task_id} ({parallel_workers} workers)")
-            elif active_count <= 8:
-                # Medium load: Use half parallelism
-                parallel_workers = max(2, self.cpu_workers // 2)
-                logger.info(f"Medium load ({active_count} folders), enabling partial parallel tool processing for task {task.task_id} ({parallel_workers} workers)")
+            # Conservative parallelism strategy for ThreadPoolExecutor
+            if active_count <= 1:
+                # Single folder: Use full parallelism
+                parallel_workers = min(4, self.cpu_workers)  # Cap at 4 for tool-level parallelism
+                logger.info(f"Single folder processing, enabling full parallel tool processing for task {task.task_id} ({parallel_workers} workers)")
+            elif active_count <= 3:
+                # Few folders: Use moderate parallelism
+                parallel_workers = min(2, self.cpu_workers // 2)
+                logger.info(f"Low load ({active_count} folders), enabling moderate parallel tool processing for task {task.task_id} ({parallel_workers} workers)")
+            elif active_count <= 6:
+                # Medium load: Use minimal parallelism
+                parallel_workers = 1
+                logger.info(f"Medium load ({active_count} folders), using minimal parallel tool processing for task {task.task_id}")
             else:
                 # High load: Use sequential processing
                 parallel_workers = 1
@@ -396,8 +324,10 @@ class PythonProcessingBackend(ProcessingBackend):
                         del self.task_futures[task_id]
                         if task_id in self.task_executor_types:
                             del self.task_executor_types[task_id]
+                        if task_id in self.task_executors:
+                            del self.task_executors[task_id]  # Clean up task executor tracking
                         
-                        # Notify completion for ProcessPool tasks (they don't have callbacks)
+                        # Notify completion for ThreadPool tasks (they don't have callbacks)
                         if result.success:
                             self.active_tasks[task_id] = ProcessingStatus.COMPLETED
                             worker_id = f"{worker_type}-completed"
@@ -448,6 +378,8 @@ class PythonProcessingBackend(ProcessingBackend):
                         del self.task_futures[task_id]
                         if task_id in self.task_executor_types:
                             del self.task_executor_types[task_id]  # Clean up executor type tracking
+                        if task_id in self.task_executors:
+                            del self.task_executors[task_id]  # Clean up task executor tracking
                         
                         # Notify failure
                         self._notify_progress(task_id, {
@@ -493,6 +425,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_futures[task_id]
                             if task_id in self.task_executor_types:
                                 del self.task_executor_types[task_id]  # Clean up executor type tracking
+                            if task_id in self.task_executors:
+                                del self.task_executors[task_id]  # Clean up task executor tracking
                             logger.info(f"Successfully cancelled future for task: {task_id}")
                             return True
                         else:
@@ -509,6 +443,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_futures[task_id]
                                 if task_id in self.task_executor_types:
                                     del self.task_executor_types[task_id]  # Clean up executor type tracking
+                                if task_id in self.task_executors:
+                                    del self.task_executors[task_id]  # Clean up task executor tracking
                                 return True
                     except Exception as e:
                         logger.error(f"Error cancelling future for task {task_id}: {e}")
@@ -517,6 +453,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_futures[task_id]
                         if task_id in self.task_executor_types:
                             del self.task_executor_types[task_id]  # Clean up executor type tracking
+                        if task_id in self.task_executors:
+                            del self.task_executors[task_id]  # Clean up task executor tracking
                         return False
                 else:
                     logger.info(f"No future found for task: {task_id}")
@@ -595,8 +533,7 @@ class PythonProcessingBackend(ProcessingBackend):
             getattr(self, 'task_results', {}).clear()
             getattr(self, 'task_futures', {}).clear()
             getattr(self, 'task_executor_types', {}).clear()  # Clear executor types tracking
-            if hasattr(self, 'task_executors'):
-                self.task_executors.clear()
+            getattr(self, 'task_executors', {}).clear()  # Clear task executors tracking
             
             logger.info("Forced cleanup completed")
         except Exception as e:
@@ -612,11 +549,11 @@ class PythonProcessingBackend(ProcessingBackend):
             cancelled = self.cancel_all()
             logger.info(f"Task cancellation completed: {cancelled}")
             
-            # Shutdown executors - ProcessPool needs special handling
+            # Shutdown executors - ThreadPool needs special handling
             if self.cpu_executor:
-                logger.info("Shutting down CPU executor (ProcessPool)...")
+                logger.info("Shutting down CPU executor (ThreadPool)...")
                 try:
-                    # ProcessPoolExecutor cleanup
+                    # ThreadPoolExecutor cleanup
                     self.cpu_executor.shutdown(wait=False, cancel_futures=True)
                     self.cpu_executor = None
                     logger.info("CPU executor shutdown completed")
@@ -666,7 +603,7 @@ class PythonProcessingBackend(ProcessingBackend):
             return list(self.active_tasks.keys())
     
     def _execute_single_folder(self, task: FolderTask) -> ProcessingResult:
-        """Execute workflow on a single folder using ThreadPool executor (for IO-bound tasks)"""
+        """Execute workflow on a single folder using ThreadPool executor"""
         
         try:
             # Update status
@@ -675,11 +612,14 @@ class PythonProcessingBackend(ProcessingBackend):
             
             logger.info(f"Processing folder (ThreadPool): {task.folder_path}")
             
+            # Determine executor type for this task
+            executor_type = self.task_executor_types.get(task.task_id, "unknown")
+            
             # Get current thread info for worker identification
             current_thread = threading.current_thread()
-            worker_id = f"IO-{current_thread.ident % 1000}"
+            worker_id = f"{executor_type.upper()}-{current_thread.ident % 1000}"
             
-            logger.info(f"Task {task.task_id} running on IO worker: {worker_id} (thread: {current_thread.name})")
+            logger.info(f"Task {task.task_id} running on {executor_type.upper()} worker: {worker_id} (thread: {current_thread.name})")
             
             # Create workflow executor with progress callback
             from ...workflow_executor import WorkflowExecutor
@@ -764,8 +704,9 @@ class PythonProcessingBackend(ProcessingBackend):
                 self.task_results[task.task_id] = error_result
                 self.active_tasks[task.task_id] = ProcessingStatus.FAILED
             
-            # Notify failure
-            worker_id = f"IO-{threading.current_thread().ident % 1000}"
+            # Notify failure with consistent worker ID
+            current_thread = threading.current_thread()
+            worker_id = f"UNKNOWN-{current_thread.ident % 1000}"
             self._notify_progress(task.task_id, {
                 "status": "failed",
                 "folder": str(task.folder_path),

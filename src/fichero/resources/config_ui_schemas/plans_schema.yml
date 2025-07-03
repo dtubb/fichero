@@ -1,5 +1,7 @@
 title: "Plans - {config_file.name}"
 description: "Configure project workflows, variables, and commands"
+window_title: "Fichero Plans"
+window_size: [1000, 700]
 
 sections:
   - id: "general"

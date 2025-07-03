@@ -55,7 +55,7 @@ class CLIDisplayHelper:
     
     def configure_settings(self, console, show_defaults: bool = False, 
                           backend: str = None, cpu_workers: int = None,
-                          io_workers: int = None, memory_per_worker: int = None,
+                          io_workers: int = None,
                           plan: str = None, workflow: str = None):
         """Configure settings for CLI"""
         if console:

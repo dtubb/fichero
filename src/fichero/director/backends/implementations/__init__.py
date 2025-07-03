@@ -4,7 +4,7 @@ Backend Implementations
 This module contains the concrete backend implementations for the Fichero director.
 
 Available backends:
-- PythonProcessingBackend: Multiprocessing-based backend (no external dependencies)
+- PythonProcessingBackend: ThreadPoolExecutor-based backend (no external dependencies, Mac app compatible)
 - CeleryBackend: Celery/Redis-based distributed backend (requires Celery + Redis)
 """
 

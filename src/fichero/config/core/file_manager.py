@@ -34,15 +34,13 @@ class FileManager(ABC):
         """Get default data structure for new files"""
         pass
     
-    @abstractmethod
     def get_active_file(self) -> Optional[Path]:
-        """Get the currently active file for this type"""
-        pass
+        """Get the currently active file for this type (optional)"""
+        return None
     
-    @abstractmethod
     def set_active_file(self, file_path: Path) -> bool:
-        """Set the active file for this type"""
-        pass
+        """Set the active file for this type (optional)"""
+        return True
     
     def get_directories(self) -> Tuple[Optional[Path], Optional[Path]]:
         """Get default and user directories for this file type"""

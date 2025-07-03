@@ -74,7 +74,7 @@ class BackendSelector:
             "processing": {
                 "backend": processing_backend,
                 "description": "Celery/Redis distributed processing (requires Celery + Redis)" if processing_backend == "celery" 
-                              else "Python multiprocessing (no external dependencies)"
+                              else "Python ThreadPoolExecutor (no external dependencies, Mac app compatible)"
             },
             "storage": {
                 "backend": storage_backend,

@@ -65,11 +65,14 @@ class FicheroApp(toga.App):
             
             # Show error dialog to user then quit
             import asyncio
+            import toga
             async def show_error_and_quit():
                 # Create a simple error dialog without main window
-                await self.error_dialog(
-                    "Initialization Error",
-                    f"Failed to initialize Fichero core services:\n\n{e}\n\nCannot continue without core services\n\nThe application will now exit."
+                await self.dialog(
+                    toga.ErrorDialog(
+                        "Initialization Error",
+                        f"Failed to initialize Fichero core services:\n\n{e}\n\nCannot continue without core services\n\nThe application will now exit."
+                    )
                 )
                 self.exit()
             
@@ -102,6 +105,20 @@ class FicheroApp(toga.App):
             
         except Exception as e:
             print(f"⚠️ Warning: GUI interface setup failed: {e}")
+
+    # Activity Monitor Management
+    def show_activity_monitor(self):
+        """Show the activity monitor window - manages single instance"""
+        try:
+            # Use the menu manager's activity monitor window
+            if hasattr(self, 'menu_manager') and self.menu_manager:
+                self.menu_manager._activity_monitor_handler(None)
+            else:
+                print("⚠️ Menu manager not available for activity monitor")
+        except Exception as e:
+            print(f"❌ Failed to show activity monitor: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Document operations - thin wrappers that delegate to document system
     def new_document(self):

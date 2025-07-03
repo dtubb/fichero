@@ -490,8 +490,9 @@ class MenuManager:
         try:
             # Use async/await pattern for Toga dialogs
             import asyncio
+            import toga
             async def show_dialog():
-                await self.app.error_dialog(title, message)
+                await self.app.dialog(toga.ErrorDialog(title, message))
             asyncio.create_task(show_dialog())
         except Exception as e:
             print(f"Failed to show error dialog: {e}")
@@ -500,38 +501,40 @@ class MenuManager:
     
     def _activity_monitor_handler(self, widget):
         """Handle activity monitor command - show global activity monitor window"""
-        print("📊 Activity Monitor menu clicked - opening activity monitor window")
+        print("📊 Activity Monitor menu clicked - managing activity monitor window")
         
         try:
-            # Always create a fresh window to avoid window management issues
+            # Check if window exists and is visible
             if self.activity_monitor_window is not None:
-                try:
-                    # Try to hide the existing window properly
-                    if hasattr(self.activity_monitor_window, 'hide') and not self.activity_monitor_window.closed:
-                        self.activity_monitor_window.hide()
-                except Exception as e:
-                    print(f"⚠️ Warning: Could not close existing activity monitor: {e}")
-                finally:
-                    self.activity_monitor_window = None
+                if self.activity_monitor_window.is_visible:
+                    # Window is visible, hide it
+                    print("🔄 Hiding existing Activity Monitor window")
+                    self.activity_monitor_window.hide()
+                    return
+                else:
+                    # Window exists but not visible, show it
+                    print("🔄 Showing existing Activity Monitor window")
+                    self.activity_monitor_window.show()
+                    return
             
-            # Create new activity monitor window (with crash fix)
+            # No window exists, create new one
             print("🔄 Creating new Activity Monitor window")
             self.activity_monitor_window = ActivityMonitorWindow(self.app)
-            
-            # Show the window
             self.activity_monitor_window.show()
             print("✅ Activity Monitor window opened successfully")
             
         except Exception as e:
-            print(f"❌ Failed to open activity monitor: {e}")
+            print(f"❌ Failed to manage activity monitor: {e}")
             import traceback
             traceback.print_exc()
             
             # Use sync error dialog since we're not in async context
             try:
                 import asyncio
+                import toga
+                error_message = str(e)  # Capture the error message
                 async def show_error():
-                    await self.app.error_dialog("Activity Monitor Error", f"Failed to open Activity Monitor: {e}")
+                    await self.app.dialog(toga.ErrorDialog("Activity Monitor Error", f"Failed to manage Activity Monitor: {error_message}"))
                 asyncio.create_task(show_error())
             except Exception as dialog_error:
                 print(f"❌ Also failed to show error dialog: {dialog_error}")
@@ -637,19 +640,24 @@ class MenuManager:
             print(f"❌ Failed to process folder: {e}")
     
     def _stop_processing_handler(self, widget):
-        """Handle stop processing command"""
+        """Handle stop processing command - open activity monitor for stop functionality"""
         print("🛑 Stop Processing command triggered")
         try:
-            # Get the current document window
-            current_window = self.app.current_window
-            if hasattr(current_window, 'current_task_ids') and current_window.current_task_ids:
-                # Trigger the stop handler if there are active tasks
-                import asyncio
-                asyncio.create_task(current_window.stop_handler(widget))
+            # Open activity monitor where stop functionality is available
+            if hasattr(self, 'activity_monitor_window'):
+                if not self.activity_monitor_window.is_visible:
+                    self.activity_monitor_window.show()
+                else:
+                    # Bring to front if already visible
+                    self.activity_monitor_window.display.window.show()
+                print("✅ Activity monitor opened for stop functionality")
             else:
-                print("⚠️ No active processing to stop")
+                # Create and show activity monitor
+                self.activity_monitor_window = ActivityMonitorWindow(self.app)
+                self.activity_monitor_window.show()
+                print("✅ Activity monitor created and opened for stop functionality")
         except Exception as e:
-            print(f"❌ Failed to stop processing: {e}")
+            print(f"❌ Failed to open activity monitor: {e}")
     
     def _reveal_in_finder_handler(self, widget):
         """Handle reveal in finder command"""

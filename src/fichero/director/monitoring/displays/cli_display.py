@@ -9,6 +9,7 @@ import time
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
+import platform
 
 try:
     from rich.console import Console
@@ -255,68 +256,21 @@ class CLITaskDisplay:
     def _create_tasks_table(self, tasks_dict: Dict[str, TaskInfo], title: str):
         """Create a Rich table for tasks"""
         table = Table(title=title)
-        table.add_column("Status", width=8)
         table.add_column("Folder", width=20)
-        table.add_column("Plan", width=15)
-        table.add_column("Step", width=25)
-        table.add_column("Progress", width=12)
-        table.add_column("Duration", width=10)
-        table.add_column("Worker", width=12)
-        
-        if not tasks_dict:
-            table.add_row("", "No tasks", "", "", "", "", "")
-        else:
-            # Separate running and waiting tasks
-            running_tasks = []
-            waiting_tasks = []
-            
-            for task in tasks_dict.values():
-                if task.status == "pending":
-                    waiting_tasks.append(task)
-                else:
-                    running_tasks.append(task)
-            
-            # Show running tasks first
-            for task in running_tasks:
-                duration_minutes = task.duration.total_seconds() / 60
-                duration_str = f"{duration_minutes:.1f}m"
-                progress_str = f"{task.overall_progress:.1f}%"
-                
-                # Get just the folder name (last part of path)
-                folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                
-                table.add_row(
-                    task.status_icon,  # Just the icon, no text
-                    folder_name[:20],
-                    task.plan_name[:15],
-                    task.current_step[:25] if task.current_step else "",
-                    progress_str,
-                    duration_str,
-                    task.worker[:12]
-                )
-            
-            # Add waiting tasks at the bottom
-            if waiting_tasks:
-                if running_tasks:  # Add separator if we had running tasks
-                    table.add_row("", "", "", "", "", "", "")
-                
-                for task in waiting_tasks:
-                    duration_minutes = task.duration.total_seconds() / 60
-                    duration_str = f"{duration_minutes:.1f}m"
-                    
-                    # Get just the folder name (last part of path)
-                    folder_name = task.folder_name.split('/')[-1] if '/' in task.folder_name else task.folder_name
-                    
-                    table.add_row(
-                        task.status_icon,  # Just the icon, no text
-                        folder_name[:20],
-                        task.plan_name[:15],
-                        "Waiting...",
-                        "0.0%",
-                        duration_str,
-                        "queue"
-                    )
-        
+        table.add_column("Status", width=8)
+        table.add_column("Step", width=20)
+        table.add_column("Progress", width=8)
+        table.add_column("Worker", width=14)
+        table.add_column("Backend", width=10)
+        table.add_column("Duration", width=8)
+        table.add_column("Error", width=20)
+        platform_name = "cli"
+        for task in tasks_dict.values():
+            row = format_task_row(task, platform_name)
+            table.add_row(
+                row["folder"], str(row["status"]), row["step"], str(row["progress"]),
+                row["worker"], row["backend"], row["duration"], row["error"]
+            )
         return table
     
     def _create_progress_bar(self, progress: float) -> str:
@@ -442,4 +396,48 @@ def reset_monitor(task_monitor: TaskMonitor, console: Console = None):
 def clear_history(task_monitor: TaskMonitor, console: Console = None):
     """Clear task history"""
     display = CLITaskDisplay(console, task_monitor)
-    display.clear_history() 
+    display.clear_history()
+
+def format_task_row(task, platform_name=None):
+    if platform_name is None:
+        platform_name = platform.system().lower()
+    is_macos = platform_name == "darwin"
+
+    # Spinner/Status
+    if task.status == "running":
+        status_widget = "⏳"
+    elif task.status == "pending":
+        status_widget = "○"
+    elif task.status == "completed":
+        status_widget = "●"
+    elif task.status == "failed":
+        status_widget = "✗"
+    elif task.status == "cancelled":
+        status_widget = "⏹"
+    else:
+        status_widget = "?"
+
+    # Step progress
+    step_info = f"{task.current_step or 'Waiting'} ({task.completed_steps}/{task.total_steps})"
+    # Progress
+    progress_widget = f"{task.overall_progress:.0f}%"
+    # Worker
+    worker_display = f"{task.executor_type.upper()} {task.worker}"
+    # Backend
+    backend = task.executor_type.capitalize()
+    # Duration
+    duration = f"{task.duration.total_seconds()/60:.1f}m"
+    # Error
+    error = task.error_message if task.status == "failed" else ""
+
+    return {
+        "folder": task.folder_name,
+        "status": status_widget,
+        "step": step_info,
+        "progress": progress_widget,
+        "worker": worker_display,
+        "backend": backend,
+        "duration": duration,
+        "error": error,
+        "task_id": task.task_id,  # for selection/cancellation
+    } 

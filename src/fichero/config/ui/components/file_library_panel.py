@@ -249,7 +249,14 @@ class FileLibraryPanel(toga.Box):
     def update_active_file_indicator(self):
         """Update the active file label"""
         try:
-            active_file = self.file_manager.get_active_file()
+            # Try to get active file (if file manager supports it)
+            active_file = None
+            try:
+                active_file = self.file_manager.get_active_file()
+            except Exception:
+                # File manager doesn't support active file tracking
+                pass
+            
             if active_file:
                 self.active_file_label.text = f"Active: {active_file.stem}"
             else:
@@ -267,7 +274,14 @@ class FileLibraryPanel(toga.Box):
     def _is_active_file(self, file_path: str) -> bool:
         """Check if this is the active file (the one being edited)"""
         try:
-            active_file = self.file_manager.get_active_file()
+            # Try to get active file (if file manager supports it)
+            active_file = None
+            try:
+                active_file = self.file_manager.get_active_file()
+            except Exception:
+                # File manager doesn't support active file tracking
+                return False
+            
             if not active_file:
                 return False
             

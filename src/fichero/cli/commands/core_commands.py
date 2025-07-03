@@ -51,7 +51,7 @@ class CoreCommands:
         backend: str = typer.Option("python", "--backend", "-b", help="Backend: python or celery/redis"),
         cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers"),
         io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers"),
-        memory_per_worker: int = typer.Option(None, "--memory-per-worker", "-m", help="Memory per worker in MB"),
+    
         verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
         simple: bool = typer.Option(False, "--simple", help="Use simple progress display"),
         table_view: bool = typer.Option(False, "--table", "-t", help="Show all tasks in table format (for multiple folders)")
@@ -253,7 +253,7 @@ class CoreCommands:
         backend: str = typer.Option(None, "--backend", "-b", help="Set backend: python or celery/redis"),
         cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Set number of CPU workers"),
         io_workers: int = typer.Option(None, "--io-workers", "-i", help="Set number of I/O workers"),
-        memory_per_worker: int = typer.Option(None, "--memory-per-worker", "-m", help="Set memory per worker in MB"),
+    
         plan: str = typer.Option(None, "--plan", "-p", help="Set default plan"),
         workflow: str = typer.Option(None, "--workflow", "-w", help="Set default workflow")
     ):
@@ -277,7 +277,7 @@ class CoreCommands:
                 backend=backend,
                 cpu_workers=cpu_workers,
                 io_workers=io_workers,
-                memory_per_worker=memory_per_worker,
+        
                 plan=plan,
                 workflow=workflow
             )
@@ -306,7 +306,7 @@ class CoreCommands:
                 backend=suggested_backend,
                 cpu_workers=config.cpu_workers,
                 io_workers=config.io_workers,
-                memory_per_worker=config.memory_per_worker_mb
+        
             )
             
             self.console.print("✨ Auto-configuration complete!", style="bold green")

@@ -1,5 +1,7 @@
 title: "Prompts - {config_file.name}"
 description: "Configure LLM processing steps and prompts"
+window_title: "Fichero Prompts"
+window_size: [1000, 700]
 
 sections:
   - id: "general"

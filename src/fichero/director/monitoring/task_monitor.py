@@ -38,12 +38,12 @@ class StepInfo:
     def status_icon(self) -> str:
         """Get status icon for step"""
         icons = {
-            "pending": "⏳",
-            "running": "🔄",
-            "completed": "✅", 
-            "failed": "❌"
+            "pending": "○",
+            "running": "·",  # Will be animated by spinner if needed
+            "completed": "●", 
+            "failed": "✗"
         }
-        return icons.get(self.status, "❓")
+        return icons.get(self.status, "○")
 
 
 @dataclass
@@ -65,6 +65,7 @@ class TaskInfo:
     output_folder: str = ""
     folder_name: str = "unknown"            # Just the folder name for display
     worker: str = "unknown"                 # Worker ID processing this task
+    executor_type: str = "unknown"          # Type of executor (cpu, io, celery)
     
     # Progress - Task Level
     current_step: str = ""
@@ -97,13 +98,13 @@ class TaskInfo:
     def status_icon(self) -> str:
         """Get status icon for display"""
         icons = {
-            "pending": "⏳",
-            "running": "🔄", 
-            "completed": "✅",
-            "failed": "❌",
-            "cancelled": "⏹️"
+            "pending": "○",
+            "running": "·",  # Will be animated by spinner
+            "completed": "●",
+            "failed": "✗",
+            "cancelled": "⏹"
         }
-        return icons.get(self.status, "❓")
+        return icons.get(self.status, "○")
     
     @property
     def is_active(self) -> bool:
@@ -238,9 +239,15 @@ class TaskMonitor:
                 return
             
             task = self.tasks[task_id]
+            old_status = task.status
+            
             for key, value in updates.items():
                 if hasattr(task, key):
                     setattr(task, key, value)
+            
+            # Log status changes
+            if 'status' in updates and updates['status'] != old_status:
+                logger.info(f"Task {task_id} status changed: {old_status} -> {updates['status']}")
             
             # Auto-calculate overall progress if step-related fields were updated
             if task.total_steps > 0 and any(key in updates for key in ['completed_steps', 'total_steps']):
@@ -489,6 +496,9 @@ class TaskMonitor:
     def _on_progress_update(self, task_id: str, progress_data: Dict):
         """Handle progress updates from director"""
         try:
+            # Debug logging
+            logger.debug(f"Progress update for task {task_id}: {progress_data}")
+            
             # Create task if it doesn't exist
             if task_id not in self.tasks:
                 self.create_task(
@@ -498,6 +508,7 @@ class TaskMonitor:
                     plan_name=progress_data.get("plan", "Unknown"),
                     source=progress_data.get("source", "unknown"),
                     worker=progress_data.get("worker", "unknown"),
+                    executor_type=progress_data.get("executor_type", "unknown"),
                     start_time=datetime.now(),
                     document_id=progress_data.get("document_id")  # Extract document_id from progress data
                 )
@@ -510,6 +521,7 @@ class TaskMonitor:
             event_type = progress_data.get("event_type", "task_update")
             
             if event_type == "workflow_start":
+                logger.debug(f"Setting task {task_id} status to 'running'")
                 self.update_task(task_id, status="running", start_time=datetime.now())
                 if "workflow_steps" in progress_data:
                     self.set_workflow_steps(task_id, progress_data["workflow_steps"])
@@ -533,10 +545,8 @@ class TaskMonitor:
                 self.complete_task(task_id, success, error_msg)
             
             else:
-                # Generic task update (backward compatibility)
+                # Generic task update (backward compatibility) - but don't override workflow events
                 updates = {}
-                if "status" in progress_data:
-                    updates["status"] = progress_data["status"]
                 if "progress" in progress_data:
                     updates["overall_progress"] = progress_data["progress"]
                 if "current_step" in progress_data:
@@ -549,15 +559,32 @@ class TaskMonitor:
                     updates["error_message"] = progress_data["error"]
                 if "worker" in progress_data:
                     updates["worker"] = progress_data["worker"]
+                if "executor_type" in progress_data:
+                    updates["executor_type"] = progress_data["executor_type"]
+                
+                # Only update status if we haven't received workflow events yet
+                # This prevents generic status updates from overriding workflow events
+                if "status" in progress_data:
+                    current_task = self.tasks.get(task_id)
+                    if current_task and current_task.status in ["pending", "submitted"]:
+                        logger.debug(f"Updating task {task_id} status to '{progress_data['status']}' (no workflow events yet)")
+                        updates["status"] = progress_data["status"]
+                    else:
+                        logger.debug(f"Ignoring generic status update '{progress_data['status']}' for task {task_id} (workflow events in progress)")
                 
                 if updates:
                     self.update_task(task_id, **updates)
                 
-                # Complete task if finished
+                # Only complete task if we haven't received workflow events
                 if progress_data.get("status") in ["completed", "failed", "cancelled"]:
-                    success = progress_data.get("status") == "completed"
-                    error_msg = progress_data.get("error", "")
-                    self.complete_task(task_id, success, error_msg)
+                    current_task = self.tasks.get(task_id)
+                    if current_task and current_task.status in ["pending", "submitted"]:
+                        success = progress_data.get("status") == "completed"
+                        error_msg = progress_data.get("error", "")
+                        logger.debug(f"Completing task {task_id} via generic status update")
+                        self.complete_task(task_id, success, error_msg)
+                    else:
+                        logger.debug(f"Ignoring generic completion for task {task_id} (workflow events in progress)")
                 
         except Exception as e:
             logger.warning(f"Failed to process progress update: {e}")

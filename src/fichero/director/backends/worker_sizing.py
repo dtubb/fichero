@@ -18,7 +18,7 @@ class WorkerConfig:
     """Worker configuration with reasoning"""
     cpu_workers: int
     io_workers: int
-    memory_per_worker_mb: int
+
     reasoning: str
 
 
@@ -72,7 +72,7 @@ def get_optimal_workers(backend_type: str = "python") -> WorkerConfig:
     return WorkerConfig(
         cpu_workers=cpu_workers,
         io_workers=io_workers,
-        memory_per_worker_mb=memory_mb,
+
         reasoning=reason
     )
 

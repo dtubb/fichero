@@ -6,7 +6,11 @@ Convenience functions for creating different types of configuration windows
 from pathlib import Path
 from typing import Optional
 
-from .windows.settings_library import SettingsLibrary
+from .base_config_library import UISchema, load_ui_schema_from_file
+from .components.file_library_panel import FileLibraryPanel
+
+# Import window classes
+from .windows.settings import SettingsLibrary
 from .windows.prompts_library import PromptsLibrary
 from .windows.plans_library import PlansLibrary
 

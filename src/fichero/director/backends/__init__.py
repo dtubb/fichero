@@ -4,7 +4,7 @@ Processing Backends
 Unified backend system with organized structure:
 
 Implementations:
-- Python: Local processing using subprocess (always available)
+- Python: Local processing using ThreadPoolExecutor (always available, Mac app compatible)
 - Celery: Distributed processing with Redis (optional dependency)
 
 Management:
