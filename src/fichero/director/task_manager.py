@@ -84,6 +84,10 @@ class TaskManager:
         # Create tasks for each prepared folder
         tasks = []
         for prepared_folder in folders:
+            # Debug logging for document_id
+            document_id = document_context.get('document_id') if document_context else None
+            logger.debug(f"TaskManager.submit_task: creating task for folder={prepared_folder}, document_id={document_id}")
+            
             # Prepared folders are used as both input and output (they contain the structure)
             task = create_folder_task(
                 folder_path=prepared_folder,
@@ -91,7 +95,7 @@ class TaskManager:
                 plan_config=plan_config,
                 workflow_name=workflow_name,
                 variables=variables or {},
-                document_id=document_context.get('document_id') if document_context else None
+                document_id=document_id
             )
             tasks.append(task)
             logger.info(f"Created task for prepared folder: {prepared_folder}")

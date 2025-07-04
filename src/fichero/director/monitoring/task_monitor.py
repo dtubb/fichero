@@ -501,6 +501,9 @@ class TaskMonitor:
             
             # Create task if it doesn't exist
             if task_id not in self.tasks:
+                document_id = progress_data.get("document_id")
+                logger.debug(f"TaskMonitor._on_progress_update: creating task {task_id} with document_id={document_id}")
+                
                 self.create_task(
                     task_id=task_id,
                     folder_name=progress_data.get("folder", "Unknown"),
@@ -510,7 +513,7 @@ class TaskMonitor:
                     worker=progress_data.get("worker", "unknown"),
                     executor_type=progress_data.get("executor_type", "unknown"),
                     start_time=datetime.now(),
-                    document_id=progress_data.get("document_id")  # Extract document_id from progress data
+                    document_id=document_id  # Extract document_id from progress data
                 )
                 
                 # Initialize workflow steps if provided

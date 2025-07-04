@@ -22,6 +22,7 @@ import os
 import time
 from typing import Optional, Any, Dict, List
 import logging
+import sys
 
 from ..i18n import _, translator
 from ...config.core.plan_manager import PlanManager
@@ -254,9 +255,12 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Right side: Process controls
         right_section = toga.Box(style=Pack(direction=ROW))
         
-        self.activity_indicator = toga.ActivityIndicator(
-            style=Pack(margin_right=10)
-        )
+        if sys.platform == "darwin":
+            self.activity_indicator = toga.ActivityIndicator(
+                style=Pack(margin_right=10)
+            )
+        else:
+            self.activity_indicator = None  # Not supported on Windows/Linux
         
         self.process_btn = toga.Button(
             _("process"),
@@ -265,7 +269,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             style=Pack(font_size=12, height=32)
         )
         
-        right_section.add(self.activity_indicator)
+        if self.activity_indicator is not None:
+            right_section.add(self.activity_indicator)
         right_section.add(self.process_btn)
         
         # Assemble footer

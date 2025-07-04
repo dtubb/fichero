@@ -405,7 +405,8 @@ class DocumentProgressDisplay:
         
         self.document_window = document_window
         self.document_id = document_id
-        self.task_monitor = TaskMonitor.get_instance(document_window._app.director, f"gui_doc_{document_id}")
+        # Use the global TaskMonitor instance so document window sees its tasks
+        self.task_monitor = TaskMonitor.get_instance(document_window._app.director)
         
         # UI state
         self.progress_container = None
@@ -535,9 +536,15 @@ class DocumentProgressDisplay:
     def _on_task_update(self, event_type: str, task: TaskInfo):
         """Handle task updates from TaskMonitor"""
         try:
+            # Debug logging to verify document_id filtering
+            logger.debug(f"DocumentProgressDisplay._on_task_update: event_type={event_type}, task_id={task.task_id}, task_document_id={task.document_id}, this_document_id={self.document_id}")
+            
             # Only handle tasks from this document
             if task.document_id != self.document_id:
+                logger.debug(f"  Skipping task {task.task_id} - document_id mismatch")
                 return
+            
+            logger.debug(f"  Processing task {task.task_id} - document_id matches")
             
             # Update progress UI
             asyncio.create_task(self._update_progress_ui(task))
@@ -568,6 +575,12 @@ class DocumentProgressDisplay:
         
         platform_name = platform.system().lower()
         document_tasks = self.task_monitor.get_tasks_by_document(self.document_id)
+        
+        # Debug logging to verify document_id filtering
+        logger.debug(f"DocumentProgressDisplay._update_task_table: document_id={self.document_id}, found {len(document_tasks)} tasks")
+        for task_id, task in document_tasks.items():
+            logger.debug(f"  Task {task_id}: folder={task.folder_name}, status={task.status}, document_id={task.document_id}")
+        
         table_data = [format_task_row(task, platform_name) for task in document_tasks.values()]
         self.task_table.data = table_data
     
