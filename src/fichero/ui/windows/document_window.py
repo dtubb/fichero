@@ -292,7 +292,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     
     def _reset_to_process_button(self):
         """Reset button back to process state"""
-        self.activity_indicator.stop()
+        if self.activity_indicator is not None:
+            self.activity_indicator.stop()
         # Re-add footer section to show buttons again
         if hasattr(self, '_main_content') and self._main_content:
             self._main_content.add(self.footer_section)
@@ -594,7 +595,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             return
         
         # Start activity indicator and hide the footer buttons during processing
-        self.activity_indicator.start()
+        if self.activity_indicator is not None:
+            self.activity_indicator.start()
         # Store reference to footer and remove it from main content
         self._main_content = self.content
         self._main_content.remove(self.footer_section)
