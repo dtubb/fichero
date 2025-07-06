@@ -30,6 +30,7 @@ from ...config.core.settings import get_app_settings
 from ...director import FicheroDirector
 from ...director.monitoring.displays.gui_display import GUITaskDisplay
 from ...director.monitoring.task_monitor import TaskMonitor
+from ...utils.path_icons import render_path_with_icons, get_folder_icon_path
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         super().__init__(doc=doc, content=content)
         
+        # Set initial window title to just "Fichero"
+        self.title = "Fichero"
+        
         # Set up window handlers and restore position
         self._setup_window_handlers()
         
@@ -88,12 +92,12 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._create_content_section()
         self._create_footer()
         
-        # Assemble layout - content section gets more space, no margin to footer
-        main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        # Assemble layout - content section gets only the space it needs
+        main_sections = toga.Box(style=Pack(direction=COLUMN))
         main_sections.add(self.folder_section)
         main_sections.add(self.content_section)
         
-        main_content = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        main_content = toga.Box(style=Pack(direction=COLUMN, background_color='#f7f2f1'))
         main_content.add(main_sections)
         main_content.add(self.footer_section)
         
@@ -115,24 +119,80 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 style=Pack(font_size=32, text_align=CENTER, margin=8)
             )
         
-        # Processing icon (gear/cog icon)
+        # Processing icon (clean folder icon)
+        self.processing_icon = self._create_folder_icon_widget()
+    
+    def _create_folder_icon_widget(self):
+        """Create a clean folder icon widget for processing state"""
+        # Try to get the actual folder icon from the selected folder
+        if self.selected_folder:
+            folder_icon = self._get_folder_icon(self.selected_folder)
+            if folder_icon:
+                return folder_icon
+        
+        # Fall back to user's custom folder.png icon
         try:
-            # Try to load a processing icon if it exists
-            processing_image = toga.Image("resources/icons/folder_processing.png")
-            self.processing_icon = toga.ImageView(
-                processing_image,
+            folder_image = toga.Image("resources/icons/folder.png")
+            return toga.ImageView(
+                folder_image,
                 style=Pack(width=62, height=62, margin=3)
             )
         except Exception as e:
-            logger.debug(f"Could not load processing folder icon, using emoji: {e}")
-            # Use gear emoji for processing
-            self.processing_icon = toga.Label(
-                "📁⚙️",
-                style=Pack(font_size=28, text_align=CENTER, margin=8)
+            logger.debug(f"Could not load folder.png icon: {e}")
+        
+        # Fall back to simple folder emoji (clean, no gear)
+        return toga.Label(
+            "📁",
+            style=Pack(font_size=32, text_align=CENTER, margin=8)
+        )
+    
+    def _get_folder_icon(self, folder_path):
+        """Get the actual icon for a specific folder"""
+        try:
+
+            # Use our new utility to get the icon path with larger size for top left icon
+            icon_path = get_folder_icon_path(Path(folder_path), size=62)
+            
+            if icon_path and Path(icon_path).exists():
+                try:
+                    # Load the icon file
+                    folder_image = toga.Image(icon_path)
+                    return toga.ImageView(
+                        folder_image,
+                        style=Pack(width=62, height=62, margin=3)
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not load folder icon from {icon_path}: {e}")
+            
+            # Fall back to default folder icon
+            return self._get_default_folder_icon()
+            
+        except Exception as e:
+            logger.debug(f"Could not get folder icon for {folder_path}: {e}")
+            return self._get_default_folder_icon()
+    
+    def _get_default_folder_icon(self):
+        """Get the default folder icon"""
+        try:
+            # Try to load the custom folder.png icon
+            folder_image = toga.Image("resources/icons/folder.png")
+            return toga.ImageView(
+                folder_image,
+                style=Pack(width=62, height=62, margin=3)
             )
+        except Exception as e:
+            logger.debug(f"Could not load folder.png icon: {e}")
+        
+        # Fall back to simple folder emoji
+        return toga.Label(
+            "📁",
+            style=Pack(font_size=32, text_align=CENTER, margin=8)
+        )
     
     def _switch_to_processing_icon(self):
         """Switch to processing icon"""
+        # Always recreate the processing icon to ensure it's the right size
+        self.processing_icon = self._create_folder_icon_widget()
         self.icon_container.clear()
         self.icon_container.add(self.processing_icon)
         self.current_folder_icon = self.processing_icon
@@ -142,6 +202,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.icon_container.clear()
         self.icon_container.add(self.question_icon)
         self.current_folder_icon = self.question_icon
+    
+
 
     def _create_folder_selection_section(self):
         """Create folder selection section with icon and background"""
@@ -246,7 +308,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         height = canvas.layout.content_height
         corner_radius = 6
         
-        with canvas.context.Fill(color='rgb(217, 217, 217)') as background:
+        with canvas.context.Fill(color='rgb(226, 223, 222)') as background:
             background.begin_path()
             background.move_to(corner_radius, 0)
             background.line_to(width - corner_radius, 0)
@@ -263,7 +325,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         """Create content section with beautiful description view"""
         # Create simple container that will hold task display when processing starts
         self.content_section = toga.Box(
-            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0), flex=1)
+            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0))
         )
         
         # Create description canvas for beautiful markdown rendering
@@ -273,7 +335,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 margin_right=20,
                 margin_bottom=10,
                 margin_left=20,
-                flex=1,
+                height=200,  # Fixed height instead of flex=1
             ),
             on_resize=self._draw_content_text,
             on_press=self._handle_canvas_click
@@ -326,15 +388,26 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         else:
             self.activity_indicator = None  # Not supported on Windows/Linux
         
-        self.process_btn = toga.Button(
-            _("process"),
-            on_press=self.process_handler,
-            enabled=False,
+        # Reset button (comes first, hidden initially)
+        self.reset_btn = toga.Button(
+            "Reset",
+            on_press=self.reset_handler,
             style=Pack(font_size=12, height=32)
         )
         
+        self.process_btn = toga.Button(
+            _("process"),
+            on_press=self.process_handler,
+            style=Pack(font_size=12, height=32, margin_left=10)
+        )
+        
+        # Initially hide both buttons until folder is selected
+        self.reset_btn.style.visibility = 'hidden'
+        self.process_btn.style.visibility = 'hidden'
+        
         if self.activity_indicator is not None:
             right_section.add(self.activity_indicator)
+        right_section.add(self.reset_btn)
         right_section.add(self.process_btn)
         
         # Assemble footer
@@ -343,7 +416,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.footer_section = toga.Box(
             style=Pack(
                 direction=ROW,
-                margin=(0, 20, 20, 20),
+                margin=(0, 20, 0, 20),
                 align_items=CENTER
             )
         )
@@ -376,6 +449,235 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             )
             self.path_container.add(label_row)
     
+    def _switch_to_folder_path_label(self):
+        """Switch folder selection from button to folder path canvas"""
+        if self.selected_folder:
+            # Show just the folder path (not processing)
+            folder_path = str(self.selected_folder)
+            
+            # Create path display using ImageView + Label widgets
+            self.path_display_container = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    align_items=CENTER,
+                    margin_left=10,
+                    margin_top=20,
+                    margin_bottom=20
+                )
+            )
+            
+            # Replace button with path display
+            self.path_container.clear()
+            path_row = toga.Box(
+                children=[
+                    self.path_display_container,
+                    toga.Box(style=Pack(flex=1))   # Right spacer only
+                ],
+                style=Pack(direction=ROW, align_items=CENTER)
+            )
+            self.path_container.add(path_row)
+            
+            # Build the path with icons and labels
+            self._build_path_display(folder_path)
+            
+            # Update content area to show "Ready to process..."
+            self._show_ready_to_process()
+    
+    def _build_path_display(self, folder_path):
+        """Build path display using ImageView + Label widgets with async icon loading"""
+        from fichero.utils.path_icons import PathBuilder, get_fallback_folder_icon, load_image
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Clear existing path display
+        self.path_display_container.clear()
+        
+        # Get path components (this is fast, just path parsing)
+        components = PathBuilder.build_path_with_icons(folder_path)
+        
+        # Build the display with icons loaded synchronously
+        for i, component in enumerate(components):
+            # Add icon (ImageView)
+            icon_image = None
+            
+            # Try to use real macOS icon first
+            if component.get("icon_path"):
+                icon_image = load_image(component["icon_path"])
+            
+            # Fallback to generic folder icon
+            if not icon_image:
+                fallback_icon_path = get_fallback_folder_icon()
+                if fallback_icon_path:
+                    icon_image = load_image(fallback_icon_path)
+            
+            if icon_image:
+                try:
+                    icon_widget = toga.ImageView(
+                        image=icon_image,
+                        style=Pack(width=16, height=16, margin_right=2)
+                    )
+                    self.path_display_container.add(icon_widget)
+                except Exception as e:
+                    logger.debug(f"Could not create ImageView: {e}")
+                    # Skip icon if it fails
+            
+            # Add folder name (Label) if not root
+            if component["name"]:
+                is_last_component = (i == len(components) - 1)
+                
+                name_label = toga.Label(
+                    component["name"],
+                    style=Pack(
+                        font_family='SF Pro Text',
+                        font_size=9,
+                        font_weight='bold' if is_last_component else 'normal',
+                        margin_right=4
+                    )
+                )
+                self.path_display_container.add(name_label)
+            
+            # Add separator (except for last component)
+            if i < len(components) - 1:
+                separator_label = toga.Label(
+                    "⟩",  # Narrow mathematical right angle bracket
+                    style=Pack(
+                        font_family='SF Pro Text',
+                        font_size=9,
+                        color='#808080',  # Dark grey
+                        margin_left=4,
+                        margin_right=4
+                    )
+                )
+                self.path_display_container.add(separator_label)
+    
+
+    
+    def _show_ready_to_process(self):
+        """Show 'Ready to process...' message in content area"""
+        # Clear the content section
+        self.content_section.clear()
+        
+        # Create canvas that draws both background and text together
+        self.ready_canvas = toga.Canvas(
+            style=Pack(
+                margin=(20, 20, 20, 20),  # 20px bottom margin
+                height=200,  # Same height as description canvas
+            ),
+            on_resize=self._draw_ready_background_and_text
+        )
+        
+        self.content_section.add(self.ready_canvas)
+    
+    def _draw_ready_background_and_text(self, canvas=None, **kwargs):
+        """Draw rounded grey background and centered text for ready state"""
+        if canvas is None:
+            canvas = self.ready_canvas
+            
+        if not canvas or not hasattr(canvas, 'layout') or not canvas.layout:
+            return
+            
+        canvas.context.clear()
+        
+        width = canvas.layout.content_width
+        height = canvas.layout.content_height
+        corner_radius = 6  # Same as top folder bar
+        
+        # Draw rounded grey rectangle (same color as top folder bar)
+        with canvas.context.Fill(color='rgb(226, 223, 222)') as background:
+            background.begin_path()
+            background.move_to(corner_radius, 0)
+            background.line_to(width - corner_radius, 0)
+            background.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            background.line_to(width, height - corner_radius)
+            background.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            background.line_to(corner_radius, height)
+            background.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            background.line_to(0, corner_radius)
+            background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            background.close_path()
+        
+        # Thin light grey border (1px) around grey box
+        with canvas.context.Stroke(color='rgb(213, 213, 213)', line_width=1) as border:
+            border.begin_path()
+            border.move_to(corner_radius, 0)
+            border.line_to(width - corner_radius, 0)
+            border.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            border.line_to(width, height - corner_radius)
+            border.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            border.line_to(corner_radius, height)
+            border.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            border.line_to(0, corner_radius)
+            border.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            border.close_path()
+        
+        # Draw centered text
+        try:
+            # Create italic font for the text
+            text_font = toga.Font(family=toga.fonts.SYSTEM, size=12, weight="normal", style="italic")
+            
+            # Calculate center position
+            text = "Ready to process…"
+            text_width, text_height = canvas.measure_text(text, text_font)
+            center_x = width / 2 - text_width / 2
+            center_y = height / 2 + text_height / 4  # Slight adjustment for visual centering
+            
+            # Draw the text
+            with canvas.context.Fill(color='rgb(102, 102, 102)') as text_fill:  # #666666
+                text_fill.write_text(text, center_x, center_y, text_font)
+                
+        except Exception as e:
+            # Fallback if font styling fails
+            text_font = toga.Font(family=toga.fonts.SYSTEM, size=14, weight="normal")
+            with canvas.context.Fill(color='rgb(102, 102, 102)') as text_fill:
+                text_fill.write_text("Ready to process…", width/2 - 50, height/2, text_font)
+
+    def _update_folder_icon_for_selected_path(self, folder_path):
+        """Update the left folder icon to match the selected folder"""
+        from fichero.utils.path_icons import get_folder_icon_path, get_fallback_folder_icon, load_image
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Get the icon for the selected folder with larger size (62x62)
+            icon_path = get_folder_icon_path(Path(folder_path), size=62)
+            
+            # Try to load the real icon for this folder
+            icon_image = None
+            if icon_path:
+                icon_image = load_image(icon_path)
+            
+            # Fallback to generic folder icon
+            if not icon_image:
+                fallback_icon_path = get_fallback_folder_icon()
+                if fallback_icon_path:
+                    icon_image = load_image(fallback_icon_path)
+            
+            # Update the folder icon widget
+            if icon_image and hasattr(self, 'current_folder_icon'):
+                try:
+                    # Create new icon widget
+                    new_icon = toga.ImageView(
+                        image=icon_image,
+                        style=Pack(width=62, height=62, margin=3)
+                    )
+                    
+                    # Replace the current icon
+                    self.icon_container.clear()
+                    self.icon_container.add(new_icon)
+                    self.current_folder_icon = new_icon
+                    
+                except Exception as e:
+                    logger.debug(f"Could not update folder icon: {e}")
+                    
+        except Exception as e:
+            logger.debug(f"Error updating folder icon: {e}")
+    
+
+
+    def _format_path_with_separators(self, path_str):
+        """Format path with platform-specific separators and icons"""
+        return render_path_with_icons(path_str)
+    
     def _switch_to_choose_button(self):
         """Switch folder selection from label back to button"""
         self.path_container.clear()
@@ -397,9 +699,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self.task_display.stop_monitoring()
             self.task_display = None
         
-        # Reset folder selection to show choose button and question icon
+        # Reset folder selection to show choose button (keep folder icon)
         self._switch_to_choose_button()
-        self._switch_to_question_icon()
         
         # Reset content section to welcome message
         self._reset_content_section()
@@ -434,7 +735,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._draw_description_content(canvas)
     
     def _draw_rounded_background(self, canvas):
-        """Draw rounded white background"""
+        """Draw rounded white background with thin grey border"""
         width = canvas.layout.content_width
         height = canvas.layout.content_height
         corner_radius = 6
@@ -456,6 +757,20 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             background.line_to(0, corner_radius)
             background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
             background.close_path()
+        
+        # Thin light grey border (1px)
+        with canvas.context.Stroke(color='rgb(213, 213, 213)', line_width=1) as border:
+            border.begin_path()
+            border.move_to(corner_radius, 0)
+            border.line_to(width - corner_radius, 0)
+            border.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            border.line_to(width, height - corner_radius)
+            border.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            border.line_to(corner_radius, height)
+            border.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            border.line_to(0, corner_radius)
+            border.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            border.close_path()
     
     def _draw_description_content(self, canvas):
         """Draw description text with markdown support"""
@@ -785,7 +1100,24 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             if folder_path:
                 self.selected_folder = Path(folder_path)
                 folder_name = self.selected_folder.name
-                self.choose_folder_btn.text = f"📁 {folder_name}"
+                
+                # Update window title to include folder name
+                self.title = f"Fichero: {folder_name}"
+                
+                # Update button text to "Choose Different Folder"
+                self.choose_folder_btn.text = "Choose Different Folder"
+                
+                # Switch to clean folder icon immediately when folder is selected
+                self._switch_to_processing_icon()
+                
+                # Update the path display immediately (just show the path, not "Processing")
+                self._switch_to_folder_path_label()
+                
+                # Show both buttons when folder is selected
+                self.reset_btn.style.visibility = 'visible'
+                self.process_btn.style.visibility = 'visible'
+                
+                # Enable process button only if plan is selected
                 self.process_btn.enabled = bool(self.current_plan)
                 logger.info(f"Selected folder: {self.selected_folder}")
             
@@ -796,6 +1128,36 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     def help_handler(self, widget):
         """Handle help button - open help website"""
         webbrowser.open("https://www.tubb.ca/fichero/")
+    
+    def reset_handler(self, widget):
+        """Handle reset button - clear folder selection and return to initial state"""
+        try:
+            # Clear selected folder
+            self.selected_folder = None
+            
+            # Reset window title back to just "Fichero"
+            self.title = "Fichero"
+            
+            # Reset button text back to original
+            self.choose_folder_btn.text = _("choose_folder")
+            
+            # Switch back to question mark icon
+            self._switch_to_question_icon()
+            
+            # Switch back to choose button (removes path display)
+            self._switch_to_choose_button()
+            
+            # Reset content section to show help text
+            self._reset_content_section()
+            
+            # Hide both buttons again
+            self.reset_btn.style.visibility = 'hidden'
+            self.process_btn.style.visibility = 'hidden'
+            
+            logger.info("Reset to initial state")
+            
+        except Exception as e:
+            logger.error(f"Error resetting: {e}")
     
     async def stop_handler(self, widget):
         """Handle stop button - cancel current processing and show results"""
@@ -927,9 +1289,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._main_content = self.content
         self._main_content.remove(self.footer_section)
         
-        # Switch folder selection to processing label and icon
-        self._switch_to_processing_label()
-        self._switch_to_processing_icon()
+        # Keep the current path display and folder icon as they are during processing
         
         try:
             # Get director service (app should have initialized it)
@@ -1027,7 +1387,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self.current_workflow = result.get('workflow')
             
             # Enable process button if folder selected
-            self.process_btn.enabled = bool(self.selected_folder)
+            self.process_btn.enabled = bool(self.selected_folder and self.current_plan)
             
         except Exception as e:
             logger.error(f"Error initializing plan/workflow: {e}")
@@ -1049,8 +1409,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self.current_plan = result.get('plan')
             self.current_workflow = result.get('workflow')
             
-            # Enable process button if folder selected
-            self.process_btn.enabled = bool(self.selected_folder)
+            # Enable process button if folder selected and plan chosen
+            self.process_btn.enabled = bool(self.selected_folder and self.current_plan)
             
             logger.info(f"Document plan changed: {result}")
             
@@ -1118,7 +1478,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             if saved_position != (100, 100):
                 self.position = saved_position
             
-            if saved_size != (650, 406):
+            if saved_size != (650, None):
                 self.size = saved_size
                 
         except Exception as e:

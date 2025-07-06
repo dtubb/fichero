@@ -84,7 +84,7 @@ class DocumentStateManager:
             "tags": [],
             "processing_status": "new",
             "window_settings": {
-                "size": [650, 406],
+                "size": [650, None],
                 "position": [100, 100],
                 "open_files": []  # Track files open in this document
             },

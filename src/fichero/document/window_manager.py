@@ -35,7 +35,7 @@ class DocumentWindowManager:
     def get_window_size(self) -> Tuple[int, int]:
         """Get saved window size"""
         settings = self.document.state_manager.document_config.get("window_settings", {})
-        return tuple(settings.get("size", [650, 406]))
+        return tuple(settings.get("size", [650, None]))
     
     def save_current_window_position(self):
         """Save current window position from the document window"""
@@ -63,7 +63,7 @@ class DocumentWindowManager:
                     self.document.main_window.position = saved_position
                     logger.debug(f"Restored window position: {saved_position}")
                 
-                if hasattr(self.document.main_window, 'size') and saved_size != (650, 406):
+                if hasattr(self.document.main_window, 'size') and saved_size != (650, None):
                     self.document.main_window.size = saved_size
                     logger.debug(f"Restored window size: {saved_size}")
                     

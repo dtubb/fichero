@@ -62,5 +62,7 @@ ruamel.yaml>=0.18.0,<1.0.0
 # - Ubuntu/Debian: apt-get install libraw-dev
 # - Windows: No additional dependencies needed
 
-# pyobjc-framework-Cocoa>=10.0,<11.0  # SF Symbols support on macOS
+# macOS system integration
+pyobjc-core>=11.1,<12.0  # Core PyObjC support
+pyobjc-framework-Cocoa>=11.1,<12.0  # macOS system icons and UI integration
 
