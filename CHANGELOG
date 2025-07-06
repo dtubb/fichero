@@ -1,103 +1,90 @@
 # Fichero Release Notes
 
-## 0.1.0-dev In Progress (July 4, 2025)
-- [x] Added new windows for Plans, Projects, and Prompts.
-- [x] Refactored Director.py:
-  - [x] Refactored director.py into modular components for better maintainability, e.g. backends, cofnig, interfaces, monitoring, and utils.
-  - [x] Moved backend to run entirely on Python, making Redis and Celery optional for HPC  environments. 
-  - [] Tested REDIS/Celery. 
-  - [x] Implemented threading for CPU-intensive tasks when processing a single folder, significantly improving performance.
-  - [x] Developed monitoring backends, and added shared data storage for encrypted API keys and settings.
-  - [x] Updated tools to be called as function calls instead of subprocesses.
+## 0.0.6 – In Progress
+- Introduced new windows for Plans, Projects, and Prompts.
+- Refactored Director.py:
+  - Transitioned the backend to operate solely on Python, making REDIS and Celery optional for HPC/Linux environments.
+  - Implemented multiprocessing for CPU-intensive tasks when processing a single folder, significantly enhancing performance.
+  - Refactored director.py into various components to make it easier to understand.
+  - Wrote a workflow backend, a monitoring backend, shared data for encrypted API keys and settings.
+- Redesigned the plans format to remove dependency on Weasel, and subsequently eliminated the Weasel backend.
+- Refactored tools to be called as function calls, not as new processes.
+- Ran on 50 folders, encompassing a total of 7,992 images, as part of the [Archivo Afro](https://upenn.app.box.com/s/ezpp32x9p0yps244buzweyqfyn67h5l)
+- Integrated rembg for AI-based background removal, which is an optional feature. Works great on many images, but not all. If rembg is unavailable, Fichero defaults to contour-based background removal. The GUI automatically disables the AI background removal option on Mac if rembg is not installed, and other platforms where rembg/scikit-image may encounter issues.
+- Made the use of ultralytics in crop.py optional to facilitate Mac builds. Introduced a YOLO_AVAILABLE flag to verify YOLO's availability. Implemented a fallback to contour-based cropping when YOLO is not accessible. Modified crop_with_yolo() to return None if YOLO is unavailable. Enhanced crop_batch() to manage YOLO loading somewhat smoothly.
+- Revised Activity Monitor to ensure only one instance can be active at a time.
+-- Added fichero/utils/icon_utils.py: Platform-aware icon utility. Uses SF Symbols (via PyObjC/AppKit) on macOS, falls back to emoji on other platforms. Provides get_stop_icon(), get_refresh_icon(), get_add_icon(), get_remove_icon(), etc. Includes test script for verification. Requires pyobjc-framework-Cocoa on macOS. 
 
-- [x] Redesigned the plans format to remove the Weasel dependency and eliminated the Weasel backend.
+Tasks to work on:
+ Get it actually working on macOS.
+  - Revised to always yse concurant futures. thread pool exector on MAc, then to have the RIDIS/Celery option for HPCs.
 
-- [x] Successfully processed 50 folders (7,992 images) as part of the [Archivo Afro](https://upenn.app.box.com/s/ezpp32x9p0yps244buzweyqfyn67h5l) project.
+- The current Activity window need a simple tree view with columns to improve readability and ensure that items are not deleted or reordered. The existing Container fails to clearly indicate completed tasks or those in progress, just current tasks. Additionally, the displayed statistics are inaccurate.
+  - Add Stop, Restart, Clear buttons.
+  - On Mac we can have a widget in ta able view, for progress and acrtivity indicator. This is beta. On window,s we have fall back for spinenrs.
+   - Apply the same improvements to the terminal version.
+  for the activity monitior and document window activity monitor  can we have a button that is stop, then it can be restart. it can also be clear/delete. 
 
-- [x] In remove_background.py, Integrated rembg for AI-based background removal (optional). If rembg is unavailable, Fichero falls back to contour-based background removal. The GUI disables the AI background removal option on Mac if rembg is not installed, and on other platforms where rembg or scikit-image may not work.
+  - Simplify the settings window by removing Library. Users should see a single window with a restore default button, without the library, which is needed for prompts and plans.
+  - Create a unified library list indicating default plans and prompts, with a restore button for edited defaults.
+  -   - Add help text for each setting.
+  - Address Toga margin errors, as Sonnet tends to apply padding incorrectly. A systematic review is needed.
+  
+  - Ensure the JSONL editing component of the Plans is operational.
+  - Add useful settings for each tool in Plans.
 
-- [x] In crop.py made ultralytics optional for Mac builds. Added a YOLO_AVAILABLE flag to check for YOLO. If YOLO is unavailable, cropping falls back to contour-based methods. crop_with_yolo() returns None if YOLO is not available. crop_batch() now handles YOLO loading more gracefully.
+  - Verify that Celery/Redis is functioning correctly for HPC.
+  
+  - Ensure Linux and Windows builds work.
+  
+  - Ensure all elements are translated.
+    - Make sure all GUI buttons work. e.g., start/stop; remove process folder when we're processing, etc.
+  
+  - Update the Readme. 
+  
+  Future:
+  - Updaet export engine to do mardkown, pdf, wbesite, etc..
+   - Refactor the document window to reduce complexity, and separate logic from GUI. - Option to download files to process, e.g., from an online repository.
+  - Option to transcribe audio files with whisper, option to use apples vision and speach models.
+  - Option to extract from PDFs.
+  - A button to clean up working files, particularly JPGs and PNGs.
+  - Provide an easy way to view exported files upon completion, e.g., reveal in Finder.
 
-- [x] Revised the Activity Monitor to ensure only one instance can be active at a time.
+  - Store crop, rotate, split, steps as coordinates in the JSONL, rather than images, to save space.
+  - Implement a new features alert box for new versions.
+  - Refactor the LLM utilities and process code to make it less complex, and easier to maintain.
 
-#### Activity Monitor Improvements (in progress)
-- [X] Implement a simple tree view with columns to improve readability and prevent items from being deleted or reordered.
 
-Tasks to Work On:
-- [ ] Get Fichero fully working on macOS.
-  - [ ] Use concurrent futures ThreadPoolExecutor on Mac, with Redis/Celery as an option for HPCs.
-- [ ] Ensure Linux and Windows builds work.
-
-#### Activity Monitor Improvements (in progress)
-- [ ] Solve freezing and crashing issues.
-- [ ] Fix inaccurate statistics.
-- [ ] Add Stop, Restart, and Clear buttons.
-- [ ] Add a progress and activity indicator widget in the table view on Mac (beta).
-- [ ] Provide a proper fallback for spinners on Windows.
-- [ ] Sync GUI and CLI terminal code.
-- [ ] Add support for the document window activity monitor.
-
-#### Settings Window
-- [ ] Simplify the settings window by removing the Library section.
-- [ ] Show a single window with a restore default button.
-- [ ] Create a unified library list showing default plans and prompts, with a restore button for edited defaults.
-- [ ] Add help text for each setting.
-- [ ] Remove unused or redundant settings.
-- [ ] Remove plan and prompt settings that do not work.
-- [ ] Clean up and remove redundant code.
-
-#### Plans and Prompts
-- [ ] Remove treemap
-- [ ] Ensure the JSONL editing component of Plans works correctly.
-  - [ ] Add validation for JSONL format.
-  - [ ] Improve error handling for malformed JSONL.
-- [ ] Add useful settings for each tool in Plans.
-  - [ ] Identify required settings for each tool.
-  - [ ] Implement a settings interface for tools.
-  - [ ] Add validation for tool settings.
-- [ ] Improve the plan and prompt library interface.
-  - [ ] Refine UI for plan and prompt selection.
-  - [ ] Remove redundant plan and prompt settings.
-  - [ ] Clean up the plan and prompt skimmer interface.
-  - [ ] Remove unnecessary shared data store.
-  - [ ] Add icons for Python and CPU workers.
-
-#### Backend and Build
-- [ ] Verify that Celery/Redis works correctly for HPC.
-- [ ] Ensure all elements are translated.
-  - [ ] Make sure all GUI buttons work (e.g., Start/Stop, remove process folder when processing, etc.).
-- [ ] Update the README and website.
-  - [ ] Add installation instructions for all platforms.
-  - [ ] Add usage examples.
-  - [ ] Update feature descriptions.
-  - [ ] Prepare release notes.
-- [ ] Make sure the document system works properly for saving and reloading files.
-- [ ] Add a button to clean up working files, especially JPGs and PNGs, once a workflow is complete.
-- [ ] Ensure cross-platform builds (macOS, Linux, Windows).
-- [ ] Build and distribute the application.
-
+  ## For the Future
+  - Investigate using Docling
+  - Refactor data store for tools
+  - Refactor tools to work on Docling elements.
+  - Test on local LLMs again
+  - Edit each step in the GUI, especially transcriptions.
+  - Add prompts to:
+    - translate
+    - clean line spacing and paragraphing for markdown
 
 ## 0.0.5 – JUNE 15, 2025
-- [x] Added menus.
-- [x] Added user interface translation support.
-- [x] Added an Settings window, inspired by BBEdit.
-  - [x] Created a settings window that lets you edit API keys for OpenAI and Qwen.
-  - [x] Added app settings for API keys. API keys are loaded from environment variables if available; otherwise, they can be set via the Settings window. API keys are saved, encrypted, in the appropriate folder based on the operating system.
+- Added menus.
+- Added user interface translation support.
+- Added an About window, inspired by BBedit.
+- Created a settings window that lets you edit API Keys for Open AI and Qwen.
+    - Added app settings for API Keys. API Keys are loaded from environment variables if available; otherwise, they can be set via the Settings window. API Keys are saved, encrypted, in the appropriate folder based on the operating system.
 
 ## 0.0.4 – JUNE 13, 2025
-- [x] Added Briefcase for easier packaging and distribution of Fichero.
-- [x] Integrated Toga for macOS, Windows, and Linux GUI development. (About Box GUI inspired by John Siracusa's [Hyperspace](https://hypercritical.co/2025/02/25/hyperspace).)
-- [x] Moved files into the `src` directory to support Toga and Briefcase.
-- [x] Refactored code to work with Briefcase and Toga.
+- Added Briefcase for easier packaging and distributing of Fichero.
+- Integrated Toga for macOS/Windows/Linux GUI development. GUI is inspired, for now, by John Siracusa's [Hyperspace](https://hypercritical.co/2025/02/25/hyperspace).
+- Refactored the project structure by moving files into the `src` directory, needed for Toga and Briefcase.
+- Refactored code to work with the structure.
 
 ## 0.0.3 – JUNE 5, 2025
-- [x] Added support for multi-step LLM processing using llm_process.py, llm_utils.py, and a config file. (Tested with OpenAI models.)
-- [x] Enabled plans files to set prompts, choose batch sizes, decide between sending pages individually or in groups (up to chunk size based on max tokens), combine results, and send previous results.
-- [x] Added a plan to auto-catalogue using LLMs for named entity recognition (people, places, organizations, events), as well as specific entities of interest (e.g., mines, animals, plants, injuries), a timeline of events, most important people, ten tags or keywords, and a 150-word summary.
+- Added support for multi-step LLM processing, using llm_process.py, llm_utils.py, and a config file. Tested with OpenAI models. Config files set prompts, choose batch sizes, decide between sending pages individually or in groups up to chunk size based on max tokens, allow combining results, and sending previous results.
+- Added a config file to auto-catalogue by generating using LLMs named entity recognition for people, places, organizations, events, but also specific things we are interested in, e.g., mines, animals, plants, injuries; a timeline of events; most important people; ten tags or keywords; and a 150-word summary.
 
 ## 0.0.2 – MAY 25, 2025
-- [x] Support for running on multiple processors and in parallel, with asynchronous transcription calls (fichero_director.py).
+- Added support for running on multiple processors and in parallel, and doing asynchronous transcription calls. Fichero_director.py.
 
 ## 0.0.1 – MAY 9, 2025
-- [x] Initial development release: supports cropping, splitting, rotating, enhancing, background removal, and transcription.
+- Initial development release, which crops, splits, rotates, enhances, removes background, and transcribes.
 

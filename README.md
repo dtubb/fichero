@@ -14,7 +14,7 @@ Fichero:
    - LM Studio Models (full document or segmented processing)
 - Cleans and formats transcriptions
 - Generates Word documents with a side-by-side layout
-- Catalogues the text files using LLMs with configurable prompts
+- Processes text files using LLMs with configurable prompts
 - Converts output to formatted Word (.docx) documents
 
 ## Installation
@@ -41,7 +41,6 @@ cd fichero
 
    **Option 1 - Using venv:**
    ```bash
-   cd fichero # to the path where Fichero is installed.
    python -m venv venv
    source venv/bin/activate
    ```
@@ -62,7 +61,7 @@ Run the GUI directly without Briefcase:
 python -m src/fichero
 ```
 
-This launches the GUI application directly using Toga,.
+This launches the GUI application directly using Toga, without needing to use Briefcase.
 
 ### Command Line Interface (CLI Mode)
 
@@ -130,27 +129,75 @@ briefcase create
 
 # Build the app (compile and package)
 briefcase build
+
+# Create a distributable package (.dmg) of the console app.
+briefcase package
 ```
 
 ### Platform Support
 
-The app should build for multiple platforms. But, it is only tested macOS.
+The app should be able to be  built for multiple platforms. But, I've only tested macOS.
 - **macOS**: `.app` bundle, `.dmg` installer
 - **Windows**: `.exe` application, `.msi` installer
 - **Linux**: AppImage, native packages
 
 For more information, see the [BeeWare documentation](https://docs.beeware.org/).
 
+The easiest way to use Fichero:
+
+1. **Run the app directly**:
+   ```briefcase dev```
+2. **Click "Choose Folder"** to select a folder containing your documents
+3. **Click "Process"** to start processing
+4. The app will:
+   - Process all documents in the selected folder
+   - Save processed files to your Desktop in a `Fichero_Output_[folder_name]` folder
+
+
 ## Configuration
 
-## AI API Key Setup
+### Plan.yml files
 
-To transcribe or catalogue with LLM features, you'll need to set up your OpenAI and DashScope API key:
+Fichero  supports multiple formats and features.You can configure this in your `plan.yml` file stored in /src/resources/plans/plan.yml:
 
-1. Sign up or log in to your Cloud account
-2. Navigate to the API Key console 
+## Alibaba API Key Setup
+
+To transcribe with Alibababa features, you'll need to set up your DashScope API key:
+
+1. Sign up or log in to your Alibaba Cloud account
+2. Navigate to the DashScope console
 3. Create an API key
-4. Go to Fichero Menu > Settings, then go to AI, and add you API Key. 
+4. Create a `.env` file in the project root:
+```bash
+touch .env
+```
+5. Open the file with TextEdit:
+```bash
+open -a TextEdit .env
+```
+6. Add your API key:
+```
+DASHSCOPE_API_KEY=your_api_key_here
+```
+7. Save the file
+
+Note: The DashScope API costs money.
+
+## LM Studio Setup
+
+To use the LM Studio workflows, you'll need to:
+
+1. Download and install LM Studio from [lmstudio.ai](https://lmstudio.ai)
+2. Download the Qwen 2.5 VL 7B model (or another VL model) in LM Studio:
+   - Open LM Studio
+   - Go to the "Models" tab
+   - Search for "Qwen2.5-VL-3B-Instruct-8bit"
+   - Download the model
+3. Start the LM Studio server:
+   - Go to the "Local Server" tab
+   - Click "Start Server"
+   - The server will run on `http://localhost:1234` by default
+   - The API endpoint for chat completions is `http://localhost:1234/v1/chat/completions`
 
 ## Citation
 
