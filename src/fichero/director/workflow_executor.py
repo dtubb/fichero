@@ -79,7 +79,8 @@ class WorkflowExecutor:
                 self.progress_callback(task_id, {
                     "event_type": "workflow_start",
                     "workflow_steps": workflow_steps,
-                    "total_steps": len(workflow_steps)
+                    "total_steps": len(workflow_steps),
+                    "folder_name": folder_name
                 })
             
             # Execute each step
@@ -96,7 +97,8 @@ class WorkflowExecutor:
                 if self.progress_callback:
                     self.progress_callback(task_id, {
                         "event_type": "step_start",
-                        "step": step_name
+                        "step": step_name,
+                        "folder_name": folder_name
                     })
                 
                 result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger, parallel_workers)
@@ -114,7 +116,8 @@ class WorkflowExecutor:
                             "event_type": "workflow_complete",
                             "success": False,
                             "error": error_msg,
-                            "failed_step": step_name
+                            "failed_step": step_name,
+                            "folder_name": folder_name
                         })
                     
                     # Log failed completion
@@ -134,7 +137,8 @@ class WorkflowExecutor:
                         "step": step_name,
                         "progress": ((i + 1) / len(workflow_steps)) * 100,
                         "success": result.get('success', True) and result.get('failed', 0) == 0,
-                        "result": result
+                        "result": result,
+                        "folder_name": folder_name
                     })
             
             # Success
@@ -143,7 +147,8 @@ class WorkflowExecutor:
                 self.progress_callback(task_id, {
                     "event_type": "workflow_complete",
                     "success": True,
-                    "total_steps": len(workflow_steps)
+                    "total_steps": len(workflow_steps),
+                    "folder_name": folder_name
                 })
             
             # Log successful completion
@@ -163,7 +168,8 @@ class WorkflowExecutor:
                 self.progress_callback(task_id, {
                     "event_type": "workflow_complete",
                     "success": False,
-                    "error": error_msg
+                    "error": error_msg,
+                    "folder_name": folder_name
                 })
             
             # Log exception completion

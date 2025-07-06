@@ -89,7 +89,7 @@ class ActivityMonitorWindow:
             # Create window with the display
             self.window = toga.Window(
                 title="Fichero Activity Monitor",
-                size=(600, 500),
+                size=(1000, 500),
                 resizable=True,
                 content=self.display.container
             )

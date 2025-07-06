@@ -109,6 +109,9 @@ class TaskManager:
                 self.active_tasks[task.task_id] = task
                 self.stats["total_submitted"] += 1
         
+        # Note: Backend will automatically send progress updates with folder_name
+        # No need for immediate progress updates since Python backend includes folder_name in all events
+        
         # Return first task ID (for compatibility)
         first_task_id = tasks[0].task_id if tasks else None
         

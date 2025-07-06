@@ -10,10 +10,11 @@ import logging
 import sys
 import time
 import multiprocessing
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import os
 
 from .base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
 
@@ -84,6 +85,7 @@ class PythonProcessingBackend(ProcessingBackend):
         self.task_futures: Dict[str, any] = {}
         self.task_executor_types: Dict[str, str] = {}  # Track which executor type each task uses
         self.task_executors: Dict[str, any] = {}  # Track workflow executors for cancellation
+        self.task_document_ids: Dict[str, str] = {}  # Track document_id for each task
         self._lock = threading.Lock()
         
         self._initialized = False
@@ -188,6 +190,10 @@ class PythonProcessingBackend(ProcessingBackend):
                 # Set initial status
                 self.active_tasks[task.task_id] = ProcessingStatus.PENDING
                 
+                # Store document_id for later use in completion notifications
+                if task.document_id:
+                    self.task_document_ids[task.task_id] = task.document_id
+                
                 # Determine which executor to use based on workflow characteristics
                 executor, executor_type = self._get_executor_for_task(task)
                 
@@ -206,14 +212,21 @@ class PythonProcessingBackend(ProcessingBackend):
                 logger.info(f"  Max workers: {executor._max_workers}")
                 
                 # Notify progress with placeholder worker information
-                self._notify_progress(task.task_id, {
+                progress_data = {
                     "status": "submitted",
                     "folder": str(task.folder_path),
+                    "folder_name": task.folder_path.name,  # Add folder_name for task monitor
                     "workflow": task.workflow_name,
                     "plan": task.plan_config.get('name', 'Unknown'),
                     "executor_type": executor_type,
                     "worker": f"{executor_type.upper()}-pending"
-                })
+                }
+                
+                # Add document_id if available
+                if task.document_id:
+                    progress_data["document_id"] = task.document_id
+                
+                self._notify_progress(task.task_id, progress_data)
                 
                 logger.info(f"Submitted task {task.task_id} to {executor_type} executor for folder: {task.folder_path}")
         
@@ -327,6 +340,9 @@ class PythonProcessingBackend(ProcessingBackend):
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
                         
+                        # Get stored document_id if available
+                        document_id = self.task_document_ids.get(task_id)
+                        
                         # Notify completion for ThreadPool tasks (they don't have callbacks)
                         if result.success:
                             self.active_tasks[task_id] = ProcessingStatus.COMPLETED
@@ -335,14 +351,25 @@ class PythonProcessingBackend(ProcessingBackend):
                             logger.info(f"Detected completed {worker_type} task: {task_id}")
                             
                             # Notify completion
-                            self._notify_progress(task_id, {
+                            completion_data = {
                                 "status": "completed",
                                 "folder": str(result.folder_path),
+                                "folder_name": result.folder_path.name,  # Add folder_name for task monitor
                                 "plan": "Unknown",  # We don't have access to plan_config here
                                 "worker": worker_id,
                                 "execution_time": result.execution_time,
                                 "executor_type": executor_type
-                            })
+                            }
+                            
+                            # Add document_id if available
+                            if document_id:
+                                completion_data["document_id"] = document_id
+                            
+                            self._notify_progress(task_id, completion_data)
+                            
+                            # Clean up document_id tracking
+                            if task_id in self.task_document_ids:
+                                del self.task_document_ids[task_id]
                             
                             return ProcessingStatus.COMPLETED
                         else:
@@ -352,14 +379,25 @@ class PythonProcessingBackend(ProcessingBackend):
                             logger.error(f"Detected failed {worker_type} task: {task_id}")
                             
                             # Notify failure
-                            self._notify_progress(task_id, {
+                            failure_data = {
                                 "status": "failed",
                                 "folder": str(result.folder_path),
+                                "folder_name": result.folder_path.name,  # Add folder_name for task monitor
                                 "plan": "Unknown",
                                 "worker": worker_id,
                                 "error": result.error_message,
                                 "executor_type": executor_type
-                            })
+                            }
+                            
+                            # Add document_id if available
+                            if document_id:
+                                failure_data["document_id"] = document_id
+                            
+                            self._notify_progress(task_id, failure_data)
+                            
+                            # Clean up document_id tracking
+                            if task_id in self.task_document_ids:
+                                del self.task_document_ids[task_id]
                             
                             return ProcessingStatus.FAILED
                     except Exception as e:
@@ -381,14 +419,27 @@ class PythonProcessingBackend(ProcessingBackend):
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
                         
+                        # Get stored document_id if available
+                        document_id = self.task_document_ids.get(task_id)
+                        
                         # Notify failure
-                        self._notify_progress(task_id, {
+                        error_data = {
                             "status": "failed",
                             "folder": "unknown",
                             "plan": "Unknown",
                             "worker": "unknown",
                             "error": error_msg
-                        })
+                        }
+                        
+                        # Add document_id if available
+                        if document_id:
+                            error_data["document_id"] = document_id
+                        
+                        self._notify_progress(task_id, error_data)
+                        
+                        # Clean up document_id tracking
+                        if task_id in self.task_document_ids:
+                            del self.task_document_ids[task_id]
                         
                         return ProcessingStatus.FAILED
             
@@ -427,6 +478,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_executor_types[task_id]  # Clean up executor type tracking
                             if task_id in self.task_executors:
                                 del self.task_executors[task_id]  # Clean up task executor tracking
+                            if task_id in self.task_document_ids:
+                                del self.task_document_ids[task_id]  # Clean up document_id tracking
                             logger.info(f"Successfully cancelled future for task: {task_id}")
                             return True
                         else:
@@ -445,6 +498,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                     del self.task_executor_types[task_id]  # Clean up executor type tracking
                                 if task_id in self.task_executors:
                                     del self.task_executors[task_id]  # Clean up task executor tracking
+                                if task_id in self.task_document_ids:
+                                    del self.task_document_ids[task_id]  # Clean up document_id tracking
                                 return True
                     except Exception as e:
                         logger.error(f"Error cancelling future for task {task_id}: {e}")
@@ -455,6 +510,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_executor_types[task_id]  # Clean up executor type tracking
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
+                        if task_id in self.task_document_ids:
+                            del self.task_document_ids[task_id]  # Clean up document_id tracking
                         return False
                 else:
                     logger.info(f"No future found for task: {task_id}")
@@ -659,6 +716,7 @@ class PythonProcessingBackend(ProcessingBackend):
                     self._notify_progress(task.task_id, {
                         "status": "completed",
                         "folder": str(task.folder_path),
+                        "folder_name": task.folder_path.name,  # Add folder_name for task monitor
                         "plan": task.plan_config.get('name', 'Unknown'),
                         "worker": worker_id,
                         "execution_time": result.execution_time,
@@ -671,6 +729,7 @@ class PythonProcessingBackend(ProcessingBackend):
                     self._notify_progress(task.task_id, {
                         "status": "failed",
                         "folder": str(task.folder_path),
+                        "folder_name": task.folder_path.name,  # Add folder_name for task monitor
                         "plan": task.plan_config.get('name', 'Unknown'),
                         "worker": worker_id,
                         "error": result.error_message,

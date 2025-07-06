@@ -20,104 +20,147 @@ logger = logging.getLogger(__name__)
 
 
 # Shared utility functions for formatting
-def get_worker_icon(worker_type: str) -> str:
+def format_duration(duration: timedelta) -> str:
     """
-    Get a nice icon for worker types.
+    Format a timedelta into a human-readable string.
     
     Args:
-        worker_type: Worker type (cpu, io, celery)
-    
+        duration: The timedelta to format
+        
     Returns:
-        Unicode icon for the worker
+        Formatted duration string (e.g., "2m 15s", "1h 5m", "45s")
     """
-    worker_lower = worker_type.lower()
+    total_seconds = int(duration.total_seconds())
     
-    if worker_lower in ("cpu", "cpu_worker"):
-        return "⚡"  # Lightning bolt for fast CPU processing
-    elif worker_lower in ("io", "io_worker"):
-        return "📁"  # Folder for file I/O operations
-    elif worker_lower in ("celery", "redis"):
-        return "🔄"  # Circular arrows for distributed processing
-    else:
-        return "⚙️"  # Generic gear for unknown workers
-
-
-def get_backend_icon(backend_name: str) -> str:
-    """
-    Get a nice icon for backend types.
+    if total_seconds < 1:
+        return "0s"
     
-    Args:
-        backend_name: Backend name (python, redis, celery)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
     
-    Returns:
-        Unicode icon for the backend
-    """
-    backend_lower = backend_name.lower()
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds > 0 and hours == 0:  # Only show seconds if less than an hour
+        parts.append(f"{seconds}s")
     
-    if backend_lower in ("python", "local"):
-        return "🐍"  # Python snake
-    elif backend_lower in ("redis", "celery"):
-        return "🔴"  # Red circle for Redis
-    else:
-        return "⚙️"  # Generic gear for unknown backends
-
-
-def get_status_icon(status: str, worker_type: str = "") -> str:
-    """
-    Get status icon with appropriate formatting.
-    
-    Args:
-        status: Task status
-        worker_type: Worker type for context
-    
-    Returns:
-        Status string with appropriate indicator
-    """
-    if status == "running_cpu":
-        return "⚡"  # Lightning for CPU running
-    elif status == "running_io":
-        return "📁"  # Folder for IO running
-    elif status == "waiting_cpu":
-        return "⏳"  # Hourglass for waiting
-    elif status == "waiting_io":
-        return "⏳"  # Hourglass for waiting
-    elif status == "completed":
-        return "✅"  # Checkmark for completed
-    elif status == "failed":
-        return "❌"  # X for failed
-    elif status == "cancelled":
-        return "⏹"  # Stop for cancelled
-    else:
-        return "○"  # Circle for pending
+    return " ".join(parts)
 
 
 def get_worker_display_name(worker: str, worker_type: str = "") -> str:
     """
-    Get human-readable worker display name.
+    Get simple worker display name for internal use.
     
     Args:
         worker: Worker identifier
         worker_type: Type of worker (cpu, io, celery)
     
     Returns:
-        Human-readable worker name
+        Simple worker name
     """
     if not worker or worker == "unknown":
-        return "Unknown"
+        return "unknown"
     
-    # Handle different worker formats
+    # Return clean worker names
     if worker.startswith("CPU-"):
-        return f"CPU Thread {worker[4:]}"
+        return f"CPU-{worker[4:]}"
     elif worker.startswith("IO-"):
-        return f"IO Thread {worker[3:]}"
+        return f"IO-{worker[3:]}"
     elif worker.startswith("celery"):
-        return f"Celery Worker {worker[7:]}"
-    elif worker_type == "cpu":
-        return f"CPU Thread {worker}"
-    elif worker_type == "io":
-        return f"IO Thread {worker}"
+        return f"Celery-{worker[7:]}"
     else:
         return worker
+
+
+def get_status_icon(status: str, worker_type: str = "") -> str:
+    """
+    Get black and white status icon.
+    
+    Args:
+        status: Task status
+        worker_type: Worker type for context (unused now)
+    
+    Returns:
+        Status icon
+    """
+    if status in ["running_cpu", "running_io", "running"]:
+        return "●"  # Filled circle for running
+    elif status in ["waiting_cpu", "waiting_io", "waiting"]:
+        return "○"  # Circle for waiting
+    elif status == "completed":
+        return "✓"  # Check mark for completed
+    elif status == "failed":
+        return "✗"  # X mark for failed
+    elif status == "cancelled":
+        return "■"  # Square for cancelled
+    else:
+        return "○"  # Circle for pending
+
+
+def get_action_verb(step_name: str, status: str) -> str:
+    """
+    Get appropriate action verb for a step and status.
+    
+    Args:
+        step_name: Name of the step
+        status: Current status
+    
+    Returns:
+        Action verb describing what's happening
+    """
+    # Map step names to action verbs
+    step_verbs = {
+        "transcribe_audio": "Transcribing",
+        "transcribe_qwen": "Transcribing", 
+        "extract_text": "Extracting text",
+        "ocr_text": "Reading text",
+        "process_images": "Processing images",
+        "convert_format": "Converting",
+        "organize_files": "Organizing",
+        "backup_files": "Backing up",
+        "compress_files": "Compressing",
+        "upload_files": "Uploading"
+    }
+    
+    # Get base verb
+    base_verb = step_verbs.get(step_name, "Processing")
+    
+    # Adjust for status
+    if status == "completed":
+        # Convert to past tense
+        if base_verb.endswith("ing"):
+            if base_verb == "Processing":
+                return "Processed"
+            elif base_verb == "Transcribing":
+                return "Transcribed"
+            elif base_verb == "Extracting text":
+                return "Extracted text"
+            elif base_verb == "Reading text":
+                return "Read text"
+            elif base_verb == "Processing images":
+                return "Processed images"
+            elif base_verb == "Converting":
+                return "Converted"
+            elif base_verb == "Organizing":
+                return "Organized"
+            elif base_verb == "Backing up":
+                return "Backed up"
+            elif base_verb == "Compressing":
+                return "Compressed"
+            elif base_verb == "Uploading":
+                return "Uploaded"
+        return base_verb.replace("ing", "ed")
+    elif status in ["running", "running_cpu", "running_io"]:
+        return base_verb.lower()
+    elif status in ["waiting", "waiting_cpu", "waiting_io"]:
+        return f"waiting to {base_verb.lower()}"
+    elif status == "failed":
+        return f"failed to {base_verb.lower()}"
+    
+    return base_verb.lower()
 
 
 @dataclass
@@ -210,7 +253,7 @@ class TaskInfo:
             "pending": "○",
             "completed": "●",
             "failed": "✗",
-            "cancelled": "⏹"
+            "cancelled": "■"
         }
         return icons.get(self.status, "○")
     
@@ -349,6 +392,18 @@ class TaskMonitor:
             task = self.tasks[task_id]
             old_status = task.status
             
+            # Protect folder_name from being overwritten with generic values
+            if 'folder_name' in updates:
+                new_folder_name = updates['folder_name']
+                # Allow updating from temporary names to real names, but protect real names
+                if (task.folder_name and 
+                    not task.folder_name.startswith("Task-") and 
+                    task.folder_name not in ["unknown", "Processing..."] and
+                    (new_folder_name == task_id or new_folder_name.startswith("Task-") or new_folder_name == "Processing...")):
+                    del updates['folder_name']
+                elif (task.folder_name.startswith("Task-") or task.folder_name in ["unknown", "Processing..."]) and new_folder_name and new_folder_name != task_id:
+                    pass  # Allow the update
+            
             for key, value in updates.items():
                 if hasattr(task, key):
                     setattr(task, key, value)
@@ -363,7 +418,7 @@ class TaskMonitor:
             
             self._notify_callbacks('task_updated', task)
     
-    def complete_task(self, task_id: str, success: bool = True, error_message: str = ""):
+    def complete_task(self, task_id: str, success: bool = True, error_message: str = "", folder_name: str = ""):
         """Mark task as completed"""
         with self._task_lock:
             if task_id not in self.tasks:
@@ -377,9 +432,15 @@ class TaskMonitor:
             if error_message:
                 task.error_message = error_message
             
+            # Last chance to update folder name if provided
+            if folder_name and folder_name != task_id:
+                if task.folder_name.startswith("Task-") or task.folder_name in ["unknown", "Processing..."]:
+                    task.folder_name = folder_name
+            
             # For successful tasks, move to completed history immediately
             if success:
                 completed_task = self.tasks.pop(task_id)
+                logger.debug(f"Moving completed task {task_id} with folder_name '{completed_task.folder_name}' to history")
                 self.completed_tasks.append(completed_task)
                 
                 # Limit history size
@@ -387,7 +448,7 @@ class TaskMonitor:
                     self.completed_tasks = self.completed_tasks[-self.max_completed_history:]
                 
                 self._notify_callbacks('task_completed', completed_task)
-                logger.info(f"Task completed: {task_id}")
+                logger.info(f"Task completed: {task_id} (folder: {completed_task.folder_name})")
             else:
                 # For failed tasks, keep them visible for a while
                 # They will be moved to completed history after a delay
@@ -444,10 +505,18 @@ class TaskMonitor:
     def get_tasks_by_document(self, document_id: str) -> Dict[str, TaskInfo]:
         """Get tasks for specific document"""
         # Note: This method assumes the caller already has the lock
-        return {
+        # Include both active and completed tasks for document windows
+        tasks = {
             tid: task for tid, task in self.tasks.items() 
             if task.document_id == document_id
         }
+        
+        # Also include completed tasks for this document
+        for task in self.completed_tasks:
+            if task.document_id == document_id:
+                tasks[task.task_id] = task
+        
+        return tasks
     
     def get_tasks_by_status(self, status: str) -> Dict[str, TaskInfo]:
         """Get tasks by status"""
@@ -604,17 +673,39 @@ class TaskMonitor:
     def _on_progress_update(self, task_id: str, progress_data: Dict):
         """Handle progress updates from director"""
         try:
-            # Debug logging
-            logger.debug(f"Progress update for task {task_id}: {progress_data}")
+            # Enhanced debug logging to trace folder name issues
+            logger.info(f"=== Progress update for task {task_id} ===")
+            logger.info(f"Progress data keys: {list(progress_data.keys())}")
+            if 'folder' in progress_data:
+                logger.info(f"Folder in progress_data: '{progress_data['folder']}'")
+            if 'input_folder' in progress_data:
+                logger.info(f"Input_folder in progress_data: '{progress_data['input_folder']}'")
             
-            # Create task if it doesn't exist
+            # Create task if it doesn't exist AND is not already completed
             if task_id not in self.tasks:
+                # Check if task already exists in completed history
+                existing_completed = next((t for t in self.completed_tasks if t.task_id == task_id), None)
+                if existing_completed:
+                    # Task already completed, ignore further updates
+                    logger.debug(f"Ignoring progress update for already completed task: {task_id}")
+                    return
+                
                 document_id = progress_data.get("document_id")
                 logger.debug(f"TaskMonitor._on_progress_update: creating task {task_id} with document_id={document_id}")
                 
-                # Extract just the folder name from the full path
-                folder_path = progress_data.get("folder", "Unknown")
-                folder_name = folder_path.split("/")[-1] if "/" in folder_path else folder_path
+                # Extract folder name from multiple possible keys
+                # Try 'folder_name' first (from folder_processor), then 'folder', then 'input_folder'
+                if "folder_name" in progress_data and progress_data["folder_name"]:
+                    folder_name = progress_data["folder_name"]
+                else:
+                    folder_path = progress_data.get("folder", progress_data.get("input_folder", ""))
+                    if folder_path:
+                        folder_name = folder_path.split("/")[-1] if "/" in folder_path else folder_path
+                    else:
+                        # Use task_id as last resort
+                        folder_name = f"Task-{task_id[-8:]}"
+                
+                logger.debug(f"Creating task {task_id} with folder_name: {folder_name}")
                 
                 self.create_task(
                     task_id=task_id,
@@ -627,6 +718,10 @@ class TaskMonitor:
                     start_time=datetime.now(),
                     document_id=document_id  # Extract document_id from progress data
                 )
+            else:
+                # Task already exists - DON'T overwrite folder_name
+                existing_task = self.tasks[task_id]
+                logger.debug(f"Task {task_id} already exists with folder_name: {existing_task.folder_name}")
                 
                 # Initialize workflow steps if provided
                 if "workflow_steps" in progress_data:
@@ -657,7 +752,8 @@ class TaskMonitor:
             elif event_type == "workflow_complete":
                 success = progress_data.get("success", True)
                 error_msg = progress_data.get("error", "")
-                self.complete_task(task_id, success, error_msg)
+                folder_name = progress_data.get("folder_name", "")
+                self.complete_task(task_id, success, error_msg, folder_name)
             
             else:
                 # Generic task update (backward compatibility) - but don't override workflow events
@@ -676,6 +772,21 @@ class TaskMonitor:
                     updates["worker"] = progress_data["worker"]
                 if "executor_type" in progress_data:
                     updates["executor_type"] = progress_data["executor_type"]
+                
+                # Try to update folder name if we have better information
+                if task_id in self.tasks:
+                    current_task = self.tasks[task_id]
+                    if current_task.folder_name.startswith("Task-") or current_task.folder_name in ["unknown", "Processing..."]:
+                        # Check for folder_name first (from folder_processor)
+                        if "folder_name" in progress_data and progress_data["folder_name"]:
+                            new_folder_name = progress_data["folder_name"]
+                            updates["folder_name"] = new_folder_name
+                        else:
+                            # Fall back to extracting from folder path
+                            folder_path = progress_data.get("folder", progress_data.get("input_folder", ""))
+                            if folder_path:
+                                new_folder_name = folder_path.split("/")[-1] if "/" in folder_path else folder_path
+                                updates["folder_name"] = new_folder_name
                 
                 # Only update status if we haven't received workflow events yet
                 # This prevents generic status updates from overriding workflow events
@@ -696,8 +807,9 @@ class TaskMonitor:
                     if current_task and current_task.status in ["pending", "submitted"]:
                         success = progress_data.get("status") == "completed"
                         error_msg = progress_data.get("error", "")
+                        folder_name = progress_data.get("folder_name", "")
                         logger.debug(f"Completing task {task_id} via generic status update")
-                        self.complete_task(task_id, success, error_msg)
+                        self.complete_task(task_id, success, error_msg, folder_name)
                     else:
                         logger.debug(f"Ignoring generic completion for task {task_id} (workflow events in progress)")
                 
@@ -795,28 +907,53 @@ class TaskMonitor:
             
             display_data = []
             for task in tasks.values():
-                # Get nice status text with icons (animated for running tasks)
+                # Determine worker type suffix
+                if task.executor_type == "io":
+                    worker_suffix = " on Efficiency Worker"
+                elif task.executor_type == "cpu":
+                    worker_suffix = ""  # Performance Worker is default for Python
+                elif task.executor_type == "celery":
+                    worker_suffix = " on Celery"
+                elif task.executor_type == "celery_io":
+                    worker_suffix = " on Celery Efficiency Worker"
+                else:  # Unknown
+                    worker_suffix = ""
+                
+                # Create clean status messages with duration
+                duration_str = format_duration(task.duration)
+                
                 if task.status == "running":
-                    # Use time-based spinner that updates more frequently
                     spinner = get_spinner_frame('circle')
-                    status_text = f"{spinner} Running"
                     if task.current_step:
-                        status_text += f" - {task.current_step}"
-                elif task.status == "pending":
-                    status_text = f"⏳ Waiting"
+                        action_verb = get_action_verb(task.current_step, task.status)
+                        step_name = task.current_step.replace("_", " ").title()
+                        status_text = f"{spinner} {action_verb.title()} {step_name}{worker_suffix} ({duration_str})"
+                    else:
+                        status_text = f"{spinner} Processing{worker_suffix} ({duration_str})"
+                        
+                elif task.status in ["pending", "submitted"]:
+                    if task.executor_type == "io":
+                        status_text = "○ Waiting to process on Efficiency Worker"
+                    elif task.executor_type == "cpu":
+                        status_text = "○ Waiting to process"  # Performance Worker is default
+                    elif task.executor_type == "celery":
+                        status_text = "○ Queued for Celery"
+                    elif task.executor_type == "celery_io":
+                        status_text = "○ Queued for Celery Efficiency Worker"
+                    else:  # Unknown
+                        status_text = "○ Waiting to process"
+                        
                 elif task.status == "completed":
-                    status_text = f"✅ Completed"
+                    status_text = f"✓ Completed ({duration_str})"
+                        
                 elif task.status == "failed":
-                    status_text = f"❌ Failed"
+                    status_text = f"✗ Failed ({duration_str})"
+                        
                 elif task.status == "cancelled":
-                    status_text = f"⏹ Cancelled"
+                    status_text = f"■ Cancelled ({duration_str})"
+                    
                 else:
                     status_text = f"○ {task.status.title()}"
-                
-                # Add worker info if available
-                if task.executor_type and task.executor_type != "unknown":
-                    worker_icon = get_worker_icon(task.executor_type)
-                    status_text += f" ({worker_icon})"
                 
                 display_data.append({
                     "folder": task.folder_name,
@@ -824,8 +961,23 @@ class TaskMonitor:
                     "task_id": task.task_id
                 })
             
-            # Sort by creation time (newest first)
-            display_data.sort(key=lambda x: tasks[x["task_id"]].created_at, reverse=True)
+            # Sort by status priority first, then by creation order (processing order)
+            def sort_key(item):
+                task = tasks[item["task_id"]]
+                # Status priority: running=0, pending=1, failed=2, completed=3, cancelled=4
+                status_priority = {
+                    "running": 0,
+                    "pending": 1, 
+                    "submitted": 1,
+                    "failed": 2,
+                    "completed": 3,
+                    "cancelled": 4
+                }.get(task.status, 5)
+                
+                # Within same status, sort by creation time (processing order)
+                return (status_priority, task.created_at)
+            
+            display_data.sort(key=sort_key)
             return display_data
         finally:
             self._task_lock.release()
@@ -850,11 +1002,11 @@ class TaskMonitor:
             parts = []
             
             if stats["active_tasks"] > 0:
-                parts.append(f"⚡ {stats['active_tasks']} active")
+                parts.append(f"● {stats['active_tasks']} active")
             if stats["completed_tasks"] > 0:
-                parts.append(f"✅ {stats['completed_tasks']} completed")
+                parts.append(f"✓ {stats['completed_tasks']} completed")
             if stats["failed_tasks"] > 0:
-                parts.append(f"❌ {stats['failed_tasks']} failed")
+                parts.append(f"✗ {stats['failed_tasks']} failed")
             
             if not parts:
                 parts.append("Ready")

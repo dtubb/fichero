@@ -99,21 +99,57 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         return main_content
 
-    def _create_folder_selection_section(self):
-        """Create folder selection section with icon and background"""
-        # Folder icon
+    def _create_folder_icons(self):
+        """Create different icons for different states"""
+        # Question mark icon (default state)
         try:
-            fichero_image = toga.Image("resources/icons/folder_with_question_mark.png")
-            folder_icon = toga.ImageView(
-                fichero_image,
+            question_image = toga.Image("resources/icons/folder_with_question_mark.png")
+            self.question_icon = toga.ImageView(
+                question_image,
                 style=Pack(width=62, height=62, margin=3)
             )
         except Exception as e:
-            logger.warning(f"Could not load folder icon: {e}")
-            folder_icon = toga.Label(
+            logger.warning(f"Could not load question folder icon: {e}")
+            self.question_icon = toga.Label(
                 "📁?",
                 style=Pack(font_size=32, text_align=CENTER, margin=8)
             )
+        
+        # Processing icon (gear/cog icon)
+        try:
+            # Try to load a processing icon if it exists
+            processing_image = toga.Image("resources/icons/folder_processing.png")
+            self.processing_icon = toga.ImageView(
+                processing_image,
+                style=Pack(width=62, height=62, margin=3)
+            )
+        except Exception as e:
+            logger.debug(f"Could not load processing folder icon, using emoji: {e}")
+            # Use gear emoji for processing
+            self.processing_icon = toga.Label(
+                "📁⚙️",
+                style=Pack(font_size=28, text_align=CENTER, margin=8)
+            )
+    
+    def _switch_to_processing_icon(self):
+        """Switch to processing icon"""
+        self.icon_container.clear()
+        self.icon_container.add(self.processing_icon)
+        self.current_folder_icon = self.processing_icon
+    
+    def _switch_to_question_icon(self):
+        """Switch to question mark icon"""
+        self.icon_container.clear()
+        self.icon_container.add(self.question_icon)
+        self.current_folder_icon = self.question_icon
+
+    def _create_folder_selection_section(self):
+        """Create folder selection section with icon and background"""
+        # Create different folder icons for different states
+        self._create_folder_icons()
+        
+        # Start with question mark icon
+        self.current_folder_icon = self.question_icon
         
         # Choose folder button
         self.choose_folder_btn = toga.Button(
@@ -122,8 +158,14 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             style=Pack(width=120)
         )
         
+        # Processing label (initially hidden)
+        self.processing_label = toga.Label(
+            "",
+            style=Pack(font_size=12, color='#333333', text_align=CENTER)
+        )
+        
         # Button container with centering
-        button_row = toga.Box(
+        self.button_row = toga.Box(
             children=[
                 toga.Box(style=Pack(flex=1)),  # Left spacer
                 self.choose_folder_btn,
@@ -139,8 +181,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         )
         
         # Overlay button on canvas
-        path_container = toga.Box(
-            children=[button_row],
+        self.path_container = toga.Box(
+            children=[self.button_row],
             style=Pack(
                 direction=COLUMN,
                 justify_content=CENTER,
@@ -162,7 +204,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         )
         
         overlaid_container = toga.Box(
-            children=[path_container],
+            children=[self.path_container],
             style=Pack(
                 direction=COLUMN,
                 margin_top=-78,
@@ -176,9 +218,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             style=Pack(direction=COLUMN)
         )
         
-        # Icon container
-        icon_container = toga.Box(
-            children=[folder_icon],
+        # Icon container (store reference for icon swapping)
+        self.icon_container = toga.Box(
+            children=[self.current_folder_icon],
             style=Pack(
                 direction=COLUMN,
                 justify_content=CENTER,
@@ -189,7 +231,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         # Main container
         self.folder_section = toga.Box(
-            children=[icon_container, path_stack],
+            children=[self.icon_container, path_stack],
             style=Pack(direction=ROW, margin=(0, 0, 0, 0))
         )
 
@@ -312,6 +354,33 @@ class FicheroDocumentWindow(toga.DocumentWindow):
 
     # Progress Management - Simple
     
+    def _switch_to_processing_label(self):
+        """Switch folder selection from button to processing label"""
+        if self.selected_folder:
+            # Show the folder path being processed
+            folder_path = str(self.selected_folder)
+            if len(folder_path) > 60:
+                # Truncate long paths
+                folder_path = "..." + folder_path[-57:]
+            self.processing_label.text = f"Processing: {folder_path}"
+            
+            # Replace button with label
+            self.path_container.clear()
+            label_row = toga.Box(
+                children=[
+                    toga.Box(style=Pack(flex=1)),  # Left spacer
+                    self.processing_label,
+                    toga.Box(style=Pack(flex=1))   # Right spacer
+                ],
+                style=Pack(direction=ROW, align_items=CENTER)
+            )
+            self.path_container.add(label_row)
+    
+    def _switch_to_choose_button(self):
+        """Switch folder selection from label back to button"""
+        self.path_container.clear()
+        self.path_container.add(self.button_row)
+    
     def _reset_to_process_button(self):
         """Reset button back to process state"""
         if self.activity_indicator is not None:
@@ -327,6 +396,10 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         if self.task_display:
             self.task_display.stop_monitoring()
             self.task_display = None
+        
+        # Reset folder selection to show choose button and question icon
+        self._switch_to_choose_button()
+        self._switch_to_question_icon()
         
         # Reset content section to welcome message
         self._reset_content_section()
@@ -831,13 +904,13 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Create the output path with suggested name
             output_path = Path(parent_path) / suggested_name
             
-            # Ensure the path doesn't already exist, or confirm reprocessing
+            # Confirm continuing processing if folder already exists
             if output_path.exists():
-                reprocess = await self.dialog(toga.QuestionDialog(
-                    "Folder Exists",
-                    f"A folder named '{output_path.name}' already exists. Do you want to continue processing and replace it?"
+                continue_processing = await self.dialog(toga.ConfirmDialog(
+                    "Continue Processing?",
+                    f'"{output_path.name}" already exists. Processing will continue where you left off.'
                 ))
-                if not reprocess:
+                if not continue_processing:
                     return
             
             logger.info(f"User chose save location: {output_path}")
@@ -853,6 +926,10 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Store reference to footer and remove it from main content
         self._main_content = self.content
         self._main_content.remove(self.footer_section)
+        
+        # Switch folder selection to processing label and icon
+        self._switch_to_processing_label()
+        self._switch_to_processing_icon()
         
         try:
             # Get director service (app should have initialized it)
@@ -888,10 +965,6 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self._create_task_display()
             if self.task_display:
                 self.task_display.start_monitoring()
-            
-            # Automatically open activity monitor for stop functionality
-            if hasattr(self._app, 'show_activity_monitor'):
-                self._app.show_activity_monitor()
             
             # Start monitoring task completion
             asyncio.create_task(self._monitor_task_completion())

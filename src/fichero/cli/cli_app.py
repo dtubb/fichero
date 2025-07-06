@@ -45,7 +45,7 @@ class FicheroCLI:
     
     def __init__(self):
         """Initialize CLI components (same pattern as app.py)"""
-        print("🚀 Fichero CLI starting up...")
+        print("● Fichero CLI starting up...")
         
         # Initialize components using shared initializer (same as GUI)
         try:
@@ -55,7 +55,7 @@ class FicheroCLI:
             self.settings = self.components['settings']
             self.director = self.components['director']
             
-            print("✅ Fichero CLI components initialized")
+            print("✓ Fichero CLI components initialized")
             
         except Exception as e:
             print(f"❌ Failed to initialize Fichero: {e}")
@@ -64,9 +64,9 @@ class FicheroCLI:
             import sys
             sys.exit(1)
         
-        # Set up CLI interface
+                # Set up CLI interface
         self._setup_cli_interface()
-        print("✨ Fichero CLI ready!")
+        print("● Fichero CLI ready!")
     
     def _setup_cli_interface(self):
         """Set up CLI interface - thin setup that delegates to command modules"""

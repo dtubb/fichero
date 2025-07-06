@@ -16,7 +16,7 @@ Reads data from TaskMonitor and displays it in two backend-aware modes:
 
 Both modes display:
 - Folder names (not full paths)
-- Task status with icons (⚡ Running, ⏳ Waiting, ✅ Completed, ❌ Failed)
+- Task status with icons (● Running, ○ Waiting, ✓ Completed, ✗ Failed)
 - Worker type indicators when available
 - Real-time status summary
 
@@ -100,19 +100,19 @@ class CLITaskDisplay:
                 - False: Global activity monitor - show all tasks, run until interrupted
         """
         if not self.task_monitor:
-            self.console.print("❌ No task monitor available", style="red")
+            self.console.print("✗ No task monitor available", style="red")
             return
         
         if filter_current_only:
             self._show_live_tasks(
                 title="Local Session Tasks", 
-                header="📊 Local Session Tasks (Python Backend)",
+                header="● Local Session Tasks (Python Backend)",
                 exit_when_complete=True
             )
         else:
             self._show_live_tasks(
                 title="All Tasks",
-                header="🔄 Global Activity Monitor (Celery/Redis) - Press Ctrl+C to exit", 
+                header="○ Global Activity Monitor (Celery/Redis) - Press Ctrl+C to exit", 
                 exit_when_complete=False
             )
 
@@ -152,7 +152,7 @@ class CLITaskDisplay:
                 
         except KeyboardInterrupt:
             mode_name = "Local session monitoring" if exit_when_complete else "Global Activity Monitor"
-            self.console.print(f"\n👋 {mode_name} stopped", style="yellow")
+            self.console.print(f"\n■ {mode_name} stopped", style="yellow")
         except Exception as e:
             logger.error(f"Display loop error: {e}")
             raise
@@ -200,7 +200,7 @@ class CLITaskDisplay:
             display_data = []
         
         if not display_data:
-            table.add_row("[yellow]No tasks to display[/yellow]", "")
+            table.add_row("○ No tasks to display", "")
         else:
             for row_data in display_data:
                 table.add_row(
