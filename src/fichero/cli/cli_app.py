@@ -11,9 +11,19 @@ Architecture:
 """
 
 import logging
+import warnings
 import typer
 from typing import Optional
 from rich.console import Console
+
+# Suppress Toga/Rubicon deprecation warning about EventLoopPolicy
+# This is a framework issue that will be fixed in future Toga versions
+warnings.filterwarnings(
+    "ignore", 
+    message="Custom EventLoopPolicy instances have been deprecated by Python 3.14.*",
+    category=DeprecationWarning,
+    module="toga_cocoa.app"
+)
 
 from ..core.app_initializer import initialize_cli_app
 from ..core.error_handler import create_cli_error_handler
@@ -106,23 +116,22 @@ class FicheroCLI:
         
         # Register core commands
         self.app.command()(core_commands.process)
-        self.app.command()(core_commands.status)
-        self.app.command("list-plans")(core_commands.list_plans)
+        self.app.command()(core_commands.plans)
         self.app.command()(core_commands.configure)
         self.app.command()(core_commands.info)
-        self.app.command("activity-monitor")(core_commands.activity_monitor)
         
-        # Register backend subcommand group
-        backend_app = typer.Typer(help="Backend worker management commands")
+        # Register backend subcommand group - always show all commands but check capabilities at runtime
+        backend_app = typer.Typer(help="Backend management commands")
         backend_app.command("select")(backend_commands.select)
         backend_app.command("info")(backend_commands.info)
-        backend_app.command("start")(backend_commands.start)
-        backend_app.command("stop")(backend_commands.stop)
-        backend_app.command("restart")(backend_commands.restart)
-        backend_app.command("status")(backend_commands.status)
-        backend_app.command("health")(backend_commands.health)
-        backend_app.command("purge")(backend_commands.purge)
-        backend_app.command("flush")(backend_commands.flush)
+        backend_app.command("start")(backend_commands.start_with_capability_check)
+        backend_app.command("stop")(backend_commands.stop_with_capability_check)
+        backend_app.command("restart")(backend_commands.restart_with_capability_check)
+        backend_app.command("status")(backend_commands.status_with_capability_check)
+        backend_app.command("health")(backend_commands.health_with_capability_check)
+        backend_app.command("purge")(backend_commands.purge_with_capability_check)
+        backend_app.command("flush")(backend_commands.flush_with_capability_check)
+        backend_app.command("activity-monitor")(backend_commands.activity_monitor)
         
         self.app.add_typer(backend_app, name="backend")
 

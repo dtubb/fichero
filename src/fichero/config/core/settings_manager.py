@@ -184,7 +184,7 @@ class SettingsManager(FileManager):
         try:
             # Use proper user settings directory, not Toga's config path
             if self.app and hasattr(self.app, 'paths'):
-                # Use app.paths.data for user settings (same as other config files)
+                # GUI mode - use existing app.paths
                 logger.info(f"App paths: data={self.app.paths.data}, app={self.app.paths.app}, config={self.app.paths.config}")
                 user_dir = self.app.paths.data / "settings"
                 user_dir.mkdir(parents=True, exist_ok=True)
@@ -192,10 +192,22 @@ class SettingsManager(FileManager):
                 logger.info(f"User settings path: {user_file}")
                 return user_file
             else:
-                # Fallback for CLI usage
-                cli_path = Path.home() / ".fichero" / "settings.yml"
-                logger.info(f"CLI settings path: {cli_path}")
-                return cli_path
+                # CLI mode - create minimal Toga app to get same paths
+                try:
+                    import toga
+                    minimal_app = toga.App("fichero", "ca.tubb.fichero")
+                    user_dir = minimal_app.paths.data / "settings"
+                    user_dir.mkdir(parents=True, exist_ok=True)
+                    user_file = user_dir / "settings.yml"
+                    logger.info(f"CLI using Toga paths: {user_file}")
+                    return user_file
+                except Exception as toga_error:
+                    logger.warning(f"Failed to create minimal Toga app: {toga_error}")
+                    # Fallback to CLI-specific path
+                    cli_path = Path.home() / ".fichero" / "settings.yml"
+                    cli_path.parent.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"CLI fallback settings path: {cli_path}")
+                    return cli_path
         except Exception as e:
             logger.error(f"Failed to get user settings path: {e}")
             return None
@@ -336,9 +348,32 @@ class SettingsManager(FileManager):
                         logger.info(f"✅ Synced {provider} API key: {api_key[:10]}...{api_key[-4:] if len(api_key) > 4 else ''}")
                 else:
                     logger.debug(f"⚠️ Skipping {provider} - empty or missing API key")
+            
+            # Sync plan/workflow defaults to shared data
+            self._sync_plan_workflow_defaults(settings, shared_data)
                     
         except Exception as e:
             logger.error(f"❌ Failed to sync API keys to shared data: {e}")
+    
+    def _sync_plan_workflow_defaults(self, settings: Dict, shared_data):
+        """Sync plan/workflow defaults from settings to shared data"""
+        try:
+            defaults = settings.get("defaults", {})
+            
+            # Sync plan default
+            default_plan = defaults.get("plan")
+            if default_plan:
+                shared_data.set_setting("default_plan", default_plan)
+                logger.info(f"🔄 Synced default plan to shared data: {default_plan}")
+            
+            # Sync workflow default  
+            default_workflow = defaults.get("workflow")
+            if default_workflow:
+                shared_data.set_setting("default_workflow", default_workflow)
+                logger.info(f"🔄 Synced default workflow to shared data: {default_workflow}")
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to sync plan/workflow defaults: {e}")
     
     def _merge_settings(self, base: Dict, override: Dict) -> Dict:
         """Deep merge settings dictionaries"""

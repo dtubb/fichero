@@ -326,4 +326,89 @@ class BackendCommands:
                 raise typer.Exit(1)
             
         except Exception as e:
-            error_handler.handle_general_exception(e, "flushing Redis", verbose=True) 
+            error_handler.handle_general_exception(e, "flushing Redis", verbose=True)
+
+    def activity_monitor(self):
+        """Show live backend activity monitor"""
+        error_handler = create_cli_error_handler(self.console)
+        
+        try:
+            if not self.director:
+                self.console.print("❌ Director not available", style="red")
+                return
+            
+            # Get backend info
+            backend_info = self.director.get_backend_info()
+            backend_name = backend_info.get('backend_name', 'unknown')
+            
+            self.console.print(f"🔄 Starting {backend_name.title()} Backend Activity Monitor", style="bold blue")
+            self.console.print("Press Ctrl+C to exit", style="dim")
+            self.console.print()
+            
+            # Get the task monitor and CLI display
+            from ...director.monitoring.displays.cli_display import CLITaskDisplay
+            
+            task_monitor = self.director.get_task_monitor()
+            cli_display = CLITaskDisplay(self.console, task_monitor)
+            
+            # Show global activity monitor (runs until Ctrl+C)
+            cli_display.show_tasks(filter_current_only=False)
+            
+        except Exception as e:
+            error_handler.handle_general_exception(e, "backend activity monitor", verbose=True)
+
+    # Capability-checking wrapper methods
+    def _check_capability(self, capability_method: str, feature_name: str) -> bool:
+        """Check if current backend supports a capability"""
+        if not self.director or not self.director.backend:
+            self.console.print("❌ Director not available", style="red")
+            return False
+        
+        backend_name = self.director.get_backend_info().get('backend_name', 'unknown')
+        
+        if not hasattr(self.director.backend, capability_method):
+            self.console.print(f"❌ Backend {backend_name} does not support {feature_name}", style="red")
+            self.console.print(f"💡 Try switching to Celery backend: fichero backend select celery", style="dim")
+            return False
+        
+        if not getattr(self.director.backend, capability_method)():
+            self.console.print(f"❌ Backend {backend_name} does not support {feature_name}", style="red")
+            self.console.print(f"💡 Try switching to Celery backend: fichero backend select celery", style="dim")
+            return False
+        
+        return True
+
+    def start_with_capability_check(self, cpu_workers: int = typer.Option(None, "--cpu", "-c", help="Number of CPU workers"), io_workers: int = typer.Option(None, "--io", "-i", help="Number of I/O workers")):
+        """Start backend workers (if supported)"""
+        if self._check_capability('supports_worker_management', 'worker management'):
+            self.start(cpu_workers, io_workers)
+
+    def stop_with_capability_check(self):
+        """Stop backend workers (if supported)"""
+        if self._check_capability('supports_worker_management', 'worker management'):
+            self.stop()
+
+    def restart_with_capability_check(self, cpu_workers: int = typer.Option(None, "--cpu", "-c", help="Number of CPU workers"), io_workers: int = typer.Option(None, "--io", "-i", help="Number of I/O workers")):
+        """Restart backend workers (if supported)"""
+        if self._check_capability('supports_worker_management', 'worker management'):
+            self.restart(cpu_workers, io_workers)
+
+    def status_with_capability_check(self):
+        """Show detailed backend worker status (if supported)"""
+        if self._check_capability('supports_worker_status', 'worker status monitoring'):
+            self.status()
+
+    def health_with_capability_check(self):
+        """Perform backend health check (if supported)"""
+        if self._check_capability('supports_health_check', 'health checks'):
+            self.health()
+
+    def purge_with_capability_check(self):
+        """Purge all pending tasks from backend queues (if supported)"""
+        if self._check_capability('supports_task_purging', 'task purging'):
+            self.purge()
+
+    def flush_with_capability_check(self):
+        """Flush Redis database (if supported)"""
+        if self._check_capability('supports_database_flush', 'database flushing'):
+            self.flush() 

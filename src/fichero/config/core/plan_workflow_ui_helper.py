@@ -72,13 +72,13 @@ class PlanWorkflowUIHelper:
     def set_app_default_plan(self, plan_name: str):
         """Set app-wide default plan in shared settings"""
         from .plan_manager import PlanManager
-        PlanManager.set_default_plan(plan_name)
+        PlanManager.set_default_plan(plan_name, self.app)
         logger.info(f"Set app default plan: {plan_name}")
     
     def set_app_default_workflow(self, workflow_name: str):
         """Set app-wide default workflow in shared settings"""
         from .plan_manager import PlanManager
-        PlanManager.set_default_workflow(workflow_name)
+        PlanManager.set_default_workflow(workflow_name, self.app)
         logger.info(f"Set app default workflow: {workflow_name}")
     
     # UI Helper Methods

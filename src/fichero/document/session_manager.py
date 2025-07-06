@@ -18,19 +18,21 @@ class SessionManager:
     
     def __init__(self, app: 'FicheroApp'):
         self.app = app
-        # Auto-restore session on initialization - no manual orchestration needed
-        self._auto_startup()
+        # Don't auto-restore session during initialization - delay until app is ready
+        self._initialization_complete = False
         # Register for automatic cleanup - no manual orchestration needed
         self._register_cleanup()
     
-    def _auto_startup(self):
-        """Automatically restore session during initialization"""
-        try:
-            logger.info("Auto-restoring session during startup...")
-            self.restore_session()
-            logger.info("Session auto-restore completed")
-        except Exception as e:
-            logger.error(f"Session auto-restore failed: {e}")
+    def startup_when_ready(self):
+        """Restore session after app is fully initialized"""
+        if not self._initialization_complete:
+            try:
+                logger.info("Auto-restoring session during startup...")
+                self.restore_session()
+                logger.info("Session auto-restore completed")
+                self._initialization_complete = True
+            except Exception as e:
+                logger.error(f"Session auto-restore failed: {e}")
     
     def _register_cleanup(self):
         """Register automatic session saving for app cleanup"""

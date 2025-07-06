@@ -48,8 +48,9 @@ class FicheroApp(toga.App):
             self.components, self.initializer = initialize_gui_app(app_context=self)
             
             # Extract initialized components (same as CLI gets, plus GUI-specific)
-            self.settings = self.components['settings']
+            # Set director first since document system depends on it
             self.director = self.components['director']
+            self.settings = self.components['settings']
             self.translator = self.components['translator']
             self.document_tracker = self.components['document_tracker']
             self.auto_save_manager = self.components['auto_save_manager']
@@ -63,25 +64,17 @@ class FicheroApp(toga.App):
             import traceback
             traceback.print_exc()
             
-            # Show error dialog to user then quit
-            import asyncio
-            import toga
-            async def show_error_and_quit():
-                # Create a simple error dialog without main window
-                await self.dialog(
-                    toga.ErrorDialog(
-                        "Initialization Error",
-                        f"Failed to initialize Fichero core services:\n\n{e}\n\nCannot continue without core services\n\nThe application will now exit."
-                    )
-                )
-                self.exit()
-            
-            # Schedule the error dialog
-            asyncio.create_task(show_error_and_quit())
+            # Exit cleanly without showing dialog during startup
+            print("The application will now exit.")
+            self.exit()
             return
         
         # Initialize GUI-specific systems
         self._setup_gui_interface()
+        
+        # Now that everything is initialized, trigger session restoration
+        if self.session_manager:
+            self.session_manager.startup_when_ready()
         
         print("✨ Fichero GUI ready!")
 

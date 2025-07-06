@@ -485,4 +485,25 @@ class CeleryBackend(ProcessingBackend):
                 'io_intensive': r.llen('io_intensive')
             }
         except Exception:
-            return {} 
+            return {}
+    
+    # Backend capability overrides
+    def supports_worker_management(self) -> bool:
+        """Celery supports worker management"""
+        return True
+    
+    def supports_worker_status(self) -> bool:
+        """Celery supports worker status monitoring"""
+        return True
+    
+    def supports_health_check(self) -> bool:
+        """Celery supports health checks"""
+        return True
+    
+    def supports_task_purging(self) -> bool:
+        """Celery supports purging pending tasks"""
+        return True
+    
+    def supports_database_flush(self) -> bool:
+        """Celery supports flushing Redis database"""
+        return True 

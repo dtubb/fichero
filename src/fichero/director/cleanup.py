@@ -16,22 +16,14 @@ def cleanup_all_resources():
         
         # Try multiple approaches to get and close event loops
         loops_to_close = []
-        # Approach 1: Get running loop
+        # Approach 1: Get running loop (modern approach)
         try:
             loop = asyncio.get_running_loop()
             loops_to_close.append(("running", loop))
             logger.info("Found running event loop")
         except RuntimeError:
             logger.info("No running event loop found")
-        # Approach 2: Get current loop
-        try:
-            loop = asyncio.get_event_loop()
-            if loop and not loop.is_closed():
-                loops_to_close.append(("current", loop))
-                logger.info("Found current event loop")
-        except RuntimeError:
-            logger.info("No current event loop found")
-        # Approach 3: Get from policy
+        # Approach 2: Get from policy (fallback for edge cases)
         try:
             policy = asyncio.get_event_loop_policy()
             if hasattr(policy, '_local') and hasattr(policy._local, '_loop'):

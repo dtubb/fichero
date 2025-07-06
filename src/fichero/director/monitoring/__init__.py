@@ -10,14 +10,7 @@ from .task_monitor import TaskMonitor, TaskInfo
 
 # Display systems
 try:
-    from .displays.cli_display import (
-        CLITaskDisplay, 
-        show_task_progress, 
-        show_activity_monitor,
-        cancel_all_tasks,
-        flush_backend,
-        restart_backend
-    )
+    from .displays.cli_display import CLITaskDisplay
     CLI_DISPLAY_AVAILABLE = True
 except ImportError:
     CLI_DISPLAY_AVAILABLE = False
@@ -45,11 +38,6 @@ __all__ = [
 if CLI_DISPLAY_AVAILABLE:
     __all__.extend([
         'CLITaskDisplay',
-        'show_task_progress',
-        'show_activity_monitor', 
-        'cancel_all_tasks',
-        'flush_backend',
-        'restart_backend'
     ])
 
 # Add legacy exports for backward compatibility

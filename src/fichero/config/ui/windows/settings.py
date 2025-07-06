@@ -87,16 +87,16 @@ class SettingsLibrary(BaseConfigLibrary):
             
             # Get plan options (clean list without management options)
             plan_options = self.ui_helper.get_plan_options()
-            self._populate_field_options(schema_data, "default_plan", plan_options)
+            self._populate_field_options(schema_data, "defaults.plan", plan_options)
             
             # Set up plan change callback
-            self._add_field_callback(schema_data, "default_plan", self._on_plan_selection_change)
+            self._add_field_callback(schema_data, "defaults.plan", self._on_plan_selection_change)
             
             # Set up workflow change callback  
-            self._add_field_callback(schema_data, "default_workflow", self._on_workflow_selection_change)
+            self._add_field_callback(schema_data, "defaults.workflow", self._on_workflow_selection_change)
             
             # Find and populate default_workflow options (initially empty, will update based on plan selection)
-            self._populate_field_options(schema_data, "default_workflow", ["Select plan first"])
+            self._populate_field_options(schema_data, "defaults.workflow", ["Select plan first"])
             
             # Set up auto-calculate button handler
             self._add_button_handler(schema_data, "auto_calculate_workers", self._on_auto_calculate_workers)
@@ -132,7 +132,7 @@ class SettingsLibrary(BaseConfigLibrary):
             plan_value = getattr(widget, 'value', None)
             logger.info(f"Plan selection changed to: {plan_value}")
                 
-            workflow_widget = self.widgets.get('default_workflow')
+            workflow_widget = self.widgets.get('defaults.workflow')
             if workflow_widget:
                 logger.info(f"Found workflow widget, updating options...")
                 
@@ -251,17 +251,29 @@ class SettingsLibrary(BaseConfigLibrary):
             data = self.settings_manager.load_settings()
             logger.info(f"Settings manager returned data with {len(data)} keys: {list(data.keys())}")
             
-            # Add shared data preferences (default plan/workflow)
+            # Ensure defaults section exists and is populated from current app defaults
+            if 'defaults' not in data:
+                data['defaults'] = {}
+            
+            # Get current app defaults via PlanManager (which now reads from settings)
             try:
-                from fichero.shared_data import get_shared_data
-                shared_data = get_shared_data()
-                data['default_plan'] = shared_data.get_setting('default_plan') or ""
-                data['default_workflow'] = shared_data.get_setting('default_workflow') or ""
-                logger.info(f"Loaded shared data: default_plan='{data['default_plan']}', default_workflow='{data['default_workflow']}'")
+                from ...core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                ui_helper = PlanWorkflowUIHelper(self.app)
+                
+                current_plan = ui_helper.get_app_default_plan()
+                current_workflow = ui_helper.get_app_default_workflow(current_plan)
+                
+                # Only set if not already in settings (preserve user's settings)
+                if not data['defaults'].get('plan'):
+                    data['defaults']['plan'] = current_plan or ""
+                if not data['defaults'].get('workflow'):
+                    data['defaults']['workflow'] = current_workflow or ""
+                    
+                logger.info(f"Loaded app defaults: plan='{data['defaults']['plan']}', workflow='{data['defaults']['workflow']}'")
             except Exception as e:
-                logger.error(f"Failed to load shared data preferences: {e}")
-                data.setdefault('default_plan', "")
-                data.setdefault('default_workflow', "")
+                logger.error(f"Failed to load app defaults: {e}")
+                data['defaults'].setdefault('plan', "")
+                data['defaults'].setdefault('workflow', "")
             
             logger.info(f"Final settings data has {len(data)} keys: {list(data.keys())}")
             return data
@@ -275,33 +287,10 @@ class SettingsLibrary(BaseConfigLibrary):
         """SIMPLE: Save settings using simplified manager"""
         logger.info(f"Saving settings data with {len(data)} keys: {list(data.keys())}")
         try:
-            # Extract shared data preferences
-            default_plan = data.pop('default_plan', None)
-            default_workflow = data.pop('default_workflow', None)
-            logger.info(f"Extracted shared data: default_plan='{default_plan}', default_workflow='{default_workflow}'")
+            # The plan/workflow defaults are now in data['defaults']['plan'] and data['defaults']['workflow']
+            # They will be automatically synced to shared data by the SettingsManager
             
-            # Save shared data preferences
-            try:
-                from fichero.shared_data import get_shared_data
-                shared_data = get_shared_data()
-                
-                if default_plan:
-                    shared_data.set_setting('default_plan', default_plan)
-                    logger.info(f"Set default plan: {default_plan}")
-                else:
-                    shared_data.delete_setting('default_plan')
-                    logger.info("Cleared default plan")
-                    
-                if default_workflow:
-                    shared_data.set_setting('default_workflow', default_workflow) 
-                    logger.info(f"Set default workflow: {default_workflow}")
-                else:
-                    shared_data.delete_setting('default_workflow')
-                    logger.info("Cleared default workflow")
-            except Exception as e:
-                logger.error(f"Failed to save shared data preferences: {e}")
-            
-            # Save settings using simplified manager
+            # Save settings using simplified manager (this will trigger sync to shared data)
             logger.info(f"Calling settings_manager.save_settings with {len(data)} keys")
             success = self.settings_manager.save_settings(data)
             if success:

@@ -94,7 +94,19 @@ class CLIDisplayHelper:
                 if 'workers' not in self.director.settings:
                     self.director.settings['workers'] = {}
                 self.director.settings['workers']['backend'] = backend
-                console.print(f"   ✅ Updated backend to: {backend}")
+                
+                # Save the backend setting to disk
+                try:
+                    from ...config.core.settings_manager import SettingsManager
+                    settings_manager = SettingsManager(self.director.app)
+                    success = settings_manager.save_settings(self.director.settings)
+                    if success:
+                        console.print(f"   ✅ Updated backend to: {backend}")
+                    else:
+                        console.print(f"   ⚠️  Backend updated to {backend} (in memory only - save failed)")
+                except Exception as e:
+                    console.print(f"   ⚠️  Backend updated to {backend} (in memory only - save error: {e})")
+                    logger.warning(f"Failed to save backend setting: {e}")
             
             # Plan/workflow defaults configuration
             if plan or workflow:
@@ -176,7 +188,7 @@ class CLIDisplayHelper:
                 console.print(f"\n⭐ Current Defaults:")
                 console.print(f"   Plan: {defaults.get('plan', 'None set')}")
                 console.print(f"   Workflow: {defaults.get('workflow', 'None set')}")
-                console.print(f"\n💡 To set defaults: 'fichero-cli configure --plan <plan> --workflow <workflow>'")
+                console.print(f"\n💡 To set defaults: 'python -m fichero configure --default-plan <plan> --default-workflow <workflow>'")
                 
         except Exception as e:
             if console:
@@ -207,4 +219,46 @@ class CLIDisplayHelper:
                 console.print(f"\n🔧 Backend Details:")
                 backend_info = self.director.get_backend_info()
                 console.print(f"   Name: {backend_info.get('backend_name', 'unknown')}")
-                console.print(f"   Status: {backend_info.get('status', 'unknown')}") 
+                console.print(f"   Status: {backend_info.get('status', 'unknown')}")
+            
+            # Add settings file path information
+            self._display_settings_info(console)
+    
+    def _display_settings_info(self, console):
+        """Display settings file path and basic config info for info command"""
+        try:
+            from ...config.core.settings_manager import SettingsManager
+            
+            # Get settings file path
+            settings_manager = SettingsManager(self.director.app)
+            user_settings_path = settings_manager.get_user_settings_path()
+            default_settings_path = settings_manager.get_default_settings_path()
+            
+            console.print(f"\n⚙️  Configuration:")
+            
+            if user_settings_path:
+                console.print(f"   Settings file: {user_settings_path}")
+                if user_settings_path.exists():
+                    console.print(f"   Status: ✅ Found")
+                else:
+                    console.print(f"   Status: ❌ Not found (using defaults)")
+            
+            if default_settings_path and default_settings_path.exists():
+                console.print(f"   Default template: {default_settings_path}")
+            
+            # Show current defaults briefly
+            try:
+                from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                ui_helper = PlanWorkflowUIHelper(self.director.app)
+                defaults = ui_helper.get_cli_defaults()
+                console.print(f"\n⭐ Current Defaults:")
+                console.print(f"   Plan: {defaults.get('plan', 'None set')}")
+                console.print(f"   Workflow: {defaults.get('workflow', 'None set')}")
+            except Exception:
+                pass  # Don't fail if defaults can't be loaded
+            
+            console.print(f"\n💡 Use 'fichero plans' to see available plans and workflows")
+                
+        except Exception as e:
+            console.print(f"   ❌ Failed to load settings info: {e}")
+            logger.error(f"Failed to display settings info: {e}") 

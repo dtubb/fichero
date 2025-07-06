@@ -1,7 +1,7 @@
 """
 Core CLI Commands
 
-Main application commands: process, status, list-plans, configure, info, activity-monitor
+Main application commands: process, list-plans, configure, info, activity-monitor
 Extracted from the main cli.py file for better organization.
 """
 
@@ -47,145 +47,114 @@ class CoreCommands:
         input_folder: Path = typer.Argument(..., help="Input folder to process (auto-detects subfolders)"),
         plan: Optional[Path] = typer.Option(None, "--plan", "-p", help="Processing plan file (.yml) - uses default if not specified"),
         output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
-        workflow: str = typer.Option("default", "--workflow", "-w", help="Workflow to use"),
+        workflow: str = typer.Option(None, "--workflow", "-w", help="Workflow to use"),
         backend: str = typer.Option("python", "--backend", "-b", help="Backend: python or celery/redis"),
         cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers"),
         io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers"),
     
-        verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
-        simple: bool = typer.Option(False, "--simple", help="Use simple progress display"),
-        table_view: bool = typer.Option(False, "--table", "-t", help="Show all tasks in table format (for multiple folders)")
+        verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output")
     ):
-        """Process folders using app defaults or specified plan/workflow"""
-        # Reconfigure logging if verbose mode is requested
-        if verbose:
-            self._enable_verbose_logging()
-        
+        """Process folders with specified plan and workflow"""
         error_handler = create_cli_error_handler(self.console)
         
         try:
-            # Basic validation with helpful error messaging
+            if verbose:
+                self._enable_verbose_logging()
+            
+            if not self.director:
+                self.console.print("❌ Director not available", style="red")
+                raise typer.Exit(1)
+            
+            # Configure backend if specified
+            if backend != "python":
+                self.console.print(f"🔧 Configuring backend: {backend}", style="cyan")
+                self.director.configure_settings(
+                    console=self.console,
+                    backend=backend,
+                    cpu_workers=cpu_workers,
+                    io_workers=io_workers
+                )
+            
+            # Validate input folder
             if not input_folder.exists():
                 self.console.print(f"❌ Input folder does not exist: {input_folder}", style="red")
-                
-                # Check if this looks like a path splitting issue (common with spaces)
-                input_str = str(input_folder)
-                if ' ' in input_str and not (input_str.startswith('"') and input_str.endswith('"')):
-                    self.console.print("💡 Tip: Paths with spaces need quotes, e.g.:", style="dim")
-                    self.console.print(f'   python -m fichero process "{input_folder}"', style="dim")
-                    self.console.print("   Or escape spaces with backslashes", style="dim")
-                
                 raise typer.Exit(1)
             
-            if not self.director or not FicheroDirector.is_initialized():
-                self.console.print("❌ Director service not initialized", style="red")
-                raise typer.Exit(1)
+            # Set output directory
+            if output is None:
+                output = input_folder / "output"
             
-            # Use unified helper for plan/workflow defaults
-            from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
-            ui_helper = PlanWorkflowUIHelper(self.director.app)
+            output.mkdir(parents=True, exist_ok=True)
             
-            # Determine plan to use
-            if plan is not None:
+            # Get default settings
+            from ...config.core.settings import get_app_settings
+            app_settings = get_app_settings(self.director.app if hasattr(self.director, 'app') else None)
+            
+            # Determine plan name
+            if plan is None:
+                # Get default plan from settings
+                plan_name = app_settings.get_setting('defaults.plan', 'Catalogue')
+            else:
                 if not plan.exists():
                     self.console.print(f"❌ Plan file does not exist: {plan}", style="red")
                     raise typer.Exit(1)
                 plan_name = plan.stem
-                self.console.print(f"📋 Using specified plan: {plan_name}", style="blue")
+            
+            # Determine workflow name
+            if workflow is None:
+                # Get default workflow from settings
+                workflow = app_settings.get_setting('defaults.workflow', '00) default')
+            
+            # Show processing info
+            self.console.print(f"📁 Input: {input_folder}", style="cyan")
+            self.console.print(f"📁 Output: {output}", style="cyan")
+            self.console.print(f"📋 Plan: {plan_name}", style="cyan")
+            self.console.print(f"🔄 Workflow: {workflow}", style="cyan")
+            self.console.print(f"⚙️ Backend: {backend}", style="cyan")
+            
+            if cpu_workers:
+                self.console.print(f"🔧 CPU Workers: {cpu_workers}", style="cyan")
+            if io_workers:
+                self.console.print(f"🔧 I/O Workers: {io_workers}", style="cyan")
+            
+            self.console.print()
+            
+            # Submit tasks
+            task_ids = self.director.process_with_auto_detection(
+                input_path=input_folder,
+                output_path=output,
+                plan_name=plan_name,
+                workflow_name=workflow
+            )
+            
+            if not task_ids:
+                self.console.print("❌ No tasks were submitted", style="red")
+                success = False
             else:
-                defaults = ui_helper.get_cli_defaults()
-                plan_name = defaults.get('plan')
+                # Show table display
+                from ...director.monitoring.displays.cli_display import CLITaskDisplay
                 
-                if not plan_name:
-                    self.console.print("❌ No default plan set and no plan specified", style="red")
-                    self.console.print("💡 Set defaults in Settings (fichero) or use --plan option", style="dim")
-                    self.console.print("💡 Use 'fichero-cli list-plans' to see available plans", style="dim")
-                    raise typer.Exit(1)
+                task_monitor = self.director.get_task_monitor()
+                cli_display = CLITaskDisplay(self.console, task_monitor)
                 
-                self.console.print(f"📋 Using default plan: {plan_name}", style="blue")
-            
-            # Determine workflow to use
-            if workflow == "default":
-                if plan is None:
-                    defaults = ui_helper.get_cli_defaults()
-                    workflow = defaults.get('workflow') or "default"
-                else:
-                    workflow = ui_helper.get_app_default_workflow(plan_name) or "default"
-            
-            # Always show workflow being used
-            self.console.print(f"⚙️ Using workflow: {workflow}", style="cyan")
-            
-            # Set default output directory if not provided
-            if output is None:
-                output = input_folder.parent / f"{input_folder.name}_output"
-            
-            # Proper separation: processing vs display
-            if simple:
-                # Simple mode: just submit and wait
-                task_ids = self.director.process_with_auto_detection(
-                    input_path=input_folder,
-                    output_path=output,
-                    plan_name=plan_name,
-                    workflow_name=workflow
-                )
-                success = len(task_ids) > 0 if task_ids else False
-            else:
-                # Rich mode: separate processing from display (clean architecture!)
-                self.console.print(f"🚀 Starting processing...", style="bold blue")
-                self.console.print(f"📁 Input: {input_folder}", style="dim")
-                self.console.print(f"📂 Output: {output}", style="dim")
+                # Small delay to allow tasks to be registered
+                time.sleep(0.1)
+                
+                self.console.print(f"🚀 Processing {len(task_ids)} task{'s' if len(task_ids) != 1 else ''}...", style="bold blue")
                 self.console.print()
                 
-                # 1. Submit tasks (processing responsibility)
-                task_ids = self.director.process_with_auto_detection(
-                    input_path=input_folder,
-                    output_path=output,
-                    plan_name=plan_name,
-                    workflow_name=workflow
-                )
+                # Show table and wait for completion
+                try:
+                    cli_display.show_tasks(filter_current_only=True)
+                    success = self._check_all_tasks_completion(task_ids)
+                except KeyboardInterrupt:
+                    self.console.print("\n👋 Task monitoring stopped", style="yellow")
+                    success = self._check_all_tasks_completion(task_ids)
+                except Exception as e:
+                    logger.warning(f"Table display failed: {e}")
+                    success = self._monitor_tasks_simple(task_ids)
                 
-                if not task_ids:
-                    self.console.print("❌ No tasks were submitted", style="red")
-                    success = False
-                else:
-                    # Use rich CLITaskDisplay for progress monitoring
-                    from ...director.monitoring.displays.cli_display import CLITaskDisplay
-                    
-                    # Get the TaskMonitor from the director (not create a new one)
-                    task_monitor = self.director.get_task_monitor()
-                    cli_display = CLITaskDisplay(self.console, task_monitor)
-                    
-                    # Small delay to allow tasks to be registered in TaskMonitor
-                    time.sleep(0.1)
-                    
-                    self.console.print(f"🚀 Processing {len(task_ids)} task{'s' if len(task_ids) != 1 else ''}...", style="bold blue")
-                    self.console.print()
-                    
-                    # Choose display mode based on number of tasks and user preference
-                    if len(task_ids) > 1 and table_view:
-                        # Table view for multiple tasks
-                        self.console.print("📊 Monitoring all tasks in table format - Press Ctrl+C to exit", style="cyan")
-                        self.console.print()
-                        
-                        try:
-                            # Use live activity monitor to show all tasks in table
-                            cli_display.show_all_tasks(live_updates=True)
-                            
-                            # Check final results after monitoring stops
-                            success = self._check_all_tasks_completion(task_ids)
-                        except KeyboardInterrupt:
-                            self.console.print("\n👋 Task monitoring stopped", style="yellow")
-                            # Check results even if interrupted
-                            success = self._check_all_tasks_completion(task_ids)
-                        except Exception as e:
-                            logger.warning(f"Table display failed: {e}")
-                            # Fallback to individual task monitoring
-                            success = self._monitor_tasks_individually(task_ids, cli_display)
-                    else:
-                        # Individual task monitoring (default)
-                        success = self._monitor_tasks_individually(task_ids, cli_display)
-                    
-                    self.console.print()
+                self.console.print()
             
             # Simple success/failure output
             if success:
@@ -219,22 +188,8 @@ class CoreCommands:
         except Exception as e:
             error_handler.handle_general_exception(e, "processing", verbose)
 
-    def status(self):
-        """Show director status"""
-        error_handler = create_cli_error_handler(self.console)
-        
-        try:
-            if not self.director:
-                self.console.print("❌ Director not available", style="red")
-                return
-            
-            self.director.display_status(self.console)
-            
-        except Exception as e:
-            error_handler.handle_general_exception(e, "status check", verbose=True)
-
-    def list_plans(self):
-        """List available processing plans"""
+    def plans(self):
+        """List available processing plans with workflows and steps"""
         error_handler = create_cli_error_handler(self.console)
         
         try:
@@ -248,16 +203,36 @@ class CoreCommands:
             error_handler.handle_general_exception(e, "plan listing", verbose=True)
 
     def configure(self,
-        show_defaults: bool = typer.Option(False, "--show-defaults", help="Show default values"),
-        auto: bool = typer.Option(False, "--auto", help="Auto-configure optimal settings for this system"),
+        # Display options
+        show: bool = typer.Option(False, "--show", help="Show current configuration"),
+        show_api_keys: bool = typer.Option(False, "--show-api-keys", help="Show current configuration including API keys"),
+        help_options: bool = typer.Option(False, "--help-options", help="Show all available configuration options"),
+        
+        # Backend and performance
         backend: str = typer.Option(None, "--backend", "-b", help="Set backend: python or celery/redis"),
-        cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Set number of CPU workers"),
-        io_workers: int = typer.Option(None, "--io-workers", "-i", help="Set number of I/O workers"),
-    
-        plan: str = typer.Option(None, "--plan", "-p", help="Set default plan"),
-        workflow: str = typer.Option(None, "--workflow", "-w", help="Set default workflow")
+        cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers (1-32)"),
+        io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers (1-128)"),
+        auto: bool = typer.Option(False, "--auto", "-a", help="Auto-configure optimal settings"),
+        
+        # API Keys
+        openai_key: str = typer.Option(None, "--openai-key", help="Set OpenAI API key"),
+        qwen_key: str = typer.Option(None, "--qwen-key", help="Set Qwen API key"),
+        claude_key: str = typer.Option(None, "--claude-key", help="Set Claude API key"),
+        huggingface_key: str = typer.Option(None, "--huggingface-key", help="Set Hugging Face API key"),
+        
+        # Preferences
+        language: str = typer.Option(None, "--language", help="Set interface language (en, es, fr)"),
+        folder_order: str = typer.Option(None, "--folder-order", help="Set folder processing order"),
+        
+        # Defaults
+        default_plan: str = typer.Option(None, "--default-plan", help="Set default plan for processing"),
+        default_workflow: str = typer.Option(None, "--default-workflow", help="Set default workflow for processing"),
+        
+        # Legacy options (for backward compatibility)
+        plan: str = typer.Option(None, "--plan", help="Set default plan (legacy)"),
+        workflow: str = typer.Option(None, "--workflow", help="Set default workflow (legacy)")
     ):
-        """Configure director settings and app defaults"""
+        """Configure application settings with comprehensive options"""
         error_handler = create_cli_error_handler(self.console)
         
         try:
@@ -265,25 +240,104 @@ class CoreCommands:
                 self.console.print("❌ Director not available", style="red")
                 return
             
-            # Handle auto-configuration
+            # Handle auto-configuration first
             if auto:
                 self._auto_configure()
                 return
             
-            # Delegate to director
-            self.director.configure_settings(
-                console=self.console,
-                show_defaults=show_defaults,
-                backend=backend,
-                cpu_workers=cpu_workers,
-                io_workers=io_workers,
-        
-                plan=plan,
-                workflow=workflow
-            )
+            # Import and create settings commands
+            from .settings_commands import CLISettingsCommands
+            settings_commands = CLISettingsCommands(self.director, self.console)
+            
+            # Handle display options first
+            if help_options:
+                settings_commands.show_available_options()
+                return
+                
+            if show:
+                settings_commands.show_current_settings(show_api_keys=show_api_keys)
+                return
+                
+            if show_api_keys and not show:
+                settings_commands.show_current_settings(show_api_keys=True)
+                return
+            
+            # Track if any settings were changed
+            changes_made = False
+            
+            # Configure backend
+            if backend:
+                success = settings_commands.configure_backend(backend)
+                changes_made = changes_made or success
+            
+            # Configure workers
+            if cpu_workers is not None or io_workers is not None:
+                success = settings_commands.configure_workers(cpu_workers, io_workers)
+                changes_made = changes_made or success
+            
+            # Configure API keys
+            if openai_key:
+                success = settings_commands.configure_api_key('openai', openai_key)
+                changes_made = changes_made or success
+                
+            if qwen_key:
+                success = settings_commands.configure_api_key('qwen', qwen_key)
+                changes_made = changes_made or success
+                
+            if claude_key:
+                success = settings_commands.configure_api_key('claude', claude_key)
+                changes_made = changes_made or success
+                
+            if huggingface_key:
+                success = settings_commands.configure_api_key('huggingface', huggingface_key)
+                changes_made = changes_made or success
+            
+            # Configure defaults
+            if default_plan:
+                success = settings_commands.configure_preference('defaults.plan', default_plan)
+                changes_made = changes_made or success
+                
+            if default_workflow:
+                success = settings_commands.configure_preference('defaults.workflow', default_workflow)
+                changes_made = changes_made or success
+            
+            # Configure preferences
+            if language:
+                if language not in ['en', 'es', 'fr']:
+                    self.console.print("❌ Invalid language. Choose: en, es, fr", style="red")
+                else:
+                    success = settings_commands.configure_preference('preferences.language', language)
+                    changes_made = changes_made or success
+            
+            if folder_order:
+                valid_orders = ['alphabetical', 'reverse_alphabetical', 'least_images_first', 'most_images_first']
+                if folder_order not in valid_orders:
+                    self.console.print(f"❌ Invalid folder order. Choose: {', '.join(valid_orders)}", style="red")
+                else:
+                    success = settings_commands.configure_preference('preferences.folder_processing_order', folder_order)
+                    changes_made = changes_made or success
+            
+            # Handle legacy plan/workflow options
+            if plan or workflow:
+                # Use the old director method for plan/workflow
+                self.director.configure_settings(
+                    console=self.console,
+                    show_defaults=False,
+                    plan=plan,
+                    workflow=workflow
+                )
+                changes_made = True
+            
+            # If no options provided, show current settings
+            if not changes_made and not any([
+                show, show_api_keys, help_options, backend, cpu_workers, io_workers,
+                openai_key, qwen_key, claude_key, huggingface_key, language, folder_order, 
+                default_plan, default_workflow, plan, workflow, auto
+            ]):
+                settings_commands.show_current_settings()
             
         except Exception as e:
-            error_handler.handle_general_exception(e, "configuration", verbose=True)
+            error_handler.handle_general_exception(e, "configuring settings", verbose=True)
 
     def _auto_configure(self):
         """Auto-configure optimal settings for this system"""
@@ -315,7 +369,7 @@ class CoreCommands:
             self.console.print(f"❌ Auto-configuration failed: {e}", style="red")
 
     def info(self):
-        """Show director system information"""
+        """Show comprehensive system information including available plans"""
         error_handler = create_cli_error_handler(self.console)
         
         try:
@@ -328,71 +382,21 @@ class CoreCommands:
         except Exception as e:
             error_handler.handle_general_exception(e, "system info", verbose=True)
 
-    def activity_monitor(self,
-        static: bool = typer.Option(False, "--static", "-s", help="Show one-time snapshot instead of live monitoring"),
-        refresh_seconds: int = typer.Option(1, "--refresh", "-r", help="Refresh interval in seconds (live mode only)")
-    ):
-        """Show global activity monitor - continuously displays until Ctrl+C"""
-        error_handler = create_cli_error_handler(self.console)
-        
-        try:
-            # Get the task monitor from director
-            from ...director.monitoring import TaskMonitor
-            from ...director.monitoring.displays.cli_display import CLITaskDisplay
-            
-            task_monitor = TaskMonitor.get_instance(self.director)
-            cli_display = CLITaskDisplay(self.console, task_monitor)
-            
-            if static:
-                # One-time snapshot mode - use the rich static display
-                cli_display.show_all_tasks(live_updates=False)
-            else:
-                # Live monitoring mode - use Rich Live functionality
-                self.console.print("🔄 Starting Live Activity Monitor - Press Ctrl+C to exit", style="bold blue")
-                self.console.print("   Rich live updating display with progress bars and real-time stats", style="dim")
-                self.console.print()
-                
-                # Use the built-in Rich Live display - much smoother!
-                cli_display.show_all_tasks(live_updates=True)
-                
-        except KeyboardInterrupt:
-            self.console.print("\n👋 Activity Monitor stopped", style="yellow")
-        except Exception as e:
-            error_handler.handle_general_exception(e, "activity monitor", verbose=True)
 
-    def _monitor_tasks_individually(self, task_ids, cli_display):
-        """Monitor tasks individually using a single live display"""
-        if len(task_ids) == 1:
-            # Single task - use simple progress display
-            try:
-                cli_display.show_task_progress(task_ids[0], live_updates=True)
-                return self._check_all_tasks_completion(task_ids)
-            except Exception as e:
-                logger.warning(f"Rich display failed for single task: {e}")
-                return self._monitor_tasks_simple(task_ids)
-        else:
-            # Multiple tasks - use table view to avoid Rich conflicts
-            self.console.print("📊 Monitoring multiple tasks in table format", style="cyan")
-            try:
-                cli_display.show_all_tasks(live_updates=True)
-                return self._check_all_tasks_completion(task_ids)
-            except KeyboardInterrupt:
-                self.console.print("\n👋 Task monitoring stopped", style="yellow")
-                return self._check_all_tasks_completion(task_ids)
-            except Exception as e:
-                logger.warning(f"Table display failed: {e}")
-                return self._monitor_tasks_simple(task_ids)
-    
+
     def _monitor_tasks_simple(self, task_ids):
         """Simple task monitoring without Rich displays"""
         self.console.print("⚡ Monitoring tasks with simple display...", style="blue")
         success = True
         
+        # Get task monitor from director
+        task_monitor = self.director.get_task_monitor()
+        
         while True:
             # Check if all tasks are complete
             all_complete = True
             for task_id in task_ids:
-                task_info = self.task_monitor.get_task(task_id)
+                task_info = task_monitor.get_task(task_id)
                 if task_info and not task_info.is_finished:
                     all_complete = False
                     break

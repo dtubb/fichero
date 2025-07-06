@@ -216,7 +216,7 @@ class PlanManager:
     @staticmethod
     def get_default_plan(app=None) -> Optional[str]:
         """
-        Get the default plan from shared data, fallback to first available
+        Get the default plan from settings, fallback to shared data, then first available
         
         Args:
             app: Application instance to get paths
@@ -225,7 +225,24 @@ class PlanManager:
             Default plan name or None if no plans available
         """
         try:
-            # Try to get from shared data first
+            # Try to get from app settings first (primary source)
+            try:
+                from ..core.settings import get_app_settings
+                app_settings = get_app_settings(app)
+                settings_default = app_settings.get_setting('defaults.plan')
+                if settings_default:
+                    # Verify the saved plan still exists
+                    plans = PlanManager.get_available_plans(app)
+                    valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
+                    if settings_default in valid_plans:
+                        logger.debug(f"Using default plan from settings: {settings_default}")
+                        return settings_default
+                    else:
+                        logger.warning(f"Settings default plan '{settings_default}' no longer exists")
+            except Exception as e:
+                logger.debug(f"Could not read default from app settings: {e}")
+            
+            # Fallback to shared data (legacy)
             try:
                 from ...shared_data import get_shared_data
                 shared_data = get_shared_data()
@@ -235,6 +252,7 @@ class PlanManager:
                     plans = PlanManager.get_available_plans(app)
                     valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
                     if saved_default in valid_plans:
+                        logger.debug(f"Using default plan from shared data: {saved_default}")
                         return saved_default
                     else:
                         logger.warning(f"Saved default plan '{saved_default}' no longer exists")
@@ -246,6 +264,7 @@ class PlanManager:
             valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
             
             if valid_plans:
+                logger.debug(f"Using first available plan: {valid_plans[0]}")
                 return valid_plans[0]
             else:
                 return None
@@ -257,7 +276,7 @@ class PlanManager:
     @staticmethod
     def get_default_workflow(plan_name: str, app=None) -> Optional[str]:
         """
-        Get the default workflow from shared data, fallback to 'default' or first
+        Get the default workflow from settings, fallback to shared data, then 'default' or first
         
         Args:
             plan_name: Name of the plan
@@ -280,20 +299,34 @@ class PlanManager:
             if not valid_workflows:
                 return None
             
-            # Try to get from shared data first
+            # Try to get from app settings first (primary source)
+            try:
+                from ..core.settings import get_app_settings
+                app_settings = get_app_settings(app)
+                settings_default = app_settings.get_setting('defaults.workflow')
+                if settings_default and settings_default in valid_workflows:
+                    logger.debug(f"Using default workflow from settings: {settings_default}")
+                    return settings_default
+            except Exception as e:
+                logger.debug(f"Could not read default workflow from app settings: {e}")
+            
+            # Fallback to shared data (legacy)
             try:
                 from ...shared_data import get_shared_data
                 shared_data = get_shared_data()
                 saved_default = shared_data.get_setting('default_workflow')
                 if saved_default and saved_default in valid_workflows:
+                    logger.debug(f"Using default workflow from shared data: {saved_default}")
                     return saved_default
             except Exception as e:
                 logger.debug(f"Could not read default workflow from shared data: {e}")
             
             # Fallback: prefer "default" workflow if it exists
             if "default" in valid_workflows:
+                logger.debug(f"Using 'default' workflow: default")
                 return "default"
             else:
+                logger.debug(f"Using first available workflow: {valid_workflows[0]}")
                 return valid_workflows[0]
                 
         except Exception as e:
@@ -301,35 +334,67 @@ class PlanManager:
             return None
     
     @staticmethod
-    def set_default_plan(plan_name: str):
+    def set_default_plan(plan_name: str, app=None):
         """
-        Set the default plan in shared data
+        Set the default plan in settings and shared data
         
         Args:
             plan_name: Name of the plan to set as default
+            app: Application instance (optional)
         """
         try:
-            from ...shared_data import get_shared_data
-            shared_data = get_shared_data()
-            shared_data.set_setting('default_plan', plan_name)
-            logger.info(f"Set default plan to: {plan_name}")
+            # Update app settings (primary storage)
+            try:
+                from ..core.settings import get_app_settings
+                app_settings = get_app_settings(app)
+                app_settings.set_setting('defaults.plan', plan_name)
+                app_settings.save()
+                logger.info(f"Set default plan in settings: {plan_name}")
+            except Exception as e:
+                logger.error(f"Failed to set default plan in settings: {e}")
+            
+            # Also update shared data for immediate use
+            try:
+                from ...shared_data import get_shared_data
+                shared_data = get_shared_data()
+                shared_data.set_setting('default_plan', plan_name)
+                logger.info(f"Set default plan in shared data: {plan_name}")
+            except Exception as e:
+                logger.error(f"Failed to set default plan in shared data: {e}")
+                
         except Exception as e:
             logger.error(f"Failed to set default plan: {e}")
             raise
     
     @staticmethod
-    def set_default_workflow(workflow_name: str):
+    def set_default_workflow(workflow_name: str, app=None):
         """
-        Set the default workflow in shared data
+        Set the default workflow in settings and shared data
         
         Args:
             workflow_name: Name of the workflow to set as default
+            app: Application instance (optional)
         """
         try:
-            from ...shared_data import get_shared_data
-            shared_data = get_shared_data()
-            shared_data.set_setting('default_workflow', workflow_name)
-            logger.info(f"Set default workflow to: {workflow_name}")
+            # Update app settings (primary storage)
+            try:
+                from ..core.settings import get_app_settings
+                app_settings = get_app_settings(app)
+                app_settings.set_setting('defaults.workflow', workflow_name)
+                app_settings.save()
+                logger.info(f"Set default workflow in settings: {workflow_name}")
+            except Exception as e:
+                logger.error(f"Failed to set default workflow in settings: {e}")
+            
+            # Also update shared data for immediate use
+            try:
+                from ...shared_data import get_shared_data
+                shared_data = get_shared_data()
+                shared_data.set_setting('default_workflow', workflow_name)
+                logger.info(f"Set default workflow in shared data: {workflow_name}")
+            except Exception as e:
+                logger.error(f"Failed to set default workflow in shared data: {e}")
+                
         except Exception as e:
             logger.error(f"Failed to set default workflow: {e}")
             raise

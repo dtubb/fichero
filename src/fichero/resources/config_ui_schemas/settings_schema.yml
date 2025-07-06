@@ -10,12 +10,12 @@ sections:
       - title: "Processing Defaults"
         description: "Set default plan and workflow for new processing tasks"
         fields:
-          - id: "default_plan"
+          - id: "defaults.plan"
             type: "selection"
             label: "Default Plan"
             options: []  # Will be populated dynamically
             help: "Plan to use when none specified (CLI and GUI)"
-          - id: "default_workflow" 
+          - id: "defaults.workflow" 
             type: "selection"
             label: "Default Workflow"
             options: []  # Will be populated dynamically

@@ -43,6 +43,7 @@ api_servers:
     api_key: ""
     base_url: "https://api-inference.huggingface.co"
 
-# Default plan and workflow (will be populated by shared data)
-default_plan: ""
-default_workflow: "" 
+# Default Processing Settings
+defaults:
+  plan: "Catalogue"
+  workflow: "00) default" 

@@ -28,17 +28,18 @@ from ..i18n import _, translator
 from ...config.core.plan_manager import PlanManager
 from ...config.core.settings import get_app_settings
 from ...director import FicheroDirector
-from ...director.monitoring.displays.gui_display import DocumentContentDisplay
+from ...director.monitoring.displays.gui_display import GUITaskDisplay
+from ...director.monitoring.task_monitor import TaskMonitor
 
 logger = logging.getLogger(__name__)
 
 
 class FicheroDocumentWindow(toga.DocumentWindow):
     """
-    Thin document window wrapper that delegates processing to director.py.
+    Simplified document window for folder processing.
     
-    Features beautiful Toga UI with progress bars via DocumentContentDisplay
-    while keeping business logic in the director service for code reuse between GUI and CLI.
+    Shows basic UI for folder/plan selection, then displays GUITaskDisplay
+    only when processing starts. All business logic handled by director.py.
     """
     
     def __init__(self, doc):
@@ -53,8 +54,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.current_plan = None
         self.current_workflow = None
         
-        # Content display via DocumentContentDisplay
-        self.content_display: Optional[DocumentContentDisplay] = None
+        # GUI task display (created only when processing starts)
+        self.task_display: Optional[GUITaskDisplay] = None
         self.current_task_ids = []
         
         # Create UI content
@@ -217,12 +218,33 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             background.close_path()
 
     def _create_content_section(self):
-        """Create content section that delegates to DocumentContentDisplay"""
-        # Initialize content display
-        self.content_display = DocumentContentDisplay(self, self._document.document_id)
+        """Create content section with beautiful description view"""
+        # Create simple container that will hold task display when processing starts
+        self.content_section = toga.Box(
+            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0), flex=1)
+        )
         
-        # Get the content section from the display
-        self.content_section = self.content_display.get_content_section()
+        # Create description canvas for beautiful markdown rendering
+        self.description_canvas = toga.Canvas(
+            style=Pack(
+                margin_top=20,
+                margin_right=20,
+                margin_bottom=10,
+                margin_left=20,
+                flex=1,
+            ),
+            on_resize=self._draw_content_text,
+            on_press=self._handle_canvas_click
+        )
+        
+        # Track link areas for click handling
+        self.link_areas = []
+        
+        # Show description view initially
+        self.content_section.add(self.description_canvas)
+        
+        # Draw content after a brief delay to ensure canvas is ready
+        asyncio.create_task(self._delayed_draw_content())
 
     def _create_footer(self):
         """Create footer with controls"""
@@ -288,7 +310,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.footer_section.add(spacer)
         self.footer_section.add(right_section)
 
-    # Progress Management - Delegated to DocumentContentDisplay
+    # Progress Management - Simple
     
     def _reset_to_process_button(self):
         """Reset button back to process state"""
@@ -301,28 +323,264 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.process_btn.text = _("process")
         self.process_btn.on_press = self.process_handler
     
-    def _get_content_display(self):
-        """Lazily initialize DocumentContentDisplay when needed"""
-        if not self.content_display:
-            try:
-                self.content_display = DocumentContentDisplay(self, self._document.document_id)
-                logger.info(f"DocumentContentDisplay initialized for document: {self._document.document_id}")
-            except Exception as e:
-                logger.error(f"Failed to initialize DocumentContentDisplay: {e}")
-                return None
-        return self.content_display
+        # Clear task display if it exists
+        if self.task_display:
+            self.task_display.stop_monitoring()
+            self.task_display = None
+        
+        # Reset content section to welcome message
+        self._reset_content_section()
+    
+    def _reset_content_section(self):
+        """Reset content section to beautiful description view"""
+        self.content_section.clear()
+        self.content_section.add(self.description_canvas)
+        # Redraw the content
+        self._draw_content_text()
+    
+    # Beautiful Description View - Canvas-based text rendering
+    
+    async def _delayed_draw_content(self):
+        """Draw content after a brief delay to ensure canvas is ready"""
+        await asyncio.sleep(0.1)
+        self._draw_content_text()
+    
+    def _draw_content_text(self, canvas=None, **kwargs):
+        """Draw description content on canvas"""
+        if canvas is None:
+            canvas = self.description_canvas
+        
+        if not canvas or not hasattr(canvas, 'layout') or not canvas.layout:
+            return
+        
+        # Clear and draw
+        with canvas.context.Fill(color='rgb(255, 255, 255)') as clear_fill:
+            clear_fill.rect(0, 0, canvas.layout.content_width, canvas.layout.content_height)
+        
+        self._draw_rounded_background(canvas)
+        self._draw_description_content(canvas)
+    
+    def _draw_rounded_background(self, canvas):
+        """Draw rounded white background"""
+        width = canvas.layout.content_width
+        height = canvas.layout.content_height
+        corner_radius = 6
+        
+        # Light gray background to show rounded corners
+        with canvas.context.Fill(color='rgb(240, 240, 240)') as full_background:
+            full_background.rect(0, 0, width, height)
+        
+        # White rounded rectangle
+        with canvas.context.Fill(color='rgb(255, 255, 255)') as background:
+            background.begin_path()
+            background.move_to(corner_radius, 0)
+            background.line_to(width - corner_radius, 0)
+            background.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            background.line_to(width, height - corner_radius)
+            background.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            background.line_to(corner_radius, height)
+            background.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            background.line_to(0, corner_radius)
+            background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            background.close_path()
+    
+    def _draw_description_content(self, canvas):
+        """Draw description text with markdown support"""
+        self.link_areas = []
+        
+        regular_font = toga.Font(family=toga.fonts.SYSTEM, size=10, weight="light")
+        bold_font = toga.Font(family=toga.fonts.SYSTEM, size=10, weight="bold")
+        
+        # Get description text from translations
+        text = _("description")
+        
+        line_height_multiplier = 1.8
+        left_margin = 15
+        top_margin = 15
+        right_margin = 10
+        max_width = canvas.layout.content_width - left_margin - right_margin
+        
+        paragraphs = text.split('\n\n')
+        current_y = top_margin
+        
+        for paragraph_idx, paragraph in enumerate(paragraphs):
+            if paragraph_idx > 0:
+                current_y += regular_font.size * line_height_multiplier * 0.8
+            
+            current_y = self._render_paragraph(canvas, paragraph, left_margin, current_y, 
+                                             max_width, regular_font, bold_font, line_height_multiplier)
+    
+    def _render_paragraph(self, canvas, text, left_margin, start_y, max_width, 
+                          regular_font, bold_font, line_height_multiplier):
+        """Render paragraph with markdown formatting"""
+        import re
+        
+        elements = []
+        current_pos = 0
+        
+        # Parse markdown
+        bold_pattern = r'\*([^*]+)\*'
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        combined_pattern = f'({bold_pattern})|({link_pattern})'
+        
+        for match in re.finditer(combined_pattern, text):
+            if match.start() > current_pos:
+                elements.append({
+                    'type': 'text',
+                    'content': text[current_pos:match.start()],
+                    'font': regular_font,
+                    'color': 'black'
+                })
+            
+            if match.group(2):  # Bold
+                elements.append({
+                    'type': 'text',
+                    'content': match.group(2),
+                    'font': bold_font,
+                    'color': 'black'
+                })
+            elif match.group(4) and match.group(5):  # Link
+                elements.append({
+                    'type': 'link',
+                    'content': match.group(4),
+                    'url': match.group(5),
+                    'font': regular_font,
+                    'color': 'blue'
+                })
+            
+            current_pos = match.end()
+        
+        if current_pos < len(text):
+            elements.append({
+                'type': 'text',
+                'content': text[current_pos:],
+                'font': regular_font,
+                'color': 'black'
+            })
+        
+        # Render with word wrapping
+        current_y = start_y
+        current_line_elements = []
+        current_line_width = 0
+        
+        for element in elements:
+            words = element['content'].split()
+            
+            for word_idx, word in enumerate(words):
+                space_prefix = " " if word_idx > 0 or current_line_elements else ""
+                test_word = space_prefix + word
+                
+                word_width, _ = canvas.measure_text(test_word, element['font'])
+                
+                if current_line_width + word_width <= max_width:
+                    current_line_elements.append({
+                        **element,
+                        'content': test_word,
+                        'width': word_width
+                    })
+                    current_line_width += word_width
+                else:
+                    if current_line_elements:
+                        current_y = self._render_line(canvas, current_line_elements, 
+                                                    left_margin, current_y, line_height_multiplier)
+                    
+                    current_line_elements = [{
+                        **element,
+                        'content': word,
+                        'width': canvas.measure_text(word, element['font'])[0]
+                    }]
+                    current_line_width = current_line_elements[0]['width']
+        
+        if current_line_elements:
+            current_y = self._render_line(canvas, current_line_elements, 
+                                        left_margin, current_y, line_height_multiplier)
+        
+        return current_y
+    
+    def _render_line(self, canvas, elements, left_margin, y_position, line_height_multiplier):
+        """Render a line of formatted text elements"""
+        current_x = left_margin
+        
+        for element in elements:
+            color = 'rgb(0, 100, 200)' if element['color'] == 'blue' else 'rgb(0, 0, 0)'
+            
+            with canvas.context.Fill(color=color) as fill_context:
+                fill_context.write_text(
+                    element['content'],
+                    current_x,
+                    y_position,
+                    element['font'],
+                    toga.constants.Baseline.TOP
+                )
+            
+            # Track link areas
+            if element['type'] == 'link':
+                self.link_areas.append({
+                    'x': current_x,
+                    'y': y_position,
+                    'width': element['width'],
+                    'height': element['font'].size,
+                    'url': element['url']
+                })
+            
+            current_x += element['width']
+        
+        return y_position + elements[0]['font'].size * line_height_multiplier
+    
+    def _handle_canvas_click(self, widget, x, y, **kwargs):
+        """Handle clicks on description canvas for links"""
+        for link_area in self.link_areas:
+            if (link_area['x'] <= x <= link_area['x'] + link_area['width'] and
+                link_area['y'] <= y <= link_area['y'] + link_area['height']):
+                webbrowser.open(link_area['url'])
+                break
+    
+    def _create_task_display(self):
+        """Create and show GUI task display for this document"""
+        try:
+            # Get director from app
+            director = getattr(self._app, 'director', None)
+            if director is None:
+                components = getattr(self._app, 'components', {})
+                director = components.get('director')
+            
+            if director is None:
+                raise RuntimeError("Director not available")
+            
+            # Create task display filtered for this document
+            task_monitor = TaskMonitor.get_instance(director)
+            self.task_display = GUITaskDisplay(
+                task_monitor, 
+                filter_document_id=self._document.document_id
+            )
+            
+            # Clear content section and add task display with margins
+            self.content_section.clear()
+            
+            # Wrap task display in container with 20px margins
+            task_display_wrapper = toga.Box(
+                children=[self.task_display.container],
+                style=Pack(
+                    direction=COLUMN,
+                    margin_top=20,
+                    margin_left=20,
+                    margin_right=20,
+                    flex=1
+                )
+            )
+            
+            self.content_section.add(task_display_wrapper)
+            
+            logger.info(f"Created task display for document: {self._document.document_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create task display: {e}")
+            raise
     
     def _show_stopped_message(self, output_path, completed_tasks, failed_tasks):
         """Show a custom stopped message with results and options"""
-        content_display = self._get_content_display()
-        if not content_display:
-            return
-        
-        # Mark as not showing progress so we can create custom content
-        content_display.is_showing_progress = False
-        
         # Clear content and create stopped message view
-        content_display.content_section.clear()
+        self.content_section.clear()
         
         # Create main container
         stopped_container = toga.Box(
@@ -402,7 +660,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Back button
         back_btn = toga.Button(
             "↩️ Back",
-            on_press=lambda w: content_display.show_description_view(),
+            on_press=lambda w: self._reset_content_section(),
             style=Pack(background_color='#1976d2', color='white')
         )
         button_container.add(back_btn)
@@ -410,7 +668,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         stopped_container.add(button_container)
         
         # Add to content section
-        content_display.content_section.add(stopped_container)
+        self.content_section.add(stopped_container)
     
     def _open_output_folder(self, output_path):
         """Open the output folder in Finder/Explorer"""
@@ -463,10 +721,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             await self.dialog(toga.InfoDialog("Error", f"Failed to select folder: {e}"))
 
     def help_handler(self, widget):
-        """Handle help button - return to description view"""
-        content_display = self._get_content_display()
-        if content_display and content_display.is_showing_progress:
-            content_display.show_description_view()
+        """Handle help button - open help website"""
         webbrowser.open("https://www.tubb.ca/fichero/")
     
     async def stop_handler(self, widget):
@@ -516,13 +771,11 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 self._reset_to_process_button()
                 self.current_task_ids = []
                 
-                # Stop progress monitoring in content display
-                content_display = self._get_content_display()
-                if content_display and content_display.progress_display:
-                    content_display.progress_display.stop_processing()
+                # Stop task display monitoring
+                if self.task_display:
+                    self.task_display.stop_monitoring()
                 
-                # Show custom stopped message instead of returning to description
-                if content_display and content_display.is_showing_progress:
+                # Show custom stopped message
                     self._show_stopped_message(output_path, completed_tasks, failed_tasks)
                 
                 # Show summary dialog
@@ -540,9 +793,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
 
     async def process_handler(self, widget):
         """
-        Handle process button - delegate everything to director.py and DocumentContentDisplay
+        Handle process button - create GUI task display and delegate to director.py
         
-        This uses DocumentContentDisplay for UI management and director.py for business logic.
+        This creates a simple GUITaskDisplay for this document and starts processing.
         """
         if not self.selected_folder:
             await self.dialog(toga.InfoDialog("Error", "Please select a folder to process"))
@@ -631,10 +884,10 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
             logger.info(f"Submitted {len(self.current_task_ids)} tasks for processing")
             
-            # Start content display via DocumentContentDisplay
-            content_display = self._get_content_display()
-            if content_display:
-                content_display.show_progress_view(self.current_task_ids, detected_folders)
+            # Create and show GUI task display for this document
+            self._create_task_display()
+            if self.task_display:
+                self.task_display.start_monitoring()
             
             # Automatically open activity monitor for stop functionality
             if hasattr(self._app, 'show_activity_monitor'):
@@ -649,7 +902,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             self._reset_to_process_button()
     
     async def _monitor_task_completion(self):
-        """Monitor task completion in background - DocumentContentDisplay handles UI updates"""
+        """Monitor task completion in background - GUITaskDisplay handles UI updates"""
         if not self.current_task_ids:
             return
         
@@ -667,15 +920,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                         statuses.append('UNKNOWN')
                 
                 if all(s in ["SUCCESS", "FAILED", "CANCELLED"] for s in statuses):
-                    # All tasks completed - DocumentContentDisplay handles UI updates
-                    # Just reset button states here
+                    # All tasks completed - reset button states
                     self._reset_to_process_button()
-                    
-                    # Stop progress monitoring in content display
-                    content_display = self._get_content_display()
-                    if content_display and content_display.progress_display:
-                        content_display.progress_display.stop_processing()
-                    
                     self.current_task_ids = []
                     break
                 
@@ -685,11 +931,6 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 logger.error(f"Error monitoring tasks: {e}")
                 # Reset button states on error
                 self._reset_to_process_button()
-                
-                # Stop progress monitoring on error
-                content_display = self._get_content_display()
-                if content_display and content_display.progress_display:
-                    content_display.progress_display.stop_processing()
                 break
 
     # Plan Management - Simplified

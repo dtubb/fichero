@@ -13,7 +13,111 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Import text spinner utilities
+from ...utils.text_spinner import get_spinner_frame
+
 logger = logging.getLogger(__name__)
+
+
+# Shared utility functions for formatting
+def get_worker_icon(worker_type: str) -> str:
+    """
+    Get a nice icon for worker types.
+    
+    Args:
+        worker_type: Worker type (cpu, io, celery)
+    
+    Returns:
+        Unicode icon for the worker
+    """
+    worker_lower = worker_type.lower()
+    
+    if worker_lower in ("cpu", "cpu_worker"):
+        return "⚡"  # Lightning bolt for fast CPU processing
+    elif worker_lower in ("io", "io_worker"):
+        return "📁"  # Folder for file I/O operations
+    elif worker_lower in ("celery", "redis"):
+        return "🔄"  # Circular arrows for distributed processing
+    else:
+        return "⚙️"  # Generic gear for unknown workers
+
+
+def get_backend_icon(backend_name: str) -> str:
+    """
+    Get a nice icon for backend types.
+    
+    Args:
+        backend_name: Backend name (python, redis, celery)
+    
+    Returns:
+        Unicode icon for the backend
+    """
+    backend_lower = backend_name.lower()
+    
+    if backend_lower in ("python", "local"):
+        return "🐍"  # Python snake
+    elif backend_lower in ("redis", "celery"):
+        return "🔴"  # Red circle for Redis
+    else:
+        return "⚙️"  # Generic gear for unknown backends
+
+
+def get_status_icon(status: str, worker_type: str = "") -> str:
+    """
+    Get status icon with appropriate formatting.
+    
+    Args:
+        status: Task status
+        worker_type: Worker type for context
+    
+    Returns:
+        Status string with appropriate indicator
+    """
+    if status == "running_cpu":
+        return "⚡"  # Lightning for CPU running
+    elif status == "running_io":
+        return "📁"  # Folder for IO running
+    elif status == "waiting_cpu":
+        return "⏳"  # Hourglass for waiting
+    elif status == "waiting_io":
+        return "⏳"  # Hourglass for waiting
+    elif status == "completed":
+        return "✅"  # Checkmark for completed
+    elif status == "failed":
+        return "❌"  # X for failed
+    elif status == "cancelled":
+        return "⏹"  # Stop for cancelled
+    else:
+        return "○"  # Circle for pending
+
+
+def get_worker_display_name(worker: str, worker_type: str = "") -> str:
+    """
+    Get human-readable worker display name.
+    
+    Args:
+        worker: Worker identifier
+        worker_type: Type of worker (cpu, io, celery)
+    
+    Returns:
+        Human-readable worker name
+    """
+    if not worker or worker == "unknown":
+        return "Unknown"
+    
+    # Handle different worker formats
+    if worker.startswith("CPU-"):
+        return f"CPU Thread {worker[4:]}"
+    elif worker.startswith("IO-"):
+        return f"IO Thread {worker[3:]}"
+    elif worker.startswith("celery"):
+        return f"Celery Worker {worker[7:]}"
+    elif worker_type == "cpu":
+        return f"CPU Thread {worker}"
+    elif worker_type == "io":
+        return f"IO Thread {worker}"
+    else:
+        return worker
 
 
 @dataclass
@@ -36,10 +140,12 @@ class StepInfo:
     
     @property
     def status_icon(self) -> str:
-        """Get status icon for step"""
+        """Get status icon for step (animated for running steps)"""
+        if self.status == "running":
+            return get_spinner_frame('circle')  # Use circle spinner for steps
+        
         icons = {
             "pending": "○",
-            "running": "·",  # Will be animated by spinner if needed
             "completed": "●", 
             "failed": "✗"
         }
@@ -96,10 +202,12 @@ class TaskInfo:
     
     @property
     def status_icon(self) -> str:
-        """Get status icon for display"""
+        """Get status icon for display (animated for running tasks)"""
+        if self.status == "running":
+            return get_spinner_frame('circle')  # Use circle spinner for main tasks
+        
         icons = {
             "pending": "○",
-            "running": "·",  # Will be animated by spinner
             "completed": "●",
             "failed": "✗",
             "cancelled": "⏹"
@@ -327,19 +435,19 @@ class TaskMonitor:
     
     def get_all_tasks(self) -> Dict[str, TaskInfo]:
         """Get all tasks (active + completed)"""
-        with self._task_lock:
-            all_tasks = dict(self.tasks)
-            for task in self.completed_tasks:
-                all_tasks[task.task_id] = task
-            return all_tasks
+        # Note: This method assumes the caller already has the lock
+        all_tasks = dict(self.tasks)
+        for task in self.completed_tasks:
+            all_tasks[task.task_id] = task
+        return all_tasks
     
     def get_tasks_by_document(self, document_id: str) -> Dict[str, TaskInfo]:
         """Get tasks for specific document"""
-        with self._task_lock:
-            return {
-                tid: task for tid, task in self.tasks.items() 
-                if task.document_id == document_id
-            }
+        # Note: This method assumes the caller already has the lock
+        return {
+            tid: task for tid, task in self.tasks.items() 
+            if task.document_id == document_id
+        }
     
     def get_tasks_by_status(self, status: str) -> Dict[str, TaskInfo]:
         """Get tasks by status"""
@@ -359,34 +467,34 @@ class TaskMonitor:
     
     def get_stats(self) -> Dict[str, Any]:
         """Get system statistics"""
-        with self._task_lock:
-            active_count = len([t for t in self.tasks.values() if t.is_active])
-            
-            # Count failed tasks from both active and completed lists
-            failed_active = len([t for t in self.tasks.values() if t.status == "failed"])
-            failed_completed = len([t for t in self.completed_tasks if t.status == "failed"])
-            total_failed = failed_active + failed_completed
-            
-            # Count successfully completed tasks
-            completed_active = len([t for t in self.tasks.values() if t.status == "completed"])
-            completed_completed = len([t for t in self.completed_tasks if t.status == "completed"])
-            total_completed = completed_active + completed_completed
-            
-            # Performance metrics
-            recent_completed = [t for t in self.completed_tasks[-20:] if t.status == "completed"]
-            avg_duration = 0
-            if recent_completed:
-                durations = [t.duration.total_seconds() for t in recent_completed]
-                avg_duration = sum(durations) / len(durations)
-            
-            return {
-                "active_tasks": active_count,
-                "total_tasks": len(self.tasks) + len(self.completed_tasks),
-                "completed_tasks": total_completed,
-                "failed_tasks": total_failed,
-                "average_duration": avg_duration,
-                "last_updated": datetime.now()
-            }
+        # Note: This method assumes the caller already has the lock
+        active_count = len([t for t in self.tasks.values() if t.is_active])
+        
+        # Count failed tasks from both active and completed lists
+        failed_active = len([t for t in self.tasks.values() if t.status == "failed"])
+        failed_completed = len([t for t in self.completed_tasks if t.status == "failed"])
+        total_failed = failed_active + failed_completed
+        
+        # Count successfully completed tasks
+        completed_active = len([t for t in self.tasks.values() if t.status == "completed"])
+        completed_completed = len([t for t in self.completed_tasks if t.status == "completed"])
+        total_completed = completed_active + completed_completed
+        
+        # Performance metrics
+        recent_completed = [t for t in self.completed_tasks[-20:] if t.status == "completed"]
+        avg_duration = 0
+        if recent_completed:
+            durations = [t.duration.total_seconds() for t in recent_completed]
+            avg_duration = sum(durations) / len(durations)
+        
+        return {
+            "active_tasks": active_count,
+            "total_tasks": len(self.tasks) + len(self.completed_tasks),
+            "completed_tasks": total_completed,
+            "failed_tasks": total_failed,
+            "average_duration": avg_duration,
+            "last_updated": datetime.now()
+        }
     
     # Backend Management
     
@@ -504,9 +612,13 @@ class TaskMonitor:
                 document_id = progress_data.get("document_id")
                 logger.debug(f"TaskMonitor._on_progress_update: creating task {task_id} with document_id={document_id}")
                 
+                # Extract just the folder name from the full path
+                folder_path = progress_data.get("folder", "Unknown")
+                folder_name = folder_path.split("/")[-1] if "/" in folder_path else folder_path
+                
                 self.create_task(
                     task_id=task_id,
-                    folder_name=progress_data.get("folder", "Unknown"),
+                    folder_name=folder_name,
                     workflow_name=progress_data.get("workflow", "Unknown"),
                     plan_name=progress_data.get("plan", "Unknown"),
                     source=progress_data.get("source", "unknown"),
@@ -667,6 +779,125 @@ class TaskMonitor:
                 "average_duration": avg_duration,
                 "last_updated": datetime.now()
             }
+    
+    def create_display_data(self, document_id: Optional[str] = None) -> List[Dict[str, str]]:
+        """Create simple display data for both CLI and GUI with nice formatting"""
+        # Use timeout to prevent deadlocks
+        if not self._task_lock.acquire(timeout=0.5):
+            logger.warning("Timeout acquiring task lock for display data")
+            return []
+        
+        try:
+            if document_id:
+                tasks = self.get_tasks_by_document(document_id)
+            else:
+                tasks = self.get_all_tasks()
+            
+            display_data = []
+            for task in tasks.values():
+                # Get nice status text with icons (animated for running tasks)
+                if task.status == "running":
+                    # Use time-based spinner that updates more frequently
+                    spinner = get_spinner_frame('circle')
+                    status_text = f"{spinner} Running"
+                    if task.current_step:
+                        status_text += f" - {task.current_step}"
+                elif task.status == "pending":
+                    status_text = f"⏳ Waiting"
+                elif task.status == "completed":
+                    status_text = f"✅ Completed"
+                elif task.status == "failed":
+                    status_text = f"❌ Failed"
+                elif task.status == "cancelled":
+                    status_text = f"⏹ Cancelled"
+                else:
+                    status_text = f"○ {task.status.title()}"
+                
+                # Add worker info if available
+                if task.executor_type and task.executor_type != "unknown":
+                    worker_icon = get_worker_icon(task.executor_type)
+                    status_text += f" ({worker_icon})"
+                
+                display_data.append({
+                    "folder": task.folder_name,
+                    "status": status_text,
+                    "task_id": task.task_id
+                })
+            
+            # Sort by creation time (newest first)
+            display_data.sort(key=lambda x: tasks[x["task_id"]].created_at, reverse=True)
+            return display_data
+        finally:
+            self._task_lock.release()
+    
+    def get_status_summary(self, document_id: Optional[str] = None) -> str:
+        """Get simple status summary with icons"""
+        # Use timeout to prevent deadlocks
+        if not self._task_lock.acquire(timeout=0.5):
+            logger.warning("Timeout acquiring task lock for status summary")
+            return "No data available"
+        
+        try:
+            if document_id:
+                tasks = self.get_tasks_by_document(document_id)
+            else:
+                tasks = self.get_all_tasks()
+            
+            if not tasks:
+                return "No active tasks"
+            
+            stats = self.get_stats()
+            parts = []
+            
+            if stats["active_tasks"] > 0:
+                parts.append(f"⚡ {stats['active_tasks']} active")
+            if stats["completed_tasks"] > 0:
+                parts.append(f"✅ {stats['completed_tasks']} completed")
+            if stats["failed_tasks"] > 0:
+                parts.append(f"❌ {stats['failed_tasks']} failed")
+            
+            if not parts:
+                parts.append("Ready")
+            
+            return " | ".join(parts)
+        finally:
+            self._task_lock.release()
+    
+    def get_all_tasks_completion_status(self, document_id: Optional[str] = None) -> tuple[bool, int]:
+        """
+        Check if all tasks are completed and return completion count.
+        
+        Args:
+            document_id: Optional document ID to filter tasks
+            
+        Returns:
+            Tuple of (all_completed, completed_count)
+        """
+        # Use timeout to prevent deadlocks
+        if not self._task_lock.acquire(timeout=0.5):
+            logger.warning("Timeout acquiring task lock for completion status")
+            return True, 0
+        
+        try:
+            if document_id:
+                tasks = self.get_tasks_by_document(document_id)
+            else:
+                tasks = self.get_all_tasks()
+            
+            if not tasks:
+                return True, 0  # No tasks means all completed
+            
+            completed_count = 0
+            total_count = len(tasks)
+            
+            for task in tasks.values():
+                if task.status in ["completed", "failed", "cancelled"]:
+                    completed_count += 1
+            
+            all_completed = completed_count == total_count
+            return all_completed, completed_count
+        finally:
+            self._task_lock.release()
     
     def reset(self):
         """Reset the task monitor - clear all tasks and history"""

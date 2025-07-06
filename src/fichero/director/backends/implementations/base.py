@@ -143,6 +143,51 @@ class ProcessingBackend(ABC):
     def list_active_tasks(self) -> List[str]:
         """List active task IDs (optional)"""
         return []
+    
+    # Backend capability methods
+    def supports_worker_management(self) -> bool:
+        """True if backend supports start/stop/restart worker commands"""
+        return False
+    
+    def supports_worker_status(self) -> bool:
+        """True if backend supports worker status monitoring"""
+        return False
+    
+    def supports_health_check(self) -> bool:
+        """True if backend supports health checks"""
+        return False
+    
+    def supports_task_purging(self) -> bool:
+        """True if backend supports purging pending tasks"""
+        return False
+    
+    def supports_database_flush(self) -> bool:
+        """True if backend supports flushing database (Redis)"""
+        return False
+    
+    def get_supported_commands(self) -> List[str]:
+        """Get list of supported backend commands for this backend"""
+        commands = ["select", "info"]  # These are always supported
+        
+        if self.supports_worker_management():
+            commands.extend(["start", "stop", "restart"])
+        
+        if self.supports_worker_status():
+            commands.append("status")
+        
+        if self.supports_health_check():
+            commands.append("health")
+        
+        if self.supports_task_purging():
+            commands.append("purge")
+        
+        if self.supports_database_flush():
+            commands.append("flush")
+        
+        # Activity monitor is always supported (shows task status)
+        commands.append("activity-monitor")
+        
+        return commands
 
 
 def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict, 
