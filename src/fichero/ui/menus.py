@@ -86,21 +86,21 @@ class MenuManager:
         # ===== APP-SPECIFIC COMMANDS =====
         
         # Configuration editors in App menu (after preferences)
-        plans_editor_cmd = toga.Command(
-            self._plans_editor_handler,
-            text=_("menu_plans"),
-            group=toga.Group.APP,
-            section=3
-        )
-        commands.append(plans_editor_cmd)
+        #plans_editor_cmd = toga.Command(
+        #    self._plans_editor_handler,
+        #    text=_("menu_plans"),
+        #    group=toga.Group.APP,
+        #    section=3
+        #)
+        #commands.append(plans_editor_cmd)
         
-        prompts_editor_cmd = toga.Command(
-            self._prompts_editor_handler,
-            text=_("menu_prompts"), 
-            group=toga.Group.APP,
-            section=3
-        )
-        commands.append(prompts_editor_cmd)
+        #prompts_editor_cmd = toga.Command(
+        #    self._prompts_editor_handler,
+        #    text=_("menu_prompts"), 
+        #    group=toga.Group.APP,
+        #    section=3
+        #)
+        #commands.append(prompts_editor_cmd)
         
         # Support command in Help menu  
         support_cmd = toga.Command(
@@ -479,8 +479,9 @@ class MenuManager:
         try:
             # Use async/await pattern for Toga dialogs
             import asyncio
+            import toga
             async def show_dialog():
-                await self.app.info_dialog(title, message)
+                await self.app.dialog(toga.InfoDialog(title, message))
             asyncio.create_task(show_dialog())
         except Exception as e:
             print(f"Failed to show info dialog: {e}")

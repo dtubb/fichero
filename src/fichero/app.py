@@ -43,7 +43,14 @@ class FicheroApp(toga.App):
         """Initialize the app - delegates to shared initialization system"""
         print("🚀 Fichero GUI starting up...")
         
-         # Initialize components immediately
+        # Set app icon first
+        try:
+            self.icon = toga.Icon("resources/icons/fichero")
+            print("✅ App icon loaded")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not load app icon: {e}")
+        
+        # Initialize components immediately
         try:
             self.components, self.initializer = initialize_gui_app(app_context=self)
             

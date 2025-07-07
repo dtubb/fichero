@@ -45,8 +45,8 @@ sections:
           - id: "workers.backend"
             type: "selection"
             label: "Backend Type"
-            options: ["python", "redis"]
-            help: "Python: Local processing. Celery/Redis: Distributed processing (requires Redis server)."
+            options: ["python"]
+            help: "Python or Celery/Redis (Disabled)."
             
       - title: "Worker Configuration"
         description: "Configure processing performance"

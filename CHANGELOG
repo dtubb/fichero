@@ -1,6 +1,6 @@
 # Fichero Release Notes
 
-## 0.0.6 – In Progress
+## 0.1.0-dev – In Progress
 - Introduced new windows for Plans, Projects, and Prompts.
 - Refactored Director.py:
   - Transitioned the backend to operate solely on Python, making REDIS and Celery optional for HPC/Linux environments.

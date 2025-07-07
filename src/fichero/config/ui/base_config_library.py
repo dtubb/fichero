@@ -15,6 +15,7 @@ from enum import Enum
 import logging
 import yaml
 import srsly
+import asyncio
 
 from ..core.loader import ConfigLoader
 from .components.file_library_panel import FileLibraryPanel
@@ -1160,23 +1161,45 @@ class BaseConfigLibrary(ABC):
             
             # Check if it's a default file
             if file_info.get("is_default", False):
+                # Show error dialog for default files
+                async def show_error():
+                    await self.window.dialog(toga.ErrorDialog(
+                        "Cannot Delete",
+                        "Default files cannot be deleted."
+                    ))
+                asyncio.create_task(show_error())
                 return
+
+            # Ask for confirmation
+            async def confirm_delete():
+                confirm = await self.window.dialog(toga.ConfirmDialog(
+                    "Confirm Delete",
+                    f"Are you sure you want to delete '{file_path.name}'?"
+                ))
+                if confirm:
+                    if self.file_manager.delete_file(file_path):
+                        # Clear editor if this was the current file
+                        if self.current_file == file_path:
+                            self.current_file = None
+                            window_title = f"{self.file_manager.get_file_type().title()}" if self.file_manager else "Configuration"
+                            self.window.title = window_title
+                            self.content_panel.content = toga.Label("Select a file to edit")
+                            self.section_panel.clear()
+                        
+                        # Refresh library panel
+                        if self.library_panel:
+                            self.library_panel.refresh_files()
             
-            if self.file_manager.delete_file(file_path):
-                # Clear editor if this was the current file
-                if self.current_file == file_path:
-                    self.current_file = None
-                    window_title = f"{self.file_manager.get_file_type().title()}" if self.file_manager else "Configuration"
-                    self.window.title = window_title
-                    self.content_panel.content = toga.Label("Select a file to edit")
-                    self.section_panel.clear()
-                
-                # Refresh library panel
-                if self.library_panel:
-                    self.library_panel.refresh_files()
+            asyncio.create_task(confirm_delete())
             
         except Exception as e:
             logger.error(f"Failed to delete file: {e}")
+            async def show_error():
+                await self.window.dialog(toga.ErrorDialog(
+                    "Delete Error",
+                    f"Failed to delete file: {e}"
+                ))
+            asyncio.create_task(show_error())
     
     def _handle_duplicate(self, file_info: Dict):
         """Handle file duplication"""

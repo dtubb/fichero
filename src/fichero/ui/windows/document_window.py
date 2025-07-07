@@ -1126,7 +1126,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
         except Exception as e:
             logger.error(f"Error selecting folder: {e}")
-            await self.dialog(toga.InfoDialog("Error", f"Failed to select folder: {e}"))
+            await self.dialog(toga.ErrorDialog("Error", f"Failed to select folder: {e}"))
 
     def help_handler(self, widget):
         """Handle help button - open help website"""
@@ -1169,7 +1169,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 return
             
             # Ask for confirmation
-            confirm = await self.dialog(toga.QuestionDialog(
+            confirm = await self.dialog(toga.ConfirmDialog(
                 "Stop Processing",
                 "Are you sure you want to stop the current processing?"
             ))
@@ -1227,7 +1227,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 
         except Exception as e:
             logger.error(f"Error stopping processing: {e}")
-            await self.dialog(toga.InfoDialog("Error", f"Failed to stop processing: {e}"))
+            await self.dialog(toga.ErrorDialog("Error", f"Failed to stop processing: {e}"))
 
     async def process_handler(self, widget):
         """
@@ -1236,11 +1236,11 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         This creates a simple GUITaskDisplay for this document and starts processing.
         """
         if not self.selected_folder:
-            await self.dialog(toga.InfoDialog("Error", "Please select a folder to process"))
+            await self.dialog(toga.ErrorDialog("Error", "Please select a folder to process"))
             return
         
         if not self.current_plan:
-            await self.dialog(toga.InfoDialog("Error", "Please select a plan"))
+            await self.dialog(toga.ErrorDialog("Error", "Please select a plan"))
             return
         
         # Use default workflow if none selected
@@ -1282,7 +1282,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
         except Exception as e:
             logger.error(f"Error with save dialog: {e}")
-            await self.dialog(toga.InfoDialog("Error", f"Failed to select save location: {e}"))
+            await self.dialog(toga.ErrorDialog("Error", f"Failed to select save location: {e}"))
             return
         
         # Start activity indicator and hide the footer buttons during processing
@@ -1334,7 +1334,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
         except Exception as e:
             logger.error(f"Processing failed: {e}")
-            await self.dialog(toga.InfoDialog("Error", f"Failed to start processing: {e}"))
+            await self.dialog(toga.ErrorDialog("Error", f"Failed to start processing: {e}"))
             self._reset_to_process_button()
     
     async def _monitor_task_completion(self):
