@@ -16,7 +16,7 @@ class AboutWindow:
         """Initialize the about window"""
         self.app = app
         self.window = toga.Window(
-            title="About Fichero",
+            title=_("about_window_title", "About Fichero"),
             size=(306, 470),
             resizable=False
         )
@@ -82,7 +82,7 @@ class AboutWindow:
             )
         )
         
-        # Version (read from changelog)
+        # Version (get from app)
         version = self._get_version()
         version_label = toga.Label(
             f"version {version}",
@@ -245,20 +245,21 @@ class AboutWindow:
         return '\n'.join(html_lines)
     
     def _get_version(self):
-        """Get version from CHANGELOG file"""
+        """Get version from app"""
         try:
-            import os
-            changelog_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'CHANGELOG')
-            with open(changelog_path, 'r') as f:
-                content = f.read()
-                # Extract first version number (format: ## X.X.X)
-                import re
-                match = re.search(r'##\s+(\d+\.\d+\.\d+)', content)
-                if match:
-                    return match.group(1)
-        except Exception:
-            pass
-        return "0.0.1"  # Default version
+            # First try to get version from app
+            if hasattr(self.app, 'version'):
+                return self.app.version
+            
+            # Fallback to importing directly
+            from ... import __version__
+            return __version__
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to get version: {e}")
+            return "0.0.1"  # Default version
     
     def _get_acknowledgments_text(self):
         """Get the acknowledgments text from i18n system"""

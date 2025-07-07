@@ -25,6 +25,7 @@ except ImportError:
     TOGA_AVAILABLE = False
 
 from ..task_monitor import TaskMonitor
+from ....ui.i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -64,23 +65,23 @@ class GUITaskDisplay:
         
         # Status bar
         self.status_label = toga.Label(
-            text="Ready",
+            text=_("task_table_ready"),
             style=Pack(padding=(5, 10), text_align="center")
         )
         
         # Task table
-        self.list_source = ListSource(accessors=['folder', 'status'], data=[])
+        self.list_source = ListSource(
+            accessors=['folder', 'status'],  # Keep English for data mapping
+            data=[]
+        )
         self.table = toga.Table(
-            headings=['Folder', 'Status'],
+            headings=['Folder', 'Status'],  # Plain English headers
             data=self.list_source,
             style=Pack(flex=1)
         )
         
         # Context-aware stop button
-        if self.filter_document_id:
-            button_text = "Stop Document Tasks"
-        else:
-            button_text = "Stop All Tasks"
+        button_text = _("task_button_stop_document") if self.filter_document_id else _("task_button_stop_all")
         
         self.stop_button = toga.Button(
             text=button_text,
@@ -147,13 +148,13 @@ class GUITaskDisplay:
             
             # Update status summary
             status_text = self.task_monitor.get_status_summary(self.filter_document_id)
-            if self.filter_document_id and "No active tasks" in status_text:
+            if self.filter_document_id and _("task_table_no_active") in status_text:
                 status_text = self.task_monitor.get_status_summary(None)
             self.status_label.text = status_text
             
         except Exception as e:
             logger.error(f"Error updating GUI display: {e}")
-            self.status_label.text = "Display error"
+            self.status_label.text = _("task_table_error")
     
     def _update_table_data(self, new_data: List[Dict[str, str]]):
         """Update table data efficiently by adding/removing/updating individual rows."""
@@ -192,7 +193,7 @@ class GUITaskDisplay:
                     self._current_rows.clear()
                 if not any(self.list_source):  # Only add if table is empty
                     self.list_source.append({
-                        'folder': 'No tasks to display',
+                        'folder': _("task_table_empty"),
                         'status': ''
                     })
                 return
@@ -231,7 +232,7 @@ class GUITaskDisplay:
             self._current_rows.clear()
             if not new_data:
                 self.list_source.append({
-                    'folder': 'No tasks to display',
+                    'folder': _("task_table_empty"),
                     'status': ''
                 })
             else:

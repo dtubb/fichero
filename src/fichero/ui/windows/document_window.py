@@ -23,6 +23,7 @@ import time
 from typing import Optional, Any, Dict, List
 import logging
 import sys
+import math
 
 from ..i18n import _, translator
 from ...config.core.plan_manager import PlanManager
@@ -391,7 +392,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         # Reset button (comes first, hidden initially)
         self.reset_btn = toga.Button(
-            "Reset",
+            _("cancel"),
             on_press=self.reset_handler,
             style=Pack(font_size=12, height=32)
         )
@@ -529,7 +530,6 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 name_label = toga.Label(
                     component["name"],
                     style=Pack(
-                        font_family='SF Pro Text',
                         font_size=9,
                         font_weight='bold' if is_last_component else 'normal',
                         margin_right=4
@@ -542,7 +542,6 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 separator_label = toga.Label(
                     "⟩",  # Narrow mathematical right angle bracket
                     style=Pack(
-                        font_family='SF Pro Text',
                         font_size=9,
                         color='#808080',  # Dark grey
                         margin_left=4,
@@ -571,66 +570,37 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     
     def _draw_ready_background_and_text(self, canvas=None, **kwargs):
         """Draw rounded grey background and centered text for ready state"""
-        if canvas is None:
-            canvas = self.ready_canvas
-            
-        if not canvas or not hasattr(canvas, 'layout') or not canvas.layout:
+        if not canvas:
             return
             
-        canvas.context.clear()
-        
         width = canvas.layout.content_width
         height = canvas.layout.content_height
-        corner_radius = 6  # Same as top folder bar
+        corner_radius = 6
         
-        # Draw rounded grey rectangle (same color as top folder bar)
-        with canvas.context.Fill(color='rgb(226, 223, 222)') as background:
-            background.begin_path()
-            background.move_to(corner_radius, 0)
-            background.line_to(width - corner_radius, 0)
-            background.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
-            background.line_to(width, height - corner_radius)
-            background.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
-            background.line_to(corner_radius, height)
-            background.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
-            background.line_to(0, corner_radius)
-            background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
-            background.close_path()
-        
-        # Thin light grey border (1px) around grey box
-        with canvas.context.Stroke(color='rgb(213, 213, 213)', line_width=1) as border:
-            border.begin_path()
-            border.move_to(corner_radius, 0)
-            border.line_to(width - corner_radius, 0)
-            border.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
-            border.line_to(width, height - corner_radius)
-            border.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
-            border.line_to(corner_radius, height)
-            border.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
-            border.line_to(0, corner_radius)
-            border.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
-            border.close_path()
-        
+        # Draw rounded grey background with same style as folder bar
+        with canvas.context.Fill(color='rgb(226, 223, 222)') as fill:
+            fill.begin_path()
+            fill.move_to(corner_radius, 0)
+            fill.line_to(width - corner_radius, 0)
+            fill.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            fill.line_to(width, height - corner_radius)
+            fill.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            fill.line_to(corner_radius, height)
+            fill.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            fill.line_to(0, corner_radius)
+            fill.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            fill.close_path()
+            
         # Draw centered text
-        try:
-            # Create italic font for the text
-            text_font = toga.Font(family=toga.fonts.SYSTEM, size=12, weight="normal", style="italic")
+        text_font = toga.Font(family=toga.fonts.SYSTEM, size=12, weight="normal", style="italic")
+        text = _("document_processing_ready")
+        text_width, text_height = canvas.measure_text(text, text_font)
             
-            # Calculate center position
-            text = "Ready to process…"
-            text_width, text_height = canvas.measure_text(text, text_font)
-            center_x = width / 2 - text_width / 2
-            center_y = height / 2 + text_height / 4  # Slight adjustment for visual centering
+        center_x = width/2 - text_width/2
+        center_y = height/2 - text_height/2
             
-            # Draw the text
-            with canvas.context.Fill(color='rgb(102, 102, 102)') as text_fill:  # #666666
-                text_fill.write_text(text, center_x, center_y, text_font)
-                
-        except Exception as e:
-            # Fallback if font styling fails
-            text_font = toga.Font(family=toga.fonts.SYSTEM, size=14, weight="normal")
-            with canvas.context.Fill(color='rgb(102, 102, 102)') as text_fill:
-                text_fill.write_text("Ready to process…", width/2 - 50, height/2, text_font)
+        with canvas.context.Fill(color='#808080') as text_fill:
+            text_fill.write_text(text, center_x, center_y, text_font)
 
     def _update_folder_icon_for_selected_path(self, folder_path):
         """Update the left folder icon to match the selected folder"""
@@ -1170,8 +1140,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             
             # Ask for confirmation
             confirm = await self.dialog(toga.ConfirmDialog(
-                "Stop Processing",
-                "Are you sure you want to stop the current processing?"
+                _("document_stop_processing"),
+                _("document_stop_confirm")
             ))
             
             if confirm:
@@ -1272,8 +1242,8 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Confirm continuing processing if folder already exists
             if output_path.exists():
                 continue_processing = await self.dialog(toga.ConfirmDialog(
-                    "Continue Processing?",
-                    f'"{output_path.name}" already exists. Processing will continue where you left off.'
+                    _("document_continue_processing"),
+                    _("document_output_exists").format(name=output_path.name)
                 ))
                 if not continue_processing:
                     return

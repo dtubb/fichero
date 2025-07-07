@@ -11,6 +11,7 @@ import logging
 from ..base_config_library import BaseConfigLibrary
 from ..base_config_library import UISchema
 from ...core.settings_manager import SettingsManager
+from ....ui.i18n import _  # Import translation function
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,8 @@ class SettingsLibrary(BaseConfigLibrary):
             self._populate_dynamic_options(schema_data)
             
             schema = UISchema(
-                title=schema_data.get('title', 'Settings'),
-                description=schema_data.get('description', ''),
+                title=schema_data.get('title', _('preferences_title', 'Settings')),
+                description=schema_data.get('description', _('preferences_description', 'Application settings')),
                 sections=schema_data.get('sections', []),  # Main sections from schema
                 content_sections=schema_data.get('content_sections', []),  # Direct content sections if no main sections
                 window_title=schema_data.get('window_title'),
@@ -61,16 +62,16 @@ class SettingsLibrary(BaseConfigLibrary):
             logger.error(f"Failed to load settings schema: {e}")
             # Return minimal schema as fallback
             return UISchema(
-                title="Settings",
-                description="Application settings",
+                title=_('preferences_title', 'Settings'),
+                description=_('preferences_description', 'Application settings'),
                 content_sections=[
                     {
-                        "title": "Error",
+                        "title": _('preferences_error', 'Error'),
                         "fields": [
                             {
                                 "id": "error_message",
                                 "type": "label",
-                                "label": f"Failed to load settings schema: {e}"
+                                "label": _('preferences_load_error', 'Failed to load settings schema: {error}').format(error=str(e))
                             }
                         ]
                     }
@@ -96,7 +97,7 @@ class SettingsLibrary(BaseConfigLibrary):
             self._add_field_callback(schema_data, "defaults.workflow", self._on_workflow_selection_change)
             
             # Find and populate default_workflow options (initially empty, will update based on plan selection)
-            self._populate_field_options(schema_data, "defaults.workflow", ["Select plan first"])
+            self._populate_field_options(schema_data, "defaults.workflow", [_('preferences_select_plan', 'Select plan first')])
             
             # Set up auto-calculate button handler
             self._add_button_handler(schema_data, "auto_calculate_workers", self._on_auto_calculate_workers)
@@ -213,9 +214,9 @@ class SettingsLibrary(BaseConfigLibrary):
                 for field in subsection.get('fields', []):
                     if field.get('id') == field_id:
                         # Filter out error messages
-                        valid_options = [opt for opt in options if opt not in ["No plans found", "Error loading plans"]]
+                        valid_options = [opt for opt in options if opt not in [_('preferences_no_plans', 'No plans found'), _('preferences_error_loading_plans', 'Error loading plans')]]
                         if not valid_options:
-                            valid_options = ["No options available"]
+                            valid_options = [_('preferences_no_options', 'No options available')]
                         field['options'] = valid_options
                         return
 

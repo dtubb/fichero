@@ -55,6 +55,7 @@ except ImportError:
     RICH_AVAILABLE = False
 
 from ..task_monitor import TaskMonitor
+from ....ui.i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -100,19 +101,19 @@ class CLITaskDisplay:
                 - False: Global activity monitor - show all tasks, run until interrupted
         """
         if not self.task_monitor:
-            self.console.print("✗ No task monitor available", style="red")
+            self.console.print("✗ " + _("task_table_error"), style="red")
             return
         
         if filter_current_only:
             self._show_live_tasks(
-                title="Local Session Tasks", 
-                header="● Local Session Tasks (Python Backend)",
+                title=_("task_table_local_session"), 
+                header="● " + _("task_table_local_session_header"),
                 exit_when_complete=True
             )
         else:
             self._show_live_tasks(
-                title="All Tasks",
-                header="○ Global Activity Monitor (Celery/Redis) - Press Ctrl+C to exit", 
+                title=_("task_table_all_tasks"),
+                header="○ " + _("task_table_global_monitor_header"), 
                 exit_when_complete=False
             )
 
@@ -151,8 +152,8 @@ class CLITaskDisplay:
                     time.sleep(0.25)  # Update 4 times per second for smooth animation
                 
         except KeyboardInterrupt:
-            mode_name = "Local session monitoring" if exit_when_complete else "Global Activity Monitor"
-            self.console.print(f"\n■ {mode_name} stopped", style="yellow")
+            mode_name = _("task_table_local_session") if exit_when_complete else _("task_table_global_monitor")
+            self.console.print(f"\n■ {_('task_table_monitoring_stopped').format(mode=mode_name)}", style="yellow")
         except Exception as e:
             logger.error(f"Display loop error: {e}")
             raise
@@ -179,19 +180,19 @@ class CLITaskDisplay:
             status_text = self.task_monitor.get_status_summary(None)
         except Exception as e:
             logger.warning(f"Failed to get status summary: {e}")
-            status_text = "Status unavailable"
+            status_text = _("task_table_error")
         
         status_panel = Panel(
             status_text,
-            title="Status",
+            title=_("task_table_status"),
             border_style="blue"
         )
         layout["status"].update(status_panel)
         
         # Create and populate task table
         table = Table(title=title)
-        table.add_column("Folder", width=25)
-        table.add_column("Status", width=60)  # Wider status column
+        table.add_column(_("task_table_folder"), width=25)
+        table.add_column(_("task_table_status"), width=60)  # Wider status column
         
         try:
             display_data = self.task_monitor.create_display_data(None)
@@ -200,7 +201,7 @@ class CLITaskDisplay:
             display_data = []
         
         if not display_data:
-            table.add_row("○ No tasks to display", "")
+            table.add_row("○ " + _("task_table_empty"), "")
         else:
             for row_data in display_data:
                 table.add_row(

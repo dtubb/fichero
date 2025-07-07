@@ -1,147 +1,146 @@
-title: "Settings"
-description: "Configure global application settings and API connections"
-window_title: "Fichero Settings"
+title: "preferences_title"
+description: "preferences_description"
+window_title: "preferences_window_title"
 window_size: [405, 525]
 
 sections:
   - id: "defaults"
-    title: "Defaults" 
+    title: "preferences_defaults_title" 
     sections:
-      - title: "Processing Defaults"
-        description: "Set default plan and workflow for new processing tasks"
+      - title: "preferences_processing_defaults_title"
+        description: "preferences_processing_defaults_description"
         fields:
           - id: "defaults.plan"
             type: "selection"
-            label: "Default Plan"
+            label: "preferences_default_plan"
             options: []  # Will be populated dynamically
-            help: "Plan to use when none specified (CLI and GUI)"
+            help: "preferences_default_plan_help"
           - id: "defaults.workflow" 
             type: "selection"
-            label: "Default Workflow"
+            label: "preferences_default_workflow"
             options: []  # Will be populated dynamically
-            help: "Workflow to use when 'default' is selected"
+            help: "preferences_default_workflow_help"
           - id: "preferences.folder_processing_order"
             type: "selection"
-            label: "Folder Processing Order"
+            label: "preferences_folder_order"
             options: ["alphabetical", "reverse_alphabetical", "least_images_first", "most_images_first"]
-            help: "Processing order: alphabetical, reverse alphabetical, least images first, or most images first"
+            help: "preferences_folder_order_help"
 
   - id: "appearance"
-    title: "Appearance"
+    title: "preferences_appearance_title"
     sections:
-      - title: "Language"
+      - title: "preferences_language_title"
         fields:
           - id: "preferences.language"
             type: "selection"
-            label: "Language"
+            label: "preferences_language"
             options: ["en", "es", "fr"]
 
   - id: "performance"
-    title: "Performance"
+    title: "preferences_performance_title"
     sections:
-      - title: "Backend Configuration"
-        description: "Choose processing backend - affects both shared data and task processing"
+      - title: "preferences_backend_title"
+        description: "preferences_backend_description"
         fields:
           - id: "workers.backend"
             type: "selection"
-            label: "Backend Type"
+            label: "preferences_backend_type"
             options: ["python"]
-            help: "Python or Celery/Redis (Disabled)."
+            help: "preferences_backend_type_help"
             
-      - title: "Worker Configuration"
-        description: "Configure processing performance"
+      - title: "preferences_workers_title"
+        description: "preferences_workers_description"
         fields:
           - id: "workers.cpu_workers"
             type: "number_input"
-            label: "CPU Workers"
+            label: "preferences_cpu_workers"
             min: 1
             max: 32
-            help: "Number of CPU-intensive processing workers"
+            help: "preferences_cpu_workers_help"
           - id: "workers.io_workers"
             type: "number_input"
-            label: "I/O Workers"
+            label: "preferences_io_workers"
             min: 1
             max: 128
-            help: "Number of I/O workers for transcription and API calls (not resource-intensive)"
+            help: "preferences_io_workers_help"
           - id: "auto_calculate_workers"
             type: "button"
-            label: "Auto-calculate"
-            help: "Calculate optimal worker counts for your system"
-
+            label: "preferences_auto_calculate"
+            help: "preferences_auto_calculate_help"
 
   - id: "ai"
-    title: "AI"
+    title: "preferences_ai_title"
     sections:
-      - title: "OpenAI Configuration"
+      - title: "preferences_openai_title"
         fields:
           - id: "api_servers.openai.api_key"
             type: "text_input"
-            label: "API Key"
+            label: "preferences_api_key"
             placeholder: "sk-..."
-            help: "Your OpenAI API key"
+            help: "preferences_openai_api_key_help"
           - id: "api_servers.openai.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "https://api.openai.com/v1"
             
-      - title: "Qwen Configuration"
+      - title: "preferences_qwen_title"
         fields:
           - id: "api_servers.qwen.api_key"
             type: "text_input"
-            label: "API Key"
+            label: "preferences_api_key"
             placeholder: "sk-..."
-            help: "Your Qwen/DashScope API key"
+            help: "preferences_qwen_api_key_help"
           - id: "api_servers.qwen.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "https://dashscope.aliyuncs.com/compatible-mode/v1"
             
-      - title: "Claude Configuration"
+      - title: "preferences_claude_title"
         fields:
           - id: "api_servers.claude.api_key"
             type: "text_input"
-            label: "API Key"
+            label: "preferences_api_key"
             placeholder: "sk-ant-..."
-            help: "Your Anthropic API key"
+            help: "preferences_claude_api_key_help"
           - id: "api_servers.claude.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "https://api.anthropic.com"
             
-      - title: "Ollama Configuration"
+      - title: "preferences_ollama_title"
         fields:
           - id: "api_servers.ollama.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "http://localhost:11434"
-            help: "Local Ollama server endpoint"
+            help: "preferences_ollama_url_help"
             
-      - title: "LMStudio Configuration"
+      - title: "preferences_lmstudio_title"
         fields:
           - id: "api_servers.lmstudio.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "http://localhost:1234/v1"
-            help: "Local LMStudio server endpoint"
+            help: "preferences_lmstudio_url_help"
             
-      - title: "Blackfish Configuration"
+      - title: "preferences_blackfish_title"
         fields:
           - id: "api_servers.blackfish.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "https://blackfish.example.com"
-            help: "Blackfish server endpoint"
+            help: "preferences_blackfish_url_help"
             
-      - title: "Hugging Face Configuration"
+      - title: "preferences_huggingface_title"
         fields:
           - id: "api_servers.huggingface.api_key"
             type: "text_input"
-            label: "API Key"
+            label: "preferences_api_key"
             placeholder: "hf_..."
-            help: "Your Hugging Face API token"
+            help: "preferences_huggingface_api_key_help"
           - id: "api_servers.huggingface.base_url"
             type: "text_input"
-            label: "Base URL"
+            label: "preferences_base_url"
             placeholder: "https://api-inference.huggingface.co" 
 
             

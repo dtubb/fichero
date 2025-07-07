@@ -24,7 +24,7 @@ class DocumentTracker:
         """Call this when a document is opened"""
         try:
             self._add_to_recent_documents(document_path)
-            self._update_menu()
+            # Menu updates disabled
             logger.info(f"Tracked document opened: {document_path.name}")
         except Exception as e:
             logger.error(f"Failed to track document opening: {e}")
@@ -33,7 +33,7 @@ class DocumentTracker:
         """Call this when a document is saved"""
         try:
             self._add_to_recent_documents(document_path)
-            self._update_menu()
+            # Menu updates disabled
             logger.info(f"Tracked document saved: {document_path.name}")
         except Exception as e:
             logger.error(f"Failed to track document saving: {e}")
@@ -50,7 +50,7 @@ class DocumentTracker:
             
             if effective_path and effective_path.exists():
                 self._add_to_recent_documents(effective_path)
-                self._update_menu()
+                # Menu updates disabled
                 logger.info(f"Tracked document created: {effective_path.name}")
         except Exception as e:
             logger.error(f"Failed to track document creation: {e}")
@@ -73,13 +73,9 @@ class DocumentTracker:
             logger.error(f"Error adding to recent documents: {e}")
     
     def _update_menu(self):
-        """Update the recent documents menu"""
-        try:
-            if hasattr(self.app, 'menu_manager') and self.app.menu_manager:
-                self.app.menu_manager.update_recent_documents()
-                logger.debug("Updated recent documents menu")
-        except Exception as e:
-            logger.error(f"Failed to update recent documents menu: {e}")
+        """Update the recent documents menu - currently disabled"""
+        # Feature disabled - no-op
+        pass
     
     def get_recent_documents(self) -> List[str]:
         """Get list of recent documents (cached)"""

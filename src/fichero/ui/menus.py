@@ -28,7 +28,7 @@ class MenuManager:
         """Create app-specific commands and customize standard ones
         
         Toga automatically provides these commands for document-based apps:
-        - NEW, OPEN, SAVE, SAVE_AS, SAVE_ALL (File menu) 
+        - NEW, OPEN, SAVE, SAVE_AS, SAVE_ALL (File menu) - all currently disabled
         - ABOUT, EXIT, VISIT_HOMEPAGE (App menu)
         
         Toga may or may not automatically provide Window menu commands:
@@ -65,13 +65,13 @@ class MenuManager:
         # ===== ADD NON-STANDARD COMMANDS =====
         
         # Create Open Recent submenu in File menu
-        self.recent_documents_group = toga.Group(_("menu_open_recent"), parent=toga.Group.FILE, order=1)
+        # self.recent_documents_group = toga.Group(_("menu_open_recent"), parent=toga.Group.FILE, order=1)
         
         # Initially populate with recent documents
-        self._update_recent_documents_menu()
+        # self._update_recent_documents_menu()
         
         # Add recent document commands to the commands list
-        commands.extend(self.recent_document_commands)
+        # commands.extend(self.recent_document_commands)
         
         # Preferences (create manually to control section placement)
         preferences_cmd = toga.Command(
@@ -103,14 +103,12 @@ class MenuManager:
         #commands.append(prompts_editor_cmd)
         
         # Support command in Help menu  
-        support_cmd = toga.Command(
-            self._support_handler,
-            text=_("menu_help_support"),
-            group=toga.Group.HELP
-        )
-        commands.append(support_cmd)
-        
-
+        # support_cmd = toga.Command(
+        #     self._support_handler,
+        #     text=_("menu_help_support"),
+        #     group=toga.Group.HELP
+        # )
+        # commands.append(support_cmd)
         
         # ===== WINDOW MANAGEMENT COMMANDS =====
         
@@ -120,45 +118,43 @@ class MenuManager:
         
         print(f"🔍 Existing Window commands before adding ours: {existing_window_texts}")
         
+        # Only add custom window commands on macOS and if they don't already exist
         if sys.platform == 'darwin':
-            print("🍎 macOS detected - adding standard Window commands:")
-            # Only add Window commands if they don't already exist
-            if 'Minimize' not in existing_window_texts:
-                minimize_cmd = toga.Command(
-                    self._minimize_window_handler,
-                    text="Minimize",
-                    group=toga.Group.WINDOW,
-                    section=0,
-                    shortcut=toga.Key.MOD_1 + 'm'
-                )
-                commands.append(minimize_cmd)
-                print("✅ Added Minimize command")
-            else:
-                print("ℹ️ Minimize command already exists - skipping")
+            print("🍎 macOS detected - checking window commands:")
             
-            if 'Zoom' not in existing_window_texts:
-                zoom_cmd = toga.Command(
-                    self._zoom_window_handler,
-                    text="Zoom",
-                    group=toga.Group.WINDOW,
-                    section=0
-                )
-                commands.append(zoom_cmd)
-                print("✅ Added Zoom command")
-            else:
-                print("ℹ️ Zoom command already exists - skipping")
+            # Define standard window commands we want to ensure exist
+            window_commands = {
+                'Minimize': {
+                    'handler': self._minimize_window_handler,
+                    'shortcut': toga.Key.MOD_1 + 'm',
+                    'section': 0
+                },
+                'Zoom': {
+                    'handler': self._zoom_window_handler,
+                    'shortcut': None,
+                    'section': 0
+                },
+                'Bring All to Front': {
+                    'handler': self._bring_all_to_front_handler,
+                    'shortcut': None,
+                    'section': 1
+                }
+            }
             
-            if 'Bring All to Front' not in existing_window_texts:
-                bring_all_to_front_cmd = toga.Command(
-                    self._bring_all_to_front_handler,
-                    text="Bring All to Front",
-                    group=toga.Group.WINDOW,
-                    section=1
-                )
-                commands.append(bring_all_to_front_cmd)
-                print("✅ Added Bring All to Front command")
-            else:
-                print("ℹ️ Bring All to Front command already exists - skipping")
+            # Add each command only if it doesn't exist
+            for cmd_text, cmd_info in window_commands.items():
+                if cmd_text not in existing_window_texts:
+                    cmd = toga.Command(
+                        cmd_info['handler'],
+                        text=cmd_text,
+                        group=toga.Group.WINDOW,  # Ensure group is explicitly set
+                        section=cmd_info['section'],
+                        shortcut=cmd_info['shortcut']
+                    )
+                    commands.append(cmd)
+                    print(f"✅ Added {cmd_text} command")
+                else:
+                    print(f"ℹ️ {cmd_text} command already exists - skipping")
                 
             print(f"📊 Total commands to be added to app: {len(commands)}")
         else:
@@ -167,45 +163,19 @@ class MenuManager:
         # Custom Activity Monitor command
         activity_monitor_cmd = toga.Command(
             self._activity_monitor_handler,
-            text="Activity Monitor",
-            group=toga.Group.WINDOW,
+            text=_("menu_activity_monitor"),
+            group=toga.Group.WINDOW,  # Ensure group is explicitly set
             section=2,
             shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + 'a'
         )
         commands.append(activity_monitor_cmd)
         
-        # ===== COMMANDS MENU =====
-        
-        # Document processing commands
-        process_folder_cmd = toga.Command(
-            self._process_folder_handler,
-            text="Process Folder",
-            group=toga.Group.COMMANDS,
-            section=0,
-            shortcut=toga.Key.MOD_1 + 'p'
-        )
-        commands.append(process_folder_cmd)
-        
-        stop_processing_cmd = toga.Command(
-            self._stop_processing_handler,
-            text="Stop Processing",
-            group=toga.Group.COMMANDS,
-            section=0,
-            shortcut=toga.Key.MOD_1 + '.'
-        )
-        commands.append(stop_processing_cmd)
-        
-        # Document management commands
-        reveal_in_finder_cmd = toga.Command(
-            self._reveal_in_finder_handler,
-            text="Reveal in Finder",
-            group=toga.Group.COMMANDS,
-            section=1,
-            shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + 'r'
-        )
-        commands.append(reveal_in_finder_cmd)
-        
-
+        # Validate all commands have groups before returning
+        for cmd in commands:
+            if not cmd.group:
+                print(f"⚠️ Warning: Command '{cmd.text}' has no group!")
+                # Set a default group to prevent crashes
+                cmd.group = toga.Group.APP
         
         return commands
     
@@ -216,15 +186,36 @@ class MenuManager:
             print("🔍 Debugging Toga's automatic commands:")
             print(f"   Total commands: {len(self.app.commands)}")
             
+            # Debug window commands first
+            print("\n🪟 Checking Window menu commands:")
+            try:
+                window_commands = [cmd for cmd in self.app.commands if cmd.group == toga.Group.WINDOW]
+                print(f"   Found {len(window_commands)} Window menu commands:")
+                for cmd in window_commands:
+                    try:
+                        # Skip separators which don't have text
+                        if hasattr(cmd, 'text'):
+                            # Rename Close to Close Window
+                            if cmd.text == "Close":
+                                cmd.text = "Close Window"
+                                print(f"   ✏️ Renamed 'Close' to 'Close Window'")
+                            print(f"   - '{cmd.text}' (id: {getattr(cmd, 'id', 'no-id')}, group: {cmd.group})")
+                    except Exception as e:
+                        print(f"   ⚠️ Error checking window command: {e}")
+            except Exception as e:
+                print(f"   ❌ Error checking window commands: {e}")
+            
             # Check for standard command IDs
+            print("\n📋 Checking standard commands:")
             standard_commands = [
-                toga.Command.NEW,
+                toga.Command.ABOUT,
+                toga.Command.EXIT,
+                toga.Command.NEW,  # Keep NEW command
+                # Explicitly remove other file operations if they exist
                 toga.Command.OPEN,
                 toga.Command.SAVE,
                 toga.Command.SAVE_AS,
-                toga.Command.ABOUT,
-                toga.Command.EXIT,
-                toga.Command.VISIT_HOMEPAGE
+                toga.Command.SAVE_ALL
             ]
             
             for cmd_id in standard_commands:
@@ -234,49 +225,18 @@ class MenuManager:
                         # Handle commands that might not have text (like separators)
                         text = getattr(cmd, 'text', '[no-text]') if hasattr(cmd, 'text') else '[no-text]'
                         print(f"   ✅ {cmd_id}: '{text}' in group {cmd.group}")
+                        
+                        # Remove all file operations except NEW
+                        if cmd_id in [toga.Command.OPEN, toga.Command.SAVE, toga.Command.SAVE_AS, toga.Command.SAVE_ALL]:
+                            print(f"   🚫 Removing unimplemented command: {cmd_id}")
+                            self.app.commands.discard(cmd)
                     else:
                         print(f"   ❌ {cmd_id}: Not found")
                 except Exception as e:
                     print(f"   ⚠️ Error checking {cmd_id}: {e}")
-            
-            # Check Window menu commands specifically
-            try:
-                window_commands = [cmd for cmd in self.app.commands if cmd.group == toga.Group.WINDOW]
-                print(f"   Window menu commands: {len(window_commands)}")
-                for cmd in window_commands:
-                    try:
-                        # Skip separators which don't have text
-                        if hasattr(cmd, 'text'):
-                            print(f"      - '{cmd.text}' (id: {getattr(cmd, 'id', 'no-id')})")
-                        else:
-                            print(f"      - [Separator] (id: {getattr(cmd, 'id', 'no-id')})")
-                    except Exception as e:
-                        print(f"      - [Error reading command]: {e}")
-            except Exception as e:
-                print(f"   ⚠️ Error listing Window commands: {e}")
-            
-            # Customize the text of the Exit command (safely)
-            try:
-                if toga.Command.EXIT in self.app.commands:
-                    exit_cmd = self.app.commands[toga.Command.EXIT]
-                    if hasattr(exit_cmd, 'text'):
-                        exit_cmd.text = _("menu_quit")
-            except Exception as e:
-                print(f"⚠️ Error customizing Exit command: {e}")
-            
-            # On macOS, remove "Save All" as it's not standard for document apps
-            try:
-                if sys.platform == 'darwin' and toga.Command.SAVE_ALL in self.app.commands:
-                    save_all_cmd = self.app.commands[toga.Command.SAVE_ALL]
-                    if hasattr(save_all_cmd, 'text'):  # Only remove if it's actually a command
-                        self.app.commands.discard(save_all_cmd)
-            except Exception as e:
-                print(f"⚠️ Error removing Save All command: {e}")
                 
         except Exception as e:
-            print(f"⚠️ Error in customize_standard_commands: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"⚠️ Error customizing standard commands: {e}")
     
     def check_for_missing_window_commands(self):
         """Check if standard macOS Window commands are present (we add them manually)"""
@@ -467,10 +427,9 @@ class MenuManager:
             print(f"❌ Failed to clear recent documents: {e}")
     
     def update_recent_documents(self):
-        """Public method to update recent documents menu - call this when a document is opened/saved"""
-        self._update_recent_documents_menu()
-    
-
+        """Public method to update recent documents menu - currently disabled"""
+        # Feature disabled - no-op
+        pass
     
     # ===== DIALOG HELPERS =====
     
@@ -601,22 +560,40 @@ class MenuManager:
             traceback.print_exc()
     
     def _bring_all_to_front_handler(self, widget):
-        """Handle bring all windows to front command"""
-        print("🔹 Bring All to Front command triggered")
+        """Handle bring all to front command"""
+        print("🔝 Bring All to Front command triggered")
         try:
             print(f"   Total app windows: {len(self.app.windows)}")
-            brought_count = 0
             
             # Bring all app windows to front
             for i, window in enumerate(self.app.windows):
                 print(f"   Window {i+1}: {window} (closed: {window.closed})")
                 if not window.closed and hasattr(window, 'show'):
-                    window.show()  # This should bring window to front
-                    brought_count += 1
+                    window.show()
                     
-            print(f"✅ Brought {brought_count} windows to front")
+            print("✅ Brought all windows to front")
         except Exception as e:
             print(f"❌ Failed to bring windows to front: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _close_all_windows_handler(self, widget):
+        """Handle close all windows command"""
+        print("🗑️ Close All Windows command triggered")
+        try:
+            print(f"   Total app windows: {len(self.app.windows)}")
+            closed_count = 0
+            
+            # Close all app windows
+            for i, window in enumerate(self.app.windows):
+                print(f"   Window {i+1}: {window} (closed: {window.closed})")
+                if not window.closed and hasattr(window, 'close'):
+                    window.close()
+                    closed_count += 1
+                    
+            print(f"✅ Closed {closed_count} windows")
+        except Exception as e:
+            print(f"❌ Failed to close windows: {e}")
             import traceback
             traceback.print_exc()
     

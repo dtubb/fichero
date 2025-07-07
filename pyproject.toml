@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "Fichero"
 bundle = "ca.tubb.fichero"
-version = "0.1.0-dev"
+version = "0.1.0.dev1"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "dtubb"
@@ -91,7 +91,7 @@ build-backend = "briefcase.backend"
 # Project metadata
 [project]
 name = "fichero"
-version = "0.1.0-dev"
+version = "0.1.0.dev1"
 description = "Document Processing and Transcription"
 readme = "README.md"
 requires-python = ">=3.10"

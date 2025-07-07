@@ -16,6 +16,9 @@ from pathlib import Path
 # Import text spinner utilities
 from ...utils.text_spinner import get_spinner_frame
 
+# Import translations
+from ...ui.i18n import _
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,124 +53,91 @@ def format_duration(duration: timedelta) -> str:
     return " ".join(parts)
 
 
-def get_worker_display_name(worker: str, worker_type: str = "") -> str:
-    """
-    Get simple worker display name for internal use.
-    
-    Args:
-        worker: Worker identifier
-        worker_type: Type of worker (cpu, io, celery)
-    
-    Returns:
-        Simple worker name
-    """
-    if not worker or worker == "unknown":
-        return "unknown"
-    
-    # Return clean worker names
+def format_worker_name(worker: Optional[str]) -> str:
+    """Format worker name for display"""
+    if not worker or worker == _("task_worker_unknown").lower():
+        return _("task_worker_unknown")
+        
     if worker.startswith("CPU-"):
-        return f"CPU-{worker[4:]}"
+        return _("task_worker_cpu").format(id=worker[4:])
     elif worker.startswith("IO-"):
-        return f"IO-{worker[3:]}"
+        return _("task_worker_io").format(id=worker[3:])
     elif worker.startswith("celery"):
-        return f"Celery-{worker[7:]}"
-    else:
-        return worker
+        return _("task_worker_celery").format(id=worker[7:])
+        
+    return worker
 
 
-def get_status_icon(status: str, worker_type: str = "") -> str:
-    """
-    Get black and white status icon.
-    
-    Args:
-        status: Task status
-        worker_type: Worker type for context (unused now)
-    
-    Returns:
-        Status icon
-    """
-    if status in ["running_cpu", "running_io", "running"]:
-        return "●"  # Filled circle for running
-    elif status in ["waiting_cpu", "waiting_io", "waiting"]:
-        return "○"  # Circle for waiting
-    elif status == "completed":
-        return "✓"  # Check mark for completed
-    elif status == "failed":
-        return "✗"  # X mark for failed
-    elif status == "cancelled":
-        return "■"  # Square for cancelled
-    else:
-        return "○"  # Circle for pending
+def get_status_text(status: str) -> str:
+    """Get human readable status text"""
+    status_map = {
+        "running_cpu": _("task_status_running"),
+        "running_io": _("task_status_running"),
+        "running": _("task_status_running"),
+        "waiting_cpu": _("task_status_waiting"),
+        "waiting_io": _("task_status_waiting"),
+        "waiting": _("task_status_waiting"),
+        "completed": _("task_status_completed"),
+        "failed": _("task_status_failed"),
+        "cancelled": _("task_status_cancelled"),
+        "pending": _("task_status_pending")
+    }
+    return status_map.get(status, status)
 
 
-def get_action_verb(step_name: str, status: str) -> str:
-    """
-    Get appropriate action verb for a step and status.
-    
-    Args:
-        step_name: Name of the step
-        status: Current status
-    
-    Returns:
-        Action verb describing what's happening
-    """
-    # Map step names to action verbs
+def get_step_verb(step_name: str, status: str) -> str:
+    """Get verb describing what the step is doing"""
     step_verbs = {
-        "transcribe_audio": "Transcribing",
-        "transcribe_qwen": "Transcribing", 
-        "extract_text": "Extracting text",
-        "ocr_text": "Reading text",
-        "process_images": "Processing images",
-        "convert_format": "Converting",
-        "organize_files": "Organizing",
-        "backup_files": "Backing up",
-        "compress_files": "Compressing",
-        "upload_files": "Uploading"
+        "transcribe_audio": _("task_step_transcribe"),
+        "transcribe_qwen": _("task_step_transcribe"),
+        "extract_text": _("task_step_extract"),
+        "ocr_text": _("task_step_ocr"),
+        "process_images": _("task_step_process_images"),
+        "convert_format": _("task_step_convert"),
+        "organize_files": _("task_step_organize"),
+        "backup_files": _("task_step_backup"),
+        "compress_files": _("task_step_compress"),
+        "upload_files": _("task_step_upload")
     }
     
-    # Get base verb
-    base_verb = step_verbs.get(step_name, "Processing")
+    base_verb = step_verbs.get(step_name, _("task_step_generic"))
     
-    # Adjust for status
+    # Handle completed status
     if status == "completed":
-        # Convert to past tense
-        if base_verb.endswith("ing"):
-            if base_verb == "Processing":
-                return "Processed"
-            elif base_verb == "Transcribing":
-                return "Transcribed"
-            elif base_verb == "Extracting text":
-                return "Extracted text"
-            elif base_verb == "Reading text":
-                return "Read text"
-            elif base_verb == "Processing images":
-                return "Processed images"
-            elif base_verb == "Converting":
-                return "Converted"
-            elif base_verb == "Organizing":
-                return "Organized"
-            elif base_verb == "Backing up":
-                return "Backed up"
-            elif base_verb == "Compressing":
-                return "Compressed"
-            elif base_verb == "Uploading":
-                return "Uploaded"
-        return base_verb.replace("ing", "ed")
+        step_done_map = {
+            _("task_step_transcribe"): _("task_step_transcribe_done"),
+            _("task_step_extract"): _("task_step_extract_done"),
+            _("task_step_ocr"): _("task_step_ocr_done"),
+            _("task_step_process_images"): _("task_step_process_images_done"),
+            _("task_step_convert"): _("task_step_convert_done"),
+            _("task_step_organize"): _("task_step_organize_done"),
+            _("task_step_backup"): _("task_step_backup_done"),
+            _("task_step_compress"): _("task_step_compress_done"),
+            _("task_step_upload"): _("task_step_upload_done"),
+            _("task_step_generic"): _("task_step_generic_done")
+        }
+        return step_done_map.get(base_verb, base_verb)
+        
+    # Handle running status
     elif status in ["running", "running_cpu", "running_io"]:
-        return base_verb.lower()
+        return base_verb
+        
+    # Handle waiting status
     elif status in ["waiting", "waiting_cpu", "waiting_io"]:
-        return f"waiting to {base_verb.lower()}"
+        return _("task_step_waiting").format(action=base_verb.lower())
+        
+    # Handle failed status
     elif status == "failed":
-        return f"failed to {base_verb.lower()}"
-    
-    return base_verb.lower()
+        return _("task_step_failed").format(action=base_verb.lower())
+        
+    return base_verb
 
 
 @dataclass
 class StepInfo:
     """Information about a workflow step"""
     step_name: str
-    status: str = "pending"           # pending, running, completed, failed
+    status: str = _("task_status_pending").lower()           # pending, running, completed, failed
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     error_message: str = ""
@@ -204,17 +174,17 @@ class TaskInfo:
     
     # Context
     document_id: Optional[str] = None       # "doc_window_1", None for CLI
-    instance_id: str = "unknown"            # "gui_app", "cli_session_x"
-    source: str = "unknown"                 # "gui", "cli", "standalone"
+    instance_id: str = _("task_worker_unknown").lower()
+    source: str = _("task_worker_unknown").lower()
     
     # Processing Details
-    plan_name: str = "unknown"
-    workflow_name: str = "unknown"
+    plan_name: str = _("task_worker_unknown").lower()
+    workflow_name: str = _("task_worker_unknown").lower()
     input_folder: str = ""
     output_folder: str = ""
-    folder_name: str = "unknown"            # Just the folder name for display
-    worker: str = "unknown"                 # Worker ID processing this task
-    executor_type: str = "unknown"          # Type of executor (cpu, io, celery)
+    folder_name: str = _("task_worker_unknown").lower()            # Just the folder name for display
+    worker: str = _("task_worker_unknown").lower()                 # Worker ID processing this task
+    executor_type: str = _("task_worker_unknown").lower()          # Type of executor (cpu, io, celery)
     
     # Progress - Task Level
     current_step: str = ""
@@ -227,7 +197,7 @@ class TaskInfo:
     step_names: List[str] = field(default_factory=list)  # Ordered list of step names
     
     # Status
-    status: str = "pending"                 # pending, running, completed, failed, cancelled
+    status: str = _("task_status_pending").lower()                 # pending, running, completed, failed, cancelled
     error_message: str = ""
     warnings: List[str] = field(default_factory=list)
     
@@ -909,13 +879,13 @@ class TaskMonitor:
             for task in tasks.values():
                 # Determine worker type suffix
                 if task.executor_type == "io":
-                    worker_suffix = " on Efficiency Worker"
+                    worker_suffix = " " + _("task_worker_efficiency")
                 elif task.executor_type == "cpu":
                     worker_suffix = ""  # Performance Worker is default for Python
                 elif task.executor_type == "celery":
-                    worker_suffix = " on Celery"
+                    worker_suffix = " " + _("task_worker_celery")
                 elif task.executor_type == "celery_io":
-                    worker_suffix = " on Celery Efficiency Worker"
+                    worker_suffix = " " + _("task_worker_celery_efficiency")
                 else:  # Unknown
                     worker_suffix = ""
                 
@@ -925,35 +895,35 @@ class TaskMonitor:
                 if task.status == "running":
                     spinner = get_spinner_frame('circle')
                     if task.current_step:
-                        action_verb = get_action_verb(task.current_step, task.status)
+                        action_verb = get_step_verb(task.current_step, task.status)
                         step_name = task.current_step.replace("_", " ").title()
-                        status_text = f"{spinner} {action_verb.title()} {step_name}{worker_suffix} ({duration_str})"
+                        status_text = f"{spinner} {action_verb} {step_name}{worker_suffix} ({duration_str})"
                     else:
-                        status_text = f"{spinner} Processing{worker_suffix} ({duration_str})"
+                        status_text = f"{spinner} {_('task_status_processing_duration').format(duration=duration_str)}"
                         
                 elif task.status in ["pending", "submitted"]:
                     if task.executor_type == "io":
-                        status_text = "○ Waiting to process on Efficiency Worker"
+                        status_text = "○ " + _("task_status_waiting_efficiency")
                     elif task.executor_type == "cpu":
-                        status_text = "○ Waiting to process"  # Performance Worker is default
+                        status_text = "○ " + _("task_status_waiting_performance")  # Performance Worker is default
                     elif task.executor_type == "celery":
-                        status_text = "○ Queued for Celery"
+                        status_text = "○ " + _("task_status_waiting_celery")
                     elif task.executor_type == "celery_io":
-                        status_text = "○ Queued for Celery Efficiency Worker"
+                        status_text = "○ " + _("task_status_waiting_celery_efficiency")
                     else:  # Unknown
-                        status_text = "○ Waiting to process"
+                        status_text = "○ " + _("task_status_waiting")
                         
                 elif task.status == "completed":
-                    status_text = f"✓ Completed ({duration_str})"
+                    status_text = f"✓ {_('task_status_completed_duration').format(duration=duration_str)}"
                         
                 elif task.status == "failed":
-                    status_text = f"✗ Failed ({duration_str})"
+                    status_text = f"✗ {_('task_status_failed_duration').format(duration=duration_str)}"
                         
                 elif task.status == "cancelled":
-                    status_text = f"■ Cancelled ({duration_str})"
+                    status_text = f"■ {_('task_status_cancelled_duration').format(duration=duration_str)}"
                     
                 else:
-                    status_text = f"○ {task.status.title()}"
+                    status_text = f"○ {get_status_text(task.status)}"
                 
                 display_data.append({
                     "folder": task.folder_name,
@@ -987,7 +957,7 @@ class TaskMonitor:
         # Use timeout to prevent deadlocks
         if not self._task_lock.acquire(timeout=0.5):
             logger.warning("Timeout acquiring task lock for status summary")
-            return "No data available"
+            return _("task_table_error")
         
         try:
             if document_id:
@@ -996,22 +966,22 @@ class TaskMonitor:
                 tasks = self.get_all_tasks()
             
             if not tasks:
-                return "No active tasks"
+                return _("task_table_no_active")
             
             stats = self.get_stats()
             parts = []
             
             if stats["active_tasks"] > 0:
-                parts.append(f"● {stats['active_tasks']} active")
+                parts.append(f"● {_('task_table_active_count').format(count=stats['active_tasks'])}")
             if stats["completed_tasks"] > 0:
-                parts.append(f"✓ {stats['completed_tasks']} completed")
+                parts.append(f"✓ {_('task_table_completed_count').format(count=stats['completed_tasks'])}")
             if stats["failed_tasks"] > 0:
-                parts.append(f"✗ {stats['failed_tasks']} failed")
+                parts.append(f"✗ {_('task_table_failed_count').format(count=stats['failed_tasks'])}")
             
             if not parts:
-                parts.append("Ready")
+                parts.append(_("task_table_ready"))
             
-            return " | ".join(parts)
+            return _("task_status_summary_separator").join(parts)
         finally:
             self._task_lock.release()
     

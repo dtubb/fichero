@@ -1,17 +1,11 @@
-"""
-name: "Catalogue"
-description: "Catalogue documents with AI-powered detection"
-author: "Daniel Tubb"
-email: "daniel@tubb.ca"
-website: "https://www.tubb.ca/fichero/"
-created: "2024-03-01"
-version: "0.1.0-dev"
-"""
+title: "Catalogue"
+description: >
+  Transcribe, catalogues and export to Word documents archival materials using QWEN for transcription and Open AI for catalogue generation.
 
 vars:
   name: "Fichero"
   language: "es"
-  version: "0.0.6"
+  version: "0.1.0"
 
   # User-configurable file formats
   crop_format: "jpg"
