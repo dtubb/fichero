@@ -62,12 +62,14 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Create UI content
         content = self._create_content()
         
-        super().__init__(doc=doc, content=content)
+        super().__init__(doc=doc, content=content, resizable=False, size=(650, 350))
         
         # Set initial window title to just "Fichero"
         self.title = "Fichero"
         
-        # Set up window handlers and restore position
+
+        
+        # Set up window handlers
         self._setup_window_handlers()
         
         # Initialize plan selection after window is created
@@ -81,7 +83,6 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         try:
             self._draw_folder_background()
             self._initialize_plan_workflow()
-            self._restore_window_position()
         except Exception as e:
             logger.error(f"Initialization error: {e}")
     
@@ -93,7 +94,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self._create_footer()
         
         # Assemble layout - content section gets only the space it needs
-        main_sections = toga.Box(style=Pack(direction=COLUMN))
+        main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
         main_sections.add(self.folder_section)
         main_sections.add(self.content_section)
         
@@ -325,7 +326,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         """Create content section with beautiful description view"""
         # Create simple container that will hold task display when processing starts
         self.content_section = toga.Box(
-            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0))
+            style=Pack(direction=COLUMN, margin=(0, 0, 0, 0), flex=1)
         )
         
         # Create description canvas for beautiful markdown rendering
@@ -416,7 +417,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.footer_section = toga.Box(
             style=Pack(
                 direction=ROW,
-                margin=(0, 20, 0, 20),
+                margin=(0, 20, 20, 20),
                 align_items=CENTER
             )
         )
@@ -945,7 +946,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Clear content section and add task display with margins
             self.content_section.clear()
             
-            # Wrap task display in container with 20px margins
+            # Wrap task display in container with 20px margins and flex to fill available space
             task_display_wrapper = toga.Box(
                 children=[self.task_display.container],
                 style=Pack(
@@ -953,7 +954,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                     margin_top=20,
                     margin_left=20,
                     margin_right=20,
-                    flex=1
+                    margin_bottom=0,  # No bottom margin to maximize height
+                    flex=1,  # Fill available space like description canvas
+
                 )
             )
             
@@ -1442,44 +1445,19 @@ class FicheroDocumentWindow(toga.DocumentWindow):
     def _setup_window_handlers(self):
         """Set up window event handlers"""
         try:
-            def on_position_change(widget, **kwargs):
-                try:
-                    if hasattr(widget, 'position') and hasattr(widget, 'size'):
-                        self._document.save_window_position(widget.position, widget.size)
-                except Exception as e:
-                    logger.warning(f"Error saving window position: {e}")
-            
             def on_close_handler(widget, **kwargs):
                 try:
-                    if hasattr(widget, 'position') and hasattr(widget, 'size'):
-                        self._document.save_window_position(widget.position, widget.size)
                     return self._document.close()
                 except Exception as e:
                     logger.warning(f"Error in close handler: {e}")
                     return True
             
-            # Set handlers if available
-            if hasattr(self, 'on_move'):
-                self.on_move = on_position_change
-            if hasattr(self, 'on_resize'):
-                self.on_resize = on_position_change
+            # Set close handler if available
             if hasattr(self, 'on_close'):
                 self.on_close = on_close_handler
                 
         except Exception as e:
             logger.warning(f"Failed to set up window handlers: {e}")
     
-    def _restore_window_position(self):
-        """Restore window position from document settings"""
-        try:
-            saved_position = self._document.get_window_position()
-            saved_size = self._document.get_window_size()
-            
-            if saved_position != (100, 100):
-                self.position = saved_position
-            
-            if saved_size != (650, None):
-                self.size = saved_size
-                
-        except Exception as e:
-            logger.warning(f"Failed to restore window position: {e}")
+
+    

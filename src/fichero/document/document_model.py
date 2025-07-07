@@ -193,9 +193,6 @@ class FicheroDocument(toga.Document):
     def close(self):
         """Close the document - if blank and unchanged, reset and keep open instead"""
         try:
-            # Save current window position before any close logic
-            self.window_manager.save_current_window_position()
-            
             # If this is an auto-saved document that was never explicitly saved by user,
             # check if it has meaningful changes
             if self.auto_save_manager.is_auto_saved and self.auto_save_manager.auto_save_path and self.auto_save_manager.auto_save_path.exists():
@@ -235,9 +232,6 @@ class FicheroDocument(toga.Document):
             self.state_manager.create_default_plans()
             self.state_manager.create_default_document_config()
             
-            # Restore window position if we had one saved
-            self.window_manager.restore_window_position()
-            
             # Auto-save the fresh document
             self.auto_save_manager.auto_save()
             
@@ -255,18 +249,7 @@ class FicheroDocument(toga.Document):
                 not (hasattr(self, 'path') and self.path) and
                 not self.has_meaningful_changes())
     
-    # Window position delegation methods
-    def save_window_position(self, position: tuple, size: tuple = None):
-        """Save window position and size to document config"""
-        self.window_manager.save_window_position(position, size)
-    
-    def get_window_position(self) -> tuple:
-        """Get saved window position"""
-        return self.window_manager.get_window_position()
-    
-    def get_window_size(self) -> tuple:
-        """Get saved window size"""
-        return self.window_manager.get_window_size()
+
     
     def add_document_file(self, file_path: Path) -> bool:
         """Add a file to the document's documents folder and trigger auto-save"""
