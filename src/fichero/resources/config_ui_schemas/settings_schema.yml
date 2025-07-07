@@ -57,12 +57,13 @@ sections:
             min: 1
             max: 32
             help: "preferences_cpu_workers_help"
-          - id: "workers.io_workers"
-            type: "number_input"
-            label: "preferences_io_workers"
-            min: 1
-            max: 128
-            help: "preferences_io_workers_help"
+          # IO workers temporarily disabled as not yet implemented
+          # - id: "workers.io_workers"
+          #   type: "number_input"
+          #   label: "preferences_io_workers"
+          #   min: 1
+          #   max: 128
+          #   help: "preferences_io_workers_help"
           - id: "auto_calculate_workers"
             type: "button"
             label: "preferences_auto_calculate"
@@ -82,7 +83,7 @@ sections:
             type: "text_input"
             label: "preferences_base_url"
             placeholder: "https://api.openai.com/v1"
-            
+
       - title: "preferences_qwen_title"
         fields:
           - id: "api_servers.qwen.api_key"
@@ -94,53 +95,52 @@ sections:
             type: "text_input"
             label: "preferences_base_url"
             placeholder: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-            
-      - title: "preferences_claude_title"
-        fields:
-          - id: "api_servers.claude.api_key"
-            type: "text_input"
-            label: "preferences_api_key"
-            placeholder: "sk-ant-..."
-            help: "preferences_claude_api_key_help"
-          - id: "api_servers.claude.base_url"
-            type: "text_input"
-            label: "preferences_base_url"
-            placeholder: "https://api.anthropic.com"
-            
-      - title: "preferences_ollama_title"
-        fields:
-          - id: "api_servers.ollama.base_url"
-            type: "text_input"
-            label: "preferences_base_url"
-            placeholder: "http://localhost:11434"
-            help: "preferences_ollama_url_help"
-            
-      - title: "preferences_lmstudio_title"
-        fields:
-          - id: "api_servers.lmstudio.base_url"
-            type: "text_input"
-            label: "preferences_base_url"
-            placeholder: "http://localhost:1234/v1"
-            help: "preferences_lmstudio_url_help"
-            
-      - title: "preferences_blackfish_title"
-        fields:
-          - id: "api_servers.blackfish.base_url"
-            type: "text_input"
-            label: "preferences_base_url"
-            placeholder: "https://blackfish.example.com"
-            help: "preferences_blackfish_url_help"
-            
-      - title: "preferences_huggingface_title"
-        fields:
-          - id: "api_servers.huggingface.api_key"
-            type: "text_input"
-            label: "preferences_api_key"
-            placeholder: "hf_..."
-            help: "preferences_huggingface_api_key_help"
-          - id: "api_servers.huggingface.base_url"
-            type: "text_input"
-            label: "preferences_base_url"
-            placeholder: "https://api-inference.huggingface.co" 
 
+      # - title: "preferences_claude_title"
+      #   fields:
+      #     - id: "api_servers.claude.api_key"
+      #       type: "text_input"
+      #       label: "preferences_api_key"
+      #       placeholder: "sk-ant-..."
+      #       help: "preferences_claude_api_key_help"
+      #     - id: "api_servers.claude.base_url"
+      #       type: "text_input"
+      #       label: "preferences_base_url"
+      #       placeholder: "https://api.anthropic.com"
+      
+      # - title: "preferences_ollama_title"
+      #   fields:
+      #     - id: "api_servers.ollama.base_url"
+      #       type: "text_input"
+      #       label: "preferences_base_url"
+      #       placeholder: "http://localhost:11434"
+      #       help: "preferences_ollama_url_help"
+      
+      # - title: "preferences_lmstudio_title"
+      #   fields:
+      #     - id: "api_servers.lmstudio.base_url"
+      #       type: "text_input"
+      #       label: "preferences_base_url"
+      #       placeholder: "http://localhost:1234/v1"
+      #       help: "preferences_lmstudio_url_help"
+      
+      # - title: "preferences_blackfish_title"
+      #   fields:
+      #     - id: "api_servers.blackfish.base_url"
+      #       type: "text_input"
+      #       label: "preferences_base_url"
+      #       placeholder: "https://blackfish.example.com"
+      #       help: "preferences_blackfish_url_help"
+      
+      # - title: "preferences_huggingface_title"
+      #   fields:
+      #     - id: "api_servers.huggingface.api_key"
+      #       type: "text_input"
+      #       label: "preferences_api_key"
+      #       placeholder: "hf_..."
+      #       help: "preferences_huggingface_api_key_help"
+      #     - id: "api_servers.huggingface.base_url"
+      #       type: "text_input"
+      #       label: "preferences_base_url"
+      #       placeholder: "https://api-inference.huggingface.co"
             

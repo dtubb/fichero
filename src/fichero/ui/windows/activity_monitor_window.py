@@ -105,8 +105,8 @@ class ActivityMonitorWindow:
     
     def _on_close(self, widget):
         """Handle window close event"""
-        self.close()
-        return True
+        self.hide()  # Hide instead of close
+        return True  # Prevent window from actually closing
     
     @property
     def closed(self):
