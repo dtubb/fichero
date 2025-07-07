@@ -55,6 +55,7 @@ class GUITaskDisplay:
         
         # Track current table data for efficient updates
         self._current_data = []
+        self._current_rows = {}  # Track rows by task ID for efficient updates
         
         self._create_ui()
     
@@ -155,12 +156,79 @@ class GUITaskDisplay:
             self.status_label.text = "Display error"
     
     def _update_table_data(self, new_data: List[Dict[str, str]]):
-        """Update table data using proper ListSource clear() + append() pattern."""
+        """Update table data efficiently by adding/removing/updating individual rows."""
         try:
-            # Clear existing data
-            self.list_source.clear()
+            # Create a mapping of new data by task ID (using folder name as proxy for task ID)
+            new_data_map = {}
+            for row_data in new_data:
+                folder = row_data.get('folder', '')
+                new_data_map[folder] = row_data
             
-            # Add new data
+            # Find tasks to add (new tasks)
+            tasks_to_add = []
+            for folder, row_data in new_data_map.items():
+                if folder not in self._current_rows:
+                    tasks_to_add.append(row_data)
+            
+            # Find tasks to remove (completed/removed tasks)
+            tasks_to_remove = []
+            for folder in list(self._current_rows.keys()):
+                if folder not in new_data_map:
+                    tasks_to_remove.append(folder)
+            
+            # Find tasks to update (status changes)
+            tasks_to_update = []
+            for folder, row_data in new_data_map.items():
+                if folder in self._current_rows:
+                    current_row = self._current_rows[folder]
+                    if (current_row.folder != row_data.get('folder', '') or 
+                        current_row.status != row_data.get('status', '')):
+                        tasks_to_update.append((folder, row_data))
+            
+            # Handle empty state
+            if not new_data:
+                if self._current_rows:  # Only clear if we have data
+                    self.list_source.clear()
+                    self._current_rows.clear()
+                if not any(self.list_source):  # Only add if table is empty
+                    self.list_source.append({
+                        'folder': 'No tasks to display',
+                        'status': ''
+                    })
+                return
+            
+            # Remove completed/removed tasks
+            for folder in tasks_to_remove:
+                if folder in self._current_rows:
+                    row = self._current_rows[folder]
+                    try:
+                        self.list_source.remove(row)
+                    except ValueError:
+                        pass  # Row might already be removed
+                    del self._current_rows[folder]
+            
+            # Update existing tasks (status changes)
+            for folder, row_data in tasks_to_update:
+                if folder in self._current_rows:
+                    row = self._current_rows[folder]
+                    row.folder = row_data.get('folder', '')
+                    row.status = row_data.get('status', '')
+            
+            # Add new tasks
+            for row_data in tasks_to_add:
+                new_row = self.list_source.append({
+                    'folder': row_data.get('folder', ''),
+                    'status': row_data.get('status', '')
+                })
+                # Track the new row
+                folder = row_data.get('folder', '')
+                self._current_rows[folder] = new_row
+            
+        except Exception as e:
+            logger.error(f"Error updating table data: {e}")
+            # Fallback to simple clear/rebuild if efficient update fails
+            self.list_source.clear()
+            self._current_rows.clear()
             if not new_data:
                 self.list_source.append({
                     'folder': 'No tasks to display',
@@ -168,13 +236,12 @@ class GUITaskDisplay:
                 })
             else:
                 for row_data in new_data:
-                    self.list_source.append({
+                    new_row = self.list_source.append({
                         'folder': row_data.get('folder', ''),
                         'status': row_data.get('status', '')
                     })
-            
-        except Exception as e:
-            logger.error(f"Error updating table data: {e}")
+                    folder = row_data.get('folder', '')
+                    self._current_rows[folder] = new_row
     
     def _stop_tasks(self, widget):
         """Context-aware stop tasks button handler."""
