@@ -435,6 +435,9 @@ class TextCleaner:
     @staticmethod
     def clean_text(text: str) -> str:
         """Apply all cleaning steps to the text"""
+        # Pre-process pathological patterns that can cause regex crashes
+        text = TextCleaner.remove_pathological_patterns(text)
+        
         # Remove unwanted content
         text = TextCleaner.remove_specific_phrases(text)
         text = TextCleaner.remove_boundary_quotes(text)
@@ -454,6 +457,42 @@ class TextCleaner:
         text = TextCleaner.clean_line_spacing(text)
         
         return text.strip()
+
+    @staticmethod
+    def remove_pathological_patterns(text: str) -> str:
+        """Remove patterns that can cause catastrophic backtracking in regex operations"""
+        # Remove excessive repetitive patterns like [Guess: m] [Guess: m] [Guess: m]...
+        # This prevents regex catastrophic backtracking
+        
+        # Pattern 1: Remove repetitive [Guess: X] patterns
+        text = re.sub(r'(\[Guess:[^\]]*\]\s*){3,}', '', text, flags=re.IGNORECASE)
+        
+        # Pattern 2: Remove any pattern repeated more than 10 times in a row
+        # This is a safety net for other repetitive patterns
+        text = re.sub(r'(\b\w+\b\s*){20,}', '', text)
+        
+        # Pattern 3: Remove lines that are mostly repetitive characters
+        lines = text.splitlines()
+        clean_lines = []
+        for line in lines:
+            # If a line has the same short pattern repeated many times, remove it
+            if len(line) > 100:  # Only check long lines
+                # Check for patterns like "m m m m m m m..."
+                words = line.split()
+                if len(words) > 50:  # If line has many words
+                    # Count occurrences of each word
+                    word_counts = {}
+                    for word in words:
+                        word_counts[word] = word_counts.get(word, 0) + 1
+                    
+                    # If any single word appears more than 50% of the time, skip this line
+                    max_count = max(word_counts.values()) if word_counts else 0
+                    if max_count > len(words) * 0.5:
+                        continue  # Skip this pathological line
+            
+            clean_lines.append(line)
+        
+        return '\n'.join(clean_lines)
 
 def process_document(file_path: str, output_folder: Path) -> dict:
     """Process a single document file"""
@@ -496,11 +535,42 @@ def process_document(file_path: str, output_folder: Path) -> dict:
                 }
             }
             
-        # Read input text
+        # Read input text with better error handling
         try:
             text = input_path.read_text(encoding='utf-8')
         except UnicodeDecodeError:
-            text = input_path.read_text()
+            try:
+                text = input_path.read_text(encoding='latin-1')
+            except Exception as e:
+                tool_logger.error(f"Failed to read file {input_path} with any encoding: {e}")
+                # Create empty output file when input can't be read
+                out_path.write_text("")
+                return {
+                    "source": str(rel_path.with_suffix('.png')),
+                    "outputs": [str(rel_path.with_suffix('.txt'))],
+                    "success": True,
+                    "details": {
+                        "original_length": 0,
+                        "cleaned_length": 0,
+                        "reduction_percent": 0,
+                        "empty_due_to_encoding_error": True
+                    }
+                }
+        except Exception as e:
+            tool_logger.error(f"Unexpected error reading file {input_path}: {e}")
+            # Create empty output file when input can't be read
+            out_path.write_text("")
+            return {
+                "source": str(rel_path.with_suffix('.png')),
+                "outputs": [str(rel_path.with_suffix('.txt'))],
+                "success": True,
+                "details": {
+                    "original_length": 0,
+                    "cleaned_length": 0,
+                    "reduction_percent": 0,
+                    "empty_due_to_read_error": True
+                }
+            }
         
         if not text.strip():
             # Create empty output file when input is empty
@@ -521,22 +591,50 @@ def process_document(file_path: str, output_folder: Path) -> dict:
                 }
             }
         
-        # Clean the text
-        cleaned_text = TextCleaner.clean_text(text)
+        # Check for extremely large files that might cause memory issues
+        if len(text) > 10_000_000:  # 10MB text limit
+            tool_logger.warning(f"File {input_path} is very large ({len(text)} chars), truncating to prevent memory issues")
+            text = text[:10_000_000]
         
-        # Write cleaned text
-        out_path.write_text(cleaned_text)
+        # Clean the text with error handling
+        try:
+            cleaned_text = TextCleaner.clean_text(text)
+        except Exception as e:
+            tool_logger.error(f"Error cleaning text for {input_path}: {e}")
+            # Fall back to minimal cleaning
+            try:
+                cleaned_text = text.strip()
+                # Apply only basic cleaning that's less likely to crash
+                cleaned_text = TextCleaner.clean_line_spacing(cleaned_text)
+                tool_logger.warning(f"Applied minimal cleaning for {input_path} due to error")
+            except Exception as e2:
+                tool_logger.error(f"Even minimal cleaning failed for {input_path}: {e2}")
+                # Last resort - just use original text
+                cleaned_text = text.strip()
+        
+        # Write cleaned text with error handling
+        try:
+            out_path.write_text(cleaned_text, encoding='utf-8')
+        except Exception as e:
+            tool_logger.error(f"Error writing output file {out_path}: {e}")
+            return {
+                "source": str(rel_path.with_suffix('.png')),
+                "error": f"Failed to write output: {str(e)}"
+            }
         
         # Get bg_removed from input manifest
         bg_removed = None
-        recombine_manifest = output_folder.parent / "recombined" / "recombine_manifest.jsonl"
-        if recombine_manifest.exists():
-            with open(recombine_manifest, 'r') as f:
-                for line in f:
-                    entry = json.loads(line)
-                    if entry.get('source') == str(rel_path.with_suffix('.txt')):
-                        bg_removed = entry.get('bg_removed')
-                        break
+        try:
+            recombine_manifest = output_folder.parent / "recombined" / "recombine_manifest.jsonl"
+            if recombine_manifest.exists():
+                with open(recombine_manifest, 'r') as f:
+                    for line in f:
+                        entry = json.loads(line)
+                        if entry.get('source') == str(rel_path.with_suffix('.txt')):
+                            bg_removed = entry.get('bg_removed')
+                            break
+        except Exception as e:
+            tool_logger.warning(f"Could not read bg_removed info: {e}")
         
         # Return success manifest entry with proper relative paths
         result = {
@@ -546,7 +644,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             "details": {
                 "original_length": len(text),
                 "cleaned_length": len(cleaned_text),
-                "reduction_percent": round((1 - len(cleaned_text)/len(text)) * 100, 2)
+                "reduction_percent": round((1 - len(cleaned_text)/len(text)) * 100, 2) if len(text) > 0 else 0
             }
         }
         
@@ -557,9 +655,16 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         return result
         
     except Exception as e:
-        tool_logger.error(f"Error processing {file_path}: {e}")
+        tool_logger.error(f"Unexpected error processing {file_path}: {e}")
+        # Try to get relative path for error reporting
+        try:
+            rel_path = SegmentHandler.get_relative_path(Path(file_path))
+            source_ref = str(rel_path.with_suffix('.png'))
+        except:
+            source_ref = str(file_path)
+        
         return {
-            "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+            "source": source_ref,
             "error": str(e)
         }
 

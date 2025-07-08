@@ -256,8 +256,10 @@ class WorkflowExecutor:
                     # For non-string values (like booleans, integers), pass through as-is
                     expanded_args[key] = value
             
-            # Add parallel processing parameter for tools that support it
-            expanded_args['parallel_workers'] = parallel_workers
+            # Add parallel processing parameter only for image processing tools and transcription that support it
+            # Text processing tools (fuzzy_clean, recombine_segments) and post-transcription steps don't need this
+            if any(keyword in function_path.lower() for keyword in ['crop', 'split', 'rotate', 'enhance', 'remove_background', 'segment', 'transcribe']):
+                expanded_args['parallel_workers'] = parallel_workers
             
             # Log step start
             workflow_logger.log_step_start(step_name, function_path, expanded_args)

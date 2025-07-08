@@ -41,6 +41,7 @@ workflows:
     - convert_to_word
     - catalogue_folder
     - catalogue_to_word
+
   Direct (No Segmentation):
     - build_documents_manifest
     - crop
