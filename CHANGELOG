@@ -54,6 +54,22 @@ Tasks to work on:
   - Implement a new features alert box for new versions.
   - Refactor the LLM utilities and process code to make it less complex, and easier to maintain.
 
+- Fixed Activity Monitor window management:
+  - Changed to hide/show pattern instead of closing window to prevent Toga window lifecycle issues
+  - Fixed "window is not part of this app" error when closing activity monitor
+  - Improved window state management for better memory usage
+- Simplified Settings UI:
+  - Temporarily disabled IO workers configuration until implementation is complete
+  - Limited API configuration to just OpenAI and Qwen (Alibaba) for current functionality
+  - Maintained all settings in backend while simplifying UI presentation
+- Improved internationalization (i18n):
+  - Added translations for task monitoring system
+  - Translated UI elements in three languages (English, Spanish, French)
+  - Added translations for table headers, status messages, worker labels
+  - Added translations for task status messages and completion states
+  - Added translations for button labels and system messages
+- Hid menu commands tht are not yet implemented.
+
 
   ## For the Future
   - Investigate using Docling
