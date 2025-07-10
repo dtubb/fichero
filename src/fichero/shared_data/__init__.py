@@ -1,9 +1,8 @@
 """
-Shared Data System for Fichero
-Inter-process communication and data sharing with Redis/Manager backends
+Simplified Shared Data System for Fichero
+Just what we need: Redis for Celery, Threading for main process
 """
 
-from .manager import SharedDataManager, get_shared_data, reload_shared_data
-from .backends.base import DataType
+from .simple_manager import SimpleSharedData, get_shared_data
 
-__all__ = ['SharedDataManager', 'DataType', 'get_shared_data', 'reload_shared_data'] 
+__all__ = ['SimpleSharedData', 'get_shared_data'] 

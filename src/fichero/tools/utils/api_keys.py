@@ -28,10 +28,10 @@ tool_logger = get_tool_logger('api_keys')
 
 def get_api_key(provider: str, cli_arg: Optional[str] = None) -> Optional[str]:
     """
-    Get API key using secure fallback hierarchy:
-    1. CLI argument (if provided)
-    2. Encrypted settings file (primary - secure)
-    3. Encrypted Redis (Celery workers only)
+    Get API key using simplified fallback hierarchy:
+    1. CLI argument (development/testing override)
+    2. Redis shared data (Celery workers only)
+    3. Settings file (main process)
     4. Environment variable (fallback)
     
     Args:
@@ -46,50 +46,39 @@ def get_api_key(provider: str, cli_arg: Optional[str] = None) -> Optional[str]:
         tool_logger.info(f"🔑 Using CLI argument for {provider} API key")
         return cli_arg
     
-    # 2. App settings (production/app usage) - secure, direct access
-    api_key = None
+    # 2. Check if we're in a Celery worker (Redis backend)
     try:
-        from fichero.config import get_app_settings
-        app_settings = get_app_settings()
-        if app_settings:
-            # Get decrypted API key directly from settings
-            api_key = app_settings.get_api_key(provider)
+        from fichero.shared_data import get_shared_data
+        shared_data = get_shared_data()
+        if shared_data.backend_name == "redis":
+            # We're in a Celery worker - get from Redis
+            api_key = shared_data.get_setting(f"api_key:{provider}")
             if api_key:
-                tool_logger.info(f"🔑 Using encrypted settings for {provider} API key")
-                return api_key
+                try:
+                    from fichero.config.core.settings_manager import SettingsManager
+                    settings_mgr = SettingsManager()
+                    decrypted_key = settings_mgr._decrypt_value_simple(api_key)
+                    tool_logger.info(f"🔑 Using Redis for {provider} API key (Celery worker)")
+                    return decrypted_key
+                except Exception as decrypt_e:
+                    tool_logger.warning(f"Failed to decrypt {provider} key from Redis: {decrypt_e}")
             else:
-                tool_logger.debug(f"No {provider} API key found in settings")
+                tool_logger.debug(f"No {provider} API key found in Redis")
+    except Exception as e:
+        tool_logger.debug(f"Shared data not available for {provider}: {e}")
+    
+    # 3. We're in main process - get directly from settings
+    try:
+        from fichero.config.core.settings import AppSettings
+        app_settings = AppSettings()
+        api_key = app_settings.get_api_key(provider)
+        if api_key:
+            tool_logger.info(f"🔑 Using settings for {provider} API key (main process)")
+            return api_key
         else:
-            tool_logger.debug(f"App settings not available for {provider}")
+            tool_logger.debug(f"No {provider} API key found in settings")
     except Exception as e:
         tool_logger.debug(f"Settings not available for {provider}: {e}")
-        
-        # Fallback: Shared data for Redis/Celery backend only
-        try:
-            from fichero.shared_data import get_shared_data
-            shared_data = get_shared_data()
-            
-            # Only use shared data for Redis backend (Celery workers)
-            if shared_data.backend_name == "redis":
-                api_key = shared_data.get_setting(f"api_key:{provider}")
-                if api_key:
-                    # Decrypt the encrypted key from Redis
-                    try:
-                        from fichero.config.core.settings_manager import SettingsManager
-                        settings_mgr = SettingsManager()
-                        decrypted_key = settings_mgr._decrypt_value_simple(api_key)
-                        tool_logger.info(f"🔑 Using encrypted Redis for {provider} API key (Celery)")
-                        return decrypted_key
-                    except Exception as decrypt_e:
-                        tool_logger.warning(f"Failed to decrypt {provider} key from Redis: {decrypt_e}")
-                else:
-                    tool_logger.debug(f"No {provider} API key found in Redis")
-            else:
-                tool_logger.debug(f"Skipping shared data for {provider} (threading backend)")
-        except Exception as shared_e:
-            tool_logger.debug(f"Shared data not available for {provider}: {shared_e}")
-    
-    # 3. No more file-based persistence (removed Manager backend)
     
     # 4. Environment variable (fallback)
     env_var_map = {
@@ -255,19 +244,9 @@ def debug_api_key_sources(provider: str) -> dict:
             debug_info["sources_checked"].append("direct_redis (error)")
             debug_info["redis_error"] = str(e)
         
-        # Check persistence file
-        try:
-            from fichero.shared_data.backends.base import discover_app_data_directory
-            app_data_dir = discover_app_data_directory()
-            persistence_file = app_data_dir / "shared_data" / "fichero_settings.jsonl"
-            if persistence_file.exists():
-                debug_info["sources_checked"].append("persistence_file")
-                debug_info["persistence_file_path"] = str(persistence_file)
-            else:
-                debug_info["sources_checked"].append("persistence_file (not_found)")
-        except Exception as e:
-            debug_info["sources_checked"].append("persistence_file (error)")
-            debug_info["persistence_error"] = str(e)
+        # Check persistence file (no longer used with simplified shared data)
+        debug_info["sources_checked"].append("persistence_file (removed)")
+        debug_info["persistence_file_note"] = "Persistence files removed with simplified shared data"
         
         # Check environment variable
         env_var_map = {

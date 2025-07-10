@@ -226,23 +226,12 @@ class FicheroAppInitializer:
     def _init_shared_data_backend(self):
         """Initialize shared data backend using unified backend selection"""
         try:
-            # Get app data directory
-            app_data_dir = None
-            if self.app_context and hasattr(self.app_context, 'paths'):
-                app_data_dir = self.app_context.paths.data
-            elif self.data_dir:
-                app_data_dir = self.data_dir
-            
             # Use the selected storage backend
-            prefer_backend = self.storage_backend  # "redis" or "manager"
+            prefer_backend = self.storage_backend  # "redis" or "threading"
             
             # Initialize shared data with selected backend
-            from ..shared_data import reload_shared_data
-            shared_data = reload_shared_data(
-                data_dir=app_data_dir, 
-                app=self.app_context,
-                prefer_backend=prefer_backend  # Use unified selection
-            )
+            from ..shared_data import get_shared_data
+            shared_data = get_shared_data(prefer_backend=prefer_backend)
             
             logger.info(f"🔧 Shared data backend initialized: {shared_data.backend_name} (unified selection)")
             
