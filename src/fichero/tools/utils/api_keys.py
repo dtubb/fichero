@@ -23,60 +23,15 @@ except ImportError:
 tool_logger = get_tool_logger('api_keys')
 
 
-def _read_manager_persistence_file(provider: str) -> Optional[str]:
-    """
-    Read API key from Manager backend's persistence files
-    This is used when subprocess can't access Manager shared memory
-    """
-    try:
-        # Discover app data directory (same logic as base.py)
-        from fichero.shared_data.backends.base import discover_app_data_directory
-        app_data_dir = discover_app_data_directory()
-        persistence_file = app_data_dir / "shared_data" / "fichero_settings.jsonl"
-        
-        if not persistence_file.exists():
-            tool_logger.debug(f"Manager persistence file not found: {persistence_file}")
-            return None
-        
-        # Read JSONL format - each line is a separate entry
-        try:
-            import srsly
-            entries = list(srsly.read_jsonl(persistence_file))
-        except ImportError:
-            # Fallback to manual JSONL reading if srsly not available
-            entries = []
-            with open(persistence_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            entries.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-        
-        # Look for the API key
-        for entry in entries:
-            key = entry.get("key")
-            value = entry.get("value")
-            
-            if key == f"api_key:{provider}" and value:
-                tool_logger.info(f"🔑 Using Manager persistence file for {provider} API key")
-                return value
-        
-        tool_logger.debug(f"No {provider} API key found in Manager persistence file")
-        return None
-        
-    except Exception as e:
-        tool_logger.debug(f"Failed to read Manager persistence file for {provider}: {e}")
-        return None
+# Removed: _read_manager_persistence_file - no longer needed since Manager backend eliminated
 
 
 def get_api_key(provider: str, cli_arg: Optional[str] = None) -> Optional[str]:
     """
-    Get API key using four-tier fallback hierarchy:
+    Get API key using secure fallback hierarchy:
     1. CLI argument (if provided)
-    2. Shared data (production/app usage)
-    3. File-based persistence (Manager backend fallback)
+    2. Encrypted settings file (primary - secure)
+    3. Encrypted Redis (Celery workers only)
     4. Environment variable (fallback)
     
     Args:
@@ -91,40 +46,50 @@ def get_api_key(provider: str, cli_arg: Optional[str] = None) -> Optional[str]:
         tool_logger.info(f"🔑 Using CLI argument for {provider} API key")
         return cli_arg
     
-    # 2. Shared data (production/app usage) with direct Redis fallback
+    # 2. App settings (production/app usage) - secure, direct access
     api_key = None
     try:
-        from fichero.shared_data import get_shared_data
-        shared_data = get_shared_data()
-        api_key = shared_data.get_setting(f"api_key:{provider}")
-        if api_key:
-            tool_logger.info(f"🔑 Using shared data for {provider} API key ({shared_data.backend_name})")
-            tool_logger.info(f"🔍 DEBUG: {provider} key from shared data: {api_key[:20]}...{api_key[-10:]} (len={len(api_key)})")
-            return api_key
+        from fichero.config import get_app_settings
+        app_settings = get_app_settings()
+        if app_settings:
+            # Get decrypted API key directly from settings
+            api_key = app_settings.get_api_key(provider)
+            if api_key:
+                tool_logger.info(f"🔑 Using encrypted settings for {provider} API key")
+                return api_key
+            else:
+                tool_logger.debug(f"No {provider} API key found in settings")
         else:
-            tool_logger.debug(f"No {provider} API key found in shared data")
+            tool_logger.debug(f"App settings not available for {provider}")
     except Exception as e:
-        tool_logger.debug(f"Shared data not available for {provider}: {e}")
+        tool_logger.debug(f"Settings not available for {provider}: {e}")
         
-        # Direct Redis fallback for subprocess execution
+        # Fallback: Shared data for Redis/Celery backend only
         try:
-            import redis
-            r = redis.Redis(host='localhost', port=6379, db=0)
-            redis_key = f"fichero:settings:api_key:{provider}"
-            api_key_bytes = r.get(redis_key)
-            if api_key_bytes:
-                api_key = api_key_bytes.decode('utf-8').strip('"')
-                if api_key and api_key.strip():
-                    tool_logger.info(f"🔑 Using direct Redis for {provider} API key")
-                    return api_key
-            tool_logger.debug(f"No {provider} API key found in direct Redis")
-        except Exception as redis_e:
-            tool_logger.debug(f"Direct Redis not available for {provider}: {redis_e}")
+            from fichero.shared_data import get_shared_data
+            shared_data = get_shared_data()
+            
+            # Only use shared data for Redis backend (Celery workers)
+            if shared_data.backend_name == "redis":
+                api_key = shared_data.get_setting(f"api_key:{provider}")
+                if api_key:
+                    # Decrypt the encrypted key from Redis
+                    try:
+                        from fichero.config.core.settings_manager import SettingsManager
+                        settings_mgr = SettingsManager()
+                        decrypted_key = settings_mgr._decrypt_value_simple(api_key)
+                        tool_logger.info(f"🔑 Using encrypted Redis for {provider} API key (Celery)")
+                        return decrypted_key
+                    except Exception as decrypt_e:
+                        tool_logger.warning(f"Failed to decrypt {provider} key from Redis: {decrypt_e}")
+                else:
+                    tool_logger.debug(f"No {provider} API key found in Redis")
+            else:
+                tool_logger.debug(f"Skipping shared data for {provider} (threading backend)")
+        except Exception as shared_e:
+            tool_logger.debug(f"Shared data not available for {provider}: {shared_e}")
     
-    # 3. File-based persistence (Manager backend fallback for subprocesses)
-    api_key = _read_manager_persistence_file(provider)
-    if api_key:
-        return api_key
+    # 3. No more file-based persistence (removed Manager backend)
     
     # 4. Environment variable (fallback)
     env_var_map = {

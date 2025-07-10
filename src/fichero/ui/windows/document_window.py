@@ -323,6 +323,30 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
             background.close_path()
 
+    def _draw_path_background(self, canvas=None, **kwargs):
+        """Draw rounded gray background for path display"""
+        if not canvas:
+            return
+            
+        canvas.context.clear()
+        
+        width = canvas.layout.content_width
+        height = canvas.layout.content_height
+        corner_radius = 6
+        
+        with canvas.context.Fill(color='rgb(226, 223, 222)') as background:
+            background.begin_path()
+            background.move_to(corner_radius, 0)
+            background.line_to(width - corner_radius, 0)
+            background.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
+            background.line_to(width, height - corner_radius)
+            background.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
+            background.line_to(corner_radius, height)
+            background.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
+            background.line_to(0, corner_radius)
+            background.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
+            background.close_path()
+
     def _create_content_section(self):
         """Create content section with beautiful description view"""
         # Create simple container that will hold task display when processing starts
@@ -457,52 +481,85 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Show just the folder path (not processing)
             folder_path = str(self.selected_folder)
             
-            # Create path display using ImageView + Label widgets
-            self.path_display_container = toga.Box(
+            # Create scrollable path display container with grey background
+            self.path_display_container = toga.ScrollContainer(
+                content=toga.Box(
+                    style=Pack(
+                        direction=COLUMN,  # Allow multiple rows
+                        padding=8  # Padding for content
+                    )
+                ),
+                horizontal=False,  # Disable horizontal scrolling
+                vertical=True,     # Enable vertical scrolling only
                 style=Pack(
-                    direction=ROW,
-                    align_items=CENTER,
-                    margin_left=10,
-                    margin_top=20,
-                    margin_bottom=20
+                    width=540,  # Full width of grey bar
+                    height=68,  # Full height of grey bar
+                    padding=0,  # No padding on container
+                    background_color='rgb(226, 223, 222)'  # Same grey as original canvas
                 )
             )
             
-            # Replace button with path display
+            # Replace button with path display (overlays on grey canvas like button did)
             self.path_container.clear()
-            path_row = toga.Box(
-                children=[
-                    self.path_display_container,
-                    toga.Box(style=Pack(flex=1))   # Right spacer only
-                ],
-                style=Pack(direction=ROW, align_items=CENTER)
-            )
-            self.path_container.add(path_row)
+            self.path_container.add(self.path_display_container)
             
-            # Build the path with icons and labels
-            self._build_path_display(folder_path)
+            # Build the path with icons and labels (no internal background needed)
+            self._build_path_display_with_wrapping_simple(folder_path)
             
             # Update content area to show "Ready to process..."
             self._show_ready_to_process()
     
-    def _build_path_display(self, folder_path):
-        """Build path display using ImageView + Label widgets with async icon loading"""
+    def _build_path_display_with_wrapping_simple(self, folder_path):
+        """Build path display with wrapping support - ScrollContainer has grey background"""
         from fichero.utils.path_icons import PathBuilder, get_fallback_folder_icon, load_image
         import logging
         logger = logging.getLogger(__name__)
         
         # Clear existing path display
-        self.path_display_container.clear()
+        self.path_display_container.content.clear()
         
         # Get path components (this is fast, just path parsing)
         components = PathBuilder.build_path_with_icons(folder_path)
         
-        # Build the display with icons loaded synchronously
+        # Available width for content (account for padding, scrollbar, and safety margin)
+        base_available_width = 540 - 16 - 16 - 20  # Total width minus padding and safety margin
+        
+        # Build rows
+        current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2))
+        current_row_width = 0
+        is_continuation_row = False
+        
         for i, component in enumerate(components):
+            # Calculate available width (less for continuation rows due to indentation)
+            available_width = base_available_width - (15 if is_continuation_row else 0)
+            
+            # More accurate component width estimate
+            icon_width = 18  # 16px icon + 2px margin
+            
+            # Better text width estimation
+            if component["name"]:
+                is_last_component = (i == len(components) - 1)
+                # Account for bold text being wider and different character widths
+                char_count = len(component["name"])
+                avg_char_width = 7 if is_last_component else 6  # Bold text is wider
+                # Add extra width for wide characters and margin
+                name_width = char_count * avg_char_width + 8  # Extra margin for safety
+            else:
+                name_width = 0
+                
+            separator_width = 16 if i < len(components) - 1 else 0  # 4px + 4px margins + separator
+            component_width = icon_width + name_width + separator_width
+            
+            # Check if we need a new row (more conservative)
+            if current_row_width + component_width > available_width and current_row.children:
+                # Finish current row and start new one
+                self.path_display_container.content.add(current_row)
+                current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2, margin_left=15))  # Indent continuation rows
+                current_row_width = 0
+                is_continuation_row = True
+            
             # Add icon (ImageView)
             icon_image = None
-            
-            # Try to use real macOS icon first
             if component.get("icon_path"):
                 icon_image = load_image(component["icon_path"])
             
@@ -518,10 +575,9 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                         image=icon_image,
                         style=Pack(width=16, height=16, margin_right=2)
                     )
-                    self.path_display_container.add(icon_widget)
+                    current_row.add(icon_widget)
                 except Exception as e:
                     logger.debug(f"Could not create ImageView: {e}")
-                    # Skip icon if it fails
             
             # Add folder name (Label) if not root
             if component["name"]:
@@ -535,7 +591,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                         margin_right=4
                     )
                 )
-                self.path_display_container.add(name_label)
+                current_row.add(name_label)
             
             # Add separator (except for last component)
             if i < len(components) - 1:
@@ -548,7 +604,186 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                         margin_right=4
                     )
                 )
-                self.path_display_container.add(separator_label)
+                current_row.add(separator_label)
+            
+            current_row_width += component_width
+        
+        # Add the final row
+        if current_row.children:
+            self.path_display_container.content.add(current_row)
+
+    def _build_path_display_with_wrapping(self, folder_path):
+        """Build path display with wrapping support - multiple rows if needed (with internal background)"""
+        from fichero.utils.path_icons import PathBuilder, get_fallback_folder_icon, load_image
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Clear existing path display
+        self.path_display_container.content.clear()
+        
+        # Add a canvas background first to restore the grey color
+        background_canvas = toga.Canvas(
+            style=Pack(width=540, height=68, margin=0, padding=0),
+            on_resize=self._draw_path_background
+        )
+        self.path_display_container.content.add(background_canvas)
+        
+        # Add overlay container for path components
+        overlay_container = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                margin_top=-68,  # Overlay on the canvas
+                padding=8
+            )
+        )
+        self.path_display_container.content.add(overlay_container)
+        
+        # Get path components (this is fast, just path parsing)
+        components = PathBuilder.build_path_with_icons(folder_path)
+        
+        # Available width for content (account for padding and scrollbar)
+        available_width = 540 - 16 - 16  # Total width minus padding
+        
+        # Build rows
+        current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2))
+        current_row_width = 0
+        
+        for i, component in enumerate(components):
+            # Calculate component width estimate
+            icon_width = 18  # 16px icon + 2px margin
+            name_width = len(component["name"]) * 6 if component["name"] else 0  # Rough estimate
+            separator_width = 12 if i < len(components) - 1 else 0
+            component_width = icon_width + name_width + separator_width
+            
+            # Check if we need a new row
+            if current_row_width + component_width > available_width and current_row.children:
+                # Finish current row and start new one
+                overlay_container.add(current_row)
+                current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2, margin_left=15))  # Indent continuation rows
+                current_row_width = 0
+            
+            # Add icon (ImageView)
+            icon_image = None
+            if component.get("icon_path"):
+                icon_image = load_image(component["icon_path"])
+            
+            # Fallback to generic folder icon
+            if not icon_image:
+                fallback_icon_path = get_fallback_folder_icon()
+                if fallback_icon_path:
+                    icon_image = load_image(fallback_icon_path)
+            
+            if icon_image:
+                try:
+                    icon_widget = toga.ImageView(
+                        image=icon_image,
+                        style=Pack(width=16, height=16, margin_right=2)
+                    )
+                    current_row.add(icon_widget)
+                except Exception as e:
+                    logger.debug(f"Could not create ImageView: {e}")
+            
+            # Add folder name (Label) if not root
+            if component["name"]:
+                is_last_component = (i == len(components) - 1)
+                
+                name_label = toga.Label(
+                    component["name"],
+                    style=Pack(
+                        font_size=9,
+                        font_weight='bold' if is_last_component else 'normal',
+                        margin_right=4
+                    )
+                )
+                current_row.add(name_label)
+            
+            # Add separator (except for last component)
+            if i < len(components) - 1:
+                separator_label = toga.Label(
+                    "⟩",  # Narrow mathematical right angle bracket
+                    style=Pack(
+                        font_size=9,
+                        color='#808080',  # Dark grey
+                        margin_left=4,
+                        margin_right=4
+                    )
+                )
+                current_row.add(separator_label)
+            
+            current_row_width += component_width
+        
+        # Add the final row
+        if current_row.children:
+            overlay_container.add(current_row)
+
+    def _build_path_display(self, folder_path):
+        """Build path display using ImageView + Label widgets in a scrollable container (single row)"""
+        from fichero.utils.path_icons import PathBuilder, get_fallback_folder_icon, load_image
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Clear existing path display
+        self.path_display_container.content.clear()
+        
+        # Create single row container
+        row = toga.Box(style=Pack(direction=ROW, align_items=CENTER))
+        
+        # Get path components (this is fast, just path parsing)
+        components = PathBuilder.build_path_with_icons(folder_path)
+        
+        for i, component in enumerate(components):
+            # Add icon (ImageView)
+            icon_image = None
+            if component.get("icon_path"):
+                icon_image = load_image(component["icon_path"])
+            
+            # Fallback to generic folder icon
+            if not icon_image:
+                fallback_icon_path = get_fallback_folder_icon()
+                if fallback_icon_path:
+                    icon_image = load_image(fallback_icon_path)
+            
+            if icon_image:
+                try:
+                    icon_widget = toga.ImageView(
+                        image=icon_image,
+                        style=Pack(width=16, height=16, margin_right=2)
+                    )
+                    row.add(icon_widget)
+                except Exception as e:
+                    logger.debug(f"Could not create ImageView: {e}")
+            
+            # Add folder name (Label) if not root
+            if component["name"]:
+                is_last_component = (i == len(components) - 1)
+                
+                name_label = toga.Label(
+                    component["name"],
+                    style=Pack(
+                        font_size=9,
+                        font_weight='bold' if is_last_component else 'normal',
+                        margin_right=4
+                    )
+                )
+                row.add(name_label)
+            
+            # Add separator (except for last component)
+            if i < len(components) - 1:
+                separator_label = toga.Label(
+                    "⟩",  # Narrow mathematical right angle bracket
+                    style=Pack(
+                        font_size=9,
+                        color='#808080',  # Dark grey
+                        margin_left=4,
+                        margin_right=4
+                    )
+                )
+                row.add(separator_label)
+        
+        # Add the row to content
+        self.path_display_container.content.add(row)
+    
+
     
 
     

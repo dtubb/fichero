@@ -3,7 +3,7 @@ Shared Data Storage Backends
 """
 
 from .base import BaseStorageBackend, DataType
-from .manager import ManagerStorageBackend
+from .threading_backend import ThreadingStorageBackend
 
 # Redis backend is optional
 try:
@@ -13,4 +13,4 @@ except ImportError:
     RedisStorageBackend = None
     REDIS_AVAILABLE = False
 
-__all__ = ['BaseStorageBackend', 'DataType', 'ManagerStorageBackend', 'RedisStorageBackend', 'REDIS_AVAILABLE'] 
+__all__ = ['BaseStorageBackend', 'DataType', 'ThreadingStorageBackend', 'RedisStorageBackend', 'REDIS_AVAILABLE'] 

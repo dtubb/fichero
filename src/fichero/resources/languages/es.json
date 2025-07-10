@@ -168,6 +168,14 @@
   
   "preferences_appearance_title": "Apariencia",
   "preferences_language_title": "Idioma",
+  "preferences_language_description": "Elegir el idioma de la interfaz para Fichero",
+  "preferences_language": "Idioma",
+  "preferences_language_help": "Establece el idioma de la interfaz. 'Sistema' sigue la configuración de idioma de macOS.",
+  
+  "language_system": "Sistema",
+  "language_en": "English",
+  "language_es": "Español",
+  "language_fr": "Français",
   
   "preferences_performance_title": "Rendimiento",
   "preferences_backend_title": "Backend de procesamiento",

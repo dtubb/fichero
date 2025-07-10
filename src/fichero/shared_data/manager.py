@@ -64,8 +64,8 @@ def _get_backend_preference() -> Optional[str]:
         except:
             pass  # File reading failed, use defaults
         
-        # Final fallback: default to Python (manager) backend
-        return "manager"
+        # Final fallback: default to Python (threading) backend - no subprocess!
+        return "threading"
         
     except Exception as e:
         logger.debug(f"Could not determine backend preference: {e}")
@@ -76,8 +76,8 @@ def _convert_backend_setting(setting: str) -> Optional[str]:
     """Convert settings value to backend preference"""
     if setting == "redis":
         return "redis"
-    else:  # "python" or anything else, default to manager
-        return "manager"
+    else:  # "python" or anything else, default to threading (no subprocess!)
+        return "threading"
 
 
 def _get_backend_from_settings(settings) -> Optional[str]:
@@ -114,16 +114,16 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
 
-# Import Manager backend (always available)
-from .backends.manager import ManagerStorageBackend
+# Import threading backend (always available, no subprocess!)
+from .backends.threading_backend import ThreadingStorageBackend
 
 
 class SharedDataManager:
     """Factory class that automatically selects the best available backend
     
     Backend Selection:
-    1. Redis (if available and connection successful)
-    2. Python Manager (always available as fallback)
+    1. Redis (if available and connection successful) 
+    2. Threading (thread-safe dict, no subprocesses - DEFAULT)
     
     Both backends provide the same interface and functionality.
     """
@@ -147,21 +147,25 @@ class SharedDataManager:
         
         # Force specific backend if requested
         if prefer_backend == "manager":
-            logger.info("Using Manager backend (forced)")
-            return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+            logger.warning("Manager backend no longer supported (caused subprocess overhead), using Threading backend")
+            return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
+        
+        if prefer_backend == "threading":
+            logger.info("Using Threading backend (forced) - no subprocesses!")
+            return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
         
         if prefer_backend == "redis":
             if not REDIS_AVAILABLE:
-                logger.warning("Redis backend requested but redis package not available, falling back to Manager")
-                return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+                logger.warning("Redis backend requested but redis package not available, falling back to Threading")
+                return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
             
             # Try Redis with same fallback logic as director
             try:
                 logger.info("Using Redis backend (coordinated with director)")
                 return RedisStorageBackend(self.namespace, self.data_dir, self.redis_url, self.app)
             except Exception as e:
-                logger.warning(f"Redis backend failed: {e}, falling back to Manager (coordinated with director)")
-                return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+                logger.warning(f"Redis backend failed: {e}, falling back to Threading (coordinated with director)")
+                return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
         
         # Auto-select with coordination
         if _should_coordinate_with_director_backend():
@@ -174,10 +178,10 @@ class SharedDataManager:
                         return RedisStorageBackend(self.namespace, self.data_dir, self.redis_url, self.app)
                     except Exception as e:
                         logger.warning(f"Redis backend failed during coordination: {e}")
-                        return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+                        return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
                 else:
-                    logger.info(f"Director using {director_backend}, using Manager backend for coordination")
-                    return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+                    logger.info(f"Director using {director_backend}, using Threading backend for coordination")
+                    return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
             
             # Director not initialized yet, try Redis first (director will coordinate later)
             elif REDIS_AVAILABLE:
@@ -186,13 +190,13 @@ class SharedDataManager:
                     return RedisStorageBackend(self.namespace, self.data_dir, self.redis_url, self.app)
                 except Exception as e:
                     logger.warning(f"Redis backend failed: {e}")
-                    logger.info("Falling back to Manager backend (director will coordinate)")
+                    logger.info("Falling back to Threading backend (director will coordinate)")
             else:
-                logger.info("Redis not available, using Manager backend")
+                logger.info("Redis not available, using Threading backend")
         else:
-            logger.info("Backend coordination disabled, using Manager backend")
+            logger.info("Backend coordination disabled, using Threading backend")
         
-        return ManagerStorageBackend(self.namespace, self.data_dir, self.app)
+        return ThreadingStorageBackend(self.namespace, self.data_dir, self.app)
     
     def _delegate_methods(self):
         """Delegate all methods to the selected backend"""
@@ -231,8 +235,8 @@ def get_shared_data(namespace: str = "fichero", data_dir: Optional[Path] = None,
     Args:
         namespace: Namespace for keys
         data_dir: Directory for persistence files
-        auto_save: Enable automatic saving (Manager backend only)
-        prefer_backend: Force specific backend ("redis" or "manager")
+        auto_save: Enable automatic saving (Threading backend only, Redis uses immediate persistence)
+        prefer_backend: Force specific backend ("redis" or "threading")
         redis_url: Redis connection URL
         app: Toga app instance (for proper data directory)
     """
@@ -256,8 +260,8 @@ def reload_shared_data(namespace: str = "fichero", data_dir: Optional[Path] = No
     Args:
         namespace: Namespace for keys
         data_dir: Directory for persistence files  
-        auto_save: Enable automatic saving (Manager backend only)
-        prefer_backend: Force specific backend ("redis" or "manager")
+        auto_save: Enable automatic saving (Threading backend only, Redis uses immediate persistence)
+        prefer_backend: Force specific backend ("redis" or "threading")
         redis_url: Redis connection URL
         app: Toga app instance (for proper data directory)
         settings: Settings object to extract backend preference from
@@ -292,10 +296,10 @@ def _get_director_actual_backend() -> Optional[str]:
     
     This allows shared data to coordinate with the director's actual backend choice,
     not just the settings preference. If director falls back from Redis to Python,
-    shared data should also fall back from Redis to Manager.
+    shared data should also fall back from Redis to Threading.
     
     Returns:
-        "redis" if director is using Celery/Redis, "manager" if using Python, None if unknown
+        "redis" if director is using Celery/Redis, "threading" if using Python, None if unknown
     """
     try:
         # Try to get the director instance if it exists
@@ -308,7 +312,7 @@ def _get_director_actual_backend() -> Optional[str]:
                 if "redis" in backend_name or "celery" in backend_name:
                     return "redis"
                 elif "python" in backend_name or "multiprocessing" in backend_name:
-                    return "manager"
+                    return "threading"  # Use threading backend for Python director
         
         return None  # Director not initialized or backend unknown
         

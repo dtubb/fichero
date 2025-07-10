@@ -168,6 +168,14 @@
   
   "preferences_appearance_title": "Appearance",
   "preferences_language_title": "Language",
+  "preferences_language_description": "Choose the interface language for Fichero",
+  "preferences_language": "Language",
+  "preferences_language_help": "Set interface language. 'System' follows your macOS language settings.",
+  
+  "language_system": "System",
+  "language_en": "English",
+  "language_es": "Español",
+  "language_fr": "Français",
   
   "preferences_performance_title": "Performance",
   "preferences_backend_title": "Processing Backend",

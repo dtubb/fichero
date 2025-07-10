@@ -37,3 +37,6 @@ toga-examples/
 
 cpu_worker.log
 io_worker.log
+
+/old documents
+/.venv

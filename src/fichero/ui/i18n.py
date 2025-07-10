@@ -3,9 +3,8 @@ Internationalization (i18n) support for Fichero
 """
 
 import json
-import locale
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 
 class TranslationManager:
@@ -72,6 +71,12 @@ class TranslationManager:
             preferences = settings.settings.get("preferences", {})
             lang_code = preferences.get("language", "").lower()
             
+            # Handle "system" setting - trigger auto-detection
+            if lang_code == "system":
+                self._detect_system_language()
+                return True
+            
+            # Handle specific language codes
             if lang_code and lang_code in self.translations:
                 self.current_language = lang_code
                 return True
@@ -82,45 +87,24 @@ class TranslationManager:
         return False
     
     def _detect_system_language(self):
-        """Try to detect system language and set it if available"""
+        """Detect system language using the platform locale utility"""
         try:
-            # Try multiple approaches to get system locale
-            system_locale = None
+            # Use the dedicated platform locale detection utility
+            from ..utils.platform_locale import detect_system_language
             
-            # Method 1: Try to get current locale setting
-            current_locale = locale.getlocale()[0]
-            if current_locale:
-                system_locale = current_locale
+            detected_lang = detect_system_language()
+            
+            # Apply detected language if available
+            if detected_lang and detected_lang in self.translations:
+                self.current_language = detected_lang
+                print(f"🌐 Detected system language: {detected_lang}")
             else:
-                # Method 2: Try to get locale from LC_ALL, LC_CTYPE, or LANG environment variables
-                import os
-                for env_var in ['LC_ALL', 'LC_CTYPE', 'LANG']:
-                    env_locale = os.environ.get(env_var)
-                    if env_locale and env_locale != 'C':
-                        system_locale = env_locale
-                        break
+                print(f"🌐 System language '{detected_lang}' not available, using default: {self.default_language}")
                 
-                # Method 3: Try setlocale to get system default
-                if not system_locale:
-                    try:
-                        system_locale = locale.setlocale(locale.LC_ALL, '')
-                    except locale.Error:
-                        # If that fails, try just getting CTYPE
-                        try:
-                            system_locale = locale.setlocale(locale.LC_CTYPE, '')
-                        except locale.Error:
-                            pass
-            
-            if system_locale:
-                # Extract language code (e.g., "en" from "en_US.UTF-8")
-                lang_code = system_locale.split('_')[0].split('.')[0].lower()
-                if lang_code in self.translations:
-                    self.current_language = lang_code
-                
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ Language detection failed: {e}")
             # If detection fails, stick with default
-            pass
-    
+
     def set_language(self, language_code: str):
         """Set the current language"""
         if language_code in self.translations:
@@ -159,6 +143,46 @@ class TranslationManager:
         }
         return {code: language_names.get(code, code.upper()) 
                 for code in self.translations.keys()}
+    
+    def get_language_options_for_ui(self) -> List[str]:
+        """Get language options for UI dropdown with translated labels"""
+        try:
+            options = []
+            
+            # Add "System" as first option (Mac way)
+            system_label = self.get("language_system", "System")
+            options.append("system")  # Value is still "system" for settings
+            
+            # Add available languages
+            for lang_code in sorted(self.translations.keys()):
+                options.append(lang_code)
+                
+            return options
+            
+        except Exception as e:
+            # Fallback
+            return ["system", "en", "es", "fr"]
+    
+    def get_language_display_name(self, lang_code: str) -> str:
+        """Get the display name for a language code"""
+        if lang_code == "system":
+            return self.get("language_system", "System")
+        
+        # Try to get translated name from current language
+        display_key = f"language_{lang_code}"
+        display_name = self.get(display_key, None)
+        
+        if display_name:
+            return display_name
+        
+        # Fallback to basic names
+        fallback_names = {
+            "en": "English",
+            "es": "Español", 
+            "fr": "Français"
+        }
+        
+        return fallback_names.get(lang_code, lang_code.upper())
 
 
 # Global translation manager instance
@@ -181,6 +205,10 @@ def get_translator():
         # Fallback for cases where app hasn't initialized yet
         translator = TranslationManager()
     return translator
+
+def get_global_translator():
+    """Get the global translator instance (convenience function)"""
+    return get_translator()
 
 # Convenience function for getting translations
 def _(key: str, fallback: Optional[str] = None) -> str:

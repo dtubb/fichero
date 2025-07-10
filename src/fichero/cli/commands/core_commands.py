@@ -221,7 +221,7 @@ class CoreCommands:
         huggingface_key: str = typer.Option(None, "--huggingface-key", help="Set Hugging Face API key"),
         
         # Preferences
-        language: str = typer.Option(None, "--language", help="Set interface language (en, es, fr)"),
+        language: str = typer.Option(None, "--language", help="Set interface language (system, en, es, fr)"),
         folder_order: str = typer.Option(None, "--folder-order", help="Set folder processing order"),
         
         # Defaults
@@ -303,8 +303,8 @@ class CoreCommands:
             
             # Configure preferences
             if language:
-                if language not in ['en', 'es', 'fr']:
-                    self.console.print("❌ Invalid language. Choose: en, es, fr", style="red")
+                if language not in ['system', 'en', 'es', 'fr']:
+                    self.console.print("❌ Invalid language. Choose: system, en, es, fr", style="red")
                 else:
                     success = settings_commands.configure_preference('preferences.language', language)
                     changes_made = changes_made or success

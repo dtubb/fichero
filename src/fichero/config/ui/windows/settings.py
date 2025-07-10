@@ -102,8 +102,30 @@ class SettingsLibrary(BaseConfigLibrary):
             # Set up auto-calculate button handler
             self._add_button_handler(schema_data, "auto_calculate_workers", self._on_auto_calculate_workers)
             
+            # Populate language options with "System" first (Mac way)
+            language_options = self._get_language_options()
+            self._populate_field_options(schema_data, "preferences.language", language_options)
+            
         except Exception as e:
             logger.error(f"Failed to populate dynamic options: {e}")
+    
+    def _get_language_options(self) -> List[str]:
+        """Get language options with 'System' first, then available languages"""
+        try:
+            from ....ui.i18n import get_global_translator
+            
+            # Get translator to access available languages
+            translator = get_global_translator()
+            if translator:
+                return translator.get_language_options_for_ui()
+            else:
+                # Fallback if no translator available
+                return ["system", "en", "es", "fr"]
+            
+        except Exception as e:
+            logger.error(f"Error getting language options: {e}")
+            # Fallback options
+            return ["system", "en", "es", "fr"]
     
     def _add_field_callback(self, schema_data: Dict[str, Any], field_id: str, callback):
         """Helper to add callback to a specific field"""

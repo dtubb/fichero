@@ -52,7 +52,7 @@ class SettingsManager(FileManager):
             "title": "Custom Application Settings",
             "description": "User-defined application settings",
             "preferences": {
-                "language": "en"
+                "language": "system"
             },
             "workers": {
                 "backend": "python",
@@ -321,39 +321,41 @@ class SettingsManager(FileManager):
         return False
     
     def _sync_api_keys_to_shared_data(self, settings: Dict):
-        """Sync DECRYPTED API keys to shared data for tools to use"""
+        """Sync settings to shared data - API keys only for Redis/Celery backend"""
         try:
             from fichero.shared_data import get_shared_data
             shared_data = get_shared_data()
+            backend_name = shared_data.backend_name
             
-            api_servers = settings.get("api_servers", {})
-            logger.info(f"🔄 Syncing {len(api_servers)} API keys to shared data ({shared_data.backend_name})")
+            logger.info(f"🔄 Syncing settings to shared data ({backend_name})")
             
-            for provider, config in api_servers.items():
-                api_key = config.get("api_key")
-                if api_key and api_key.strip():
-                    # DEBUG: Check if we're accidentally syncing encrypted data
-                    is_encrypted = self._looks_encrypted_simple(api_key)
-                    logger.info(f"🔍 SYNC DEBUG: {provider} key is_encrypted={is_encrypted}, key={api_key[:20]}...{api_key[-10:]} (len={len(api_key)})")
-                    
-                    if is_encrypted:
-                        logger.error(f"🚨 CRITICAL: Trying to sync ENCRYPTED {provider} key to shared data!")
-                        # Force decrypt it here
-                        decrypted_key = self._decrypt_value_simple(api_key)
-                        logger.info(f"🔓 FIXED: Force decrypted {provider}: {decrypted_key[:10]}...{decrypted_key[-4:] if len(decrypted_key) > 4 else ''}")
-                        shared_data.set_setting(f"api_key:{provider}", decrypted_key)
-                    else:
-                        # Store DECRYPTED key for tools
-                        shared_data.set_setting(f"api_key:{provider}", api_key)
-                        logger.info(f"✅ Synced {provider} API key: {api_key[:10]}...{api_key[-4:] if len(api_key) > 4 else ''}")
-                else:
-                    logger.debug(f"⚠️ Skipping {provider} - empty or missing API key")
+            # Only sync API keys for Redis/Celery backend (cross-process communication)
+            if backend_name == "redis":
+                api_servers = settings.get("api_servers", {})
+                logger.info(f"🔑 Syncing {len(api_servers)} ENCRYPTED API keys to Redis for Celery workers")
+                
+                for provider, config in api_servers.items():
+                    api_key = config.get("api_key")
+                    if api_key and api_key.strip():
+                        # For Redis: Store ENCRYPTED keys for Celery workers to decrypt
+                        if self._looks_encrypted_simple(api_key):
+                            # Store encrypted key as-is
+                            shared_data.set_setting(f"api_key:{provider}", api_key)
+                            logger.info(f"✅ Stored encrypted {provider} key in Redis")
+                        else:
+                            # Encrypt before storing
+                            encrypted_key = self._encrypt_value_simple(api_key)
+                            shared_data.set_setting(f"api_key:{provider}", encrypted_key)
+                            logger.info(f"🔒 Encrypted and stored {provider} key in Redis")
+            else:
+                # Threading backend: NO API key syncing (read directly from settings)
+                logger.info(f"🔒 Python backend: API keys stay encrypted in settings file (no shared data)")
             
-            # Sync plan/workflow defaults to shared data
+            # Always sync plan/workflow defaults (not sensitive)
             self._sync_plan_workflow_defaults(settings, shared_data)
                     
         except Exception as e:
-            logger.error(f"❌ Failed to sync API keys to shared data: {e}")
+            logger.error(f"❌ Failed to sync settings to shared data: {e}")
     
     def _sync_plan_workflow_defaults(self, settings: Dict, shared_data):
         """Sync plan/workflow defaults from settings to shared data"""
