@@ -64,7 +64,7 @@ test_requires = [
 
 # Platform-specific configurations for GUI
 [tool.briefcase.app.fichero.macOS]
-universal_build = true
+universal_build = false
 requires = [
     "toga-cocoa>=0.5.1,<0.6.0",
     "std-nslog~=1.0.3",
