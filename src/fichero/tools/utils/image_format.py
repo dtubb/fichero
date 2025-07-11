@@ -229,10 +229,16 @@ def save_as_jxl(image: Image.Image, output_path: Path, effort: int = 7) -> bool:
             temp_png.unlink()
         return False
 
-def save_image(image: Image.Image, output_path: Path, format: OutputFormat = 'jpg') -> Tuple[Path, OutputFormat]:
+def save_image(image: Image.Image, output_path: Path, format: OutputFormat = 'jpg', quality: int = 95) -> Tuple[Path, OutputFormat]:
     """
     Save image in the specified format with optimal settings for document processing.
     Returns (output_path, actual_format_used).
+    
+    Args:
+        image: PIL Image to save
+        output_path: Output file path
+        format: Output format ('jpg', 'png', 'jxl')
+        quality: JPEG quality (1-100, only used for JPEG format)
     """
     output_path = Path(output_path)
     
@@ -267,7 +273,7 @@ def save_image(image: Image.Image, output_path: Path, format: OutputFormat = 'jp
                 image = background
             elif image.mode != 'RGB':
                 image = image.convert('RGB')
-            image.save(output_path, 'JPEG', quality=95, optimize=True, progressive=True)
+            image.save(output_path, 'JPEG', quality=quality, optimize=True, progressive=True)
             return output_path, 'jpg'
         else:
             raise ValueError(f"Unsupported output format: {format}")

@@ -65,17 +65,17 @@ class FicheroDocument(toga.Document):
     
     def _create_new_document(self):
         """Create a new document with default structure"""
-        # For new documents, create an auto-save location
-        self.auto_save_manager.setup_auto_save_path()
+        # Auto-save disabled for now
+        # self.auto_save_manager.setup_auto_save_path()
         
         # Create default plans and document config
         self.state_manager.create_default_plans()
         self.state_manager.create_default_document_config()
         
-        # Auto-save the new document immediately
-        self.auto_save_manager.auto_save()
+        # Auto-save disabled
+        # self.auto_save_manager.auto_save()
         
-        logger.info(f"Created new document with auto-save at: {self.auto_save_manager.auto_save_path}")
+        logger.info(f"Created new document (auto-save disabled)")
     
     def create(self):
         """Create the document window - called automatically by Toga"""

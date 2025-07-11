@@ -327,20 +327,41 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
             # Check if the image file exists, try multiple extensions if not
             image_path = Path(f)
             if not image_path.exists():
-                # Try different extensions
-                for ext in ['.jpg', '.jpeg', '.png', '.jxl']:
+                # Try different extensions in the same location
+                for ext in ['.jpg', '.jpeg', '.png', '.jxl', '.tif', '.tiff']:
                     alt_path = image_path.with_suffix(ext)
                     if alt_path.exists():
                         tool_logger.info(f"Found image with different extension: {alt_path}")
                         image_path = alt_path
                         break
                 else:
-                    tool_logger.error(f"Image file not found: {f}")
-                    return {
-                        "error": f"Image file not found: {f}",
-                        "source": str(rel_path),
-                        "success": False
-                    }
+                    # If still not found, try looking in the base folder with different extensions
+                    # This handles cases where the manifest has wrong extensions
+                    base_path = Path(f).parent / Path(f).stem
+                    for ext in ['.jpg', '.jpeg', '.png', '.jxl', '.tif', '.tiff']:
+                        alt_path = base_path.with_suffix(ext)
+                        if alt_path.exists():
+                            tool_logger.info(f"Found image in base folder with different extension: {alt_path}")
+                            image_path = alt_path
+                            break
+                    else:
+                        # Last resort: try searching in the entire documents folder
+                        documents_folder = Path(f).parent
+                        stem = Path(f).stem
+                        for ext in ['.jpg', '.jpeg', '.png', '.jxl', '.tif', '.tiff']:
+                            search_pattern = f"{stem}{ext}"
+                            matching_files = list(documents_folder.glob(search_pattern))
+                            if matching_files:
+                                tool_logger.info(f"Found image by searching: {matching_files[0]}")
+                                image_path = matching_files[0]
+                                break
+                        else:
+                            tool_logger.error(f"Image file not found: {f}")
+                            return {
+                                "error": f"Image file not found: {f}",
+                                "source": str(rel_path),
+                                "success": False
+                            }
             
             # Add spread to manager
             spread_manager.add_spread(parent_folder, str(image_path), text, Path(f).stem)
@@ -401,14 +422,16 @@ def convert_to_word_batch(
     with tempfile.TemporaryDirectory() as temp_dir:
         spread_manager = SpreadManager(Path(temp_dir))
         
-        # Create processor for PNG files
+        # Create processor for image files
+        # For Simple Catalogue workflow, we need to handle original documents from documents folder
+        # The transcription manifest contains original file paths in "source" field
         processor = BatchProcessor(
             input_manifest=transcription_manifest,
             output_folder=output_folder,
             process_name="convert_to_word",
             base_folder=images_folder,
             processor_fn=lambda f, o: process_document(f, o, spread_manager),
-            use_source=True
+            use_source=True  # Use "source" field from transcription manifest
         )
         
         results = processor.process()

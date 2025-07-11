@@ -61,24 +61,18 @@ class VariableGenerator:
     
     def _generate_script_paths(self) -> Dict[str, str]:
         """Generate script and resource path variables"""
-        try:
-            import fichero
-            package_root = Path(fichero.__file__).parent  # This is src/fichero
-            project_root = package_root.parent.parent  # This is project root/
-            
-            return {
-                'fichero_root': str(project_root),
-                'scripts_dir': str(package_root / "tools"),
-                'prompts_dir': str(package_root / "resources" / "config_defaults" / "prompts"),
-                'models_dir': str(package_root / "resources" / "models"),
-                'yolo_model_path': str(package_root / "resources" / "models" / "yolov8s-fichero.pt")
-            }
-            
-        except Exception as e:
-            logger.warning(f"Could not determine scripts directory: {e}")
-            # Fallback 
-            return {
-                'fichero_root': ".",
-                'scripts_dir': "./tools", 
-                'prompts_dir': "./resources/prompts"
-            }
+        # Get paths from Toga app - fail if not available
+        import toga
+        app = toga.App.app
+        if not app or not hasattr(app, 'paths'):
+            raise RuntimeError("Toga app not available - cannot get resource paths")
+        
+        app_root = app.paths.app
+        
+        return {
+            'fichero_root': str(app_root),
+            'scripts_dir': str(app_root / "tools"),
+            'prompts_dir': str(app_root / "resources" / "config_defaults" / "prompts"),
+            'models_dir': str(app_root / "resources" / "models"),
+            'yolo_model_path': str(app_root / "resources" / "models" / "yolov8s-fichero.pt")
+        }

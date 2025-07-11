@@ -431,10 +431,13 @@ def transcribe_batch(
             return result
 
     # Use the parallel batch processor
+    # Derive process name from output folder to avoid hardcoded names
+    process_name = output_folder.name if output_folder.name else "transcription"
+    
     processor = ParallelBatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
-        process_name="segmented_transcription",
+        process_name=process_name,
         processor_fn=None,  # Not used in parallel version
         base_folder=source_folder,
         batch_size=5,  # Process 5 images per batch

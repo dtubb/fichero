@@ -144,18 +144,18 @@ class SessionManager:
                     logger.info(f"Successfully restored {documents_opened} documents")
                     return  # Don't create new document if we restored some
                 else:
-                    logger.warning("No documents could be restored, creating new document")
-                    self.app.new_document()
+                    logger.warning("No documents could be restored, not creating new document automatically")
+                    # Don't auto-create document - let user create when needed
             else:
-                logger.info("No previous session found, creating new document")
-                self.app.new_document()
+                logger.info("No previous session found, not creating new document automatically")
+                # Don't auto-create document - let user create when needed
                 
         except Exception as e:
             logger.error(f"Critical error in session restoration: {e}")
             import traceback
             traceback.print_exc()
-            logger.info("Creating new document instead")
-            self.app.new_document()
+            logger.info("Not creating new document due to error")
+            # Don't auto-create document - let user create when needed
     
     def clear_session(self):
         """Clear saved session (useful for 'Start Fresh' option)"""

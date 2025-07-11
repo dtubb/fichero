@@ -207,8 +207,9 @@ class WorkflowExecutor:
                     any(keyword in key.lower() for keyword in ['folder', 'path', 'manifest', 'config'])):
                     # Handle shared resources (yolo_models, prompts, etc.)
                     if value.startswith(('yolo_models/', 'prompts/')):
-                        # Get the resources directory
+                        # Simple path resolution - no Toga app creation
                         resources_dir = Path(__file__).parent.parent / 'resources'
+                        
                         # Map yolo_document.pt to the actual model file
                         if value.endswith('yolo_document.pt'):
                             expanded_args[key] = resources_dir / 'yolo_models' / 'yolov8s-fichero.pt'
@@ -216,8 +217,9 @@ class WorkflowExecutor:
                             expanded_args[key] = resources_dir / value
                     # Handle resource files by filename (smart lookup)
                     elif any(keyword in key.lower() for keyword in ['config', 'model']):
-                        # Get the resources directory
+                        # Simple path resolution - no Toga app creation
                         resources_dir = Path(__file__).parent.parent / 'resources'
+                        
                         # Try to find the file in prompts/ or yolo_models/ directories
                         if key.lower() == 'prompt_config':
                             # Look for prompt config files

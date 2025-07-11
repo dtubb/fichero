@@ -52,9 +52,14 @@ class FileManager(ABC):
                 # User files from app data
                 user_dir = self.app.paths.data / file_type
             else:
-                # Fallback paths
-                default_dir = Path(__file__).parent.parent.parent / "resources" / "config_defaults" / file_type
-                user_dir = None
+                # For CLI or when app is not available - fail if no app
+                import toga
+                app = toga.App.app
+                if not app or not hasattr(app, 'paths'):
+                    raise RuntimeError(f"Toga app not available - cannot get {file_type} directories")
+                
+                default_dir = app.paths.app / "resources" / "config_defaults" / file_type
+                user_dir = app.paths.data / file_type
             
             return default_dir, user_dir
         except Exception:

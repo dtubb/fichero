@@ -192,22 +192,17 @@ class SettingsManager(FileManager):
                 logger.info(f"User settings path: {user_file}")
                 return user_file
             else:
-                # CLI mode - create minimal Toga app to get same paths
-                try:
-                    import toga
-                    minimal_app = toga.App("fichero", "ca.tubb.fichero")
-                    user_dir = minimal_app.paths.data / "settings"
-                    user_dir.mkdir(parents=True, exist_ok=True)
-                    user_file = user_dir / "settings.yml"
-                    logger.info(f"CLI using Toga paths: {user_file}")
-                    return user_file
-                except Exception as toga_error:
-                    logger.warning(f"Failed to create minimal Toga app: {toga_error}")
-                    # Fallback to CLI-specific path
-                    cli_path = Path.home() / ".fichero" / "settings.yml"
-                    cli_path.parent.mkdir(parents=True, exist_ok=True)
-                    logger.info(f"CLI fallback settings path: {cli_path}")
-                    return cli_path
+                # CLI mode - fail if no app
+                import toga
+                app = toga.App.app
+                if not app or not hasattr(app, 'paths'):
+                    raise RuntimeError("Toga app not available - cannot get settings path")
+                
+                user_dir = app.paths.data / "settings"
+                user_dir.mkdir(parents=True, exist_ok=True)
+                user_file = user_dir / "settings.yml"
+                logger.info(f"CLI using Toga paths: {user_file}")
+                return user_file
         except Exception as e:
             logger.error(f"Failed to get user settings path: {e}")
             return None

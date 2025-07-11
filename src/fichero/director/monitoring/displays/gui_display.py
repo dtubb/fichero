@@ -66,7 +66,7 @@ class GUITaskDisplay:
         # Status bar
         self.status_label = toga.Label(
             text=_("task_table_ready"),
-            style=Pack(padding=(5, 10), text_align="center")
+            style=Pack(margin=(5, 10), text_align="center")
         )
         
         # Task table
@@ -86,13 +86,13 @@ class GUITaskDisplay:
         self.stop_button = toga.Button(
             text=button_text,
             on_press=self._stop_tasks,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         
         # Layout containers
         bottom_box = toga.Box(
             children=[self.stop_button, self.status_label],
-            style=Pack(direction=ROW, padding=5)
+            style=Pack(direction=ROW, margin=5)
         )
         
         self.container = toga.Box(

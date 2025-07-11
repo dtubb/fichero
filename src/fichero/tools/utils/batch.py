@@ -36,6 +36,9 @@ class BatchProcessor:
         self.input_proc = ManifestProcessor(manifest_path=self.input_manifest, progress_file=None)
         self.output_proc = ManifestProcessor(manifest_path=self.manifest_file, progress_file=self.progress_file)
         
+        # Initialize original order from input manifest
+        self._initialize_original_order()
+        
     def process(self) -> Dict:
         """Run the batch processing"""
         documents = []
@@ -166,6 +169,39 @@ class BatchProcessor:
             except Exception as e:
                 tool_logger.error(f"Error processing {doc['path']}: {e}")
                 stats["failed"] += 1
+
+    def _initialize_original_order(self):
+        """Initialize original order from input manifest"""
+        self.output_proc.original_order = []
+        for doc in self.input_proc.stream_entries():
+            # Skip directory entries
+            if doc.get("type") == "directory":
+                continue
+
+            paths_to_process = []
+            
+            # Get document paths based on configuration
+            if self.use_source and "source" in doc:
+                paths_to_process.append(doc["source"])
+            elif "outputs" in doc and doc["outputs"]:
+                # Handle both string and dict outputs
+                for out_path in doc["outputs"]:
+                    if isinstance(out_path, str):
+                        paths_to_process.append(out_path)
+                    elif isinstance(out_path, dict) and "path" in out_path:
+                        paths_to_process.append(out_path["path"])
+            elif doc.get("path"):  # Fallback for direct paths
+                paths_to_process.append(doc["path"])
+                
+            # Add to original order
+            for path in paths_to_process:
+                # Normalize path key
+                if "documents/" in path:
+                    key = path.split("documents/", 1)[1]
+                else:
+                    key = path
+                if key not in self.output_proc.original_order:
+                    self.output_proc.original_order.append(key)
 
     def _print_stats(self, stats: dict):
         """Print final statistics"""

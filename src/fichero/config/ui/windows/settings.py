@@ -12,6 +12,7 @@ from ..base_config_library import BaseConfigLibrary
 from ..base_config_library import UISchema
 from ...core.settings_manager import SettingsManager
 from ....ui.i18n import _  # Import translation function
+from ....ui.windows.document_window import DEFAULT_PLAN_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,26 @@ class SettingsLibrary(BaseConfigLibrary):
             
             # Get plan options (clean list without management options)
             plan_options = self.ui_helper.get_plan_options()
+            
+            # Get the default plan display name by finding the plan with DEFAULT_PLAN_FILENAME
+            default_plan_display = None
+            for plan_display_name in plan_options:
+                # Get the filename for this plan display name
+                plan_filename = self.ui_helper.get_plan_filename(plan_display_name)
+                if plan_filename == DEFAULT_PLAN_FILENAME.replace('.yml', ''):
+                    default_plan_display = plan_display_name
+                    break
+            
+            # Put default plan first if found
+            if default_plan_display:
+                plan_options = [default_plan_display] + [p for p in plan_options if p != default_plan_display]
+            
             self._populate_field_options(schema_data, "defaults.plan", plan_options)
+
+            # Remove/hide the workflow field entirely
+            for section in schema_data.get('sections', []):
+                for subsection in section.get('sections', []):
+                    subsection['fields'] = [f for f in subsection.get('fields', []) if f.get('id') != 'defaults.workflow']
             
             # Set up plan change callback
             self._add_field_callback(schema_data, "defaults.plan", self._on_plan_selection_change)

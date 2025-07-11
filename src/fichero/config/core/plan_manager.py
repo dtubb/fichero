@@ -24,10 +24,10 @@ class PlanManager:
             app: Application instance to get paths
             
         Returns:
-            List of plan names (without file extensions)
+            List of plan display names (from title field in plan files)
         """
         try:
-            plans = []
+            plan_display_names = []
             
             # Get plan directories
             default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(app)
@@ -37,16 +37,46 @@ class PlanManager:
                 if plans_dir and plans_dir.exists():
                     for ext in ConfigLoader.get_supported_extensions():
                         plan_files = list(plans_dir.glob(f"*{ext}"))
-                        plan_names = [f.stem for f in plan_files]
-                        plans.extend(plan_names)
+                        for plan_file in plan_files:
+                            # Load plan data to get display name
+                            plan_data = ConfigLoader.load_config_file(plan_file)
+                            if plan_data and 'title' in plan_data:
+                                display_name = plan_data['title']
+                                # Store as tuple: (display_name, filename_stem) for sorting
+                                plan_display_names.append((display_name, plan_file.stem))
+                            else:
+                                # Fallback to filename if no title
+                                plan_display_names.append((plan_file.stem, plan_file.stem))
             
-            # Remove duplicates and sort (user plans override defaults)
-            unique_plans = sorted(list(set(plans)))
+            # Remove duplicates (user plans override defaults)
+            unique_plans = {}
+            for display_name, filename_stem in plan_display_names:
+                unique_plans[filename_stem] = display_name
             
             if not unique_plans:
                 return ["No plans found"]
             
-            return unique_plans
+            # Sort plans with priority: "Default" first, then preserve file order
+            # First, separate Default from others
+            default_plan = None
+            other_plans = []
+            
+            for display_name, filename_stem in unique_plans.items():
+                if filename_stem.lower() == "default":
+                    default_plan = (display_name, filename_stem)
+                else:
+                    other_plans.append((display_name, filename_stem))
+            
+            # Build final list: Default first, then others in file order
+            final_plans = []
+            if default_plan:
+                final_plans.append(default_plan)
+            final_plans.extend(other_plans)
+            
+            display_names = [display_name for display_name, filename_stem in final_plans]
+            
+            logger.debug(f"Available plans: {display_names}")
+            return display_names
             
         except Exception as e:
             logger.error(f"Error loading available plans: {e}")
@@ -58,7 +88,7 @@ class PlanManager:
         Get list of workflows for a specific plan
         
         Args:
-            plan_name: Name of the plan
+            plan_name: Display name of the plan (from title field)
             app: Application instance to get paths
             
         Returns:
@@ -76,7 +106,8 @@ class PlanManager:
             if not workflows:
                 return ["No workflows in plan"]
             
-            return sorted(workflows.keys())
+            # Return workflows in the order they appear in the file (dict order in Python 3.7+)
+            return list(workflows.keys())
             
         except Exception as e:
             logger.error(f"Error loading workflows for plan {plan_name}: {e}")
@@ -181,12 +212,58 @@ class PlanManager:
             return ["Error loading workflows"]
     
     @staticmethod
+    def get_plan_filename_from_display_name(display_name: str, app=None) -> Optional[str]:
+        """
+        Get the filename stem from a plan display name
+        
+        Args:
+            display_name: Display name of the plan (from title field)
+            app: Application instance to get paths
+            
+        Returns:
+            Filename stem (without extension) or None if not found
+        """
+        try:
+            if not display_name or display_name in ["No plans found", "Error loading plans", "Manage Plans..."]:
+                return None
+                
+            default_dir, user_dir = PlanManager._get_plan_directories(app)
+            
+            # Search both directories
+            for plans_dir in [default_dir, user_dir]:
+                if not plans_dir or not plans_dir.exists():
+                    continue
+                
+                for ext in ConfigLoader.get_supported_extensions():
+                    plan_files = list(plans_dir.glob(f"*{ext}"))
+                    for plan_file in plan_files:
+                        plan_data = ConfigLoader.load_config_file(plan_file)
+                        if plan_data and 'title' in plan_data and plan_data['title'] == display_name:
+                            return plan_file.stem
+            
+            # If not found by title, try direct filename match
+            for plans_dir in [default_dir, user_dir]:
+                if not plans_dir or not plans_dir.exists():
+                    continue
+                
+                for ext in ConfigLoader.get_supported_extensions():
+                    plan_file = plans_dir / f"{display_name}{ext}"
+                    if plan_file.exists():
+                        return plan_file.stem
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting plan filename for display name {display_name}: {e}")
+            return None
+    
+    @staticmethod
     def get_plan_file_path(plan_name: str, app=None) -> Optional[Path]:
         """
         Get the file path for a specific plan
         
         Args:
-            plan_name: Name of the plan
+            plan_name: Display name of the plan (from title field)
             app: Application instance to get paths
             
         Returns:
@@ -195,6 +272,11 @@ class PlanManager:
         try:
             if not plan_name or plan_name in ["No plans found", "Error loading plans", "Manage Plans..."]:
                 return None
+            
+            # First try to get filename from display name
+            filename_stem = PlanManager.get_plan_filename_from_display_name(plan_name, app)
+            if filename_stem:
+                plan_name = filename_stem
                 
             default_dir, user_dir = PlanManager._get_plan_directories(app)
             
@@ -259,7 +341,7 @@ class PlanManager:
             except Exception as e:
                 logger.debug(f"Could not read default from shared data: {e}")
             
-            # Fallback to first available plan
+            # Fallback to first available plan (already sorted with Default first)
             plans = PlanManager.get_available_plans(app)
             valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
             
@@ -279,7 +361,7 @@ class PlanManager:
         Get the default workflow from settings, fallback to shared data, then 'default' or first
         
         Args:
-            plan_name: Name of the plan
+            plan_name: Display name of the plan (from title field)
             app: Application instance to get paths
             
         Returns:
@@ -339,7 +421,7 @@ class PlanManager:
         Set the default plan in settings and shared data
         
         Args:
-            plan_name: Name of the plan to set as default
+            plan_name: Display name of the plan (from title field) to set as default
             app: Application instance (optional)
         """
         try:
@@ -372,7 +454,7 @@ class PlanManager:
         Set the default workflow in settings and shared data
         
         Args:
-            workflow_name: Name of the workflow to set as default
+            workflow_name: Display name of the workflow to set as default
             app: Application instance (optional)
         """
         try:
@@ -435,9 +517,51 @@ class PlanManager:
                 # User plans from app data
                 user_plans_dir = app.paths.data / "plans"
             else:
-                # Fallback paths
-                default_plans_dir = Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "plans"
-                user_plans_dir = None
+                # For CLI or when app is not available - fail if no app
+                import toga
+                app = toga.App.app
+                if not app or not hasattr(app, 'paths'):
+                    raise RuntimeError("Toga app not available - cannot get plan directories")
+                
+                default_plans_dir = app.paths.app / "resources" / "config_defaults" / "plans"
+                user_plans_dir = app.paths.data / "plans"
+            
+            # Debug logging for built app troubleshooting
+            logger.debug(f"Plan directories - default: {default_plans_dir}, user: {user_plans_dir}")
+            if default_plans_dir and default_plans_dir.exists():
+                plan_files = list(default_plans_dir.glob('*.yml'))
+                logger.debug(f"Default plans dir exists, contents: {plan_files}")
+                logger.debug(f"Plan names: {[f.stem for f in plan_files]}")
+            else:
+                logger.debug(f"Default plans dir does not exist: {default_plans_dir}")
+                
+                # Try alternative paths for built apps
+                if app and hasattr(app, 'paths'):
+                    # Try different possible locations
+                    alt_paths = [
+                        app.paths.app / "Contents" / "Resources" / "config_defaults" / "plans",  # macOS bundle
+                        app.paths.app / "resources" / "plans",  # Simplified path
+                        app.paths.app / "config_defaults" / "plans",  # Direct config path
+                    ]
+                    
+                    for alt_path in alt_paths:
+                        if alt_path.exists():
+                            logger.debug(f"Found plans in alternative location: {alt_path}")
+                            default_plans_dir = alt_path
+                            break
+                
+                # If still not found, try development paths
+                if not default_plans_dir or not default_plans_dir.exists():
+                    dev_paths = [
+                        Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "plans",
+                        Path(__file__).parent.parent.parent.parent / "src" / "fichero" / "resources" / "config_defaults" / "plans",
+                    ]
+                    
+                    for dev_path in dev_paths:
+                        if dev_path.exists():
+                            logger.debug(f"Found plans in development location: {dev_path}")
+                            default_plans_dir = dev_path
+                            break
             
             return default_plans_dir, user_plans_dir
             
@@ -451,13 +575,18 @@ class PlanManager:
         Load plan file data, checking user directory first, then defaults
         
         Args:
-            plan_name: Name of the plan (without extension)
+            plan_name: Display name of the plan (from title field)
             app: Application instance
             
         Returns:
             Plan data dictionary or None if not found
         """
         try:
+            # First try to get filename from display name
+            filename_stem = PlanManager.get_plan_filename_from_display_name(plan_name, app)
+            if filename_stem:
+                plan_name = filename_stem
+            
             default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(app)
             
             # Check user plans first (overrides defaults)

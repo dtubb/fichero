@@ -29,6 +29,29 @@ class PlanWorkflowUIHelper:
         
     # Core Data Access
     
+    def get_plan_filename(self, plan_display_name: str) -> Optional[str]:
+        """Get the filename (without .yml) for a given plan display name"""
+        from .plan_manager import PlanManager
+        
+        # Get plan directories
+        default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(self.app)
+        
+        # Search through both directories
+        for plans_dir in [default_plans_dir, user_plans_dir]:
+            if plans_dir and plans_dir.exists():
+                for ext in ['.yml', '.yaml']:
+                    for plan_file in plans_dir.glob(f"*{ext}"):
+                        try:
+                            from .config_loader import ConfigLoader
+                            plan_data = ConfigLoader.load_config_file(plan_file)
+                            if plan_data and plan_data.get('title') == plan_display_name:
+                                return plan_file.stem  # Return filename without extension
+                        except Exception as e:
+                            logger.debug(f"Error reading plan file {plan_file}: {e}")
+                            continue
+        
+        return None
+
     def get_plan_options(self) -> List[str]:
         """Get available plans for dropdown (clean list, no management options)"""
         from .plan_manager import PlanManager
@@ -135,7 +158,7 @@ class PlanWorkflowUIHelper:
                 widget.items = workflow_options
                 logger.debug(f"Set workflow dropdown items: {workflow_options}")
                 
-                # Determine what value to set
+                # Determine what value to set - ensure it exists in the list
                 if current_value and current_value in workflow_options:
                     widget.value = current_value
                     logger.debug(f"Set workflow to current value: {current_value}")
@@ -148,11 +171,16 @@ class PlanWorkflowUIHelper:
                         logger.debug(f"Set workflow to app default: {default_workflow}")
                         return default_workflow
                 
-                # Fall back to first available
+                # Fall back to first available - ensure it exists
                 if workflow_options:
-                    widget.value = workflow_options[0]
-                    logger.debug(f"Set workflow to first available: {workflow_options[0]}")
-                    return workflow_options[0]
+                    first_workflow = workflow_options[0]
+                    widget.value = first_workflow
+                    logger.debug(f"Set workflow to first available: {first_workflow}")
+                    return first_workflow
+                else:
+                    # No valid workflows, clear the selection
+                    widget.value = None
+                    logger.debug("No valid workflows available")
             else:
                 widget.items = ["No workflows in plan"]
                 widget.value = None
@@ -282,6 +310,20 @@ class PlanWorkflowUIHelper:
             
         except Exception as e:
             logger.error(f"Error initializing Document widgets: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            # Set safe fallback values
+            try:
+                if hasattr(plan_widget, 'items'):
+                    plan_widget.items = ["No plans found"]
+                    plan_widget.value = None
+                if hasattr(workflow_widget, 'items'):
+                    workflow_widget.items = ["Select a plan first"]
+                    workflow_widget.value = None
+            except Exception as widget_error:
+                logger.debug(f"Error setting fallback widget values: {widget_error}")
+            
             return {'plan': None, 'workflow': None}
     
     # CLI Helper Methods

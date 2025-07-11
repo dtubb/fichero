@@ -28,12 +28,15 @@ import math
 from ..i18n import _, translator
 from ...config.core.plan_manager import PlanManager
 from ...config.core.settings import get_app_settings
+from ...config.core.loader import ConfigLoader
 from ...director import FicheroDirector
 from ...director.monitoring.displays.gui_display import GUITaskDisplay
 from ...director.monitoring.task_monitor import TaskMonitor
 from ...utils.path_icons import render_path_with_icons, get_folder_icon_path
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PLAN_FILENAME = "Default.yml"
 
 
 class FicheroDocumentWindow(toga.DocumentWindow):
@@ -68,6 +71,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Set initial window title to just "Fichero"
         self.title = "Fichero"
         
+        self.plan_display_to_filename = {}  # display name -> filename stem
 
         
         # Set up window handlers
@@ -97,6 +101,11 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Assemble layout - content section gets only the space it needs
         main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
         main_sections.add(self.folder_section)
+        
+        # Add 20px margin between folder section and content section
+        margin_spacer = toga.Box(style=Pack(height=20))
+        main_sections.add(margin_spacer)
+        
         main_sections.add(self.content_section)
         
         main_content = toga.Box(style=Pack(direction=COLUMN, background_color='#f7f2f1'))
@@ -109,7 +118,16 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         """Create different icons for different states"""
         # Question mark icon (default state)
         try:
-            question_image = toga.Image("resources/icons/folder_with_question_mark.png")
+            # Try app-relative path first (for built apps)
+            if hasattr(self, '_app') and self._app and hasattr(self._app, 'paths'):
+                icon_path = self._app.paths.app / "resources" / "icons" / "folder_with_question_mark.png"
+                if icon_path.exists():
+                    question_image = toga.Image(str(icon_path))
+                else:
+                    question_image = toga.Image("resources/icons/folder_with_question_mark.png")
+            else:
+                question_image = toga.Image("resources/icons/folder_with_question_mark.png")
+            
             self.question_icon = toga.ImageView(
                 question_image,
                 style=Pack(width=62, height=62, margin=3)
@@ -134,7 +152,16 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         # Fall back to user's custom folder.png icon
         try:
-            folder_image = toga.Image("resources/icons/folder.png")
+            # Try app-relative path first (for built apps)
+            if hasattr(self, '_app') and self._app and hasattr(self._app, 'paths'):
+                icon_path = self._app.paths.app / "resources" / "icons" / "folder.png"
+                if icon_path.exists():
+                    folder_image = toga.Image(str(icon_path))
+                else:
+                    folder_image = toga.Image("resources/icons/folder.png")
+            else:
+                folder_image = toga.Image("resources/icons/folder.png")
+            
             return toga.ImageView(
                 folder_image,
                 style=Pack(width=62, height=62, margin=3)
@@ -357,7 +384,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         # Create description canvas for beautiful markdown rendering
         self.description_canvas = toga.Canvas(
             style=Pack(
-                margin_top=20,
+                margin_top=5,
                 margin_right=20,
                 margin_bottom=10,
                 margin_left=20,
@@ -388,21 +415,13 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         )
         left_section.add(help_btn)
         
-        # Plan selector
+        # Plan selector (will be populated in _initialize_plan_workflow)
         self.plan_selector = toga.Selection(
-            items=PlanManager.get_plan_dropdown_options(self._app),
-            style=Pack(width=120, font_size=11, margin_left=5, height=24),
+            items=["Loading plans..."],
+            style=Pack(width=360, font_size=11, margin_left=5, height=24),
             on_change=self._on_plan_change
         )
         left_section.add(self.plan_selector)
-        
-        # Workflow selector
-        self.workflow_selector = toga.Selection(
-            items=["Select a plan first"],
-            style=Pack(width=120, font_size=11, margin_left=5, height=24),
-            on_change=self._on_workflow_change
-        )
-        left_section.add(self.workflow_selector)
         
         # Right side: Process controls
         right_section = toga.Box(style=Pack(direction=ROW))
@@ -486,7 +505,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 content=toga.Box(
                     style=Pack(
                         direction=COLUMN,  # Allow multiple rows
-                        padding=8  # Padding for content
+                        margin=8  # margin for content
                     )
                 ),
                 horizontal=False,  # Disable horizontal scrolling
@@ -494,7 +513,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
                 style=Pack(
                     width=540,  # Full width of grey bar
                     height=68,  # Full height of grey bar
-                    padding=0,  # No padding on container
+                    margin=0,  # No margin on container
                     background_color='rgb(226, 223, 222)'  # Same grey as original canvas
                 )
             )
@@ -623,7 +642,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         
         # Add a canvas background first to restore the grey color
         background_canvas = toga.Canvas(
-            style=Pack(width=540, height=68, margin=0, padding=0),
+            style=Pack(width=540, height=68, margin=0),
             on_resize=self._draw_path_background
         )
         self.path_display_container.content.add(background_canvas)
@@ -633,7 +652,7 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             style=Pack(
                 direction=COLUMN,
                 margin_top=-68,  # Overlay on the canvas
-                padding=8
+                margin=8
             )
         )
         self.path_display_container.content.add(overlay_container)
@@ -788,14 +807,17 @@ class FicheroDocumentWindow(toga.DocumentWindow):
 
     
     def _show_ready_to_process(self):
-        """Show 'Ready to process...' message in content area"""
+        """Show plan description when ready to process"""
         # Clear the content section
         self.content_section.clear()
         
         # Create canvas that draws both background and text together
         self.ready_canvas = toga.Canvas(
             style=Pack(
-                margin=(20, 20, 20, 20),  # 20px bottom margin
+                margin_top=5,
+                margin_right=20,
+                margin_bottom=10,
+                margin_left=20,
                 height=200,  # Same height as description canvas
             ),
             on_resize=self._draw_ready_background_and_text
@@ -804,38 +826,96 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         self.content_section.add(self.ready_canvas)
     
     def _draw_ready_background_and_text(self, canvas=None, **kwargs):
-        """Draw rounded grey background and centered text for ready state"""
-        if not canvas:
-            return
-            
-        width = canvas.layout.content_width
-        height = canvas.layout.content_height
-        corner_radius = 6
+        """Draw plan description using same approach as main description canvas"""
+        if canvas is None:
+            canvas = self.ready_canvas
         
-        # Draw rounded grey background with same style as folder bar
-        with canvas.context.Fill(color='rgb(226, 223, 222)') as fill:
-            fill.begin_path()
-            fill.move_to(corner_radius, 0)
-            fill.line_to(width - corner_radius, 0)
-            fill.arc(width - corner_radius, corner_radius, corner_radius, -1.5708, 0)
-            fill.line_to(width, height - corner_radius)
-            fill.arc(width - corner_radius, height - corner_radius, corner_radius, 0, 1.5708)
-            fill.line_to(corner_radius, height)
-            fill.arc(corner_radius, height - corner_radius, corner_radius, 1.5708, 3.14159)
-            fill.line_to(0, corner_radius)
-            fill.arc(corner_radius, corner_radius, corner_radius, 3.14159, 4.71239)
-            fill.close_path()
+        if not canvas or not hasattr(canvas, 'layout') or not canvas.layout:
+            return
+        
+        # Clear and draw - same as main description canvas
+        with canvas.context.Fill(color='rgb(255, 255, 255)') as clear_fill:
+            clear_fill.rect(0, 0, canvas.layout.content_width, canvas.layout.content_height)
+        
+        self._draw_rounded_background(canvas)
+        self._draw_plan_description_content(canvas)
+    
+    def _get_plan_description(self):
+        """Get the description of the currently selected plan"""
+        try:
+            if not hasattr(self, 'current_plan_filename') or not self.current_plan_filename:
+                return "Please select a plan to see its description."
             
-        # Draw centered text
-        text_font = toga.Font(family=toga.fonts.SYSTEM, size=12, weight="normal", style="italic")
-        text = _("document_processing_ready")
-        text_width, text_height = canvas.measure_text(text, text_font)
+            from ...config.core.plan_manager import PlanManager
+            plan_data = PlanManager._load_plan_file(self.current_plan_filename, self._app)
             
-        center_x = width/2 - text_width/2
-        center_y = height/2 - text_height/2
-            
-        with canvas.context.Fill(color='#808080') as text_fill:
-            text_fill.write_text(text, center_x, center_y, text_font)
+            if plan_data and 'description' in plan_data:
+                return plan_data['description']
+            else:
+                return f"Plan: {self.current_plan}"
+                
+        except Exception as e:
+            logger.debug(f"Could not load plan description: {e}")
+            return f"Plan: {self.current_plan}"
+    
+    def _draw_plan_description_content(self, canvas):
+        """Draw plan description content using same markdown rendering as main description"""
+        # Fonts - match Fichero description typography
+        regular_font = toga.Font(family=toga.fonts.SYSTEM, size=10, weight="light")
+        bold_font = toga.Font(family=toga.fonts.SYSTEM, size=10, weight="bold")
+        
+        # Get plan description if available
+        description = self._get_plan_description()
+        
+        # Margins - same as main description content
+        line_height_multiplier = 1.8
+        left_margin = 15
+        top_margin = 15
+        right_margin = 10
+        max_width = canvas.layout.content_width - left_margin - right_margin
+        
+        # Start with title
+        title = f"*Plan:* {self.current_plan}" if self.current_plan else "*No Plan Selected*"
+        current_y = top_margin
+        
+        # Render title using markdown system
+        current_y = self._render_paragraph(canvas, title, left_margin, current_y, 
+                                         max_width, regular_font, bold_font, line_height_multiplier)
+        
+        # Add space after title
+        current_y += regular_font.size * line_height_multiplier * 0.8
+        
+        # Render description using markdown system
+        current_y = self._render_paragraph(canvas, description, left_margin, current_y, 
+                                         max_width, regular_font, bold_font, line_height_multiplier)
+
+        # Draw workflow steps
+        if hasattr(self, 'current_plan_filename') and self.current_plan_filename and self.current_workflow:
+            from ...config.core.plan_manager import PlanManager
+            plan_data = PlanManager._load_plan_file(self.current_plan_filename, self._app)
+            if plan_data and 'workflows' in plan_data and self.current_workflow in plan_data['workflows']:
+                steps = plan_data['workflows'][self.current_workflow]
+                if isinstance(steps, list):
+                    # Add space before steps
+                    current_y += regular_font.size * line_height_multiplier * 0.8
+                    
+                    # Render steps using markdown system
+                    steps_text = "*Steps:* " + ", ".join(steps)
+                    current_y = self._render_paragraph(canvas, steps_text, left_margin, current_y, 
+                                                     max_width, regular_font, bold_font, line_height_multiplier)
+        
+        # Add space before "Ready to process..."
+        current_y += regular_font.size * line_height_multiplier * 0.8
+        
+        # Draw 'Ready to process...' centered, same font size, italics
+        ready_text = "Ready to process..."
+        ready_font = toga.Font(family=toga.fonts.SYSTEM, size=10, weight="normal", style="italic")
+        ready_width, ready_height = canvas.measure_text(ready_text, ready_font)
+        ready_x = (canvas.layout.content_width - ready_width) // 2  # Center horizontally
+        ready_y = current_y + (regular_font.size * line_height_multiplier * 0.8)
+        
+        with canvas.context.Fill(color='rgb(0, 0, 0)') as ready_fill:
+            ready_fill.write_text(ready_text, ready_x, ready_y, ready_font)
 
     def _update_folder_icon_for_selected_path(self, folder_path):
         """Update the left folder icon to match the selected folder"""
@@ -1584,66 +1664,94 @@ class FicheroDocumentWindow(toga.DocumentWindow):
             # Create unified helper
             self.ui_helper = PlanWorkflowUIHelper(self._app)
             
-            # Initialize widgets with app defaults (document-specific mode)
-            result = self.ui_helper.initialize_document_widgets(
-                self.plan_selector, 
-                self.workflow_selector
-            )
+            # Get available plans and build mapping
+            from ...config.core.plan_manager import PlanManager
+            plan_display_names = []
+            self.plan_display_to_filename = {}
+            default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(self._app)
+            for plans_dir in [default_plans_dir, user_plans_dir]:
+                if plans_dir and plans_dir.exists():
+                    for ext in ConfigLoader.get_supported_extensions():
+                        plan_files = list(plans_dir.glob(f"*{ext}"))
+                        for plan_file in plan_files:
+                            plan_data = ConfigLoader.load_config_file(plan_file)
+                            if plan_data and 'title' in plan_data:
+                                display_name = plan_data['title']
+                                self.plan_display_to_filename[display_name] = plan_file.stem
+                                plan_display_names.append(display_name)
+                            else:
+                                self.plan_display_to_filename[plan_file.stem] = plan_file.stem
+                                plan_display_names.append(plan_file.stem)
+            # Remove duplicates while preserving order, with Default first
+            seen_plans = set()
+            unique_plans = []
+            for name in plan_display_names:
+                if name not in seen_plans:
+                    seen_plans.add(name)
+                    unique_plans.append(name)
             
-            # Store current selections
-            self.current_plan = result.get('plan')
-            self.current_workflow = result.get('workflow')
-            
+            # Sort with DEFAULT_PLAN_FILENAME first if present, then preserve file order for others
+            default_plan_display = None
+            for display_name, filename in self.plan_display_to_filename.items():
+                if filename == DEFAULT_PLAN_FILENAME.replace('.yml', ''):
+                    default_plan_display = display_name
+                    break
+            sorted_plans = []
+            if default_plan_display:
+                sorted_plans.append(default_plan_display)
+                other_plans = [n for n in unique_plans if n != default_plan_display]
+                sorted_plans.extend(other_plans)
+            else:
+                sorted_plans = unique_plans
+            self.plan_selector.items = sorted_plans
+            if sorted_plans:
+                self.plan_selector.value = sorted_plans[0]
+                self.current_plan = sorted_plans[0]
+            else:
+                self.plan_selector.items = ["No plans found"]
+                self.plan_selector.value = None
+                self.current_plan = None
+            # Populate workflow selector
+            self._on_plan_change(self.plan_selector)
             # Enable process button if folder selected
             self.process_btn.enabled = bool(self.selected_folder and self.current_plan)
-            
         except Exception as e:
             logger.error(f"Error initializing plan/workflow: {e}")
-    
+            import traceback
+            logger.error(traceback.format_exc())
+            self.current_plan = None
+            self.current_workflow = None
+            self.process_btn.enabled = False
+            try:
+                if hasattr(self, 'plan_selector'):
+                    self.plan_selector.items = ["No plans found"]
+                    self.plan_selector.value = None
+            except Exception as dropdown_error:
+                logger.debug(f"Error setting safe dropdown values: {dropdown_error}")
+
     def _on_plan_change(self, widget):
-        """Handle plan selection change using unified helper"""
         try:
-            if not hasattr(self, 'ui_helper'):
+            if not hasattr(self, 'plan_display_to_filename'):
                 return
+            display_name = widget.value
+            filename = self.plan_display_to_filename.get(display_name)
+            self.current_plan = display_name
+            self.current_plan_filename = filename
             
-            # Use unified helper with save_as_default=False (document-specific)
-            result = self.ui_helper.handle_plan_change(
-                widget, 
-                self.workflow_selector, 
-                save_as_default=False
-            )
+            # Set the default workflow for this plan (first workflow)
+            from ...config.core.plan_manager import PlanManager
+            workflows = PlanManager.get_workflows_for_plan(filename, self._app)
+            if workflows and workflows[0] not in ["No workflows", "Plan file not found", "Error loading workflows"]:
+                self.current_workflow = workflows[0]
+            else:
+                self.current_workflow = None
             
-            # Update current selections
-            self.current_plan = result.get('plan')
-            self.current_workflow = result.get('workflow')
-            
-            # Enable process button if folder selected and plan chosen
             self.process_btn.enabled = bool(self.selected_folder and self.current_plan)
-            
-            logger.info(f"Document plan changed: {result}")
-            
+            if self.selected_folder and hasattr(self, 'ready_canvas'):
+                self._draw_ready_background_and_text()
+            logger.info(f"Document plan changed: {display_name} (filename: {filename})")
         except Exception as e:
             logger.error(f"Error handling plan change: {e}")
-    
-    def _on_workflow_change(self, widget):
-        """Handle workflow selection change using unified helper"""
-        try:
-            if not hasattr(self, 'ui_helper'):
-                return
-            
-            # Use unified helper with save_as_default=False (document-specific)
-            workflow_name = self.ui_helper.handle_workflow_change(
-                widget, 
-                save_as_default=False
-            )
-            
-            # Update current selection
-            self.current_workflow = workflow_name
-            
-            logger.info(f"Document workflow changed: {workflow_name}")
-        
-        except Exception as e:
-            logger.error(f"Error handling workflow change: {e}")
 
     # Window Management
     
@@ -1652,7 +1760,20 @@ class FicheroDocumentWindow(toga.DocumentWindow):
         try:
             def on_close_handler(widget, **kwargs):
                 try:
+                    # Clean up any processing state
+                    if hasattr(self, 'current_task_ids') and self.current_task_ids:
+                        logger.info("Cleaning up processing tasks on window close")
+                        # Stop any ongoing processing
+                        if hasattr(self._app, 'director') and self._app.director:
+                            for task_id in self.current_task_ids:
+                                try:
+                                    self._app.director.cancel_task(task_id)
+                                except Exception as e:
+                                    logger.debug(f"Error cancelling task {task_id}: {e}")
+                    
+                    # Let Toga handle the document close
                     return self._document.close()
+                        
                 except Exception as e:
                     logger.warning(f"Error in close handler: {e}")
                     return True

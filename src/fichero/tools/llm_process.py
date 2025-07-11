@@ -265,7 +265,7 @@ def process_documents_batch(
     source_folder: Path,
     source_manifest: Path,
     output_folder: Path,
-    prompt_config: Path,
+    prompt_config: Path = None,
     folder_mode: bool = True,
     **kwargs
 ) -> dict:
@@ -284,6 +284,37 @@ def process_documents_batch(
     """
     llm = None
     try:
+        # Use default prompt config path if not specified
+        if prompt_config is None:
+            # Try to find prompt config in app resources or user config
+            import toga
+            try:
+                # Try to get app instance to access paths
+                app = toga.App.app
+                if app and hasattr(app, 'paths'):
+                    # Look in user config first, then app resources
+                    user_config_dir = app.paths.config
+                    app_resources_dir = app.paths.app / "resources" / "config_defaults"
+                    
+                    # Try user config first
+                    user_prompt_config = user_config_dir / "prompts" / "prompt_config.jsonl"
+                    if user_prompt_config.exists():
+                        prompt_config = user_prompt_config
+                    else:
+                        # Try app resources
+                        app_prompt_config = app_resources_dir / "prompts" / "prompt_config.jsonl"
+                        if app_prompt_config.exists():
+                            prompt_config = app_prompt_config
+                        else:
+                            # Fallback to relative path
+                            prompt_config = Path("prompts/prompt_config.jsonl")
+                else:
+                    # No app context, use relative path
+                    prompt_config = Path("prompts/prompt_config.jsonl")
+            except Exception:
+                # Fallback to relative path
+                prompt_config = Path("prompts/prompt_config.jsonl")
+        
         # Handle case where prompt_config might be passed as boolean instead of Path
         if isinstance(prompt_config, bool):
             tool_logger.error(f"prompt_config parameter is boolean ({prompt_config}) instead of Path. This is likely a configuration error.")
@@ -360,7 +391,7 @@ def process_documents(
     input_folder: Annotated[Path, typer.Argument(help="Input folder containing transcribed documents")],
     input_manifest: Annotated[Path, typer.Argument(help="Input manifest file")],
     output_folder: Annotated[Path, typer.Argument(help="Output folder for LLM results")],
-    prompt_config: Annotated[Path, typer.Option(help="JSONL file containing prompt configuration")] = Path("prompts/prompt_config.jsonl"),
+    prompt_config: Annotated[Path, typer.Option(help="JSONL file containing prompt configuration")] = None,
     backend_type: Annotated[str, typer.Option(help="LLM backend type (chatgpt, lmstudio, ollama)")] = "ollama",
     model_name: Annotated[str, typer.Option(help="Model name")] = "mistral",
     api_url: Annotated[Optional[str], typer.Option(help="API URL for LMStudio")] = None,
@@ -392,6 +423,38 @@ def process_documents(
         # For CLI usage, use the full implementation with all parameters
         # Load prompt configuration
         tool_logger.info("Loading prompt configuration...")
+        
+        # Use default prompt config path if not specified
+        if prompt_config is None:
+            # Try to find prompt config in app resources or user config
+            import toga
+            try:
+                # Try to get app instance to access paths
+                app = toga.App.app
+                if app and hasattr(app, 'paths'):
+                    # Look in user config first, then app resources
+                    user_config_dir = app.paths.config
+                    app_resources_dir = app.paths.app / "resources" / "config_defaults"
+                    
+                    # Try user config first
+                    user_prompt_config = user_config_dir / "prompts" / "prompt_config.jsonl"
+                    if user_prompt_config.exists():
+                        prompt_config = user_prompt_config
+                    else:
+                        # Try app resources
+                        app_prompt_config = app_resources_dir / "prompts" / "prompt_config.jsonl"
+                        if app_prompt_config.exists():
+                            prompt_config = app_prompt_config
+                        else:
+                            # Fallback to relative path
+                            prompt_config = Path("prompts/prompt_config.jsonl")
+                else:
+                    # No app context, use relative path
+                    prompt_config = Path("prompts/prompt_config.jsonl")
+            except Exception:
+                # Fallback to relative path
+                prompt_config = Path("prompts/prompt_config.jsonl")
+        
         config = load_prompt_config(prompt_config)
         tool_logger.info(f"Configuration loaded: {config.get('name', 'unnamed')}")
         tool_logger.info(f"Description: {config.get('description', 'No description')}")

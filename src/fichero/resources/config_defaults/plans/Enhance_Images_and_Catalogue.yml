@@ -1,6 +1,6 @@
-title: "Catalogue"
+title: "Enhance, Transcribe, and Catalogue"
 description: >
-  Transcribe, catalogues and export to Word documents archival materials using QWEN for transcription and Open AI for catalogue generation.
+  Image processing, auto-transcription, and auto-catalog. Ideal for complex documents with mixed content, poor scans, old and damaged documents.
 
 vars:
   name: "Fichero"
@@ -26,23 +26,8 @@ vars:
   lmstudio_model: ''
   prompt: ''
 workflows:
-  # Full workflow with segmentation (best for complex documents)
-  00) default:
-    - build_documents_manifest
-    - crop
-    - split
-    - rotate
-    - enhance
-    - remove_background
-    - segment
-    - transcribe_qwen_max_segments
-    - recombine_segments_qwen_max
-    - fuzzy_clean
-    - convert_to_word
-    - catalogue_folder
-    - catalogue_to_word
-
-  Direct (No Segmentation):
+  # Direct workflow (no segmentation) - recommended for most documents
+  Default:
     - build_documents_manifest
     - crop
     - split
@@ -51,41 +36,12 @@ workflows:
     - remove_background
     - transcribe_qwen_max_direct
     - catalogue_folder
-    - convert_to_word
-    - catalogue_to_word
-
-  # Individual step workflows for flexibility
-  1) Archive to Segment:
-    - build_documents_manifest
-    - crop
-    - split
-    - rotate
-    - enhance
-    - remove_background
-    - segment
-
-  2) Transcribe Segments:
-    - transcribe_qwen_max_segments
-
-  3) Transcribe Direct:
-    - transcribe_qwen_max_direct
-
-  4) Recombine:
-    - recombine_segments_qwen_max
-
-  5) Fuzzy Clean:
-    - fuzzy_clean
-
-  6) Catalogue:
-    - catalogue_folder
-
-  7) Convert to Word:
     - convert_to_word
     - catalogue_to_word
 
 commands:
   - name: build_documents_manifest
-    worker_type: "cpu"
+    worker_type: "io"
     help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
     args:
@@ -163,29 +119,7 @@ commands:
       - "assets/background_removed"
       - "assets/background_removed/background_removed_manifest.jsonl"
 
-  - name: segment
-    worker_type: "cpu"
-    help: "Segment images into text regions"
-    function: "fichero.tools.segment.segment_batch"
-    args:
-      source_folder: "assets/background_removed"
-      source_manifest: "assets/background_removed/background_removed_manifest.jsonl"
-      output_folder: "assets/segmented"
-    outputs:
-      - "assets/segmented"
-      - "assets/segmented/segment_manifest.jsonl"
 
-  - name: transcribe_qwen_max_segments
-    worker_type: "io"
-    help: "Transcribe segmented images using Qwen VL Max model"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
-    args:
-      source_folder: "assets/segmented"
-      source_manifest: "assets/segmented/segment_manifest.jsonl"
-      output_folder: "assets/segmented_transcriptions"
-    outputs:
-      - "assets/segmented_transcriptions"
-      - "assets/segmented_transcriptions/segmented_transcription_manifest.jsonl"
 
   - name: transcribe_qwen_max_direct
     worker_type: "io"
@@ -197,35 +131,11 @@ commands:
       output_folder: "assets/transcriptions"
     outputs:
       - "assets/transcriptions"
-      - "assets/transcriptions/transcription_manifest.jsonl"
+      - "assets/transcriptions/transcriptions_manifest.jsonl"
 
-  - name: recombine_segments_qwen_max
-    worker_type: "io"
-    help: "Recombine the transcribed segments from Qwen into single markdown files"
-    function: "fichero.tools.recombine_segments.recombine_segments_batch"
-    depends_on:
-      - "transcribe_qwen_max_segments"  # For segmented transcriptions
-      - "remove_background"             # For background-removed image manifest
-    args:
-      transcriptions_folder: "assets/segmented_transcriptions"                         # ← From 'transcribe_qwen_max_segments' step
-      output_folder: "assets/recombined"
-      transcription_manifest: "assets/segmented_transcriptions/segmented_transcription_manifest.jsonl"  # ← From 'transcribe_qwen_max_segments' step
-      image_manifest: "assets/background_removed/background_removed_manifest.jsonl"   # ← From 'remove_background' step (images for layout)
-    outputs:
-      - "assets/recombined"
-      - "assets/recombined/recombine_manifest.jsonl"
 
-  - name: fuzzy_clean
-    worker_type: "io"
-    help: "Clean up text from recombined transcriptions"
-    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
-    args:
-      source_folder: "assets/recombined"
-      source_manifest: "assets/recombined/recombine_manifest.jsonl"
-      output_folder: "assets/transcriptions"
-    outputs:
-      - "assets/transcriptions"
-      - "assets/transcriptions/transcription_manifest.jsonl"
+
+
 
   - name: convert_to_word
     worker_type: "io"
@@ -233,10 +143,10 @@ commands:
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
     depends_on:
       - "remove_background"  # For background-removed images (enhanced + background removed)
-      - "fuzzy_clean"        # For cleaned transcriptions
+      - "transcribe_qwen_max_direct"  # For transcriptions
     args:
       images_folder: "assets/background_removed"           # ← From 'remove_background' step
-      transcription_manifest: "assets/transcriptions/transcription_manifest.jsonl"  # ← From 'fuzzy_clean' step
+      transcription_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"  # ← From 'transcribe_qwen_max_direct' step
       output_folder: "assets/word"
     outputs:
       - "assets/word"
@@ -247,7 +157,7 @@ commands:
     function: "fichero.tools.llm_process.process_documents_batch"
     args:
       source_folder: "assets/transcriptions"
-      source_manifest: "assets/transcriptions/transcription_manifest.jsonl"
+      source_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
       output_folder: "assets/llm_catalogue"
       prompt_config: "Catalogue.jsonl"
       folder_mode: true
@@ -263,4 +173,4 @@ commands:
       source_manifest: "assets/llm_catalogue/llm_process_manifest.jsonl"
       output_folder: "assets/llm_catalogue_word"
     outputs:
-      - "assets/llm_catalogue_word"
+      - "assets/llm_catalogue_word" 

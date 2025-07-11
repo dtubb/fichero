@@ -79,9 +79,13 @@ class FicheroApp(toga.App):
         # Initialize GUI-specific systems
         self._setup_gui_interface()
         
-        # Now that everything is initialized, trigger session restoration
-        if self.session_manager:
-            self.session_manager.startup_when_ready()
+        # For document-based apps, set main_window to None
+        # This allows the app to run without a main window and handle multiple document windows
+        self.main_window = None
+        print("✅ Document-based app configured (no main window)")
+        
+        # Create a new document window on startup (session restoration disabled)
+        self.new_document()
         
         print("✨ Fichero GUI ready!")
 

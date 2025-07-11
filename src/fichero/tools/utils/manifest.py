@@ -22,6 +22,7 @@ class ManifestProcessor:
         self.total_files = self.count_lines()
         self.processed = 0 if not progress_file else self.get_last_progress()
         self.entries = {}
+        self.original_order = []  # Track original order from input manifest
         self._load_existing_entries()
 
     def count_lines(self) -> int:
@@ -71,12 +72,21 @@ class ManifestProcessor:
             return
             
         source = entry["source"]
-        if source in self.entries:
-            # Only update if entry has changed
-            if self.entries[source] != entry:
-                self.entries[source] = entry
+        # Normalize source key (remove documents/ prefix if present)
+        if "documents/" in source:
+            key = source.split("documents/", 1)[1]
         else:
-            self.entries[source] = entry
+            key = source
+            
+        if key in self.entries:
+            # Only update if entry has changed
+            if self.entries[key] != entry:
+                self.entries[key] = entry
+        else:
+            self.entries[key] = entry
+            # Add to original order if not already there
+            if key not in self.original_order:
+                self.original_order.append(key)
 
         # Write entire manifest atomically if needed
         if len(self.entries) % 100 == 0:
@@ -85,6 +95,7 @@ class ManifestProcessor:
     def _load_existing_entries(self):
         """Load existing entries into memory for deduplication"""
         self.entries = {}
+        self.original_order = []
         if self.manifest_path.exists():
             for entry in srsly.read_jsonl(self.manifest_path):
                 if "source" in entry:
@@ -96,13 +107,25 @@ class ManifestProcessor:
                     else:
                         key = source
                     self.entries[key] = entry
+                    # Track original order
+                    if key not in self.original_order:
+                        self.original_order.append(key)
 
     def _write_manifest(self, manifest_path: Path):
-        """Write all entries atomically"""
+        """Write all entries atomically in original order"""
         temp_path = manifest_path.with_suffix('.tmp')
         with open(temp_path, 'w') as f:
-            for entry in self.entries.values():
-                f.write(srsly.json_dumps(entry) + '\n')
+            # Write entries in original order, then any new entries at the end
+            written_keys = set()
+            for key in self.original_order:
+                if key in self.entries:
+                    f.write(srsly.json_dumps(self.entries[key]) + '\n')
+                    written_keys.add(key)
+            
+            # Write any remaining entries that weren't in original order
+            for key, entry in self.entries.items():
+                if key not in written_keys:
+                    f.write(srsly.json_dumps(entry) + '\n')
         temp_path.replace(manifest_path)
 
     def print_status(self):

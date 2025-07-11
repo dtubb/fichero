@@ -508,7 +508,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         # Skip if already exists and return proper manifest entry
         if out_path.exists():
             return {
-                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+                "source": str(rel_path),  # Preserve original source extension
                 "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
                 "skipped": True,
                 "success": True
@@ -524,7 +524,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             out_path.write_text("")
             
             return {
-                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+                "source": str(rel_path),  # Preserve original source extension
                 "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
                 "success": True,
                 "details": {
@@ -546,7 +546,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
                 # Create empty output file when input can't be read
                 out_path.write_text("")
                 return {
-                    "source": str(rel_path.with_suffix('.png')),
+                    "source": str(rel_path),  # Preserve original source extension
                     "outputs": [str(rel_path.with_suffix('.txt'))],
                     "success": True,
                     "details": {
@@ -561,7 +561,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             # Create empty output file when input can't be read
             out_path.write_text("")
             return {
-                "source": str(rel_path.with_suffix('.png')),
+                "source": str(rel_path),  # Preserve original source extension
                 "outputs": [str(rel_path.with_suffix('.txt'))],
                 "success": True,
                 "details": {
@@ -580,7 +580,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
             out_path.write_text("")
             
             return {
-                "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+                "source": str(rel_path),  # Preserve original source extension
                 "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
                 "success": True,
                 "details": {
@@ -618,7 +618,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         except Exception as e:
             tool_logger.error(f"Error writing output file {out_path}: {e}")
             return {
-                "source": str(rel_path.with_suffix('.png')),
+                "source": str(rel_path),  # Preserve original source extension
                 "error": f"Failed to write output: {str(e)}"
             }
         
@@ -638,7 +638,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         
         # Return success manifest entry with proper relative paths
         result = {
-            "source": str(rel_path.with_suffix('.png')),  # Use PNG as source
+            "source": str(rel_path),  # Preserve original source extension
             "outputs": [str(rel_path.with_suffix('.txt'))],  # TXT as output
             "success": True,
             "details": {
@@ -659,7 +659,7 @@ def process_document(file_path: str, output_folder: Path) -> dict:
         # Try to get relative path for error reporting
         try:
             rel_path = SegmentHandler.get_relative_path(Path(file_path))
-            source_ref = str(rel_path.with_suffix('.png'))
+            source_ref = str(rel_path)  # Preserve original source extension
         except:
             source_ref = str(file_path)
         
@@ -691,10 +691,13 @@ def fuzzy_clean_batch(
     if not source_manifest.exists():
         raise FileNotFoundError(f"Recombined manifest not found: {source_manifest}")
         
+    # Derive process name from output folder to avoid hardcoded names
+    process_name = output_folder.name if output_folder.name else "transcription"
+    
     processor = BatchProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
-        process_name="transcription",
+        process_name=process_name,
         processor_fn=process_document,
         base_folder=source_folder,
         use_source=True
