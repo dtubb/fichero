@@ -150,11 +150,61 @@ class FicheroAppInitializer:
     
     def _setup_logging(self):
         """Set up comprehensive logging for GUI"""
+        import sys
+        import os
+        
+        # Detect if running as bundled GUI app (avoid system logging)
+        is_bundled_app = getattr(sys, 'frozen', False) or hasattr(sys, '_MEIPASS')
+        is_gui_app = not sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else True
+        
+        if is_bundled_app or is_gui_app:
+            # For GUI apps: log to file only (avoid system logging that triggers briefcase log stream)
+            self._setup_file_logging()
+        else:
+            # For development: use standard logging
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+        
+        logger.info("📝 GUI logging configured (file-based for bundled apps)")
+    
+    def _setup_file_logging(self):
+        """Set up file-based logging for GUI apps (avoids system logging)"""
+        import tempfile
+        from pathlib import Path
+        
+        # Create logs directory in user data location
+        if self.app_context:
+            # Use app's data directory
+            logs_dir = Path(self.app_context.paths.data) / "logs"
+        else:
+            # Fallback to temp directory
+            logs_dir = Path(tempfile.gettempdir()) / "fichero_logs"
+        
+        logs_dir.mkdir(exist_ok=True)
+        
+        # Create timestamped log file
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = logs_dir / f"fichero_{timestamp}.log"
+        
+        # Configure file-based logging
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                # Add minimal console handler for critical errors only
+                logging.StreamHandler()
+            ]
         )
-        logger.info("📝 Comprehensive logging configured")
+        
+        # Set console handler to only show warnings and errors
+        console_handler = logging.getLogger().handlers[-1]
+        console_handler.setLevel(logging.WARNING)
+        
+        logger.info(f"📁 File logging configured: {log_file}")
     
     def _setup_basic_logging(self, verbose=False):
         """Set up basic logging for CLI"""

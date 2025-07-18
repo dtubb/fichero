@@ -18,6 +18,7 @@ import toga
 from toga.style import Pack
 import os
 import sys
+import logging
 from pathlib import Path
 from .ui import _, translator
 from .utils import get_app_settings
@@ -26,6 +27,8 @@ from .document.document_model import FicheroDocument
 from .core.app_initializer import initialize_gui_app
 from .core.error_handler import create_gui_error_handler
 from . import __version__
+
+logger = logging.getLogger(__name__)
 
 
 class FicheroApp(toga.App):
@@ -41,14 +44,23 @@ class FicheroApp(toga.App):
     
     def startup(self):
         """Initialize the app - delegates to shared initialization system"""
-        print("🚀 Fichero GUI starting up...")
+        # Check if running as bundled GUI app (minimize console output)
+        is_gui_only = self._is_gui_only_mode()
+        
+        if not is_gui_only:
+            print("🚀 Fichero GUI starting up...")
+        logger.info("Fichero GUI starting up")
         
         # Set app icon first
         try:
             self.icon = toga.Icon("resources/icons/fichero")
-            print("✅ App icon loaded")
+            if not is_gui_only:
+                print("✅ App icon loaded")
+            logger.info("App icon loaded")
         except Exception as e:
-            print(f"⚠️ Warning: Could not load app icon: {e}")
+            if not is_gui_only:
+                print(f"⚠️ Warning: Could not load app icon: {e}")
+            logger.warning(f"Could not load app icon: {e}")
         
         # Initialize components immediately
         try:
@@ -63,34 +75,49 @@ class FicheroApp(toga.App):
             self.auto_save_manager = self.components['auto_save_manager']
             self.session_manager = self.components['session_manager']
             
-            print("✅ Fichero components initialized")
+            if not is_gui_only:
+                print("✅ Fichero components initialized")
+            logger.info("Fichero components initialized")
             
         except Exception as e:
-            print(f"❌ Failed to initialize Fichero: {e}")
-            print("Cannot continue without core services.")
-            import traceback
-            traceback.print_exc()
+            error_msg = f"Failed to initialize Fichero: {e}"
+            logger.error(error_msg)
+            
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                print("Cannot continue without core services.")
+                import traceback
+                traceback.print_exc()
+                print("The application will now exit.")
             
             # Exit cleanly without showing dialog during startup
-            print("The application will now exit.")
             self.exit()
             return
         
         # Initialize GUI-specific systems
         self._setup_gui_interface()
         
-        # For document-based apps, set main_window to None
-        # This allows the app to run without a main window and handle multiple document windows
-        self.main_window = None
-        print("✅ Document-based app configured (no main window)")
+        if not is_gui_only:
+            print("✨ Fichero GUI ready!")
+        logger.info("Fichero GUI ready")
+    
+    def _is_gui_only_mode(self):
+        """Detect if running as bundled GUI app (minimize console output)"""
+        # Check if running as bundled app
+        is_bundled = getattr(sys, 'frozen', False) or hasattr(sys, '_MEIPASS')
         
-        # Create a new document window on startup (session restoration disabled)
-        self.new_document()
+        # Check if stdout is not connected to terminal (GUI app)
+        is_gui_app = not sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else True
         
-        print("✨ Fichero GUI ready!")
+        # Check if running via briefcase (look for app bundle structure)
+        is_briefcase_app = 'Contents/MacOS' in str(sys.executable) if sys.executable else False
+        
+        return is_bundled or is_briefcase_app or (is_gui_app and not os.environ.get('TERM'))
 
     def _setup_gui_interface(self):
         """Set up GUI-specific interface elements"""
+        is_gui_only = self._is_gui_only_mode()
+        
         try:
             # Initialize menu system
             self.menu_manager = MenuManager(self)
@@ -107,22 +134,40 @@ class FicheroApp(toga.App):
             # This allows the document system to work properly
             self.main_window = None
             
+            if not is_gui_only:
+                print("✅ Document-based app configured (no main window)")
+            logger.info("Document-based app configured (no main window)")
+            
+            # Create a new document window on startup (session restoration disabled)
+            self.new_document()
+            
         except Exception as e:
-            print(f"⚠️ Warning: GUI interface setup failed: {e}")
+            error_msg = f"GUI interface setup failed: {e}"
+            logger.warning(error_msg)
+            if not is_gui_only:
+                print(f"⚠️ Warning: {error_msg}")
 
     # Activity Monitor Management
     def show_activity_monitor(self):
         """Show the activity monitor window - manages single instance"""
+        is_gui_only = self._is_gui_only_mode()
+        
         try:
             # Use the menu manager's activity monitor window
             if hasattr(self, 'menu_manager') and self.menu_manager:
                 self.menu_manager._activity_monitor_handler(None)
             else:
-                print("⚠️ Menu manager not available for activity monitor")
+                error_msg = "Menu manager not available for activity monitor"
+                logger.warning(error_msg)
+                if not is_gui_only:
+                    print(f"⚠️ {error_msg}")
         except Exception as e:
-            print(f"❌ Failed to show activity monitor: {e}")
-            import traceback
-            traceback.print_exc()
+            error_msg = f"Failed to show activity monitor: {e}"
+            logger.error(error_msg)
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                import traceback
+                traceback.print_exc()
 
     # Document operations - thin wrappers that delegate to document system
     def new_document(self):
@@ -138,7 +183,11 @@ class FicheroApp(toga.App):
             
             return doc
         except Exception as e:
-            print(f"❌ Failed to create new document: {e}")
+            error_msg = f"Failed to create new document: {e}"
+            logger.error(error_msg)
+            is_gui_only = self._is_gui_only_mode()
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
             return None
     
     def open_document(self, document_path: Path):
@@ -154,7 +203,11 @@ class FicheroApp(toga.App):
             
             return doc
         except Exception as e:
-            print(f"❌ Failed to open document: {e}")
+            error_msg = f"Failed to open document: {e}"
+            logger.error(error_msg)
+            is_gui_only = self._is_gui_only_mode()
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
             return None
     
     def save_document(self, document=None):
@@ -174,20 +227,32 @@ class FicheroApp(toga.App):
                 document.close()
             return True
         except Exception as e:
-            print(f"⚠️ Warning: Error closing document: {e}")
+            error_msg = f"Error closing document: {e}"
+            logger.warning(error_msg)
+            is_gui_only = self._is_gui_only_mode()
+            if not is_gui_only:
+                print(f"⚠️ Warning: {error_msg}")
             return True
 
     def finalize(self):
         """Clean up when app closes - delegates to shared cleanup system"""
-        print("🔄 Fichero GUI closing...")
+        is_gui_only = self._is_gui_only_mode()
+        if not is_gui_only:
+            print("🔄 Fichero GUI closing...")
+        logger.info("Fichero GUI closing")
+        
         try:
             # Use shared cleanup wrapper (same pattern as CLI)
             if hasattr(self, 'initializer') and self.initializer:
                 self.initializer.cleanup()
         except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
-            import traceback
-            traceback.print_exc()
+            error_msg = f"Error during cleanup: {e}"
+            logger.error(error_msg)
+            is_gui_only = self._is_gui_only_mode()
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                import traceback
+                traceback.print_exc()
 
 
 def main():
