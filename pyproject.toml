@@ -30,10 +30,7 @@ requires = [
     "python-dotenv>=1.1.0,<2.0.0",
     "Pillow>=11.2.1,<12.0.0",
     "numpy>=2.2.0,<3.0.0",
-    #"opencv-python",
     "pdf2image>=1.17.0,<2.0.0",
-    #"pytesseract>=0.3.13,<1.0.0",
-    #"rawpy>=0.25.0,<1.0.0",
     "exifread>=3.3.1,<4.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
@@ -42,16 +39,20 @@ requires = [
     "dashscope>=1.23.4,<2.0.0",
     "requests>=2.32.4,<3.0.0",
     "tqdm>=4.67.1,<5.0.0",
-    #"python-magic>=0.4.27,<1.0.0",
     "psutil>=7.0.0,<8.0.0",
-    #"celery>=5.5.3,<6.0.0",
-    #"redis>=6.2.0,<7.0.0",
     "openai>=1.86.0,<2.0.0",
-    #"accelerate>=1.7.0,<2.0.0",
     "pathvalidate>=3.2.3,<4.0.0",
     "cryptography>=45.0.0,<46.0.0",
     "ruamel.yaml>=0.18.0,<1.0.0",
-    # "rembg",  # Optional: AI background removal (see TODO)
+    # Optional dependencies that may not be available on all platforms
+    # "opencv-python",  # May have platform-specific issues
+    # "pytesseract>=0.3.13,<1.0.0",  # Requires system tesseract
+    # "rawpy>=0.25.0,<1.0.0",  # May have platform-specific issues
+    # "python-magic>=0.4.27,<1.0.0",  # May have platform-specific issues
+    # "celery>=5.5.3,<6.0.0",  # Optional for background processing
+    # "redis>=6.2.0,<7.0.0",  # Optional for background processing
+    # "accelerate>=1.7.0,<2.0.0",  # Optional for ML acceleration
+    # "rembg",  # Optional: AI background removal
 ]
 test_requires = [
     #"pytest",
@@ -70,17 +71,40 @@ requires = [
     "std-nslog~=1.0.3",
     "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
     "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
+    # macOS-specific optional dependencies
+    "opencv-python",  # Generally works well on macOS
+    "rawpy>=0.25.0,<1.0.0",  # RAW image support
+    "python-magic>=0.4.27,<1.0.0",  # File type detection
 ]
 
 [tool.briefcase.app.fichero.linux]
+# Flatpak configuration for Linux packaging
+flatpak_sdk = "org.freedesktop.Sdk"
+flatpak_runtime = "org.freedesktop.Platform"
+flatpak_runtime_version = "24.08"
+
 requires = [
     "toga-gtk>=0.5.1,<0.6.0",
     "pygobject < 3.52.1",
+    # Linux-specific optional dependencies
+    "opencv-python",  # Generally works well on Linux
+    "rawpy>=0.25.0,<1.0.0",  # RAW image support
+    "python-magic>=0.4.27,<1.0.0",  # File type detection
+    "pytesseract>=0.3.13,<1.0.0",  # OCR support
 ]
+
+# Flatpak finish arguments (permissions)
+# Explicitly ensure session-bus is available (Briefcase default is broken)
+finish_arg."socket=session-bus" = true
 
 [tool.briefcase.app.fichero.windows]
 requires = [
     "toga-winforms>=0.5.1,<0.6.0",
+    # Windows-specific optional dependencies
+    "opencv-python",  # Generally works well on Windows
+    "rawpy>=0.25.0,<1.0.0",  # RAW image support
+    "python-magic>=0.4.27,<1.0.0",  # File type detection
+    "pytesseract>=0.3.13,<1.0.0",  # OCR support
 ]
 
 # Build system requirements

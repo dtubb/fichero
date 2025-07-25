@@ -1,9 +1,9 @@
 Metadata-Version: 2.1
-Briefcase-Version: 0.3.23
+Briefcase-Version: 0.3.24
 Name: fichero
 Formal-Name: Fichero
 App-ID: ca.tubb.fichero.fichero
-Version: 0.1.0
+Version: 0.1.0.dev1
 Home-page: https://www.tubb.ca/fichero/
 Download-URL: https://www.tubb.ca/fichero/
 Author: dtubb

@@ -19,6 +19,22 @@ Fichero:
 
 ## Installation
 
+### Ubuntu ARM64 (Recommended)
+
+For Ubuntu ARM64 systems, download the latest release from GitHub:
+
+1. **Download the .deb package** from the [Releases page](https://github.com/dtubb/fichero/releases)
+2. **Install the package:**
+   ```bash
+   sudo dpkg -i fichero_0.1.0.dev1-1~ubuntu-plucky_arm64.deb
+   ```
+3. **Run Fichero:**
+   ```bash
+   fichero
+   ```
+
+### Development Installation
+
 For command-line usage or contributing to development:
 
 1. **Clone the repository:**
@@ -100,9 +116,15 @@ python -m fichero example
 - **`purge-tasks`**: Clear all pending processing tasks
 - **`example`**: Show detailed usage examples
 
-## Building the Native App (Optional)
+## Current Release Status
 
-Fichero can be built using [BeeWare Briefcase](https://briefcase.readthedocs.io/), which packages Python apps as native applications for multiple platforms.
+**v0.1.0.dev1** - Development Release
+- ✅ Ubuntu ARM64 (.deb package)
+- 🔄 Windows (.exe) - Coming soon
+- 🔄 macOS (.dmg) - Coming soon
+- 🔄 Linux AppImage - Coming soon
+
+## Building the Native App (Optional)
 
 ### Development Mode
 
