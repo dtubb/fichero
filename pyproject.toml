@@ -32,9 +32,6 @@ requires = [
     "cryptography>=3.0.0",
     "ruamel.yaml>=0.17.0",
     "pathvalidate>=3.0.0",
-    # AI/ML dependencies for all platforms
-    "openai>=1.0.0",
-    "dashscope>=1.20.0",
 ]
 test_requires = [
     #"pytest",
@@ -67,7 +64,10 @@ requires = [
     "opencv-python",  # Generally works well on macOS
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0" # OCR support
+    "pytesseract>=0.3.13,<1.0.0", # OCR support
+    # AI/ML dependencies
+    "openai>=1.0.0",
+    "dashscope>=1.20.0",
 ]
 
 [tool.briefcase.app.fichero.linux]
@@ -95,7 +95,10 @@ requires = [
     "opencv-python",  # Generally works well on Linux
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0"  # OCR support
+    "pytesseract>=0.3.13,<1.0.0",  # OCR support
+    # AI/ML dependencies
+    "openai>=1.0.0",
+    "dashscope>=1.20.0",
 ]
 
 # Flatpak finish arguments (permissions)
@@ -140,9 +143,18 @@ requires = [
 requires = [
     "toga-android>=0.5.1,<0.6.0",
     "pyjnius>=1.4.2,<2.0.0",  # Android Java bridge
+    # Core dependencies that work on Android
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.20.0",
+    "requests>=2.25.0",
+    "cryptography>=3.0.0",
+    "ruamel.yaml>=0.17.0",
+    "pathvalidate>=3.0.0",
 ]
 
-# Note: Android excludes problematic dependencies like srsly, rich, typer, tqdm,
+# Note: Android excludes problematic dependencies that require Rust compilation
+# or native extensions: openai, dashscope, srsly, rich, typer, tqdm,
 # opencv-python, rawpy, python-magic, pytesseract, pdf2image, exifread,
 # python-docx, langchain, langchain-ollama, psutil
 
