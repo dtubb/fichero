@@ -1,10 +1,10 @@
-title: "Transcribir y Catalogar"
+title: "Transcribe and Catalogue (English)"
 description: >
-  Transcripción automática y catalogación automática.
+  Auto-transcription and cataloguing in English..
 
 vars:
   name: "Fichero"
-  language: "es"
+  language: "en"
   version: "0.1.0"
 
   # User-configurable settings
@@ -28,7 +28,7 @@ workflows:
 commands:
   - name: build_documents_manifest
     worker_type: "io"
-    help: "Generar el manifiesto de documentos"
+    help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
     args:
       source_folder: "documents"
@@ -38,7 +38,7 @@ commands:
 
   - name: prepare_images
     worker_type: "io"
-    help: "Preparar imágenes (aplicar rotación EXIF y comprimirlas) para mejor procesamiento"
+    help: "Prepare images (apply EXIF rotation and compress them) for better processing"
     function: "fichero.tools.prepare_images.prepare_images_batch"
     args:
       source_folder: "documents"
@@ -52,7 +52,7 @@ commands:
 
   - name: transcribe_qwen_max_direct
     worker_type: "io"
-    help: "Transcribir documentos preparados usando el modelo Qwen VL Max"
+    help: "Transcribe prepared documents using Qwen VL Max model"
     function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
     args:
       source_folder: "assets/prepared"
@@ -64,20 +64,20 @@ commands:
 
   - name: catalogue_folder
     worker_type: "io"
-    help: "Procesar documentos transcritos a través de pipeline LLM configurable para generación de catálogo"
+    help: "Process transcribed documents through configurable LLM pipeline for catalogue generation in English"
     function: "fichero.tools.llm_process.process_documents_batch"
     args:
       source_folder: "assets/transcriptions"
       source_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
       output_folder: "assets/llm_catalogue"
-      prompt_config: "Catalogue.jsonl"
+      prompt_config: "Catalogue (English).jsonl"
       folder_mode: true
     outputs:
       - "assets/llm_catalogue"
 
   - name: convert_to_word
     worker_type: "io"
-    help: "Convertir documentos preparados y transcripciones a documentos Word con diseño lado a lado"
+    help: "Convert prepared documents and transcriptions to Word documents with side-by-side layout"
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
     depends_on:
       - "transcribe_qwen_max_direct"  # For transcriptions
@@ -90,7 +90,7 @@ commands:
 
   - name: catalogue_to_word
     worker_type: "io"
-    help: "Convertir archivos JSON de catálogo a documentos Word"
+    help: "Convert catalogue JSON files to Word documents"
     function: "fichero.tools.json_to_word.json_to_word_batch"
     args:
       source_folder: "assets/llm_catalogue"

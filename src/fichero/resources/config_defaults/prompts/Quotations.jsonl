@@ -1,0 +1,69 @@
+{
+  "name": "extract_quotations_local",
+  "description": "Extract direct quotations, testimony, and statements by specific people from documents using GPT-4.1 Mini",
+  "intelligent_chunking": false,
+  "chunk_overlap": 0,
+  "llm": {
+    "backend": "openai",
+    "model": "gpt-4.1-mini",
+    "temperature": 0.0,
+    "max_tokens": 1000000,
+    "top_p": 0.95,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "stop_sequences": [],
+    "timeout": 120,
+    "retry_attempts": 3,
+    "retry_delay": 5
+  },
+  "steps": [
+    {
+      "name": "extract_people_names",
+      "prompt": "You are analyzing a collection of documents. Extract all unique names of people mentioned in these pages. For each person found, note any available context about their role or title.\n\nIMPORTANT:\n- Include ALL unique names of people mentioned.\n- Preserve exact spelling and names, but capitalize names properly.\n- For each person, identify the most common/standard spelling and list any variations as alternatives.\n- Include context when available (titles, roles, etc.).\n- Focus on witnesses, parties, and people giving testimony - not judges or court officials unless they are also witnesses.\n- Do not include page numbers in this step.\n- If you find multiple spellings of the same name, choose the most complete/formal version as the primary name.\n\nReturn as JSON with this exact format:\n\n{\n  \"people\": [\n    {\n      \"name\": \"...\",\n      \"alternative_spellings\": [],\n      \"context\": \"...\"\n    }\n  ]\n}\n\nReturn ONLY valid JSON. Say nothing else.",
+      "include_page_context": true,
+      "combine": true,
+      "json": true,
+      "iterative_refinement": false,
+      "refinement_prompt": null,
+      "async": false,
+      "async_batch_size": 0,
+      "chunking_strategy": "none",
+      "pages_per_chunk": null,
+      "use_previous": false,
+      "combine_results": false,
+      "debug": true
+    },
+    {
+      "name": "extract_all_quotations",
+      "prompt": "You are analyzing a collection of documents. Extract all quotations, statements, and testimony from these pages. Focus on witness testimony and personal statements, NOT court decisions or legal rulings.\n\nIMPORTANT:\n- Include ALL direct quotations (text in quotation marks or clearly attributed speech).\n- Include ALL first-person statements (statements using \"I\", \"we\", \"my\", \"our\", etc.).\n- Include ALL testimony, sworn statements, depositions, or formal declarations.\n- EXCLUDE court decisions, legal rulings, judge's opinions, or procedural statements.\n- EXCLUDE generic legal language or boilerplate text.\n- Focus on personal testimony, witness statements, and direct quotes from people involved.\n- Include the speaker's name if mentioned or can be inferred.\n- Preserve the exact wording of all quotations and statements.\n- If the speaker is unknown, use \"Unknown Speaker\".\n- If a quote seems like a court decision or legal ruling, exclude it.\n\nReturn as JSON with this exact format:\n\n{\n  \"all_quotations\": [\n    {\n      \"quote\": \"...\",\n      \"speaker\": \"...\"\n    }\n  ]\n}\n\nReturn ONLY valid JSON. Say nothing else.",
+      "include_page_context": true,
+      "combine": true,
+      "json": true,
+      "iterative_refinement": false,
+      "refinement_prompt": null,
+      "async": false,
+      "async_batch_size": 0,
+      "chunking_strategy": "none",
+      "pages_per_chunk": null,
+      "use_previous": false,
+      "combine_results": false,
+      "debug": true
+    },
+    {
+      "name": "organize_by_person",
+      "prompt": "Using the people names extracted earlier and all the quotations found, organize everything by person. For each person mentioned in the documents, compile all their quotes.\n\nIMPORTANT:\n- Use the people names from the first step (use the primary/standard spelling).\n- Include ALL quotes for each person.\n- If a person has no quotes, still include them with an empty quotes array.\n- Preserve the exact wording of all quotes.\n- Simple format: person name and their quotes.\n- If you find quotes attributed to alternative spellings of a name, group them under the primary spelling.\n- Focus on witness testimony and personal statements only.\n- Exclude any quotes that appear to be court decisions or legal rulings.\n\nReturn as JSON with this exact format:\n\n{\n  \"people_quotations\": [\n    {\n      \"person\": \"...\",\n      \"quotes\": [\n        \"...\",\n        \"...\"\n      ]\n    }\n  ]\n}\n\nReturn ONLY valid JSON. Say nothing else.",
+      "include_page_context": true,
+      "combine": true,
+      "json": true,
+      "iterative_refinement": false,
+      "refinement_prompt": null,
+      "async": false,
+      "async_batch_size": 0,
+      "chunking_strategy": "none",
+      "pages_per_chunk": null,
+      "use_previous": true,
+      "combine_results": false,
+      "debug": true
+    }
+  ]
+} 

@@ -1,10 +1,10 @@
-title: "Transcribir y Catalogar"
+title: "Extract Quotations and Testimony"
 description: >
-  Transcripción automática y catalogación automática.
+  Extract direct quotations, testimony, and statements by specific people from documents.
 
 vars:
   name: "Fichero"
-  language: "es"
+  language: "en"
   version: "0.1.0"
 
   # User-configurable settings
@@ -17,18 +17,18 @@ vars:
   prompt: ''
 
 workflows:
-  Catalogue:
+  Quotations:
     - build_documents_manifest
     - prepare_images
     - transcribe_qwen_max_direct
-    - catalogue_folder
+    - extract_quotations
     - convert_to_word
-    - catalogue_to_word
+    - quotations_to_word
 
 commands:
   - name: build_documents_manifest
     worker_type: "io"
-    help: "Generar el manifiesto de documentos"
+    help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
     args:
       source_folder: "documents"
@@ -38,7 +38,7 @@ commands:
 
   - name: prepare_images
     worker_type: "io"
-    help: "Preparar imágenes (aplicar rotación EXIF y comprimirlas) para mejor procesamiento"
+    help: "Prepare images (apply EXIF rotation and compress them) for better processing"
     function: "fichero.tools.prepare_images.prepare_images_batch"
     args:
       source_folder: "documents"
@@ -52,7 +52,7 @@ commands:
 
   - name: transcribe_qwen_max_direct
     worker_type: "io"
-    help: "Transcribir documentos preparados usando el modelo Qwen VL Max"
+    help: "Transcribe prepared documents using Qwen VL Max model"
     function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
     args:
       source_folder: "assets/prepared"
@@ -62,22 +62,22 @@ commands:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"
 
-  - name: catalogue_folder
+  - name: extract_quotations
     worker_type: "io"
-    help: "Procesar documentos transcritos a través de pipeline LLM configurable para generación de catálogo"
+    help: "Extract quotations, testimony, and statements by specific people from transcribed documents"
     function: "fichero.tools.llm_process.process_documents_batch"
     args:
       source_folder: "assets/transcriptions"
       source_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
-      output_folder: "assets/llm_catalogue"
-      prompt_config: "Catalogue.jsonl"
+      output_folder: "assets/quotations"
+      prompt_config: "Quotations.jsonl"
       folder_mode: true
     outputs:
-      - "assets/llm_catalogue"
+      - "assets/quotations"
 
   - name: convert_to_word
     worker_type: "io"
-    help: "Convertir documentos preparados y transcripciones a documentos Word con diseño lado a lado"
+    help: "Convert prepared documents and transcriptions to Word documents with side-by-side layout"
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
     depends_on:
       - "transcribe_qwen_max_direct"  # For transcriptions
@@ -88,13 +88,13 @@ commands:
     outputs:
       - "assets/word"
 
-  - name: catalogue_to_word
+  - name: quotations_to_word
     worker_type: "io"
-    help: "Convertir archivos JSON de catálogo a documentos Word"
+    help: "Convert quotations JSON files to Word documents"
     function: "fichero.tools.json_to_word.json_to_word_batch"
     args:
-      source_folder: "assets/llm_catalogue"
-      source_manifest: "assets/llm_catalogue/llm_process_manifest.jsonl"
-      output_folder: "assets/llm_catalogue_word"
+      source_folder: "assets/quotations"
+      source_manifest: "assets/quotations/llm_process_manifest.jsonl"
+      output_folder: "assets/quotations_word"
     outputs:
-      - "assets/llm_catalogue_word" 
+      - "assets/quotations_word" 
