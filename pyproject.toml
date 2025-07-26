@@ -24,41 +24,21 @@ test_sources = [
 console_app = false
 requires = [
     "toga>=0.5.1,<0.6.0",
-    "typer>=0.16.0,<1.0.0",
-    "rich>=14.0.0,<15.0.0",
-    "srsly>=2.5.1,<3.0.0",
-    "python-dotenv>=1.1.0,<2.0.0",
-    "Pillow>=11.2.1,<12.0.0",
-    "numpy>=2.2.0,<3.0.0",
-    "pdf2image>=1.17.0,<2.0.0",
-    "exifread>=3.3.1,<4.0.0",
-    "python-docx>=1.1.2,<2.0.0",
-    "langchain>=0.3.25,<0.4.0",
-    "langchain-ollama>=0.3.3,<1.0.0",
-    "anthropic>=0.54.0,<1.0.0",
-    "dashscope>=1.23.4,<2.0.0",
-    "requests>=2.32.4,<3.0.0",
-    "tqdm>=4.67.1,<5.0.0",
-    "psutil>=7.0.0,<8.0.0",
-    "openai>=1.86.0,<2.0.0",
-    "pathvalidate>=3.2.3,<4.0.0",
-    "cryptography>=45.0.0,<46.0.0",
-    "ruamel.yaml>=0.18.0,<1.0.0",
-    # Optional dependencies that may not be available on all platforms
-    # "opencv-python",  # May have platform-specific issues
-    # "pytesseract>=0.3.13,<1.0.0",  # Requires system tesseract
-    # "rawpy>=0.25.0,<1.0.0",  # May have platform-specific issues
-    # "python-magic>=0.4.27,<1.0.0",  # May have platform-specific issues
-    # "celery>=5.5.3,<6.0.0",  # Optional for background processing
-    # "redis>=6.2.0,<7.0.0",  # Optional for background processing
-    # "accelerate>=1.7.0,<2.0.0",  # Optional for ML acceleration
-    # "rembg",  # Optional: AI background removal
+    # Core dependencies that work across all platforms
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.20.0",
+    "requests>=2.25.0",
+    "cryptography>=3.0.0",
+    "ruamel.yaml>=0.17.0",
+    "pathvalidate>=3.0.0",
+    # AI/ML dependencies for all platforms
+    "openai>=1.0.0",
+    "dashscope>=1.20.0",
 ]
 test_requires = [
     #"pytest",
-    #"redis>=6.2.0,<7.0.0",
     #"openai>=1.86.0,<2.0.0",
-    #"accelerate>=1.7.0,<2.0.0",
     #"pathvalidate>=3.2.3,<4.0.0",
     #"cryptography>=45.0.0,<46.0.0",
 ]
@@ -71,10 +51,23 @@ requires = [
     "std-nslog~=1.0.3",
     "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
     "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
+    # CLI dependencies for macOS
+    "typer>=0.16.0,<1.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "srsly>=2.5.1,<3.0.0",
+    "tqdm>=4.67.1,<5.0.0",
+    "psutil>=7.0.0,<8.0.0",
+    # Document processing dependencies
+    "pdf2image>=1.17.0,<2.0.0",
+    "exifread>=3.3.1,<4.0.0",
+    "python-docx>=1.1.2,<2.0.0",
+    "langchain>=0.3.25,<0.4.0",
+    "langchain-ollama>=0.3.3,<1.0.0",
     # macOS-specific optional dependencies
     "opencv-python",  # Generally works well on macOS
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
+    "pytesseract>=0.3.13,<1.0.0" # OCR support
 ]
 
 [tool.briefcase.app.fichero.linux]
@@ -86,11 +79,23 @@ flatpak_runtime_version = "24.08"
 requires = [
     "toga-gtk>=0.5.1,<0.6.0",
     "pygobject < 3.52.1",
+    # CLI dependencies for Linux
+    "typer>=0.16.0,<1.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "srsly>=2.5.1,<3.0.0",
+    "tqdm>=4.67.1,<5.0.0",
+    "psutil>=7.0.0,<8.0.0",
+    # Document processing dependencies
+    "pdf2image>=1.17.0,<2.0.0",
+    "exifread>=3.3.1,<4.0.0",
+    "python-docx>=1.1.2,<2.0.0",
+    "langchain>=0.3.25,<0.4.0",
+    "langchain-ollama>=0.3.3,<1.0.0",
     # Linux-specific optional dependencies
     "opencv-python",  # Generally works well on Linux
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0",  # OCR support
+    "pytesseract>=0.3.13,<1.0.0"  # OCR support
 ]
 
 # Flatpak finish arguments (permissions)
@@ -100,78 +105,51 @@ finish_arg."socket=session-bus" = true
 [tool.briefcase.app.fichero.windows]
 requires = [
     "toga-winforms>=0.5.1,<0.6.0",
+    # CLI dependencies for Windows
+    "typer>=0.16.0,<1.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "srsly>=2.5.1,<3.0.0",
+    "tqdm>=4.67.1,<5.0.0",
+    "psutil>=7.0.0,<8.0.0",
+    # Document processing dependencies
+    "pdf2image>=1.17.0,<2.0.0",
+    "exifread>=3.3.1,<4.0.0",
+    "python-docx>=1.1.2,<2.0.0",
+    "langchain>=0.3.25,<0.4.0",
+    "langchain-ollama>=0.3.3,<1.0.0",
     # Windows-specific optional dependencies
     "opencv-python",  # Generally works well on Windows
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
     "pytesseract>=0.3.13,<1.0.0",  # OCR support
+    # AI/ML dependencies
+    "openai>=1.0.0",
+    "dashscope>=1.20.0",
 ]
+
+[tool.briefcase.app.fichero.iOS]
+requires = [
+    "toga-iOS>=0.5.1,<0.6.0",
+]
+
+# Note: iOS excludes problematic dependencies like srsly, rich, typer, tqdm,
+# opencv-python, rawpy, python-magic, pytesseract, pdf2image, exifread,
+# python-docx, langchain, langchain-ollama, psutil
+
+[tool.briefcase.app.fichero.android]
+requires = [
+    "toga-android>=0.5.1,<0.6.0",
+    "pyjnius>=1.4.2,<2.0.0",  # Android Java bridge
+]
+
+# Note: Android excludes problematic dependencies like srsly, rich, typer, tqdm,
+# opencv-python, rawpy, python-magic, pytesseract, pdf2image, exifread,
+# python-docx, langchain, langchain-ollama, psutil
 
 # Build system requirements
 [build-system]
 requires = ["briefcase"]
 build-backend = "briefcase.backend"
-
-# Project metadata
-#[project]
-#name = "fichero"
-#version = "0.1.0.dev1"
-#description = "Document Processing and Transcription"
-#readme = "README.md"
-#requires-python = ">=3.10"
-#license = {file = "LICENSE"}
-#authors = [
-#    {name = "dtubb", email = "daniel@tubb.ca"}
-#]
-#dependencies = [
-#    "toga>=0.5.1,<0.6.0",
-#    "typer>=0.16.0,<1.0.0",
-#    "rich>=14.0.0,<15.0.0",
-#    "srsly>=2.5.1,<3.0.0",
-#    "python-dotenv>=1.1.0,<2.0.0",
-#    "Pillow>=11.2.1,<12.0.0",
-#    "numpy>=2.2.0,<3.0.0",
-#    "opencv-python>=4.10.0,<5.0.0",
-#    "pdf2image>=1.17.0,<2.0.0",
-#    "pytesseract>=0.3.13,<1.0.0",
-#    "rawpy>=0.25.0,<1.0.0",
-#    "exifread>=3.3.1,<4.0.0",
-#    "python-docx>=1.1.2,<2.0.0",
-#    "langchain>=0.3.25,<0.4.0",
-#    "langchain-ollama>=0.3.3,<1.0.0",
-#    "anthropic>=0.54.0,<1.0.0",
-#    "dashscope>=1.23.4,<2.0.0",
-#    "requests>=2.32.4,<3.0.0",
-#    "tqdm>=4.67.1,<5.0.0",
-#    "python-magic>=0.4.27,<1.0.0",
-#    "psutil>=7.0.0,<8.0.0",
-#    "celery>=5.5.3,<6.0.0",
-#    "redis>=6.2.0,<7.0.0",
-#    "openai>=1.86.0,<2.0.0",
-#    "accelerate>=1.7.0,<2.0.0",
-#    "pathvalidate>=3.2.3,<4.0.0",
-#    "cryptography>=45.0.0,<46.0.0",
-#    "ruamel.yaml>=0.18.0,<1.0.0",
-#    "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
-#    "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
-#    # "rembg",  # Optional: AI background removal (see TODO)
-#]
-#
-## Optional dependencies for enhanced cross-platform support
-#[project.optional-dependencies]
-## Enhanced mobile platform detection
-#mobile-i18n = [
-#    "jnius>=1.1.0;platform_system=='Linux'",  # Android Java bridge (when on Android/Linux)
-#    "pyobjc-framework-Foundation>=11.1,<12.0;platform_system=='Darwin'",  # iOS/macOS Foundation framework
-#]
-## Development and testing
-#dev = [
-#    "pytest>=7.0.0",
-#    "pytest-asyncio>=0.21.0",
-#    "pytest-mock>=3.10.0",
-#    "black>=23.0.0",
-#    "ruff>=0.1.0",
-#]
 
 [project.scripts]
 fichero-cli = "fichero.cli:main"
