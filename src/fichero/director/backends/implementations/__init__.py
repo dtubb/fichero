@@ -8,12 +8,12 @@ Available backends:
 - CeleryBackend: Celery/Redis-based distributed backend (requires Celery + Redis)
 """
 
-from .base import ProcessingBackend, ProcessingStatus
-from .python_backend import PythonProcessingBackend
+from fichero.director.backends.implementations.base import ProcessingBackend, ProcessingStatus
+from fichero.director.backends.implementations.python_backend import PythonProcessingBackend
 
 # Optional Celery backend (may not be available)
 try:
-    from .celery_backend import CeleryBackend
+    from fichero.director.backends.implementations.celery_backend import CeleryBackend
     CELERY_AVAILABLE = True
 except ImportError:
     CeleryBackend = None

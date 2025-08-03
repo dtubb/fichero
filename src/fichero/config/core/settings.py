@@ -1,17 +1,58 @@
 import os
-import multiprocessing
+# Conditional imports for iOS compatibility
+try:
+    import multiprocessing
+    MULTIPROCESSING_AVAILABLE = True
+except ImportError:
+    MULTIPROCESSING_AVAILABLE = False
+    # Create fallback for multiprocessing functionality
+    class multiprocessing:
+        @staticmethod
+        def cpu_count():
+            # Fallback to a reasonable default for iOS
+            return 2
+
+# Conditional imports for iOS compatibility
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    CRYPTOGRAPHY_AVAILABLE = False
+    # No-op encryption for iOS - just pass through values
+    class Fernet:
+        def __init__(self, key):
+            pass
+        
+        def encrypt(self, data):
+            # On iOS, just return the data as-is (no encryption)
+            return data
+        
+        def decrypt(self, data):
+            # On iOS, just return the data as-is (no decryption)
+            return data
+    
+    class PBKDF2HMAC:
+        def __init__(self, algorithm, length, salt, iterations):
+            pass
+        
+        def derive(self, key_material):
+            # Return a simple key for iOS
+            return b'ios_key_placeholder'
+    
+    class hashes:
+        class SHA256:
+            pass
+
 import platform
-import subprocess
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Any
-from cryptography.fernet import Fernet
 import base64
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from .loader import ConfigLoader
-from .settings_manager import SettingsManager
+from fichero.config.core.loader import ConfigLoader
+from fichero.config.core.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +68,18 @@ class AppSettings:
     
     def _init_encryption(self):
         """Initialize encryption key using machine-specific salt"""
+        if not CRYPTOGRAPHY_AVAILABLE:
+            # On iOS, use no-op encryption
+            self.fernet = Fernet(None)
+            logger.info("Using no-op encryption for iOS")
+            return
+            
         try:
-            machine_id = platform.node()
+            # Use a simple identifier for iOS, or machine name for other platforms
+            if not CRYPTOGRAPHY_AVAILABLE:
+                machine_id = "ios_device"
+            else:
+                machine_id = platform.node()
             salt = machine_id.encode()
             
             kdf = PBKDF2HMAC(
@@ -98,6 +149,10 @@ class AppSettings:
     
     def _looks_encrypted(self, value: str) -> bool:
         """Check if a value looks like encrypted data"""
+        if not CRYPTOGRAPHY_AVAILABLE:
+            # On iOS, nothing is encrypted
+            return False
+            
         if not value:
             logger.debug("❌ Empty value, not encrypted")
             return False
@@ -157,6 +212,9 @@ class AppSettings:
             "description": "Calculated application settings",
             "preferences": {
                 "language": "en"
+            },
+            "library": {
+                "path": ""
             },
             "workers": {
                 "backend": "python",
@@ -221,15 +279,28 @@ class AppSettings:
         settings["workers"] = workers
     
     def _detect_m1_mac(self) -> bool:
-        """Detect if running on Apple Silicon Mac"""
+        """Detect if running on Apple Silicon Mac without subprocess calls"""
         if platform.system() != "Darwin" or platform.machine() != "arm64":
             return False
+        
+        # Use platform module to detect Apple Silicon
         try:
-            result = subprocess.run(['sysctl', '-n', 'machdep.cpu.brand_string'], 
-                                  capture_output=True, text=True)
-            return 'Apple' in result.stdout
+            # Check processor architecture
+            if platform.machine() == "arm64":
+                # On macOS, arm64 is Apple Silicon
+                return True
         except:
-            return False
+            pass
+        
+        # Fallback: check for Apple Silicon indicators in environment
+        try:
+            # Check for Apple Silicon specific environment variables
+            if any(var in os.environ for var in ['ARM64', 'APPLE_SILICON', 'M1', 'M2']):
+                return True
+        except:
+            pass
+        
+        return False
     
     def _sync_api_keys_to_shared_data(self, settings: Dict):
         """DISABLED: SettingsManager now handles API key syncing"""

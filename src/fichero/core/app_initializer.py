@@ -51,10 +51,7 @@ class FicheroAppInitializer:
         # Initialized components (for cleanup)
         self.settings = None
         self.director = None
-        self.translator = None
-        self.document_tracker = None
-        self.auto_save_manager = None
-        self.session_manager = None
+        # Document system components removed - using library approach
         
         # Backend selection (unified)
         self.processing_backend = None
@@ -82,9 +79,7 @@ class FicheroAppInitializer:
             # 2. Initialize settings and preferences
             self.settings = self._init_settings(additional_settings)
             
-            # 3. Initialize language system (GUI only)
-            if not self.cli_mode:
-                self.translator = self._init_language_system()
+
             
             # 4. Select unified backends (single source of truth)
             self.processing_backend, self.storage_backend = self._select_unified_backends()
@@ -103,11 +98,7 @@ class FicheroAppInitializer:
             
             return {
                 'settings': self.settings,
-                'director': self.director,
-                'translator': self.translator,
-                'document_tracker': self.document_tracker,
-                'auto_save_manager': self.auto_save_manager,
-                'session_manager': self.session_manager
+                'director': self.director
             }
             
         except Exception as e:
@@ -127,7 +118,7 @@ class FicheroAppInitializer:
             
             # Cleanup shared data backend
             try:
-                from ..shared_data import get_shared_data
+                from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
                 if hasattr(shared_data.backend, 'cleanup'):
                     logger.info("🧹 Cleaning up shared data backend...")
@@ -220,12 +211,12 @@ class FicheroAppInitializer:
         """Initialize full application settings and preferences"""
         try:
             # Initialize app preferences first
-            from ..config.core.app_preferences import get_app_preferences
+            from fichero.config.core.app_preferences import get_app_preferences
             app_prefs = get_app_preferences(self.app_context)
             logger.info("📋 App preferences initialized")
             
             # Load settings (environment variables set automatically)
-            from ..utils import get_app_settings
+            from fichero.utils import get_app_settings
             settings = get_app_settings(self.app_context)
             
             # Merge additional settings (e.g., CLI overrides) - let settings handle this
@@ -239,23 +230,12 @@ class FicheroAppInitializer:
             logger.warning(f"⚠️ Failed to load full settings: {e}")
             return None
     
-    def _init_language_system(self):
-        """Initialize language/i18n system (GUI only)"""
-        try:
-            from ..ui.i18n import TranslationManager, set_global_translator
-            translator = TranslationManager(app=self.app_context)
-            set_global_translator(translator)
-            logger.info(f"🌐 Language system initialized: {translator.current_language}")
-            return translator
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to initialize language system: {e}")
-            return None
+
     
     def _select_unified_backends(self):
         """Select unified backends using single source of truth"""
         try:
-            from ..director.backends.backend_selector import BackendSelector
+            from fichero.director.backends.backend_selector import BackendSelector
             
             # Use unified backend selector
             processing_backend, storage_backend = BackendSelector.select_backends(self.settings)
@@ -280,7 +260,7 @@ class FicheroAppInitializer:
             prefer_backend = self.storage_backend  # "redis" or "threading"
             
             # Initialize shared data with selected backend
-            from ..shared_data import get_shared_data
+            from fichero.shared_data import get_shared_data
             shared_data = get_shared_data(prefer_backend=prefer_backend)
             
             logger.info(f"🔧 Shared data backend initialized: {shared_data.backend_name} (unified selection)")
@@ -291,7 +271,7 @@ class FicheroAppInitializer:
     def _init_director_service(self):
         """Initialize director service using unified backend selection"""
         try:
-            from ..director import FicheroDirector
+            from fichero.director import FicheroDirector
             
             # Create director instance with settings object
             director = FicheroDirector.get_instance(settings=self.settings, app=self.app_context)
@@ -325,18 +305,9 @@ class FicheroAppInitializer:
             raise  # Re-raise to make it fatal
     
     def _init_document_system(self):
-        """Initialize document system (GUI only)"""
-        try:
-            from ..document import init_document_tracker, init_app_auto_save_manager, init_session_manager
-            
-            self.document_tracker = init_document_tracker(self.app_context)
-            self.auto_save_manager = init_app_auto_save_manager(self.app_context)
-            self.session_manager = init_session_manager(self.app_context)
-            
-            logger.info("📄 Document system initialized")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to initialize document system: {e}")
+        """Initialize document system (GUI only) - DISABLED for library approach"""
+        # Document system removed - using library approach instead
+        logger.info("📄 Document system disabled - using library approach")
     
 
 

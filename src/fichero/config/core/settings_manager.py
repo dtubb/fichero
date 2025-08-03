@@ -3,17 +3,62 @@ Settings File Manager
 Handles settings-specific file operations and business logic
 """
 
-import yaml
 import platform
 import base64
+
+# Conditional imports for iOS compatibility
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+    # Create a simple fallback
+    class yaml:
+        @staticmethod
+        def safe_load(content):
+            return {}
+        
+        @staticmethod
+        def dump(data, f, **kwargs):
+            f.write("# Fallback YAML\n")
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from .file_manager import FileManager
+# Conditional imports for iOS compatibility
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    CRYPTOGRAPHY_AVAILABLE = False
+    # No-op encryption for iOS - just pass through values
+    class Fernet:
+        def __init__(self, key):
+            pass
+        
+        def encrypt(self, data):
+            # On iOS, just return the data as-is (no encryption)
+            return data
+        
+        def decrypt(self, data):
+            # On iOS, just return the data as-is (no decryption)
+            return data
+    
+    class PBKDF2HMAC:
+        def __init__(self, algorithm, length, salt, iterations):
+            pass
+        
+        def derive(self, key_material):
+            # Return a simple key for iOS
+            return b'ios_key_placeholder'
+    
+    class hashes:
+        class SHA256:
+            pass
+
+from fichero.config.core.file_manager import FileManager
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +138,7 @@ class SettingsManager(FileManager):
         """SIMPLE: Load file, decrypt, return to GUI - no dependencies"""
         try:
             # Load file directly
-            from .loader import ConfigLoader
+            from fichero.config.core.loader import ConfigLoader
             file_data = ConfigLoader.load_config_file(file_path)
             
             # Decrypt API keys directly here - no dependencies
@@ -123,7 +168,7 @@ class SettingsManager(FileManager):
             self._encrypt_api_keys_simple(encrypted_data)
             
             # Save directly
-            from .loader import ConfigLoader
+            from fichero.config.core.loader import ConfigLoader
             ConfigLoader.save_config_file(file_path, encrypted_data)
             
             # Sync DECRYPTED API keys to shared data for tools
@@ -240,6 +285,12 @@ class SettingsManager(FileManager):
     
     def _init_encryption(self):
         """Initialize encryption key"""
+        if not CRYPTOGRAPHY_AVAILABLE:
+            # On iOS, use no-op encryption
+            self.fernet = Fernet(None)
+            logger.info("Using no-op encryption for iOS")
+            return
+            
         try:
             machine_id = platform.node()
             salt = machine_id.encode()

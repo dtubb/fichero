@@ -24,8 +24,8 @@ try:
 except ImportError:
     TOGA_AVAILABLE = False
 
-from ..task_monitor import TaskMonitor
-from ....ui.i18n import _
+from fichero.director.monitoring.task_monitor import TaskMonitor
+import gettext
 
 logger = logging.getLogger(__name__)
 

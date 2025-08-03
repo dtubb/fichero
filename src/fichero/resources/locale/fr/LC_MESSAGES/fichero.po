@@ -1,0 +1,687 @@
+# FR translations for Fichero.
+# Copyright (C) 2024 Daniel Tubb
+# This file is distributed under the same license as the Fichero package.
+msgid ""
+msgstr ""
+"Project-Id-Version: Fichero 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-08-02 18:00+0000\n"
+"PO-Revision-Date: 2024-08-02 18:00+0000\n"
+"Last-Translator: Daniel Tubb <daniel@tubb.ca>\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "app_title"
+msgstr "Fichero"
+
+msgid "choose_folder"
+msgstr "Choisir un Dossier…"
+
+msgid "description"
+msgstr "*Fichero* traite de grandes collections de documents numérisés—des centaines ou même des dizaines de milliers—en recadrant, améliorant, segmentant, transcrivant avec l'IA, et cataloguant automatiquement. Il génère des résultats dans des fichiers Word et Excel.\n\nVous pouvez [en apprendre plus](https://www.tubb.ca/fichero/) sur comment cela fonctionne, si cela vous intéresse, mais la version courte est que Fichero utilise divers outils pour décomposer chaque étape, fait appel aux Modèles de Langage Visual Larges, et s'exécute sur divers dossiers en parallèle.\n\nPour commencer, choisissez un dossier à traiter en utilisant le bouton ci-dessus."
+
+msgid "help"
+msgstr "?"
+
+msgid "process"
+msgstr "Traiter le Dossier"
+
+msgid "processing"
+msgstr "Traitement en cours"
+
+msgid "folder_icon_label"
+msgstr "📁"
+
+msgid "folder_status"
+msgstr "Aucun dossier sélectionné"
+
+msgid "menu_about"
+msgstr "À propos de Fichero"
+
+msgid "menu_preferences"
+msgstr "Préférences…"
+
+msgid "menu_quit"
+msgstr "Quitter Fichero"
+
+msgid "menu_help_website"
+msgstr "Site Web de Support"
+
+msgid "menu_help_support"
+msgstr "Aide et Support"
+
+msgid "menu_cut"
+msgstr "Couper"
+
+msgid "menu_copy"
+msgstr "Copier"
+
+msgid "menu_paste"
+msgstr "Coller"
+
+msgid "menu_select_all"
+msgstr "Tout Sélectionner"
+
+msgid "menu_undo"
+msgstr "Annuler"
+
+msgid "menu_redo"
+msgstr "Rétablir"
+
+msgid "menu_zoom_in"
+msgstr "Zoom Avant"
+
+msgid "menu_zoom_out"
+msgstr "Zoom Arrière"
+
+msgid "menu_zoom_reset"
+msgstr "Taille Réelle"
+
+msgid "menu_fullscreen"
+msgstr "Plein Écran"
+
+msgid "menu_minimize"
+msgstr "Réduire"
+
+msgid "menu_close"
+msgstr "Fermer la Fenêtre"
+
+msgid "menu_activity_monitor"
+msgstr "Moniteur d'Activité"
+
+msgid "menu_new_document"
+msgstr "Nouveau Document"
+
+msgid "menu_open_document"
+msgstr "Ouvrir…"
+
+msgid "menu_save_document"
+msgstr "Enregistrer"
+
+msgid "menu_save_document_as"
+msgstr "Enregistrer Sous…"
+
+msgid "menu_edit_processing_plans"
+msgstr "Plans de Traitement…"
+
+msgid "menu_document_plans"
+msgstr "Plans de Document…"
+
+msgid "menu_document_settings"
+msgstr "Paramètres de Document…"
+
+msgid "menu_global_plans_template"
+msgstr "Modèle de Plans Globaux…"
+
+msgid "menu_llm_config_editor"
+msgstr "Configuration LLM…"
+
+msgid "menu_plans"
+msgstr "Plans…"
+
+msgid "menu_prompts"
+msgstr "Prompts…"
+
+msgid "menu_open_recent"
+msgstr "Ouvrir Récents"
+
+msgid "menu_no_recent_documents"
+msgstr "Aucun Document Récent"
+
+msgid "menu_clear_recent_documents"
+msgstr "Effacer Documents Récents"
+
+msgid "select_folder_title"
+msgstr "Sélectionner le Dossier à Traiter"
+
+msgid "about_acknowledgments"
+msgstr "[Fichero](http://www.tubb.ca/fichero/) transcrit et catalogue automatiquement les archives historiques en utilisant des modèles de langage visual larges et l'intelligence artificielle, s'exécutant localement ou dans le cloud.\n\n## questions\n**email** daniel@tubb.ca\n**site web** [https://www.tubb.ca/fichero/](https://www.tubb.ca/fichero/)\n\n## programmation\nDaniel Tubb\nAndrew Janco\n\n*Daniel a programmé avec [Cursor, l'éditeur de code IA](https://www.cursor.com), avec l'aide de [Claude Sonnet](https://www.anthropic.com/claude/sonnet). Andy sait ce qu'il fait.*\n\n## testeurs et contributeurs\nAnn Farnsworth-Alvear\nKelly López Roldán\nJavier R. Ardila\n\n## bibliothèques et dépendances\n[Python Software Foundation](https://python.org) \n[Toga GUI Toolkit](https://github.com/beeware/toga)\n[Briefcase](https://github.com/beeware/briefcase) \n\n## inspiration de l'interface utilisateur\n[John Siracusa](https://hypercritical.co) pour l'inspiration d'interface Hyperspace\n[Bare Bones Software](https://barebones.com) pour la conception du dialogue à propos de BBEdit\n\n## licence\nCe logiciel est publié sous une licence open source.\n\nCode source disponible à : [https://github.com/dtubb/fichero](https://github.com/dtubb/fichero)\n\nSignaler les bugs et contribuer à :\n[https://github.com/dtubb/fichero/issues](https://github.com/dtubb/fichero/issues)\n\n© 2025 Daniel Tubb\nTous droits réservés."
+
+msgid "app_preferences"
+msgstr "Préférences"
+
+msgid "api_servers"
+msgstr "Serveurs API"
+
+msgid "advanced"
+msgstr "Avancé"
+
+msgid "worker_performance"
+msgstr "Performance des Travailleurs"
+
+msgid "cancel"
+msgstr "Annuler"
+
+msgid "save"
+msgstr "Enregistrer"
+
+msgid "document_window_title"
+msgstr "Fenêtre de Document"
+
+msgid "document_untitled"
+msgstr "Sans titre"
+
+msgid "document_save_changes"
+msgstr "Enregistrer les Modifications ?"
+
+msgid "document_save_changes_message"
+msgstr "Voulez-vous enregistrer les modifications de ce document ?"
+
+msgid "document_save_error"
+msgstr "Erreur lors de l'Enregistrement"
+
+msgid "document_open_error"
+msgstr "Erreur lors de l'Ouverture"
+
+msgid "document_processing"
+msgstr "Traitement du Document"
+
+msgid "document_processing_complete"
+msgstr "Traitement Terminé"
+
+msgid "document_processing_error"
+msgstr "Erreur de Traitement"
+
+msgid "document_auto_save"
+msgstr "Enregistrement automatique..."
+
+msgid "activity_monitor_title"
+msgstr "Moniteur d'Activité"
+
+msgid "activity_monitor_status"
+msgstr "État"
+
+msgid "activity_monitor_tasks"
+msgstr "Tâches"
+
+msgid "activity_monitor_workers"
+msgstr "Travailleurs"
+
+msgid "activity_monitor_refresh"
+msgstr "Actualiser"
+
+msgid "activity_monitor_no_tasks"
+msgstr "Aucune tâche active"
+
+msgid "activity_monitor_worker_active"
+msgstr "Actif"
+
+msgid "activity_monitor_worker_idle"
+msgstr "Inactif"
+
+msgid "activity_monitor_worker_error"
+msgstr "Erreur"
+
+msgid "activity_monitor_task_queued"
+msgstr "En Attente"
+
+msgid "activity_monitor_task_running"
+msgstr "En Cours"
+
+msgid "activity_monitor_task_completed"
+msgstr "Terminé"
+
+msgid "activity_monitor_task_failed"
+msgstr "Échoué"
+
+msgid "preferences_general"
+msgstr "Général"
+
+msgid "preferences_language"
+msgstr "Langue"
+
+msgid "preferences_theme"
+msgstr "Thème"
+
+msgid "preferences_auto_save"
+msgstr "Enregistrement Automatique"
+
+msgid "preferences_auto_save_interval"
+msgstr "Intervalle d'Enregistrement"
+
+msgid "preferences_processing"
+msgstr "Traitement"
+
+msgid "preferences_default_backend"
+msgstr "Backend par Défaut"
+
+msgid "preferences_worker_count"
+msgstr "Nombre de Travailleurs"
+
+msgid "preferences_max_memory"
+msgstr "Utilisation Maximale de Mémoire"
+
+msgid "preferences_api_keys"
+msgstr "Clés API"
+
+msgid "preferences_api_key_warning"
+msgstr "Les clés API sont stockées de manière sécurisée"
+
+msgid "preferences_restart_required"
+msgstr "Redémarrage requis"
+
+msgid "preferences_restart_message"
+msgstr "Certains changements prendront effet après le redémarrage de l'application"
+
+msgid "document_processing_ready"
+msgstr "Prêt à traiter…"
+
+msgid "document_processing_results"
+msgstr "Traitement terminé avec les résultats suivants :\n{results}"
+
+msgid "document_processing_output"
+msgstr "Sortie enregistrée dans :\n{path}"
+
+msgid "document_view_output"
+msgstr "Voir la Sortie"
+
+msgid "document_processing_status"
+msgstr "Traitement : {folder}"
+
+msgid "document_error_director"
+msgstr "Directeur non disponible"
+
+msgid "document_error_task_display"
+msgstr "Échec de la création de l'affichage des tâches"
+
+msgid "document_output_exists"
+msgstr "\"{name}\" existe déjà. Le traitement reprendra là où vous l'aviez laissé."
+
+msgid "document_continue_processing"
+msgstr "Continuer le Traitement ?"
+
+msgid "document_stop_processing"
+msgstr "Arrêter le Traitement"
+
+msgid "document_stop_confirm"
+msgstr "Êtes-vous sûr de vouloir arrêter le traitement en cours ?"
+
+msgid "task_status_pending"
+msgstr "En attente"
+
+msgid "task_status_running"
+msgstr "En cours"
+
+msgid "task_status_completed"
+msgstr "Terminé"
+
+msgid "task_status_failed"
+msgstr "Échoué"
+
+msgid "task_status_cancelled"
+msgstr "Annulé"
+
+msgid "task_status_waiting"
+msgstr "En attente de traitement"
+
+msgid "task_worker_unknown"
+msgstr "Travailleur Inconnu"
+
+msgid "task_worker_cpu"
+msgstr "Travailleur CPU {id}"
+
+msgid "task_worker_io"
+msgstr "Travailleur IO {id}"
+
+msgid "task_worker_celery"
+msgstr "sur Celery"
+
+msgid "task_step_transcribe"
+msgstr "Transcription Audio"
+
+msgid "task_step_extract"
+msgstr "Extraction de Texte"
+
+msgid "task_step_ocr"
+msgstr "OCR en Cours"
+
+msgid "task_step_process_images"
+msgstr "Traitement des Images"
+
+msgid "task_step_convert"
+msgstr "Conversion de Format"
+
+msgid "task_step_organize"
+msgstr "Organisation des Fichiers"
+
+msgid "task_step_backup"
+msgstr "Sauvegarde des Fichiers"
+
+msgid "task_step_compress"
+msgstr "Compression des Fichiers"
+
+msgid "task_step_upload"
+msgstr "Téléversement des Fichiers"
+
+msgid "task_step_generic"
+msgstr "Traitement"
+
+msgid "task_step_transcribe_done"
+msgstr "Audio Transcrit"
+
+msgid "task_step_extract_done"
+msgstr "Texte Extrait"
+
+msgid "task_step_ocr_done"
+msgstr "OCR Terminé"
+
+msgid "task_step_process_images_done"
+msgstr "Images Traitées"
+
+msgid "task_step_convert_done"
+msgstr "Format Converti"
+
+msgid "task_step_organize_done"
+msgstr "Fichiers Organisés"
+
+msgid "task_step_backup_done"
+msgstr "Fichiers Sauvegardés"
+
+msgid "task_step_compress_done"
+msgstr "Fichiers Compressés"
+
+msgid "task_step_upload_done"
+msgstr "Fichiers Téléversés"
+
+msgid "task_step_generic_done"
+msgstr "Traitement Terminé"
+
+msgid "task_step_waiting"
+msgstr "En attente de {action}"
+
+msgid "task_step_failed"
+msgstr "Échec de {action}"
+
+msgid "task_source_gui"
+msgstr "GUI"
+
+msgid "task_source_cli"
+msgstr "CLI"
+
+msgid "task_source_standalone"
+msgstr "Autonome"
+
+msgid "preferences_title"
+msgstr "Paramètres"
+
+msgid "preferences_window_title"
+msgstr "Paramètres de Fichero"
+
+msgid "preferences_description"
+msgstr "Paramètres de l'application"
+
+msgid "preferences_error"
+msgstr "Erreur"
+
+msgid "preferences_load_error"
+msgstr "Échec du chargement du schéma de configuration : {error}"
+
+msgid "preferences_select_plan"
+msgstr "Sélectionnez d'abord un plan"
+
+msgid "preferences_no_plans"
+msgstr "Aucun plan trouvé"
+
+msgid "preferences_error_loading_plans"
+msgstr "Erreur lors du chargement des plans"
+
+msgid "preferences_no_options"
+msgstr "Aucune option disponible"
+
+msgid "preferences_no_content"
+msgstr "Aucun contenu défini dans le schéma"
+
+msgid "preferences_restore_defaults"
+msgstr "Restaurer les valeurs par défaut"
+
+msgid "preferences_defaults_title"
+msgstr "Valeurs par défaut"
+
+msgid "preferences_processing_defaults_title"
+msgstr "Valeurs par défaut du traitement"
+
+msgid "preferences_processing_defaults_description"
+msgstr "Paramètres par défaut pour le traitement des documents"
+
+msgid "preferences_default_plan"
+msgstr "Plan par défaut"
+
+msgid "preferences_default_plan_help"
+msgstr "Le plan à utiliser par défaut pour les nouveaux documents"
+
+msgid "preferences_default_workflow"
+msgstr "Flux de travail par défaut"
+
+msgid "preferences_default_workflow_help"
+msgstr "Le flux de travail à utiliser par défaut pour les nouveaux documents"
+
+msgid "preferences_folder_order"
+msgstr "Ordre de traitement des dossiers"
+
+msgid "preferences_folder_order_help"
+msgstr "L'ordre dans lequel les dossiers sont traités"
+
+msgid "preferences_appearance_title"
+msgstr "Apparence"
+
+msgid "preferences_language_title"
+msgstr "Langue"
+
+msgid "preferences_language_description"
+msgstr "Choisir la langue de l'interface pour Fichero"
+
+msgid "preferences_language_help"
+msgstr "Définit la langue de l'interface. 'Système' suit les paramètres de langue de macOS."
+
+msgid "language_system"
+msgstr "Système"
+
+msgid "language_en"
+msgstr "English"
+
+msgid "language_es"
+msgstr "Español"
+
+msgid "language_fr"
+msgstr "Français"
+
+msgid "preferences_performance_title"
+msgstr "Performance"
+
+msgid "preferences_backend_title"
+msgstr "Backend de traitement"
+
+msgid "preferences_backend_description"
+msgstr "Configurer le traitement des documents"
+
+msgid "preferences_backend_type"
+msgstr "Type de backend"
+
+msgid "preferences_backend_type_help"
+msgstr "Le type de backend à utiliser pour le traitement"
+
+msgid "preferences_workers_title"
+msgstr "Configuration des workers"
+
+msgid "preferences_workers_description"
+msgstr "Configurer les workers de traitement"
+
+msgid "preferences_cpu_workers"
+msgstr "Workers CPU"
+
+msgid "preferences_cpu_workers_help"
+msgstr "Nombre de workers intensifs en CPU"
+
+msgid "preferences_io_workers"
+msgstr "Workers IO"
+
+msgid "preferences_io_workers_help"
+msgstr "Nombre de workers intensifs en IO"
+
+msgid "preferences_auto_calculate"
+msgstr "Calcul automatique"
+
+msgid "preferences_auto_calculate_help"
+msgstr "Calculer automatiquement le nombre optimal de workers"
+
+msgid "preferences_ai_title"
+msgstr "Configuration IA"
+
+msgid "preferences_openai_title"
+msgstr "OpenAI"
+
+msgid "preferences_api_key"
+msgstr "Clé API"
+
+msgid "preferences_openai_api_key_help"
+msgstr "Votre clé API OpenAI"
+
+msgid "preferences_base_url"
+msgstr "URL de base"
+
+msgid "preferences_qwen_title"
+msgstr "Qwen"
+
+msgid "preferences_qwen_api_key_help"
+msgstr "Votre clé API Qwen"
+
+msgid "preferences_claude_title"
+msgstr "Claude"
+
+msgid "preferences_claude_api_key_help"
+msgstr "Votre clé API Claude"
+
+msgid "preferences_ollama_title"
+msgstr "Ollama"
+
+msgid "preferences_ollama_url_help"
+msgstr "URL de votre serveur Ollama"
+
+msgid "preferences_lmstudio_title"
+msgstr "LM Studio"
+
+msgid "preferences_lmstudio_url_help"
+msgstr "URL de votre serveur LM Studio"
+
+msgid "preferences_blackfish_title"
+msgstr "Blackfish"
+
+msgid "preferences_blackfish_url_help"
+msgstr "URL de votre serveur Blackfish"
+
+msgid "preferences_huggingface_title"
+msgstr "Hugging Face"
+
+msgid "preferences_huggingface_api_key_help"
+msgstr "Votre clé API Hugging Face"
+
+msgid "workflow_selector_label"
+msgstr "Sélectionner le flux de travail :"
+
+msgid "workflow_new_btn"
+msgstr "Nouveau"
+
+msgid "workflow_copy_btn"
+msgstr "Copier"
+
+msgid "workflow_steps_label"
+msgstr "Étapes du flux de travail :"
+
+msgid "about_window_title"
+msgstr "À propos de Fichero"
+
+msgid "task_table_folder"
+msgstr "Dossier"
+
+msgid "task_table_status"
+msgstr "État"
+
+msgid "task_table_empty"
+msgstr "Aucune tâche à afficher"
+
+msgid "task_table_no_active"
+msgstr "Aucune tâche active"
+
+msgid "task_table_ready"
+msgstr "Prêt"
+
+msgid "task_table_error"
+msgstr "Erreur d'affichage"
+
+msgid "task_table_active_count"
+msgstr "{count} actives"
+
+msgid "task_table_completed_count"
+msgstr "{count} terminées"
+
+msgid "task_table_failed_count"
+msgstr "{count} échouées"
+
+msgid "task_button_stop_document"
+msgstr "Arrêter les Tâches du Document"
+
+msgid "task_button_stop_all"
+msgstr "Arrêter Toutes les Tâches"
+
+msgid "task_worker_efficiency"
+msgstr "sur Travailleur d'Efficacité"
+
+msgid "task_worker_celery_efficiency"
+msgstr "sur Travailleur d'Efficacité Celery"
+
+msgid "task_worker_performance"
+msgstr "Travailleur de Performance"
+
+msgid "task_status_queued_celery"
+msgstr "En file d'attente pour Celery"
+
+msgid "task_status_completed_duration"
+msgstr "Terminé ({duration})"
+
+msgid "task_status_failed_duration"
+msgstr "Échoué ({duration})"
+
+msgid "task_status_cancelled_duration"
+msgstr "Annulé ({duration})"
+
+msgid "task_status_processing_duration"
+msgstr "Traitement en cours ({duration})"
+
+msgid "task_status_processing_step"
+msgstr "{step} ({duration})"
+
+msgid "task_status_waiting_efficiency"
+msgstr "En attente de traitement sur Travailleur d'Efficacité"
+
+msgid "task_status_waiting_performance"
+msgstr "En attente de traitement"
+
+msgid "task_status_waiting_celery"
+msgstr "En file d'attente pour Celery"
+
+msgid "task_status_waiting_celery_efficiency"
+msgstr "En file d'attente pour Travailleur d'Efficacité Celery"
+
+msgid "task_status_summary_separator"
+msgstr " | "
+
+msgid "task_table_local_session"
+msgstr "Tâches de Session Locale"
+
+msgid "task_table_local_session_header"
+msgstr "Tâches de Session Locale (Backend Python)"
+
+msgid "task_table_all_tasks"
+msgstr "Toutes les Tâches"
+
+msgid "task_table_global_monitor"
+msgstr "Moniteur d'Activité Global"
+
+msgid "task_table_global_monitor_header"
+msgstr "Moniteur d'Activité Global (Celery/Redis) - Appuyez sur Ctrl+C pour quitter"
+
+msgid "task_table_monitoring_stopped"
+msgstr "{mode} arrêté"
+

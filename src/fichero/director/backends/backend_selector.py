@@ -40,8 +40,8 @@ class BackendSelector:
         """
         try:
             # Get backend preference from settings
-            from .settings_extractor import SettingsExtractor
-            from .availability_checker import BackendAvailabilityChecker
+            from fichero.director.backends.settings_extractor import SettingsExtractor
+            from fichero.director.backends.availability_checker import BackendAvailabilityChecker
             
             preference = SettingsExtractor.get_backend_preference(settings)
             logger.info(f"Backend preference from settings: {preference}")

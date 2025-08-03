@@ -7,7 +7,6 @@ description: "Configure global application preferences and API settings"
 
 # Application Preferences
 preferences:
-  language: "system"
   folder_processing_order: "alphabetical"  # Options: "alphabetical", "reverse_alphabetical", "least_images_first", "most_images_first"
 
 # Worker Performance Configuration

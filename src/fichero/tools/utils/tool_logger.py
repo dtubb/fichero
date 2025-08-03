@@ -117,7 +117,7 @@ def get_tool_logger(tool_name: str) -> ToolLogger:
     Get a tool logger instance.
     
     Usage in tools:
-        from .utils.tool_logger import get_tool_logger
+        from fichero.utils.tool_logger import get_tool_logger
         
         logger = get_tool_logger('crop')
         logger.info("Processing image...")

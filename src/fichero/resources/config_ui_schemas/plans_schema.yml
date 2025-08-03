@@ -1,147 +1,142 @@
-title: "Plans - {config_file.name}"
-description: "Configure project workflows, variables, and commands"
-window_title: "Fichero Plans"
+title: "plans_title"
+description: "plans_description"
+window_title: "plans_window_title"
 window_size: [1000, 700]
 
 sections:
   - id: "general"
-    title: "General"
+    title: "plans_general_title"
     sections:
-      - title: "Project Information"
+      - title: "plans_project_info_title"
         fields:
           - id: "title"
             type: "text_input"
-            label: "Project Title"
-            placeholder: "Enter project title"
+            label: "plans_project_title"
+            placeholder: "plans_project_title_placeholder"
             validation:
               required: true
           - id: "description"
             type: "multiline_text"
-            label: "Description"
+            label: "plans_description_label"
             height: 200
-            placeholder: "Project description..."
+            placeholder: "plans_description_placeholder"
 
   - id: "vars"
-    title: "Variables"
+    title: "plans_variables_title"
     sections:
-      - title: "Basic Configuration"
+      - title: "plans_basic_config_title"
         fields:
           - id: "vars.name"
             type: "text_input"
-            label: "Project Name"
+            label: "plans_project_name"
             validation:
               required: true
           - id: "vars.language"
             type: "selection"
-            label: "Language"
+            label: "plans_language"
             options: ["es", "en", "fr", "de", "pt", "it"]
           - id: "vars.text_direction"
             type: "selection"
-            label: "Text Direction"
+            label: "plans_text_direction"
             options: ["horizontal-lr", "horizontal-rl", "vertical-lr", "vertical-rl"]
           - id: "vars.version"
             type: "text_input"
-            label: "Version"
+            label: "plans_version"
 
-      - title: "Image Formats"
-        description: "Configure output formats for different processing steps"
+      - title: "plans_image_formats_title"
+        description: "plans_image_formats_description"
         fields:
           - id: "vars.crop_format"
             type: "selection"
-            label: "Crop Format"
+            label: "plans_crop_format"
             options: ["jpg", "png", "jxl"]
           - id: "vars.split_format"
             type: "selection"
-            label: "Split Format"
+            label: "plans_split_format"
             options: ["jpg", "png", "jxl"]
           - id: "vars.rotate_format"
             type: "selection"
-            label: "Rotate Format"
+            label: "plans_rotate_format"
             options: ["jpg", "png", "jxl"]
           - id: "vars.enhance_format"
             type: "selection"
-            label: "Enhance Format"
+            label: "plans_enhance_format"
             options: ["jpg", "png", "jxl"]
           - id: "vars.background_removed_format"
             type: "selection"
-            label: "Background Removed Format"
+            label: "plans_background_removed_format"
             options: ["png", "jxl", "jpg"]
 
-      - title: "Processing Methods"
-        description: "Configure processing algorithms and methods"
+      - title: "plans_processing_methods_title"
+        description: "plans_processing_methods_description"
         fields:
           - id: "vars.background_removal_method"
             type: "selection"
-            label: "Background Removal Method"
+            label: "plans_background_removal_method"
             options: ["opencv", "ai"]
-            help: "opencv: Fast, document-optimized | ai: High quality, general purpose"
+            help: "plans_background_removal_method_help"
           - id: "vars.background_removal_ai_model"
             type: "selection"
-            label: "AI Model (when method = ai)"
+            label: "plans_background_removal_ai_model"
             options: ["default", "u2net", "u2net_human", "silueta"]
-            help: "default: 1.3s, balanced | u2net: 1.5s, general | u2net_human: 1.4s, people | silueta: 1.5s, fast"
+            help: "plans_background_removal_ai_model_help"
 
-      - title: "LLM Configuration"
+      - title: "plans_llm_config_title"
         fields:
           - id: "vars.lmstudio_url"
             type: "text_input"
-            label: "LMStudio URL"
-            placeholder: "http://localhost:1234"
+            label: "plans_lmstudio_url"
+            placeholder: "plans_lmstudio_url_placeholder"
           - id: "vars.lmstudio_model"
             type: "text_input"
-            label: "LMStudio Model"
-            placeholder: "Model name"
+            label: "plans_lmstudio_model"
+            placeholder: "plans_lmstudio_model_placeholder"
           - id: "vars.prompt"
             type: "multiline_text"
-            label: "Default Prompt"
+            label: "plans_default_prompt"
             height: 80
-            placeholder: "Enter default transcription prompt..."
+            placeholder: "plans_default_prompt_placeholder"
 
   - id: "paths"
-    title: "Paths"
+    title: "plans_paths_title"
     sections:
-      - title: "Key Paths"
-        description: "Main project directories (use ${vars.variable} for substitution)"
+      - title: "plans_key_paths_title"
+        description: "plans_key_paths_description"
         fields:
           - id: "vars.project_folder"
             type: "text_input"
-            label: "Project Folder"
-            help: "Main project directory"
+            label: "plans_project_folder"
+            help: "plans_project_folder_help"
           - id: "vars.documents_folder"
             type: "text_input"
-            label: "Documents Folder"
-            help: "Source documents location"
+            label: "plans_documents_folder"
+            help: "plans_documents_folder_help"
           - id: "vars.assets_folder"
             type: "text_input"
-            label: "Assets Folder"
-            help: "Processing outputs location"
+            label: "plans_assets_folder"
+            help: "plans_assets_folder_help"
 
   - id: "workflows"
-    title: "Workflows"
+    title: "plans_workflows_title"
     sections:
-      - title: "Workflow Management"
-        description: "Configure processing workflows - select workflow and enable/disable steps"
+      - title: "plans_workflow_management_title"
+        description: "plans_workflow_management_description"
         fields:
           - id: "workflow_manager"
             type: "workflow_editor"
-            label: "Workflow Editor"
-            help: "Select a workflow and enable/disable individual processing steps"
+            label: "plans_workflow_editor"
+            help: "plans_workflow_editor_help"
       
 
-
   - id: "commands"
-    title: "Commands"
+    title: "plans_commands_title"
     sections:
-      - title: "Command Configuration"
-        description: "View and configure available processing commands"
+      - title: "plans_command_config_title"
+        description: "plans_command_config_description"
         fields:
           - id: "commands_editor"
             type: "multiline_text"
-            label: "Commands (YAML)"
+            label: "plans_commands_yaml"
             height: 500
-            help: "Configure processing commands, their parameters, and worker types."
-            placeholder: |
-              - name: crop
-                worker_type: "cpu"
-                help: "Crop documents"
-                function: "fichero.tools.crop.crop_batch" 
+            help: "plans_commands_yaml_help"
+            placeholder: "plans_commands_yaml_placeholder" 

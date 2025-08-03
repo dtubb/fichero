@@ -40,7 +40,7 @@ class BackendManager:
             }
             
             # Add availability information for all backends
-            from .availability_checker import BackendAvailabilityChecker
+            from fichero.director.backends.availability_checker import BackendAvailabilityChecker
             info["availability"] = BackendAvailabilityChecker.check_all_backends()
             
             return info

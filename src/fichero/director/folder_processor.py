@@ -6,12 +6,14 @@ to avoid duplication between CLI and GUI interfaces.
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional, Callable, TYPE_CHECKING
 import time
 import logging
 
-from .utils.folder_preparation import prepare_folder
-from .director_service import FicheroDirector
+from fichero.utils.folder_preparation import prepare_folder
+
+if TYPE_CHECKING:
+    from fichero.director import FicheroDirector
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ class FolderProcessor:
     - Progress tracking coordination
     """
     
-    def __init__(self, director: FicheroDirector, progress_callback: Optional[Callable] = None):
+    def __init__(self, director: 'FicheroDirector', progress_callback: Optional[Callable] = None):
         self.director = director
         self.progress_callback = progress_callback
         self.task_info = {}  # task_id -> folder info
@@ -148,7 +150,7 @@ class FolderProcessor:
         
         # Get sorting preference from settings
         try:
-            from ..config.core.settings import get_app_settings
+            from fichero.config.core.settings import get_app_settings
             app_settings = get_app_settings(self.director.app)
             if app_settings:
                 folder_order = app_settings.get_setting('preferences.folder_processing_order', 'alphabetical')

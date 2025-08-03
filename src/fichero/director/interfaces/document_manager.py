@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Optional
 from pathlib import Path
 
-from ..task_manager import TaskPriority
+from fichero.director.enums import TaskPriority
 
 logger = logging.getLogger(__name__)
 

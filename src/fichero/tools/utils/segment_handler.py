@@ -5,8 +5,8 @@ import shutil
 import os
 import json
 import tempfile
-from .image_format import check_cjxl_installed, save_as_jxl, load_image
-from .files import get_relative_path, ensure_dirs
+from fichero.image_format import check_cjxl_installed, save_as_jxl, load_image
+from fichero.files import get_relative_path, ensure_dirs
 import subprocess
 
 # Support both standalone CLI usage and workflow executor imports

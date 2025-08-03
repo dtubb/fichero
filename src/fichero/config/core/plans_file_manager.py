@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Dict, Any, List
 import logging
 
-from .file_manager import FileManager
-from .settings import get_app_settings
+from fichero.config.core.file_manager import FileManager
+from fichero.config.core.settings import get_app_settings
 
 logger = logging.getLogger(__name__)
 

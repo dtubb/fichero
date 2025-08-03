@@ -1,129 +1,129 @@
-title: "Prompts - {config_file.name}"
-description: "Configure LLM processing steps and prompts"
-window_title: "Fichero Prompts"
+title: "prompts_title"
+description: "prompts_description"
+window_title: "prompts_window_title"
 window_size: [1000, 700]
 
 sections:
   - id: "general"
-    title: "General"
+    title: "prompts_general_title"
     sections:
-      - title: "Configuration Info"
+      - title: "prompts_config_info_title"
         fields:
           - id: "name"
             type: "text_input"
-            label: "Configuration Name"
+            label: "prompts_config_name"
             validation:
               required: true
-            help: "Unique name for this prompts configuration"
+            help: "prompts_config_name_help"
           - id: "description"
             type: "multiline_text"
-            label: "Description"
+            label: "prompts_description_label"
             height: 60
-            help: "Brief description of what this config does"
+            help: "prompts_description_help"
           - id: "intelligent_chunking"
             type: "switch"
-            label: "Enable Intelligent Chunking"
-            help: "Use semantic chunking instead of fixed-size chunks"
+            label: "prompts_intelligent_chunking"
+            help: "prompts_intelligent_chunking_help"
           - id: "chunk_overlap"
             type: "number_input"
-            label: "Chunk Overlap"
+            label: "prompts_chunk_overlap"
             min: 0
             max: 1000
-            help: "Number of characters to overlap between chunks"
+            help: "prompts_chunk_overlap_help"
 
   - id: "llm"
-    title: "LLM Settings"
+    title: "prompts_llm_settings_title"
     sections:
-      - title: "Model Configuration"
+      - title: "prompts_model_config_title"
         fields:
           - id: "llm.backend"
             type: "selection"
-            label: "Backend"
+            label: "prompts_backend"
             options: ["openai", "anthropic", "local", "qwen"]
-            help: "LLM service provider"
+            help: "prompts_backend_help"
           - id: "llm.model"
             type: "text_input"
-            label: "Model Name"
-            placeholder: "gpt-4o-mini"
-            help: "Specific model identifier"
+            label: "prompts_model_name"
+            placeholder: "prompts_model_name_placeholder"
+            help: "prompts_model_name_help"
           - id: "llm.temperature"
             type: "number_input"
-            label: "Temperature"
+            label: "prompts_temperature"
             min: 0.0
             max: 2.0
             step: 0.1
-            help: "Controls randomness (0.0 = deterministic, 2.0 = very random)"
+            help: "prompts_temperature_help"
           - id: "llm.max_tokens"
             type: "number_input"
-            label: "Max Tokens"
+            label: "prompts_max_tokens"
             min: 1
             max: 1000000
-            help: "Maximum number of tokens in the response"
+            help: "prompts_max_tokens_help"
           - id: "llm.top_p"
             type: "number_input"
-            label: "Top P"
+            label: "prompts_top_p"
             min: 0.0
             max: 1.0
             step: 0.05
-            help: "Nucleus sampling threshold"
+            help: "prompts_top_p_help"
           - id: "llm.frequency_penalty"
             type: "number_input"
-            label: "Frequency Penalty"
+            label: "prompts_frequency_penalty"
             min: -2.0
             max: 2.0
             step: 0.1
-            help: "Penalize frequent tokens (reduce repetition)"
+            help: "prompts_frequency_penalty_help"
           - id: "llm.presence_penalty"
             type: "number_input"
-            label: "Presence Penalty"
+            label: "prompts_presence_penalty"
             min: -2.0
             max: 2.0
             step: 0.1
-            help: "Penalize existing tokens (encourage new topics)"
+            help: "prompts_presence_penalty_help"
 
-      - title: "Request Settings"
+      - title: "prompts_request_settings_title"
         fields:
           - id: "llm.timeout"
             type: "number_input"
-            label: "Timeout (seconds)"
+            label: "prompts_timeout"
             min: 10
             max: 600
-            help: "Request timeout in seconds"
+            help: "prompts_timeout_help"
           - id: "llm.retry_attempts"
             type: "number_input"
-            label: "Retry Attempts"
+            label: "prompts_retry_attempts"
             min: 1
             max: 10
-            help: "Number of retry attempts on failure"
+            help: "prompts_retry_attempts_help"
           - id: "llm.retry_delay"
             type: "number_input"
-            label: "Retry Delay (seconds)"
+            label: "prompts_retry_delay"
             min: 1
             max: 60
-            help: "Delay between retry attempts"
+            help: "prompts_retry_delay_help"
 
   - id: "prompts"
-    title: "Prompts"
+    title: "prompts_prompts_title"
     sections:
-      - title: "System Prompts"
+      - title: "prompts_system_prompts_title"
         fields:
           - id: "prompts.system_prompt"
             type: "multiline_text"
-            label: "System Prompt"
+            label: "prompts_system_prompt"
             height: 120
-            help: "Base instructions for the LLM"
+            help: "prompts_system_prompt_help"
           - id: "prompts.user_prompt_template"
             type: "multiline_text"
-            label: "User Prompt Template"
+            label: "prompts_user_prompt_template"
             height: 80
-            help: "Template for user prompts (use {content} for document content)"
+            help: "prompts_user_prompt_template_help"
 
   - id: "steps"
-    title: "Processing Steps"
+    title: "prompts_processing_steps_title"
     sections:
-      - title: "Steps Configuration"
-        description: "Complex step editing requires manual JSON editing for now"
+      - title: "prompts_steps_config_title"
+        description: "prompts_steps_config_description"
         fields:
           - id: "steps_info"
             type: "label"
-            label: "Steps configuration is complex and requires manual editing.\\nUse the 'Edit Raw JSON' button to modify processing steps." 
+            label: "prompts_steps_info" 

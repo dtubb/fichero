@@ -3,15 +3,34 @@ Prompts Library
 Configuration library for prompts/LLM configs with file browser
 """
 
-import srsly
+# Conditional imports for iOS compatibility
+try:
+    import srsly
+    SRSLY_AVAILABLE = True
+except ImportError:
+    SRSLY_AVAILABLE = False
+    # Create fallback functions for srsly functionality
+    class srsly:
+        @staticmethod
+        def read_json(path):
+            import json
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        
+        @staticmethod
+        def write_json(path, data):
+            import json
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
 
-from ..base_config_library import BaseConfigLibrary
-from ..base_config_library import UISchema
-from ...core.prompts_file_manager import PromptsManager
+from fichero.config.ui.base_config_library import BaseConfigLibrary
+from fichero.config.ui.base_config_library import UISchema
+from fichero.config.core.prompts_file_manager import PromptsManager
 
 logger = logging.getLogger(__name__)
 

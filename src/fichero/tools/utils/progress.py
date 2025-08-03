@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 import srsly
 import os
-from .tool_logger import get_tool_logger
+from fichero.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('progress')
 

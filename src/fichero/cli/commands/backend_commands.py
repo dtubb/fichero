@@ -10,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ...core.error_handler import create_cli_error_handler
+from fichero.core.error_handler import create_cli_error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +346,7 @@ class BackendCommands:
             self.console.print()
             
             # Get the task monitor and CLI display
-            from ...director.monitoring.displays.cli_display import CLITaskDisplay
+            from fichero.director.monitoring.displays.cli_display import CLITaskDisplay
             
             task_monitor = self.director.get_task_monitor()
             cli_display = CLITaskDisplay(self.console, task_monitor)

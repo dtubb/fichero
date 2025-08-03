@@ -2,11 +2,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 import json
-from .batch import BatchProcessor
-from .manifest import ManifestProcessor
-from .progress import ProcessingProgress, ProgressTracker
-from .files import ensure_dirs
-from .segment_handler import SegmentHandler
+from fichero.batch import BatchProcessor
+from fichero.manifest import ManifestProcessor
+from fichero.progress import ProcessingProgress, ProgressTracker
+from fichero.files import ensure_dirs
+from fichero.segment_handler import SegmentHandler
 
 # Support both standalone CLI usage and workflow executor imports
 try:

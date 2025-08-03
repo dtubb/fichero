@@ -6,6 +6,6 @@ Each tool provides both a batch function (for direct calls) and a CLI function (
 """
 
 # Make the utils subpackage available
-from . import utils
+from fichero import utils
 
 __all__ = ['utils'] 

@@ -26,17 +26,7 @@ sections:
             options: ["alphabetical", "reverse_alphabetical", "least_images_first", "most_images_first"]
             help: "preferences_folder_order_help"
 
-  - id: "appearance"
-    title: "preferences_appearance_title"
-    sections:
-      - title: "preferences_language_title"
-        description: "preferences_language_description"
-        fields:
-          - id: "preferences.language"
-            type: "selection"
-            label: "preferences_language"
-            options: []  # Will be populated dynamically with "system" first
-            help: "preferences_language_help"
+
 
   - id: "performance"
     title: "preferences_performance_title"

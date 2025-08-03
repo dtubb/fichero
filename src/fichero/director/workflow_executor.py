@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Callable, Optional
 from contextlib import contextmanager
 
-from .backends.implementations.base import ProcessingResult
-from .workflow_logger import WorkflowLogger
+from fichero.director.backends.implementations.base import ProcessingResult
+from fichero.workflow_logger import WorkflowLogger
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +33,12 @@ class WorkflowExecutor:
         """Context manager to set tool logger context for workflow execution"""
         try:
             # Set workflow context for tool logger
-            from ..tools.utils.tool_logger import set_workflow_context
+            from fichero.tools.utils.tool_logger import set_workflow_context
             set_workflow_context(workflow_logger, step_name)
             yield
         finally:
             # Clear workflow context
-            from ..tools.utils.tool_logger import clear_workflow_context  
+            from fichero.tools.utils.tool_logger import clear_workflow_context  
             clear_workflow_context()
 
     def execute_workflow(self, task_id: str, folder_path: Path, output_path: Path, 

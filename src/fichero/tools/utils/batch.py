@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
-from .manifest import ManifestProcessor
-from .tool_logger import get_tool_logger
+from fichero.manifest import ManifestProcessor
+from fichero.tool_logger import get_tool_logger
 import sys
 
 tool_logger = get_tool_logger('batch')

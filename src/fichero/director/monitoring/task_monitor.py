@@ -14,10 +14,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Import text spinner utilities
-from ...utils.text_spinner import get_spinner_frame
+from fichero.utils.text_spinner import get_spinner_frame
 
 # Import translations
-from ...ui.i18n import _
+import gettext
 
 logger = logging.getLogger(__name__)
 

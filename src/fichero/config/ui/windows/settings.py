@@ -3,16 +3,22 @@ Settings Library
 Configuration library for application settings with file browser
 """
 
-import yaml
+# YAML compatibility - use ruamel.yaml
+try:
+    from ruamel.yaml import YAML
+    yaml = YAML()
+    yaml.safe_load = yaml.load
+except ImportError:
+    import yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
 
-from ..base_config_library import BaseConfigLibrary
-from ..base_config_library import UISchema
-from ...core.settings_manager import SettingsManager
-from ....ui.i18n import _  # Import translation function
-from ....ui.windows.document_window import DEFAULT_PLAN_FILENAME
+from fichero.config.ui.base_config_library import BaseConfigLibrary
+from fichero.config.ui.base_config_library import UISchema
+from fichero.config.core.settings_manager import SettingsManager
+import gettext  # Import translation function
+from fichero.config.core.plan_workflow_ui_helper import DEFAULT_PLAN_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +54,8 @@ class SettingsLibrary(BaseConfigLibrary):
             self._populate_dynamic_options(schema_data)
             
             schema = UISchema(
-                title=schema_data.get('title', _('preferences_title', 'Settings')),
-                description=schema_data.get('description', _('preferences_description', 'Application settings')),
+                title=schema_data.get('title', _('preferences_title')),
+                description=schema_data.get('description', _('preferences_description')),
                 sections=schema_data.get('sections', []),  # Main sections from schema
                 content_sections=schema_data.get('content_sections', []),  # Direct content sections if no main sections
                 window_title=schema_data.get('window_title'),
@@ -63,16 +69,16 @@ class SettingsLibrary(BaseConfigLibrary):
             logger.error(f"Failed to load settings schema: {e}")
             # Return minimal schema as fallback
             return UISchema(
-                title=_('preferences_title', 'Settings'),
-                description=_('preferences_description', 'Application settings'),
+                title=_('preferences_title'),
+                description=_('preferences_description'),
                 content_sections=[
                     {
-                        "title": _('preferences_error', 'Error'),
+                        "title": _('preferences_error'),
                         "fields": [
                             {
                                 "id": "error_message",
                                 "type": "label",
-                                "label": _('preferences_load_error', 'Failed to load settings schema: {error}').format(error=str(e))
+                                "label": _('preferences_load_error').format(error=str(e))
                             }
                         ]
                     }
@@ -82,7 +88,7 @@ class SettingsLibrary(BaseConfigLibrary):
     def _populate_dynamic_options(self, schema_data: Dict[str, Any]):
         """Populate dynamic options for plan/workflow fields using unified helper"""
         try:
-            from ...core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+            from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
             
             # Create unified helper
             self.ui_helper = PlanWorkflowUIHelper(self.app)
@@ -117,35 +123,15 @@ class SettingsLibrary(BaseConfigLibrary):
             self._add_field_callback(schema_data, "defaults.workflow", self._on_workflow_selection_change)
             
             # Find and populate default_workflow options (initially empty, will update based on plan selection)
-            self._populate_field_options(schema_data, "defaults.workflow", [_('preferences_select_plan', 'Select plan first')])
+            self._populate_field_options(schema_data, "defaults.workflow", [_('preferences_select_plan')])
             
             # Set up auto-calculate button handler
             self._add_button_handler(schema_data, "auto_calculate_workers", self._on_auto_calculate_workers)
             
-            # Populate language options with "System" first (Mac way)
-            language_options = self._get_language_options()
-            self._populate_field_options(schema_data, "preferences.language", language_options)
-            
         except Exception as e:
             logger.error(f"Failed to populate dynamic options: {e}")
     
-    def _get_language_options(self) -> List[str]:
-        """Get language options with 'System' first, then available languages"""
-        try:
-            from ....ui.i18n import get_global_translator
-            
-            # Get translator to access available languages
-            translator = get_global_translator()
-            if translator:
-                return translator.get_language_options_for_ui()
-            else:
-                # Fallback if no translator available
-                return ["system", "en", "es", "fr"]
-            
-        except Exception as e:
-            logger.error(f"Error getting language options: {e}")
-            # Fallback options
-            return ["system", "en", "es", "fr"]
+
     
     def _add_field_callback(self, schema_data: Dict[str, Any], field_id: str, callback):
         """Helper to add callback to a specific field"""
@@ -256,9 +242,9 @@ class SettingsLibrary(BaseConfigLibrary):
                 for field in subsection.get('fields', []):
                     if field.get('id') == field_id:
                         # Filter out error messages
-                        valid_options = [opt for opt in options if opt not in [_('preferences_no_plans', 'No plans found'), _('preferences_error_loading_plans', 'Error loading plans')]]
+                        valid_options = [opt for opt in options if opt not in [_('preferences_no_plans'), _('preferences_error_loading_plans')]]
                         if not valid_options:
-                            valid_options = [_('preferences_no_options', 'No options available')]
+                            valid_options = [_('preferences_no_options')]
                         field['options'] = valid_options
                         return
 
@@ -300,7 +286,7 @@ class SettingsLibrary(BaseConfigLibrary):
             
             # Get current app defaults via PlanManager (which now reads from settings)
             try:
-                from ...core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
                 ui_helper = PlanWorkflowUIHelper(self.app)
                 
                 current_plan = ui_helper.get_app_default_plan()
@@ -339,13 +325,8 @@ class SettingsLibrary(BaseConfigLibrary):
             if success:
                 logger.info("Settings saved successfully")
                 
-                # Update language system if language changed
-                try:
-                    from fichero.ui.i18n import update_language_from_settings
-                    update_language_from_settings()
-                    logger.info("🌐 Language system updated from settings")
-                except Exception as e:
-                    logger.error(f"Failed to update language system: {e}")
+                # Language settings removed - no longer needed
+                logger.info("🌐 Language system is now automatic")
             else:
                 logger.error("Failed to save settings")
             

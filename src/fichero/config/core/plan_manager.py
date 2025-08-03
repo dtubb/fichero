@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
 import logging
 
-from .loader import ConfigLoader
+from fichero.config.core.loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -309,7 +309,7 @@ class PlanManager:
         try:
             # Try to get from app settings first (primary source)
             try:
-                from ..core.settings import get_app_settings
+                from fichero.config.core.settings import get_app_settings
                 app_settings = get_app_settings(app)
                 settings_default = app_settings.get_setting('defaults.plan')
                 if settings_default:
@@ -326,7 +326,7 @@ class PlanManager:
             
             # Fallback to shared data (legacy)
             try:
-                from ...shared_data import get_shared_data
+                from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
                 saved_default = shared_data.get_setting('default_plan')
                 if saved_default:
@@ -383,7 +383,7 @@ class PlanManager:
             
             # Try to get from app settings first (primary source)
             try:
-                from ..core.settings import get_app_settings
+                from fichero.config.core.settings import get_app_settings
                 app_settings = get_app_settings(app)
                 settings_default = app_settings.get_setting('defaults.workflow')
                 if settings_default and settings_default in valid_workflows:
@@ -394,7 +394,7 @@ class PlanManager:
             
             # Fallback to shared data (legacy)
             try:
-                from ...shared_data import get_shared_data
+                from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
                 saved_default = shared_data.get_setting('default_workflow')
                 if saved_default and saved_default in valid_workflows:
@@ -427,7 +427,7 @@ class PlanManager:
         try:
             # Update app settings (primary storage)
             try:
-                from ..core.settings import get_app_settings
+                from fichero.config.core.settings import get_app_settings
                 app_settings = get_app_settings(app)
                 app_settings.set_setting('defaults.plan', plan_name)
                 app_settings.save()
@@ -437,7 +437,7 @@ class PlanManager:
             
             # Also update shared data for immediate use
             try:
-                from ...shared_data import get_shared_data
+                from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
                 shared_data.set_setting('default_plan', plan_name)
                 logger.info(f"Set default plan in shared data: {plan_name}")
@@ -460,7 +460,7 @@ class PlanManager:
         try:
             # Update app settings (primary storage)
             try:
-                from ..core.settings import get_app_settings
+                from fichero.config.core.settings import get_app_settings
                 app_settings = get_app_settings(app)
                 app_settings.set_setting('defaults.workflow', workflow_name)
                 app_settings.save()
@@ -470,7 +470,7 @@ class PlanManager:
             
             # Also update shared data for immediate use
             try:
-                from ...shared_data import get_shared_data
+                from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
                 shared_data.set_setting('default_workflow', workflow_name)
                 logger.info(f"Set default workflow in shared data: {workflow_name}")

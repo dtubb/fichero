@@ -10,8 +10,8 @@ from typing import Optional
 import toga
 from toga.style import Pack
 
-from ...director.monitoring.displays.gui_display import GUITaskDisplay
-from ...director.monitoring.task_monitor import TaskMonitor
+from fichero.director.monitoring.displays.gui_display import GUITaskDisplay
+from fichero.director.monitoring.task_monitor import TaskMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +59,11 @@ class ActivityMonitorWindow:
     def close(self):
         """Close the activity monitor window"""
         if self.window:
-            # Stop monitoring
+            # Stop monitoring first
             if self.display:
                 self.display.stop_monitoring()
             
+            # Close the window - Toga will handle the rest
             self.window.close()
             self.window = None
             self.display = None
@@ -86,7 +87,7 @@ class ActivityMonitorWindow:
             task_monitor = TaskMonitor.get_instance(director)
             self.display = GUITaskDisplay(task_monitor, filter_document_id=None)
             
-            # Create window with the display
+            # Create window with the display - let Toga handle window management
             self.window = toga.Window(
                 title="Fichero Activity Monitor",
                 size=(1000, 500),
@@ -94,21 +95,9 @@ class ActivityMonitorWindow:
                 content=self.display.container
             )
             
-            # Set window close handler
-            self.window.on_close = self._on_close
-            
+            # Don't set custom close handler - let Toga handle it automatically
             logger.info("Activity monitor window created successfully")
             
         except Exception as e:
             logger.error(f"Failed to create activity monitor window: {e}")
-            raise
-    
-    def _on_close(self, widget):
-        """Handle window close event"""
-        self.hide()  # Hide instead of close
-        return True  # Prevent window from actually closing
-    
-    @property
-    def closed(self):
-        """Check if the activity monitor window is closed"""
-        return self.window is None 
+            raise 

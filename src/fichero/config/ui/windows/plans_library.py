@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Dict, Any, List
 import logging
 
-from ..base_config_library import BaseConfigLibrary
-from ..base_config_library import UISchema
-from ...core.plans_file_manager import PlansManager
+from fichero.config.ui.base_config_library import BaseConfigLibrary
+from fichero.config.ui.base_config_library import UISchema
+from fichero.config.core.plans_file_manager import PlansManager
 
 logger = logging.getLogger(__name__)
 

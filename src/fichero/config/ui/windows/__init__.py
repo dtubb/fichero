@@ -1,5 +1,5 @@
 """Configuration libraries for Fichero."""
 
-from .settings import SettingsLibrary
-from .plans_library import PlansLibrary  
-from .prompts_library import PromptsLibrary 
+from fichero.config.ui.windows.settings import SettingsLibrary
+from fichero.config.ui.windows.plans_library import PlansLibrary  
+from fichero.config.ui.windows.prompts_library import PromptsLibrary 

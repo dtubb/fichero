@@ -11,10 +11,10 @@ import anthropic
 from http import HTTPStatus
 import dashscope
 from dashscope import Generation
-from .segment_handler import SegmentHandler
-from .files import ensure_dirs, get_relative_path
-from .manifest import ManifestProcessor
-from .api_keys import get_openai_key, get_qwen_key, get_claude_key
+from fichero.segment_handler import SegmentHandler
+from fichero.files import ensure_dirs, get_relative_path
+from fichero.manifest import ManifestProcessor
+from fichero.api_keys import get_openai_key, get_qwen_key, get_claude_key
 import srsly
 import asyncio
 

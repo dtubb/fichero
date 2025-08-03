@@ -14,8 +14,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ...core.error_handler import create_cli_error_handler
-from ...config.core.settings import get_app_settings
+from fichero.core.error_handler import create_cli_error_handler
+from fichero.config.core.settings import get_app_settings
 
 logger = logging.getLogger(__name__)
 

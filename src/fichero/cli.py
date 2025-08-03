@@ -14,7 +14,7 @@ This follows the same clean pattern as the GUI architecture.
 """
 
 # Simple import and delegation to the new organized structure
-from .cli.cli_app import FicheroCLI
+from fichero.cli.cli_app import FicheroCLI
 
 def main():
     """Main CLI entry point"""

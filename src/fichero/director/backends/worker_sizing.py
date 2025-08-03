@@ -1,14 +1,25 @@
 """
-Simple Worker Sizing Utility
+Worker Sizing Utilities
 
-Provides smart defaults for worker counts and memory based on system resources.
+Utilities for determining optimal worker counts based on system resources.
 """
 
-import multiprocessing
-import platform
 import logging
-from typing import Dict, Tuple
+import platform
 from dataclasses import dataclass
+
+# Conditional imports for iOS compatibility
+try:
+    import multiprocessing
+    MULTIPROCESSING_AVAILABLE = True
+except ImportError:
+    MULTIPROCESSING_AVAILABLE = False
+    # Create fallback for multiprocessing functionality
+    class multiprocessing:
+        @staticmethod
+        def cpu_count():
+            # Fallback to a reasonable default for iOS
+            return 2
 
 logger = logging.getLogger(__name__)
 

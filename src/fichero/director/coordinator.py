@@ -10,8 +10,8 @@ import logging
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
 
-from .task_manager import TaskManager
-from .backends.implementations.base import ProcessingBackend
+from fichero.director.task_manager import TaskManager
+from fichero.director.backends.implementations.base import ProcessingBackend
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +89,10 @@ class ProcessingCoordinator:
         logger.info(f"Processing with auto-detection: {input_path} -> {output_path}")
         
         # Use the proper folder processor for two-phase processing
-        from .folder_processor import FolderProcessor
+        from fichero.folder_processor import FolderProcessor
         
         # Create a folder processor instance using the current director
-        from .director_service import FicheroDirector
+        from fichero.director_service import FicheroDirector
         director = FicheroDirector.get_instance()
         
         folder_processor = FolderProcessor(director)

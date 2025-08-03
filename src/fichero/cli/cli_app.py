@@ -25,10 +25,10 @@ warnings.filterwarnings(
     module="toga_cocoa.app"
 )
 
-from ..core.app_initializer import initialize_cli_app
-from ..core.error_handler import create_cli_error_handler
-from ..director import FicheroDirector
-from .. import __version__
+from fichero.core.app_initializer import initialize_cli_app
+from fichero.core.error_handler import create_cli_error_handler
+from fichero.director import FicheroDirector
+from fichero import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,8 @@ class FicheroCLI:
     def _register_commands(self):
         """Register all command modules - organized and maintainable"""
         # Import command modules
-        from .commands.core_commands import CoreCommands
-        from .commands.backend_commands import BackendCommands
+        from fichero.commands.core_commands import CoreCommands
+        from fichero.commands.backend_commands import BackendCommands
         
         # Initialize command handlers with shared components
         core_commands = CoreCommands(self.director, self.console)

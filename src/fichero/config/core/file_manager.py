@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import logging
 
-from .loader import ConfigLoader
+from fichero.config.core.loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 

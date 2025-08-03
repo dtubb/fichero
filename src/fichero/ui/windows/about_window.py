@@ -5,7 +5,7 @@ About window for Fichero application
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW, CENTER
-from ..i18n import _
+import gettext
 import webbrowser
 
 
@@ -16,7 +16,7 @@ class AboutWindow:
         """Initialize the about window"""
         self.app = app
         self.window = toga.Window(
-            title=_("about_window_title", "About Fichero"),
+            title=_("about_window_title"),
             size=(306, 470),
             resizable=False
         )
@@ -252,7 +252,7 @@ class AboutWindow:
                 return self.app.version
             
             # Fallback to importing directly
-            from ... import __version__
+            from fichero import __version__
             return __version__
             
         except Exception as e:
@@ -264,7 +264,7 @@ class AboutWindow:
     def _get_acknowledgments_text(self):
         """Get the acknowledgments text from i18n system"""
         # Try to get from translation system first
-        acknowledgments = _("about_acknowledgments", None)
+        acknowledgments = _("about_acknowledgments")
         if acknowledgments:
             return acknowledgments
         
@@ -385,3 +385,9 @@ All rights reserved."""
     def hide(self):
         """Hide the window"""  
         self.window.hide() 
+    
+    def close(self):
+        """Close the window"""
+        if self.window:
+            self.window.close()
+            self.window = None 

@@ -15,12 +15,12 @@ import sys
 def main():
     # No arguments = GUI mode
     if len(sys.argv) == 1:
-        from .app import main as gui_main
+        from fichero.app import main as gui_main
         gui_main()
 
     # Arguments present = CLI mode
     else:
-        from .cli import app as typer_app
+        from fichero.cli import app as typer_app
         typer_app()
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from pathlib import Path
 import threading
 
-from .base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
+from fichero.base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class CeleryBackend(ProcessingBackend):
                 )
                 
                 # Execute workflow using integrated executor
-                from ...workflow_executor import WorkflowExecutor
+                from fichero.workflow_executor import WorkflowExecutor
                 
                 executor = WorkflowExecutor(progress_callback=lambda task_id, data: self.update_state(
                     state='PROGRESS',

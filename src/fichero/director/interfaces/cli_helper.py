@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from ...director import FicheroDirector
+from fichero.director import FicheroDirector
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class CLIDisplayHelper:
                 
                 # Save the backend setting to disk
                 try:
-                    from ...config.core.settings_manager import SettingsManager
+                    from fichero.config.core.settings_manager import SettingsManager
                     settings_manager = SettingsManager(self.director.app)
                     success = settings_manager.save_settings(self.director.settings)
                     if success:
@@ -111,7 +111,7 @@ class CLIDisplayHelper:
             # Plan/workflow defaults configuration
             if plan or workflow:
                 try:
-                    from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                    from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
                     ui_helper = PlanWorkflowUIHelper(self.director.app)
                     
                     if plan:
@@ -149,7 +149,7 @@ class CLIDisplayHelper:
                 console.print(f"   Backend: {self.director.settings.get('workers', {}).get('backend', 'python')}")
                 
                 try:
-                    from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                    from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
                     ui_helper = PlanWorkflowUIHelper(self.director.app)
                     defaults = ui_helper.get_cli_defaults()
                     console.print(f"   Default Plan: {defaults.get('plan', 'None set')}")
@@ -160,7 +160,7 @@ class CLIDisplayHelper:
     def display_available_plans(self, console):
         """Display available plans for CLI"""
         try:
-            from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+            from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
             
             ui_helper = PlanWorkflowUIHelper(self.director.app)
             plans = ui_helper.get_plan_options()
@@ -227,7 +227,7 @@ class CLIDisplayHelper:
     def _display_settings_info(self, console):
         """Display settings file path and basic config info for info command"""
         try:
-            from ...config.core.settings_manager import SettingsManager
+            from fichero.config.core.settings_manager import SettingsManager
             
             # Get settings file path
             settings_manager = SettingsManager(self.director.app)
@@ -248,7 +248,7 @@ class CLIDisplayHelper:
             
             # Show current defaults briefly
             try:
-                from ...config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
+                from fichero.config.core.plan_workflow_ui_helper import PlanWorkflowUIHelper
                 ui_helper = PlanWorkflowUIHelper(self.director.app)
                 defaults = ui_helper.get_cli_defaults()
                 console.print(f"\n⭐ Current Defaults:")

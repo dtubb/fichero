@@ -1,8 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Callable, Any
-from .image_format import get_supported_extensions_list
-from .files import get_relative_path, ensure_dirs
+from fichero.image_format import get_supported_extensions_list
+from fichero.files import get_relative_path, ensure_dirs
 
 # Support both standalone CLI usage and workflow executor imports
 try:

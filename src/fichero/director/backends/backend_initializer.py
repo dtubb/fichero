@@ -65,7 +65,7 @@ class BackendInitializer:
     
     def _create_backend(self):
         """Create backend based on settings"""
-        from .settings_extractor import SettingsExtractor
+        from fichero.director.backends.settings_extractor import SettingsExtractor
         
         backend_preference = SettingsExtractor.get_backend_preference(self.director.settings)
         logger.info(f"Initializing backend: {backend_preference}")
@@ -87,7 +87,7 @@ class BackendInitializer:
     def _try_create_celery_backend(self):
         """Try to create Celery backend"""
         try:
-            from .implementations.celery_backend import CeleryBackend
+            from fichero.director.backends.implementations.celery_backend import CeleryBackend
             backend = CeleryBackend(self.director.settings)
             logger.info("Using Celery backend")
             return backend
@@ -98,7 +98,7 @@ class BackendInitializer:
     def _create_python_backend(self):
         """Create Python backend"""
         try:
-            from .implementations.python_backend import PythonProcessingBackend
+            from fichero.director.backends.implementations.python_backend import PythonProcessingBackend
             backend = PythonProcessingBackend(self.director.settings)
             logger.info("Using Python backend")
             return backend
@@ -112,12 +112,12 @@ class BackendInitializer:
         self.director.backend = backend
         
         # Initialize task manager
-        from ..task_manager import TaskManager
+        from fichero.director.task_manager import TaskManager
         self.director.task_manager = TaskManager(backend)
         self.director.task_manager.start()
         
         # Initialize processing coordinator
-        from ..coordinator import ProcessingCoordinator
+        from fichero.director.coordinator import ProcessingCoordinator
         self.director.processing_coordinator = ProcessingCoordinator(
             self.director.task_manager, 
             self.director.variable_generator,

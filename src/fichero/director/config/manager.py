@@ -53,7 +53,7 @@ class ConfigurationManager:
         """Load plan configuration by name"""
         try:
             # Import here to avoid circular dependencies
-            from ...config.core.plan_manager import PlanManager
+            from fichero.config.core.plan_manager import PlanManager
             
             plan_file = PlanManager.get_plan_file_path(plan_name, self.director.app)
             if plan_file and plan_file.exists():

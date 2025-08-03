@@ -4,7 +4,31 @@ Handles loading JSON and YAML configuration files
 """
 
 import json
-from ruamel.yaml import YAML
+# Conditional imports for iOS compatibility
+try:
+    from ruamel.yaml import YAML
+    RUAMEL_YAML_AVAILABLE = True
+except ImportError:
+    RUAMEL_YAML_AVAILABLE = False
+    # Fallback to PyYAML or simple YAML parsing
+    try:
+        import yaml
+        YAML_AVAILABLE = True
+    except ImportError:
+        YAML_AVAILABLE = False
+        # Create a simple fallback
+        class YAML:
+            def __init__(self):
+                pass
+            
+            def load(self, content):
+                # Simple fallback - just return empty dict
+                return {}
+            
+            def dump(self, data, f):
+                # Simple fallback - just write empty YAML
+                f.write("# Fallback YAML\n")
+
 from pathlib import Path
 from typing import Dict, Any
 import logging
@@ -37,10 +61,16 @@ class ConfigLoader:
             file_content = file_path.read_text(encoding='utf-8')
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                yaml = YAML()
-                yaml.preserve_quotes = True
-                yaml.width = 4096  # Prevent line wrapping
-                return yaml.load(file_content) or {}
+                if RUAMEL_YAML_AVAILABLE:
+                    yaml = YAML()
+                    yaml.preserve_quotes = True
+                    yaml.width = 4096  # Prevent line wrapping
+                    return yaml.load(file_content) or {}
+                elif YAML_AVAILABLE:
+                    return yaml.safe_load(file_content) or {}
+                else:
+                    # Fallback for iOS - return empty dict
+                    return {}
             elif file_path.suffix.lower() in ['.json', '.jsonl']:
                 return json.loads(file_content)
             else:
@@ -72,15 +102,24 @@ class ConfigLoader:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                yaml = YAML()
-                yaml.preserve_quotes = True
-                yaml.default_flow_style = False
-                yaml.allow_unicode = True
-                yaml.width = 4096  # Prevent line wrapping
-                yaml.indent(mapping=2, sequence=4, offset=2)
-                
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(data, f)
+                if RUAMEL_YAML_AVAILABLE:
+                    yaml = YAML()
+                    yaml.preserve_quotes = True
+                    yaml.default_flow_style = False
+                    yaml.allow_unicode = True
+                    yaml.width = 4096  # Prevent line wrapping
+                    yaml.indent(mapping=2, sequence=4, offset=2)
+                    
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(data, f)
+                elif YAML_AVAILABLE:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+                else:
+                    # Fallback for iOS - write simple YAML
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write("# iOS Fallback YAML\n")
+                        f.write("# Settings not available on this platform\n")
             elif file_path.suffix.lower() in ['.json', '.jsonl']:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)

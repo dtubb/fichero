@@ -10,19 +10,11 @@ import time
 import uuid
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
-from enum import Enum
 
-from .backends.implementations.base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus, create_folder_task
+from fichero.director.backends.implementations.base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus, create_folder_task
+from fichero.director.enums import TaskPriority
 
 logger = logging.getLogger(__name__)
-
-
-class TaskPriority(Enum):
-    """Task priority levels"""
-    LOW = 1
-    NORMAL = 5
-    HIGH = 8
-    URGENT = 10
 
 
 class TaskManager:

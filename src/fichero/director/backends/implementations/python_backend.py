@@ -1,22 +1,37 @@
 """
-Simple Python Backend for Local Document Processing
+Python Processing Backend
 
-Uses ThreadPoolExecutor for both CPU and IO tasks.
-Perfect for Mac GUI - no subprocesses, clean shutdown.
+Simple Python-based processing backend for Fichero.
+Uses ThreadPoolExecutor for concurrent processing.
 """
 
-import json
+import asyncio
 import logging
-import sys
-import time
-import multiprocessing
-from typing import Dict, List, Optional, Any
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Dict, List, Optional, Callable, Any
+import queue
 
-from .base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
+# Conditional imports for iOS compatibility
+try:
+    import multiprocessing
+    MULTIPROCESSING_AVAILABLE = True
+except ImportError:
+    MULTIPROCESSING_AVAILABLE = False
+    # Create fallback for multiprocessing functionality
+    class multiprocessing:
+        @staticmethod
+        def cpu_count():
+            # Fallback to a reasonable default for iOS
+            return 2
+
+from fichero.director.backends.implementations.base import (
+    ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus
+)
+from fichero.director.enums import TaskPriority
+from fichero.director.folder_processor import FolderProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +58,7 @@ class PythonProcessingBackend(ProcessingBackend):
                 try:
                     from fichero.config.core.settings import get_app_settings
                 except ImportError:
-                    from ...config.core.settings import get_app_settings
+                    from fichero.config.core.settings import get_app_settings
                 logger.info(f"Loading worker settings from app: {type(app)}")
                 
                 # Handle both app object and settings dict
@@ -679,7 +694,7 @@ class PythonProcessingBackend(ProcessingBackend):
             logger.info(f"Task {task.task_id} running on {executor_type.upper()} worker: {worker_id} (thread: {current_thread.name})")
             
             # Create workflow executor with progress callback
-            from ...workflow_executor import WorkflowExecutor
+            from fichero.workflow_executor import WorkflowExecutor
             executor = WorkflowExecutor(progress_callback=lambda task_id, data: self._notify_progress_with_worker_and_document(task_id, data, worker_id, task.document_id))
             
             # Store executor for cancellation support

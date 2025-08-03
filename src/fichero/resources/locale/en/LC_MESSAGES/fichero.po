@@ -1,0 +1,813 @@
+# EN translations for Fichero.
+# Copyright (C) 2024 Daniel Tubb
+# This file is distributed under the same license as the Fichero package.
+msgid ""
+msgstr ""
+"Project-Id-Version: Fichero 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-08-02 18:00+0000\n"
+"PO-Revision-Date: 2024-08-02 18:00+0000\n"
+"Last-Translator: Daniel Tubb <daniel@tubb.ca>\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "app_title"
+msgstr "Fichero"
+
+msgid "choose_folder"
+msgstr "Choose Folder…"
+
+msgid "description"
+msgstr "*Fichero* processes large collections of digitized documents—hundreds or even tens of thousands—by cropping, enhancing, segmenting, transcribing with AI, and auto-cataloguing. It outputs results to Word and Excel files.\n\nYou can [learn more](https://www.tubb.ca/fichero/) about how this is done, if you're interested, but the short version is that Fichero uses various tools to break down each step, calls out to Vision Large Language Models, and runs on various folders in parallel.\n\nTo start, choose a folder to process using the button above."
+
+msgid "help"
+msgstr "?"
+
+msgid "process"
+msgstr "Process Folder"
+
+msgid "processing"
+msgstr "Processing"
+
+msgid "folder_icon_label"
+msgstr "📁"
+
+msgid "folder_status"
+msgstr "No folder selected"
+
+msgid "menu_about"
+msgstr "About Fichero"
+
+msgid "menu_preferences"
+msgstr "Preferences…"
+
+msgid "menu_quit"
+msgstr "Quit Fichero"
+
+msgid "menu_help_website"
+msgstr "Support Website"
+
+msgid "menu_help_support"
+msgstr "Help & Support"
+
+msgid "menu_cut"
+msgstr "Cut"
+
+msgid "menu_copy"
+msgstr "Copy"
+
+msgid "menu_paste"
+msgstr "Paste"
+
+msgid "menu_select_all"
+msgstr "Select All"
+
+msgid "menu_undo"
+msgstr "Undo"
+
+msgid "menu_redo"
+msgstr "Redo"
+
+msgid "menu_zoom_in"
+msgstr "Zoom In"
+
+msgid "menu_zoom_out"
+msgstr "Zoom Out"
+
+msgid "menu_zoom_reset"
+msgstr "Actual Size"
+
+msgid "menu_fullscreen"
+msgstr "Enter Full Screen"
+
+msgid "menu_minimize"
+msgstr "Minimize"
+
+msgid "menu_close"
+msgstr "Close Window"
+
+msgid "menu_activity_monitor"
+msgstr "Activity Monitor"
+
+msgid "menu_new_document"
+msgstr "New Document"
+
+msgid "menu_open_document"
+msgstr "Open…"
+
+msgid "menu_save_document"
+msgstr "Save"
+
+msgid "menu_save_document_as"
+msgstr "Save As…"
+
+msgid "menu_edit_processing_plans"
+msgstr "Processing Plans…"
+
+msgid "menu_document_plans"
+msgstr "Document Plans…"
+
+msgid "menu_document_settings"
+msgstr "Document Settings…"
+
+msgid "menu_global_plans_template"
+msgstr "Global Plans Template…"
+
+msgid "menu_llm_config_editor"
+msgstr "LLM Configuration…"
+
+msgid "menu_plans"
+msgstr "Plans…"
+
+msgid "menu_prompts"
+msgstr "Prompts…"
+
+msgid "menu_open_recent"
+msgstr "Open Recent"
+
+msgid "menu_no_recent_documents"
+msgstr "No Recent Documents"
+
+msgid "menu_clear_recent_documents"
+msgstr "Clear Recent Documents"
+
+msgid "select_folder_title"
+msgstr "Select Folder to Process"
+
+msgid "about_acknowledgments"
+msgstr "[Fichero](http://www.tubb.ca/fichero/) transcribes and auto-catalogues historical archives using vision large language models and artificial intelligence, running locally or in the cloud.\n\n## questions\n**email** daniel@tubb.ca\n**website** [https://www.tubb.ca/fichero/](https://www.tubb.ca/fichero/)\n\n## coding\nDaniel Tubb\nAndrew Janco\n\n*Daniel coded with [Cursor, the AI Code editor](https://www.cursor.com), with help from [Claude Sonnet](https://www.anthropic.com/claude/sonnet). Andy knows what he's doing.*\n\n## testers and contributors\nAnn Farnsworth-Alvear\nKelly López Roldán\nJavier R. Ardila\n\n## libraries and dependencies\n[Python Software Foundation](https://python.org) \n[Toga GUI Toolkit](https://github.com/beeware/toga)\n[Briefcase](https://github.com/beeware/briefcase) \n\n## user interface inspiration\n[John Siracusa](https://hypercritical.co) for Hyperspace interface inspiration\n[Bare Bones Software](https://barebones.com) for BBEdit's about dialog design\n\n## license\nThis software is released under an open source license.\n\nSource code available at: [https://github.com/dtubb/fichero](https://github.com/dtubb/fichero)\n\nReport bugs and contribute at:\n[https://github.com/dtubb/fichero/issues](https://github.com/dtubb/fichero/issues)\n\n© 2025 Daniel Tubb\nAll rights reserved."
+
+msgid "app_preferences"
+msgstr "Preferences"
+
+msgid "api_servers"
+msgstr "API Servers"
+
+msgid "advanced"
+msgstr "Advanced"
+
+msgid "worker_performance"
+msgstr "Worker Performance"
+
+msgid "cancel"
+msgstr "Cancel"
+
+msgid "save"
+msgstr "Save"
+
+msgid "document_window_title"
+msgstr "Document Window"
+
+msgid "document_untitled"
+msgstr "Untitled"
+
+msgid "document_save_changes"
+msgstr "Save Changes?"
+
+msgid "document_save_changes_message"
+msgstr "Do you want to save the changes to this document?"
+
+msgid "document_save_error"
+msgstr "Error Saving Document"
+
+msgid "document_open_error"
+msgstr "Error Opening Document"
+
+msgid "document_processing"
+msgstr "Processing Document"
+
+msgid "document_processing_complete"
+msgstr "Processing Complete"
+
+msgid "document_processing_error"
+msgstr "Processing Error"
+
+msgid "document_auto_save"
+msgstr "Auto-saving..."
+
+msgid "activity_monitor_title"
+msgstr "Activity Monitor"
+
+msgid "activity_monitor_status"
+msgstr "Status"
+
+msgid "activity_monitor_tasks"
+msgstr "Tasks"
+
+msgid "activity_monitor_workers"
+msgstr "Workers"
+
+msgid "activity_monitor_refresh"
+msgstr "Refresh"
+
+msgid "activity_monitor_no_tasks"
+msgstr "No active tasks"
+
+msgid "activity_monitor_worker_active"
+msgstr "Active"
+
+msgid "activity_monitor_worker_idle"
+msgstr "Idle"
+
+msgid "activity_monitor_worker_error"
+msgstr "Error"
+
+msgid "activity_monitor_task_queued"
+msgstr "Queued"
+
+msgid "activity_monitor_task_running"
+msgstr "Running"
+
+msgid "activity_monitor_task_completed"
+msgstr "Completed"
+
+msgid "activity_monitor_task_failed"
+msgstr "Failed"
+
+msgid "preferences_general"
+msgstr "General"
+
+msgid "preferences_language"
+msgstr "Language"
+
+msgid "preferences_theme"
+msgstr "Theme"
+
+msgid "preferences_auto_save"
+msgstr "Auto-save"
+
+msgid "preferences_auto_save_interval"
+msgstr "Auto-save Interval"
+
+msgid "preferences_processing"
+msgstr "Processing"
+
+msgid "preferences_default_backend"
+msgstr "Default Backend"
+
+msgid "preferences_worker_count"
+msgstr "Worker Count"
+
+msgid "preferences_max_memory"
+msgstr "Maximum Memory Usage"
+
+msgid "preferences_api_keys"
+msgstr "API Keys"
+
+msgid "preferences_api_key_warning"
+msgstr "API keys are stored securely"
+
+msgid "preferences_restart_required"
+msgstr "Restart required"
+
+msgid "preferences_restart_message"
+msgstr "Some changes will take effect after restarting the application"
+
+msgid "document_processing_ready"
+msgstr "Ready to process…"
+
+msgid "document_processing_results"
+msgstr "Processing completed with the following results:\n{results}"
+
+msgid "document_processing_output"
+msgstr "Output saved to:\n{path}"
+
+msgid "document_view_output"
+msgstr "View Output"
+
+msgid "document_processing_status"
+msgstr "Processing: {folder}"
+
+msgid "document_error_director"
+msgstr "Director not available"
+
+msgid "document_error_task_display"
+msgstr "Failed to create task display"
+
+msgid "document_output_exists"
+msgstr "\"{name}\" already exists. Processing will continue where you left off."
+
+msgid "document_continue_processing"
+msgstr "Continue Processing?"
+
+msgid "document_stop_processing"
+msgstr "Stop Processing"
+
+msgid "document_stop_confirm"
+msgstr "Are you sure you want to stop the current processing?"
+
+msgid "task_status_pending"
+msgstr "Pending"
+
+msgid "task_status_running"
+msgstr "Running"
+
+msgid "task_status_completed"
+msgstr "Completed"
+
+msgid "task_status_failed"
+msgstr "Failed"
+
+msgid "task_status_cancelled"
+msgstr "Cancelled"
+
+msgid "task_status_waiting"
+msgstr "Waiting to process"
+
+msgid "task_worker_unknown"
+msgstr "Unknown Worker"
+
+msgid "task_worker_cpu"
+msgstr "CPU Worker {id}"
+
+msgid "task_worker_io"
+msgstr "IO Worker {id}"
+
+msgid "task_worker_celery"
+msgstr "on Celery"
+
+msgid "task_step_transcribe"
+msgstr "Transcribing Audio"
+
+msgid "task_step_extract"
+msgstr "Extracting Text"
+
+msgid "task_step_ocr"
+msgstr "Performing OCR"
+
+msgid "task_step_process_images"
+msgstr "Processing Images"
+
+msgid "task_step_convert"
+msgstr "Converting Format"
+
+msgid "task_step_organize"
+msgstr "Organizing Files"
+
+msgid "task_step_backup"
+msgstr "Backing Up Files"
+
+msgid "task_step_compress"
+msgstr "Compressing Files"
+
+msgid "task_step_upload"
+msgstr "Uploading Files"
+
+msgid "task_step_generic"
+msgstr "Processing"
+
+msgid "task_step_transcribe_done"
+msgstr "Audio Transcribed"
+
+msgid "task_step_extract_done"
+msgstr "Text Extracted"
+
+msgid "task_step_ocr_done"
+msgstr "OCR Completed"
+
+msgid "task_step_process_images_done"
+msgstr "Images Processed"
+
+msgid "task_step_convert_done"
+msgstr "Format Converted"
+
+msgid "task_step_organize_done"
+msgstr "Files Organized"
+
+msgid "task_step_backup_done"
+msgstr "Files Backed Up"
+
+msgid "task_step_compress_done"
+msgstr "Files Compressed"
+
+msgid "task_step_upload_done"
+msgstr "Files Uploaded"
+
+msgid "task_step_generic_done"
+msgstr "Processing Complete"
+
+msgid "task_step_waiting"
+msgstr "Waiting to {action}"
+
+msgid "task_step_failed"
+msgstr "Failed to {action}"
+
+msgid "task_source_gui"
+msgstr "GUI"
+
+msgid "task_source_cli"
+msgstr "CLI"
+
+msgid "task_source_standalone"
+msgstr "Standalone"
+
+msgid "preferences_title"
+msgstr "Settings"
+
+msgid "preferences_window_title"
+msgstr "Fichero Settings"
+
+msgid "preferences_description"
+msgstr "Application settings"
+
+msgid "preferences_error"
+msgstr "Error"
+
+msgid "preferences_load_error"
+msgstr "Failed to load settings schema: {error}"
+
+msgid "preferences_select_plan"
+msgstr "Select plan first"
+
+msgid "preferences_no_plans"
+msgstr "No plans found"
+
+msgid "preferences_error_loading_plans"
+msgstr "Error loading plans"
+
+msgid "preferences_no_options"
+msgstr "No options available"
+
+msgid "preferences_no_content"
+msgstr "No content defined in schema"
+
+msgid "preferences_restore_defaults"
+msgstr "Restore Defaults"
+
+msgid "preferences_defaults_title"
+msgstr "Defaults"
+
+msgid "preferences_processing_defaults_title"
+msgstr "Processing Defaults"
+
+msgid "preferences_processing_defaults_description"
+msgstr "Default settings for document processing"
+
+msgid "preferences_default_plan"
+msgstr "Default Plan"
+
+msgid "preferences_default_plan_help"
+msgstr "The plan to use by default for new documents"
+
+msgid "preferences_default_workflow"
+msgstr "Default Workflow"
+
+msgid "preferences_default_workflow_help"
+msgstr "The workflow to use by default for new documents"
+
+msgid "preferences_folder_order"
+msgstr "Folder Processing Order"
+
+msgid "preferences_folder_order_help"
+msgstr "The order in which folders are processed"
+
+msgid "preferences_appearance_title"
+msgstr "Appearance"
+
+msgid "preferences_language_title"
+msgstr "Language"
+
+msgid "preferences_language_description"
+msgstr "Choose the interface language for Fichero"
+
+msgid "preferences_language_help"
+msgstr "Set interface language. 'System' follows your macOS language settings."
+
+msgid "language_system"
+msgstr "System"
+
+msgid "language_en"
+msgstr "English"
+
+msgid "language_es"
+msgstr "Español"
+
+msgid "language_fr"
+msgstr "Français"
+
+msgid "preferences_performance_title"
+msgstr "Performance"
+
+msgid "preferences_backend_title"
+msgstr "Processing Backend"
+
+msgid "preferences_backend_description"
+msgstr "Configure how documents are processed"
+
+msgid "preferences_backend_type"
+msgstr "Backend Type"
+
+msgid "preferences_backend_type_help"
+msgstr "The type of backend to use for processing"
+
+msgid "preferences_workers_title"
+msgstr "Worker Configuration"
+
+msgid "preferences_workers_description"
+msgstr "Configure processing workers"
+
+msgid "preferences_cpu_workers"
+msgstr "CPU Workers"
+
+msgid "preferences_cpu_workers_help"
+msgstr "Number of CPU-intensive workers"
+
+msgid "preferences_io_workers"
+msgstr "IO Workers"
+
+msgid "preferences_io_workers_help"
+msgstr "Number of IO-intensive workers"
+
+msgid "preferences_auto_calculate"
+msgstr "Auto Calculate"
+
+msgid "preferences_auto_calculate_help"
+msgstr "Automatically calculate optimal worker counts"
+
+msgid "preferences_ai_title"
+msgstr "AI Configuration"
+
+msgid "preferences_openai_title"
+msgstr "OpenAI"
+
+msgid "preferences_api_key"
+msgstr "API Key"
+
+msgid "preferences_openai_api_key_help"
+msgstr "Your OpenAI API key"
+
+msgid "preferences_base_url"
+msgstr "Base URL"
+
+msgid "preferences_qwen_title"
+msgstr "Qwen"
+
+msgid "preferences_qwen_api_key_help"
+msgstr "Your Qwen API key"
+
+msgid "preferences_claude_title"
+msgstr "Claude"
+
+msgid "preferences_claude_api_key_help"
+msgstr "Your Claude API key"
+
+msgid "preferences_ollama_title"
+msgstr "Ollama"
+
+msgid "preferences_ollama_url_help"
+msgstr "Your Ollama server URL"
+
+msgid "preferences_lmstudio_title"
+msgstr "LM Studio"
+
+msgid "preferences_lmstudio_url_help"
+msgstr "Your LM Studio server URL"
+
+msgid "preferences_blackfish_title"
+msgstr "Blackfish"
+
+msgid "preferences_blackfish_url_help"
+msgstr "Your Blackfish server URL"
+
+msgid "preferences_huggingface_title"
+msgstr "Hugging Face"
+
+msgid "preferences_huggingface_api_key_help"
+msgstr "Your Hugging Face API key"
+
+msgid "workflow_selector_label"
+msgstr "Select Workflow:"
+
+msgid "workflow_new_btn"
+msgstr "New"
+
+msgid "workflow_copy_btn"
+msgstr "Copy"
+
+msgid "workflow_steps_label"
+msgstr "Workflow Steps:"
+
+msgid "about_window_title"
+msgstr "About Fichero"
+
+msgid "task_table_folder"
+msgstr "Folder"
+
+msgid "task_table_status"
+msgstr "Status"
+
+msgid "task_table_empty"
+msgstr "No tasks to display"
+
+msgid "task_table_no_active"
+msgstr "No active tasks"
+
+msgid "task_table_ready"
+msgstr "Ready"
+
+msgid "task_table_error"
+msgstr "Display error"
+
+msgid "task_table_active_count"
+msgstr "{count} active"
+
+msgid "task_table_completed_count"
+msgstr "{count} completed"
+
+msgid "task_table_failed_count"
+msgstr "{count} failed"
+
+msgid "task_button_stop_document"
+msgstr "Stop Document Tasks"
+
+msgid "task_button_stop_all"
+msgstr "Stop All Tasks"
+
+msgid "task_worker_efficiency"
+msgstr "on Efficiency Worker"
+
+msgid "task_worker_celery_efficiency"
+msgstr "on Celery Efficiency Worker"
+
+msgid "task_worker_performance"
+msgstr "Performance Worker"
+
+msgid "task_status_queued_celery"
+msgstr "Queued for Celery"
+
+msgid "task_status_completed_duration"
+msgstr "Completed ({duration})"
+
+msgid "task_status_failed_duration"
+msgstr "Failed ({duration})"
+
+msgid "task_status_cancelled_duration"
+msgstr "Cancelled ({duration})"
+
+msgid "task_status_processing_duration"
+msgstr "Processing ({duration})"
+
+msgid "task_status_processing_step"
+msgstr "{step} ({duration})"
+
+msgid "task_status_waiting_efficiency"
+msgstr "Waiting to process on Efficiency Worker"
+
+msgid "task_status_waiting_performance"
+msgstr "Waiting to process"
+
+msgid "task_status_waiting_celery"
+msgstr "Queued for Celery"
+
+msgid "task_status_waiting_celery_efficiency"
+msgstr "Queued for Celery Efficiency Worker"
+
+msgid "task_status_summary_separator"
+msgstr " | "
+
+msgid "task_table_local_session"
+msgstr "Local Session Tasks"
+
+msgid "task_table_local_session_header"
+msgstr "Local Session Tasks (Python Backend)"
+
+msgid "task_table_all_tasks"
+msgstr "All Tasks"
+
+msgid "task_table_global_monitor"
+msgstr "Global Activity Monitor"
+
+msgid "task_table_global_monitor_header"
+msgstr "Global Activity Monitor (Celery/Redis) - Press Ctrl+C to exit"
+
+msgid "task_table_monitoring_stopped"
+msgstr "{mode} stopped"
+
+msgid "loading_collections"
+msgstr "Loading collections..."
+
+msgid "library_not_found"
+msgstr "Library not found: {path}"
+
+msgid "ready"
+msgstr "Ready"
+
+msgid "error_loading_collections"
+msgstr "Error loading collections: {error}"
+
+msgid "selected_collection"
+msgstr "Selected: {title}"
+
+msgid "opening_collection"
+msgstr "Opening: {title}"
+
+msgid "error_opening_collection"
+msgstr "Error opening collection: {error}"
+
+msgid "collection_info"
+msgstr "Collection: {title} | Entries: {count} | Status: {status}"
+
+msgid "settings_not_available"
+msgstr "Settings not available"
+
+msgid "error_opening_settings"
+msgstr "Error opening settings: {error}"
+
+msgid "about_not_available"
+msgstr "About not available"
+
+msgid "error_opening_about"
+msgstr "Error opening about: {error}"
+
+msgid "creating_new_collection"
+msgstr "Creating new collection..."
+
+msgid "error_creating_collection"
+msgstr "Error creating collection: {error}"
+
+msgid "deleting_collection"
+msgstr "Deleting collection: {title}"
+
+msgid "no_collection_selected"
+msgstr "No collection selected"
+
+msgid "error_deleting_collection"
+msgstr "Error deleting collection: {error}"
+
+msgid "search_activated"
+msgstr "Search activated"
+
+msgid "filter_activated"
+msgstr "Filter activated"
+
+msgid "activity_monitor_not_available"
+msgstr "Activity monitor not available"
+
+msgid "error_opening_activity_monitor"
+msgstr "Error opening activity monitor: {error}"
+
+msgid "main_window_new_collection"
+msgstr "New Collection"
+
+msgid "main_window_new_collection_tooltip"
+msgstr "Create a new document collection"
+
+msgid "main_window_delete"
+msgstr "Delete"
+
+msgid "main_window_delete_tooltip"
+msgstr "Delete selected collection"
+
+msgid "main_window_activity"
+msgstr "Activity"
+
+msgid "main_window_activity_tooltip"
+msgstr "Show activity monitor"
+
+msgid "main_window_settings"
+msgstr "Settings"
+
+msgid "main_window_settings_tooltip"
+msgstr "Open application settings"
+
+msgid "main_window_title"
+msgstr "Collection Library"
+
+msgid "main_window_subtitle"
+msgstr "Browse and manage your processed document collections"
+
+msgid "main_window_search_placeholder"
+msgstr "Search collections..."
+
+msgid "main_window_filter_all"
+msgstr "All Collections"
+
+msgid "main_window_filter_processed"
+msgstr "Processed"
+
+msgid "main_window_filter_in_progress"
+msgstr "In Progress"
+
+msgid "main_window_filter_failed"
+msgstr "Failed"
+
+msgid "main_window_action_open"
+msgstr "Open"
+
+msgid "main_window_action_info"
+msgstr "Info"
+
+msgid "main_window_status_ready"
+msgstr "Ready"
+
+msgid "main_window_count_zero"
+msgstr "0 collections"
+
+msgid "main_window_count_filtered"
+msgstr "{count} of {total} collections"
+
+msgid "main_window_count_total"
+msgstr "{count} collections"
+

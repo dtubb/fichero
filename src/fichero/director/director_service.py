@@ -9,9 +9,9 @@ import logging
 from typing import Dict, List, Optional, Callable, Any
 from pathlib import Path
 
-from .task_manager import TaskPriority
-from .backends.implementations.base import ProcessingStatus
-from .cleanup import cleanup_all_resources
+from fichero.director.enums import TaskPriority
+from fichero.director.backends.implementations.base import ProcessingStatus
+from fichero.director.cleanup import cleanup_all_resources
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,11 @@ class FicheroDirector:
             return
         
         # Import specialized components first
-        from .variable_generator import VariableGenerator
-        from .interfaces.cli_helper import CLIDisplayHelper
-        from .backends.backend_manager import BackendManager
-        from .backends.backend_initializer import BackendInitializer
-        from .config.manager import ConfigurationManager
+        from fichero.director.variable_generator import VariableGenerator
+        from fichero.director.interfaces.cli_helper import CLIDisplayHelper
+        from fichero.director.backends.backend_manager import BackendManager
+        from fichero.director.backends.backend_initializer import BackendInitializer
+        from fichero.director.config.manager import ConfigurationManager
         
         # Initialize configuration manager first
         self.configuration_manager = ConfigurationManager(self)
@@ -73,7 +73,7 @@ class FicheroDirector:
         self.progress_callbacks: List[Callable] = []
         
         # Initialize task monitoring AFTER everything else is ready
-        from .monitoring import TaskMonitor
+        from fichero.director.monitoring import TaskMonitor
         self.task_monitor = TaskMonitor.get_instance(self, "director")
         
         # Mark as initialized

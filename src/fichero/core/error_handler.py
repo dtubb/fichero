@@ -9,6 +9,13 @@ import sys
 import traceback
 from typing import Optional, Callable
 
+# Conditional imports for iOS compatibility
+try:
+    import typer
+    TYPER_AVAILABLE = True
+except ImportError:
+    TYPER_AVAILABLE = False
+
 
 class FicheroErrorHandler:
     """Shared error handling for GUI and CLI"""
@@ -26,8 +33,7 @@ class FicheroErrorHandler:
             print("\n👋 Fichero interrupted by user")
         
         self._cleanup()
-        if self.is_cli:
-            import typer
+        if self.is_cli and TYPER_AVAILABLE:
             raise typer.Exit(1)
         else:
             sys.exit(0)
@@ -43,8 +49,7 @@ class FicheroErrorHandler:
             traceback.print_exc()
         
         self._cleanup()
-        if self.is_cli:
-            import typer
+        if self.is_cli and TYPER_AVAILABLE:
             raise typer.Exit(1)
         else:
             sys.exit(1)
@@ -79,11 +84,11 @@ class FicheroErrorHandler:
         return wrapper
 
 
-def create_cli_error_handler(console, initializer=None):
-    """Create error handler for CLI"""
-    return FicheroErrorHandler(is_cli=True, console=console, initializer=initializer)
+def create_gui_error_handler():
+    """Create error handler for GUI mode"""
+    return FicheroErrorHandler(is_cli=False)
 
 
-def create_gui_error_handler(initializer=None):
-    """Create error handler for GUI"""
-    return FicheroErrorHandler(is_cli=False, initializer=initializer) 
+def create_cli_error_handler(console=None):
+    """Create error handler for CLI mode"""
+    return FicheroErrorHandler(is_cli=True, console=console) 

@@ -12,8 +12,8 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from ...core.error_handler import create_cli_error_handler
-from ...director import FicheroDirector
+from fichero.core.error_handler import create_cli_error_handler
+from fichero.director import FicheroDirector
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class CoreCommands:
             output.mkdir(parents=True, exist_ok=True)
             
             # Get default settings
-            from ...config.core.settings import get_app_settings
+            from fichero.config.core.settings import get_app_settings
             app_settings = get_app_settings(self.director.app if hasattr(self.director, 'app') else None)
             
             # Determine plan name
@@ -132,7 +132,7 @@ class CoreCommands:
                 success = False
             else:
                 # Show table display
-                from ...director.monitoring.displays.cli_display import CLITaskDisplay
+                from fichero.director.monitoring.displays.cli_display import CLITaskDisplay
                 
                 task_monitor = self.director.get_task_monitor()
                 cli_display = CLITaskDisplay(self.console, task_monitor)
@@ -221,7 +221,6 @@ class CoreCommands:
         huggingface_key: str = typer.Option(None, "--huggingface-key", help="Set Hugging Face API key"),
         
         # Preferences
-        language: str = typer.Option(None, "--language", help="Set interface language (system, en, es, fr)"),
         folder_order: str = typer.Option(None, "--folder-order", help="Set folder processing order"),
         
         # Defaults
@@ -246,7 +245,7 @@ class CoreCommands:
                 return
             
             # Import and create settings commands
-            from .settings_commands import CLISettingsCommands
+            from fichero.settings_commands import CLISettingsCommands
             settings_commands = CLISettingsCommands(self.director, self.console)
             
             # Handle display options first
@@ -302,13 +301,6 @@ class CoreCommands:
                 changes_made = changes_made or success
             
             # Configure preferences
-            if language:
-                if language not in ['system', 'en', 'es', 'fr']:
-                    self.console.print("❌ Invalid language. Choose: system, en, es, fr", style="red")
-                else:
-                    success = settings_commands.configure_preference('preferences.language', language)
-                    changes_made = changes_made or success
-            
             if folder_order:
                 valid_orders = ['alphabetical', 'reverse_alphabetical', 'least_images_first', 'most_images_first']
                 if folder_order not in valid_orders:
@@ -345,7 +337,7 @@ class CoreCommands:
             self.console.print("🤖 Auto-configuring optimal settings for your system...", style="bold blue")
             
             # Import worker sizing
-            from ...director.backends import get_optimal_workers, suggest_backend
+            from fichero.director.backends import get_optimal_workers, suggest_backend
             
             # Get optimal configuration
             suggested_backend = suggest_backend()

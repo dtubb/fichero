@@ -13,13 +13,38 @@ from typing import Dict, Any, List, Optional, Tuple, Callable, Union
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
-import yaml
-import srsly
+# YAML compatibility - use ruamel.yaml
+try:
+    from ruamel.yaml import YAML
+    yaml = YAML()
+    yaml.safe_load = yaml.load
+except ImportError:
+    import yaml
 import asyncio
 
-from ..core.loader import ConfigLoader
-from .components.file_library_panel import FileLibraryPanel
-from ...ui.i18n import _  # Import translation function
+# Conditional imports for iOS compatibility
+try:
+    import srsly
+    SRSLY_AVAILABLE = True
+except ImportError:
+    SRSLY_AVAILABLE = False
+    # Create fallback functions for srsly functionality
+    class srsly:
+        @staticmethod
+        def read_json(path):
+            import json
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        
+        @staticmethod
+        def write_json(path, data):
+            import json
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+from fichero.config.core.loader import ConfigLoader
+from fichero.config.ui.components.file_library_panel import FileLibraryPanel
+import gettext  # Import translation function
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +71,11 @@ class UISchema:
     
     def __init__(self, title: str, description: str = "", sections: List[Dict] = None, 
                  content_sections: List[Dict] = None, window_title: str = None, window_size: List[int] = None):
-        self.title = _(title, title)  # Translate title if it's a key
-        self.description = _(description, description)  # Translate description if it's a key
+        self.title = _(title)  # Translate title if it's a key
+        self.description = _(description)  # Translate description if it's a key
         self.sections = sections or []  # These are the "tabs" from YAML
         self.content_sections = content_sections or []  # Direct sections if no tabs
-        self.window_title = _(window_title, window_title) if window_title else None  # Translate window title if it's a key
+        self.window_title = _(window_title) if window_title else None  # Translate window title if it's a key
         self.window_size = tuple(window_size) if window_size else None
 
 
@@ -249,7 +274,7 @@ class BaseConfigLibrary(ABC):
         
         # Create Restore Defaults button
         restore_btn = toga.Button(
-            _("preferences_restore_defaults", "Restore Defaults"),  # Translate button text
+            _("preferences_restore_defaults"),  # Translate button text
             on_press=self._handle_restore_defaults,
             style=Pack(margin=(10, 20, 10, 20), width=100)  # Normal height, 100px width, 20px left/right margins
         )
@@ -348,7 +373,7 @@ class BaseConfigLibrary(ABC):
             # Build content list for OptionContainer
             content_list = []
             for i, section in enumerate(schema.sections):
-                section_title = _(section.get('title', ''), section.get('title', f'Section {i}'))  # Translate section title
+                section_title = _(section.get('title', f'Section {i}'))  # Translate section title
                 logger.info(f"Creating tab: {section_title}")
                 section_content = self._create_sectioned_interface(section.get('sections', []), data)
                 
@@ -366,14 +391,14 @@ class BaseConfigLibrary(ABC):
             # Direct sections become a single tab
             content = self._create_sectioned_interface(schema.content_sections, data)
             self.option_container = toga.OptionContainer(
-                content=[(_("preferences_title", "Settings"), content)],  # Translate default tab title
+                content=[(_("preferences_title"), content)],  # Translate default tab title
                 style=Pack(flex=1, margin=(20, 20, 0, 20))
             )
         else:
             logger.warning("No sections or content_sections found in schema")
             # No content defined
             self.option_container = toga.OptionContainer(
-                content=[(_("preferences_title", "Settings"), toga.Label(_("preferences_no_content", "No content defined in schema")))],
+                content=[(_("preferences_title"), toga.Label(_("preferences_no_content")))],
                 style=Pack(flex=1, margin=(20, 20, 0, 20))
             )
         
@@ -383,7 +408,7 @@ class BaseConfigLibrary(ABC):
         
         # Re-add the Restore Defaults button
         restore_btn = toga.Button(
-            _("preferences_restore_defaults", "Restore Defaults"),  # Translate button text
+            _("preferences_restore_defaults"),  # Translate button text
             on_press=self._handle_restore_defaults,
             style=Pack(margin=(10, 20, 10, 20), width=100)
         )
@@ -472,7 +497,7 @@ class BaseConfigLibrary(ABC):
         
         # Section title
         if section.get('title'):
-            title_text = _(section['title'], section['title'])  # Translate title
+            title_text = _(section['title'])  # Translate title
             if not title_text.endswith(':'):
                 title_text += ':'
             title_label = toga.Label(
@@ -487,7 +512,7 @@ class BaseConfigLibrary(ABC):
         # Section description
         if section.get('description'):
             desc_label = toga.Label(
-                _(section['description'], section['description']),  # Translate description
+                _(section['description']),  # Translate description
                 style=Pack(
                     margin_bottom=3,
                     font_size=9
@@ -516,7 +541,7 @@ class BaseConfigLibrary(ABC):
         # Field label (left side)
         if field.get('label'):
             label = toga.Label(
-                _(field['label'], field['label']),  # Translate label
+                _(field['label']),  # Translate label
                 style=Pack(
                     width=120,  # Reasonable width for labels
                     margin_right=3,
@@ -539,7 +564,7 @@ class BaseConfigLibrary(ABC):
         if field_type == WidgetType.TEXT_INPUT:
             widget = toga.TextInput(
                 value=str(current_value) if current_value is not None else "",
-                placeholder=_(field.get('placeholder', ''), field.get('placeholder', '')),  # Translate placeholder
+                placeholder=_(field.get('placeholder', '')),  # Translate placeholder
                 style=Pack(margin_bottom=3, font_size=9),
                 on_change=self._on_widget_change
             )
@@ -547,7 +572,7 @@ class BaseConfigLibrary(ABC):
         elif field_type == WidgetType.PASSWORD_INPUT:
             widget = toga.PasswordInput(
                 value=str(current_value) if current_value is not None else "",
-                placeholder=_(field.get('placeholder', ''), field.get('placeholder', '')),  # Translate placeholder
+                placeholder=_(field.get('placeholder', '')),  # Translate placeholder
                 style=Pack(margin_bottom=3, font_size=9),
                 on_change=self._on_widget_change
             )
@@ -565,14 +590,14 @@ class BaseConfigLibrary(ABC):
         elif field_type == WidgetType.MULTILINE_TEXT:
             widget = toga.MultilineTextInput(
                 value=str(current_value) if current_value is not None else "",
-                placeholder=_(field.get('placeholder', ''), field.get('placeholder', '')),  # Translate placeholder
+                placeholder=_(field.get('placeholder', '')),  # Translate placeholder
                 style=Pack(margin_bottom=3, height=field.get('height', 100), font_size=9),
                 on_change=self._on_widget_change
             )
         
         elif field_type == WidgetType.SWITCH:
             widget = toga.Switch(
-                _(field.get('label', ''), field.get('label', '')),  # Translate label
+                _(field.get('label', '')),  # Translate label
                 value=bool(current_value) if current_value is not None else field.get('default', False),
                 style=Pack(margin_bottom=3, font_size=9),
                 on_change=self._on_widget_change
@@ -588,7 +613,7 @@ class BaseConfigLibrary(ABC):
         
         elif field_type == WidgetType.BUTTON:
             widget = toga.Button(
-                _(field.get('label', 'Button'), field.get('label', 'Button')),  # Translate label
+                _(field.get('label', 'Button')),  # Translate label
                 style=Pack(margin_bottom=3, font_size=9, width=120),
                 on_press=self._on_button_press
             )
@@ -618,7 +643,7 @@ class BaseConfigLibrary(ABC):
         # Help text (below widget)
         if field.get('help'):
             help_label = toga.Label(
-                _(field['help'], field['help']),  # Translate help text
+                _(field['help']),  # Translate help text
                 style=Pack(
                     margin_top=3,
                     font_size=9,
@@ -646,7 +671,7 @@ class BaseConfigLibrary(ABC):
         )
         
         # Label for workflow selector
-        selector_label = toga.Label(_("workflow_selector_label", "Select Workflow:"), style=Pack(font_size=9, margin_bottom=3))
+        selector_label = toga.Label(_("workflow_selector_label"), style=Pack(font_size=9, margin_bottom=3))
         container.add(selector_label)
         
         # Workflow selector with management buttons
@@ -655,13 +680,13 @@ class BaseConfigLibrary(ABC):
         
         # Add workflow management buttons
         new_workflow_btn = toga.Button(
-            _("workflow_new_btn", "New"),
+            _("workflow_new_btn"),
             style=Pack(margin_left=5, width=50, font_size=8),
             on_press=lambda widget: self._create_new_workflow(workflows, workflow_selector, step_widgets)
         )
         
         copy_workflow_btn = toga.Button(
-            _("workflow_copy_btn", "Copy"),
+            _("workflow_copy_btn"),
             style=Pack(margin_left=5, width=50, font_size=8),
             on_press=lambda widget: self._copy_current_workflow(workflows, workflow_selector, step_widgets)
         )
@@ -672,7 +697,7 @@ class BaseConfigLibrary(ABC):
         container.add(workflow_management_box)
         
         # Create step management area
-        steps_label = toga.Label(_("workflow_steps_label", "Workflow Steps:"), style=Pack(font_size=9, margin_bottom=3, margin_top=10))
+        steps_label = toga.Label(_("workflow_steps_label"), style=Pack(font_size=9, margin_bottom=3, margin_top=10))
         container.add(steps_label)
         
         # Scrollable container for steps

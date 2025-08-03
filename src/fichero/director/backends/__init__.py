@@ -17,16 +17,16 @@ Configuration:
 """
 
 # Import from implementations
-from .implementations.base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus, create_folder_task
-from .implementations import PythonProcessingBackend, CeleryBackend, CELERY_AVAILABLE
+from fichero.director.backends.implementations.base import ProcessingBackend, FolderTask, ProcessingResult, ProcessingStatus, create_folder_task
+from fichero.director.backends.implementations import PythonProcessingBackend, CeleryBackend, CELERY_AVAILABLE
 
 # Import management components
-from .backend_selector import BackendSelector
-from .backend_initializer import BackendInitializer
-from .backend_manager import BackendManager
-from .availability_checker import BackendAvailabilityChecker
-from .settings_extractor import SettingsExtractor
-from .worker_sizing import get_optimal_workers, suggest_backend, WorkerConfig
+from fichero.director.backends.backend_selector import BackendSelector
+from fichero.director.backends.backend_initializer import BackendInitializer
+from fichero.director.backends.backend_manager import BackendManager
+from fichero.director.backends.availability_checker import BackendAvailabilityChecker
+from fichero.director.backends.settings_extractor import SettingsExtractor
+from fichero.director.backends.worker_sizing import get_optimal_workers, suggest_backend, WorkerConfig
 
 __all__ = [
     # Implementations

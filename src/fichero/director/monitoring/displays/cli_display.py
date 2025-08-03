@@ -23,7 +23,7 @@ Both modes display:
 Example Usage:
     ```python
     from rich.console import Console
-    from ..task_monitor import TaskMonitor
+    from fichero.task_monitor import TaskMonitor
     
     console = Console()
     task_monitor = TaskMonitor.get_instance()
@@ -54,8 +54,8 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-from ..task_monitor import TaskMonitor
-from ....ui.i18n import _
+from fichero.task_monitor import TaskMonitor
+import gettext
 
 logger = logging.getLogger(__name__)
 

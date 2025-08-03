@@ -1,106 +1,126 @@
 """
-Plan/Workflow UI Helper
+Plan and Workflow UI Helper - Unified Interface
 
-Unified helper for managing plan and workflow selections across all interfaces.
-Eliminates code duplication between Settings, Document window, and CLI.
+Provides a unified interface for plan and workflow selection across different UI contexts.
+Handles both settings window (save_as_default=True) and document window (save_as_default=False).
 """
 
 import logging
-from typing import Dict, List, Optional, Callable, Any
+from typing import List, Optional, Dict, Any, Callable
 from pathlib import Path
+
+from fichero.config.core.plan_manager import PlanManager
+from fichero.config.core.loader import ConfigLoader
+from fichero.config.core.settings import get_app_settings
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PLAN_FILENAME = "Default.yml"
+
 
 class PlanWorkflowUIHelper:
-    """
-    Unified helper for plan/workflow UI operations.
-    
-    Handles:
-    - Loading plans/workflows for dropdowns
-    - App-wide defaults (Settings window)
-    - Document-specific selections (Document window)
-    - CLI default handling
-    - UI widget updates
-    """
+    """Unified helper for plan and workflow UI management"""
     
     def __init__(self, app):
         self.app = app
-        
-    # Core Data Access
+        self.settings = get_app_settings(app)
+    
+    def get_plan_options(self) -> List[str]:
+        """Get list of available plan display names"""
+        try:
+            plan_display_names = []
+            default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(self.app)
+            
+            for plans_dir in [default_plans_dir, user_plans_dir]:
+                if plans_dir and plans_dir.exists():
+                    for ext in ConfigLoader.get_supported_extensions():
+                        plan_files = list(plans_dir.glob(f"*{ext}"))
+                        for plan_file in plan_files:
+                            plan_data = ConfigLoader.load_config_file(plan_file)
+                            if plan_data and 'title' in plan_data:
+                                plan_display_names.append(plan_data['title'])
+                            else:
+                                plan_display_names.append(plan_file.stem)
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_plans = []
+            for name in plan_display_names:
+                if name not in seen:
+                    seen.add(name)
+                    unique_plans.append(name)
+            
+            return unique_plans
+            
+        except Exception as e:
+            logger.error(f"Failed to get plan options: {e}")
+            return []
     
     def get_plan_filename(self, plan_display_name: str) -> Optional[str]:
-        """Get the filename (without .yml) for a given plan display name"""
-        from .plan_manager import PlanManager
-        
-        # Get plan directories
-        default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(self.app)
-        
-        # Search through both directories
-        for plans_dir in [default_plans_dir, user_plans_dir]:
-            if plans_dir and plans_dir.exists():
-                for ext in ['.yml', '.yaml']:
-                    for plan_file in plans_dir.glob(f"*{ext}"):
-                        try:
-                            from .config_loader import ConfigLoader
+        """Get filename for a plan display name"""
+        try:
+            from fichero.config.core.plan_manager import PlanManager
+            default_plans_dir, user_plans_dir = PlanManager._get_plan_directories(self.app)
+            
+            for plans_dir in [default_plans_dir, user_plans_dir]:
+                if plans_dir and plans_dir.exists():
+                    for ext in ConfigLoader.get_supported_extensions():
+                        plan_files = list(plans_dir.glob(f"*{ext}"))
+                        for plan_file in plan_files:
                             plan_data = ConfigLoader.load_config_file(plan_file)
-                            if plan_data and plan_data.get('title') == plan_display_name:
-                                return plan_file.stem  # Return filename without extension
-                        except Exception as e:
-                            logger.debug(f"Error reading plan file {plan_file}: {e}")
-                            continue
-        
-        return None
-
-    def get_plan_options(self) -> List[str]:
-        """Get available plans for dropdown (clean list, no management options)"""
-        from .plan_manager import PlanManager
-        
-        # Get basic plan list
-        plans = PlanManager.get_available_plans(self.app)
-        
-        # Filter out error messages and management options
-        valid_plans = [plan for plan in plans if plan not in [
-            "No plans found", "Error loading plans", "Manage Plans..."
-        ]]
-        
-        if valid_plans:
-            return valid_plans
-        else:
-            return ["No plans found"]
+                            if plan_data and 'title' in plan_data and plan_data['title'] == plan_display_name:
+                                return plan_file.stem
+                            elif plan_file.stem == plan_display_name:
+                                return plan_file.stem
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get plan filename: {e}")
+            return None
     
-    def get_workflow_options(self, plan_name: str) -> List[str]:
-        """Get available workflows for a plan (clean list, no management options)"""
-        from .plan_manager import PlanManager
-        
-        workflows = PlanManager.get_workflow_dropdown_options(plan_name, self.app)
-        
-        # Filter out any management options that might have slipped through
-        clean_workflows = [wf for wf in workflows if wf not in [
-            "Manage Plans...", "Manage Workflows..."
-        ]]
-        
-        return clean_workflows
+    def get_workflow_options(self, plan_filename: str) -> List[str]:
+        """Get workflow options for a plan"""
+        try:
+            from fichero.config.core.plan_manager import PlanManager
+            workflows = PlanManager.get_workflows_for_plan(plan_filename, self.app)
+            
+            if workflows and workflows[0] not in ["No workflows", "Plan file not found", "Error loading workflows"]:
+                return workflows
+            else:
+                return []
+                
+        except Exception as e:
+            logger.error(f"Failed to get workflow options: {e}")
+            return []
     
     def get_app_default_plan(self) -> Optional[str]:
-        """Get app-wide default plan from shared settings"""
-        from .plan_manager import PlanManager
-        return PlanManager.get_default_plan(self.app)
+        """Get the app's default plan"""
+        try:
+            from fichero.config.core.plan_manager import PlanManager
+            return PlanManager.get_default_plan(self.app)
+        except Exception as e:
+            logger.error(f"Failed to get app default plan: {e}")
+            return None
     
-    def get_app_default_workflow(self, plan_name: str = None) -> Optional[str]:
-        """Get app-wide default workflow from shared settings"""
-        from .plan_manager import PlanManager
-        return PlanManager.get_default_workflow(plan_name, self.app)
+    def get_app_default_workflow(self, plan_name: str) -> Optional[str]:
+        """Get the app's default workflow for a plan"""
+        try:
+            from fichero.config.core.plan_manager import PlanManager
+            return PlanManager.get_default_workflow(plan_name, self.app)
+        except Exception as e:
+            logger.error(f"Failed to get app default workflow: {e}")
+            return None
     
     def set_app_default_plan(self, plan_name: str):
         """Set app-wide default plan in shared settings"""
-        from .plan_manager import PlanManager
+        from fichero.config.core.plan_manager import PlanManager
         PlanManager.set_default_plan(plan_name, self.app)
         logger.info(f"Set app default plan: {plan_name}")
     
     def set_app_default_workflow(self, workflow_name: str):
         """Set app-wide default workflow in shared settings"""
-        from .plan_manager import PlanManager
+        from fichero.config.core.plan_manager import PlanManager
         PlanManager.set_default_workflow(workflow_name, self.app)
         logger.info(f"Set app default workflow: {workflow_name}")
     
