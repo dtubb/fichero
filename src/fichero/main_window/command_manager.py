@@ -328,10 +328,10 @@ class CommandManager:
         """Handle Process Folder command - create new processing window"""
         try:
             # Create a new processing window
-            from fichero.ui.windows.processing_window import FicheroProcessingWindow
+            from fichero.ui.windows.processing_window import ProcessingWindow
             
             # Create processing window directly
-            processing_window = FicheroProcessingWindow(self.app)
+            processing_window = ProcessingWindow(self.app)
             
             # Show the window
             processing_window.show()

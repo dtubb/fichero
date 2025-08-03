@@ -15,7 +15,7 @@ from fichero.config.ui.components.file_library_panel import FileLibraryPanel
 # Conditional imports for iOS compatibility
 try:
     # Import window classes
-    from fichero.config.ui.windows.settings import SettingsLibrary
+    from fichero.config.ui.windows.settings import SettingsWindow
     from fichero.config.ui.windows.prompts_library import PromptsLibrary
     from fichero.config.ui.windows.plans_library import PlansLibrary
     UI_WINDOWS_AVAILABLE = True
@@ -23,7 +23,7 @@ except ImportError as e:
     logger.warning(f"UI windows not available: {e}")
     UI_WINDOWS_AVAILABLE = False
     # Create fallback classes
-    class SettingsLibrary:
+    class SettingsWindow:
         def __init__(self, app):
             raise RuntimeError("Settings window not available on this platform")
     
@@ -43,12 +43,12 @@ def create_settings_window(app):
         return None
     
     try:
-        logger.info("Creating SettingsLibrary...")
-        settings_window = SettingsLibrary(app)
-        logger.info(f"SettingsLibrary created: {settings_window}")
+        logger.info("Creating SettingsWindow...")
+        settings_window = SettingsWindow(app)
+        logger.info(f"SettingsWindow created: {settings_window}")
         return settings_window
     except Exception as e:
-        logger.error(f"Failed to create SettingsLibrary: {e}")
+        logger.error(f"Failed to create SettingsWindow: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return None

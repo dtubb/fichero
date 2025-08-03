@@ -45,20 +45,15 @@ logger = logging.getLogger(__name__)
 DEFAULT_PLAN_FILENAME = "Default.yml"
 
 
-class FicheroProcessingWindow(toga.Window):
-    """
-    Simplified document window for folder processing.
+class ProcessingContent:
+    """Processing content component that can be used in windows or as content replacement"""
     
-    Shows basic UI for folder/plan selection, then displays GUITaskDisplay
-    only when processing starts. All business logic handled by director.py.
-    """
-    
-    def __init__(self, app):
-        logger.info(f"Initializing processing window")
-        
-        # Store references
-        self._app = app
-        self._document_id = f"processing_window_{id(self)}"
+    def __init__(self, app, show_back_button=False, on_back=None):
+        """Initialize the processing content"""
+        self.app = app
+        self._app = app  # Add _app attribute for compatibility
+        self.show_back_button = show_back_button
+        self.on_back = on_back
         
         # Initialize state
         self.selected_folder = None
@@ -69,56 +64,71 @@ class FicheroProcessingWindow(toga.Window):
         self.task_display: Optional[GUITaskDisplay] = None
         self.current_task_ids = []
         
-        # Create UI content
+        self.plan_display_to_filename = {}  # display name -> filename stem
+        
+        # Add dialog method for compatibility
+        self.dialog = app.main_window.dialog if hasattr(app, 'main_window') and hasattr(app.main_window, 'dialog') else None
+    
+    def create(self):
+        """Create the processing content UI"""
+        # Create main content
         content = self._create_content()
         
-        super().__init__(content=content, resizable=False, size=(650, 350))
+        # Add back button if requested (for main window use)
+        if self.show_back_button and self.on_back:
+            # Create container with back button
+            main_container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1
+                )
+            )
+            
+            back_container = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    margin_bottom=10
+                )
+            )
+            
+            back_button = toga.Button(
+                text="← Back",
+                on_press=self.on_back
+            )
+            
+            back_container.add(back_button)
+            main_container.add(back_container)
+            main_container.add(content)
+            
+            return main_container
         
-        # Set initial window title
-        self.title = "Fichero - Process Folder"
-        
-        self.plan_display_to_filename = {}  # display name -> filename stem
-
-        
-        # Set up window handlers
-        self._setup_window_handlers()
-        
-        # Initialize plan selection after window is created
-        asyncio.create_task(self._initialize_after_show())
-        
-        logger.info("Processing window initialized successfully")
-    
-    async def _initialize_after_show(self):
-        """Initialize components after window is shown"""
-        await asyncio.sleep(0.1)  # Let window fully render
-        try:
-            self._draw_folder_background()
-            self._initialize_plan_workflow()
-        except Exception as e:
-            logger.error(f"Initialization error: {e}")
+        return content
     
     def _create_content(self):
-        """Create simplified document window UI"""
-        # Create main sections
-        self._create_folder_selection_section()
-        self._create_content_section()
-        self._create_footer()
+        """Create the main processing content"""
+        # Main container - use smaller margins when used as overlay
+        margin_size = 5 if self.show_back_button else 10
+        main_container = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                flex=1,
+                margin=margin_size
+            )
+        )
         
-        # Assemble layout - content section gets only the space it needs
-        main_sections = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        main_sections.add(self.folder_section)
+        # Add folder selection section
+        folder_section = self._create_folder_selection_section()
+        main_container.add(folder_section)
         
-        # Add 20px margin between folder section and content section
-        margin_spacer = toga.Box(style=Pack(height=20))
-        main_sections.add(margin_spacer)
+        # Add content section
+        content_section = self._create_content_section()
+        main_container.add(content_section)
         
-        main_sections.add(self.content_section)
+        # Add footer
+        footer = self._create_footer()
+        main_container.add(footer)
         
-        main_content = toga.Box(style=Pack(direction=COLUMN, background_color='#f7f2f1'))
-        main_content.add(main_sections)
-        main_content.add(self.footer_section)
-        
-        return main_content
+        return main_container
 
     def _create_folder_icons(self):
         """Create different icons for different states"""
@@ -213,7 +223,7 @@ class FicheroProcessingWindow(toga.Window):
             folder_image = toga.Image("resources/icons/folder.png")
             return toga.ImageView(
                 folder_image,
-                style=Pack(width=62, height=62, margin=3)
+                style=Pack(height=62, margin=3)
             )
         except Exception as e:
             logger.debug(f"Could not load folder.png icon: {e}")
@@ -252,7 +262,7 @@ class FicheroProcessingWindow(toga.Window):
         self.choose_folder_btn = toga.Button(
             _("choose_folder"),
             on_press=self.choose_folder_handler,
-            style=Pack(width=120)
+            style=Pack()
         )
         
         # Processing label (initially hidden)
@@ -273,7 +283,7 @@ class FicheroProcessingWindow(toga.Window):
         
         # Canvas for rounded background
         self.folder_canvas = toga.Canvas(
-            style=Pack(width=540, height=68),
+            style=Pack(flex=1, height=68),
             on_resize=self._draw_folder_background
         )
         
@@ -283,7 +293,7 @@ class FicheroProcessingWindow(toga.Window):
             style=Pack(
                 direction=COLUMN,
                 justify_content=CENTER,
-                width=540,
+                flex=1,
                 height=68,
             )
         )
@@ -297,6 +307,7 @@ class FicheroProcessingWindow(toga.Window):
                 margin_right=20,
                 margin_bottom=10,
                 margin_left=10,
+                flex=1,
             )
         )
         
@@ -307,12 +318,13 @@ class FicheroProcessingWindow(toga.Window):
                 margin_top=-78,
                 margin_right=20,
                 margin_left=10,
+                flex=1,
             )
         )
         
         path_stack = toga.Box(
             children=[path_with_background, overlaid_container],
-            style=Pack(direction=COLUMN)
+            style=Pack(direction=COLUMN, flex=1)
         )
         
         # Icon container (store reference for icon swapping)
@@ -322,15 +334,19 @@ class FicheroProcessingWindow(toga.Window):
                 direction=COLUMN,
                 justify_content=CENTER,
                 margin_top=20 + 34 - 34,
-                margin_left=20
+                margin_left=20,
+                flex=0  # Don't expand, just take natural width
             )
         )
         
-        # Main container
+        # Main container - use smaller margins when used as overlay
+        margin_size = 10 if self.show_back_button else 20
         self.folder_section = toga.Box(
             children=[self.icon_container, path_stack],
-            style=Pack(direction=ROW, margin=(0, 0, 0, 0))
+            style=Pack(direction=ROW, margin=(0, margin_size, 0, margin_size))
         )
+        
+        return self.folder_section
 
     def _draw_folder_background(self, canvas=None, **kwargs):
         """Draw rounded gray background"""
@@ -394,7 +410,7 @@ class FicheroProcessingWindow(toga.Window):
                 margin_right=20,
                 margin_bottom=10,
                 margin_left=20,
-                height=200,  # Fixed height instead of flex=1
+                flex=1,  # Use available height instead of fixed height
             ),
             on_resize=self._draw_content_text,
             on_press=self._handle_canvas_click
@@ -408,6 +424,8 @@ class FicheroProcessingWindow(toga.Window):
         
         # Draw content after a brief delay to ensure canvas is ready
         asyncio.create_task(self._delayed_draw_content())
+        
+        return self.content_section
 
     def _create_footer(self):
         """Create footer with controls"""
@@ -417,14 +435,14 @@ class FicheroProcessingWindow(toga.Window):
         help_btn = toga.Button(
             _("help"),
             on_press=self.help_handler,
-            style=Pack(font_size=12, font_weight='bold', width=24, height=24)
+            style=Pack(font_size=12, font_weight='bold', height=24)
         )
         left_section.add(help_btn)
         
         # Plan selector (will be populated in _initialize_plan_workflow)
         self.plan_selector = toga.Selection(
             items=["Loading plans..."],
-            style=Pack(width=360, font_size=11, margin_left=5, height=24),
+            style=Pack(flex=1, font_size=11, margin_left=5, height=24),
             on_change=self._on_plan_change
         )
         left_section.add(self.plan_selector)
@@ -475,6 +493,8 @@ class FicheroProcessingWindow(toga.Window):
         self.footer_section.add(left_section)
         self.footer_section.add(spacer)
         self.footer_section.add(right_section)
+        
+        return self.footer_section
 
     # Progress Management - Simple
     
@@ -517,7 +537,7 @@ class FicheroProcessingWindow(toga.Window):
                 horizontal=False,  # Disable horizontal scrolling
                 vertical=True,     # Enable vertical scrolling only
                 style=Pack(
-                    width=540,  # Full width of grey bar
+                    flex=1,  # Use available width
                     height=68,  # Full height of grey bar
                     margin=0,  # No margin on container
                     background_color='#E2DFDE'  # Same grey as original canvas
@@ -547,7 +567,13 @@ class FicheroProcessingWindow(toga.Window):
         components = PathBuilder.build_path_with_icons(folder_path)
         
         # Available width for content (account for padding, scrollbar, and safety margin)
-        base_available_width = 540 - 16 - 16 - 20  # Total width minus padding and safety margin
+        # Get the actual width from the canvas if available, otherwise use a reasonable default
+        try:
+            # Try to get the actual canvas width
+            canvas_width = self.folder_canvas.layout.content_width if hasattr(self, 'folder_canvas') and self.folder_canvas else 400
+            base_available_width = canvas_width - 32  # Account for padding and margins
+        except:
+            base_available_width = 400  # Fallback default
         
         # Build rows
         current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2))
@@ -648,7 +674,7 @@ class FicheroProcessingWindow(toga.Window):
         
         # Add a canvas background first to restore the grey color
         background_canvas = toga.Canvas(
-            style=Pack(width=540, height=68, margin=0),
+            style=Pack(flex=1, height=68, margin=0),
             on_resize=self._draw_path_background
         )
         self.path_display_container.content.add(background_canvas)
@@ -667,7 +693,13 @@ class FicheroProcessingWindow(toga.Window):
         components = PathBuilder.build_path_with_icons(folder_path)
         
         # Available width for content (account for padding and scrollbar)
-        available_width = 540 - 16 - 16  # Total width minus padding
+        # Get the actual width from the canvas if available, otherwise use a reasonable default
+        try:
+            # Try to get the actual canvas width
+            canvas_width = self.folder_canvas.layout.content_width if hasattr(self, 'folder_canvas') and self.folder_canvas else 400
+            available_width = canvas_width - 32  # Account for padding and margins
+        except:
+            available_width = 400  # Fallback default
         
         # Build rows
         current_row = toga.Box(style=Pack(direction=ROW, align_items=CENTER, margin_bottom=2))
@@ -1836,6 +1868,105 @@ class FicheroProcessingWindow(toga.Window):
                 
         except Exception as e:
             logger.warning(f"Failed to set up window handlers: {e}")
-    
 
+
+class ProcessingWindow:
+    """Processing window that uses the shared ProcessingContent component"""
     
+    def __init__(self, app):
+        """Initialize the processing window"""
+        self.app = app
+        self.window = toga.Window(
+            title="Fichero - Process Folder",
+            size=(650, 350),
+            resizable=True
+        )
+        
+        # Create the processing content
+        self.processing_content = ProcessingContent(app)
+        self.window.content = self.processing_content.create()
+        
+        # Set up window handlers
+        self._setup_window_handlers()
+        
+        # Initialize plan selection after window is created
+        asyncio.create_task(self._initialize_after_show())
+        
+        # Center the window
+        self._center_window()
+        
+        logger.info("Processing window initialized successfully")
+    
+    async def _initialize_after_show(self):
+        """Initialize components after window is shown"""
+        await asyncio.sleep(0.1)  # Let window fully render
+        try:
+            self.processing_content._draw_folder_background()
+            self.processing_content._initialize_plan_workflow()
+        except Exception as e:
+            logger.error(f"Initialization error: {e}")
+    
+    def _setup_window_handlers(self):
+        """Set up window event handlers"""
+        try:
+            def on_close_handler(widget, **kwargs):
+                try:
+                    # Clean up any processing state
+                    if hasattr(self.processing_content, 'current_task_ids') and self.processing_content.current_task_ids:
+                        logger.info("Cleaning up processing tasks on window close")
+                        # Stop any ongoing processing
+                        if hasattr(self.app, 'director') and self.app.director:
+                            for task_id in self.processing_content.current_task_ids:
+                                try:
+                                    self.app.director.cancel_task(task_id)
+                                except Exception as e:
+                                    logger.debug(f"Error cancelling task {task_id}: {e}")
+                    
+                    # Let Toga handle the document close
+                    return True
+                        
+                except Exception as e:
+                    logger.warning(f"Error in close handler: {e}")
+                    return True
+            
+            # Set close handler if available
+            if hasattr(self.window, 'on_close'):
+                self.window.on_close = on_close_handler
+                
+        except Exception as e:
+            logger.warning(f"Failed to set up window handlers: {e}")
+    
+    def _center_window(self):
+        """Center the window on screen"""
+        try:
+            # Get the primary screen dimensions
+            screen = self.app.screens[0]  # Primary screen
+            screen_width = screen.size.width
+            screen_height = screen.size.height
+            
+            # Calculate center position
+            window_width = self.window.size.width
+            window_height = self.window.size.height
+            
+            center_x = (screen_width - window_width) // 2
+            center_y = (screen_height - window_height) // 2
+            
+            # Set the position
+            self.window.position = (center_x, center_y)
+        except Exception:
+            # If centering fails, just use default position
+            pass
+    
+    def show(self):
+        """Show the window"""
+        self.window.show()
+    
+    def hide(self):
+        """Hide the window"""  
+        self.window.hide() 
+    
+    def close(self):
+        """Close the window"""
+        if self.window:
+            self.window.close()
+            self.window = None

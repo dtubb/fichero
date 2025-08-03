@@ -9,26 +9,18 @@ import gettext
 import webbrowser
 
 
-class AboutWindow:
-    """About window showing app information"""
+class AboutContent:
+    """About content component that can be used in windows or as content replacement"""
     
-    def __init__(self, app):
-        """Initialize the about window"""
+    def __init__(self, app, show_back_button=False, on_back=None):
+        """Initialize the about content"""
         self.app = app
-        self.window = toga.Window(
-            title=_("about_window_title"),
-            size=(306, 470),
-            resizable=False
-        )
-        
-        # Create the UI
-        self._create_ui()
-        
-        # Center the window
-        self._center_window()
+        self.acknowledgments_webview = None
+        self.show_back_button = show_back_button
+        self.on_back = on_back
     
-    def _create_ui(self):
-        """Create the about UI"""
+    def create(self):
+        """Create the about content UI"""
         # Main container with margin
         main_container = toga.Box(
             style=Pack(
@@ -37,6 +29,23 @@ class AboutWindow:
                 margin=0
             )
         )
+        
+        # Add back button if requested (for main window use)
+        if self.show_back_button and self.on_back:
+            back_container = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    margin_bottom=10
+                )
+            )
+            
+            back_button = toga.Button(
+                text="← Back",
+                on_press=self.on_back
+            )
+            
+            back_container.add(back_button)
+            main_container.add(back_container)
         
         # Top section with icon and app info
         top_section = toga.Box(
@@ -119,8 +128,6 @@ class AboutWindow:
             )
         )
         
-
-        
         # Generate and set acknowledgments HTML content
         acknowledgments_html = self._generate_acknowledgments_html()
         self.acknowledgments_webview.set_content("about:blank", acknowledgments_html)
@@ -143,8 +150,7 @@ class AboutWindow:
         main_container.add(self.acknowledgments_webview)
         main_container.add(website_link)
         
-        # Set window content
-        self.window.content = main_container
+        return main_container
     
     def _generate_acknowledgments_html(self):
         """Generate HTML content for the acknowledgments section"""
@@ -306,27 +312,6 @@ Report bugs and contribute at:
 © 2025 Daniel Tubb
 All rights reserved."""
     
-    def _center_window(self):
-        """Center the window on screen"""
-        try:
-            # Get the primary screen dimensions
-            screen = self.app.screens[0]  # Primary screen
-            screen_width = screen.size.width
-            screen_height = screen.size.height
-            
-            # Calculate center position
-            window_width = self.window.size.width
-            window_height = self.window.size.height
-            
-            center_x = (screen_width - window_width) // 2
-            center_y = (screen_height - window_height) // 2
-            
-            # Set the position
-            self.window.position = (center_x, center_y)
-        except Exception:
-            # If centering fails, just use default position
-            pass
-    
     def _on_webview_load(self, widget, **kwargs):
         """Handle webview load - inject JavaScript to handle link clicks"""
         # JavaScript to intercept link clicks and store URL for Python to access
@@ -377,6 +362,47 @@ All rights reserved."""
     def _on_website_click(self, widget, **kwargs):
         """Handle website button click"""
         webbrowser.open("https://www.tubb.ca/fichero/")
+
+
+class AboutWindow:
+    """About window that uses the shared AboutContent component"""
+    
+    def __init__(self, app):
+        """Initialize the about window"""
+        self.app = app
+        self.window = toga.Window(
+            title=_("about_window_title"),
+            size=(306, 470),
+            resizable=False
+        )
+        
+        # Create the about content
+        self.about_content = AboutContent(app)
+        self.window.content = self.about_content.create()
+        
+        # Center the window
+        self._center_window()
+    
+    def _center_window(self):
+        """Center the window on screen"""
+        try:
+            # Get the primary screen dimensions
+            screen = self.app.screens[0]  # Primary screen
+            screen_width = screen.size.width
+            screen_height = screen.size.height
+            
+            # Calculate center position
+            window_width = self.window.size.width
+            window_height = self.window.size.height
+            
+            center_x = (screen_width - window_width) // 2
+            center_y = (screen_height - window_height) // 2
+            
+            # Set the position
+            self.window.position = (center_x, center_y)
+        except Exception:
+            # If centering fails, just use default position
+            pass
     
     def show(self):
         """Show the window"""

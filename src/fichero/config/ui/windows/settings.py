@@ -13,6 +13,9 @@ except ImportError:
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
+import toga
+from toga.style import Pack
+from toga.constants import COLUMN, ROW
 
 from fichero.config.ui.base_config_library import BaseConfigLibrary
 from fichero.config.ui.base_config_library import UISchema
@@ -23,18 +26,115 @@ from fichero.config.core.plan_workflow_ui_helper import DEFAULT_PLAN_FILENAME
 logger = logging.getLogger(__name__)
 
 
-class SettingsLibrary(BaseConfigLibrary):
-    """Settings library with OptionContainer navigation and single settings file"""
+class SettingsContent(BaseConfigLibrary):
+    """Settings content component that can be used in windows or as content replacement"""
     
-    def __init__(self, app):
+    def __init__(self, app, show_back_button=False, on_back=None):
         # Set up paths before calling parent constructor
         self.schema_file = app.paths.app / "resources" / "config_ui_schemas" / "settings_schema.yml"
         
         # Create simplified settings manager
         self.settings_manager = SettingsManager(app)
+        
+        # Store back button options
+        self.show_back_button = show_back_button
+        self.on_back = on_back
 
         # Initialize with settings-specific configuration
         super().__init__(app, use_file_library=False, use_option_container=True)
+    
+    def create(self):
+        """Create the settings content UI"""
+        # Create the main content using the schema system
+        schema = self.get_schema()
+        data = self.initialize_settings_data()
+        
+        # Create content based on schema structure
+        if schema.sections:
+            # Build content list for OptionContainer
+            content_list = []
+            for i, section in enumerate(schema.sections):
+                section_title = _(section.get('title', f'Section {i}'))  # Translate section title
+                section_content = self._create_sectioned_interface(section.get('sections', []), data)
+                content_list.append((section_title, section_content))
+            
+            # Create the OptionContainer
+            option_container = toga.OptionContainer(
+                content=content_list,
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        elif schema.content_sections:
+            # Direct sections become a single tab
+            content = self._create_sectioned_interface(schema.content_sections, data)
+            option_container = toga.OptionContainer(
+                content=[(_("preferences_title"), content)],  # Translate default tab title
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        else:
+            # No content defined
+            option_container = toga.OptionContainer(
+                content=[(_("preferences_title"), toga.Label(_("preferences_no_content")))],
+                style=Pack(flex=1, margin=(20, 20, 0, 20))
+            )
+        
+        # Create the main content container
+        main_content = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        main_content.add(option_container)
+        
+        # Add the Restore Defaults button
+        restore_btn = toga.Button(
+            _("preferences_restore_defaults"),  # Translate button text
+            on_press=self._handle_restore_defaults,
+            style=Pack(margin=(10, 20, 10, 20), width=100)
+        )
+        main_content.add(restore_btn)
+        
+        # Add back button if requested (for main window use)
+        if self.show_back_button and self.on_back:
+            # Create container with back button
+            container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1
+                )
+            )
+            
+            back_container = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    margin_bottom=10
+                )
+            )
+            
+            back_button = toga.Button(
+                text="← Back",
+                on_press=self.on_back
+            )
+            
+            back_container.add(back_button)
+            container.add(back_container)
+            container.add(main_content)
+            
+            return container
+        
+        return main_content
+    
+    def _handle_restore_defaults(self, widget=None):
+        """Handle restore defaults button press"""
+        try:
+            # Get default settings data
+            default_data = self.settings_manager.get_default_template()
+            
+            # Populate the UI with default values
+            self.populate_data(default_data)
+            
+            # Save the default settings
+            self.save_settings_data(default_data)
+            
+            logger.info("Settings restored to defaults")
+            
+        except Exception as e:
+            logger.error(f"Failed to restore defaults: {e}")
     
     def create_file_manager(self):
         """Create and return the settings file manager (not used for settings)"""
@@ -335,3 +435,58 @@ class SettingsLibrary(BaseConfigLibrary):
         except Exception as e:
             logger.error(f"Failed to save settings data: {e}")
             return False
+
+
+class SettingsWindow:
+    """Settings window that uses the shared SettingsContent component"""
+    
+    def __init__(self, app):
+        """Initialize the settings window"""
+        self.app = app
+        self.window = toga.Window(
+            title=_("preferences_title"),
+            size=(800, 600),
+            resizable=True
+        )
+        
+        # Create the settings content
+        self.settings_content = SettingsContent(app)
+        self.window.content = self.settings_content.create()
+        
+        # Center the window
+        self._center_window()
+    
+    def _center_window(self):
+        """Center the window on screen"""
+        try:
+            # Get the primary screen dimensions
+            screen = self.app.screens[0]  # Primary screen
+            screen_width = screen.size.width
+            screen_height = screen.size.height
+            
+            # Calculate center position
+            window_width = self.window.size.width
+            window_height = self.window.size.height
+            
+            center_x = (screen_width - window_width) // 2
+            center_y = (screen_height - window_height) // 2
+            
+            # Set the position
+            self.window.position = (center_x, center_y)
+        except Exception:
+            # If centering fails, just use default position
+            pass
+    
+    def show(self):
+        """Show the window"""
+        self.window.show()
+    
+    def hide(self):
+        """Hide the window"""  
+        self.window.hide() 
+    
+    def close(self):
+        """Close the window"""
+        if self.window:
+            self.window.close()
+            self.window = None

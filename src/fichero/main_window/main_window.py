@@ -52,9 +52,7 @@ class MainWindow:
         self.is_android = current_platform == 'android'
         self.is_mobile = self.is_ios or self.is_android
         
-        # For testing: enable iOS UI on macOS
-        if current_platform == 'macOS':
-            self.is_ios = True  # Test iOS UI on macOS
+        # iOS demo mode disabled - use native macOS UI
         
         # UI components
         self.collection_list: Optional[CollectionListComponent] = None
@@ -744,119 +742,36 @@ class MainWindow:
     
     def _create_about_overlay(self):
         """Create about content as an overlay widget"""
-        overlay = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=20,
-                background_color="#ffffff"
-            )
+        # Use the shared AboutContent component with back button
+        from fichero.ui.windows.about_window import AboutContent
+        about_content = AboutContent(
+            self.app, 
+            show_back_button=True, 
+            on_back=lambda widget: self._hide_ios_overlay()
         )
-        
-        # Close button container (right-aligned)
-        close_container = toga.Box(
-            style=Pack(
-                direction=ROW,
-                margin_bottom=10
-            )
-        )
-        
-        close_button = toga.Button(
-            text="✕",
-            on_press=lambda widget: self._hide_ios_overlay()
-        )
-        
-        close_container.add(close_button)
-        
-        # About content
-        title = toga.Label(
-            "Fichero",
-            style=Pack(font_size=24, font_weight="bold", margin_bottom=10)
-        )
-        
-        version = toga.Label(
-            f"Version {self.app.version}",
-            style=Pack(font_size=14, margin_bottom=10)
-        )
-        
-        description = toga.Label(
-            "Multi-Step Document Processing",
-            style=Pack(font_size=16, margin_bottom=20)
-        )
-        
-        author = toga.Label(
-            "By Daniel Tubb",
-            style=Pack(font_size=12, color="gray")
-        )
-        
-        overlay.add(close_container)
-        overlay.add(title)
-        overlay.add(version)
-        overlay.add(description)
-        overlay.add(author)
-        
-        return overlay 
+        return about_content.create()
     
     def _create_settings_overlay(self):
         """Create settings content as an overlay widget"""
-        overlay = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=20,
-                background_color="#ffffff"
-            )
+        # Use the shared SettingsContent component with back button
+        from fichero.config.ui.windows.settings import SettingsContent
+        settings_content = SettingsContent(
+            self.app, 
+            show_back_button=True, 
+            on_back=lambda widget: self._hide_ios_overlay()
         )
-        
-        close_button = toga.Button(
-            text="✕",
-            on_press=lambda widget: self._hide_ios_overlay()
-        )
-        
-        title = toga.Label(
-            "Settings",
-            style=Pack(font_size=24, font_weight="bold", margin_bottom=10)
-        )
-        
-        content = toga.Label(
-            "Settings content coming soon...",
-            style=Pack(font_size=16)
-        )
-        
-        overlay.add(close_button)
-        overlay.add(title)
-        overlay.add(content)
-        
-        return overlay
+        return settings_content.create()
     
     def _create_process_overlay(self):
         """Create process content as an overlay widget"""
-        overlay = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                margin=20,
-                background_color="#ffffff"
-            )
+        # Use the shared ProcessingContent component with back button
+        from fichero.ui.windows.processing_window import ProcessingContent
+        processing_content = ProcessingContent(
+            self.app, 
+            show_back_button=True, 
+            on_back=lambda widget: self._hide_ios_overlay()
         )
-        
-        close_button = toga.Button(
-            text="✕",
-            on_press=lambda widget: self._hide_ios_overlay()
-        )
-        
-        title = toga.Label(
-            "Process",
-            style=Pack(font_size=24, font_weight="bold", margin_bottom=10)
-        )
-        
-        content = toga.Label(
-            "Process content coming soon...",
-            style=Pack(font_size=16)
-        )
-        
-        overlay.add(close_button)
-        overlay.add(title)
-        overlay.add(content)
-        
-        return overlay
+        return processing_content.create()
     
     def _create_add_overlay(self):
         """Create add content as an overlay widget"""
