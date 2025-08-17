@@ -89,7 +89,7 @@ class ProcessingCoordinator:
         logger.info(f"Processing with auto-detection: {input_path} -> {output_path}")
         
         # Use the proper folder processor for two-phase processing
-        from fichero.folder_processor import FolderProcessor
+        from fichero.director.folder_processor import FolderProcessor
         
         # Create a folder processor instance using the current director
         from fichero.director_service import FicheroDirector

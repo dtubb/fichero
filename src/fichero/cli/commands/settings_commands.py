@@ -7,7 +7,7 @@ the same validation and structure as the GUI.
 """
 
 import logging
-import yaml
+from fichero.utils import yaml_compat as yaml
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import typer

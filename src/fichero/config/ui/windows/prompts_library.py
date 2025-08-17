@@ -23,7 +23,7 @@ except ImportError:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-import yaml
+from fichero.utils import yaml_compat as yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
@@ -39,10 +39,10 @@ class PromptsLibrary(BaseConfigLibrary):
     """Prompts library with file browser and editor"""
     
     def __init__(self, app):
-        super().__init__(app)
-        
-        # Prompts-specific configuration
+        # Prompts-specific configuration - set BEFORE calling super()
         self.schema_file = app.paths.app / "resources" / "config_ui_schemas" / "prompts_schema.yml"
+        
+        super().__init__(app)
     
     def create_file_manager(self):
         """Create and return the prompts file manager"""

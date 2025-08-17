@@ -13,13 +13,8 @@ from typing import Dict, Any, List, Optional, Tuple, Callable, Union
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
-# YAML compatibility - use ruamel.yaml
-try:
-    from ruamel.yaml import YAML
-    yaml = YAML()
-    yaml.safe_load = yaml.load
-except ImportError:
-    import yaml
+# YAML compatibility - use unified compatibility layer
+from fichero.utils import yaml_compat as yaml
 import asyncio
 
 # Conditional imports for iOS compatibility
@@ -198,7 +193,8 @@ class BaseConfigLibrary(ABC):
         """Set up window close handler to save before closing"""
         if self.window:
             # Simple close handler - just save and allow close
-            def close_with_save(widget):
+            def close_with_save(*args, **kwargs):
+                # Toga passes the window twice for some reason, just ignore the args
                 if self.current_file:
                     self._perform_save()
                 # Clean up window reference
@@ -276,7 +272,7 @@ class BaseConfigLibrary(ABC):
         restore_btn = toga.Button(
             _("preferences_restore_defaults"),  # Translate button text
             on_press=self._handle_restore_defaults,
-            style=Pack(margin=(10, 20, 10, 20), width=100)  # Normal height, 100px width, 20px left/right margins
+            style=Pack(margin=(10, 20, 10, 20))  # Use natural button width with margins
         )
         
         # Window content - OptionContainer takes most space, button at bottom
@@ -290,7 +286,7 @@ class BaseConfigLibrary(ABC):
         """Create the file library panel using the dedicated component"""
         if not self.use_file_library:
             # Return a dummy panel for settings (should not be used)
-            return toga.Box(style=Pack(width=0))
+            return toga.Box(style=Pack(flex=0))
         
         return FileLibraryPanel(
             file_manager=self.file_manager,
@@ -306,7 +302,7 @@ class BaseConfigLibrary(ABC):
     def _create_section_panel(self) -> toga.Box:
         """Create the section navigation panel (center)"""
         return toga.Box(
-            style=Pack(direction=COLUMN, width=200, margin_left=3, margin_right=3)
+            style=Pack(direction=COLUMN, flex=0, margin=(0, 3, 0, 3), width=150)
         )
     
     def _create_content_panel(self) -> toga.ScrollContainer:
@@ -410,7 +406,7 @@ class BaseConfigLibrary(ABC):
         restore_btn = toga.Button(
             _("preferences_restore_defaults"),  # Translate button text
             on_press=self._handle_restore_defaults,
-            style=Pack(margin=(10, 20, 10, 20), width=100)
+            style=Pack(margin=(10, 20, 10, 20))
         )
         window_content.add(restore_btn)
         
@@ -543,8 +539,9 @@ class BaseConfigLibrary(ABC):
             label = toga.Label(
                 _(field['label']),  # Translate label
                 style=Pack(
-                    width=120,  # Reasonable width for labels
-                    margin_right=3,
+                    flex=0,  # Don't expand
+                    width=100,  # Fixed width for labels
+                    margin_right=10,
                     text_align=RIGHT,
                     font_size=9
                 )
@@ -552,7 +549,7 @@ class BaseConfigLibrary(ABC):
             field_box.add(label)
         else:
             # Add spacer if no label
-            spacer = toga.Box(style=Pack(width=120, margin_right=3))
+            spacer = toga.Box(style=Pack(flex=0, width=100, margin_right=10))
             field_box.add(spacer)
         
         # Widget container (right side)
@@ -614,7 +611,7 @@ class BaseConfigLibrary(ABC):
         elif field_type == WidgetType.BUTTON:
             widget = toga.Button(
                 _(field.get('label', 'Button')),  # Translate label
-                style=Pack(margin_bottom=3, font_size=9, width=120),
+                style=Pack(margin_bottom=3, font_size=9),
                 on_press=self._on_button_press
             )
         
@@ -647,7 +644,7 @@ class BaseConfigLibrary(ABC):
                 style=Pack(
                     margin_top=3,
                     font_size=9,
-                    width=280  # Constrain width to force wrapping
+                    flex=1  # Use available width, allow wrapping
                 )
             )
             widget_container.add(help_label)
@@ -681,13 +678,13 @@ class BaseConfigLibrary(ABC):
         # Add workflow management buttons
         new_workflow_btn = toga.Button(
             _("workflow_new_btn"),
-            style=Pack(margin_left=5, width=50, font_size=8),
+            style=Pack(margin_left=5, font_size=8),
             on_press=lambda widget: self._create_new_workflow(workflows, workflow_selector, step_widgets)
         )
         
         copy_workflow_btn = toga.Button(
             _("workflow_copy_btn"),
-            style=Pack(margin_left=5, width=50, font_size=8),
+            style=Pack(margin_left=5, font_size=8),
             on_press=lambda widget: self._copy_current_workflow(workflows, workflow_selector, step_widgets)
         )
         

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple
 import os
 import json
-import yaml
+from fichero.utils import yaml_compat as yaml
 from dataclasses import dataclass
 
 # Import utilities with fallback for standalone execution

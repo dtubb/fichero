@@ -3,7 +3,7 @@ Plans File Manager
 Handles plans-specific file operations and business logic
 """
 
-import yaml
+from fichero.utils import yaml_compat as yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging

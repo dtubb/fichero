@@ -2,7 +2,7 @@ import typer
 from pathlib import Path
 from typing_extensions import Annotated
 from langchain_ollama.chat_models import ChatOllama
-import yaml
+from fichero.utils import yaml_compat as yaml
 import os
 from langchain.schema import HumanMessage
 import openai

@@ -30,7 +30,7 @@ class FileLibraryPanel(toga.Box):
                  on_export_file: Callable = None,
                  on_restore_defaults: Callable = None):
         
-        super().__init__(style=Pack(direction=COLUMN, width=200, margin=0))
+        super().__init__(style=Pack(direction=COLUMN, flex=0, width=180, margin=0))
         
         self.file_manager = file_manager
         self.on_file_select = on_file_select
@@ -392,7 +392,7 @@ class FileLibraryPanel(toga.Box):
             
             name_input = toga.TextInput(
                 value=current_name,
-                style=Pack(margin_bottom=15, width=250)
+                style=Pack(margin_bottom=15, flex=1)
             )
             container.add(name_input)
             
@@ -407,8 +407,8 @@ class FileLibraryPanel(toga.Box):
             def handle_cancel(widget):
                 dialog.close()
             
-            ok_btn = toga.Button("OK", on_press=handle_ok, style=Pack(margin_right=10, width=80))
-            cancel_btn = toga.Button("Cancel", on_press=handle_cancel, style=Pack(width=80))
+            ok_btn = toga.Button("OK", on_press=handle_ok, style=Pack(margin_right=10))
+            cancel_btn = toga.Button("Cancel", on_press=handle_cancel, style=Pack())
             
             button_box.add(ok_btn)
             button_box.add(cancel_btn)

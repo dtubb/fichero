@@ -26,7 +26,7 @@ msgid "help"
 msgstr "?"
 
 msgid "process"
-msgstr "Process Folder"
+msgstr "Process"
 
 msgid "processing"
 msgstr "Processing"
@@ -810,4 +810,13 @@ msgstr "{count} of {total} collections"
 
 msgid "main_window_count_total"
 msgstr "{count} collections"
+
+msgid "processing_window_title"
+msgstr "Fichero - Process"
+
+msgid "activity_monitor_window_title"
+msgstr "Fichero Activity Monitor"
+
+msgid "settings_window_title"
+msgstr "Fichero Settings"
 

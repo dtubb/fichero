@@ -6,21 +6,8 @@ Handles settings-specific file operations and business logic
 import platform
 import base64
 
-# Conditional imports for iOS compatibility
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-    # Create a simple fallback
-    class yaml:
-        @staticmethod
-        def safe_load(content):
-            return {}
-        
-        @staticmethod
-        def dump(data, f, **kwargs):
-            f.write("# Fallback YAML\n")
+# Import YAML with iOS compatibility
+from fichero.utils import yaml_compat as yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging

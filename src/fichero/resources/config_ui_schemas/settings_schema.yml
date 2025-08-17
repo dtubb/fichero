@@ -61,6 +61,38 @@ sections:
             label: "preferences_auto_calculate"
             help: "preferences_auto_calculate_help"
 
+  - id: "library"
+    title: "preferences_library_title"
+    description: "preferences_library_description"
+    sections:
+      - title: "preferences_library_path_title"
+        description: "preferences_library_path_description"
+        fields:
+          - id: "library.path"
+            type: "text_input"
+            label: "preferences_library_path"
+            placeholder: "~/Library/Fichero"
+            help: "preferences_library_path_help"
+          - id: "library.reset_to_default"
+            type: "button"
+            label: "preferences_library_reset_to_default"
+            help: "preferences_library_reset_to_default_help"
+      
+      - title: "preferences_collection_settings_title"
+        description: "preferences_collection_settings_description"
+        fields:
+          - id: "library.default_collection_type"
+            type: "selection"
+            label: "preferences_default_collection_type"
+            options: ["copy", "link"]
+            help: "preferences_default_collection_type_help"
+          - id: "library.auto_copy_collections"
+            type: "switch"
+            label: "preferences_auto_copy_collections"
+            help: "preferences_auto_copy_collections_help"
+      
+
+
   - id: "ai"
     title: "preferences_ai_title"
     sections:

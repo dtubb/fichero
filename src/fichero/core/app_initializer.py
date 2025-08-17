@@ -191,9 +191,9 @@ class FicheroAppInitializer:
             ]
         )
         
-        # Set console handler to only show warnings and errors
+        # Set console handler to show info messages for debugging
         console_handler = logging.getLogger().handlers[-1]
-        console_handler.setLevel(logging.WARNING)
+        console_handler.setLevel(logging.INFO)  # Temporarily show info messages
         
         logger.info(f"📁 File logging configured: {log_file}")
     

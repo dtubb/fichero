@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 class PromptsManager(FileManager):
     """File manager for LLM prompts/configurations"""
     
+    def __init__(self, app=None):
+        super().__init__(app)
+        self._cache = {}  # Initialize cache for JSONL files
+    
     def get_file_type(self) -> str:
         """Get the file type name"""
         return "prompts"

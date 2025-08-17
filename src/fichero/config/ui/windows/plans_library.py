@@ -3,7 +3,7 @@ Plans Library
 Configuration library for plans with file browser
 """
 
-import yaml
+from fichero.utils import yaml_compat as yaml
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
@@ -19,14 +19,14 @@ class PlansLibrary(BaseConfigLibrary):
     """Plans library with file browser and editor"""
     
     def __init__(self, app):
-        super().__init__(app)
-        
-        # Plans-specific configuration
+        # Plans-specific configuration - set BEFORE calling super()
         self.schema_file = app.paths.app / "resources" / "config_ui_schemas" / "plans_schema.yml"
         
         # Store original workflow and command data for complex editing
         self.original_workflows = {}
         self.original_commands = []
+        
+        super().__init__(app)
     
     def create_file_manager(self):
         """Create and return the plans file manager"""

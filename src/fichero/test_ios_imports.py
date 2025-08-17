@@ -25,7 +25,7 @@ def test_imports():
         logger.info("✅ Settings import successful")
         
         # Test UI imports
-        from fichero.ui import MenuManager
+        from fichero.menus import MenuManager
         logger.info("✅ UI imports successful")
         
         # Test document imports

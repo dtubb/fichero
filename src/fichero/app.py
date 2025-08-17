@@ -13,59 +13,15 @@ from pathlib import Path
 import gettext
 import locale
 
-# Setup gettext translations properly
-def setup_translations():
-    """Setup gettext translations with our custom locale directory."""
-    try:
-        # Detect system language using non-deprecated methods
-        try:
-            # Try to get the current locale
-            current_locale = locale.getlocale()
-            if current_locale and current_locale[0]:
-                lang = current_locale[0].split('_')[0].lower()
-            else:
-                # Fallback to environment variables
-                import os
-                lang_env = os.environ.get('LANG', '') or os.environ.get('LC_ALL', '')
-                if lang_env:
-                    lang = lang_env.split('_')[0].split('.')[0].lower()
-                else:
-                    lang = 'en'
-        except:
-            lang = 'en'
-        
-        # Validate language
-        if lang not in ['en', 'es', 'fr']:
-            lang = 'en'
-        
-        # Use Toga's app path
-        app_root = toga.App.app.paths.app
-        locale_dir = app_root / "resources" / "locale"
-        print(f"🔍 Looking for translations in: {locale_dir}")
-        
-        if locale_dir.exists() and (locale_dir / lang / "LC_MESSAGES" / "fichero.mo").exists():
-            # Load and install translations
-            translation = gettext.translation('fichero', str(locale_dir), [lang])
-            translation.install()
-            print(f"✅ Translations loaded for language: {lang} from {locale_dir}")
-        else:
-            # No translations available
-            gettext.install('fichero')
-            print(f"⚠️ No translation files found, using English")
-            
-    except Exception as e:
-        print(f"❌ Failed to setup translations: {e}")
-        # No translations available
-        gettext.install('fichero')
-
-# Don't setup translations during import - wait for app creation
-gettext.install('fichero')  # Install basic gettext for now
+# Install basic gettext for now - proper translation setup happens after Toga app creation
+gettext.install('fichero')
 
 from fichero.config.core.settings import get_app_settings
-from fichero.ui import MenuManager
+from fichero.menus import MenuManager
 # Document model removed - using library approach instead
 from fichero.core.app_initializer import initialize_gui_app
 from fichero.core.error_handler import create_gui_error_handler
+from fichero.windows.main.window_view_manager import WindowViewManager, WindowType
 from fichero import __version__
 
 logger = logging.getLogger(__name__)
@@ -82,6 +38,19 @@ class FicheroApp(toga.App):
     version = __version__
     home_page = "https://www.tubb.ca/fichero/"
     
+    def _setup_translations_early(self):
+        """Setup translations immediately after app creation, before UI imports"""
+        try:
+            from fichero.ui.i18n import setup_translations
+            if setup_translations(self):
+                print("✅ Translations loaded successfully")
+            else:
+                print("⚠️ Using fallback translations")
+        except Exception as e:
+            print(f"❌ Translation setup failed: {e}")
+            # Ensure fallback is installed
+            gettext.install('fichero')
+    
     def startup(self):
         """Initialize the app - delegates to shared initialization system"""
         # Check if running as bundled GUI app (minimize console output)
@@ -91,8 +60,10 @@ class FicheroApp(toga.App):
             print("🚀 Fichero GUI starting up...")
         logger.info("Fichero GUI starting up")
         
-        # Setup translations after app is created
-        setup_translations()
+        # Setup translations immediately after app creation, before importing UI modules
+        self._setup_translations_early()
+        
+        # Import UI modules after translations are set up  
         
         # Set app icon first
         try:
@@ -114,6 +85,9 @@ class FicheroApp(toga.App):
             self.director = self.components['director']
             self.settings = self.components['settings']
             # Document system components removed - using library approach
+            
+            # Initialize unified window/view manager
+            self.window_view_manager = WindowViewManager(self)
             
             if not is_gui_only:
                 print("✅ Fichero components initialized")
@@ -185,20 +159,30 @@ class FicheroApp(toga.App):
         is_gui_only = self._is_gui_only_mode()
         
         try:
-            # Initialize centralized command manager (creates all commands once)
-            from fichero.main_window.command_manager import CommandManager
-            self.command_manager = CommandManager(self)
-            self.command_manager.add_to_app()
+            # Check if this is a desktop platform
+            import toga.platform
+            current_platform = toga.platform.current_platform
+            is_desktop = current_platform not in ['iOS', 'android']
             
-            # Initialize menu system (only handles custom overrides)
-            self.menu_manager = MenuManager(self)
-            self.menu_manager.customize_standard_commands()
-            
-            # Customize standard commands (remove unimplemented ones)
-            self.menu_manager.customize_standard_commands()
+            if is_desktop:
+                # Desktop only: Initialize command manager for native menus/toolbars
+                from fichero.windows.main.command_manager import CommandManagerRefactored
+                self.command_manager = CommandManagerRefactored(self)
+                self.command_manager.add_to_app()
+                
+                # Initialize menu system (only handles custom overrides)
+                self.menu_manager = MenuManager(self)
+                self.menu_manager.customize_standard_commands()
+                
+                # Customize standard commands (remove unimplemented ones)
+                self.menu_manager.customize_standard_commands()
+            else:
+                # Mobile: Skip command manager and menu system (use mobile toolbar only)
+                self.command_manager = None
+                self.menu_manager = None
             
             # Create main window for collection library view (only once)
-            from fichero.main_window import MainWindow
+            from fichero.windows.main import MainWindow
             self.main_window_wrapper = MainWindow(self)
             
             if not is_gui_only:
@@ -219,177 +203,157 @@ class FicheroApp(toga.App):
 
     # Activity Monitor Management
     def show_activity_monitor(self):
-        """Show the activity monitor window - manages single instance"""
-        is_gui_only = self._is_gui_only_mode()
-        
+        """Show the activity monitor window - delegates to unified manager"""
         try:
-            # Check if activity monitor window already exists in Toga's window list
-            activity_window = None
-            for window in self.windows:
-                if window.title == "Fichero Activity Monitor":
-                    activity_window = window
-                    break
-            
-            if activity_window and not activity_window.closed:
-                # Window exists and is not closed - force it to come to front
-                if activity_window.visible:
-                    # Hide and show to force it to come to front
-                    activity_window.hide()
-                    activity_window.show()
-                else:
-                    activity_window.show()
-                logger.info("Activity monitor window shown (existing)")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.ACTIVITY_MONITOR)
             else:
-                # Create new activity monitor window - Toga will automatically add it to app.windows
-                from fichero.ui.windows.activity_monitor_window import ActivityMonitorWindow
-                self._activity_monitor_window = ActivityMonitorWindow(self)
-                self._activity_monitor_window.show()
-                logger.info("Activity monitor window created and shown")
-                
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
-            error_msg = f"Failed to show activity monitor: {e}"
-            logger.error(error_msg)
-            if not is_gui_only:
-                print(f"❌ {error_msg}")
-                import traceback
-                traceback.print_exc()
+            logger.error(f"Failed to show activity monitor: {e}")
+            return False
 
     def close_activity_monitor(self):
-        """Close the activity monitor window"""
+        """Close the activity monitor window - delegates to unified manager"""
         try:
-            if hasattr(self, '_activity_monitor_window') and self._activity_monitor_window:
-                self._activity_monitor_window.close()
-                # Toga will automatically remove it from app.windows
-                self._activity_monitor_window = None
-                logger.info("Activity monitor window closed")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.ACTIVITY_MONITOR)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
             logger.error(f"Failed to close activity monitor: {e}")
+            return False
 
     def show_settings(self):
-        """Show the settings window - manages single instance"""
-        is_gui_only = self._is_gui_only_mode()
-        
+        """Show the settings window - delegates to unified manager"""
         try:
-            # Check if settings window already exists in Toga's window list
-            settings_window = None
-            for window in self.windows:
-                if window.title == "Fichero Settings":
-                    settings_window = window
-                    break
-            
-            if settings_window and not settings_window.closed:
-                # Window exists and is not closed - force it to come to front
-                if settings_window.visible:
-                    # Hide and show to force it to come to front
-                    settings_window.hide()
-                    settings_window.show()
-                else:
-                    settings_window.show()
-                logger.info("Settings window shown (existing)")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.SETTINGS)
             else:
-                # Create new settings window - Toga will automatically add it to app.windows
-                from fichero.config.ui import create_settings_window
-                self._settings_window = create_settings_window(self)
-                self._settings_window.show()
-                logger.info("Settings window created and shown")
-                
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
-            error_msg = f"Failed to show settings: {e}"
-            logger.error(error_msg)
-            if not is_gui_only:
-                print(f"❌ {error_msg}")
-                import traceback
-                traceback.print_exc()
+            logger.error(f"Failed to show settings: {e}")
+            return False
 
     def close_settings(self):
-        """Close the settings window"""
+        """Close the settings window - delegates to unified manager"""
         try:
-            if hasattr(self, '_settings_window') and self._settings_window:
-                self._settings_window.close()
-                # Toga will automatically remove it from app.windows
-                self._settings_window = None
-                logger.info("Settings window closed")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.SETTINGS)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
             logger.error(f"Failed to close settings: {e}")
+            return False
+
+    def show_plans(self):
+        """Show the plans window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.PLANS)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show plans: {e}")
+            return False
+
+    def close_plans(self):
+        """Close the plans window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.PLANS)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to close plans: {e}")
+            return False
+
+    def show_prompts(self):
+        """Show the prompts window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.PROMPTS)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show prompts: {e}")
+            return False
+
+    def close_prompts(self):
+        """Close the prompts window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.PROMPTS)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to close prompts: {e}")
+            return False
 
     def show_about(self):
-        """Show the about window - manages single instance"""
-        is_gui_only = self._is_gui_only_mode()
-        
+        """Show the about window - delegates to unified manager"""
         try:
-            # Check if about window already exists in Toga's window list
-            about_window = None
-            for window in self.windows:
-                if window.title == "About Fichero":
-                    about_window = window
-                    break
-            
-            if about_window and not about_window.closed:
-                # Window exists and is not closed - force it to come to front
-                if about_window.visible:
-                    # Hide and show to force it to come to front
-                    about_window.hide()
-                    about_window.show()
-                else:
-                    about_window.show()
-                logger.info("About window shown (existing)")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.ABOUT)
             else:
-                # Create new about window - Toga will automatically add it to app.windows
-                from fichero.ui.windows.about_window import AboutWindow
-                self._about_window = AboutWindow(self)
-                self._about_window.show()
-                logger.info("About window created and shown")
-                
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
-            error_msg = f"Failed to show about window: {e}"
-            logger.error(error_msg)
-            if not is_gui_only:
-                print(f"❌ {error_msg}")
-                import traceback
-                traceback.print_exc()
+            logger.error(f"Failed to show about: {e}")
+            return False
 
     def close_about(self):
-        """Close the about window"""
+        """Close the about window - delegates to unified manager"""
         try:
-            if hasattr(self, '_about_window') and self._about_window:
-                self._about_window.close()
-                # Toga will automatically remove it from app.windows
-                self._about_window = None
-                logger.info("About window closed")
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.ABOUT)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
         except Exception as e:
-            logger.error(f"Failed to close about window: {e}")
+            logger.error(f"Failed to close about: {e}")
+            return False
+
+    def show_processing(self):
+        """Show the processing window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.PROCESSING)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show processing: {e}")
+            return False
+
+    def close_processing(self):
+        """Close the processing window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.PROCESSING)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to close processing: {e}")
+            return False
 
     def close_all_windows(self):
-        """Close all secondary windows"""
+        """Close all secondary windows - delegates to unified manager"""
         try:
-            # Close activity monitor
-            if hasattr(self, '_activity_monitor_window') and self._activity_monitor_window:
-                try:
-                    self._activity_monitor_window.close()
-                except Exception as e:
-                    logger.warning(f"Error closing activity monitor: {e}")
-                finally:
-                    self._activity_monitor_window = None
-            
-            # Close settings
-            if hasattr(self, '_settings_window') and self._settings_window:
-                try:
-                    self._settings_window.close()
-                except Exception as e:
-                    logger.warning(f"Error closing settings: {e}")
-                finally:
-                    self._settings_window = None
-            
-            # Close about
-            if hasattr(self, '_about_window') and self._about_window:
-                try:
-                    self._about_window.close()
-                except Exception as e:
-                    logger.warning(f"Error closing about: {e}")
-                finally:
-                    self._about_window = None
-            
-            logger.info("All secondary windows closed")
+            if hasattr(self, 'window_view_manager'):
+                self.window_view_manager.close_all_windows_or_views()
+                logger.info("All secondary windows/views closed")
+            else:
+                logger.error("Window/view manager not initialized")
         except Exception as e:
             logger.error(f"Failed to close all windows: {e}")
 
