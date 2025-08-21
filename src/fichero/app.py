@@ -299,6 +299,30 @@ class FicheroApp(toga.App):
             logger.error(f"Failed to close prompts: {e}")
             return False
 
+    def show_processing(self):
+        """Show the processing window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.PROCESSING)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show processing: {e}")
+            return False
+
+    def close_processing(self):
+        """Close the processing window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.PROCESSING)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to close processing: {e}")
+            return False
+
     def show_about(self):
         """Show the about window - delegates to unified manager"""
         try:
