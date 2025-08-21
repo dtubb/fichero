@@ -53,6 +53,10 @@ class CollectionManagementView(BaseView):
     def _create_content(self):
         """Create the collection management view content"""
         try:
+            # Clear any existing content first to prevent duplicates
+            if self.content_container:
+                self.content_container.clear()
+            
             # Create initial placeholder content directly in the content container
             self._create_placeholder_content()
             
@@ -92,8 +96,12 @@ class CollectionManagementView(BaseView):
     def _register_toolbar_callbacks(self):
         """Register callbacks for both toolbars"""
         try:
-            # Top toolbar callbacks
+            # Top toolbar callbacks - pass all required parameters
             self.top_toolbar.register_callbacks(
+                on_back=None,  # No back button needed
+                on_settings=None,  # No settings button needed
+                on_about=None,  # No about button needed
+                on_help=None,  # No help button needed
                 on_add_collection=self._on_add_collection,
                 on_activity_monitor=self._on_activity_monitor
             )
@@ -170,8 +178,7 @@ class CollectionManagementView(BaseView):
             item_container = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(5, 2),
-                    padding=(10, 5)
+                    margin=(10, 5)
                 )
             )
             

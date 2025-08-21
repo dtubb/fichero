@@ -92,7 +92,7 @@ class PreviewView(BaseView):
         """Create the main content of the preview view"""
         try:
             # Create main content container
-            content_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+            content_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
             
             # Create header
             header = self._create_header()
@@ -121,7 +121,7 @@ class PreviewView(BaseView):
     def _create_header(self) -> toga.Box:
         """Create the header section"""
         try:
-            header_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 20, 0)))
+            header_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 20, 0)))
             
             # Document icon based on type
             icon = self._get_document_icon()
@@ -141,7 +141,6 @@ class PreviewView(BaseView):
                     font_size=10,
                     color="#FFFFFF",
                     background_color=PREVIEW_ACCENT,
-                    padding=(2, 8),
                     margin=(0, 0, 0, 10)
                 )
             )
@@ -173,29 +172,29 @@ class PreviewView(BaseView):
             }
             
             icon_char = icon_map.get(self.document_type, '📄')
-            return toga.Label(icon_char, style=Pack(padding=(0, 10, 0, 0)))
+            return toga.Label(icon_char, style=Pack(margin=(0, 10, 0, 0)))
             
         except Exception as e:
             logger.error(f"Failed to get document icon: {e}")
-            return toga.Label("📄", style=Pack(padding=(0, 10, 0, 0)))
+            return toga.Label("📄", style=Pack(margin=(0, 10, 0, 0)))
     
     def _create_zoom_controls(self) -> toga.Box:
         """Create zoom controls"""
         try:
-            zoom_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 0, 10)))
+            zoom_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 0, 10)))
             
             # Zoom out button
             zoom_out_btn = toga.Button(
                 "−",
                 on_press=self._on_zoom_out,
-                style=Pack(padding=(5, 8), width=30)
+                style=Pack(margin=(5, 8), width=30)
             )
             zoom_box.add(zoom_out_btn)
             
             # Zoom level display
             zoom_label = toga.Label(
                 f"{self.zoom_level}%",
-                style=Pack(padding=(5, 10), font_size=12)
+                style=Pack(margin=(5, 10), font_size=12)
             )
             zoom_box.add(zoom_label)
             
@@ -203,7 +202,7 @@ class PreviewView(BaseView):
             zoom_in_btn = toga.Button(
                 "+",
                 on_press=self._on_zoom_in,
-                style=Pack(padding=(5, 8), width=30)
+                style=Pack(margin=(5, 8), width=30)
             )
             zoom_box.add(zoom_in_btn)
             
@@ -216,20 +215,20 @@ class PreviewView(BaseView):
     def _create_navigation_controls(self) -> toga.Box:
         """Create navigation controls"""
         try:
-            nav_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 20, 0)))
+            nav_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 20, 0)))
             
             # Previous page button
             prev_btn = toga.Button(
                 "◀ Previous",
                 on_press=self._on_previous_page,
-                style=Pack(padding=(5, 10))
+                style=Pack(margin=(5, 10))
             )
             nav_box.add(prev_btn)
             
             # Page info
             page_info = toga.Label(
                 f"Page {self.current_page} of {self.total_pages}",
-                style=Pack(padding=(5, 20), font_size=14)
+                style=Pack(margin=(5, 20), font_size=14)
             )
             nav_box.add(page_info)
             
@@ -237,7 +236,7 @@ class PreviewView(BaseView):
             next_btn = toga.Button(
                 "Next ▶",
                 on_press=self._on_next_page,
-                style=Pack(padding=(5, 10))
+                style=Pack(margin=(5, 10))
             )
             nav_box.add(next_btn)
             
@@ -249,7 +248,7 @@ class PreviewView(BaseView):
             metadata_btn = toga.Button(
                 "Toggle Metadata",
                 on_press=self._on_toggle_metadata,
-                style=Pack(padding=(5, 10))
+                style=Pack(margin=(5, 10))
             )
             nav_box.add(metadata_btn)
             
@@ -262,13 +261,13 @@ class PreviewView(BaseView):
     def _create_preview_area(self) -> toga.Box:
         """Create the preview area"""
         try:
-            preview_box = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 20, 0)))
+            preview_box = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 20, 0)))
             
             # Preview container
             self.preview_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    padding=20,
+                    margin=20,
                     background_color=PREVIEW_BACKGROUND,
                     border_color=COMMON_BORDER,
                     border_width=1
@@ -294,7 +293,7 @@ class PreviewView(BaseView):
             # Metadata header
             header = toga.Label(
                 "Document Metadata",
-                style=Pack(font_size=16, font_weight="bold", color=PREVIEW_TEXT, padding=(0, 0, 10, 0))
+                style=Pack(font_size=16, font_weight="bold", color=PREVIEW_TEXT, margin=(0, 0, 10, 0))
             )
             metadata_box.add(header)
             
@@ -302,7 +301,7 @@ class PreviewView(BaseView):
             self.metadata_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    padding=15,
+                    margin=15,
                     background_color=PREVIEW_BACKGROUND,
                     border_color=COMMON_BORDER,
                     border_width=1
@@ -332,7 +331,7 @@ class PreviewView(BaseView):
             # Add placeholder message
             placeholder = toga.Label(
                 f"Preview for {self.document_name}\n\nThis is a placeholder preview area.\nThe actual document content would be displayed here.",
-                style=Pack(padding=20, color=COMMON_PLACEHOLDER, text_align="center")
+                style=Pack(margin=20, color=COMMON_PLACEHOLDER, text_align="center")
             )
             self.preview_container.add(placeholder)
             
@@ -361,7 +360,7 @@ class PreviewView(BaseView):
             ]
             
             for label, value in metadata_items:
-                item_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 5, 0)))
+                item_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 5, 0)))
                 
                 label_widget = toga.Label(
                     f"{label}:",

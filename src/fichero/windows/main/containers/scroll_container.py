@@ -55,16 +55,7 @@ class ScrollableContainer:
                 )
             )
             
-            # Create scroll container - ensure vertical-only scrolling
-            self.scroll_container = toga.ScrollContainer(
-                horizontal=False,  # Disable horizontal scrolling
-                vertical=True,     # Enable vertical scrolling only
-                style=Pack(
-                    flex=1
-                )
-            )
-            
-            # Create content container
+            # Create content container FIRST
             self.content_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
@@ -72,14 +63,26 @@ class ScrollableContainer:
                 )
             )
             
-            # Set content container as scroll container content
-            self.scroll_container.content = self.content_container
+            # Create scroll container with content - Toga's recommended pattern
+            self.scroll_container = toga.ScrollContainer(
+                content=self.content_container,  # Pass content in constructor
+                horizontal=False,  # Disable horizontal scrolling
+                vertical=True,     # Enable vertical scrolling only
+                style=Pack(
+                    flex=1
+                )
+            )
             
             # Add scroll container to main container
             self.main_container.add(self.scroll_container)
             
             # Ensure vertical-only scrolling
             self.ensure_vertical_scrolling()
+            
+            # Safety check: ensure scroll container has valid content
+            if not self.scroll_container.content:
+                logger.warning("Scroll container content not set, setting fallback content")
+                self.scroll_container.content = self.content_container
             
             logger.debug("Scrollable container structure created successfully")
             
@@ -289,12 +292,38 @@ class ScrollableContainer:
             logger.error(f"Failed to ensure vertical scrolling: {e}")
     
     def get_container(self) -> toga.Box:
-        """Get the main container"""
-        return self.main_container
+        """Get the main container with safety checks"""
+        try:
+            # Safety check: ensure scroll container has content before returning
+            if self.scroll_container and not self.scroll_container.content:
+                logger.warning("Scroll container missing content, setting fallback content")
+                if self.content_container:
+                    self.scroll_container.content = self.content_container
+                else:
+                    # Create minimal fallback content
+                    fallback_content = toga.Box(style=Pack(direction=COLUMN))
+                    self.scroll_container.content = fallback_content
+            
+            return self.main_container
+        except Exception as e:
+            logger.error(f"Error in get_container: {e}")
+            # Return fallback container
+            fallback = toga.Box(style=Pack(direction=COLUMN))
+            fallback.add(toga.Label("Scroll container unavailable"))
+            return fallback
     
     def get_scroll_container(self) -> toga.ScrollContainer:
-        """Get the scroll container"""
-        return self.scroll_container
+        """Get the scroll container with safety checks"""
+        try:
+            if self.scroll_container and self.scroll_container.content:
+                return self.scroll_container
+            else:
+                logger.warning("Scroll container not properly initialized")
+                # Return a fallback scroll container if needed
+                return None
+        except Exception as e:
+            logger.error(f"Error accessing scroll container: {e}")
+            return None
     
     def get_content_container(self) -> toga.Box:
         """Get the content container"""

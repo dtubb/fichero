@@ -166,6 +166,12 @@ class PromptsContent:
                 content_box.add(prompt_box)
         
         scroll_container.content = content_box
+        
+        # Safety check: ensure content is set
+        if not scroll_container.content:
+            logger.warning("Scroll container content not set, setting fallback content")
+            scroll_container.content = content_box
+        
         return scroll_container
     
     def populate_data(self, data: Dict[str, Any]):

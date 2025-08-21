@@ -3,7 +3,8 @@ Plans Library
 Configuration library for plans with file browser
 """
 
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
@@ -36,7 +37,8 @@ class PlansLibrary(BaseConfigLibrary):
         """Load the UI schema from file"""
         try:
             with open(self.schema_file, 'r', encoding='utf-8') as f:
-                schema_data = yaml.safe_load(f)
+                yaml_parser = YAML()
+                schema_data = yaml_parser.load(f)
             
             # Format the title with the current file name if we have one
             if self.current_file:
@@ -80,7 +82,8 @@ class PlansLibrary(BaseConfigLibrary):
         # For commands editor, convert commands list to YAML string
         if 'commands_editor' in self.widgets:
             try:
-                commands_yaml = yaml.dump(self.original_commands, default_flow_style=False, sort_keys=False)
+                yaml_parser = YAML()
+                commands_yaml = yaml_parser.dump(self.original_commands, default_flow_style=False, sort_keys=False)
                 self.widgets['commands_editor'].value = commands_yaml
             except Exception as e:
                 logger.error(f"Failed to populate commands editor: {e}")
@@ -127,14 +130,15 @@ class PlansLibrary(BaseConfigLibrary):
             try:
                 commands_text = self.widgets['commands_editor'].value
                 if commands_text and commands_text.strip():
-                    commands_data = yaml.safe_load(commands_text)
+                    yaml_parser = YAML()
+                    commands_data = yaml_parser.load(commands_text)
                     if commands_data:
                         data['commands'] = commands_data
                     else:
                         data['commands'] = self.original_commands
                 else:
                     data['commands'] = self.original_commands
-            except yaml.YAMLError as e:
+            except YAMLError as e:
                 logger.error(f"Invalid YAML in commands editor: {e}")
                 data['commands'] = self.original_commands
             except Exception as e:

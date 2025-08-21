@@ -6,8 +6,9 @@ Handles settings-specific file operations and business logic
 import platform
 import base64
 
-# Import YAML with iOS compatibility
-from fichero.utils import yaml_compat as yaml
+# Import YAML directly from ruamel.yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from pathlib import Path
 from typing import Dict, Any, List
 import logging

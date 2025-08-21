@@ -36,32 +36,15 @@ class LibraryBottomToolbar(BottomToolbar):
             # Base container already created by parent class
             # No need to call super()._create_toolbar()
             
-            # Add processing button on the left side
-            self._create_processing_button()
-            
             # Add buttons to the right side (order: activity monitor, about, settings)
             self._create_activity_monitor_button()
             self._create_about_button()
             self._create_settings_button()
             
-            logger.info("Library bottom toolbar created successfully with processing, activity monitor, about, and settings buttons")
+            logger.info("Library bottom toolbar created successfully with activity monitor, about, and settings buttons")
             
         except Exception as e:
             logger.error(f"Failed to create library bottom toolbar: {e}")
-    
-    def _create_processing_button(self):
-        """Create the processing button"""
-        try:
-            processing_btn = self.create_icon_button(
-                button_id="processing",
-                icon="process",  # Using process icon instead of play
-                on_press=self._on_processing_clicked,
-                tooltip="Document Processing"
-            )
-            self.add_to_left(processing_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create processing button: {e}")
     
     def _create_activity_monitor_button(self):
         """Create the activity monitor button"""
@@ -144,19 +127,6 @@ class LibraryBottomToolbar(BottomToolbar):
                 logger.error("Settings window not available - app.show_settings() not found")
         except Exception as e:
             logger.error(f"Failed to open settings: {e}")
-    
-    def _on_processing_clicked(self, widget):
-        """Handle processing button click"""
-        logger.debug("Processing clicked")
-        
-        # Use the app's processing window method
-        try:
-            if hasattr(self.app, 'show_processing'):
-                self.app.show_processing()
-            else:
-                logger.error("Processing window not available - app.show_processing() not found")
-        except Exception as e:
-            logger.error(f"Failed to open processing: {e}")
     
     def register_callbacks(self, on_settings: Optional[Callable] = None,
                          on_about: Optional[Callable] = None,

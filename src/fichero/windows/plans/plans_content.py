@@ -167,7 +167,14 @@ class PlansContent:
                 
                 content_box.add(workflow_box)
         
+        # Set content immediately to prevent NoneType errors
         scroll_container.content = content_box
+        
+        # Safety check: ensure content is set
+        if not scroll_container.content:
+            logger.warning("Scroll container content not set, setting fallback content")
+            scroll_container.content = content_box
+        
         return scroll_container
     
     def populate_data(self, data: Dict[str, Any]):

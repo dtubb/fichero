@@ -3,7 +3,8 @@ Plans File Manager
 Handles plans-specific file operations and business logic
 """
 
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from pathlib import Path
 from typing import Dict, Any, List
 import logging

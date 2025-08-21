@@ -216,7 +216,7 @@ class FicheroAppInitializer:
             logger.info("📋 App preferences initialized")
             
             # Load settings (environment variables set automatically)
-            from fichero.utils import get_app_settings
+            from fichero.config.core.settings import get_app_settings
             settings = get_app_settings(self.app_context)
             
             # Merge additional settings (e.g., CLI overrides) - let settings handle this

@@ -10,7 +10,7 @@ These override normal platform detection for easier debugging.
 FORCE_MOBILE_UI = False
 
 # Set to True to force desktop UI mode even on mobile (for debugging) 
-FORCE_DESKTOP_UI = False
+FORCE_DESKTOP_UI = True
 
 # Set to True to force iOS-specific behavior
 FORCE_IOS_BEHAVIOR = False

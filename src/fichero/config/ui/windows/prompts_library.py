@@ -23,7 +23,8 @@ except ImportError:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
@@ -52,7 +53,8 @@ class PromptsLibrary(BaseConfigLibrary):
         """Load the UI schema from file"""
         try:
             with open(self.schema_file, 'r', encoding='utf-8') as f:
-                schema_data = yaml.safe_load(f)
+                yaml_parser = YAML()
+                schema_data = yaml_parser.load(f)
             
             # Format the title with the current file name if we have one
             if self.current_file:

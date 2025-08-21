@@ -66,7 +66,7 @@ class FicheView(BaseView):
         """Create the main content of the fiche view"""
         try:
             # Create main content container
-            content_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+            content_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
             
             # Create header
             header = self._create_header()
@@ -87,10 +87,10 @@ class FicheView(BaseView):
     def _create_header(self) -> toga.Box:
         """Create the header section"""
         try:
-            header_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 20, 0)))
+            header_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 20, 0)))
             
             # Folder icon
-            folder_icon = toga.Label("📁", style=Pack(padding=(0, 10, 0, 0)))
+            folder_icon = toga.Label("📁", style=Pack(margin=(0, 10, 0, 0)))
             header_box.add(folder_icon)
             
             # Folder name and path
@@ -104,7 +104,7 @@ class FicheView(BaseView):
             if self.folder_path:
                 path_label = toga.Label(
                     f" ({self.folder_path})",
-                    style=Pack(font_size=12, color=COMMON_SECONDARY_TEXT, padding=(0, 0, 0, 10))
+                    style=Pack(font_size=12, color=COMMON_SECONDARY_TEXT, margin=(0, 0, 0, 10))
                 )
                 header_box.add(path_label)
             
@@ -115,7 +115,7 @@ class FicheView(BaseView):
             # Status indicator
             status_label = toga.Label(
                 "Ready",
-                style=Pack(font_size=12, color=STATUS_SUCCESS, padding=(0, 10, 0, 0))
+                style=Pack(font_size=12, color=STATUS_SUCCESS, margin=(0, 10, 0, 0))
             )
             header_box.add(status_label)
             
@@ -147,13 +147,13 @@ class FicheView(BaseView):
     def _create_originals_section(self) -> toga.Box:
         """Create the originals section"""
         try:
-            section_box = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 20, 0)))
+            section_box = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 20, 0)))
             
             # Section header
-            header_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 10, 0)))
+            header_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 10, 0)))
             
             # Icon and title
-            icon = toga.Label("📄", style=Pack(padding=(0, 5, 0, 0)))
+            icon = toga.Label("📄", style=Pack(margin=(0, 5, 0, 0)))
             header_box.add(icon)
             
             title = toga.Label(
@@ -177,7 +177,7 @@ class FicheView(BaseView):
             add_button = toga.Button(
                 "Add Files",
                 on_press=self._on_add_files,
-                style=Pack(padding=(5, 10))
+                style=Pack(margin=(5, 10))
             )
             header_box.add(add_button)
             
@@ -199,13 +199,13 @@ class FicheView(BaseView):
     def _create_fiches_section(self) -> toga.Box:
         """Create the fiches section"""
         try:
-            section_box = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 20, 0)))
+            section_box = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 20, 0)))
             
             # Section header
-            header_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 10, 0)))
+            header_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 10, 0)))
             
             # Icon and title
-            icon = toga.Label("⚡", style=Pack(padding=(0, 5, 0, 0)))
+            icon = toga.Label("⚡", style=Pack(margin=(0, 5, 0, 0)))
             header_box.add(icon)
             
             title = toga.Label(
@@ -229,7 +229,7 @@ class FicheView(BaseView):
             process_button = toga.Button(
                 "Process Folder",
                 on_press=self._on_process_folder,
-                style=Pack(padding=(5, 10))
+                style=Pack(margin=(5, 10))
             )
             header_box.add(process_button)
             
@@ -260,7 +260,7 @@ class FicheView(BaseView):
             # Add placeholder message
             placeholder = toga.Label(
                 "No original files found. Add files to this folder to get started.",
-                style=Pack(padding=20, color=COMMON_PLACEHOLDER)
+                style=Pack(margin=20, color=COMMON_PLACEHOLDER)
             )
             self.originals_container.add(placeholder)
             
@@ -279,7 +279,7 @@ class FicheView(BaseView):
             # Add placeholder message
             placeholder = toga.Label(
                 "No processed fiches found. Process this folder to create fiches.",
-                style=Pack(padding=20, color=COMMON_PLACEHOLDER)
+                style=Pack(margin=20, color=COMMON_PLACEHOLDER)
             )
             self.fiches_container.add(placeholder)
             

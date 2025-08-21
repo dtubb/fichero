@@ -54,6 +54,10 @@ class CollectionView(BaseView):
     def _create_content(self):
         """Create the collection view content"""
         try:
+            # Clear any existing content first to prevent duplicates
+            if self.content_container:
+                self.content_container.clear()
+            
             # Create initial placeholder content directly in the content container
             self._create_placeholder_content()
             
@@ -102,9 +106,8 @@ class CollectionView(BaseView):
             
             # Bottom toolbar callbacks
             self.bottom_toolbar.register_callbacks(
-                on_collection_settings=self._on_collection_settings,
-                on_process_collection=self._on_process_collection,
-                on_export_collection=self._on_export_collection
+                on_collection_settings=self._on_collection_settings
+                # Note: on_process_collection and on_export_collection are not supported by CollectionBottomToolbar
             )
             
         except Exception as e:
@@ -185,8 +188,7 @@ class CollectionView(BaseView):
             item_container = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(5, 10),
-                    padding=(10, 15),
+                    margin=(10, 15),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1
@@ -254,8 +256,7 @@ class CollectionView(BaseView):
                 "Open",
                 on_press=lambda widget: self._on_open_collection(collection_data),
                 style=Pack(
-                    margin=(2, 0),
-                    padding=(8, 12),
+                    margin=(8, 12),
                     background_color=self.accent_color
                 )
             )
@@ -266,8 +267,7 @@ class CollectionView(BaseView):
                 "⚙️",
                 on_press=lambda widget: self._on_collection_settings(),
                 style=Pack(
-                    margin=(2, 0),
-                    padding=(8, 12),
+                    margin=(8, 12),
                     background_color="#F0F0F0"
                 )
             )
@@ -391,12 +391,8 @@ class CollectionView(BaseView):
         try:
             # Ensure scroll container is properly integrated with the view
             if self.scroll_container and self.content_container:
-                # Set up scroll behavior
-                self.scroll_container.set_scroll_enabled(True)
-                
-                # Configure scroll margins to account for toolbars
-                self.scroll_container.set_scroll_margins(top=10, bottom=10)
-                
+                # Native Toga ScrollContainer doesn't have these custom methods
+                # The scroll container is already configured properly in BaseView
                 logger.debug("Scroll container integration set up successfully")
                 
         except Exception as e:

@@ -7,7 +7,7 @@ These override normal platform detection for easier debugging.
 
 # UI Debug Settings
 # Set to True to force mobile UI mode even on desktop (for debugging)
-FORCE_MOBILE_UI = False
+FORCE_MOBILE_UI = True
 
 # Set to True to force desktop UI mode even on mobile (for debugging) 
 FORCE_DESKTOP_UI = True

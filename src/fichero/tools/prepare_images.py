@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple
 import os
 import json
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from dataclasses import dataclass
 
 # Import utilities with fallback for standalone execution

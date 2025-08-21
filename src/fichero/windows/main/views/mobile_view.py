@@ -200,8 +200,7 @@ class MobileView(BaseView):
                     text=text,
                     on_press=on_press,
                     style=Pack(
-                        margin=(5, 0),
-                        padding=(10, 15),
+                        margin=(10, 15),
                         background_color=self.accent_color
                     )
                 )

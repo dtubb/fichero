@@ -159,8 +159,7 @@ class PreviewPane:
             header_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    margin=(15, 15, 5, 15),
-                    padding=(15, 15),
+                    margin=(15, 15),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1
@@ -225,7 +224,6 @@ class PreviewPane:
                 style=Pack(
                     direction=ROW,
                     margin=(10, 15),
-                    padding=(10, 15),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1
@@ -237,8 +235,7 @@ class PreviewPane:
                 "◀",
                 on_press=self._on_previous_page,
                 style=Pack(
-                    margin=(0, 5, 0, 0),
-                    padding=(8, 12),
+                    margin=(8, 12),
                     background_color="#F0F0F0"
                 )
             )
@@ -260,8 +257,7 @@ class PreviewPane:
                 "▶",
                 on_press=self._on_next_page,
                 style=Pack(
-                    margin=(0, 0, 0, 5),
-                    padding=(8, 12),
+                    margin=(8, 12),
                     background_color="#F0F0F0"
                 )
             )
@@ -278,8 +274,7 @@ class PreviewPane:
             content_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    margin=(10, 15),
-                    padding=(15, 15),
+                    margin=(15, 15),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1
@@ -302,8 +297,7 @@ class PreviewPane:
             content_preview = toga.Label(
                 "[Document content preview would appear here]",
                 style=Pack(
-                    margin=(10, 0),
-                    padding=(20, 20),
+                    margin=(20, 20),
                     background_color="#F8F8F8",
                     border_color="#E0E0E0",
                     border_width=1,
@@ -324,8 +318,7 @@ class PreviewPane:
                 "🔍-",
                 on_press=self._on_zoom_out,
                 style=Pack(
-                    margin=(0, 5, 0, 0),
-                    padding=(5, 8),
+                    margin=(5, 8),
                     background_color="#F0F0F0"
                 )
             )
@@ -345,8 +338,7 @@ class PreviewPane:
                 "🔍+",
                 on_press=self._on_zoom_in,
                 style=Pack(
-                    margin=(0, 0, 0, 5),
-                    padding=(5, 8),
+                    margin=(5, 8),
                     background_color="#F0F0F0"
                 )
             )
@@ -365,8 +357,7 @@ class PreviewPane:
             metadata_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    margin=(10, 15),
-                    padding=(15, 15),
+                    margin=(15, 15),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1

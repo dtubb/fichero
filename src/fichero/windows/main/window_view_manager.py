@@ -371,6 +371,9 @@ class MobileViewManager:
         # View instances
         self.view_instances: Dict[WindowType, Any] = {}
         
+        # Store the original collection view to prevent duplicates
+        self.original_collection_view = None
+        
         logger.info("MobileViewManager initialized")
     
     def show_view(self, view_type: WindowType, view_instance) -> bool:
@@ -450,7 +453,6 @@ class MobileViewManager:
                 direction=COLUMN,
                 height=50,  # Fixed 50px height
                 margin=(0, 0),
-                padding=(0, 0),
                 background_color=VIEW_BACKGROUND  # White background
             )
         )
@@ -470,8 +472,7 @@ class MobileViewManager:
             style=Pack(
                 direction=ROW,
                 flex=1,
-                margin=(0, 0),
-                padding=(0, 0)
+                margin=(0, 0)
             )
         )
         
@@ -489,7 +490,7 @@ class MobileViewManager:
         toolbar = toga.Box(
             style=Pack(
                 direction=ROW,
-                padding=(8, 12),  # Match base toolbar padding
+                margin=(8, 12),  # Match base toolbar margin
                 flex=1
             )
         )
@@ -629,11 +630,26 @@ class MobileViewManager:
             # Restore the original collection management view content
             self.content_container.clear()
             
-            # Create and add the collection management view
-            from .views.collection_management_view import CollectionManagementView
-            collection_view = CollectionManagementView(self.content_container.app)
-            collection_container = collection_view.get_container()
-            self.content_container.add(collection_container)
+            # Reuse the original collection view if we have it
+            if self.original_collection_view:
+                try:
+                    collection_container = self.original_collection_view.get_container()
+                    self.content_container.add(collection_container)
+                    logger.info("Reusing original collection management view")
+                except Exception as e:
+                    logger.error(f"Failed to reuse original collection view: {e}")
+                    self.original_collection_view = None  # Clear invalid reference
+            
+            # Create new instance only if we don't have the original
+            if not self.original_collection_view:
+                from .views.collection_management_view import CollectionManagementView
+                collection_view = CollectionManagementView(self.content_container.app)
+                collection_container = collection_view.get_container()
+                self.content_container.add(collection_container)
+                
+                # Store for future reuse
+                self.original_collection_view = collection_view
+                logger.info("Created new collection management view and stored for reuse")
             
             logger.info("Navigating back to library view")
             

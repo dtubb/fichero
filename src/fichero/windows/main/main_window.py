@@ -442,6 +442,20 @@ class MainWindowRefactored:
                     # Set up mobile view manager with this container
                     from .window_view_manager import MobileViewManager
                     mobile_view_manager = MobileViewManager(mobile_container)
+                    
+                    # Store the original collection view to prevent duplicates
+                    try:
+                        from .views.collection_management_view import CollectionManagementView
+                        original_collection_view = CollectionManagementView(self.app)
+                        mobile_view_manager.original_collection_view = original_collection_view
+                        
+                        # Replace the container content with the original view
+                        mobile_container.clear()
+                        mobile_container.add(original_collection_view.get_container())
+                        logger.debug("Set original collection view in mobile view manager")
+                    except Exception as e:
+                        logger.warning(f"Could not set original collection view: {e}")
+                    
                     self.app.window_view_manager.set_mobile_view_manager(mobile_view_manager)
                     logger.info("Mobile view manager integration set up with mobile container")
                 else:
@@ -468,13 +482,17 @@ class MainWindowRefactored:
             
             # Add default content - the collection management view
             try:
-                from .views.collection_management_view import CollectionManagementView
-                collection_view = CollectionManagementView(self.app)
-                mobile_container.add(collection_view.get_container())
-                logger.debug("Added collection management view to mobile container")
+                # This will be replaced by the mobile view manager setup
+                # Just add a placeholder for now
+                placeholder = toga.Label(
+                    "📱 Loading Library View...",
+                    style=Pack(margin=20, font_size=18)
+                )
+                mobile_container.add(placeholder)
+                logger.debug("Added placeholder to mobile container")
             except Exception as e:
-                logger.warning(f"Could not add collection view: {e}")
-                # Add placeholder
+                logger.warning(f"Could not add placeholder: {e}")
+                # Add fallback placeholder
                 placeholder = toga.Label(
                     "📱 Mobile Library View",
                     style=Pack(margin=20, font_size=18)

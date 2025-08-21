@@ -2,7 +2,8 @@ import typer
 from pathlib import Path
 from typing_extensions import Annotated
 from langchain_ollama.chat_models import ChatOllama
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 import os
 from langchain.schema import HumanMessage
 import openai

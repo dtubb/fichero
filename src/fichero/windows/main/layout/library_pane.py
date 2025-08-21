@@ -212,8 +212,7 @@ class LibraryPane:
             item_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    margin=(2, 10),
-                    padding=(8, 12),
+                    margin=(8, 12),
                     background_color="#FFFFFF",
                     border_color="#E0E0E0",
                     border_width=1

@@ -7,7 +7,8 @@ the same validation and structure as the GUI.
 """
 
 import logging
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import typer
@@ -40,7 +41,8 @@ class CLISettingsCommands:
                 return {}
                 
             with open(schema_path, 'r', encoding='utf-8') as f:
-                schema = yaml.safe_load(f)
+                yaml_parser = YAML()
+                schema = yaml_parser.load(f)
                 logger.info(f"✅ Loaded settings schema with {len(schema.get('sections', []))} sections")
                 return schema
                 

@@ -16,7 +16,6 @@ import locale
 # Install basic gettext for now - proper translation setup happens after Toga app creation
 gettext.install('fichero')
 
-from fichero.config.core.settings import get_app_settings
 from fichero.menus import MenuManager
 # Document model removed - using library approach instead
 from fichero.core.app_initializer import initialize_gui_app
@@ -320,30 +319,6 @@ class FicheroApp(toga.App):
                 return False
         except Exception as e:
             logger.error(f"Failed to close about: {e}")
-            return False
-
-    def show_processing(self):
-        """Show the processing window - delegates to unified manager"""
-        try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.PROCESSING)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to show processing: {e}")
-            return False
-
-    def close_processing(self):
-        """Close the processing window - delegates to unified manager"""
-        try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.PROCESSING)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to close processing: {e}")
             return False
 
     def close_all_windows(self):

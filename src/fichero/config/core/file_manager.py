@@ -53,13 +53,18 @@ class FileManager(ABC):
                 user_dir = self.app.paths.data / file_type
             else:
                 # For CLI or when app is not available - fail if no app
-                import toga
-                app = toga.App.app
-                if not app or not hasattr(app, 'paths'):
-                    raise RuntimeError(f"Toga app not available - cannot get {file_type} directories")
-                
-                default_dir = app.paths.app / "resources" / "config_defaults" / file_type
-                user_dir = app.paths.data / file_type
+                try:
+                    import toga
+                    app = toga.App.app
+                    if not app or not hasattr(app, 'paths'):
+                        raise RuntimeError(f"Toga app not available - cannot get {file_type} directories")
+                    
+                    default_dir = app.paths.app / "resources" / "config_defaults" / file_type
+                    user_dir = app.paths.data / file_type
+                except ImportError:
+                    # Toga not available (e.g., during early iOS startup)
+                    logger.warning(f"Toga not available - cannot get {file_type} directories")
+                    return None, None
             
             return default_dir, user_dir
         except Exception:

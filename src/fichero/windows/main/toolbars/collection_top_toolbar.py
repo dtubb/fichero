@@ -62,7 +62,8 @@ class CollectionTopToolbar(TopToolbar):
                          on_add_folder: Optional[Callable] = None,
                          on_add_file: Optional[Callable] = None):
         """Register callbacks for collection top toolbar actions"""
-        super().register_callbacks(on_back, on_settings, on_about, on_help)
+        # Call parent with only the parameters it expects
+        super().register_callbacks(on_back, None)  # on_title_click is not used
         self.on_back_to_library = on_back_to_library
         self.on_add_folder = on_add_folder
         self.on_add_file = on_add_file

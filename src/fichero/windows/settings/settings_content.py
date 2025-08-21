@@ -7,7 +7,8 @@ YAML-driven schema system for generating settings UIs.
 """
 
 # YAML compatibility - use unified compatibility layer
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
 import logging
 from typing import Dict, Any, List
@@ -147,7 +148,8 @@ class SettingsContent(BaseConfigLibrary):
         try:
             logger.info(f"Loading settings schema from: {self.schema_file}")
             with open(self.schema_file, 'r', encoding='utf-8') as f:
-                schema_data = yaml.safe_load(f)
+                yaml_parser = YAML()
+                schema_data = yaml_parser.load(f)
             
             logger.info(f"Loaded schema data: {schema_data.get('title', 'No title')}")
             logger.info(f"Schema sections: {len(schema_data.get('sections', []))}")

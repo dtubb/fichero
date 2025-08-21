@@ -3,25 +3,20 @@ Prompts File Manager
 Handles prompts-specific file operations and business logic
 """
 
-# Conditional imports for iOS compatibility
-try:
-    import srsly
-    SRSLY_AVAILABLE = True
-except ImportError:
-    SRSLY_AVAILABLE = False
-    # Create fallback functions for srsly functionality
-    class srsly:
-        @staticmethod
-        def read_json(path):
-            import json
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        
-        @staticmethod
-        def write_json(path, data):
-            import json
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+# srsly is not available on iOS, use fallback functions
+SRSLY_AVAILABLE = False
+class srsly:
+    @staticmethod
+    def read_json(path):
+        import json
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    
+    @staticmethod
+    def write_json(path, data):
+        import json
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
 import json
 from pathlib import Path
@@ -29,7 +24,6 @@ from typing import Dict, Any, List
 import logging
 
 from fichero.config.core.file_manager import FileManager
-from fichero.config.core.settings import get_app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +121,7 @@ class PromptsManager(FileManager):
                     f.write(json.dumps(data, indent=2))
             else:
                 # Use parent method for YAML/JSON
-                from fichero.loader import ConfigLoader
+                from fichero.config.core.loader import ConfigLoader
                 ConfigLoader.save_config_file(file_path, data)
             
             # Update cache

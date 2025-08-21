@@ -14,7 +14,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 # YAML compatibility - use unified compatibility layer
-from fichero.utils import yaml_compat as yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 import asyncio
 
 # Conditional imports for iOS compatibility
@@ -79,7 +80,8 @@ def load_ui_schema_from_file(file_path: Path) -> UISchema:
     try:
         if file_path.suffix.lower() in ['.yml', '.yaml']:
             with open(file_path, 'r', encoding='utf-8') as f:
-                schema_data = yaml.safe_load(f)
+                yaml_parser = YAML()
+                schema_data = yaml_parser.load(f)
         else:
             schema_data = srsly.read_json(file_path)
         

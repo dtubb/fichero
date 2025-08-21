@@ -49,7 +49,8 @@ class LibraryTopToolbar(TopToolbar):
                          on_add_collection: Optional[Callable] = None,
                          on_activity_monitor: Optional[Callable] = None):
         """Register callbacks for library top toolbar actions"""
-        super().register_callbacks(on_back, on_settings, on_about, on_help)
+        # Call parent with only the parameters it expects
+        super().register_callbacks(on_back, None)  # on_title_click is not used
         self.on_add_collection = on_add_collection
         self.on_activity_monitor = on_activity_monitor
         logger.debug("Library top toolbar callbacks registered") 

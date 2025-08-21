@@ -56,7 +56,7 @@ class CollectionSettingsDialog:
             main_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    padding=20
+                    margin=20
                 )
             )
             
@@ -115,7 +115,7 @@ class CollectionSettingsDialog:
             form_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    padding=10
+                    margin=10
                 )
             )
             
@@ -159,7 +159,7 @@ class CollectionSettingsDialog:
                     widget = toga.TextInput(
                         value=self.collection_data.get(field_id, ""),
                         style=Pack(
-                            padding=(8, 12),
+                            margin=(8, 12),
                             border_color="#E0E0E0",
                             border_width=1
                         )
@@ -169,7 +169,7 @@ class CollectionSettingsDialog:
                     widget = toga.MultilineTextInput(
                         value=self.collection_data.get(field_id, ""),
                         style=Pack(
-                            padding=(8, 12),
+                            margin=(8, 12),
                             border_color="#E0E0E0",
                             border_width=1,
                             height=80
@@ -181,7 +181,7 @@ class CollectionSettingsDialog:
                         items=field_options[0] if field_options else [],
                         on_select=lambda widget, selection, field_id=field_id: self._on_selection_change(field_id, selection),
                         style=Pack(
-                            padding=(8, 12),
+                            margin=(8, 12),
                             border_color="#E0E0E0",
                             border_width=1
                         )
@@ -230,7 +230,7 @@ class CollectionSettingsDialog:
                 on_press=self._on_save,
                 style=Pack(
                     margin=(0, 10, 0, 0),
-                    padding=(15, 25),
+                    margin=(15, 25),
                     background_color="#007AFF"
                 )
             )
@@ -242,7 +242,7 @@ class CollectionSettingsDialog:
                 on_press=self._on_cancel,
                 style=Pack(
                     margin=(0, 0, 0, 10),
-                    padding=(15, 25),
+                    margin=(15, 25),
                     background_color="#8E8E93"
                 )
             )
@@ -400,7 +400,7 @@ class CollectionSettingsDialog:
             error_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    padding=20
+                    margin=20
                 )
             )
             
@@ -417,7 +417,7 @@ class CollectionSettingsDialog:
                 "OK",
                 on_press=lambda widget: error_dialog.close(),
                 style=Pack(
-                    padding=(10, 20),
+                    margin=(10, 20),
                     background_color="#007AFF"
                 )
             )

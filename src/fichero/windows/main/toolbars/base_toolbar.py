@@ -48,7 +48,6 @@ class BaseToolbar(ABC):
                     direction=COLUMN,
                     height=50,  # Fixed height of 50px
                     margin=(0, 0),  # No margins
-                    padding=(0, 0),  # No padding
                     background_color=VIEW_BACKGROUND  # White background
                 )
             )
@@ -68,8 +67,7 @@ class BaseToolbar(ABC):
                 style=Pack(
                     direction=ROW,
                     flex=1,
-                    margin=(0, 0),
-                    padding=(0, 0)
+                    margin=(0, 0)
                 )
             )
             
@@ -87,8 +85,7 @@ class BaseToolbar(ABC):
             self.content = toga.Box(
                 style=Pack(
                     direction=ROW,  # This ensures buttons are horizontal
-                    padding=(8, 12),  # Reduced internal padding for smaller height
-                    margin=(0, 0),
+                    margin=(8, 12),  # Reduced internal margin for smaller height
                     flex=1  # Take up available space
                 )
             )

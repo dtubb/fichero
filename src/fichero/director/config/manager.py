@@ -57,9 +57,10 @@ class ConfigurationManager:
             
             plan_file = PlanManager.get_plan_file_path(plan_name, self.director.app)
             if plan_file and plan_file.exists():
-                import yaml
+                from ruamel.yaml import YAML
+                yaml = YAML()
                 with open(plan_file, "r", encoding="utf-8") as f:
-                    return yaml.safe_load(f)
+                    return yaml.load(f)
             else:
                 raise FileNotFoundError(f"Plan file not found: {plan_name}")
         except Exception as e:

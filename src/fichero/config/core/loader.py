@@ -4,20 +4,13 @@ Handles loading JSON and YAML configuration files
 """
 
 import json
-# Conditional imports for iOS compatibility
-try:
-    from ruamel.yaml import YAML
-    RUAMEL_YAML_AVAILABLE = True
-except ImportError:
-    RUAMEL_YAML_AVAILABLE = False
-    # Fallback to PyYAML or simple YAML parsing
-    try:
-        import yaml
-        YAML_AVAILABLE = True
-    except ImportError:
-        YAML_AVAILABLE = False
-        # Create a simple fallback
-        class YAML:
+# Import YAML directly from ruamel.yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
+YAML_AVAILABLE = True
+
+# Create a simple fallback for YAML class interface
+class YAML:
             def __init__(self):
                 pass
             
@@ -61,13 +54,9 @@ class ConfigLoader:
             file_content = file_path.read_text(encoding='utf-8')
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                if RUAMEL_YAML_AVAILABLE:
-                    yaml = YAML()
-                    yaml.preserve_quotes = True
-                    yaml.width = 4096  # Prevent line wrapping
-                    return yaml.load(file_content) or {}
-                elif YAML_AVAILABLE:
-                    return yaml.safe_load(file_content) or {}
+                if YAML_AVAILABLE:
+                    yaml_parser = YAML()
+                    return yaml_parser.load(file_content) or {}
                 else:
                     # Fallback for iOS - return empty dict
                     return {}
@@ -102,19 +91,10 @@ class ConfigLoader:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                if RUAMEL_YAML_AVAILABLE:
-                    yaml = YAML()
-                    yaml.preserve_quotes = True
-                    yaml.default_flow_style = False
-                    yaml.allow_unicode = True
-                    yaml.width = 4096  # Prevent line wrapping
-                    yaml.indent(mapping=2, sequence=4, offset=2)
-                    
+                if YAML_AVAILABLE:
                     with open(file_path, 'w', encoding='utf-8') as f:
-                        yaml.dump(data, f)
-                elif YAML_AVAILABLE:
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+                        yaml_parser = YAML()
+                        yaml_parser.dump(data, f)
                 else:
                     # Fallback for iOS - write simple YAML
                     with open(file_path, 'w', encoding='utf-8') as f:

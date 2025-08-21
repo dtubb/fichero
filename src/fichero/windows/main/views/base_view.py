@@ -75,15 +75,7 @@ class BaseView(ABC):
             # Content will be in the middle (index 1)
             # Bottom toolbar will be at the end (index 2)
             
-            # Create scroll container for content with white background
-            self.scroll_container = toga.ScrollContainer(
-                style=Pack(
-                    flex=1,
-                    background_color=VIEW_BACKGROUND  # White background
-                )
-            )
-            
-            # Create content container with white background
+            # Create content container with white background FIRST
             self.content_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
@@ -92,13 +84,19 @@ class BaseView(ABC):
                 )
             )
             
-            # Add content container to scroll container
-            self.scroll_container.content = self.content_container
+            # Create scroll container with content - Toga's recommended pattern
+            self.scroll_container = toga.ScrollContainer(
+                content=self.content_container,  # Pass content in constructor
+                style=Pack(
+                    flex=1,
+                    background_color=VIEW_BACKGROUND  # White background
+                )
+            )
             
-            # Add scroll container to main container (middle)
+            # Add scroll container to main container
             self.container.add(self.scroll_container)
             
-            # Create content
+            # Create content AFTER scroll container is fully set up
             self._create_content()
             
             logger.debug("Base view structure created successfully")
@@ -265,5 +263,48 @@ class BaseView(ABC):
         pass
     
     def get_container(self) -> toga.Box:
-        """Get the main container for this view"""
-        return self.container 
+        """Get the main container for this view with safety checks"""
+        try:
+            # Safety check: ensure scroll container has content before returning
+            if self.scroll_container and not self.scroll_container.content:
+                logger.warning("Scroll container missing content, setting fallback content")
+                if self.content_container:
+                    self.scroll_container.content = self.content_container
+                else:
+                    # Create minimal fallback content
+                    fallback_content = toga.Box(style=Pack(direction=COLUMN))
+                    self.scroll_container.content = fallback_content
+            
+            return self.container
+        except Exception as e:
+            logger.error(f"Error in get_container: {e}")
+            # Return fallback container
+            fallback = toga.Box(style=Pack(direction=COLUMN))
+            fallback.add(toga.Label("View content unavailable"))
+            return fallback
+    
+    def get_scroll_container(self) -> Optional[toga.ScrollContainer]:
+        """Get the scroll container with safety checks"""
+        try:
+            # Only return scroll container if it's fully initialized
+            if (self.scroll_container and 
+                self.scroll_container.content and 
+                hasattr(self.scroll_container, '_interface') and 
+                self.scroll_container._interface is not None):
+                return self.scroll_container
+            else:
+                logger.warning("Scroll container not properly initialized")
+                return None
+        except Exception as e:
+            logger.error(f"Error accessing scroll container: {e}")
+            return None
+    
+    def is_scroll_container_ready(self) -> bool:
+        """Check if scroll container is ready for use"""
+        try:
+            return (self.scroll_container is not None and 
+                   self.scroll_container.content is not None and
+                   hasattr(self.scroll_container, '_interface') and 
+                   self.scroll_container._interface is not None)
+        except Exception:
+            return False 
