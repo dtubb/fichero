@@ -55,6 +55,8 @@ class WindowViewManager:
     def _detect_mobile_platform(self) -> bool:
         """Detect if we're running on mobile/tablet platform"""
         try:
+            logger.info("Detecting mobile platform...")
+            
             # Import debug overrides
             from fichero.config.debug_constants import get_debug_mobile_override
             
@@ -66,7 +68,9 @@ class WindowViewManager:
             
             # Check app's mobile detection if available
             if hasattr(self.app, 'is_mobile'):
-                return self.app.is_mobile
+                app_mobile = self.app.is_mobile
+                logger.info(f"Using app's mobile detection: {app_mobile}")
+                return app_mobile
             
             # Fall back to platform detection
             import toga.platform
@@ -235,13 +239,19 @@ class WindowViewManager:
     def _show_mobile_view(self, window_type: WindowType, **kwargs) -> bool:
         """Show a view in the main window on mobile"""
         try:
+            logger.info(f"Attempting to show mobile view: {window_type.value}")
+            logger.info(f"Mobile view manager available: {self.mobile_view_manager is not None}")
+            
             if not self.mobile_view_manager:
-                logger.error("Mobile view manager not set")
+                logger.error("Mobile view manager not set - cannot show mobile view")
                 return False
             
             # Create mobile view
+            logger.info(f"Creating mobile view for: {window_type.value}")
             mobile_view = self._create_mobile_view(window_type, **kwargs)
+            
             if mobile_view:
+                logger.info(f"Mobile view created successfully for: {window_type.value}")
                 # Show view in main window
                 return self.mobile_view_manager.show_view(window_type, mobile_view)
             else:
@@ -255,29 +265,115 @@ class WindowViewManager:
     def _create_mobile_view(self, window_type: WindowType, **kwargs):
         """Create a mobile view for the specified type - no back callback needed as toolbar handles it"""
         try:
+            logger.info(f"Creating mobile view for type: {window_type.value}")
+            
             if window_type == WindowType.SETTINGS:
-                from fichero.windows.settings.mobile_view import SettingsMobileView
-                return SettingsMobileView(self.app)
+                logger.info("Importing SettingsMobileView")
+                try:
+                    from fichero.windows.settings.mobile_view import SettingsMobileView
+                    logger.info("SettingsMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import SettingsMobileView: {e}")
+                    return None
+                
+                logger.info("Creating SettingsMobileView instance")
+                try:
+                    mobile_view = SettingsMobileView(self.app)
+                    logger.info("SettingsMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create SettingsMobileView instance: {e}")
+                    return None
             
             elif window_type == WindowType.ABOUT:
-                from fichero.windows.about.mobile_view import AboutMobileView
-                return AboutMobileView(self.app)
+                logger.info("Importing AboutMobileView")
+                try:
+                    from fichero.windows.about.mobile_view import AboutMobileView
+                    logger.info("AboutMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import AboutMobileView: {e}")
+                    return None
+                
+                logger.info("Creating AboutMobileView instance")
+                try:
+                    mobile_view = AboutMobileView(self.app)
+                    logger.info("AboutMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create AboutMobileView instance: {e}")
+                    return None
             
             elif window_type == WindowType.ACTIVITY_MONITOR:
-                from fichero.windows.activity_monitor.mobile_view import ActivityMonitorMobileView
-                return ActivityMonitorMobileView(self.app)
+                logger.info("Importing ActivityMonitorMobileView")
+                try:
+                    from fichero.windows.activity_monitor.mobile_view import ActivityMonitorMobileView
+                    logger.info("ActivityMonitorMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import ActivityMonitorMobileView: {e}")
+                    return None
+                
+                logger.info("Creating ActivityMonitorMobileView instance")
+                try:
+                    mobile_view = ActivityMonitorMobileView(self.app)
+                    logger.info("ActivityMonitorMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create ActivityMonitorMobileView instance: {e}")
+                    return None
             
             elif window_type == WindowType.PLANS:
-                from fichero.windows.plans.mobile_view import PlansMobileView
-                return PlansMobileView(self.app)
+                logger.info("Importing PlansMobileView")
+                try:
+                    from fichero.windows.plans.mobile_view import PlansMobileView
+                    logger.info("PlansMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import PlansMobileView: {e}")
+                    return None
+                
+                logger.info("Creating PlansMobileView instance")
+                try:
+                    mobile_view = PlansMobileView(self.app)
+                    logger.info("PlansMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create PlansMobileView instance: {e}")
+                    return None
             
             elif window_type == WindowType.PROMPTS:
-                from fichero.windows.prompts.mobile_view import PromptsMobileView
-                return PromptsMobileView(self.app)
+                logger.info("Importing PromptsMobileView")
+                try:
+                    from fichero.windows.prompts.mobile_view import PromptsMobileView
+                    logger.info("PromptsMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import PromptsMobileView: {e}")
+                    return None
+                
+                logger.info("Creating PromptsMobileView instance")
+                try:
+                    mobile_view = PromptsMobileView(self.app)
+                    logger.info("PromptsMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create PromptsMobileView instance: {e}")
+                    return None
             
             elif window_type == WindowType.PROCESSING:
-                from fichero.windows.processing.mobile_view import ProcessingMobileView
-                return ProcessingMobileView(self.app)
+                logger.info("Importing ProcessingMobileView")
+                try:
+                    from fichero.windows.processing.mobile_view import ProcessingMobileView
+                    logger.info("ProcessingMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import ProcessingMobileView: {e}")
+                    return None
+                
+                logger.info("Creating ProcessingMobileView instance")
+                try:
+                    mobile_view = ProcessingMobileView(self.app)
+                    logger.info("ProcessingMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create ProcessingMobileView instance: {e}")
+                    return None
             
             else:
                 logger.error(f"Unknown view type: {window_type.value}")

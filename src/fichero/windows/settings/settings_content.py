@@ -42,7 +42,7 @@ class SettingsContent(BaseConfigLibrary):
         self.on_back = on_back
 
         # Initialize with settings-specific configuration
-        super().__init__(app, use_file_library=False, use_option_container=True)
+        super().__init__(app, use_file_library=False, use_option_container=True, create_desktop_window=False)
         
         logger.info("SettingsContent initialized")
     

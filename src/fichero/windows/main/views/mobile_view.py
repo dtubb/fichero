@@ -10,17 +10,15 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Callable, Dict, Any
 
-from .base_view import BaseView
-
 logger = logging.getLogger(__name__)
 
 
-class MobileView(BaseView):
-    """Mobile-specific view with single-pane layout"""
+class MobileView:
+    """Mobile-specific view with single-pane layout - simplified without BaseView inheritance"""
     
     def __init__(self, app):
         """Initialize mobile view"""
-        super().__init__(app)
+        self.app = app
         
         # Mobile-specific components
         self.content_stack: list[toga.Widget] = []
@@ -29,22 +27,30 @@ class MobileView(BaseView):
         # Create mobile layout
         self._create_mobile_layout()
     
-    def _create_content(self):
-        """Create mobile-specific content layout"""
-        # This will be overridden by _create_mobile_layout
-        pass
-    
     def _create_mobile_layout(self):
         """Create the single-pane mobile layout"""
         try:
-            # Clear existing content
-            if self.content_container:
-                self.content_container.clear()
+            # Create main container
+            self.container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1
+                )
+            )
             
-            # Create mobile content area
+            # Create content container
+            self.content_container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1
+                )
+            )
+            
+            # Add content container to main container
+            self.container.add(self.content_container)
+            
+            # Create initial mobile content
             mobile_content = self._create_mobile_content_area()
-            
-            # Add to content container
             self.content_container.add(mobile_content)
             
             logger.debug("Mobile single-pane layout created successfully")
@@ -160,101 +166,11 @@ class MobileView(BaseView):
         """Get the current depth of the content stack"""
         return len(self.content_stack)
     
-    def can_go_back(self) -> bool:
-        """Check if we can navigate back"""
-        return len(self.content_stack) > 0
-    
-    def go_back(self) -> bool:
-        """Navigate back to previous content"""
-        if self.can_go_back():
-            self.pop_content()
-            return True
-        return False
-    
     def clear_stack(self):
         """Clear the content stack"""
         self.content_stack.clear()
         logger.debug("Mobile content stack cleared")
     
-    def set_mobile_header(self, title: str, subtitle: Optional[str] = None):
-        """Set the mobile view header"""
-        try:
-            # Find and update the header
-            if self.content_container and len(self.content_container.children) > 0:
-                first_child = self.content_container.children[0]
-                if isinstance(first_child, toga.Box) and len(first_child.children) > 0:
-                    header = first_child.children[0]
-                    if isinstance(header, toga.Label):
-                        header.text = title
-                        logger.debug(f"Mobile header updated: {title}")
-                        
-        except Exception as e:
-            logger.error(f"Failed to set mobile header: {e}")
-    
-    def add_mobile_action_button(self, text: str, on_press: Optional[Callable] = None):
-        """Add an action button to the mobile view"""
-        try:
-            if self.content_container:
-                # Create action button
-                action_button = toga.Button(
-                    text=text,
-                    on_press=on_press,
-                    style=Pack(
-                        margin=(10, 15),
-                        background_color=self.accent_color
-                    )
-                )
-                
-                # Add to content
-                self.content_container.add(action_button)
-                
-                logger.debug(f"Mobile action button added: {text}")
-                
-        except Exception as e:
-            logger.error(f"Failed to add mobile action button: {e}")
-    
-    def set_mobile_background_color(self, color: str):
-        """Set the mobile view background color"""
-        self.set_background_color(color)
-        logger.debug(f"Mobile background color set to: {color}")
-    
-    def set_mobile_text_color(self, color: str):
-        """Set the mobile view text color"""
-        self.set_text_color(color)
-        logger.debug(f"Mobile text color set to: {color}")
-    
-    def set_mobile_accent_color(self, color: str):
-        """Set the mobile view accent color"""
-        self.set_accent_color(color)
-        logger.debug(f"Mobile accent color set to: {color}")
-    
-    def _on_initialize(self):
-        """Mobile-specific initialization"""
-        try:
-            # Set up mobile-specific features
-            logger.debug("Mobile view initialized")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize mobile view: {e}")
-    
-    def refresh(self):
-        """Refresh the mobile view"""
-        try:
-            # Refresh current content
-            if self.current_content:
-                # Trigger content refresh if it has a refresh method
-                if hasattr(self.current_content, 'refresh'):
-                    self.current_content.refresh()
-            
-            logger.debug("Mobile view refreshed")
-            
-        except Exception as e:
-            logger.error(f"Failed to refresh mobile view: {e}")
-    
-    def get_navigation_info(self) -> Dict[str, Any]:
-        """Get navigation information for the mobile view"""
-        return {
-            'can_go_back': self.can_go_back(),
-            'stack_depth': self.get_stack_depth(),
-            'current_content': self.current_content is not None
-        } 
+    def get_container(self) -> toga.Box:
+        """Get the main container for this view"""
+        return self.container 

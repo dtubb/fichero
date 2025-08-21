@@ -429,19 +429,26 @@ class MainWindowRefactored:
     def _setup_mobile_view_manager(self):
         """Set up mobile view manager integration if on mobile platform"""
         try:
+            logger.info(f"Setting up mobile view manager. is_mobile: {self.is_mobile}")
+            logger.info(f"Has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
+            
             if self.is_mobile and hasattr(self.app, 'window_view_manager'):
+                logger.info("Mobile platform detected, setting up mobile view manager")
+                
                 # For mobile mode, we need to create a different container structure
                 # The current setup creates a three-pane desktop layout even in mobile mode
                 
                 # Create a simple mobile container to replace the three-pane layout
                 mobile_container = self._create_mobile_container()
                 if mobile_container:
+                    logger.info("Mobile container created successfully")
                     # Replace window content with mobile container
                     self.window.content = mobile_container
                     
                     # Set up mobile view manager with this container
                     from .window_view_manager import MobileViewManager
                     mobile_view_manager = MobileViewManager(mobile_container)
+                    logger.info("MobileViewManager instance created")
                     
                     # Store the original collection view to prevent duplicates
                     try:

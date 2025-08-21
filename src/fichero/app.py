@@ -226,13 +226,15 @@ class FicheroApp(toga.App):
             return False
 
     def show_settings(self):
-        """Show the settings window - delegates to unified manager"""
+        """Show the settings window or view"""
         try:
+            logger.info("=== show_settings() called ===")
+            logger.info(f"Has window_view_manager: {hasattr(self, 'window_view_manager')}")
             if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.SETTINGS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+                logger.info(f"WindowViewManager is_mobile: {self.window_view_manager.is_mobile}")
+                logger.info(f"Mobile view manager set: {self.window_view_manager.mobile_view_manager is not None}")
+            
+            return self.window_view_manager.show_window_or_view(WindowType.SETTINGS)
         except Exception as e:
             logger.error(f"Failed to show settings: {e}")
             return False

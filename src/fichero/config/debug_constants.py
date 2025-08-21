@@ -7,20 +7,20 @@ These override normal platform detection for easier debugging.
 
 # UI Debug Settings
 # Set to True to force mobile UI mode even on desktop (for debugging)
-FORCE_MOBILE_UI = True
+FORCE_MOBILE_UI = False
 
 # Set to True to force desktop UI mode even on mobile (for debugging) 
-FORCE_DESKTOP_UI = True
+FORCE_DESKTOP_UI = False
 
 # Set to True to force iOS-specific behavior
-FORCE_IOS_BEHAVIOR = True
+FORCE_IOS_BEHAVIOR = False
 
 # Set to True to force Android-specific behavior  
 FORCE_ANDROID_BEHAVIOR = False
 
 # Window size overrides (set to None to use platform defaults)
-DEBUG_WINDOW_WIDTH = 375  # e.g., 375 for iPhone size
-DEBUG_WINDOW_HEIGHT = 812  # e.g., 812 for iPhone size
+DEBUG_WINDOW_WIDTH = None  # e.g., 375 for iPhone size
+DEBUG_WINDOW_HEIGHT = None  # e.g., 812 for iPhone size
 
 # Development logging
 VERBOSE_UI_LOGGING = True

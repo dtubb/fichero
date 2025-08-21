@@ -106,10 +106,11 @@ class BaseConfigLibrary(ABC):
     - Two-panel layout: OptionContainer tabs + Content panel - for Settings
     """
     
-    def __init__(self, app, use_file_library=True, use_option_container=False):
+    def __init__(self, app, use_file_library=True, use_option_container=False, create_desktop_window=True):
         self.app = app
         self.use_file_library = use_file_library
         self.use_option_container = use_option_container
+        self.create_desktop_window = create_desktop_window
         
         # Only create file manager if we're using file library
         self.file_manager = self.create_file_manager() if use_file_library else None
@@ -133,10 +134,12 @@ class BaseConfigLibrary(ABC):
         self.change_handlers = {}
         self.button_handlers = {}
         
-        self._create_window()
-        self._setup_window_close_handler()
-        # Load the default file/content after window is created
-        self._load_default_file()
+        # Only create desktop window if requested (for mobile views, we don't need it)
+        if self.create_desktop_window:
+            self._create_window()
+            self._setup_window_close_handler()
+            # Load the default file/content after window is created
+            self._load_default_file()
     
     # Abstract methods that subclasses must implement
     
