@@ -1,7 +1,7 @@
 """
 Library Top Toolbar for Fichero
 
-Top toolbar for library view - currently empty as requested.
+Top toolbar for library view with library system integration.D!3
 """
 
 import toga
@@ -9,48 +9,107 @@ from toga.style import Pack
 import logging
 from typing import Optional, Callable
 
-from .top_toolbar import TopToolbar
+from fichero.windows.main.toolbars.top_toolbar import TopToolbar
 
 logger = logging.getLogger(__name__)
 
 
 class LibraryTopToolbar(TopToolbar):
-    """Top toolbar for library view - currently empty"""
+    """Top toolbar for library view with library system integration"""
     
     def __init__(self, app, is_mobile: bool = False):
         """Initialize library top toolbar"""
         super().__init__(app, is_mobile)
         
-        # Library-specific callbacks (none for now)
+        # Library-specific callbacks
         self.on_add_collection: Optional[Callable] = None
         self.on_activity_monitor: Optional[Callable] = None
+        self.on_import_collection: Optional[Callable] = None
+        self.on_export_collection: Optional[Callable] = None
+        self.on_edit_collection: Optional[Callable] = None
+        self.on_manage_collections: Optional[Callable] = None
         
         # Create the toolbar content
         self._create_toolbar()
     
-    def _create_toolbar(self):
-        """Create the library top toolbar content - currently empty"""
+    def _create_library_buttons(self):
+        """Create library system buttons - simplified to 3 buttons"""
         try:
-            # Base container already created by parent class
-            # No need to call super()._create_toolbar()
+            # Left: Add Collection button (+)
+            add_collection_btn = self.create_icon_button(
+                button_id="add_collection",
+                icon="add_collection",
+                on_press=self._on_add_collection_pressed,
+                tooltip="Add Collection (Local/External/URL)"
+            )
+            self.add_to_left(add_collection_btn)
             
-            # No buttons for now - toolbar is empty as requested
-            # No title either - completely blank
+            # Center: Edit Collections button
+            edit_btn = self.create_icon_button(
+                button_id="edit_collections",
+                icon="collection_settings",  # Using collection_settings for edit
+                on_press=self._on_edit_pressed,
+                tooltip="Edit Collections"
+            )
+            self.add_to_center(edit_btn)
             
-            logger.info("Library top toolbar created successfully (completely empty)")
+            # Right: Share/Export button
+            share_btn = self.create_icon_button(
+                button_id="share_collections",
+                icon="export",  # Using export for share
+                on_press=self._on_share_pressed,
+                tooltip="Share/Export Collections"
+            )
+            self.add_to_right(share_btn)
+            
+            logger.info(f"Library top toolbar created with 3 buttons: left (+), center (edit), right (share)")
+            
+        except Exception as e:
+            logger.error(f"Failed to create library buttons: {e}")
+    
+    def _create_toolbar(self):
+        """Create the library top toolbar content with simplified 3-button layout"""
+        try:
+            # Create simplified library system buttons
+            self._create_library_buttons()
+            
+            # Ensure toolbar is visible
+            self.container.style = Pack(height=50, background_color="white")
+            
+            logger.info("Library top toolbar created successfully with simplified 3-button layout")
             
         except Exception as e:
             logger.error(f"Failed to create library top toolbar: {e}")
+    
+    def _on_add_collection_pressed(self, widget):
+        """Handle add collection button press - opens collection type options"""
+        logger.debug("Add collection button pressed - should open collection type options view")
+        if self.on_add_collection:
+            self.on_add_collection()
+    
+    def _on_edit_pressed(self, widget):
+        """Handle edit collections button press"""
+        logger.debug("Edit collections button pressed")
+        if self.on_edit_collection:
+            self.on_edit_collection()
+    
+    def _on_share_pressed(self, widget):
+        """Handle share/export button press"""
+        logger.debug("Share collections button pressed")
+        if self.on_share_collections:
+            self.on_share_collections()
     
     def register_callbacks(self, on_back: Optional[Callable] = None,
                          on_settings: Optional[Callable] = None,
                          on_about: Optional[Callable] = None,
                          on_help: Optional[Callable] = None,
                          on_add_collection: Optional[Callable] = None,
-                         on_activity_monitor: Optional[Callable] = None):
-        """Register callbacks for library top toolbar actions"""
+                         on_edit_collection: Optional[Callable] = None,
+                         on_share_collections: Optional[Callable] = None):
+        """Register callbacks for simplified library top toolbar actions"""
         # Call parent with only the parameters it expects
         super().register_callbacks(on_back, None)  # on_title_click is not used
         self.on_add_collection = on_add_collection
-        self.on_activity_monitor = on_activity_monitor
-        logger.debug("Library top toolbar callbacks registered") 
+        self.on_edit_collection = on_edit_collection
+        self.on_share_collections = on_share_collections
+        logger.debug("Simplified library top toolbar callbacks registered") 

@@ -12,7 +12,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Dict
 from fichero.windows.main.styling.color_constants import (
-    ICON_PRIMARY, ICON_SECONDARY, TOOLBAR_BACKGROUND, TOOLBAR_BORDER, VIEW_BACKGROUND
+    TOOLBAR_BORDER, VIEW_BACKGROUND, ICON_PRIMARY, ICON_SECONDARY
 )
 
 
@@ -22,10 +22,16 @@ logger = logging.getLogger(__name__)
 class BaseToolbar(ABC):
     """Base class for all toolbars in Fichero"""
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize base toolbar"""
         self.app = app
-        self.is_mobile = is_mobile
+        
+        # Use provided is_mobile parameter or get from app
+        if is_mobile is not None:
+            self.is_mobile = is_mobile
+        else:
+            # Use the app's platform detection (set once at startup)
+            self.is_mobile = self.app.is_mobile
         
         # Toolbar components
         self.container: Optional[toga.Box] = None
@@ -42,12 +48,19 @@ class BaseToolbar(ABC):
     def _create_base_container(self):
         """Create the base toolbar container with white background and borders on all sides"""
         try:
-            # Create toolbar container with white background, fixed height, and borders on all sides
+            # Add bottom margin on mobile to avoid home indicator
+            if self.is_mobile:
+                # iOS home indicator is 34pt, but we need more space for comfort
+                bottom_margin = (0, 0, 0, 50)  # Increased from 34pt to 50pt
+            else:
+                bottom_margin = (0, 0)
+            
+            # Create toolbar container with white background, dynamic height, and borders on all sides
             self.container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    height=50,  # Fixed height of 50px
-                    margin=(0, 0),  # No margins
+                    # Remove fixed height - let content determine height
+                    margin=bottom_margin,  # Dynamic margin based on platform
                     background_color=VIEW_BACKGROUND  # White background
                 )
             )
@@ -107,9 +120,14 @@ class BaseToolbar(ABC):
             )
             
             # Add left and right content to main content area
-            self.content.add(self.left_content)
-            self.content.add(toga.Box(style=Pack(flex=1)))  # Spacer to push right content to the right
-            self.content.add(self.right_content)
+            if self.is_mobile:
+                # Mobile: left-align everything
+                self.content.add(self.left_content)
+                self.content.add(self.right_content)
+            else:
+                # Desktop: left-align everything (no spacer)
+                self.content.add(self.left_content)
+                self.content.add(self.right_content)
             
             content_wrapper.add(self.content)
             
@@ -135,7 +153,7 @@ class BaseToolbar(ABC):
             )
             self.container.add(bottom_border)
             
-            logger.debug("Base toolbar container created with 50px height, white background, and borders on all sides")
+            logger.debug("Base toolbar container created with dynamic height, white background, and borders on all sides")
             
         except Exception as e:
             logger.error(f"Failed to create base toolbar container: {e}")
@@ -156,17 +174,28 @@ class BaseToolbar(ABC):
                                 on_press: Optional[Callable] = None,
                                 tooltip: Optional[str] = None,
                                 enabled: bool = True) -> toga.Button:
-        """Create a navigation button with consistent sizing"""
+        """Create a navigation button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 12),  # Larger margin for touch targets
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 8),  # Smaller margin
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
+            )
+        
         button = toga.Button(
             text=text,
             on_press=on_press or self._default_button_handler,
             enabled=enabled,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22,
-                color=ICON_PRIMARY
-            )
+            style=button_style
         )
         
         # Remove background color
@@ -189,17 +218,28 @@ class BaseToolbar(ABC):
                             on_press: Optional[Callable] = None,
                             tooltip: Optional[str] = None,
                             enabled: bool = True) -> toga.Button:
-        """Create an action button with consistent sizing"""
+        """Create an action button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 12),  # Larger margin for touch targets
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 8),  # Smaller margin
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
+            )
+        
         button = toga.Button(
             text=text,
             on_press=on_press or self._default_button_handler,
             enabled=enabled,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22,
-                color=ICON_PRIMARY
-            )
+            style=button_style
         )
         
         # Remove background color
@@ -222,16 +262,26 @@ class BaseToolbar(ABC):
                            on_press: Optional[Callable] = None,
                            tooltip: Optional[str] = None,
                            enabled: bool = True) -> toga.Button:
-        """Create an icon-only button with consistent sizing"""
+        """Create an icon-only button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 8),   # Square margin for icon buttons
+                width=44, height=44  # 44px minimum for touch
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 4),   # Smaller square margin
+                width=22, height=22  # 22px for desktop
+            )
+        
         button = toga.Button(
             text="",
             on_press=on_press or self._default_button_handler,
             enabled=enabled,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22
-            )
+            style=button_style
         )
         
         # Remove background color
@@ -251,16 +301,27 @@ class BaseToolbar(ABC):
                               button_id: str,
                               text: str,
                               tooltip: Optional[str] = None) -> toga.Button:
-        """Create a display-only button with consistent sizing"""
+        """Create a display-only button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 12),  # Larger margin for touch targets
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 8),  # Smaller margin
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
+            )
+        
         button = toga.Button(
             text=text,
             enabled=False,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22,
-                color=ICON_PRIMARY
-            )
+            style=button_style
         )
         
         # Remove background color
@@ -306,17 +367,28 @@ class BaseToolbar(ABC):
                       icon: Optional[str] = None,
                       on_press: Optional[Callable] = None,
                       enabled: bool = True) -> toga.Button:
-        """Create a generic button with consistent sizing"""
+        """Create a generic button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 12),  # Larger margin for touch targets
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 8),  # Smaller margin
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
+            )
+        
         button = toga.Button(
             text=text,
             on_press=on_press or self._default_button_handler,
             enabled=enabled,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22,
-                color=ICON_PRIMARY
-            )
+            style=button_style
         )
         
         # Remove background color
@@ -337,18 +409,29 @@ class BaseToolbar(ABC):
                              button_id: str,
                              command: toga.Command,
                              icon_path: Optional[str] = None) -> toga.Button:
-        """Create a command button with consistent sizing"""
+        """Create a command button with platform-appropriate sizing"""
+        # Platform-specific button sizing
+        if self.is_mobile:
+            # Mobile: larger buttons for touch (44px minimum for iOS)
+            button_style = Pack(
+                margin=(8, 12),  # Larger margin for touch targets
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
+            )
+        else:
+            # Desktop: smaller buttons to fit all 5 buttons
+            button_style = Pack(
+                margin=(4, 8),  # Smaller margin
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
+            )
+        
         button = toga.Button(
             text=command.text,
             icon=icon_path and toga.Icon(icon_path) or command.icon,
             on_press=lambda widget: command.action(widget),
             enabled=command.enabled,
-            style=Pack(
-                margin=(4, 4),
-                width=22,
-                height=22,
-                color=ICON_PRIMARY
-            )
+            style=button_style
         )
         
         # Remove background color

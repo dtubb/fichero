@@ -14,8 +14,8 @@ from toga.constants import COLUMN, ROW
 import logging
 from typing import Optional, List, Dict, Any, Callable
 
-from ..views.base_view import BaseView
-from ..containers.scroll_container import ScrollableContainer
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.containers.scroll_container import ScrollableContainer
 
 logger = logging.getLogger(__name__)
 

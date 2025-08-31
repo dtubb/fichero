@@ -9,8 +9,8 @@ import logging
 from typing import Optional, Any, Callable
 from enum import Enum
 
-from ..views.base_view import BaseView
-from ..layout.pane_manager import PaneManager
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.layout.pane_manager import PaneManager
 
 logger = logging.getLogger(__name__)
 

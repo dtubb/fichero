@@ -7,20 +7,6 @@ import json
 # Import YAML directly from ruamel.yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
-YAML_AVAILABLE = True
-
-# Create a simple fallback for YAML class interface
-class YAML:
-            def __init__(self):
-                pass
-            
-            def load(self, content):
-                # Simple fallback - just return empty dict
-                return {}
-            
-            def dump(self, data, f):
-                # Simple fallback - just write empty YAML
-                f.write("# Fallback YAML\n")
 
 from pathlib import Path
 from typing import Dict, Any
@@ -54,12 +40,8 @@ class ConfigLoader:
             file_content = file_path.read_text(encoding='utf-8')
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                if YAML_AVAILABLE:
-                    yaml_parser = YAML()
-                    return yaml_parser.load(file_content) or {}
-                else:
-                    # Fallback for iOS - return empty dict
-                    return {}
+                yaml_parser = YAML()
+                return yaml_parser.load(file_content) or {}
             elif file_path.suffix.lower() in ['.json', '.jsonl']:
                 return json.loads(file_content)
             else:
@@ -91,15 +73,9 @@ class ConfigLoader:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
             if file_path.suffix.lower() in ['.yml', '.yaml']:
-                if YAML_AVAILABLE:
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        yaml_parser = YAML()
-                        yaml_parser.dump(data, f)
-                else:
-                    # Fallback for iOS - write simple YAML
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write("# iOS Fallback YAML\n")
-                        f.write("# Settings not available on this platform\n")
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    yaml_parser = YAML()
+                    yaml_parser.dump(data, f)
             elif file_path.suffix.lower() in ['.json', '.jsonl']:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)

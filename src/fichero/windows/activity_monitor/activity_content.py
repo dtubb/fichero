@@ -47,7 +47,7 @@ class ActivityMonitorContent:
             
             # Create simple GUI task display (filter_document_id=None shows all tasks)
             task_monitor = TaskMonitor.get_instance(director)
-            self.display = GUITaskDisplay(task_monitor, filter_document_id=None)
+            self.display = GUITaskDisplay(task_monitor, app=self.app, filter_document_id=None)
             
             logger.info("Activity monitor content created successfully")
             

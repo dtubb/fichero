@@ -14,9 +14,9 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Dict, Any, List
 
-from ..views.base_view import BaseView
-from ..views.desktop_view import DesktopView
-from ..views.mobile_view import MobileView
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.views.desktop_view import DesktopView
+from fichero.windows.main.views.mobile_view import MobileView
 # from ..toolbars.toolbar_manager import ToolbarManager, ToolbarType  # No longer needed
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class PaneManager:
             logger.error(f"Failed to create pane layout: {e}")
     
     def _create_desktop_layout(self):
-        """Create the three-pane desktop layout"""
+        """Create the three-pane desktop layout with resizable panes"""
         try:
             # Create main container
             self.main_container = toga.Box(
@@ -75,27 +75,30 @@ class PaneManager:
                 )
             )
             
-            # Create left pane (Library navigation)
+            # Create left pane (Library navigation) - 25% width
             self.left_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    width=self.left_pane_width
+                    flex=1,  # Use flex instead of fixed width
+                    width=300  # Set a reasonable default width
                 )
             )
             
-            # Create middle pane (Content) - fixed width
+            # Create middle pane (Content) - 25% width
             self.middle_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    width=self.middle_pane_width
+                    flex=1,  # Use flex instead of fixed width
+                    width=300  # Set a reasonable default width
                 )
             )
             
-            # Create right pane (Preview) - flex to fill remainder
+            # Create right pane (Preview) - 50% width (flex to fill remainder)
             self.right_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=1
+                    flex=2,  # Give it more flex to make it wider
+                    width=400  # Set a reasonable default width
                 )
             )
             
@@ -104,7 +107,7 @@ class PaneManager:
             self.main_container.add(self.middle_pane)
             self.main_container.add(self.right_pane)
             
-            logger.debug("Desktop three-pane layout created")
+            logger.debug("Desktop three-pane layout created with resizable panes")
             
         except Exception as e:
             logger.error(f"Failed to create desktop layout: {e}")
@@ -182,18 +185,25 @@ class PaneManager:
         except Exception as e:
             logger.error(f"Failed to set right pane content: {e}")
     
-    def set_pane_sizes(self, left_width: Optional[int] = None, right_width: Optional[int] = None):
-        """Set the widths of the left and right panes"""
+    def set_pane_sizes(self, left_width: Optional[int] = None, middle_width: Optional[int] = None, right_width: Optional[int] = None):
+        """Set the widths of the panes (now works with width-based layout)"""
         try:
             if left_width and self.left_pane:
-                self.left_pane_width = left_width
-                self.left_pane.style.width = left_width
+                # Update width for left pane
+                self.left_pane.style.width = max(250, left_width)
+                logger.debug(f"Left pane width updated to: {self.left_pane.style.width}")
+            
+            if middle_width and self.middle_pane:
+                # Update width for middle pane
+                self.middle_pane.style.width = max(250, middle_width)
+                logger.debug(f"Middle pane width updated to: {self.middle_pane.style.width}")
             
             if right_width and self.right_pane:
-                self.right_pane_width = right_width
-                self.right_pane.style.width = right_width
+                # Update width for right pane
+                self.right_pane.style.width = max(300, right_width)
+                logger.debug(f"Right pane width updated to: {self.right_pane.style.width}")
             
-            logger.debug(f"Pane sizes updated: left={left_width}, right={right_width}")
+            logger.debug(f"Pane sizes updated: left={left_width}, middle={middle_width}, right={right_width}")
             
         except Exception as e:
             logger.error(f"Failed to set pane sizes: {e}")

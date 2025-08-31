@@ -15,8 +15,8 @@ from pathlib import Path
 import json
 import platform
 
-from .color_manager import ColorManager, ColorScheme
-from .icon_colorizer import IconColorizer
+from fichero.windows.main.styling.color_manager import ColorManager, ColorScheme
+from fichero.windows.main.styling.icon_colorizer import IconColorizer
 
 logger = logging.getLogger(__name__)
 

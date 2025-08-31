@@ -14,7 +14,7 @@ from toga.constants import ROW
 import logging
 from typing import Optional, Callable
 
-from .base_toolbar import BaseToolbar
+from fichero.windows.main.toolbars.base_toolbar import BaseToolbar
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from toga.style import Pack
 import logging
 from typing import Optional, Callable
 
-from .top_toolbar import TopToolbar
+from fichero.windows.main.toolbars.top_toolbar import TopToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +33,57 @@ class CollectionTopToolbar(TopToolbar):
         self._create_toolbar()
     
     def _create_toolbar(self):
-        """Create the collection top toolbar content - currently empty"""
+        """Create the collection top toolbar content with basic collection actions"""
         try:
-            # Base container already created by parent class
-            # No need to call super()._create_toolbar()
+            # Back to library button
+            back_btn = self.create_icon_button(
+                button_id="back_to_library",
+                icon="chevron.left@10x",
+                on_press=self._on_back_to_library,
+                tooltip="Back to Library"
+            )
+            self.add_to_left(back_btn)
             
-            # No buttons for now - toolbar is empty as requested
-            # No title either - completely blank
+            # Add folder button
+            add_folder_btn = self.create_icon_button(
+                button_id="add_folder",
+                icon="add_folder",
+                on_press=self._on_add_folder,
+                tooltip="Add Folder"
+            )
+            self.add_to_left(add_folder_btn)
             
-            logger.info("Collection top toolbar created successfully (completely empty)")
+            # Add file button
+            add_file_btn = self.create_icon_button(
+                button_id="add_file",
+                icon="add_file",
+                on_press=self._on_add_file,
+                tooltip="Add File"
+            )
+            self.add_to_left(add_file_btn)
+            
+            logger.info("Collection top toolbar created successfully with basic collection actions")
             
         except Exception as e:
             logger.error(f"Failed to create collection top toolbar: {e}")
+    
+    def _on_back_to_library(self, widget):
+        """Handle back to library button press"""
+        logger.debug("Back to library button pressed")
+        if self.on_back_to_library:
+            self.on_back_to_library()
+    
+    def _on_add_folder(self, widget):
+        """Handle add folder button press"""
+        logger.debug("Add folder button pressed")
+        if self.on_add_folder:
+            self.on_add_folder()
+    
+    def _on_add_file(self, widget):
+        """Handle add file button press"""
+        logger.debug("Add file button pressed")
+        if self.on_add_file:
+            self.on_add_file()
     
     def set_collection_context(self, collection_id: str):
         """Set the collection context"""

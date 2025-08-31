@@ -40,18 +40,20 @@ class GUITaskDisplay:
     Platform-aware: Uses DetailedList on iOS, Table on other platforms.
     """
     
-    def __init__(self, task_monitor: TaskMonitor, filter_document_id: Optional[str] = None):
+    def __init__(self, task_monitor: TaskMonitor, app=None, filter_document_id: Optional[str] = None):
         """
         Initialize GUI display.
         
         Args:
             task_monitor: TaskMonitor instance to read data from
+            app: Toga app instance for platform detection
             filter_document_id: Optional document ID to filter tasks
         """
         if not TOGA_AVAILABLE:
             raise ImportError("Toga is required for GUI displays")
         
         self.task_monitor = task_monitor
+        self.app = app
         self.filter_document_id = filter_document_id
         self.is_monitoring = False
         self.refresh_task = None
@@ -68,16 +70,11 @@ class GUITaskDisplay:
     def _detect_platform(self):
         """Detect platform to choose appropriate widget type"""
         try:
-            # First check debug constants for manual override
-            try:
-                from fichero.config.debug_constants import get_debug_platform_override
-                debug_platform = get_debug_platform_override()
-                if debug_platform:
-                    self.is_ios = debug_platform == 'ios'
-                    logger.debug(f"Using debug platform override: {debug_platform}, using {'DetailedList' if self.is_ios else 'Table'}")
-                    return
-            except ImportError:
-                pass  # Debug constants not available, fall back to platform detection
+            # Use app's platform detection if available
+            if hasattr(self.app, 'is_mobile'):
+                self.is_ios = self.app.is_mobile
+                logger.debug(f"Using app's mobile detection: {self.is_ios}, using {'DetailedList' if self.is_ios else 'Table'}")
+                return
             
             # Use actual platform detection
             import toga.platform

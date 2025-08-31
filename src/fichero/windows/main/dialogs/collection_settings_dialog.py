@@ -10,8 +10,8 @@ from toga.constants import COLUMN, ROW
 import logging
 from typing import Optional, Dict, Any, Callable
 
-from ...config.ui_generator import UIGenerator
-from ...config.core.settings_manager import SettingsManager
+from fichero.config.ui_generator import UIGenerator
+from fichero.config.core.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 

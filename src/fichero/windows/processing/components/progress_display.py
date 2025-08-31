@@ -102,6 +102,7 @@ class ProgressDisplay:
             task_monitor = TaskMonitor.get_instance(director)
             self.task_display = GUITaskDisplay(
                 task_monitor,
+                app=self.app,
                 filter_document_id=f"processing_{id(self)}"
             )
             

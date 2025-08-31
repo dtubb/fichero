@@ -10,9 +10,9 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, List, Dict, Any
 
-from .base_view import BaseView
-from ..toolbars.collection_top_toolbar import CollectionTopToolbar
-from ..toolbars.collection_bottom_toolbar import CollectionBottomToolbar
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.toolbars.collection_top_toolbar import CollectionTopToolbar
+from fichero.windows.main.toolbars.collection_bottom_toolbar import CollectionBottomToolbar
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 
 logger = logging.getLogger(__name__)
@@ -61,15 +61,19 @@ class CollectionView(BaseView):
             # Create initial placeholder content directly in the content container
             self._create_placeholder_content()
             
+            # Add sample collection items for testing
+            self._add_sample_collection_items()
+            
         except Exception as e:
             logger.error(f"Failed to create collection content: {e}")
     
     def _create_placeholder_content(self):
         """Create placeholder content for the collection view"""
         try:
-            # Create header
+            # Create header with collection name if available
+            header_text = f"📁 {self.collection_name}" if self.collection_name else "📁 Collections"
             header = toga.Label(
-                f"📁 Collections",
+                header_text,
                 style=Pack(
                     font_size=20,
                     font_weight="bold",
@@ -81,18 +85,172 @@ class CollectionView(BaseView):
                 self.content_container.add(header)
             
             # Create placeholder for collections
-            placeholder = toga.Label(
-                "No collections available. Use the toolbar to add collections.",
-                style=Pack(
-                    margin=(10, 20),
-                    color=self.text_color
+            if self.collection_name:
+                placeholder = toga.Label(
+                    f"Collection: {self.collection_name}\n\nUse the toolbar to add files and folders to this collection.",
+                    style=Pack(
+                        margin=(10, 20),
+                        color=self.text_color
+                    )
                 )
-            )
+            else:
+                placeholder = toga.Label(
+                    "No collections available. Use the toolbar to add collections.",
+                    style=Pack(
+                        margin=(10, 20),
+                        color=self.text_color
+                    )
+                )
             if self.content_container:
                 self.content_container.add(placeholder)
             
         except Exception as e:
             logger.error(f"Failed to create placeholder content: {e}")
+    
+    def _add_sample_collection_items(self):
+        """Add sample collection items for testing the detailed list view"""
+        try:
+            # Create sample items
+            self.sample_items = [
+                {
+                    'id': '1',
+                    'name': 'Document 1.pdf',
+                    'type': 'pdf',
+                    'size': '2.3 MB',
+                    'status': 'processed'
+                },
+                {
+                    'id': '2',
+                    'name': 'Image Collection',
+                    'type': 'folder',
+                    'size': '15.7 MB',
+                    'status': 'ready'
+                },
+                {
+                    'id': '3',
+                    'name': 'Audio Recording.wav',
+                    'type': 'audio',
+                    'size': '8.1 MB',
+                    'status': 'pending'
+                }
+            ]
+            
+            # Create detailed list for collection items
+            self._create_collection_items_list(self.sample_items)
+            
+            logger.info(f"Added {len(self.sample_items)} sample collection items")
+            
+        except Exception as e:
+            logger.error(f"Failed to add sample collection items: {e}")
+    
+    def _create_collection_items_list(self, items: List[Dict[str, Any]]):
+        """Create a detailed list view for collection items"""
+        try:
+            # Convert items to detailed list format
+            list_data = []
+            for item in items:
+                list_item = {
+                    'title': item.get('name', 'Unknown Item'),
+                    'subtitle': f"Type: {item.get('type', 'Unknown')} | Size: {item.get('size', 'Unknown')} | Status: {item.get('status', 'Unknown')}",
+                    'icon': self._get_item_icon(item),
+                    'data': item  # Store the full item data
+                }
+                list_data.append(list_item)
+            
+            # Create the detailed list
+            self.items_list = toga.DetailedList(
+                data=list_data,
+                on_select=self._on_item_selected_simple,
+                style=Pack(
+                    flex=1,
+                    margin=(10, 20)
+                )
+            )
+            
+            if self.content_container:
+                self.content_container.add(self.items_list)
+                
+            logger.debug(f"Created detailed list with {len(list_data)} items")
+            
+        except Exception as e:
+            logger.error(f"Failed to create collection items list: {e}")
+    
+    def _get_item_icon(self, item: Dict[str, Any]) -> str:
+        """Get appropriate icon for item type"""
+        item_type = item.get('type', 'unknown')
+        if item_type == 'pdf':
+            return '📄'
+        elif item_type == 'folder':
+            return '📁'
+        elif item_type == 'audio':
+            return '🎵'
+        elif item_type == 'image':
+            return '🖼️'
+        else:
+            return '📄'
+    
+    def _on_item_selected(self, widget, item):
+        """Handle item selection from detailed list"""
+        try:
+            if item and hasattr(item, 'data'):
+                item_data = item.data
+                logger.debug(f"Item selected: {item_data.get('name', 'Unknown')}")
+                
+                # Handle navigation based on item type
+                self._handle_item_navigation(item_data)
+                
+        except Exception as e:
+            logger.error(f"Failed to handle item selection: {e}")
+    
+    def _on_item_selected_simple(self, widget):
+        """Simple handler for item selection (compatible with Toga's DetailedList)"""
+        try:
+            logger.debug("Item selection simple handler called")
+            # This handles the case where Toga calls the handler without the item parameter
+            # We'll need to get the selected item from the detailed list
+            if hasattr(self, 'items_list') and self.items_list:
+                # Try to get the selected item from the detailed list
+                # Toga's DetailedList selection might be a Row object or index
+                selection = getattr(self.items_list, 'selection', None)
+                logger.debug(f"Selection object: {selection}, type: {type(selection)}")
+                
+                if selection is not None:
+                    # If selection is a Row object, try to get its data
+                    if hasattr(selection, 'data'):
+                        item_data = selection.data
+                        self._handle_item_navigation(item_data)
+                        return
+                    # If selection is an index, use it to get data from sample_items
+                    elif isinstance(selection, int) and selection >= 0:
+                        if hasattr(self, 'sample_items') and selection < len(self.sample_items):
+                            item_data = self.sample_items[selection]
+                            self._handle_item_navigation(item_data)
+                            return
+            
+            # If we can't get the selected item, show a message
+            self._show_message("Selection", "Please select an item from the list.")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle item selection simple: {e}")
+            # Show error message
+            self._show_message("Selection Error", f"Error selecting item: {str(e)}")
+    
+    def _handle_item_navigation(self, item_data: Dict[str, Any]):
+        """Handle navigation based on selected item"""
+        try:
+            item_name = item_data.get('name', 'Unknown')
+            item_type = item_data.get('type', 'unknown')
+            logger.info(f"Navigating to item: {item_name} (type: {item_type})")
+            
+            if item_type == 'folder':
+                # Navigate into folder
+                self._show_message("Folder Selected", f"Selected folder: {item_name}\n\nFolder navigation will be implemented here.")
+            else:
+                # Show item details
+                self._show_message("Item Selected", f"Selected: {item_name}\n\nType: {item_type}\nSize: {item_data.get('size', 'Unknown')}\nStatus: {item_data.get('status', 'Unknown')}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle item navigation: {e}")
     
     def _register_toolbar_callbacks(self):
         """Register callbacks for both toolbars"""
@@ -406,3 +564,26 @@ class CollectionView(BaseView):
             
         except Exception as e:
             logger.error(f"Failed to refresh collection view: {e}") 
+
+    def _show_message(self, title: str, message: str):
+        """Show a message dialog"""
+        try:
+            # Create a simple message dialog
+            dialog = toga.InfoDialog(
+                title=title,
+                message=message
+            )
+            dialog.show()
+        except Exception as e:
+            logger.error(f"Failed to show message dialog: {e}")
+            # Fallback: just log the message
+            logger.info(f"{title}: {message}")
+    
+    def _on_collection_selected(self, widget, item):
+        """Handle collection selection (placeholder)"""
+        try:
+            logger.debug("Collection selection handler called")
+            # This would typically handle collection selection
+            pass
+        except Exception as e:
+            logger.error(f"Failed to handle collection selection: {e}") 

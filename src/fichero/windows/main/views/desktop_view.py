@@ -10,8 +10,8 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Callable, Dict, Any
 
-from .base_view import BaseView
-from ..toolbars.base_toolbar import BaseToolbar
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.toolbars.base_toolbar import BaseToolbar
 
 logger = logging.getLogger(__name__)
 

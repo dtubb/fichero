@@ -9,7 +9,7 @@ from toga.style import Pack
 import logging
 from typing import Optional, Callable
 
-from .bottom_toolbar import BottomToolbar
+from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
 
 logger = logging.getLogger(__name__)
 

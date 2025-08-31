@@ -11,11 +11,11 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, List, Dict, Any
 
-from .base_view import BaseView
-from ..toolbars.fiche_top_toolbar import FicheTopToolbar
-from ..toolbars.fiche_bottom_toolbar import FicheBottomToolbar
-from ..containers.scroll_container import ScrollableContainer
-from ..styling.color_constants import *
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.toolbars.fiche_top_toolbar import FicheTopToolbar
+from fichero.windows.main.toolbars.fiche_bottom_toolbar import FicheBottomToolbar
+from fichero.windows.main.containers.scroll_container import ScrollableContainer
+from fichero.windows.main.styling.color_constants import *
 
 logger = logging.getLogger(__name__)
 

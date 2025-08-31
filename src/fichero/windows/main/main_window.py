@@ -15,12 +15,12 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Dict, Any
 
-from .layout.pane_manager import PaneManager
-from .commands.command_bridge import CommandBridge
-from .command_manager import CommandManagerRefactored
-from .views.collection_management_view import CollectionManagementView
-from .views.collection_view import CollectionView
-from .styling.color_constants import *
+from fichero.windows.main.commands.command_bridge import CommandBridge, CommandContext
+from fichero.windows.main.layout.pane_manager import PaneManager
+from fichero.windows.main.command_manager import CommandManagerRefactored
+from fichero.windows.main.views.collection_management_view import CollectionManagementView
+from fichero.windows.main.views.collection_view import CollectionView
+from fichero.windows.main.styling.color_constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -98,31 +98,8 @@ class MainWindowRefactored:
     
     def _detect_mobile_platform(self) -> bool:
         """Detect if running on mobile platform"""
-        try:
-            # Use the same detection logic as WindowViewManager for consistency
-            from fichero.config.debug_constants import get_debug_mobile_override
-            
-            # Check debug override first
-            debug_mobile = get_debug_mobile_override()
-            if debug_mobile is not None:
-                logger.info(f"MainWindow using debug mobile override: {debug_mobile}")
-                return debug_mobile
-            
-            # Check app's mobile detection if available
-            if hasattr(self.app, 'is_mobile'):
-                return self.app.is_mobile
-            
-            # Fall back to platform detection
-            import toga.platform
-            current_platform = toga.platform.current_platform
-            is_mobile = current_platform in ['iOS', 'android']
-            
-            logger.info(f"MainWindow platform detection: {current_platform} -> mobile={is_mobile}")
-            return is_mobile
-                
-        except Exception as e:
-            logger.error(f"Failed to detect platform: {e}")
-            return False
+        # Use the app's platform detection (set once at startup)
+        return self.app.is_mobile
     
     def _initialize_components(self):
         """Initialize all core components"""
@@ -165,6 +142,10 @@ class MainWindowRefactored:
                 size=self._get_window_size()
             )
             
+            # Set minimum window size to ensure panes are readable
+            if not self.is_mobile:
+                self.window.min_size = (1000, 600)  # Minimum width for three panes
+            
             # Commands are now handled by our custom toolbar system
             # Toga commands only appear in menu bar
             logger.debug("Using custom toolbar system - Toga commands in menu bar only")
@@ -184,8 +165,9 @@ class MainWindowRefactored:
                 # Mobile: smaller window
                 return (400, 600)
             else:
-                # Desktop: larger window for three-pane layout
-                return (1200, 800)
+                # Desktop: larger window for three-pane layout with readable panes
+                # Minimum width: 250 + 250 + 300 = 800px for panes + some margin
+                return (1400, 900)
                 
         except Exception as e:
             logger.error(f"Failed to get window size: {e}")
@@ -209,12 +191,16 @@ class MainWindowRefactored:
         """Set up desktop three-pane layout with functional views"""
         try:
             # Import the views we need
-            from .views.collection_management_view import CollectionManagementView
-            from .views.collection_view import CollectionView
+            from fichero.windows.main.views.collection_management_view import CollectionManagementView
+            from fichero.windows.main.views.collection_view import CollectionView
             
             logger.debug("Creating CollectionManagementView for left pane...")
             # Left pane: Collection management view
-            collection_mgmt_view = CollectionManagementView(self.app)
+            collection_mgmt_view = CollectionManagementView(self.app, self.is_mobile)
+            
+            # Register the collection selection callback
+            collection_mgmt_view.register_collection_callback(self._on_collection_selected)
+            
             self.pane_manager.switch_to_view("collection_management", collection_mgmt_view, "left")
             
             logger.debug("Creating CollectionView for middle pane...")
@@ -239,7 +225,7 @@ class MainWindowRefactored:
     def _setup_mobile_views(self):
         """Set up mobile single-pane layout"""
         try:
-            from .views.mobile_view import MobileView
+            from fichero.windows.main.views.mobile_view import MobileView
             mobile_view = MobileView(self.app)
             
             # Set the mobile view as the window content
@@ -288,17 +274,19 @@ class MainWindowRefactored:
         except Exception as e:
             logger.error(f"Failed to handle section selection: {e}")
     
-    def _on_collection_selected(self, collection_id: str):
+    def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
         """Handle collection selection"""
         try:
-            logger.debug(f"Collection selected: {collection_id}")
+            logger.debug(f"Collection selected: {collection_id} - {collection_name}")
             
             # Update command context
             self.command_bridge.set_context(CommandContext.COLLECTION)
             
             # Switch to collection view in middle pane
-            collection_view = CollectionView(self.app, collection_id, self.is_mobile)
+            collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
+            
+            logger.info(f"Successfully navigated to collection view: {collection_name or collection_id}")
             
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
@@ -446,14 +434,14 @@ class MainWindowRefactored:
                     self.window.content = mobile_container
                     
                     # Set up mobile view manager with this container
-                    from .window_view_manager import MobileViewManager
+                    from fichero.windows.main.window_view_manager import MobileViewManager
                     mobile_view_manager = MobileViewManager(mobile_container)
                     logger.info("MobileViewManager instance created")
                     
                     # Store the original collection view to prevent duplicates
                     try:
-                        from .views.collection_management_view import CollectionManagementView
-                        original_collection_view = CollectionManagementView(self.app)
+                        from fichero.windows.main.views.collection_management_view import CollectionManagementView
+                        original_collection_view = CollectionManagementView(self.app, self.is_mobile)
                         mobile_view_manager.original_collection_view = original_collection_view
                         
                         # Replace the container content with the original view

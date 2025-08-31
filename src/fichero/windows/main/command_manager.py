@@ -8,7 +8,7 @@ import toga
 import logging
 from typing import Optional, Any, Dict, List
 
-from .commands.command_bridge import CommandBridge
+from fichero.windows.main.commands.command_bridge import CommandBridge
 
 logger = logging.getLogger(__name__)
 

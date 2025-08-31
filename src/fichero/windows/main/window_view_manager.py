@@ -38,9 +38,6 @@ class WindowViewManager:
         """Initialize the window/view manager"""
         self.app = app
         
-        # Platform detection
-        self.is_mobile = self._detect_mobile_platform()
-        
         # Desktop windows (separate Toga windows)
         self.desktop_windows: Dict[WindowType, Any] = {}
         
@@ -52,37 +49,22 @@ class WindowViewManager:
         
         logger.info(f"WindowViewManager initialized for {'mobile' if self.is_mobile else 'desktop'} platform")
     
-    def _detect_mobile_platform(self) -> bool:
-        """Detect if we're running on mobile/tablet platform"""
-        try:
-            logger.info("Detecting mobile platform...")
-            
-            # Import debug overrides
-            from fichero.config.debug_constants import get_debug_mobile_override
-            
-            # Check debug override first
-            debug_mobile = get_debug_mobile_override()
-            if debug_mobile is not None:
-                logger.info(f"Using debug mobile override: {debug_mobile}")
-                return debug_mobile
-            
-            # Check app's mobile detection if available
-            if hasattr(self.app, 'is_mobile'):
-                app_mobile = self.app.is_mobile
-                logger.info(f"Using app's mobile detection: {app_mobile}")
-                return app_mobile
-            
-            # Fall back to platform detection
-            import toga.platform
-            current_platform = toga.platform.current_platform
-            is_mobile = current_platform in ['iOS', 'android']
-            
-            logger.info(f"Platform detection: {current_platform} -> mobile={is_mobile}")
-            return is_mobile
-            
-        except Exception as e:
-            logger.error(f"Failed to detect platform: {e}")
-            return False
+    @property
+    def is_mobile(self) -> bool:
+        """Get current mobile status from app"""
+        if hasattr(self.app, 'is_mobile'):
+            return self.app.is_mobile
+        else:
+            # Fallback to platform detection if app property not available
+            try:
+                import toga.platform
+                current_platform = toga.platform.current_platform
+                is_mobile = current_platform in ['iOS', 'android']
+                logger.debug(f"Fallback platform detection: {current_platform} -> mobile={is_mobile}")
+                return is_mobile
+            except Exception as e:
+                logger.error(f"Platform detection failed: {e}")
+                return False
     
     def set_mobile_view_manager(self, mobile_view_manager):
         """Set the mobile view manager for handling views in main window"""
@@ -738,7 +720,7 @@ class MobileViewManager:
             
             # Create new instance only if we don't have the original
             if not self.original_collection_view:
-                from .views.collection_management_view import CollectionManagementView
+                from fichero.windows.main.views.collection_management_view import CollectionManagementView
                 collection_view = CollectionManagementView(self.content_container.app)
                 collection_container = collection_view.get_container()
                 self.content_container.add(collection_container)

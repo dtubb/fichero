@@ -12,7 +12,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 
-from ..styling.color_constants import ICON_PRIMARY, ICON_SECONDARY, VIEW_BACKGROUND
+from fichero.windows.main.styling.color_constants import ICON_PRIMARY, ICON_SECONDARY, VIEW_BACKGROUND
 
 logger = logging.getLogger(__name__)
 

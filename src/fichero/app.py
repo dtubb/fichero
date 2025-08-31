@@ -88,6 +88,10 @@ class FicheroApp(toga.App):
             # Initialize unified window/view manager
             self.window_view_manager = WindowViewManager(self)
             
+            # Detect platform once and set as app property
+            self.is_mobile = self._detect_platform_simple()
+            logger.info(f"Platform detection complete: is_mobile={self.is_mobile}")
+            
             if not is_gui_only:
                 print("✅ Fichero components initialized")
             logger.info("Fichero components initialized")
@@ -148,6 +152,29 @@ class FicheroApp(toga.App):
         is_briefcase_app = 'Contents/MacOS' in str(sys.executable) if sys.executable else False
         
         return is_bundled or is_briefcase_app or (is_gui_app and not os.environ.get('TERM'))
+
+    def _detect_platform_simple(self):
+        """Simple platform detection using environment variables and Toga"""
+        try:
+            # First check for environment variable override (for testing)
+            import os
+            env_mobile = os.environ.get('FORCE_MOBILE_UI')
+            if env_mobile is not None:
+                is_mobile = env_mobile.lower() in ('true', '1', 'yes', 'on')
+                logger.info(f"Using environment variable FORCE_MOBILE_UI: {is_mobile}")
+                return is_mobile
+            
+            # Use Toga's platform detection
+            import toga.platform
+            current_platform = toga.platform.current_platform
+            is_mobile = current_platform in ['iOS', 'android']
+            
+            logger.info(f"Platform detection: {current_platform} -> mobile={is_mobile}")
+            return is_mobile
+                
+        except Exception as e:
+            logger.error(f"Platform detection failed: {e}, assuming desktop")
+            return False
 
     def about(self):
         """Override Toga's default About dialog with custom About window"""
