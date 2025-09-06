@@ -82,12 +82,17 @@ class LibraryManager:
                 return None
             
             # Create collection
+            # Store description in metadata since Collection model doesn't have description field
+            if metadata is None:
+                metadata = {}
+            if description:
+                metadata['description'] = description
+                
             collection = Collection(
                 name=name.strip(),
                 type=collection_type,
                 source_path=source_path,
-                description=description,
-                metadata=metadata or {}
+                metadata=metadata
             )
             
             # Handle different collection types

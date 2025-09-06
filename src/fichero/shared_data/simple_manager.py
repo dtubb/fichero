@@ -127,6 +127,22 @@ class SimpleSharedData:
                 info["total_keys"] = len(self.store)
         
         return info
+    
+    def cleanup(self):
+        """Clean up resources"""
+        try:
+            if self.backend_name == "redis":
+                # Close Redis connection
+                if hasattr(self, 'redis'):
+                    self.redis.close()
+                    logger.debug("Redis connection closed")
+            else:
+                # Clear threading store
+                with self._lock:
+                    self.store.clear()
+                    logger.debug("Threading store cleared")
+        except Exception as e:
+            logger.warning(f"Warning during shared data cleanup: {e}")
 
 
 # Global instance

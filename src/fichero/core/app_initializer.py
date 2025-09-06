@@ -120,12 +120,22 @@ class FicheroAppInitializer:
             try:
                 from fichero.shared_data import get_shared_data
                 shared_data = get_shared_data()
-                if hasattr(shared_data.backend, 'cleanup'):
+                
+                # Check if the shared data object has a cleanup method
+                if hasattr(shared_data, 'cleanup'):
+                    logger.info("🧹 Cleaning up shared data...")
+                    shared_data.cleanup()
+                    logger.info("✓ Shared data cleanup completed")
+                elif hasattr(shared_data, 'backend') and hasattr(shared_data.backend, 'cleanup'):
+                    # Legacy support for objects with backend attribute
                     logger.info("🧹 Cleaning up shared data backend...")
                     shared_data.backend.cleanup()
                     logger.info("✓ Shared data backend cleanup completed")
+                else:
+                    logger.debug("🧹 No cleanup method found for shared data - skipping")
+                    
             except Exception as e:
-                logger.warning(f"⚠️ Shared data backend cleanup failed: {e}")
+                logger.warning(f"⚠️ Shared data cleanup failed: {e}")
             
             # Cleanup document system (GUI only)
             if not self.cli_mode:
@@ -199,13 +209,22 @@ class FicheroAppInitializer:
     
     def _setup_basic_logging(self, verbose=False):
         """Set up basic logging for CLI"""
-        level = logging.INFO if verbose else logging.WARNING
+        # Always use ERROR level for CLI to see what's happening
+        level = logging.ERROR
         logging.basicConfig(
             level=level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             force=True  # Force reconfiguration if already set
         )
-        logger.info(f"📝 Basic logging configured ({'verbose' if verbose else 'standard'} mode)")
+        
+        # Set specific loggers to ERROR level
+        logging.getLogger('fichero').setLevel(logging.ERROR)
+        logging.getLogger('fichero.cli').setLevel(logging.ERROR)
+        logging.getLogger('fichero.core').setLevel(logging.ERROR)
+        logging.getLogger('fichero.director').setLevel(logging.ERROR)
+        
+        logger.info(f"📝 CLI logging configured (ERROR mode)")
+        logger.debug("🔍 Debug logging enabled for CLI troubleshooting")
     
     def _init_settings(self, additional_settings: Dict = None):
         """Initialize full application settings and preferences"""

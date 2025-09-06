@@ -1,89 +1,49 @@
 """
-Fichero CLI Application - Thin Wrapper
-
-Lightweight CLI application that follows the same pattern as app.py.
-Delegates initialization to core systems and command logic to organized modules.
-
-Architecture:
-- Thin wrapper pattern: CLI app delegates to core/app_initializer.py
-- Command logic separated into organized modules
-- Shared error handling and business logic with GUI
+Fichero CLI Application
+Handles command-line interface for Fichero
 """
 
-import logging
-import warnings
 import typer
 from typing import Optional
+import logging
 from rich.console import Console
 
-# Suppress Toga/Rubicon deprecation warning about EventLoopPolicy
-# This is a framework issue that will be fixed in future Toga versions
-warnings.filterwarnings(
-    "ignore", 
-    message="Custom EventLoopPolicy instances have been deprecated by Python 3.14.*",
-    category=DeprecationWarning,
-    module="toga_cocoa.app"
-)
+from fichero.core.app_initializer import FicheroAppInitializer
+from fichero.cli.commands.core_commands import CoreCommands
+from fichero.cli.commands.backend_commands import BackendCommands
+from fichero.cli.commands.library_commands import LibraryCommands
 
-from fichero.core.app_initializer import initialize_cli_app
-from fichero.core.error_handler import create_cli_error_handler
-from fichero.director import FicheroDirector
-from fichero import __version__
+# Get version from package
+try:
+    from importlib.metadata import version
+    __version__ = version("fichero")
+except ImportError:
+    __version__ = "0.1.0"
 
 logger = logging.getLogger(__name__)
 
-
-class FicheroCLI:
-    """Thin wrapper CLI application - delegates to organized command modules"""
-    
-    # Application metadata (same as app.py pattern)
-    name = "Fichero CLI"
-    version = __version__
-    description = "Multi-Step Document Processing"
-    author = "Daniel Tubb"
-    home_page = "https://www.tubb.ca/fichero/"
+class CLIApp:
+    """Main CLI application class"""
     
     def __init__(self):
-        """Initialize CLI components (same pattern as app.py)"""
-        print("● Fichero CLI starting up...")
+        """Initialize CLI application"""
+        self.console = Console()
+        self.app = typer.Typer(
+            name="fichero",
+            help="Fichero - Document Processing System",
+            add_completion=False
+        )
         
-        # Initialize components using shared initializer (same as GUI)
-        try:
-            self.components, self.initializer = initialize_cli_app()
-            
-            # Extract core components (same subset as GUI gets)
-            self.settings = self.components['settings']
-            self.director = self.components['director']
-            
-            print("✓ Fichero CLI components initialized")
-            
-        except Exception as e:
-            print(f"❌ Failed to initialize Fichero: {e}")
-            import traceback
-            traceback.print_exc()
-            import sys
-            sys.exit(1)
+        # Initialize app components
+        self.app_initializer = FicheroAppInitializer()
+        self.director = self.app_initializer.director
         
-                # Set up CLI interface
-        self._setup_cli_interface()
-        print("● Fichero CLI ready!")
+        # Set up version command
+        self._setup_version_command()
+        
+        # Register commands
+        self._register_commands()
     
-    def _setup_cli_interface(self):
-        """Set up CLI interface - thin setup that delegates to command modules"""
-        try:
-            # Initialize CLI interface
-            self.app = typer.Typer(help="Fichero - Multi-Step Document Processing")
-            self.console = Console()
-            
-            # Set up version command
-            self._setup_version_command()
-            
-            # Register command modules (organized and clean)
-            self._register_commands()
-            
-        except Exception as e:
-            print(f"⚠️ Warning: CLI interface setup failed: {e}")
-
     def _setup_version_command(self):
         """Set up --version flag"""
         def version_callback(value: bool):
@@ -105,59 +65,56 @@ class FicheroCLI:
             pass
 
     def _register_commands(self):
-        """Register all command modules - organized and maintainable"""
-        # Import command modules
-        from fichero.commands.core_commands import CoreCommands
-        from fichero.commands.backend_commands import BackendCommands
-        
-        # Initialize command handlers with shared components
-        core_commands = CoreCommands(self.director, self.console)
-        backend_commands = BackendCommands(self.director, self.console)
-        
-        # Register core commands
-        self.app.command()(core_commands.process)
-        self.app.command()(core_commands.plans)
-        self.app.command()(core_commands.configure)
-        self.app.command()(core_commands.info)
-        
-        # Register backend subcommand group - always show all commands but check capabilities at runtime
-        backend_app = typer.Typer(help="Backend management commands")
-        backend_app.command("select")(backend_commands.select)
-        backend_app.command("info")(backend_commands.info)
-        backend_app.command("start")(backend_commands.start_with_capability_check)
-        backend_app.command("stop")(backend_commands.stop_with_capability_check)
-        backend_app.command("restart")(backend_commands.restart_with_capability_check)
-        backend_app.command("status")(backend_commands.status_with_capability_check)
-        backend_app.command("health")(backend_commands.health_with_capability_check)
-        backend_app.command("purge")(backend_commands.purge_with_capability_check)
-        backend_app.command("flush")(backend_commands.flush_with_capability_check)
-        backend_app.command("activity-monitor")(backend_commands.activity_monitor)
-        
-        self.app.add_typer(backend_app, name="backend")
-
-    def finalize(self):
-        """Clean up when CLI closes - delegates to shared cleanup"""
-        print("🔄 Fichero CLI closing...")
+        """Register all command modules"""
         try:
-            if hasattr(self, 'initializer') and self.initializer:
-                self.initializer.cleanup()
+            # Initialize command handlers
+            core_commands = CoreCommands(self.director, self.console)
+            backend_commands = BackendCommands(self.director, self.console)
+            library_commands = LibraryCommands(self.app_initializer)
+            
+            # Register core commands
+            self.app.command()(core_commands.process)
+            self.app.command()(core_commands.plans)
+            self.app.command()(core_commands.configure)
+            self.app.command()(core_commands.info)
+            
+            # Register library commands using the Typer app
+            self.app.add_typer(library_commands.app, name="library")
+            
+            # Register backend commands
+            backend_app = typer.Typer(help="Backend management commands")
+            backend_app.command("select")(backend_commands.select)
+            backend_app.command("info")(backend_commands.info)
+            backend_app.command("start")(backend_commands.start_with_capability_check)
+            backend_app.command("stop")(backend_commands.stop_with_capability_check)
+            backend_app.command("restart")(backend_commands.restart_with_capability_check)
+            backend_app.command("status")(backend_commands.status_with_capability_check)
+            backend_app.command("health")(backend_commands.health_with_capability_check)
+            backend_app.command("purge")(backend_commands.purge_with_capability_check)
+            backend_app.command("flush")(backend_commands.flush_with_capability_check)
+            
+            self.app.add_typer(backend_app, name="backend")
+            
         except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Failed to register commands: {e}")
+    
+    def run(self):
+        """Run the CLI application"""
+        try:
+            self.app()
+        finally:
+            # Cleanup
+            self.app_initializer.cleanup()
 
+# Create global app instance
+app = CLIApp()
 
 def main():
-    """Main entry point with shared error handling"""
-    cli_instance = FicheroCLI()
-    error_handler = create_cli_error_handler(cli_instance.console)
-    
-    try:
-        wrapped_app = error_handler.wrap_main_function(cli_instance.app, "CLI")
-        wrapped_app()
-    finally:
-        cli_instance.finalize()
-
+    """Main entry point for CLI"""
+    app.run()
 
 if __name__ == "__main__":
-    main() 
+    main()
+
+# Export for backward compatibility
+FicheroCLI = CLIApp

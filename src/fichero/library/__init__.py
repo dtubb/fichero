@@ -19,3 +19,13 @@ __all__ = [
     'CollectionImporter',
     'CollectionExporter'
 ] 
+# Add new processing navigation classes
+from fichero.library.processing_navigator import ProcessingNavigator, ProcessingStep, ProcessingOutput
+from fichero.library.director_bridge import LibraryDirectorBridge
+
+__all__.extend([
+    'ProcessingNavigator',
+    'ProcessingStep', 
+    'ProcessingOutput',
+    'LibraryDirectorBridge'
+])

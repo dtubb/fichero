@@ -187,7 +187,7 @@ class LibraryStorage:
                 
                 row = cursor.fetchone()
                 if row:
-                    return Collection(
+                    collection = Collection(
                         id=row[0],
                         name=row[1],
                         type=row[2],
@@ -197,10 +197,43 @@ class LibraryStorage:
                         updated_at=datetime.fromisoformat(row[6]),
                         metadata=self._deserialize_metadata(row[7])
                     )
-                return None
+                    return collection
+                else:
+                    return None
                 
         except Exception as e:
             logger.error(f"Failed to get collection: {e}")
+            return None
+    
+    def get_collection_by_name(self, name: str) -> Optional[Collection]:
+        """Get a collection by name"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT id, name, type, source_path, local_path, created_at, updated_at, metadata
+                    FROM collections WHERE name = ?
+                """, (name,))
+                
+                row = cursor.fetchone()
+                if row:
+                    collection = Collection(
+                        id=row[0],
+                        name=row[1],
+                        type=row[2],
+                        source_path=row[3],
+                        local_path=row[4],
+                        created_at=datetime.fromisoformat(row[5]),
+                        updated_at=datetime.fromisoformat(row[6]),
+                        metadata=self._deserialize_metadata(row[7])
+                    )
+                    return collection
+                else:
+                    return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get collection by name: {e}")
             return None
     
     def get_all_collections(self) -> List[Collection]:
