@@ -9,7 +9,7 @@ Includes navigation, toolbars, and common services.
 from fichero.shared.navigation import NavigationColumn, NavigationState, NavigationLevel, NavigationItem, PreviewEditPane
 
 # Toolbar components  
-from fichero.shared.toolbars import DesktopToolbar, MobileToolbar
+from fichero.shared.toolbars import SimpleTopToolbar
 
 __all__ = [
     # Navigation
@@ -20,6 +20,5 @@ __all__ = [
     'PreviewEditPane',
     
     # Toolbars
-    'DesktopToolbar',
-    'MobileToolbar'
+    'SimpleTopToolbar'
 ] 

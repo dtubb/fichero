@@ -275,6 +275,13 @@ class BaseView(ABC):
                     fallback_content = toga.Box(style=Pack(direction=COLUMN))
                     self.scroll_container.content = fallback_content
             
+            # Call show() method if it exists to refresh the view before displaying
+            if hasattr(self, 'show') and callable(getattr(self, 'show')):
+                try:
+                    self.show()
+                except Exception as e:
+                    logger.debug(f"Error calling show() on view: {e}")
+            
             return self.container
         except Exception as e:
             logger.error(f"Error in get_container: {e}")

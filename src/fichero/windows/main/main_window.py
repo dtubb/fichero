@@ -93,6 +93,10 @@ class MainWindowRefactored:
         # Set up initial views
         self._setup_initial_views()
         
+        # Set up mobile view manager for overlay views (settings, about, etc.)
+        if self.is_mobile:
+            self._setup_mobile_view_manager()
+        
         logger.info("Clean main window initialized successfully")
     
     def _detect_mobile_platform(self) -> bool:
@@ -234,6 +238,38 @@ class MainWindowRefactored:
         except Exception as e:
             logger.error(f"Failed to set up mobile views: {e}")
     
+    def _setup_mobile_view_manager(self):
+        """Set up the mobile view manager for overlay views (settings, about, etc.)"""
+        try:
+            from fichero.windows.main.window_view_manager import MobileViewManager
+            
+            # Create a separate overlay container for mobile views
+            # DO NOT use the main container - that breaks pane manager navigation
+            overlay_container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+                
+            # Create mobile view manager with the overlay container
+            mobile_view_manager = MobileViewManager(overlay_container, self.app)
+            
+            # Store reference to main window and pane manager for proper restoration
+            mobile_view_manager.main_window = self
+            mobile_view_manager.pane_manager = self.pane_manager
+            
+            # Connect it to the app's window view manager
+            if hasattr(self.app, 'window_view_manager'):
+                self.app.window_view_manager.set_mobile_view_manager(mobile_view_manager)
+                logger.info("Mobile view manager connected successfully")
+            else:
+                logger.warning("App doesn't have window_view_manager")
+                
+        except Exception as e:
+            logger.error(f"Failed to set up mobile view manager: {e}")
+    
     def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
         """Handle collection selection"""
         try:
@@ -248,15 +284,24 @@ class MainWindowRefactored:
                 collection_view.set_collection_id(collection_id)
                 collection_view.register_preview_callback(self._on_file_preview_requested)
                 
-                # Register mobile back navigation callback (like preview does)
-                if self.is_mobile and hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
+                # Register navigation callbacks for BOTH desktop and mobile 
+                if hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
+                    logger.info(f"🔙 Registering navigation callbacks for collection: {collection_name} (mobile: {self.is_mobile})")
+                    logger.info(f"🔙 Collection view has top_toolbar: {hasattr(collection_view, 'top_toolbar')}")
+                    logger.info(f"🔙 Top toolbar is not None: {collection_view.top_toolbar is not None}")
+                    logger.info(f"🔙 Top toolbar type: {type(collection_view.top_toolbar)}")
+                    
                     collection_view.top_toolbar.register_navigation_callbacks(
-                        on_back_to_library=self._on_mobile_back_to_library,
+                        on_back_to_library=self._on_mobile_back_to_library if self.is_mobile else self._on_back_to_library,
                         on_navigate_back=collection_view._on_navigate_back,  # Keep hierarchy navigation internal
                         on_navigate_to_path=collection_view._on_navigate_to_path,
                         on_add_folder=collection_view._on_add_folder,
                         on_add_file=collection_view._on_add_file
                     )
+                    
+                    logger.info("🔙 Navigation callbacks registered successfully")
+                else:
+                    logger.warning(f"🔙 Cannot register navigation callbacks - has_top_toolbar: {hasattr(collection_view, 'top_toolbar')}, toolbar_not_none: {hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar is not None}")
                 
                 self.cached_collection_views[collection_id] = collection_view
                 logger.info(f"📁 Created and cached collection view: {collection_name or collection_id}")
@@ -300,11 +345,17 @@ class MainWindowRefactored:
                 preview_pane = PreviewPane(self.app, self.is_mobile)
                 preview_pane.show_file(file_path, file_data)
                 
-                # Register back navigation callback
+                # Register back navigation callback and update back label with collection name
                 if hasattr(preview_pane, 'top_toolbar') and preview_pane.top_toolbar:
                     preview_pane.top_toolbar.register_callbacks(
                         on_back_to_fiche=self._on_mobile_back_to_collection
                     )
+                    
+                    # Update back label with collection name if available
+                    collection_name = self._get_current_collection_name()
+                    if collection_name and hasattr(preview_pane.top_toolbar, 'update_back_label'):
+                        preview_pane.top_toolbar.update_back_label(collection_name)
+                        logger.debug(f"Updated preview back label to: {collection_name}")
                 
                 # Switch to preview view in mobile mode (full screen)
                 self.pane_manager.switch_to_view("preview", preview_pane, "mobile")
@@ -322,6 +373,51 @@ class MainWindowRefactored:
                     
         except Exception as e:
             logger.error(f"Failed to handle file preview request: {e}")
+    
+    def _get_current_collection_name(self) -> str:
+        """Get the name of the currently active collection"""
+        try:
+            # Get the current collection view from the pane manager
+            current_views = getattr(self.pane_manager, 'current_views', {})
+            collection_view = current_views.get('collection')
+            
+            if collection_view and hasattr(collection_view, 'collection_name'):
+                return collection_view.collection_name or "Collection"
+            
+            # Fallback: check mobile view if in mobile mode
+            if self.is_mobile and hasattr(self.pane_manager, 'current_mobile_view'):
+                current_mobile_view_name = getattr(self.pane_manager, 'current_mobile_view', '')
+                if current_mobile_view_name == 'collection':
+                    mobile_view = current_views.get('collection')
+                    if mobile_view and hasattr(mobile_view, 'collection_name'):
+                        return mobile_view.collection_name or "Collection"
+            
+            return "Collection"  # Default fallback
+            
+        except Exception as e:
+            logger.error(f"Failed to get current collection name: {e}")
+            return "Collection"
+    
+    def _on_back_to_library(self):
+        """Handle desktop back navigation from collection to library"""
+        try:
+            logger.debug("Desktop back navigation: collection -> library")
+            
+            # For desktop, show the library view in the left pane
+            if not self.cached_library_view:
+                self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                self.cached_library_view.register_collection_callback(self._on_collection_selected)
+                logger.info("📚 Created cached library view for desktop navigation")
+            
+            # Update pane to show library view
+            self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "left")
+            logger.info("Navigated back to library view on desktop")
+            
+            # Update command context
+            self.command_bridge.set_context(CommandContext.LIBRARY)
+            
+        except Exception as e:
+            logger.error(f"Failed to navigate back to library: {e}")
     
     def _on_mobile_back_to_library(self):
         """Handle mobile back navigation from collection to library"""

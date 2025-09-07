@@ -1,9 +1,13 @@
 """
-Mobile view for processing content that can be embedded in main window
+Processing Mobile View
+
+Mobile-specific view for document processing that can be embedded in main window.
+Uses the clean modular ProcessingContent with standard base view pattern and consistent toolbars.
 """
 
-import toga
 import logging
+from typing import Optional, Callable
+
 from fichero.windows.main.views.base_view import BaseView
 from fichero.windows.processing.processing_content import ProcessingContent
 
@@ -15,16 +19,15 @@ class ProcessingMobileView(BaseView):
     
     def __init__(self, app):
         """Initialize the mobile processing view"""
-        # Create the processing content BEFORE calling super().__init__()
-                # because BaseView.__init__ calls _create_content() which needs this
-        self.processing_content = ProcessingContent(app=app)
-        
-        # Initialize BaseView first
+        # Initialize base view
         super().__init__(app, is_mobile=app.is_mobile)
         
-        # Create toolbars after BaseView is initialized
-        self._create_toolbars()
-                
+        # Create the processing content
+        self.processing_content = ProcessingContent(
+            app=app,
+            on_back=self._on_back_pressed  # Pass back callback
+        )
+        
         logger.info("ProcessingMobileView initialized")
     
     def create(self):
@@ -53,7 +56,7 @@ class ProcessingMobileView(BaseView):
             
             self.bottom_toolbar = ProcessingBottomToolbar(self.app, is_mobile=self.is_mobile)
             
-            # Set toolbars in the view
+            # Set toolbars on the view
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
@@ -65,7 +68,7 @@ class ProcessingMobileView(BaseView):
     def _create_content(self):
         """Create the processing content"""
         try:
-            # Create content using the shared processing content
+            # Create content using the processing content
             content = self.processing_content.create()
             
             # Add to the content container
@@ -76,16 +79,6 @@ class ProcessingMobileView(BaseView):
         except Exception as e:
             logger.error(f"Failed to create processing content: {e}")
     
-    def show(self):
-        """Show method for compatibility"""
-        # Processing doesn't need special show logic like activity monitor
-        logger.info("Processing mobile view shown")
-    
-    def hide(self):
-        """Hide method for compatibility"""
-        # Processing doesn't need special hide logic like activity monitor
-        logger.info("Processing mobile view hidden")
-    
     def _on_back_pressed(self):
         """Handle back button press"""
         logger.debug("Processing back button pressed")
@@ -93,12 +86,22 @@ class ProcessingMobileView(BaseView):
         if hasattr(self.app, 'window_view_manager') and hasattr(self.app.window_view_manager, 'mobile_view_manager'):
             self.app.window_view_manager.mobile_view_manager.go_back()
     
-    def start_processing(self):
-        """Start processing if available"""
-        if hasattr(self.processing_content, 'start_processing'):
-            self.processing_content.start_processing()
+    def show(self):
+        """Show method for compatibility"""
+        logger.info("Processing mobile view shown")
     
-    def stop_processing(self):
-        """Stop processing if available"""
-        if hasattr(self.processing_content, 'stop_processing'):
-            self.processing_content.stop_processing()
+    def hide(self):
+        """Hide method for compatibility"""
+        logger.info("Processing mobile view hidden")
+    
+    def get_selected_folder(self):
+        """Get currently selected folder"""
+        return self.processing_content.get_selected_folder()
+    
+    def get_current_plan(self):
+        """Get current plan"""
+        return self.processing_content.get_current_plan()
+    
+    def is_processing(self) -> bool:
+        """Check if currently processing"""
+        return self.processing_content.is_processing() 

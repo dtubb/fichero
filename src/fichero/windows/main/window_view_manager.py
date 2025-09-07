@@ -12,6 +12,8 @@ import toga
 import logging
 from typing import Optional, Dict, Any, Callable
 from enum import Enum
+from toga.style import Pack
+from toga.constants import COLUMN
 
 logger = logging.getLogger(__name__)
 
@@ -460,9 +462,10 @@ class MobileViewManager:
     Handles navigation, back button behavior, and view stacking.
     """
     
-    def __init__(self, main_window_content_container):
+    def __init__(self, main_window_content_container, app):
         """Initialize mobile view manager"""
         self.content_container = main_window_content_container
+        self.app = app  # Store app reference for creating views
         
         # View stack for navigation
         self.view_stack: list = []
@@ -475,10 +478,15 @@ class MobileViewManager:
         # Store the original collection view to prevent duplicates
         self.original_collection_view = None
         
+        # Store the main window wrapper to access its content
+        self.main_window = None
+        if hasattr(self.app, 'main_window_wrapper'):
+            self.main_window = self.app.main_window_wrapper
+        
         logger.info("MobileViewManager initialized")
     
     def show_view(self, view_type: WindowType, view_instance) -> bool:
-        """Show a view in the main window"""
+        """Show a view as an overlay in the main window"""
         try:
             # Store current view in stack if we have one
             if self.current_view and self.current_view_type:
@@ -497,18 +505,28 @@ class MobileViewManager:
             else:
                 view_content = view_instance
             
-            # Create mobile view with top toolbar
-            mobile_view_container = self._create_mobile_view_container(view_type, view_content)
+            # Store the original main window content before overlaying
+            if not hasattr(self, 'original_main_content'):
+                self.original_main_content = self.main_window.window.content
             
-            # Update main window content
-            self.content_container.clear()
-            self.content_container.add(mobile_view_container)
+            # Create overlay that covers the entire window
+            overlay_content = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+            overlay_content.add(view_content)
+            
+            # Replace main window content with overlay
+            self.main_window.window.content = overlay_content
             
             # Trigger view show if available
             if hasattr(view_instance, 'show'):
                 view_instance.show()
             
-            logger.info(f"Mobile view shown: {view_type.value}")
+            logger.info(f"Mobile view shown as overlay: {view_type.value}")
             return True
             
         except Exception as e:
@@ -516,157 +534,12 @@ class MobileViewManager:
             return False
     
     def _create_mobile_view_container(self, view_type: WindowType, view_content):
-        """Create a mobile view container with top toolbar"""
-        from toga.style import Pack
-        from toga.constants import COLUMN
-        
-        # Main container
-        container = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                flex=1
-            )
-        )
-        
-        # Top toolbar with back button and title
-        top_toolbar = self._create_mobile_top_toolbar(view_type)
-        container.add(top_toolbar)
-        
-        # View content
-        container.add(view_content)
-        
-        return container
+        """Create a mobile view container - views now handle their own toolbars"""
+        # Since our mobile views now extend BaseView and handle their own toolbars,
+        # we just return the view content directly
+        return view_content
     
-    def _create_mobile_top_toolbar(self, view_type: WindowType):
-        """Create top toolbar with back button and title using proper icons"""
-        return self._create_simple_mobile_toolbar(view_type)
-    
-
-    def _create_simple_mobile_toolbar(self, view_type: WindowType):
-        """Create a mobile toolbar with proper chevron icon, centered title, 50px height, and all-around borders"""
-        from toga.style import Pack
-        from toga.constants import ROW, COLUMN
-        from fichero.windows.main.styling.color_constants import TOOLBAR_BORDER, VIEW_BACKGROUND
-        
-        # Main toolbar container with borders on all sides
-        toolbar_container = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                height=50,  # Fixed 50px height
-                margin=(0, 0),
-                background_color=VIEW_BACKGROUND  # White background
-            )
-        )
-        
-        # Top border
-        top_border = toga.Box(
-            style=Pack(
-                background_color=TOOLBAR_BORDER,
-                height=1,
-                margin=(0, 0)
-            )
-        )
-        toolbar_container.add(top_border)
-        
-        # Content wrapper with left and right borders
-        content_wrapper = toga.Box(
-            style=Pack(
-                direction=ROW,
-                flex=1,
-                margin=(0, 0)
-            )
-        )
-        
-        # Left border
-        left_border = toga.Box(
-            style=Pack(
-                background_color=TOOLBAR_BORDER,
-                width=1,
-                margin=(0, 0)
-            )
-        )
-        content_wrapper.add(left_border)
-        
-        # Main content area
-        toolbar = toga.Box(
-            style=Pack(
-                direction=ROW,
-                margin=(8, 12),  # Match base toolbar margin
-                flex=1
-            )
-        )
-        
-        # Back button with proper chevron icon (match toolbar sizing)
-        back_button = toga.Button(
-            "",  # No text - icon only
-            on_press=self._on_back_pressed,
-            style=Pack(
-                width=22,
-                height=22,
-                margin=(4, 16, 4, 0)
-            )
-        )
-        
-        # Try to set the chevron icon
-        try:
-            back_button.icon = toga.Icon("resources/icons/toolbar/chevron.left@10x.png")
-        except Exception as e:
-            logger.warning(f"Could not load chevron icon: {e}")
-            # Fallback to Unicode chevron
-            back_button.text = "‹"
-        
-        toolbar.add(back_button)
-        
-        # Title in center
-        title_map = {
-            WindowType.SETTINGS: "Settings",
-            WindowType.ABOUT: "About Fichero",
-            WindowType.ACTIVITY_MONITOR: "Activity Monitor", 
-            WindowType.PLANS: "Plans",
-            WindowType.PROMPTS: "Prompts",
-            WindowType.PROCESSING: "Processing"
-        }
-        
-        title = toga.Label(
-            title_map.get(view_type, view_type.value.title()),
-            style=Pack(
-                font_size=18,
-                font_weight="bold",
-                flex=1,
-                text_align="center"
-            )
-        )
-        toolbar.add(title)
-        
-        # Right spacer to balance the back button  
-        spacer = toga.Box(style=Pack(width=38))  # Match back button + margin width
-        toolbar.add(spacer)
-        
-        content_wrapper.add(toolbar)
-        
-        # Right border
-        right_border = toga.Box(
-            style=Pack(
-                background_color=TOOLBAR_BORDER,
-                width=1,
-                margin=(0, 0)
-            )
-        )
-        content_wrapper.add(right_border)
-        
-        toolbar_container.add(content_wrapper)
-        
-        # Bottom border
-        bottom_border = toga.Box(
-            style=Pack(
-                background_color=TOOLBAR_BORDER,
-                height=1,
-                margin=(0, 0)
-            )
-        )
-        toolbar_container.add(bottom_border)
-        
-        return toolbar_container
+    # Old toolbar creation methods removed - mobile views now handle their own toolbars using BaseView
     
     def _on_back_pressed(self, widget):
         """Handle back button press"""
@@ -716,7 +589,7 @@ class MobileViewManager:
             return False
     
     def _go_back_to_library(self):
-        """Go back to the main library/collection view"""
+        """Go back to the main library/collection view by restoring original content"""
         try:
             # Clear current view
             if self.current_view and hasattr(self.current_view, 'hide'):
@@ -728,34 +601,19 @@ class MobileViewManager:
             # Clear the view stack
             self.view_stack.clear()
             
-            # Restore the original collection management view content
-            self.content_container.clear()
-            
-            # Reuse the original collection view if we have it
-            if self.original_collection_view:
-                try:
-                    collection_container = self.original_collection_view.get_container()
-                    self.content_container.add(collection_container)
-                    logger.info("Reusing original collection management view")
-                except Exception as e:
-                    logger.error(f"Failed to reuse original collection view: {e}")
-                    self.original_collection_view = None  # Clear invalid reference
-            
-            # Create new instance only if we don't have the original
-            if not self.original_collection_view:
-                from fichero.windows.main.views.collection_management_view import CollectionManagementView
-                collection_view = CollectionManagementView(self.content_container.app)
-                collection_container = collection_view.get_container()
-                self.content_container.add(collection_container)
-                
-                # Store for future reuse
-                self.original_collection_view = collection_view
-                logger.info("Created new collection management view and stored for reuse")
-            
-            logger.info("Navigating back to library view")
+            # Restore the original main window content
+            if hasattr(self, 'original_main_content') and self.original_main_content:
+                self.main_window.window.content = self.original_main_content
+                logger.info("✅ Restored original main window content")
+            else:
+                logger.error("❌ CRITICAL: No original main content to restore")
+                raise ValueError("No original main content available")
             
         except Exception as e:
-            logger.error(f"Failed to go back to library: {e}")
+            logger.error(f"❌ CRITICAL: Failed to restore original content: {e}")
+            import traceback
+            traceback.print_exc()
+            raise  # Don't hide the error - let it bubble up
     
     def close_view(self, view_type: WindowType) -> bool:
         """Close a specific view"""

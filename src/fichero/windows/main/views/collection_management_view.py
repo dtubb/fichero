@@ -54,6 +54,15 @@ class CollectionManagementView(BaseView):
         
         logger.info("Collection management view created successfully")
     
+    def show(self):
+        """Called when view becomes active - refresh DetailedList to clear cached selections"""
+        try:
+            # Refresh the collections display to clear any cached DetailedList selection state
+            self._create_collections_display()
+            logger.info("🔄 Collection management view refreshed on show() to clear cached selections")
+        except Exception as e:
+            logger.error(f"Failed to refresh collection management view on show: {e}")
+    
     def register_collection_callback(self, callback):
         """Register callback for when a collection is selected"""
         try:
@@ -93,6 +102,16 @@ class CollectionManagementView(BaseView):
     def _create_collections_detailed_list(self):
         """Create a detailed list view for collections with swipe actions"""
         try:
+            # Always clear any existing DetailedList to reset selection state
+            if hasattr(self, 'collections_list') and self.collections_list:
+                try:
+                    # Remove from container if it exists
+                    if self.content_container and self.collections_list in self.content_container.children:
+                        self.content_container.remove(self.collections_list)
+                    logger.info("🔄 Cleared existing collections DetailedList to reset selection")
+                except Exception as e:
+                    logger.debug(f"Note: Could not remove existing collections DetailedList: {e}")
+            
             # Format collections for Toga DetailedList
             collection_data = []
             for collection in self.collections:

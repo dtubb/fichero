@@ -163,7 +163,7 @@ class CollectionTopToolbar(TopToolbar):
             self.on_navigate_to_path(path)
     
     def _on_back_navigation(self, widget):
-        """Smart back navigation - goes to parent folder or library (copied from preview approach)"""
+        """Smart back navigation - goes to parent folder or library"""
         try:
             logger.info("🔙 Back button pressed in collection view")
             logger.info(f"🔙 Current path: {getattr(self, '_current_path', 'None')}")
@@ -175,20 +175,21 @@ class CollectionTopToolbar(TopToolbar):
                 logger.info("Back navigation: going up one folder level")
                 if self.on_navigate_back:
                     self.on_navigate_back()
-                    return
                 else:
                     logger.warning("on_navigate_back callback is None")
-            
-            # At root level or fallback - use the primary back callback (like preview does)
-            if self.on_back_to_library:
-                logger.info("🔙 Calling on_back_to_library callback")
-                self.on_back_to_library()
-            elif hasattr(self, 'on_back') and self.on_back:
-                logger.info("🔙 Calling fallback on_back callback")
-                self.on_back()
             else:
-                logger.warning("🔙 No back callback registered")
-                
+                # At root level - different behavior for mobile vs desktop
+                if self.is_mobile:
+                    # Mobile: go back to library
+                    logger.info("Back navigation (mobile): going back to library")
+                    if self.on_back_to_library:
+                        logger.info("🔙 Calling on_back_to_library callback")
+                        self.on_back_to_library()
+                    else:
+                        logger.warning("on_back_to_library callback is None")
+                else:
+                    # Desktop: do nothing (button should be disabled at root)
+                    logger.info("Back navigation (desktop): at root level, button should be disabled")
         except Exception as e:
             logger.error(f"Failed to handle back navigation: {e}")
     

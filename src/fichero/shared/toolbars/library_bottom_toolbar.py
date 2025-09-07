@@ -83,18 +83,12 @@ class LibraryBottomToolbar(BottomToolbar):
     
     def _on_processing_clicked(self, widget):
         """Handle processing button click"""
-        logger.info("🔧 Processing clicked - checking app state")
-        logger.info(f"🔧 App has show_processing: {hasattr(self.app, 'show_processing')}")
-        logger.info(f"🔧 App has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
-        if hasattr(self.app, 'window_view_manager'):
-            logger.info(f"🔧 Window view manager is_mobile: {self.app.window_view_manager.is_mobile}")
-            logger.info(f"🔧 Mobile view manager set: {self.app.window_view_manager.mobile_view_manager is not None}")
+        logger.debug("Processing clicked")
         
         # Use the app's processing window method
         try:
             if hasattr(self.app, 'show_processing'):
-                result = self.app.show_processing()
-                logger.info(f"🔧 show_processing() result: {result}")
+                self.app.show_processing()
             else:
                 logger.error("Processing window not available - app.show_processing() not found")
         except Exception as e:
@@ -102,18 +96,12 @@ class LibraryBottomToolbar(BottomToolbar):
     
     def _on_activity_monitor_clicked(self, widget):
         """Handle activity monitor button click"""
-        logger.info("🔧 Activity monitor clicked - checking app state")
-        logger.info(f"🔧 App has show_activity_monitor: {hasattr(self.app, 'show_activity_monitor')}")
-        logger.info(f"🔧 App has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
-        if hasattr(self.app, 'window_view_manager'):
-            logger.info(f"🔧 Window view manager is_mobile: {self.app.window_view_manager.is_mobile}")
-            logger.info(f"🔧 Mobile view manager set: {self.app.window_view_manager.mobile_view_manager is not None}")
+        logger.debug("Activity monitor clicked")
         
         # Use the app's activity monitor window method
         try:
             if hasattr(self.app, 'show_activity_monitor'):
-                result = self.app.show_activity_monitor()
-                logger.info(f"🔧 show_activity_monitor() result: {result}")
+                self.app.show_activity_monitor()
             else:
                 logger.error("Activity monitor window not available - app.show_activity_monitor() not found")
         except Exception as e:
@@ -121,18 +109,12 @@ class LibraryBottomToolbar(BottomToolbar):
     
     def _on_about_clicked(self, widget):
         """Handle about button click"""
-        logger.info("🔧 About clicked - checking app state")
-        logger.info(f"🔧 App has show_about: {hasattr(self.app, 'show_about')}")
-        logger.info(f"🔧 App has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
-        if hasattr(self.app, 'window_view_manager'):
-            logger.info(f"🔧 Window view manager is_mobile: {self.app.window_view_manager.is_mobile}")
-            logger.info(f"🔧 Mobile view manager set: {self.app.window_view_manager.mobile_view_manager is not None}")
+        logger.debug("About clicked")
         
         # Use the app's about window method
         try:
             if hasattr(self.app, 'show_about'):
-                result = self.app.show_about()
-                logger.info(f"🔧 show_about() result: {result}")
+                self.app.show_about()
             else:
                 logger.error("About window not available - app.show_about() not found")
         except Exception as e:
@@ -140,18 +122,12 @@ class LibraryBottomToolbar(BottomToolbar):
     
     def _on_library_settings_clicked(self, widget):
         """Handle library settings button click"""
-        logger.info("🔧 Library settings clicked - checking app state")
-        logger.info(f"🔧 App has show_settings: {hasattr(self.app, 'show_settings')}")
-        logger.info(f"🔧 App has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
-        if hasattr(self.app, 'window_view_manager'):
-            logger.info(f"🔧 Window view manager is_mobile: {self.app.window_view_manager.is_mobile}")
-            logger.info(f"🔧 Mobile view manager set: {self.app.window_view_manager.mobile_view_manager is not None}")
+        logger.debug("Library settings clicked")
         
         # Use the app's settings window method - single source of truth
         try:
             if hasattr(self.app, 'show_settings'):
-                result = self.app.show_settings()
-                logger.info(f"🔧 show_settings() result: {result}")
+                self.app.show_settings()
             else:
                 logger.error("Settings window not available - app.show_settings() not found")
         except Exception as e:

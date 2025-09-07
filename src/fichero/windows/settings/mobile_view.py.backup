@@ -22,12 +22,13 @@ class SettingsMobileView(BaseView):
     
     def __init__(self, app):
         """Initialize the mobile settings view"""
-        # Create the settings content BEFORE calling super().__init__()
-        # because BaseView.__init__ calls _create_content() which needs this
-        self.settings_content = SettingsContent(app=app)
+        self.app = app
         
         # Initialize BaseView
         super().__init__(app, app.is_mobile)
+        
+        # Create the shared content (toolbar handles navigation)
+        self.settings_content = SettingsContent(app=app)
         
         # Create toolbars
         self._create_toolbars()
@@ -35,8 +36,7 @@ class SettingsMobileView(BaseView):
         logger.info("SettingsMobileView initialized")
     
     def create(self):
-        """Create the mobile settings view UI"""
-        # Use BaseView's create which handles toolbar + content layout
+        """Create the settings mobile view UI - return the full view container"""
         return self.get_container()
     
     def _create_content(self):
@@ -83,6 +83,15 @@ class SettingsMobileView(BaseView):
             
         except Exception as e:
             logger.error(f"Failed to create settings toolbars: {e}")
+    
+    def _create_content(self):
+        """Create the content area"""
+        return self.settings_content.create()
+    
+    def create(self):
+        """Create the mobile settings view UI"""
+        # Use BaseView's create which handles toolbar + content layout
+        return super().create()
     
     def show(self):
         """Show method for compatibility"""

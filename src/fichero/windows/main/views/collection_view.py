@@ -67,6 +67,15 @@ class CollectionView(BaseView):
         
         logger.info("Refactored collection view created successfully")
     
+    def show(self):
+        """Called when view becomes active - refresh DetailedList to clear cached selections"""
+        try:
+            # Refresh the content to clear any cached DetailedList selection state
+            self._create_content()
+            logger.info("🔄 Collection view refreshed on show() to clear cached selections")
+        except Exception as e:
+            logger.error(f"Failed to refresh collection view on show: {e}")
+    
     def _create_content(self):
         """Create the collection view content"""
         try:
@@ -75,20 +84,19 @@ class CollectionView(BaseView):
                 self.content_container.clear()
             
             # Add current folder header (shows what folder we're currently viewing)
-            # Only show on mobile, and only when NOT at collection root
-            if self.is_mobile and self.current_path:
-                current_folder_name = self._get_current_folder_display_name()
-                if current_folder_name:
-                    folder_header = toga.Label(
-                        current_folder_name,
-                        style=Pack(
-                            margin=(15, 20, 10, 20),
-                            # Use default font size (no font_size specified)
-                            font_weight="bold",
-                            color=self.text_color
-                        )
+            # Show on both mobile and desktop, always show current location
+            content_title = self._get_content_title()
+            if content_title:
+                folder_header = toga.Label(
+                    content_title,
+                    style=Pack(
+                        margin=(15, 20, 10, 20),
+                        # Use default font size (no font_size specified)
+                        font_weight="bold",
+                        color=self.text_color
                     )
-                    self.content_container.add(folder_header)
+                )
+                self.content_container.add(folder_header)
             
             # Show collection items if we have them, otherwise show placeholder
             if hasattr(self, 'collection_items') and self.collection_items:
@@ -239,6 +247,16 @@ class CollectionView(BaseView):
             if not items:
                 logger.debug("No items to display in collection")
                 return
+            
+            # Always clear any existing DetailedList to reset selection state
+            if hasattr(self, 'items_list') and self.items_list:
+                try:
+                    # Remove from container if it exists
+                    if self.content_container and self.items_list in self.content_container.children:
+                        self.content_container.remove(self.items_list)
+                    logger.info("🔄 Cleared existing DetailedList to reset selection")
+                except Exception as e:
+                    logger.debug(f"Note: Could not remove existing DetailedList: {e}")
             
             # LibraryService now returns Toga-compatible format directly
             # Create the detailed list with the Toga-compatible data
@@ -769,6 +787,7 @@ class CollectionView(BaseView):
             logger.error(f"Failed to get shared library service: {e}")
             self.library_service = None
     
+
     def set_collection_id(self, collection_id: str):
         """Set the current collection ID and load its items"""
         self.collection_id = collection_id
@@ -948,6 +967,15 @@ class CollectionView(BaseView):
             logger.error(f"Failed to show message dialog: {e}")
             # Fallback: just log the message
             logger.info(f"{title}: {message}")
+    
+    def _get_content_title(self) -> str:
+        """Get the title to display above the content list"""
+        if self.current_path:
+            # In a subfolder - show current folder name
+            return self._get_current_folder_display_name()
+        else:
+            # At collection root - show collection name
+            return self.collection_name or "Collection"
     
     def _on_collection_selected(self, widget, item):
         """Handle collection selection (placeholder)"""

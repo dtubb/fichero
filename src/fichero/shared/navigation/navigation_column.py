@@ -264,9 +264,36 @@ class NavigationColumn:
                 }
                 self.list_data.append(list_item)
             
-            # Update the detailed list
+            # Always clear and recreate the detailed list to reset selection state
             if self.detailed_list:
-                self.detailed_list.data = self.list_data
+                try:
+                    # Remove from container if it exists
+                    if self.container and self.detailed_list in self.container.children:
+                        self.container.remove(self.detailed_list)
+                    logger.debug("Cleared existing navigation DetailedList to reset selection")
+                except Exception as e:
+                    logger.debug(f"Note: Could not remove existing navigation DetailedList: {e}")
+            
+            # Create new DetailedList with fresh data
+            self.detailed_list = toga.DetailedList(
+                data=self.list_data,
+                style=Pack(
+                    flex=1,
+                    margin_bottom=10
+                ),
+                on_select=self._on_list_select
+            )
+            
+            # Add it back to the container
+            if self.container:
+                # Insert it in the correct position (after header, before actions)
+                if hasattr(self, 'actions_container') and self.actions_container in self.container.children:
+                    # Insert before actions container
+                    actions_index = self.container.children.index(self.actions_container)
+                    self.container.insert(actions_index, self.detailed_list)
+                else:
+                    # Add at the end
+                    self.container.add(self.detailed_list)
                 
             logger.info(f"Refreshed list with {len(self.list_data)} items")
             

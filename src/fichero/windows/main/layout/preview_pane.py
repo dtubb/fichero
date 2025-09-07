@@ -170,6 +170,19 @@ class PreviewPane(BaseView):
                 for child in list(self.content_container.children):
                     self.content_container.remove(child)
             
+            # Add filename as content title (like collection view does)
+            filename = Path(file_path).name
+            file_title = toga.Label(
+                filename,
+                style=Pack(
+                    margin=(15, 20, 10, 20),
+                    # Use default font size
+                    font_weight="bold",
+                    color=self.text_color
+                )
+            )
+            self.content_container.add(file_title)
+            
             # Create appropriate preview widget
             if self.current_file_type == "image":
                 self._create_image_preview(file_path)
