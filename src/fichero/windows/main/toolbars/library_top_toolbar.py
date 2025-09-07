@@ -33,9 +33,9 @@ class LibraryTopToolbar(TopToolbar):
         self._create_toolbar()
     
     def _create_library_buttons(self):
-        """Create library system buttons - simplified to 3 buttons"""
+        """Create the three main library buttons with proper positioning"""
         try:
-            # Left: Add Collection button (+)
+            # Left: Add Collection button
             add_collection_btn = self.create_icon_button(
                 button_id="add_collection",
                 icon="add_collection",
@@ -44,16 +44,15 @@ class LibraryTopToolbar(TopToolbar):
             )
             self.add_to_left(add_collection_btn)
             
-            # Center: Edit Collections button
+            # Right: Edit Collections and Share buttons
             edit_btn = self.create_icon_button(
                 button_id="edit_collections",
                 icon="collection_settings",  # Using collection_settings for edit
                 on_press=self._on_edit_pressed,
                 tooltip="Edit Collections"
             )
-            self.add_to_center(edit_btn)
+            self.add_to_right(edit_btn)
             
-            # Right: Share/Export button
             share_btn = self.create_icon_button(
                 button_id="share_collections",
                 icon="export",  # Using export for share
@@ -62,7 +61,7 @@ class LibraryTopToolbar(TopToolbar):
             )
             self.add_to_right(share_btn)
             
-            logger.info(f"Library top toolbar created with 3 buttons: left (+), center (edit), right (share)")
+            logger.info(f"Library top toolbar created with 3 buttons: left (+), right (edit, share)")
             
         except Exception as e:
             logger.error(f"Failed to create library buttons: {e}")
@@ -73,13 +72,25 @@ class LibraryTopToolbar(TopToolbar):
             # Create simplified library system buttons
             self._create_library_buttons()
             
+            # Add "Collections" title to center
+            title_label = toga.Label(
+                "Collections",
+                style=Pack(
+                    flex=1,
+                    text_align="center",
+                    font_weight="bold",
+                    color="#007AFF"  # iOS system blue
+                )
+            )
+            self.add_to_center(title_label)
+            
             # Ensure toolbar is visible
             self.container.style = Pack(height=50, background_color="white")
             
             logger.info("Library top toolbar created successfully with simplified 3-button layout")
             
         except Exception as e:
-            logger.error(f"Failed to create library top toolbar: {e}")
+            logger.error(f"Failed to create library toolbar: {e}")
     
     def _on_add_collection_pressed(self, widget):
         """Handle add collection button press - opens collection type options"""

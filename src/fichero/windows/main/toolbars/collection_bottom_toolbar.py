@@ -67,18 +67,28 @@ class CollectionBottomToolbar(BottomToolbar):
             # Clear existing content
             self._clear_toolbar()
             
-            # Selection status (left)
-            self.selection_label = toga.Label(
-                "Ready",
-                style=Pack(
-                    margin=(4, 12),
-                    font_size=12,
-                    color="#666666"
-                )
-            )
-            self.add_to_left(self.selection_label)
+            # Keep toolbar completely empty - no buttons or labels needed
             
-            # Collection settings (right)
+        except Exception as e:
+            logger.error(f"Failed to create default actions: {e}")
+    
+    def _create_file_actions(self):
+        """Create file-specific actions when files are selected - only working buttons"""
+        try:
+            # Clear existing buttons (keep selection label)
+            self._clear_action_buttons()
+            
+            # Preview button (center) - THIS WORKS through the preview callback system
+            preview_btn = self.create_icon_button(
+                button_id="preview_file",
+                icon="magnifyingglass",
+                on_press=self._on_preview_file_clicked,
+                tooltip="Preview File"
+            )
+            self.add_to_center(preview_btn)
+            self.action_buttons["preview_file"] = preview_btn
+            
+            # Collection settings (right) - Keep for consistency with default view
             settings_btn = self.create_icon_button(
                 button_id="collection_settings",
                 icon="collection_settings",
@@ -89,102 +99,23 @@ class CollectionBottomToolbar(BottomToolbar):
             self.action_buttons["collection_settings"] = settings_btn
             
         except Exception as e:
-            logger.error(f"Failed to create default actions: {e}")
-    
-    def _create_file_actions(self):
-        """Create file-specific actions when files are selected"""
-        try:
-            # Clear existing buttons (keep selection label)
-            self._clear_action_buttons()
-            
-            # Preview button (left)
-            preview_btn = self.create_icon_button(
-                button_id="preview_file",
-                icon="magnifyingglass",
-                on_press=self._on_preview_file_clicked,
-                tooltip="Preview File"
-            )
-            self.add_to_center(preview_btn)
-            self.action_buttons["preview_file"] = preview_btn
-            
-            # Process button (center)
-            process_btn = self.create_icon_button(
-                button_id="process_files",
-                icon="process",
-                on_press=self._on_process_files_clicked,
-                tooltip="Process Selected Files"
-            )
-            self.add_to_center(process_btn)
-            self.action_buttons["process_files"] = process_btn
-            
-            # Export button (right)
-            export_btn = self.create_icon_button(
-                button_id="export_selection",
-                icon="export",
-                on_press=self._on_export_selection_clicked,
-                tooltip="Export Selection"
-            )
-            self.add_to_right(export_btn)
-            self.action_buttons["export_selection"] = export_btn
-            
-            # Edit metadata button (right)
-            metadata_btn = self.create_icon_button(
-                button_id="edit_metadata",
-                icon="info",
-                on_press=self._on_edit_metadata_clicked,
-                tooltip="Edit Metadata"
-            )
-            self.add_to_right(metadata_btn)
-            self.action_buttons["edit_metadata"] = metadata_btn
-            
-            # Delete button (right)
-            delete_btn = self.create_icon_button(
-                button_id="delete_selection",
-                icon="trash",
-                on_press=self._on_delete_selection_clicked,
-                tooltip="Delete Selected Items"
-            )
-            self.add_to_right(delete_btn)
-            self.action_buttons["delete_selection"] = delete_btn
-            
-        except Exception as e:
             logger.error(f"Failed to create file actions: {e}")
     
     def _create_folder_actions(self):
-        """Create folder-specific actions when folders are selected"""
+        """Create folder-specific actions when folders are selected - only working buttons"""
         try:
             # Clear existing buttons (keep selection label)
             self._clear_action_buttons()
             
-            # Add to collection button
-            add_btn = self.create_icon_button(
-                button_id="add_to_collection",
-                icon="add_file",
-                on_press=self._on_add_to_collection_clicked,
-                tooltip="Add to Collection"
+            # For folders, just show collection settings
+            settings_btn = self.create_icon_button(
+                button_id="collection_settings",
+                icon="collection_settings",
+                on_press=self._on_collection_settings_clicked,
+                tooltip="Collection Settings"
             )
-            self.add_to_center(add_btn)
-            self.action_buttons["add_to_collection"] = add_btn
-            
-            # Process folder button
-            process_btn = self.create_icon_button(
-                button_id="process_files",
-                icon="process",
-                on_press=self._on_process_files_clicked,
-                tooltip="Process Folder Contents"
-            )
-            self.add_to_center(process_btn)
-            self.action_buttons["process_files"] = process_btn
-            
-            # Export button
-            export_btn = self.create_icon_button(
-                button_id="export_selection",
-                icon="export",
-                on_press=self._on_export_selection_clicked,
-                tooltip="Export Folder"
-            )
-            self.add_to_right(export_btn)
-            self.action_buttons["export_selection"] = export_btn
+            self.add_to_right(settings_btn)
+            self.action_buttons["collection_settings"] = settings_btn
             
         except Exception as e:
             logger.error(f"Failed to create folder actions: {e}")

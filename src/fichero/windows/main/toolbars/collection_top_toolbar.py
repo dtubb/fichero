@@ -52,17 +52,18 @@ class CollectionTopToolbar(TopToolbar):
             )
             self.add_to_left(self.back_button)
             
-            # Breadcrumb display (center)
-            self.breadcrumb_label = toga.Label(
-                "",
+            # Center: Collection title
+            title_text = self.collection_name if self.collection_name else "Collection"
+            self.title_label = toga.Label(
+                title_text,
                 style=Pack(
                     flex=1,
-                    margin=(5, 10),
-                    font_size=14,
-                    font_weight="bold"
+                    text_align="center",
+                    font_weight="bold",
+                    color="#007AFF"  # iOS system blue
                 )
             )
-            self.add_to_center(self.breadcrumb_label)
+            self.add_to_center(self.title_label)
             
             # Add folder button (right)
             add_folder_btn = self.create_icon_button(
@@ -82,10 +83,7 @@ class CollectionTopToolbar(TopToolbar):
             )
             self.add_to_right(add_file_btn)
             
-            # Initialize breadcrumbs
-            self.update_breadcrumbs("", "")
-            
-            logger.info("Collection top toolbar created successfully with single back button")
+            logger.info("Collection top toolbar created successfully with navigation buttons and title")
             
         except Exception as e:
             logger.error(f"Failed to create collection toolbar content: {e}")
@@ -117,22 +115,26 @@ class CollectionTopToolbar(TopToolbar):
             )
             return btn
     
-    def update_breadcrumbs(self, collection_name: str, current_path: str):
-        """Update the breadcrumb display"""
+    def update_breadcrumbs(self, collection_name: str, current_path: str = ""):
+        """Update breadcrumb display - disabled since title label was removed"""
         try:
+            # Store the current path for back navigation logic
+            self._current_path = current_path
+            
+            # Update back button state based on current path
             if current_path:
-                breadcrumb_text = f"{collection_name} / {current_path.replace('/', ' / ')}"
+                # In a subfolder - enable back button to go up
                 if hasattr(self, 'back_button'):
                     self.back_button.enabled = True
             else:
-                breadcrumb_text = collection_name
+                # At collection root - disable back button (or enable to go to library)
                 if hasattr(self, 'back_button'):
                     self.back_button.enabled = False
             
-            self.breadcrumb_label.text = breadcrumb_text
-            logger.debug(f"Updated breadcrumbs: {breadcrumb_text}")
+            # Note: breadcrumb display removed as requested - title should be in main toolbar
+            logger.debug(f"Updated navigation state - collection: {collection_name}, path: {current_path}")
         except Exception as e:
-            logger.error(f"Failed to update breadcrumbs: {e}")
+            logger.error(f"Failed to update navigation state: {e}")
     
     def _on_breadcrumb_click(self, path: str):
         """Handle breadcrumb click"""

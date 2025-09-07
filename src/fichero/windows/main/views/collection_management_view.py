@@ -81,20 +81,8 @@ class CollectionManagementView(BaseView):
     def _create_collections_display(self):
         """Create display for actual collections"""
         try:
-            # Simple "Collections" title
-            title = toga.Label(
-                "Collections",
-                style=Pack(
-                    font_size=18,
-                    font_weight="bold",
-                    margin=(20, 20, 15, 20),
-                    color=self.text_color
-                )
-            )
-            if self.content_container:
-                self.content_container.add(title)
-            
-            # Create detailed list for collections
+            # No title here - titles should only be in top toolbar
+            # Create detailed list for collections directly
             self._create_collections_detailed_list()
             
             logger.debug(f"Created display for {len(self.collections)} collections")
@@ -105,30 +93,36 @@ class CollectionManagementView(BaseView):
     def _create_collections_detailed_list(self):
         """Create a detailed list view for collections with swipe actions"""
         try:
-            # LibraryService now returns Toga-compatible format directly
-            # No need for data conversion - just use the collections as-is
-            if not self.collections:
-                logger.debug("No collections to display in DetailedList")
-                return
+            # Format collections for Toga DetailedList
+            collection_data = []
+            for collection in self.collections:
+                formatted_item = {
+                    'id': collection.get('id', ''),
+                    'title': collection.get('name', 'Unknown Collection'),
+                    'subtitle': f"{collection.get('item_count', 0)} items • {collection.get('source_type', 'local')}",
+                    'icon': "folder",
+                    'collection_data': collection  # Store full data for callbacks
+                }
+                collection_data.append(formatted_item)
             
-            # Create the detailed list with the Toga-compatible data
+            # Create detailed list with full width (no margins)
             self.collections_list = toga.DetailedList(
-                data=self.collections,  # Direct use of Toga-compatible format
+                data=collection_data,
                 on_select=self._on_collection_selected,
-                primary_action="Delete",
-                on_primary_action=self._on_delete_collection,
-                secondary_action="Edit", 
-                on_secondary_action=self._on_edit_collection,
+                primary_action="Open",
+                on_primary_action=self._on_open_collection,
+                secondary_action="Info",
+                on_secondary_action=self._on_collection_info,
                 style=Pack(
                     flex=1,
-                    margin=(10, 20)
+                    margin=0  # Full width - no margins
                 )
             )
             
             if self.content_container:
                 self.content_container.add(self.collections_list)
                 
-            logger.debug(f"Created DetailedList with {len(self.collections)} collections in native Toga format")
+            logger.debug(f"Created DetailedList with {len(collection_data)} collections")
             
         except Exception as e:
             logger.error(f"Failed to create collections detailed list: {e}")
@@ -143,35 +137,54 @@ class CollectionManagementView(BaseView):
         elif collection_type == 'url':
             return '🌐'
         else:
-            return '📚'
+            return '��'
+    
+    def _on_open_collection(self, widget, row):
+        """Handle opening a collection (primary action)"""
+        try:
+            if row and hasattr(row, 'collection_data'):
+                collection = row.collection_data
+                collection_id = collection.get('id', '')
+                collection_name = collection.get('name', '')
+                logger.info(f"Opening collection: {collection_name}")
+                
+                if self.on_collection_selected:
+                    self.on_collection_selected(collection_id, collection_name)
+            
+        except Exception as e:
+            logger.error(f"Failed to open collection: {e}")
+    
+    def _on_collection_info(self, widget, row):
+        """Handle collection info (secondary action)"""
+        try:
+            if row and hasattr(row, 'collection_data'):
+                collection = row.collection_data
+                collection_name = collection.get('name', 'Unknown')
+                logger.info(f"Showing info for collection: {collection_name}")
+                # TODO: Implement collection info dialog
+            
+        except Exception as e:
+            logger.error(f"Failed to show collection info: {e}")
     
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
         try:
-            # Toga DetailedList gives us the widget
-            # widget.selection contains the selected Row object
-            if hasattr(widget, 'selection') and widget.selection is not None:
-                selected_row = widget.selection
+            if widget.selection and hasattr(widget.selection, 'collection_data'):
+                collection = widget.selection.collection_data
+                collection_id = collection.get('id', '')
+                collection_name = collection.get('name', '')
                 
-                # The Row object has the attributes we provided in the data
-                # Access them directly as Row attributes
-                collection_data = {
-                    'id': selected_row.id if hasattr(selected_row, 'id') else '',
-                    'name': selected_row.title if hasattr(selected_row, 'title') else selected_row.name if hasattr(selected_row, 'name') else 'Unknown',
-                    'title': selected_row.title if hasattr(selected_row, 'title') else selected_row.name if hasattr(selected_row, 'name') else 'Unknown'
-                }
+                logger.info(f"Collection selected: {collection_name}")
                 
-                logger.info(f"Collection selected: {collection_data['name']}")
+                # Store selected collection
+                self.selected_collection = collection
                 
-                # Navigate to collection
-                self._handle_collection_navigation(collection_data)
-            else:
-                logger.debug("No selection in widget")
-                
+                # Navigate to collection if callback is registered
+                if self.on_collection_selected:
+                    self.on_collection_selected(collection_id, collection_name)
+                    
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
-            import traceback
-            traceback.print_exc()
     
     def _on_collection_selected_fallback(self, widget):
         """Fallback handler for collection selection (when called without item)"""
@@ -694,12 +707,12 @@ class CollectionManagementView(BaseView):
                 style=Pack(color="red")
             )
     
-    def _on_open_collection(self, collection_data: Dict[str, Any]):
+    def _on_open_collection(self, widget, row):
         """Handle opening a collection"""
-        logger.debug(f"Opening collection: {collection_data.get('name', 'Unknown')}")
+        logger.debug(f"Opening collection: {row.collection_data.get('name', 'Unknown')}")
         # This would typically navigate to the collection view
         if hasattr(self, 'on_open_collection') and self.on_open_collection:
-            self.on_open_collection(collection_data)
+            self.on_open_collection(row.collection_data)
     
     def _on_delete_collection(self, widget, item):
         """Handle delete action from swipe gesture"""

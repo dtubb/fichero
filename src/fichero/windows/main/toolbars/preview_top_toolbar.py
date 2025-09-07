@@ -51,9 +51,8 @@ class PreviewTopToolbar(TopToolbar):
                 style=Pack(
                     flex=1,
                     text_align="center",
-                    font_size=16,
                     font_weight="bold",
-                    margin=(0, 10)
+                    color="#007AFF"  # iOS system blue
                 )
             )
             

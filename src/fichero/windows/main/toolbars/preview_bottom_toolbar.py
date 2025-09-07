@@ -65,13 +65,10 @@ class PreviewBottomToolbar(BottomToolbar):
             # Left side: File info and type
             self._create_file_info_section()
             
-            # Center: Zoom and view controls
-            self._create_zoom_controls()
-            
-            # Right side: File actions
+            # Right side: Only the working button
             self._create_file_actions()
             
-            logger.info("Preview bottom toolbar created successfully with file controls")
+            logger.info("Preview bottom toolbar created successfully with working controls only")
             
         except Exception as e:
             logger.error(f"Failed to create preview bottom toolbar: {e}")
@@ -79,130 +76,17 @@ class PreviewBottomToolbar(BottomToolbar):
     def _create_file_info_section(self):
         """Create file type and stage information section"""
         try:
-            # File type indicator
-            self.file_type_label = toga.Label(
-                "No file",
-                style=Pack(
-                    margin=(4, 8),
-                    font_size=12,
-                    color="#666666"
-                )
-            )
-            self.add_to_left(self.file_type_label)
-            
-            # Stage indicator (for Fichero workflow)
-            self.stage_label = toga.Label(
-                "",
-                style=Pack(
-                    margin=(4, 8),
-                    font_size=11,
-                    color="#888888"
-                )
-            )
-            self.add_to_left(self.stage_label)
+            # Don't add any file info to left side - keep it clean
+            pass
             
         except Exception as e:
             logger.error(f"Failed to create file info section: {e}")
     
-    def _create_zoom_controls(self):
-        """Create zoom and view controls"""
-        try:
-            # Zoom out button
-            zoom_out_btn = self.create_icon_button(
-                button_id="zoom_out",
-                icon="minus",
-                on_press=self._on_zoom_out_clicked,
-                tooltip="Zoom Out"
-            )
-            self.add_to_center(zoom_out_btn)
-            
-            # Zoom level display
-            self.zoom_label = toga.Label(
-                "100%",
-                style=Pack(
-                    margin=(4, 12),
-                    font_size=12,
-                    color="#333333"
-                )
-            )
-            self.add_to_center(self.zoom_label)
-            
-            # Zoom in button
-            zoom_in_btn = self.create_icon_button(
-                button_id="zoom_in",
-                icon="plus",
-                on_press=self._on_zoom_in_clicked,
-                tooltip="Zoom In"
-            )
-            self.add_to_center(zoom_in_btn)
-            
-            # Fit to window button
-            fit_btn = self.create_icon_button(
-                button_id="zoom_fit",
-                icon="fit_window",
-                on_press=self._on_zoom_fit_clicked,
-                tooltip="Fit to Window"
-            )
-            self.add_to_center(fit_btn)
-            
-            # Actual size button
-            actual_btn = self.create_icon_button(
-                button_id="zoom_actual",
-                icon="actual_size",
-                on_press=self._on_zoom_actual_clicked,
-                tooltip="Actual Size"
-            )
-            self.add_to_center(actual_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create zoom controls: {e}")
-    
     def _create_file_actions(self):
-        """Create file action buttons (context-sensitive)"""
+        """Create file action buttons (only implemented ones)"""
         try:
-            # Rotate buttons (for images)
-            self.rotate_left_btn = self.create_icon_button(
-                button_id="rotate_left",
-                icon="rotate_left",
-                on_press=self._on_rotate_left_clicked,
-                tooltip="Rotate Left"
-            )
-            self.add_to_right(self.rotate_left_btn)
-            
-            self.rotate_right_btn = self.create_icon_button(
-                button_id="rotate_right", 
-                icon="rotate_right",
-                on_press=self._on_rotate_right_clicked,
-                tooltip="Rotate Right"
-            )
-            self.add_to_right(self.rotate_right_btn)
-            
-            # Edit button (context-sensitive)
-            self.edit_btn = self.create_icon_button(
-                button_id="edit_file",
-                icon="edit",
-                on_press=self._on_edit_file_clicked,
-                tooltip="Edit File"
-            )
-            self.add_to_right(self.edit_btn)
-            
-            # Open external button
-            self.external_btn = self.create_icon_button(
-                button_id="open_external",
-                icon="external_link",
-                on_press=self._on_open_external_clicked,
-                tooltip="Open in External App"
-            )
-            self.add_to_right(self.external_btn)
-            
-            # Metadata/info button
-            self.info_btn = self.create_icon_button(
-                button_id="show_metadata",
-                icon="info",
-                on_press=self._on_show_metadata_clicked,
-                tooltip="Show File Info"
-            )
-            self.add_to_right(self.info_btn)
+            # Keep toolbar completely empty - no buttons needed
+            pass
             
         except Exception as e:
             logger.error(f"Failed to create file actions: {e}")
@@ -225,15 +109,7 @@ class PreviewBottomToolbar(BottomToolbar):
                 file_type = self._detect_file_type(file_path)
             self.current_file_type = file_type
             
-            # Update file type display
-            if self.file_type_label:
-                type_text = f"{file_type.upper()}"
-                self.file_type_label.text = type_text
-            
-            # Update stage display
-            if hasattr(self, 'stage_label') and self.stage_label:
-                stage_text = f"({stage.title()})"
-                self.stage_label.text = stage_text
+            # No UI labels to update - we removed them for cleaner design
             
             # Update button visibility based on file type
             self._update_button_visibility()
@@ -354,6 +230,10 @@ class PreviewBottomToolbar(BottomToolbar):
         if self.on_show_metadata:
             self.on_show_metadata()
     
+    def _on_preview_clicked(self, widget):
+        """Handle preview button click - simple implementation"""
+        logger.info("Preview button clicked")
+    
     def register_callbacks(self, 
                          on_settings: Optional[Callable] = None,
                          on_about: Optional[Callable] = None,
@@ -392,4 +272,4 @@ class PreviewBottomToolbar(BottomToolbar):
         self.on_compare_versions = on_compare_versions
         self.on_export_file = on_export_file
         
-        logger.debug("Preview bottom toolbar callbacks registered") 
+        logger.debug("Preview bottom toolbar callbacks registered")

@@ -56,10 +56,58 @@ class PreviewPane(BaseView):
         # Set both toolbars using BaseView system
         self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
         
+        # Register toolbar callbacks
+        self._register_toolbar_callbacks()
+        
         # Create content
         self._create_content()
         
         logger.info("Preview pane created with BaseView integration")
+    
+    def _register_toolbar_callbacks(self):
+        """Register callbacks for toolbar actions"""
+        try:
+            # Bottom toolbar callbacks - only register the working ones
+            self.bottom_toolbar.register_callbacks(
+                on_open_external=self._open_file_external
+            )
+            
+            logger.debug("Preview pane toolbar callbacks registered")
+            
+        except Exception as e:
+            logger.error(f"Failed to register toolbar callbacks: {e}")
+    
+    def _open_file_external(self):
+        """Open the current file with external system application"""
+        if self.current_file_path:
+            self._open_file(self.current_file_path)
+        else:
+            logger.warning("No file selected to open externally")
+    
+    def _open_file(self, file_path: str):
+        """Open a file using the system default application"""
+        try:
+            import subprocess
+            import sys
+            from pathlib import Path
+            
+            path = Path(file_path)
+            if not path.exists():
+                logger.error(f"File not found: {file_path}")
+                return
+            
+            # Use system default application to open the file
+            if sys.platform == "darwin":  # macOS
+                subprocess.run(["open", str(path)])
+            elif sys.platform == "win32":  # Windows
+                subprocess.run(["start", str(path)], shell=True)
+            else:  # Linux and others
+                subprocess.run(["xdg-open", str(path)])
+                
+            logger.info(f"Opened file externally: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to open file {file_path}: {e}")
     
     def _create_content(self):
         """Create the preview content using BaseView system"""
@@ -201,8 +249,8 @@ class PreviewPane(BaseView):
                     image=toga.Image(file_path),
                     style=Pack(
                         flex=1,
-                        margin=(10, 10),
-                        background_color="#F0F0F0"  # Light background to make image visible
+                        margin=(10, 10)
+                        # No background color - transparent
                     )
                 )
                 if self.content_container:

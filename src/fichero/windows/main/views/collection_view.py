@@ -74,20 +74,7 @@ class CollectionView(BaseView):
             if self.content_container:
                 self.content_container.clear()
             
-            # Create header with collection name if available
-            header_text = f"📁 {getattr(self, 'collection_name', '')}" if getattr(self, 'collection_name', None) else "📁 Collection"
-            header = toga.Label(
-                header_text,
-                style=Pack(
-                    font_size=20,
-                    font_weight="bold",
-                    margin=(10, 10),
-                    color=self.text_color
-                )
-            )
-            if self.content_container:
-                self.content_container.add(header)
-            
+            # No header here - titles should only be in top toolbar
             # Show collection items if we have them, otherwise show placeholder
             if hasattr(self, 'collection_items') and self.collection_items:
                 logger.debug(f"Displaying {len(self.collection_items)} collection items")
@@ -215,7 +202,7 @@ class CollectionView(BaseView):
                 on_secondary_action=self._on_item_info,
                 style=Pack(
                     flex=1,
-                    margin=(10, 20)
+                    margin=0  # Full width - no margins
                 )
             )
             
