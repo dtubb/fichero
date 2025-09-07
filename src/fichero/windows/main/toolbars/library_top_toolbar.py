@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class LibraryTopToolbar(TopToolbar):
     """Top toolbar for library view with library system integration"""
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize library top toolbar"""
-        super().__init__(app, "Collections", is_mobile)  # Fixed: pass title parameter
+        super().__init__(app, "Collections", is_mobile)
         
         # Library-specific callbacks
         self.on_add_collection: Optional[Callable] = None
@@ -32,41 +32,16 @@ class LibraryTopToolbar(TopToolbar):
         # Create the toolbar content
         self._create_toolbar()
     
-    def _create_library_buttons(self):
-        """Legacy method - no longer needed"""
-        pass
-    
     def _create_toolbar(self):
-        """Create the library top toolbar content with simplified 3-button layout"""
+        """Create the library top toolbar content"""
         try:
             # Call parent to set up basic structure
             super()._create_toolbar()
             
-            # Left: Add Collection button
-            self.add_button_left(
-                icon="add_collection",
-                on_press=self._on_add_collection_pressed,
-                tooltip="Add Collection (Local/External/URL)"
-            )
+            # Just a centered title - simple and clean
+            self.add_title_only("Collections")
             
-            # Center: Collections title using smart helper
-            self.add_centered_title_only("Collections", on_title_click=self._on_title_pressed)
-            
-            # Right: Edit and Share buttons using smart helper
-            self.add_standard_right_buttons([
-                {
-                    'icon': 'collection_settings',
-                    'on_press': self._on_edit_pressed,
-                    'tooltip': 'Edit Collections'
-                },
-                {
-                    'icon': 'export',
-                    'on_press': self._on_share_pressed,
-                    'tooltip': 'Share/Export Collections'
-                }
-            ])
-            
-            logger.info("Library top toolbar created using smart base methods")
+            logger.info("Library top toolbar created with title only")
             
         except Exception as e:
             logger.error(f"Failed to create library toolbar: {e}")

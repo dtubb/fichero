@@ -26,7 +26,7 @@ class PreviewBottomToolbar(BottomToolbar):
     - Output files (transcribed text, Word docs)
     """
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize preview bottom toolbar"""
         super().__init__(app, is_mobile)
         

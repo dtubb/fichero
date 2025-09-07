@@ -22,9 +22,29 @@ logger = logging.getLogger(__name__)
 class BottomToolbar(BaseToolbar):
     """Bottom toolbar for views with secondary actions and utilities"""
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize bottom toolbar"""
+        
+        # Use app.is_mobile if not provided
+        if is_mobile is None:
+            is_mobile = app.is_mobile
+            
         super().__init__(app, is_mobile)
+        
+        # Make bottom toolbar taller on mobile for iOS home gesture (no white space below)
+        if self.is_mobile and hasattr(self, 'container') and self.container:
+            # Find the content wrapper and make it taller instead of adding margin
+            try:
+                # The container has: top_border, content_wrapper, bottom_border
+                content_wrapper = self.container.children[1]  # Middle element
+                if hasattr(content_wrapper, 'style'):
+                    # Make content wrapper taller to accommodate iOS home gesture
+                    content_wrapper.style.height = 56 + 34  # Normal height + iOS safe area
+                    logger.info(f"Made mobile bottom toolbar taller (90px) for iOS home gesture")
+            except Exception as e:
+                logger.error(f"Failed to adjust mobile bottom toolbar height: {e}")
+        else:
+            logger.info(f"Standard bottom toolbar height - is_mobile: {self.is_mobile}")
         
         # Bottom toolbar callbacks
         self.on_settings: Optional[Callable] = None

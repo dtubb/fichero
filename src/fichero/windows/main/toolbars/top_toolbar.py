@@ -22,9 +22,14 @@ logger = logging.getLogger(__name__)
 class TopToolbar(BaseToolbar):
     """Top toolbar for views with title, navigation, and primary actions"""
     
-    def __init__(self, app, title: str = "", is_mobile: bool = False):
+    def __init__(self, app, title: str = "", is_mobile: bool = None):
         """Initialize top toolbar"""
         self.title = title
+        
+        # Use app.is_mobile if not provided
+        if is_mobile is None:
+            is_mobile = app.is_mobile
+            
         super().__init__(app, is_mobile)
         
         # Top toolbar callbacks

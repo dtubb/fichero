@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class CollectionTopToolbar(TopToolbar):
     """Top toolbar for collection view with hierarchical navigation"""
     
-    def __init__(self, app, collection_name: str = "", is_mobile: bool = False):
+    def __init__(self, app, collection_name: str = "", is_mobile: bool = None):
         """Initialize collection top toolbar"""
-        super().__init__(app, collection_name, is_mobile)  # Fixed: pass collection_name as title
+        super().__init__(app, collection_name, is_mobile)
         
         # Collection context
         self.collection_name = collection_name
@@ -46,25 +46,18 @@ class CollectionTopToolbar(TopToolbar):
             # Call parent to set up basic structure
             super()._create_toolbar()
             
+            # Use smart helper - automatically handles mobile vs desktop
             title_text = self.collection_name if self.collection_name else "Collection"
+            self.back_button, self.title_label = self.add_back_button_with_title(
+                title_text=title_text,
+                on_back=self._on_back_navigation,
+                on_title_click=self._on_title_pressed
+            )
             
-            if self.is_mobile:
-                # Mobile: use smart helper for back button + title pattern
-                self.back_button, self.title_label = self.add_back_button_with_title(
-                    title_text=title_text,
-                    on_back=self._on_back_navigation,
-                    on_title_click=self._on_title_pressed
-                )
-            else:
-                # Desktop: use smart helper for centered title
-                self.title_label = self.add_centered_title_only(title_text)
-            
-            logger.info("Collection top toolbar created successfully using smart base methods")
+            logger.info("Collection top toolbar created using smart base methods")
             
         except Exception as e:
             logger.error(f"Failed to create collection toolbar content: {e}")
-            # Fallback to basic toolbar
-            super()._create_toolbar()
     
     def _on_title_pressed(self, widget):
         """Handle title button press (mobile only)"""

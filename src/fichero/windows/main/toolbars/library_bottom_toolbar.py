@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class LibraryBottomToolbar(BottomToolbar):
     """Bottom toolbar for library view - currently empty"""
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize library bottom toolbar"""
         logger.info(f"LibraryBottomToolbar.__init__ called with app={app}, is_mobile={is_mobile}")
         super().__init__(app, is_mobile)
@@ -36,32 +36,31 @@ class LibraryBottomToolbar(BottomToolbar):
             # Call parent to set up basic structure
             super()._create_toolbar()
             
-            # Create buttons using consistent methods
-            self.add_button_right(
-                icon="export",
-                on_press=self._on_processing_clicked,
-                tooltip="Process Documents"
-            )
+            # Create centered buttons using smart helper
+            self.add_standard_center_buttons([
+                {
+                    'icon': 'export',
+                    'on_press': self._on_processing_clicked,
+                    'tooltip': 'Process Documents'
+                },
+                {
+                    'icon': 'activity',
+                    'on_press': self._on_activity_monitor_clicked,
+                    'tooltip': 'Activity Monitor'
+                },
+                {
+                    'icon': 'help',
+                    'on_press': self._on_about_clicked,
+                    'tooltip': 'About Fichero'
+                },
+                {
+                    'icon': 'gear@10x',
+                    'on_press': self._on_library_settings_clicked,
+                    'tooltip': 'Library Settings'
+                }
+            ])
             
-            self.add_button_right(
-                icon="activity",
-                on_press=self._on_activity_monitor_clicked,
-                tooltip="Activity Monitor"
-            )
-            
-            self.add_button_right(
-                icon="help",
-                on_press=self._on_about_clicked,
-                tooltip="About Fichero"
-            )
-            
-            self.add_button_right(
-                icon="gear@10x",
-                on_press=self._on_library_settings_clicked,
-                tooltip="Library Settings"
-            )
-            
-            logger.info("Library bottom toolbar created successfully with processing, activity monitor, about, and settings buttons")
+            logger.info("Library bottom toolbar created with centered buttons using smart methods")
             
         except Exception as e:
             logger.error(f"Failed to create library bottom toolbar: {e}")

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class FicheTopToolbar(TopToolbar):
     """Top toolbar for fiche view - currently empty"""
     
-    def __init__(self, app, collection_id: str = "", folder_path: str = "", is_mobile: bool = False):
+    def __init__(self, app, collection_id: str = "", folder_path: str = "", is_mobile: bool = None):
         """Initialize fiche top toolbar"""
         super().__init__(app, is_mobile)
         

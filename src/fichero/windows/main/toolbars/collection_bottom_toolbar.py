@@ -26,7 +26,7 @@ class CollectionBottomToolbar(BottomToolbar):
     - Folders selected: Folder actions
     """
     
-    def __init__(self, app, is_mobile: bool = False):
+    def __init__(self, app, is_mobile: bool = None):
         """Initialize collection bottom toolbar"""
         super().__init__(app, is_mobile)
         
@@ -51,7 +51,7 @@ class CollectionBottomToolbar(BottomToolbar):
         self._create_toolbar()
     
     def _create_toolbar(self):
-        """Create the collection bottom toolbar with default state"""
+        """Create the collection bottom toolbar content"""
         try:
             # Call parent to set up basic structure
             super()._create_toolbar()
@@ -59,7 +59,7 @@ class CollectionBottomToolbar(BottomToolbar):
             # Start with default collection management mode
             self._create_default_actions()
             
-            logger.info("Collection bottom toolbar created successfully")
+            logger.info("Collection bottom toolbar created using standard form")
             
         except Exception as e:
             logger.error(f"Failed to create collection bottom toolbar: {e}")

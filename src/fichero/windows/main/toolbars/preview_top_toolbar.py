@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class PreviewTopToolbar(TopToolbar):
     """Top toolbar for preview view - currently empty"""
     
-    def __init__(self, app, document_name: str = "", is_mobile: bool = False):
+    def __init__(self, app, document_name: str = "", is_mobile: bool = None):
         """Initialize preview top toolbar"""
         super().__init__(app, is_mobile)
         
@@ -32,7 +32,7 @@ class PreviewTopToolbar(TopToolbar):
         self._create_toolbar()
     
     def _create_toolbar(self):
-        """Create the preview top toolbar content with back button and title"""
+        """Create the preview top toolbar content"""
         try:
             # Call parent to set up basic structure
             super()._create_toolbar()
@@ -51,7 +51,7 @@ class PreviewTopToolbar(TopToolbar):
                 'tooltip': 'Edit document'
             }])
             
-            logger.info("Preview top toolbar created successfully using smart base methods")
+            logger.info("Preview top toolbar created using standard form")
             
         except Exception as e:
             logger.error(f"Failed to create preview top toolbar: {e}")
