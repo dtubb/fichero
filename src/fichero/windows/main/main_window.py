@@ -1,12 +1,8 @@
 """
-Refactored Main Window for Fichero
+Clean Main Window for Fichero
 
-Demonstrates how all the new components work together:
-- Pane management (three-pane vs single-pane)
-- Toolbar system integration
-- View management
-- Command integration
-- Color system
+Simplified main window that uses the new LibraryManager integration.
+Removes all old library management code.
 """
 
 import toga
@@ -20,7 +16,6 @@ from fichero.windows.main.layout.pane_manager import PaneManager
 from fichero.windows.main.command_manager import CommandManagerRefactored
 from fichero.windows.main.views.collection_management_view import CollectionManagementView
 from fichero.windows.main.views.collection_view import CollectionView
-from fichero.windows.main.styling.color_constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +63,10 @@ class MainWindow:
 
 
 class MainWindowRefactored:
-    """Refactored main window demonstrating the new architecture"""
+    """Clean main window using LibraryManager integration"""
     
     def __init__(self, app):
-        """Initialize refactored main window"""
+        """Initialize clean main window"""
         self.app = app
         
         # Platform detection
@@ -91,14 +86,13 @@ class MainWindowRefactored:
         # Create window
         self._create_window()
         
-        # Set up mobile view manager integration
-        self._setup_mobile_view_manager()
+        # Set up initial views
+        self._setup_initial_views()
         
-        logger.info("Refactored main window initialized successfully")
+        logger.info("Clean main window initialized successfully")
     
     def _detect_mobile_platform(self) -> bool:
         """Detect if running on mobile platform"""
-        # Use the app's platform detection (set once at startup)
         return self.app.is_mobile
     
     def _initialize_components(self):
@@ -110,48 +104,33 @@ class MainWindowRefactored:
             # Create command bridge
             self.command_bridge = CommandBridge(self.app, self.pane_manager)
             
-            # Use the command manager from the app (don't create a duplicate)
+            # Use the command manager from the app
             self.command_manager = self.app.command_manager
             if self.command_manager:
                 self.command_manager.set_command_bridge(self.command_bridge)
             
             # Register all commands
             self.command_bridge.register_all_commands()
-            # Don't call add_to_app() again - already done in app.py
             
             logger.debug("All components initialized and integrated")
             
         except Exception as e:
             logger.error(f"Failed to initialize components: {e}")
     
-    def _setup_component_integration(self):
-        """Set up integration between components - simplified for now"""
-        try:
-            # Skip complex integration for now to get basic functionality working
-            logger.debug("Component integration skipped for basic functionality")
-            
-        except Exception as e:
-            logger.error(f"Failed to set up component integration: {e}")
-    
     def _create_window(self):
         """Create the main window"""
         try:
+            print("🔍 Creating Toga MainWindow...")
             # Create main window
             self.window = toga.MainWindow(
-                title="Fichero - Refactored",
+                title="Fichero",
                 size=self._get_window_size()
             )
+            print("✅ Toga MainWindow created successfully")
             
-            # Set minimum window size to ensure panes are readable
+            # Set minimum window size
             if not self.is_mobile:
-                self.window.min_size = (1000, 600)  # Minimum width for three panes
-            
-            # Commands are now handled by our custom toolbar system
-            # Toga commands only appear in menu bar
-            logger.debug("Using custom toolbar system - Toga commands in menu bar only")
-            
-            # Set up initial views after window is created
-            self._setup_initial_views()
+                self.window.min_size = (1000, 600)
             
             logger.debug("Main window created successfully")
             
@@ -160,25 +139,18 @@ class MainWindowRefactored:
     
     def _get_window_size(self) -> tuple:
         """Get appropriate window size for platform"""
-        try:
-            if self.is_mobile:
-                # Mobile: smaller window
-                return (400, 600)
-            else:
-                # Desktop: larger window for three-pane layout with readable panes
-                # Minimum width: 250 + 250 + 300 = 800px for panes + some margin
-                return (1400, 900)
-                
-        except Exception as e:
-            logger.error(f"Failed to get window size: {e}")
-            return (800, 600)
+        if self.is_mobile:
+            # Mobile: portrait orientation
+            return (375, 667)  # iPhone 12 mini dimensions
+        else:
+            # Desktop: three-pane layout
+            return (1200, 800)
     
     def _setup_initial_views(self):
         """Set up initial views for the main window"""
         try:
-            # Create functional views instead of just placeholders
             if not self.is_mobile:
-                # Desktop: Set up three-pane layout with functional views
+                # Desktop: Set up three-pane layout
                 self._setup_desktop_views()
             else:
                 # Mobile: Set up single-pane layout
@@ -188,28 +160,18 @@ class MainWindowRefactored:
             logger.error(f"Failed to set up initial views: {e}")
     
     def _setup_desktop_views(self):
-        """Set up desktop three-pane layout with functional views"""
+        """Set up desktop three-pane layout"""
         try:
-            # Import the views we need
-            from fichero.windows.main.views.collection_management_view import CollectionManagementView
-            from fichero.windows.main.views.collection_view import CollectionView
-            
-            logger.debug("Creating CollectionManagementView for left pane...")
+            print("🔍 Creating CollectionManagementView...")
             # Left pane: Collection management view
             collection_mgmt_view = CollectionManagementView(self.app, self.is_mobile)
-            
-            # Register the collection selection callback
+            print("✅ CollectionManagementView created successfully")
             collection_mgmt_view.register_collection_callback(self._on_collection_selected)
-            
             self.pane_manager.switch_to_view("collection_management", collection_mgmt_view, "left")
             
-            logger.debug("Creating CollectionView for middle pane...")
             # Middle pane: Collection view (empty initially)
             collection_view = CollectionView(self.app, "", self.is_mobile)
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
-            
-            # Right pane: Preview pane (shows when documents are selected)
-            # This will be populated when a document is selected
             
             # Set the pane manager's main container as the window content
             main_container = self.pane_manager.get_main_container()
@@ -227,52 +189,11 @@ class MainWindowRefactored:
         try:
             from fichero.windows.main.views.mobile_view import MobileView
             mobile_view = MobileView(self.app)
-            
-            # Set the mobile view as the window content
             self.window.content = mobile_view.container
             logger.debug("Mobile view set up successfully")
                     
         except Exception as e:
             logger.error(f"Failed to set up mobile views: {e}")
-    
-    def _create_placeholder_views(self):
-        """Create placeholder views for desktop panes"""
-        try:
-            # Create placeholder collection view for middle pane
-            collection_view = CollectionView(self.app, "", self.is_mobile)
-            self.pane_manager.switch_to_view("collection", collection_view, "middle")
-            
-            # Right pane will show preview when a document is selected
-            # For now, it shows the default preview pane content
-            
-            logger.debug("Placeholder views created successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to create placeholder views: {e}")
-    
-    # ===== CALLBACK HANDLERS =====
-    
-    def _on_section_selected(self, section_id: str, section_type: str):
-        """Handle section selection in library pane"""
-        try:
-            logger.debug(f"Section selected: {section_id} of type {section_type}")
-            
-            # Update command context
-            if section_type == "global":
-                self.command_bridge.set_context(CommandContext.GLOBAL)
-            elif section_type == "collections":
-                self.command_bridge.set_context(CommandContext.LIBRARY)
-            
-            # Handle specific sections
-            if section_id == "global_inbox":
-                self._show_global_inbox()
-            elif section_id == "tags":
-                self._show_tags_view()
-            elif section_id == "trash":
-                self._show_trash_view()
-                
-        except Exception as e:
-            logger.error(f"Failed to handle section selection: {e}")
     
     def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
         """Handle collection selection"""
@@ -284,103 +205,13 @@ class MainWindowRefactored:
             
             # Switch to collection view in middle pane
             collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
+            collection_view.set_collection_id(collection_id)
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
             
             logger.info(f"Successfully navigated to collection view: {collection_name or collection_id}")
             
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
-    
-    def _on_external_link_selected(self, link_id: str):
-        """Handle external link selection"""
-        try:
-            logger.debug(f"External link selected: {link_id}")
-            
-            # This would typically open an external link or database
-            # For now, just log the selection
-            
-        except Exception as e:
-            logger.error(f"Failed to handle external link selection: {e}")
-    
-    def _on_toolbar_changed(self, toolbar_type: str):
-        """Handle toolbar changes"""
-        try:
-            logger.debug(f"Toolbar changed to: {toolbar_type}")
-            
-            # Update command context based on toolbar type
-            if toolbar_type == "library":
-                self.command_bridge.set_context(CommandContext.LIBRARY)
-            elif toolbar_type == "collection":
-                self.command_bridge.set_context(CommandContext.COLLECTION)
-            elif toolbar_type == "fiche":
-                self.command_bridge.set_context(CommandContext.FICHE)
-            elif toolbar_type == "preview":
-                self.command_bridge.set_context(CommandContext.PREVIEW)
-                
-        except Exception as e:
-            logger.error(f"Failed to handle toolbar change: {e}")
-    
-    def _on_add_collection(self, widget):
-        """Handle add collection command"""
-        try:
-            logger.debug("Add collection command executed")
-            
-            # This would typically open a folder picker dialog
-            # For now, just log the action
-            
-        except Exception as e:
-            logger.error(f"Failed to handle add collection: {e}")
-    
-    def _on_library_settings(self, widget):
-        """Handle library settings command"""
-        try:
-            logger.debug("Library settings command executed")
-            
-            # This would typically open library settings
-            # For now, just log the action
-            
-        except Exception as e:
-            logger.error(f"Failed to handle library settings: {e}")
-    
-    def _on_global_inbox(self, widget):
-        """Handle global inbox command"""
-        try:
-            logger.debug("Global inbox command executed")
-            
-            # This would typically navigate to global inbox
-            # For now, just log the action
-            
-        except Exception as e:
-            logger.error(f"Failed to handle global inbox: {e}")
-    
-    def _show_global_inbox(self):
-        """Show global inbox view"""
-        try:
-            logger.debug("Showing global inbox")
-            # This would create and show the global inbox view
-            
-        except Exception as e:
-            logger.error(f"Failed to show global inbox: {e}")
-    
-    def _show_tags_view(self):
-        """Show tags view"""
-        try:
-            logger.debug("Showing tags view")
-            # This would create and show the tags view
-            
-        except Exception as e:
-            logger.error(f"Failed to show tags view: {e}")
-    
-    def _show_trash_view(self):
-        """Show trash view"""
-        try:
-            logger.debug("Showing trash view")
-            # This would create and show the trash view
-            
-        except Exception as e:
-            logger.error(f"Failed to show trash view: {e}")
-    
-    # ===== PUBLIC METHODS =====
     
     def show(self):
         """Show the main window"""
@@ -414,114 +245,12 @@ class MainWindowRefactored:
         except Exception as e:
             logger.error(f"Failed to refresh main window: {e}")
     
-    def _setup_mobile_view_manager(self):
-        """Set up mobile view manager integration if on mobile platform"""
-        try:
-            logger.info(f"Setting up mobile view manager. is_mobile: {self.is_mobile}")
-            logger.info(f"Has window_view_manager: {hasattr(self.app, 'window_view_manager')}")
-            
-            if self.is_mobile and hasattr(self.app, 'window_view_manager'):
-                logger.info("Mobile platform detected, setting up mobile view manager")
-                
-                # For mobile mode, we need to create a different container structure
-                # The current setup creates a three-pane desktop layout even in mobile mode
-                
-                # Create a simple mobile container to replace the three-pane layout
-                mobile_container = self._create_mobile_container()
-                if mobile_container:
-                    logger.info("Mobile container created successfully")
-                    # Replace window content with mobile container
-                    self.window.content = mobile_container
-                    
-                    # Set up mobile view manager with this container
-                    from fichero.windows.main.window_view_manager import MobileViewManager
-                    mobile_view_manager = MobileViewManager(mobile_container)
-                    logger.info("MobileViewManager instance created")
-                    
-                    # Store the original collection view to prevent duplicates
-                    try:
-                        from fichero.windows.main.views.collection_management_view import CollectionManagementView
-                        original_collection_view = CollectionManagementView(self.app, self.is_mobile)
-                        mobile_view_manager.original_collection_view = original_collection_view
-                        
-                        # Replace the container content with the original view
-                        mobile_container.clear()
-                        mobile_container.add(original_collection_view.get_container())
-                        logger.debug("Set original collection view in mobile view manager")
-                    except Exception as e:
-                        logger.warning(f"Could not set original collection view: {e}")
-                    
-                    self.app.window_view_manager.set_mobile_view_manager(mobile_view_manager)
-                    logger.info("Mobile view manager integration set up with mobile container")
-                else:
-                    logger.warning("Could not create mobile container")
-            else:
-                logger.debug("Desktop mode - no mobile view manager needed")
-                
-        except Exception as e:
-            logger.error(f"Failed to set up mobile view manager: {e}")
-    
-    def _create_mobile_container(self):
-        """Create a mobile-friendly container"""
-        try:
-            from toga.style import Pack
-            from toga.constants import COLUMN
-            
-            # Create a simple vertical container for mobile
-            mobile_container = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1
-                )
-            )
-            
-            # Add default content - the collection management view
-            try:
-                # This will be replaced by the mobile view manager setup
-                # Just add a placeholder for now
-                placeholder = toga.Label(
-                    "📱 Loading Library View...",
-                    style=Pack(margin=20, font_size=18)
-                )
-                mobile_container.add(placeholder)
-                logger.debug("Added placeholder to mobile container")
-            except Exception as e:
-                logger.warning(f"Could not add placeholder: {e}")
-                # Add fallback placeholder
-                placeholder = toga.Label(
-                    "📱 Mobile Library View",
-                    style=Pack(margin=20, font_size=18)
-                )
-                mobile_container.add(placeholder)
-            
-            return mobile_container
-            
-        except Exception as e:
-            logger.error(f"Failed to create mobile container: {e}")
-            return None
-    
-    def _get_mobile_content_container(self):
-        """Get the mobile content container for view management"""
-        try:
-            if self.is_mobile and self.window:
-                # For mobile mode, we want to get the main container that can be replaced
-                # This should be the main content area of the window
-                if hasattr(self.window, 'content') and self.window.content:
-                    logger.debug(f"Found window content: {type(self.window.content)}")
-                    return self.window.content
-                else:
-                    logger.warning("Window content not available yet")
-                    return None
-            return None
-                
-        except Exception as e:
-            logger.error(f"Failed to get mobile content container: {e}")
-            return None
-
     def get_window_info(self) -> Dict[str, Any]:
-        """Get information about the main window"""
+        """Get window information for debugging"""
         return {
-            'is_mobile': self.is_mobile,
-            'pane_info': self.pane_manager.get_pane_info() if self.pane_manager else None,
-            'command_info': self.command_manager.get_command_info() if self.command_manager else None
-        } 
+            "is_mobile": self.is_mobile,
+            "has_pane_manager": self.pane_manager is not None,
+            "has_command_bridge": self.command_bridge is not None,
+            "has_command_manager": self.command_manager is not None,
+            "window_size": self._get_window_size()
+        }

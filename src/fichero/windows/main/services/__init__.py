@@ -1,13 +1,11 @@
 """
-Services for Main Window
+Services Module for Fichero Main Window
 
-Business logic services separated from UI components.
+Provides service layer for business logic operations.
 """
 
-from fichero.windows.main.services.collection_scanner import CollectionScanner
-from fichero.windows.main.services.library_manager import LibraryManager
+from fichero.windows.main.services.library_service import LibraryService
 
 __all__ = [
-    'CollectionScanner',
-    'LibraryManager'
-] 
+    'LibraryService'
+]

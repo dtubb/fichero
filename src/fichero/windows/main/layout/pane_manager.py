@@ -15,7 +15,6 @@ import logging
 from typing import Optional, Dict, Any, List
 
 from fichero.windows.main.views.base_view import BaseView
-from fichero.windows.main.views.desktop_view import DesktopView
 from fichero.windows.main.views.mobile_view import MobileView
 # from ..toolbars.toolbar_manager import ToolbarManager, ToolbarType  # No longer needed
 

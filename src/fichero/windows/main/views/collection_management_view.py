@@ -25,23 +25,19 @@ class CollectionManagementView(BaseView):
     """Collection management view using the new BaseView system"""
     
     def __init__(self, app, is_mobile: bool = False):
-        """Initialize refactored collection management view"""
+        """Initialize collection management view"""
         logger.debug(f"CollectionManagementView.__init__ called with app={app}, is_mobile={is_mobile}")
         
-        # Initialize collections attribute FIRST, before calling super().__init__
+        # Initialize collections attribute with empty list
         self.collections: List[Dict[str, Any]] = []
         self.selected_collection: Optional[Dict[str, Any]] = None
         
         super().__init__(app, is_mobile)
         
-        # Create separate top and bottom toolbars
+        # Create toolbars
         self.top_toolbar = LibraryTopToolbar(app, is_mobile)
         self.bottom_toolbar = LibraryBottomToolbar(app, is_mobile)
-        
-        # Set both toolbars
         self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-        
-        # Note: scroll container is handled by BaseView
         
         # Register callbacks
         self._register_toolbar_callbacks()
@@ -49,16 +45,14 @@ class CollectionManagementView(BaseView):
         # Initialize callback for collection selection
         self.on_collection_selected = None
         
-        # Initialize library system FIRST
+        # Initialize library manager
         self._initialize_library_system()
         
-        # Load real collections from library BEFORE creating content
-        self._load_real_collections()
-        
-        # Create content AFTER collections are loaded
+        # Load collections directly now that timeouts are fixed
+        self._load_collections()
         self._create_content()
         
-        logger.info("Refactored collection management view created successfully")
+        logger.info("Collection management view created successfully")
     
     def register_collection_callback(self, callback):
         """Register callback for when a collection is selected"""
@@ -92,7 +86,7 @@ class CollectionManagementView(BaseView):
                 "Collections",
                 style=Pack(
                     font_size=18,
-                    font_weight="600",
+                    font_weight="bold",
                     margin=(20, 20, 15, 20),
                     color=self.text_color
                 )
@@ -111,24 +105,19 @@ class CollectionManagementView(BaseView):
     def _create_collections_detailed_list(self):
         """Create a detailed list view for collections with swipe actions"""
         try:
-            # Convert collections to detailed list format
-            list_data = []
-            for collection in self.collections:
-                list_item = {
-                    'title': collection.get('name', 'Unknown Collection'),
-                    'subtitle': f"Type: {collection.get('type', 'Unknown')} | Items: {collection.get('item_count', 0)}",
-                    'icon': self._get_collection_icon(collection),
-                    'data': collection  # Store the full collection data
-                }
-                list_data.append(list_item)
+            # LibraryService now returns Toga-compatible format directly
+            # No need for data conversion - just use the collections as-is
+            if not self.collections:
+                logger.debug("No collections to display in DetailedList")
+                return
             
-            # Create the detailed list with swipe actions
+            # Create the detailed list with the Toga-compatible data
             self.collections_list = toga.DetailedList(
-                data=list_data,
-                on_select=self._on_collection_selected_simple,
+                data=self.collections,  # Direct use of Toga-compatible format
+                on_select=self._on_collection_selected,
                 primary_action="Delete",
                 on_primary_action=self._on_delete_collection,
-                secondary_action="Edit",
+                secondary_action="Edit", 
                 on_secondary_action=self._on_edit_collection,
                 style=Pack(
                     flex=1,
@@ -139,7 +128,7 @@ class CollectionManagementView(BaseView):
             if self.content_container:
                 self.content_container.add(self.collections_list)
                 
-            logger.debug(f"Created detailed list with {len(list_data)} collections and swipe actions")
+            logger.debug(f"Created DetailedList with {len(self.collections)} collections in native Toga format")
             
         except Exception as e:
             logger.error(f"Failed to create collections detailed list: {e}")
@@ -156,21 +145,33 @@ class CollectionManagementView(BaseView):
         else:
             return '📚'
     
-    def _on_collection_selected(self, widget, item):
+    def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
         try:
-            if item and hasattr(item, 'data'):
-                collection_data = item.data
-                logger.debug(f"Collection selected: {collection_data.get('name', 'Unknown')}")
+            # Toga DetailedList gives us the widget
+            # widget.selection contains the selected Row object
+            if hasattr(widget, 'selection') and widget.selection is not None:
+                selected_row = widget.selection
                 
-                # Store selected collection
-                self.selected_collection = collection_data
+                # The Row object has the attributes we provided in the data
+                # Access them directly as Row attributes
+                collection_data = {
+                    'id': selected_row.id if hasattr(selected_row, 'id') else '',
+                    'name': selected_row.title if hasattr(selected_row, 'title') else selected_row.name if hasattr(selected_row, 'name') else 'Unknown',
+                    'title': selected_row.title if hasattr(selected_row, 'title') else selected_row.name if hasattr(selected_row, 'name') else 'Unknown'
+                }
                 
-                # Notify parent or handle navigation
+                logger.info(f"Collection selected: {collection_data['name']}")
+                
+                # Navigate to collection
                 self._handle_collection_navigation(collection_data)
+            else:
+                logger.debug("No selection in widget")
                 
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_collection_selected_fallback(self, widget):
         """Fallback handler for collection selection (when called without item)"""
@@ -221,13 +222,18 @@ class CollectionManagementView(BaseView):
             collection_id = collection_data.get('id', '')
             logger.info(f"Navigating to collection: {collection_name}")
             
-            # Navigate to collection view by notifying the parent/main window
+            # Store selected collection
+            self.selected_collection = collection_data
+            
+            # Use the registered callback (set by main window)
             if hasattr(self, 'on_collection_selected') and self.on_collection_selected:
                 # Call the parent callback to handle navigation
                 self.on_collection_selected(collection_id, collection_name)
+                logger.debug(f"Called navigation callback for collection: {collection_name}")
             else:
-                # Fallback: try to find the main window and navigate
-                self._navigate_to_collection_view(collection_id, collection_name)
+                logger.warning("No collection selection callback registered")
+                # Show fallback message
+                self._show_message("Navigation", f"Selected: {collection_name}\n\nNavigation callback not registered.")
             
         except Exception as e:
             logger.error(f"Failed to handle collection navigation: {e}")
@@ -235,34 +241,12 @@ class CollectionManagementView(BaseView):
     def _navigate_to_collection_view(self, collection_id: str, collection_name: str):
         """Navigate to collection view by finding the main window"""
         try:
-            # Try to find the main window through the app
-            if hasattr(self, 'app') and self.app:
-                # Look for the main window in the app
-                if hasattr(self.app, 'main_window'):
-                    main_window = self.app.main_window
-                    if hasattr(main_window, 'switch_to_collection_view'):
-                        main_window.switch_to_collection_view(collection_id, collection_name)
-                        logger.info(f"Successfully navigated to collection view: {collection_name}")
-                        return
-                
-                # Alternative: try to find the pane manager
-                if hasattr(self.app, 'pane_manager'):
-                    pane_manager = self.app.pane_manager
-                    if hasattr(pane_manager, 'switch_to_view'):
-                        # Create a new collection view
-                        from fichero.windows.main.views.collection_view import CollectionView
-                        collection_view = CollectionView(self.app, collection_name, self.is_mobile)
-                        pane_manager.switch_to_view("collection", collection_view, "middle")
-                        logger.info(f"Successfully switched to collection view: {collection_name}")
-                        return
-            
-            # If we can't navigate, show a message
-            self._show_message("Navigation", f"Selected: {collection_name}\n\nNavigation to collection view will be implemented in the main window integration.")
+            # This method is now deprecated - navigation should go through the callback
+            logger.warning("_navigate_to_collection_view called - this should use the callback instead")
+            self._handle_collection_navigation({'id': collection_id, 'name': collection_name})
             
         except Exception as e:
             logger.error(f"Failed to navigate to collection view: {e}")
-            # Show error message
-            self._show_message("Navigation Error", f"Could not navigate to collection: {collection_name}\n\nError: {str(e)}")
     
     def _create_placeholder_content(self):
         """Create simple placeholder content for empty collections"""
@@ -272,7 +256,7 @@ class CollectionManagementView(BaseView):
                 "Collections",
                 style=Pack(
                     font_size=18,
-                    font_weight="600",
+                    font_weight="bold",
                     margin=(20, 20, 15, 20),
                     color=self.text_color
                 )
@@ -483,7 +467,7 @@ class CollectionManagementView(BaseView):
             collection_name = f"Collection {len(self.collections) + 1}"
             
             # Create collection using the library system
-            if self.library_manager:
+            if self.library_service:
                 # Create a new collection model
                 from fichero.library.models import Collection
                 
@@ -598,7 +582,7 @@ class CollectionManagementView(BaseView):
         """Show a simple message dialog"""
         try:
             # Create a simple message box
-            message_box = toga.Box(style=Pack(direction=COLUMN, padding=20))
+            message_box = toga.Box(style=Pack(direction=COLUMN, margin=20))
             
             title_label = toga.Label(title, style=Pack(font_size=16, font_weight="bold", margin=(0, 0, 10, 0)))
             message_label = toga.Label(message, style=Pack(margin=(0, 0, 20, 0)))
@@ -656,8 +640,7 @@ class CollectionManagementView(BaseView):
             collection_box = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(5, 10),
-                    padding=(10, 15),
+                    margin=(10, 15),
                     background_color=COLLECTION_ACTIVE if collection.get('active', False) else COLLECTION_INACTIVE
                 )
             )
@@ -718,41 +701,35 @@ class CollectionManagementView(BaseView):
         if hasattr(self, 'on_open_collection') and self.on_open_collection:
             self.on_open_collection(collection_data)
     
-    def _on_delete_collection(self, widget, row):
-        """Handle delete collection action (swipe left)"""
+    def _on_delete_collection(self, widget, item):
+        """Handle delete action from swipe gesture"""
         try:
-            if row and hasattr(row, 'data'):
-                collection_data = row.data
-                collection_name = collection_data.get('name', 'Unknown')
-                collection_id = collection_data.get('id', '')
-                
+            if item:
+                collection_name = item.get('title', 'Unknown')
+                collection_id = item.get('id', '')
                 logger.info(f"Delete requested for collection: {collection_name}")
                 
-                # Confirm deletion
-                self._confirm_delete_collection(collection_id, collection_name)
-            else:
-                logger.warning("Delete action called without valid row data")
+                # TODO: Implement delete confirmation dialog
+                # For now, just log the action
+                logger.warning(f"Delete action not implemented yet for collection {collection_id}")
                 
         except Exception as e:
-            logger.error(f"Failed to handle delete collection: {e}")
+            logger.error(f"Failed to handle collection deletion: {e}")
     
-    def _on_edit_collection(self, widget, row):
-        """Handle edit collection action (swipe right)"""
+    def _on_edit_collection(self, widget, item):
+        """Handle edit action from swipe gesture"""
         try:
-            if row and hasattr(row, 'data'):
-                collection_data = row.data
-                collection_name = collection_data.get('name', 'Unknown')
-                collection_id = collection_data.get('id', '')
-                
+            if item:
+                collection_name = item.get('title', 'Unknown')
+                collection_id = item.get('id', '')
                 logger.info(f"Edit requested for collection: {collection_name}")
                 
-                # Open edit dialog
-                self._edit_collection(collection_id, collection_name)
-            else:
-                logger.warning("Edit action called without valid row data")
+                # TODO: Implement edit dialog
+                # For now, just log the action
+                logger.warning(f"Edit action not implemented yet for collection {collection_id}")
                 
         except Exception as e:
-            logger.error(f"Failed to handle edit collection: {e}")
+            logger.error(f"Failed to handle collection editing: {e}")
     
     def _confirm_delete_collection(self, collection_id: str, collection_name: str):
         """Show confirmation dialog for collection deletion"""
@@ -780,7 +757,7 @@ class CollectionManagementView(BaseView):
         """Actually delete the collection from the library and UI"""
         try:
             # Delete from library system
-            if self.library_manager:
+            if self.library_service:
                 success = self.library_manager.storage.delete_collection(collection_id)
                 if success:
                     logger.info(f"Collection '{collection_name}' deleted from library")
@@ -954,7 +931,7 @@ class CollectionManagementView(BaseView):
             from fichero.library.library_manager import LibraryManager
             
             # Create library manager
-            self.library_manager = LibraryManager(self.app)
+            self.library_service = self.app.library_service
             logger.debug("Library system initialized successfully.")
             
         except ImportError as e:
@@ -974,53 +951,34 @@ class CollectionManagementView(BaseView):
                 import library_manager
                 
                 # Create library manager
-                self.library_manager = library_manager.LibraryManager(self.app)
+                self.library_service = self.app.library_service
                 logger.debug("Library system initialized successfully via fallback import.")
                 
             except Exception as fallback_e:
                 logger.error(f"Failed to initialize library system via fallback: {fallback_e}")
-                self.library_manager = None
+                self.library_service = None
         except Exception as e:
             logger.error(f"Failed to initialize library system: {e}")
-            self.library_manager = None
+            self.library_service = None
     
-    def _load_real_collections(self):
+    def _load_collections(self):
         """Load actual collections from the library system into the UI."""
         try:
-            if self.library_manager:
-                # Get all collections from the library manager
-                all_collections = self.library_manager.storage.get_all_collections()
+            if self.library_service:
+                # Use service layer - it handles all the complexity and returns UI-ready data
+                all_collections = self.library_service.get_collections_sync()
                 
-                # Convert to a format suitable for the detailed list
-                self.collections = []
-                for collection in all_collections:
-                    # Get item count for this collection
-                    item_count = len(self.library_manager.storage.get_collection_items(collection.id))
-                    
-                    collection_data = {
-                        'id': collection.id,
-                        'name': collection.name,
-                        'type': collection.type,
-                        'item_count': item_count,
-                        'active': True,  # All collections are active by default
-                        'description': collection.metadata.get('description', ''),
-                        'created_at': collection.created_at,
-                        'updated_at': collection.updated_at,
-                        'source_path': collection.source_path,
-                        'local_path': collection.local_path
-                    }
-                    self.collections.append(collection_data)
+                # Service already provides UI-ready data, so we can use it directly
+                self.collections = all_collections
                 
                 # Sort collections by name
-                self.collections.sort(key=lambda x: x['name'])
+                self.collections.sort(key=lambda x: x.get('name', ''))
                 
-                # Refresh the display
-                self._create_content()
                 logger.debug(f"Loaded {len(self.collections)} collections from library.")
             else:
-                logger.warning("Library manager not initialized, cannot load collections.")
-                self._create_placeholder_content()
+                logger.warning("Library service not initialized, cannot load collections.")
+                self.collections = []
                 
         except Exception as e:
-            logger.error(f"Failed to load real collections from library: {e}")
-            self._create_placeholder_content() 
+            logger.error(f"Failed to load collections from library: {e}")
+            self.collections = [] 

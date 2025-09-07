@@ -33,8 +33,11 @@ requires = [
     "cryptography>=3.0.0",
     "ruamel.yaml>=0.17.0",
     "pathvalidate>=3.0.0",
+    "aiofiles>=24.0.0,<25.0.0",
+    "aiohttp>=3.8.0,<4.0.0",
     # CLI dependencies for all platforms
     "toga-textual>=0.5.1,<0.6.0",
+
     "typer>=0.16.0,<1.0.0",
     "rich>=14.0.0,<15.0.0",
     # AI/ML dependencies for all platforms
@@ -150,6 +153,8 @@ requires = [
     "cryptography>=3.0.0",
     "ruamel.yaml>=0.17.0",
     "pathvalidate>=3.0.0",
+    "aiofiles>=24.0.0,<25.0.0",
+    "aiohttp>=3.8.0,<4.0.0",
     # Additional dependencies needed by core modules
     # iOS-specific logging
     "std-nslog~=1.0.3",
@@ -171,6 +176,8 @@ requires = [
     "cryptography>=3.0.0",
     "ruamel.yaml>=0.17.0",
     "pathvalidate>=3.0.0",
+    "aiofiles>=24.0.0,<25.0.0",
+    "aiohttp>=3.8.0,<4.0.0",
     # Explicitly exclude AI/ML dependencies that require Rust compilation
     # Note: openai, dashscope, jiter are NOT included here
     # Note: pyjnius excluded due to Python 3.10+ compatibility issues

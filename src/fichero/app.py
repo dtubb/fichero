@@ -22,6 +22,8 @@ from fichero.core.app_initializer import initialize_gui_app
 from fichero.core.error_handler import create_gui_error_handler
 from fichero.windows.main.window_view_manager import WindowViewManager, WindowType
 from fichero import __version__
+from fichero.library.library_manager import LibraryManager
+from fichero.windows.main.services.library_service import LibraryService
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,13 @@ class FicheroApp(toga.App):
             self.settings = self.components['settings']
             # Document system components removed - using library approach
             
-            # Initialize unified window/view manager
+            # Initialize library manager
+            self.library_manager = LibraryManager(self)
+            logger.info("Library manager initialized at app level")
+            
+            # Initialize library service
+            self.library_service = LibraryService(self.library_manager)
+            logger.info("Library service initialized at app level")            # Initialize unified window/view manager
             self.window_view_manager = WindowViewManager(self)
             
             # Detect platform once and set as app property
@@ -182,6 +190,7 @@ class FicheroApp(toga.App):
 
     def _setup_gui_interface(self):
         """Set up GUI-specific interface elements"""
+        print("🔍 Starting _setup_gui_interface...")
         is_gui_only = self._is_gui_only_mode()
         
         try:
@@ -208,24 +217,38 @@ class FicheroApp(toga.App):
                 self.menu_manager = None
             
             # Create main window for collection library view (only once)
+            print("🔍 Creating MainWindow...")
             from fichero.windows.main import MainWindow
             self.main_window_wrapper = MainWindow(self)
+            print("✅ MainWindow created successfully")
             
             if not is_gui_only:
                 print("✅ Main window configured for collection library")
             logger.info("Main window configured for collection library")
             
             # Show the main window on startup (this creates the Toga window)
-            self.main_window_wrapper.show()
+            print("🔍 About to show main window...")
+            try:
+                self.main_window_wrapper.show()
+                print("✅ Main window shown successfully")
+            except Exception as e:
+                print(f"❌ Failed to show main window: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
             
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
             
         except Exception as e:
             error_msg = f"GUI interface setup failed: {e}"
-            logger.warning(error_msg)
+            logger.error(error_msg)
             if not is_gui_only:
-                print(f"⚠️ Warning: {error_msg}")
+                print(f"❌ Error: {error_msg}")
+                import traceback
+                traceback.print_exc()
+            # Exit the app if GUI setup fails
+            self.exit()
 
     # Activity Monitor Management
     def show_activity_monitor(self):
@@ -348,6 +371,34 @@ class FicheroApp(toga.App):
                 return False
         except Exception as e:
             logger.error(f"Failed to close processing: {e}")
+            return False
+
+    def show_preview(self, file_path=None, **kwargs):
+        """Show the preview window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(
+                    WindowType.PREVIEW, 
+                    file_path=file_path,
+                    **kwargs
+                )
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show preview: {e}")
+            return False
+
+    def close_preview(self):
+        """Close the preview window - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.close_window_or_view(WindowType.PREVIEW)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to close preview: {e}")
             return False
 
     def show_about(self):

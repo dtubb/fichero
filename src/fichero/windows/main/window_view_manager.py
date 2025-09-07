@@ -24,6 +24,7 @@ class WindowType(Enum):
     PLANS = "plans"
     PROMPTS = "prompts"
     PROCESSING = "processing"
+    PREVIEW = "preview"
 
 
 class WindowViewManager:
@@ -173,6 +174,10 @@ class WindowViewManager:
             elif window_type == WindowType.PROCESSING:
                 from fichero.windows.processing import ProcessingWindow
                 window = ProcessingWindow(self.app)
+            
+            elif window_type == WindowType.PREVIEW:
+                from fichero.windows.preview import PreviewWindow
+                window = PreviewWindow(self.app)
             
             else:
                 logger.error(f"Unknown window type: {window_type.value}")
@@ -355,6 +360,24 @@ class WindowViewManager:
                     return mobile_view
                 except Exception as e:
                     logger.error(f"Failed to create ProcessingMobileView instance: {e}")
+                    return None
+            
+            elif window_type == WindowType.PREVIEW:
+                logger.info("Importing PreviewMobileView")
+                try:
+                    from fichero.windows.preview.mobile_view import PreviewMobileView
+                    logger.info("PreviewMobileView imported successfully")
+                except Exception as e:
+                    logger.error(f"Failed to import PreviewMobileView: {e}")
+                    return None
+                
+                logger.info("Creating PreviewMobileView instance")
+                try:
+                    mobile_view = PreviewMobileView(self.app)
+                    logger.info("PreviewMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create PreviewMobileView instance: {e}")
                     return None
             
             else:

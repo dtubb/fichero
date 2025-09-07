@@ -46,3 +46,8 @@ api_servers:
 defaults:
   plan: "Catalogue"
   workflow: "00) default" 
+# Library Configuration
+library:
+  path: ""  # Will be set to app.paths.data by the settings system
+  default_collection_type: "copy"
+  auto_copy_collections: true

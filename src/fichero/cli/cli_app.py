@@ -1,3 +1,5 @@
+import os
+os.environ["TOGA_BACKEND"] = "toga_textual"
 """
 Fichero CLI Application
 Handles command-line interface for Fichero
@@ -11,7 +13,7 @@ from rich.console import Console
 from fichero.core.app_initializer import FicheroAppInitializer
 from fichero.cli.commands.core_commands import CoreCommands
 from fichero.cli.commands.backend_commands import BackendCommands
-from fichero.cli.commands.library_commands import LibraryCommands
+from fichero.cli.commands.library import LibraryCommands
 
 # Get version from package
 try:

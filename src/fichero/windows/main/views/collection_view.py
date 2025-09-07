@@ -8,9 +8,12 @@ import toga
 from toga.style import Pack
 from toga.constants import ROW, COLUMN
 import logging
+import asyncio
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fichero.windows.main.views.base_view import BaseView
+from fichero.library.library_manager import LibraryManager
 from fichero.windows.main.toolbars.collection_top_toolbar import CollectionTopToolbar
 from fichero.windows.main.toolbars.collection_bottom_toolbar import CollectionBottomToolbar
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
@@ -30,6 +33,16 @@ class CollectionView(BaseView):
         self.collection_name = collection_name
         self.collections: List[Dict[str, Any]] = []
         self.current_collection: Optional[Dict[str, Any]] = None
+        self.collection_id: Optional[str] = None
+        self.collection_items: List[Dict[str, Any]] = []
+        
+        # Hierarchical navigation state
+        self.current_path: str = ""  # Current path within collection (empty = root)
+        self.path_history: List[str] = []  # For back navigation
+        self.breadcrumb_path: List[str] = []  # For breadcrumb display
+        
+        # Initialize library manager
+        self._initialize_library_manager()
         
         # Create separate top and bottom toolbars
         self.top_toolbar = CollectionTopToolbar(app, collection_name, is_mobile)
@@ -58,109 +71,145 @@ class CollectionView(BaseView):
             if self.content_container:
                 self.content_container.clear()
             
-            # Create initial placeholder content directly in the content container
-            self._create_placeholder_content()
-            
-            # Add sample collection items for testing
-            self._add_sample_collection_items()
-            
-        except Exception as e:
-            logger.error(f"Failed to create collection content: {e}")
-    
-    def _create_placeholder_content(self):
-        """Create placeholder content for the collection view"""
-        try:
             # Create header with collection name if available
-            header_text = f"📁 {self.collection_name}" if self.collection_name else "📁 Collections"
+            header_text = f"📁 {getattr(self, 'collection_name', '')}" if getattr(self, 'collection_name', None) else "📁 Collection"
             header = toga.Label(
                 header_text,
                 style=Pack(
                     font_size=20,
                     font_weight="bold",
-                    margin=(20, 10),
+                    margin=(10, 10),
                     color=self.text_color
                 )
             )
             if self.content_container:
                 self.content_container.add(header)
             
-            # Create placeholder for collections
-            if self.collection_name:
-                placeholder = toga.Label(
-                    f"Collection: {self.collection_name}\n\nUse the toolbar to add files and folders to this collection.",
-                    style=Pack(
-                        margin=(10, 20),
-                        color=self.text_color
-                    )
-                )
+            # Show collection items if we have them, otherwise show placeholder
+            if hasattr(self, 'collection_items') and self.collection_items:
+                logger.debug(f"Displaying {len(self.collection_items)} collection items")
+                self._create_collection_items_list(self.collection_items)
             else:
-                placeholder = toga.Label(
-                    "No collections available. Use the toolbar to add collections.",
-                    style=Pack(
-                        margin=(10, 20),
-                        color=self.text_color
+                # Show placeholder message
+                if hasattr(self, 'collection_id') and self.collection_id:
+                    placeholder = toga.Label(
+                        f"Collection is empty.\n\nUse the toolbar to add files and folders to this collection.",
+                        style=Pack(
+                            margin=(10, 20),
+                            color=self.text_color
+                        )
                     )
-                )
-            if self.content_container:
-                self.content_container.add(placeholder)
+                else:
+                    placeholder = toga.Label(
+                        "Select a collection from the left pane to view its items",
+                        style=Pack(
+                            margin=(10, 20),
+                            color=self.text_color
+                        )
+                    )
+                if self.content_container:
+                    self.content_container.add(placeholder)
             
         except Exception as e:
-            logger.error(f"Failed to create placeholder content: {e}")
+            logger.error(f"Failed to create collection content: {e}")
     
-    def _add_sample_collection_items(self):
-        """Add sample collection items for testing the detailed list view"""
+    def setup_toolbar_callbacks(self, toolbar):
+        """Setup navigation callbacks with the collection toolbar"""
+        if hasattr(toolbar, 'register_navigation_callbacks'):
+            toolbar.register_navigation_callbacks(
+                on_back_to_library=self._on_back_to_library,
+                on_navigate_back=self._on_navigate_back,
+                on_navigate_to_path=self._on_navigate_to_path,
+                on_add_folder=self._on_add_folder,
+                on_add_file=self._on_add_file
+            )
+    
+    def _on_back_to_library(self):
+        """Handle back to library navigation from toolbar"""
         try:
-            # Create sample items
-            self.sample_items = [
-                {
-                    'id': '1',
-                    'name': 'Document 1.pdf',
-                    'type': 'pdf',
-                    'size': '2.3 MB',
-                    'status': 'processed'
-                },
-                {
-                    'id': '2',
-                    'name': 'Image Collection',
-                    'type': 'folder',
-                    'size': '15.7 MB',
-                    'status': 'ready'
-                },
-                {
-                    'id': '3',
-                    'name': 'Audio Recording.wav',
-                    'type': 'audio',
-                    'size': '8.1 MB',
-                    'status': 'pending'
-                }
-            ]
+            # Navigate back to library view
+            if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, 'pane_manager'):
+                self.app.main_window.pane_manager.switch_to_view('collection_management')
+            logger.info("Navigated back to library")
+        except Exception as e:
+            logger.error(f"Failed to navigate back to library: {e}")
+    
+    def _on_navigate_back(self):
+        """Handle hierarchical back navigation from toolbar"""
+        try:
+            self._go_back()
+        except Exception as e:
+            logger.error(f"Failed to navigate back: {e}")
+    
+    def _on_navigate_to_path(self, path: str):
+        """Handle navigation to specific path from toolbar breadcrumb"""
+        try:
+            logger.info(f"Navigating to breadcrumb path: {path}")
             
-            # Create detailed list for collection items
-            self._create_collection_items_list(self.sample_items)
+            # Update navigation state
+            self.current_path = path
             
-            logger.info(f"Added {len(self.sample_items)} sample collection items")
+            # Update path history - remove any entries after this path
+            if path == "":
+                # Going to root
+                self.path_history.clear()
+            else:
+                # Find this path in history and truncate after it
+                path_parts = path.split("/")
+                self.path_history = path_parts[:-1]  # All parts except the last one
+            
+            # Update breadcrumbs
+            self._update_breadcrumbs()
+            
+            # Reload items for the new path
+            self._load_collection_items()
+            
+            # Update toolbar
+            self._update_toolbar_navigation()
             
         except Exception as e:
-            logger.error(f"Failed to add sample collection items: {e}")
+            logger.error(f"Failed to navigate to path {path}: {e}")
+    
+    def _on_add_folder(self):
+        """Handle add folder action from toolbar"""
+        try:
+            # TODO: Implement add folder functionality
+            logger.info("Add folder requested from toolbar")
+        except Exception as e:
+            logger.error(f"Failed to handle add folder: {e}")
+    
+    def _on_add_file(self):
+        """Handle add file action from toolbar"""
+        try:
+            # TODO: Implement add file functionality
+            logger.info("Add file requested from toolbar")
+        except Exception as e:
+            logger.error(f"Failed to handle add file: {e}")
+    
+    def _update_toolbar_navigation(self):
+        """Update toolbar navigation state"""
+        try:
+            if hasattr(self.top_toolbar, 'update_navigation_state'):
+                self.top_toolbar.update_navigation_state(self.current_path, self.path_history)
+        except Exception as e:
+            logger.error(f"Failed to update toolbar navigation: {e}")
     
     def _create_collection_items_list(self, items: List[Dict[str, Any]]):
         """Create a detailed list view for collection items"""
         try:
-            # Convert items to detailed list format
-            list_data = []
-            for item in items:
-                list_item = {
-                    'title': item.get('name', 'Unknown Item'),
-                    'subtitle': f"Type: {item.get('type', 'Unknown')} | Size: {item.get('size', 'Unknown')} | Status: {item.get('status', 'Unknown')}",
-                    'icon': self._get_item_icon(item),
-                    'data': item  # Store the full item data
-                }
-                list_data.append(list_item)
+            if not items:
+                logger.debug("No items to display in collection")
+                return
             
-            # Create the detailed list
+            # LibraryService now returns Toga-compatible format directly
+            # Create the detailed list with the Toga-compatible data
             self.items_list = toga.DetailedList(
-                data=list_data,
-                on_select=self._on_item_selected_simple,
+                data=items,  # Direct use of Toga-compatible format
+                on_select=self._on_item_selected,
+                primary_action="Open",
+                on_primary_action=self._on_open_item,
+                secondary_action="Info", 
+                on_secondary_action=self._on_item_info,
                 style=Pack(
                     flex=1,
                     margin=(10, 20)
@@ -170,127 +219,210 @@ class CollectionView(BaseView):
             if self.content_container:
                 self.content_container.add(self.items_list)
                 
-            logger.debug(f"Created detailed list with {len(list_data)} items")
+            logger.debug(f"Created DetailedList with {len(items)} items in native Toga format")
             
         except Exception as e:
             logger.error(f"Failed to create collection items list: {e}")
     
-    def _get_item_icon(self, item: Dict[str, Any]) -> str:
-        """Get appropriate icon for item type"""
-        item_type = item.get('type', 'unknown')
-        if item_type == 'pdf':
-            return '📄'
-        elif item_type == 'folder':
-            return '📁'
-        elif item_type == 'audio':
-            return '🎵'
-        elif item_type == 'image':
-            return '🖼️'
-        else:
-            return '📄'
-    
-    def _on_item_selected(self, widget, item):
+    def _on_item_selected(self, widget):
         """Handle item selection from detailed list"""
         try:
-            if item and hasattr(item, 'data'):
-                item_data = item.data
-                logger.debug(f"Item selected: {item_data.get('name', 'Unknown')}")
+            # Toga DetailedList gives us the widget
+            # widget.selection contains the selected Row object
+            if hasattr(widget, 'selection') and widget.selection is not None:
+                selected_row = widget.selection
                 
-                # Handle navigation based on item type
+                # Debug: Log all available attributes on the Row object
+                logger.debug(f"Row object type: {type(selected_row)}")
+                logger.debug(f"Row object attributes: {dir(selected_row)}")
+                logger.debug(f"Row object __dict__: {getattr(selected_row, '__dict__', 'No __dict__')}")
+                
+                # Try different ways to access the data
+                # Method 1: Direct attribute access
+                title_direct = getattr(selected_row, 'title', None)
+                type_direct = getattr(selected_row, 'type', None)
+                is_folder_direct = getattr(selected_row, 'is_folder', None)
+                
+                logger.debug(f"Direct access - title: {title_direct}, type: {type_direct}, is_folder: {is_folder_direct}")
+                
+                # The Row object has all the attributes we provided in the data
+                # Access them directly as Row attributes
+                item_data = {
+                    'id': getattr(selected_row, 'id', ''),
+                    'title': getattr(selected_row, 'title', 'Unknown Item'),
+                    'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
+                    'type': getattr(selected_row, 'type', 'unknown'),
+                    'is_folder': getattr(selected_row, 'is_folder', False),
+                    'path': getattr(selected_row, 'path', ''),
+                    'file_path': getattr(selected_row, 'file_path', '')
+                }
+                
+                logger.info(f"Item selected: {item_data['title']}")
+                logger.debug(f"Full item_data extracted: {item_data}")
+                
+                # Handle item navigation
                 self._handle_item_navigation(item_data)
+            else:
+                logger.debug("No selection in widget")
                 
         except Exception as e:
             logger.error(f"Failed to handle item selection: {e}")
+            import traceback
+            traceback.print_exc()
     
-    def _on_item_selected_simple(self, widget):
-        """Simple handler for item selection (compatible with Toga's DetailedList)"""
+    def _on_open_item(self, widget, row):
+        """Handle open action from swipe gesture"""
         try:
-            logger.debug("Item selection simple handler called")
-            # This handles the case where Toga calls the handler without the item parameter
-            # We'll need to get the selected item from the detailed list
-            if hasattr(self, 'items_list') and self.items_list:
-                # Try to get the selected item from the detailed list
-                # Toga's DetailedList selection might be a Row object or index
-                selection = getattr(self.items_list, 'selection', None)
-                logger.debug(f"Selection object: {selection}, type: {type(selection)}")
+            if row:
+                item_name = row.title
+                file_path = getattr(row, 'file_path', '')
+                logger.info(f"Open requested for item: {item_name}")
                 
-                if selection is not None:
-                    # If selection is a Row object, try to get its data
-                    if hasattr(selection, 'data'):
-                        item_data = selection.data
-                        self._handle_item_navigation(item_data)
-                        return
-                    # If selection is an index, use it to get data from sample_items
-                    elif isinstance(selection, int) and selection >= 0:
-                        if hasattr(self, 'sample_items') and selection < len(self.sample_items):
-                            item_data = self.sample_items[selection]
-                            self._handle_item_navigation(item_data)
-                            return
+                # For files, open with preview window instead of system app
+                logger.info(f"FILE NAVIGATION: Opening file: {file_path}")
+                try:
+                    # Use the app's preview window system
+                    if hasattr(self.app, 'show_preview'):
+                        self.app.show_preview(file_path=file_path)
+                    else:
+                        # Fallback to system app
+                        self._open_file(file_path)
+                except Exception as e:
+                    logger.error(f"Failed to open preview window, using system app: {e}")
+                    self._open_file(file_path)
+                
+        except Exception as e:
+            logger.error(f"Failed to handle item open: {e}")
+            traceback.print_exc()
+    
+    def _on_item_info(self, widget, row):
+        """Handle info action from swipe gesture"""
+        try:
+            if row:
+                item_name = row.title
+                item_subtitle = getattr(row, 'subtitle', '')
+                item_description = getattr(row, 'description', '')
+                
+                logger.info(f"Info requested for item: {item_name}")
+                
+                # Show item information
+                info_text = f"Name: {item_name}\n"
+                if item_subtitle:
+                    info_text += f"Details: {item_subtitle}\n"
+                if item_description:
+                    info_text += f"Description: {item_description}\n"
+                
+                # TODO: Show info dialog
+                logger.info(f"Item info: {info_text}")
+                
+        except Exception as e:
+            logger.error(f"Failed to handle item info: {e}")
+    
+    def _open_file(self, file_path: str):
+        """Open a file using the system default application"""
+        try:
+            import subprocess
+            import sys
+            from pathlib import Path
             
-            # If we can't get the selected item, show a message
-            self._show_message("Selection", "Please select an item from the list.")
+            path = Path(file_path)
+            if not path.exists():
+                logger.error(f"File not found: {file_path}")
+                return
+            
+            # Use system default application to open the file
+            if sys.platform == "darwin":  # macOS
+                subprocess.run(["open", str(path)])
+            elif sys.platform == "win32":  # Windows
+                subprocess.run(["start", str(path)], shell=True)
+            else:  # Linux and others
+                subprocess.run(["xdg-open", str(path)])
+                
+            logger.info(f"Opened file: {file_path}")
             
         except Exception as e:
-            logger.error(f"Failed to handle item selection simple: {e}")
-            # Show error message
-            self._show_message("Selection Error", f"Error selecting item: {str(e)}")
+            logger.error(f"Failed to open file {file_path}: {e}")
     
     def _handle_item_navigation(self, item_data: Dict[str, Any]):
-        """Handle navigation based on selected item"""
+        """Handle navigation to an item or folder (sync version)"""
         try:
-            item_name = item_data.get('name', 'Unknown')
+            item_name = item_data.get('title', item_data.get('name', 'Unknown'))
             item_type = item_data.get('type', 'unknown')
-            logger.info(f"Navigating to item: {item_name} (type: {item_type})")
+            is_folder = item_data.get('is_folder', False)
             
-            if item_type == 'folder':
-                # Navigate into folder
-                self._show_message("Folder Selected", f"Selected folder: {item_name}\n\nFolder navigation will be implemented here.")
+            logger.info(f"Navigating to item: {item_name} (type: {item_type}, folder: {is_folder})")
+            logger.debug(f"Full item data: {item_data}")
+            
+            # Handle folder navigation
+            if is_folder or item_type == 'folder':
+                folder_path = item_data.get('path', item_data.get('name', ''))
+                logger.info(f"FOLDER NAVIGATION: Navigating to folder path: '{folder_path}'")
+                self.navigate_to_folder(folder_path)
             else:
-                # Show item details
-                self._show_message("Item Selected", f"Selected: {item_name}\n\nType: {item_type}\nSize: {item_data.get('size', 'Unknown')}\nStatus: {item_data.get('status', 'Unknown')}")
+                # Handle file - check if we have a file path
+                file_path = item_data.get('file_path')
+                if file_path:
+                    logger.info(f"FILE NAVIGATION: Opening preview for file: {file_path}")
+                    # Use the app's preview window
+                    try:
+                        if hasattr(self.main_window.app, 'show_preview'):
+                            self.main_window.app.show_preview(file_path=file_path)
+                        else:
+                            # Fallback to system app
+                            logger.warning("Preview not available, opening with system app")
+                            self._open_file(file_path)
+                    except Exception as e:
+                        logger.error(f"Failed to show preview, falling back to system app: {e}")
+                        self._open_file(file_path)
+                else:
+                    # No file path - show info
+                    logger.info(f"INFO NAVIGATION: Showing info for item")
+                    # Create a mock row object for the info call
+                    class MockRow:
+                        def __init__(self, data):
+                            for key, value in data.items():
+                                setattr(self, key, value)
+                    
+                    mock_row = MockRow(item_data)
+                    self._on_item_info(None, mock_row)
             
         except Exception as e:
             logger.error(f"Failed to handle item navigation: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _register_toolbar_callbacks(self):
         """Register callbacks for both toolbars"""
         try:
-            # Top toolbar callbacks
-            self.top_toolbar.register_callbacks(
+            # Top toolbar navigation callbacks
+            if hasattr(self.top_toolbar, 'register_navigation_callbacks'):
+                self.top_toolbar.register_navigation_callbacks(
+                    on_back_to_library=self._on_back_to_library,
+                    on_navigate_back=self._go_back,  # Use _go_back directly
+                    on_navigate_to_path=self._on_navigate_to_path,
+                    on_add_folder=self._on_add_folder,
+                    on_add_file=self._on_add_file
+                )
+            else:
+                # Fallback to old registration method
+                self.top_toolbar.register_callbacks(
                 on_back_to_library=self._on_back_to_library,
+                on_navigate_back=self._go_back,  # Use _go_back directly
                 on_add_folder=self._on_add_folder,
                 on_add_file=self._on_add_file
             )
-            
+
             # Bottom toolbar callbacks
-            self.bottom_toolbar.register_callbacks(
-                on_collection_settings=self._on_collection_settings
-                # Note: on_process_collection and on_export_collection are not supported by CollectionBottomToolbar
-            )
+            if hasattr(self.bottom_toolbar, 'register_callbacks'):
+                self.bottom_toolbar.register_callbacks(
+                        on_collection_settings=self._on_collection_settings,
+                        on_process_collection=self._on_process_collection
+                )
+
+            logger.info("Toolbar callbacks registered successfully")
             
         except Exception as e:
             logger.error(f"Failed to register toolbar callbacks: {e}")
-    
-    def _on_back_to_library(self):
-        """Handle back to library action"""
-        logger.debug("Back to library requested")
-        # This would typically be handled by the main window
-        if hasattr(self, 'on_back_to_library') and self.on_back_to_library:
-            self.on_back_to_library()
-    
-    def _on_add_folder(self):
-        """Handle add folder action"""
-        logger.debug("Add folder requested")
-        # This would typically open a folder picker
-        if hasattr(self, 'on_add_folder') and self.on_add_folder:
-            self.on_add_folder()
-    
-    def _on_add_file(self):
-        """Handle add file action"""
-        logger.debug("Add file requested")
-        # This would typically open a file picker
-        if hasattr(self, 'on_add_file') and self.on_add_file:
-            self.on_add_file()
     
     def _on_collection_settings(self):
         """Handle collection settings action"""
@@ -477,7 +609,7 @@ class CollectionView(BaseView):
             self.scroll_container.clear_content()
             
             # Recreate placeholder content
-            self._create_placeholder_content()
+            self._create_content() # This now handles the placeholder
             
             # Collection count updated
             pass
@@ -556,6 +688,158 @@ class CollectionView(BaseView):
         except Exception as e:
             logger.error(f"Failed to set up scroll integration: {e}")
     
+
+    def _initialize_library_manager(self):
+        """Use shared library service from app"""
+        try:
+            # Use the shared library service from the app (not just the manager)
+            self.library_service = self.app.library_service
+            if self.library_service:
+                logger.info("Using shared library service from app")
+            else:
+                logger.warning("No shared library service available in app")
+        except Exception as e:
+            logger.error(f"Failed to get shared library service: {e}")
+            self.library_service = None
+    
+    def set_collection_id(self, collection_id: str):
+        """Set the current collection ID and load its items"""
+        self.collection_id = collection_id
+        self._load_collection_items()
+    
+    def _load_collection_items(self):
+        """Load items for the current collection and path"""
+        try:
+            if self.library_service and hasattr(self, 'collection_id') and self.collection_id:
+                # Use hierarchical structure method for folder navigation
+                logger.info(f"Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
+                self.collection_items = self.library_service.get_collection_structure_sync(
+                    self.collection_id, 
+                    self.current_path
+                )
+                
+                # Debug: Log what we got back
+                logger.info(f"Received {len(self.collection_items)} items from hierarchical structure")
+                if self.collection_items:
+                    first_item = self.collection_items[0]
+                    logger.info(f"First item: title='{first_item.get('title', 'NO_TITLE')}', type='{first_item.get('type', 'NO_TYPE')}', is_folder={first_item.get('is_folder', 'NO_IS_FOLDER')}")
+                
+                # Update breadcrumbs
+                self._update_breadcrumbs()
+                
+                # Refresh the display with items
+                self._create_content()
+                logger.debug(f"Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
+            else:
+                logger.warning("Library service not initialized or no collection ID set")
+                self._create_content() # This now handles the placeholder
+                
+        except Exception as e:
+            logger.error(f"Failed to load collection items: {e}")
+    
+    def _update_breadcrumbs(self):
+        """Update breadcrumb display in toolbar"""
+        try:
+            if hasattr(self.top_toolbar, 'update_breadcrumbs'):
+                collection_name = getattr(self, 'collection_name', 'Collection')
+                self.top_toolbar.update_breadcrumbs(collection_name, self.current_path)
+        except Exception as e:
+            logger.error(f"Failed to update breadcrumbs: {e}")
+    
+    def navigate_to_folder(self, folder_path: str):
+        """Navigate into a folder"""
+        try:
+            # Add current path to history for back navigation
+            self.path_history.append(self.current_path)
+            
+            # Update current path
+            if self.current_path:
+                self.current_path = f"{self.current_path}/{folder_path}"
+            else:
+                self.current_path = folder_path
+            
+            # Update breadcrumbs
+            self._update_breadcrumbs()
+            
+            # Update toolbar navigation state
+            if hasattr(self.top_toolbar, 'set_current_path'):
+                self.top_toolbar.set_current_path(self.current_path)
+            
+            # Reload items for new path
+            self._load_collection_items()
+            
+            logger.info(f"Navigated to folder: {folder_path}, current path: {self.current_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to navigate to folder: {e}")
+    
+    def _go_back(self):
+        """Go back one level in the hierarchy"""
+        try:
+            if self.path_history:
+                # Go back to previous path
+                self.current_path = self.path_history.pop()
+                logger.info(f"Going back to: {self.current_path}")
+            else:
+                # At root level, clear current path
+                self.current_path = ""
+                logger.info("Going back to collection root")
+            
+            # Update breadcrumbs
+            self._update_breadcrumbs()
+            
+            # Update toolbar navigation state
+            if hasattr(self.top_toolbar, 'set_current_path'):
+                self.top_toolbar.set_current_path(self.current_path)
+            
+            # Reload items for new path
+            self._load_collection_items()
+            
+        except Exception as e:
+            logger.error(f"Failed to go back: {e}")
+    
+    def navigate_to_breadcrumb(self, breadcrumb_index: int):
+        """Navigate to a specific breadcrumb level"""
+        try:
+            if breadcrumb_index == 0:
+                # Navigate to root
+                self.path_history.append(self.current_path)
+                self.current_path = ""
+            else:
+                # Navigate to specific level
+                path_parts = self.current_path.split('/') if self.current_path else []
+                if breadcrumb_index - 1 < len(path_parts):
+                    self.path_history.append(self.current_path)
+                    self.current_path = '/'.join(path_parts[:breadcrumb_index])
+            
+            # Update breadcrumbs
+            self._update_breadcrumbs()
+            
+            # Reload items for new path
+            self._load_collection_items()
+            
+            # Update toolbar navigation state
+            self._update_toolbar_navigation()
+            
+            logger.info(f"Navigated to breadcrumb level {breadcrumb_index}: {self.current_path or 'root'}")
+        except Exception as e:
+            logger.error(f"Failed to navigate to breadcrumb {breadcrumb_index}: {e}")
+    
+    def reset_navigation(self):
+        """Reset navigation to root level"""
+        try:
+            self.current_path = ""
+            self.path_history = []
+            self.breadcrumb_path = []
+            self._load_collection_items()
+            
+            # Update toolbar navigation state
+            self._update_toolbar_navigation()
+            
+            logger.info("Navigation reset to root level")
+        except Exception as e:
+            logger.error(f"Failed to reset navigation: {e}")
+
     def refresh(self):
         """Refresh the collection view"""
         try:
@@ -565,7 +849,7 @@ class CollectionView(BaseView):
         except Exception as e:
             logger.error(f"Failed to refresh collection view: {e}") 
 
-    def _show_message(self, title: str, message: str):
+    async def _show_message(self, title: str, message: str):
         """Show a message dialog"""
         try:
             # Create a simple message dialog
@@ -573,7 +857,7 @@ class CollectionView(BaseView):
                 title=title,
                 message=message
             )
-            dialog.show()
+            await self.app.dialog(dialog)
         except Exception as e:
             logger.error(f"Failed to show message dialog: {e}")
             # Fallback: just log the message

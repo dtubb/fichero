@@ -43,11 +43,13 @@ class LibraryManager:
         """Initialize library manager with Toga app reference"""
         self.app = app
         
-        # Initialize storage
-        library_path = self.app.paths.data / "library"
-        library_path.mkdir(parents=True, exist_ok=True)
+        # Get library path using centralized resolver (same logic for CLI, GUI, tests)
+        from fichero.library.path_resolver import get_library_database_path
+        db_path = get_library_database_path(app)
         
-        db_path = library_path / "library.db"
+        # Ensure directory exists
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
         self.storage = LibraryStorage(db_path)
         
         # Initialize import/export
@@ -58,7 +60,7 @@ class LibraryManager:
         self._collections_cache: Optional[List[Collection]] = None
         self._cache_timestamp: Optional[datetime] = None
         
-        logger.info("Library manager initialized successfully")
+        logger.info(f"Library manager initialized successfully with database: {db_path}")
     
     # ===== COLLECTION MANAGEMENT =====
     

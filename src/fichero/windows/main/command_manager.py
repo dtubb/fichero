@@ -89,6 +89,17 @@ class CommandManagerRefactored:
             )
             self.registered_commands["processing"] = processing_cmd
             
+            # Create Preview command for View menu
+            preview_cmd = toga.Command(
+                self._on_preview,
+                text="Preview Window",
+                icon=toga.Icon("resources/icons/toolbar/preview.png"),
+                group=toga.Group.VIEW,
+                section=0,
+                order=0
+            )
+            self.registered_commands["preview"] = preview_cmd
+            
             logger.info(f"Essential commands created: {list(self.registered_commands.keys())}")
             
         except Exception as e:
@@ -163,6 +174,20 @@ class CommandManagerRefactored:
                 
         except Exception as e:
             logger.error(f"Failed to open processing: {e}")
+    
+    def _on_preview(self, widget):
+        """Handle Preview command"""
+        try:
+            logger.debug("Preview command executed")
+            
+            # Use the app's preview window method
+            if hasattr(self.app, 'show_preview'):
+                self.app.show_preview()
+            else:
+                logger.warning("Preview window not available")
+                
+        except Exception as e:
+            logger.error(f"Failed to open preview: {e}")
     
     def set_command_bridge(self, command_bridge: CommandBridge):
         """Set the command bridge"""
