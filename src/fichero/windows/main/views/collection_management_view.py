@@ -264,11 +264,11 @@ class CollectionManagementView(BaseView):
     def _create_placeholder_content(self):
         """Create simple placeholder content for empty collections"""
         try:
-            # Simple "Collections" title
+            # Simple "Library" title
             title = toga.Label(
-                "Collections",
+                "Library",
                 style=Pack(
-                    font_size=18,
+                    # Use default font size (no font_size specified)
                     font_weight="bold",
                     margin=(20, 20, 15, 20),
                     color=self.text_color

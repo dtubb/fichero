@@ -821,7 +821,7 @@ class BaseToolbar(ABC):
     def add_collection_back_button_with_title(self, title_text: str, on_back: Callable, on_title_click: Callable = None) -> tuple:
         """Smart helper: Add back button + title for collection view with hierarchy navigation support"""
         # Mobile: always show back button
-        # Desktop: show back button for hierarchy navigation (disabled when at root, enabled when in folders)
+        # Desktop: show back button for hierarchy navigation (hidden when at root, shown when in folders)
         
         back_button = self.add_button_left(
             icon="chevron.left@10x",
@@ -837,7 +837,8 @@ class BaseToolbar(ABC):
                 on_click=on_title_click
             )
         else:
-            # Desktop: centered title, back button on left
+            # Desktop: centered title, back button on left (initially hidden)
+            back_button.style.visibility = "hidden"  # Hide by default on desktop
             title = self.add_centered_title_only(title_text, on_title_click=on_title_click)
         
         return back_button, title 

@@ -75,18 +75,20 @@ class CollectionView(BaseView):
                 self.content_container.clear()
             
             # Add current folder header (shows what folder we're currently viewing)
-            current_folder_name = self._get_current_folder_display_name()
-            if current_folder_name:
-                folder_header = toga.Label(
-                    current_folder_name,
-                    style=Pack(
-                        margin=(15, 20, 10, 20),
-                        font_size=18,
-                        font_weight="bold",
-                        color=self.text_color
+            # Only show on mobile, and only when NOT at collection root
+            if self.is_mobile and self.current_path:
+                current_folder_name = self._get_current_folder_display_name()
+                if current_folder_name:
+                    folder_header = toga.Label(
+                        current_folder_name,
+                        style=Pack(
+                            margin=(15, 20, 10, 20),
+                            # Use default font size (no font_size specified)
+                            font_weight="bold",
+                            color=self.text_color
+                        )
                     )
-                )
-                self.content_container.add(folder_header)
+                    self.content_container.add(folder_header)
             
             # Show collection items if we have them, otherwise show placeholder
             if hasattr(self, 'collection_items') and self.collection_items:

@@ -99,8 +99,10 @@ class CollectionTopToolbar(TopToolbar):
             # Update back button state based on current path (back button now exists on both mobile and desktop)
             if hasattr(self, 'back_button') and self.back_button is not None:
                 if current_path:
-                    # In a subfolder - enable back button to go up hierarchy
+                    # In a subfolder - show/enable back button to go up hierarchy
                     self.back_button.enabled = True
+                    if not self.is_mobile:
+                        self.back_button.style.visibility = "visible"  # Show on desktop when in folder
                     logger.debug(f"🔙 Back button enabled (in subfolder: {current_path})")
                 else:
                     # At collection root - different behavior for mobile vs desktop
@@ -108,8 +110,12 @@ class CollectionTopToolbar(TopToolbar):
                         self.back_button.enabled = True  # Mobile: back to library
                         logger.info("🔙 Back button enabled for mobile (back to library)")
                     else:
-                        self.back_button.enabled = False  # Desktop: no back to library
-                        logger.info("🔙 Back button disabled for desktop (at collection root - no library navigation)")
+                        self.back_button.style.visibility = "hidden"  # Desktop: hide back button at root
+                        logger.info("🔙 Back button hidden for desktop (at collection root - no library navigation)")
+                        
+                        # Update title to show collection name when at root on desktop
+                        if hasattr(self, 'title_label') and self.title_label is not None:
+                            self.title_label.text = collection_name or "Collection"
             else:
                 # Should not happen with new collection method
                 logger.warning("🔙 No back button found - this should not happen with collection toolbar")

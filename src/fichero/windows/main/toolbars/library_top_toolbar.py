@@ -19,7 +19,7 @@ class LibraryTopToolbar(TopToolbar):
     
     def __init__(self, app, is_mobile: bool = None):
         """Initialize library top toolbar"""
-        super().__init__(app, "Collections", is_mobile)
+        super().__init__(app, "Library", is_mobile)
         
         # Library-specific callbacks
         self.on_add_collection: Optional[Callable] = None
@@ -39,7 +39,7 @@ class LibraryTopToolbar(TopToolbar):
             super()._create_toolbar()
             
             # Just a centered title - simple and clean
-            self.add_title_only("Collections")
+            self.add_title_only("Library")
             
             logger.info("Library top toolbar created with title only")
             
