@@ -171,7 +171,13 @@ class MainWindowRefactored:
             
             # Middle pane: Collection view (empty initially)
             collection_view = CollectionView(self.app, "", self.is_mobile)
+            collection_view.register_preview_callback(self._on_file_preview_requested)
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
+            
+            # Right pane: Preview pane (empty initially)
+            from fichero.windows.main.layout.preview_pane import PreviewPane
+            self.preview_pane = PreviewPane(self.app, self.is_mobile)
+            self.pane_manager.switch_to_view("preview", self.preview_pane, "right")
             
             # Set the pane manager's main container as the window content
             main_container = self.pane_manager.get_main_container()
@@ -206,12 +212,47 @@ class MainWindowRefactored:
             # Switch to collection view in middle pane
             collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
             collection_view.set_collection_id(collection_id)
+            collection_view.register_preview_callback(self._on_file_preview_requested)
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
             
             logger.info(f"Successfully navigated to collection view: {collection_name or collection_id}")
             
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
+    
+    def _on_file_preview_requested(self, file_path: str, file_data: Dict[str, Any] = None):
+        """Handle file preview requests from collection view"""
+        try:
+            logger.debug(f"File preview requested: {file_path}")
+            
+            # Prepare document data for preview pane
+            if not file_data:
+                from pathlib import Path
+                path = Path(file_path)
+                file_data = {
+                    'name': path.name,
+                    'type': path.suffix.lower().replace('.', '') if path.suffix else 'unknown',
+                    'size': f"{path.stat().st_size} bytes" if path.exists() else 'Unknown',
+                    'file_path': str(path),
+                    'created_date': 'Unknown',
+                    'modified_date': 'Unknown',
+                    'author': 'Unknown',
+                    'tags': [],
+                    'processing_status': 'Not processed'
+                }
+            
+            # Show preview in right pane
+            if hasattr(self, 'preview_pane') and self.preview_pane:
+                self.preview_pane.set_document(file_data)
+                logger.info(f"File preview shown in right pane: {file_path}")
+            else:
+                logger.warning("Preview pane not available, falling back to separate window")
+                # Fallback to separate window if needed
+                if hasattr(self.app, 'show_preview'):
+                    self.app.show_preview(file_path=file_path)
+                    
+        except Exception as e:
+            logger.error(f"Failed to handle file preview request: {e}")
     
     def show(self):
         """Show the main window"""

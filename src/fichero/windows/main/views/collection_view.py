@@ -10,7 +10,7 @@ from toga.constants import ROW, COLUMN
 import logging
 import asyncio
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 
 from fichero.windows.main.views.base_view import BaseView
 from fichero.library.library_manager import LibraryManager
@@ -35,6 +35,9 @@ class CollectionView(BaseView):
         self.current_collection: Optional[Dict[str, Any]] = None
         self.collection_id: Optional[str] = None
         self.collection_items: List[Dict[str, Any]] = []
+        
+        # Preview callback for showing files in right pane
+        self.on_file_preview_requested: Optional[Callable] = None
         
         # Hierarchical navigation state
         self.current_path: str = ""  # Current path within collection (empty = root)
@@ -278,18 +281,36 @@ class CollectionView(BaseView):
                 file_path = getattr(row, 'file_path', '')
                 logger.info(f"Open requested for item: {item_name}")
                 
-                # For files, open with preview window instead of system app
+                # For files, use preview callback to show in right pane
                 logger.info(f"FILE NAVIGATION: Opening file: {file_path}")
-                try:
-                    # Use the app's preview window system
-                    if hasattr(self.app, 'show_preview'):
-                        self.app.show_preview(file_path=file_path)
-                    else:
-                        # Fallback to system app
+                
+                # Create item data from row attributes
+                item_data = {
+                    'id': getattr(row, 'id', ''),
+                    'title': getattr(row, 'title', 'Unknown Item'),
+                    'name': getattr(row, 'name', getattr(row, 'title', 'Unknown')),
+                    'type': getattr(row, 'type', 'unknown'),
+                    'is_folder': getattr(row, 'is_folder', False),
+                    'path': getattr(row, 'path', ''),
+                    'file_path': file_path
+                }
+                
+                # Use the preview callback to show in right pane
+                if self.on_file_preview_requested:
+                    self.on_file_preview_requested(file_path, item_data)
+                    logger.info(f"File preview requested via callback: {file_path}")
+                else:
+                    # Fallback to preview window if no callback registered
+                    try:
+                        if hasattr(self.app, 'show_preview'):
+                            self.app.show_preview(file_path=file_path)
+                        else:
+                            # Final fallback to system app
+                            logger.warning("No preview available, opening with system app")
+                            self._open_file(file_path)
+                    except Exception as e:
+                        logger.error(f"Failed to show preview, falling back to system app: {e}")
                         self._open_file(file_path)
-                except Exception as e:
-                    logger.error(f"Failed to open preview window, using system app: {e}")
-                    self._open_file(file_path)
                 
         except Exception as e:
             logger.error(f"Failed to handle item open: {e}")
@@ -363,17 +384,22 @@ class CollectionView(BaseView):
                 file_path = item_data.get('file_path')
                 if file_path:
                     logger.info(f"FILE NAVIGATION: Opening preview for file: {file_path}")
-                    # Use the app's preview window
-                    try:
-                        if hasattr(self.main_window.app, 'show_preview'):
-                            self.main_window.app.show_preview(file_path=file_path)
-                        else:
-                            # Fallback to system app
-                            logger.warning("Preview not available, opening with system app")
+                    # Use the preview callback to show in right pane
+                    if self.on_file_preview_requested:
+                        self.on_file_preview_requested(file_path, item_data)
+                        logger.info(f"File preview requested via callback: {file_path}")
+                    else:
+                        # Fallback to preview window if no callback registered
+                        try:
+                            if hasattr(self.app, 'show_preview'):
+                                self.app.show_preview(file_path=file_path)
+                            else:
+                                # Final fallback to system app
+                                logger.warning("No preview available, opening with system app")
+                                self._open_file(file_path)
+                        except Exception as e:
+                            logger.error(f"Failed to show preview, falling back to system app: {e}")
                             self._open_file(file_path)
-                    except Exception as e:
-                        logger.error(f"Failed to show preview, falling back to system app: {e}")
-                        self._open_file(file_path)
                 else:
                     # No file path - show info
                     logger.info(f"INFO NAVIGATION: Showing info for item")
@@ -415,8 +441,7 @@ class CollectionView(BaseView):
             # Bottom toolbar callbacks
             if hasattr(self.bottom_toolbar, 'register_callbacks'):
                 self.bottom_toolbar.register_callbacks(
-                        on_collection_settings=self._on_collection_settings,
-                        on_process_collection=self._on_process_collection
+                    on_collection_settings=self._on_collection_settings
                 )
 
             logger.info("Toolbar callbacks registered successfully")
@@ -666,6 +691,11 @@ class CollectionView(BaseView):
         self.on_open_collection = on_open_collection
         
         logger.debug("Collection view callbacks registered")
+    
+    def register_preview_callback(self, callback: Callable):
+        """Register callback for file preview requests"""
+        self.on_file_preview_requested = callback
+        logger.debug("Preview callback registered")
     
     def _on_initialize(self):
         """Called when view is initialized"""

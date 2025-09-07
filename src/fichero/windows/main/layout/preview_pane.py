@@ -160,9 +160,7 @@ class PreviewPane:
                 style=Pack(
                     direction=COLUMN,
                     margin=(15, 15),
-                    background_color="#FFFFFF",
-                    border_color="#E0E0E0",
-                    border_width=1
+                    background_color="#FFFFFF"
                 )
             )
             
@@ -224,9 +222,7 @@ class PreviewPane:
                 style=Pack(
                     direction=ROW,
                     margin=(10, 15),
-                    background_color="#FFFFFF",
-                    border_color="#E0E0E0",
-                    border_width=1
+                    background_color="#FFFFFF"
                 )
             )
             
@@ -275,9 +271,7 @@ class PreviewPane:
                 style=Pack(
                     direction=COLUMN,
                     margin=(15, 15),
-                    background_color="#FFFFFF",
-                    border_color="#E0E0E0",
-                    border_width=1
+                    background_color="#FFFFFF"
                 )
             )
             
@@ -299,8 +293,6 @@ class PreviewPane:
                 style=Pack(
                     margin=(20, 20),
                     background_color="#F8F8F8",
-                    border_color="#E0E0E0",
-                    border_width=1,
                     color="#666666"
                 )
             )
@@ -358,9 +350,7 @@ class PreviewPane:
                 style=Pack(
                     direction=COLUMN,
                     margin=(15, 15),
-                    background_color="#FFFFFF",
-                    border_color="#E0E0E0",
-                    border_width=1
+                    background_color="#FFFFFF"
                 )
             )
             

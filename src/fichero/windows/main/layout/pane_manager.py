@@ -207,7 +207,7 @@ class PaneManager:
         except Exception as e:
             logger.error(f"Failed to set pane sizes: {e}")
     
-    def switch_to_view(self, view_name: str, view: BaseView, pane: str = "middle"):
+    def switch_to_view(self, view_name: str, view, pane: str = "middle"):
         """Switch to a specific view in a specific pane"""
         try:
             # Store view reference
@@ -217,8 +217,14 @@ class PaneManager:
             if view_name not in self.view_history:
                 self.view_history.append(view_name)
             
-            # Get view container
-            view_container = view.get_container()
+            # Get view container - handle different types of view objects
+            if hasattr(view, 'get_container'):
+                view_container = view.get_container()
+            elif hasattr(view, 'container'):
+                view_container = view.container
+            else:
+                logger.error(f"View {view_name} has no get_container method or container attribute")
+                return False
             
             # Set content in appropriate pane
             if pane == "left":
