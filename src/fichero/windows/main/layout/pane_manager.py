@@ -78,8 +78,7 @@ class PaneManager:
             self.left_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=1,  # Use flex instead of fixed width
-                    width=300  # Set a reasonable default width
+                    flex=1  # 1 part of 4 total (25%)
                 )
             )
             
@@ -87,17 +86,15 @@ class PaneManager:
             self.middle_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=1,  # Use flex instead of fixed width
-                    width=300  # Set a reasonable default width
+                    flex=1  # 1 part of 4 total (25%)
                 )
             )
             
-            # Create right pane (Preview) - 50% width (flex to fill remainder)
+            # Create right pane (Preview) - 50% width
             self.right_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=2,  # Give it more flex to make it wider
-                    width=400  # Set a reasonable default width
+                    flex=2  # 2 parts of 4 total (50%)
                 )
             )
             
@@ -106,7 +103,7 @@ class PaneManager:
             self.main_container.add(self.middle_pane)
             self.main_container.add(self.right_pane)
             
-            logger.debug("Desktop three-pane layout created with resizable panes")
+            logger.debug("Desktop three-pane layout created with flexible proportions (25% - 25% - 50%)")
             
         except Exception as e:
             logger.error(f"Failed to create desktop layout: {e}")

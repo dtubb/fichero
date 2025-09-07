@@ -243,7 +243,7 @@ class MainWindowRefactored:
             
             # Show preview in right pane
             if hasattr(self, 'preview_pane') and self.preview_pane:
-                self.preview_pane.set_document(file_data)
+                self.preview_pane.show_file(file_path, file_data)
                 logger.info(f"File preview shown in right pane: {file_path}")
             else:
                 logger.warning("Preview pane not available, falling back to separate window")

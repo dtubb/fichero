@@ -32,18 +32,49 @@ class PreviewTopToolbar(TopToolbar):
         self._create_toolbar()
     
     def _create_toolbar(self):
-        """Create the preview top toolbar content - currently empty"""
+        """Create the preview top toolbar content with back button and title"""
         try:
-            # Base container already created by parent class
-            # No need to call super()._create_toolbar()
+            # Call parent to set up basic structure
+            super()._create_toolbar()
             
-            # No buttons for now - toolbar is empty as requested
-            # No title either - completely blank
+            # Create back button (left side) using the correct method
+            back_button = self.create_navigation_button(
+                button_id="back",
+                text="← Back", 
+                on_press=self._on_back_pressed,
+                tooltip="Go back to collection"
+            )
             
-            logger.info("Preview top toolbar created successfully (completely empty)")
+            # Create title (center)
+            self.title_label = toga.Label(
+                "Preview",
+                style=Pack(
+                    flex=1,
+                    text_align="center",
+                    font_size=16,
+                    font_weight="bold",
+                    margin=(0, 10)
+                )
+            )
+            
+            # Add to toolbar using proper BaseToolbar methods
+            self.add_to_left(back_button)
+            self.add_to_center(self.title_label)
+            
+            logger.info("Preview top toolbar created successfully with back button and title")
             
         except Exception as e:
             logger.error(f"Failed to create preview top toolbar: {e}")
+    
+    def _on_back_pressed(self, widget):
+        """Handle back button press"""
+        logger.debug("Preview back button pressed")
+        if self.on_back_to_fiche:
+            self.on_back_to_fiche()
+        elif hasattr(self, 'on_back') and self.on_back:
+            self.on_back()
+        else:
+            logger.debug("No back callback registered")
     
     def update_document_name(self, document_name: str):
         """Update the document name display"""

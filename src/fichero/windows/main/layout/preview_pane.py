@@ -1,588 +1,372 @@
 """
 Preview Pane for Fichero
 
-Manages the right pane content for document previews with:
-- Document display
-- Preview controls
-- Zoom and navigation
-- Metadata display
+Full-width preview pane for the right side of the main window.
+Supports different file types and integrates with toolbar controls.
 """
 
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW
 import logging
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Optional, Callable, Dict, Any
 
-from fichero.windows.main.containers.scroll_container import ScrollableContainer
+from fichero.windows.main.views.base_view import BaseView
+from fichero.windows.main.toolbars.preview_top_toolbar import PreviewTopToolbar
+from fichero.windows.main.toolbars.preview_bottom_toolbar import PreviewBottomToolbar
 
 logger = logging.getLogger(__name__)
 
 
-class PreviewPane:
-    """Manages the right pane content for document previews"""
+class PreviewPane(BaseView):
+    """
+    Preview pane using the BaseView system for proper toolbar integration
+    
+    Supports Fichero's file types:
+    - Input files (JPG, PDF, TIFF, HEIC, JXL)
+    - Intermediate files (processed images)
+    - Output files (transcribed text, Word docs)
+    """
     
     def __init__(self, app, is_mobile: bool = False):
-        """Initialize preview pane"""
-        self.app = app
-        self.is_mobile = is_mobile
+        """Initialize preview pane with BaseView system"""
+        super().__init__(app, is_mobile)
         
-        # Pane container
-        self.container: Optional[toga.Box] = None
+        # Current file context
+        self.current_file_path: Optional[str] = None
+        self.current_file_type: str = "none"
+        self.current_stage: str = "input"
         
-        # Current document
-        self.current_document: Optional[Dict[str, Any]] = None
-        self.current_page: int = 1
-        self.total_pages: int = 1
-        
-        # Preview controls
+        # Preview state
         self.zoom_level: float = 1.0
-        self.show_metadata: bool = True
-        
-        # Content management
-        self.preview_container: Optional[toga.Box] = None
-        self.scroll_container: Optional[ScrollableContainer] = None
+        self.view_mode: str = "fit"
         
         # Callbacks
-        self.on_document_changed: Optional[Any] = None
-        self.on_page_changed: Optional[Any] = None
-        self.on_zoom_changed: Optional[Any] = None
+        self.on_file_changed: Optional[Callable] = None
         
-        # Create pane
-        self._create_pane()
+        # UI components (content area provided by BaseView)
+        self.preview_widget: Optional[toga.Widget] = None
+        self.placeholder_label: Optional[toga.Label] = None
         
-        logger.info("Preview pane initialized successfully")
+        # Create toolbars
+        self.top_toolbar = PreviewTopToolbar(app, is_mobile)
+        self.bottom_toolbar = PreviewBottomToolbar(app, is_mobile)
+        
+        # Set both toolbars using BaseView system
+        self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
+        
+        # Create content
+        self._create_content()
+        
+        logger.info("Preview pane created with BaseView integration")
     
-    def _create_pane(self):
-        """Create the preview pane structure"""
+    def _create_content(self):
+        """Create the preview content using BaseView system"""
         try:
-            # Create main container
-            self.container = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1,
-                    background_color="#FAFAFA"
-                )
-            )
+            # Create placeholder content
+            self._create_placeholder()
             
-            # Create preview container
-            self.preview_container = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1
-                )
-            )
-            
-            # Create scrollable container for preview content
-            self.scroll_container = ScrollableContainer(self.app, self.is_mobile)
-            
-            # Add scroll container to preview container
-            self.preview_container.add(self.scroll_container.get_container())
-            
-            # Add preview container to main container
-            self.container.add(self.preview_container)
-            
-            # Create initial placeholder content
-            self._create_placeholder_content()
+            logger.debug("Preview pane content created successfully")
             
         except Exception as e:
-            logger.error(f"Failed to create preview pane: {e}")
+            logger.error(f"Failed to create preview content: {e}")
     
-    def _create_placeholder_content(self):
-        """Create placeholder content for the preview pane"""
+    def _create_placeholder(self):
+        """Create placeholder for when no file is selected"""
         try:
-            # Create preview header
-            header_label = toga.Label(
-                "📄 Document Preview",
+            # Clear existing content from the content container
+            if self.content_container:
+                for child in list(self.content_container.children):
+                    self.content_container.remove(child)
+            
+            # Placeholder message
+            self.placeholder_label = toga.Label(
+                "Select a file to preview",
                 style=Pack(
+                    margin=(50, 20),
+                    text_align="center",
                     font_size=16,
-                    font_weight="bold",
-                    margin=(20, 15),
-                    color="#333333"
-                )
-            )
-            self.scroll_container.add_content(header_label)
-            
-            # Create placeholder message
-            placeholder_label = toga.Label(
-                "No document selected for preview",
-                style=Pack(
-                    font_size=14,
-                    margin=(20, 15),
-                    color="#666666"
-                )
-            )
-            self.scroll_container.add_content(placeholder_label)
-            
-            # Create instruction
-            instruction_label = toga.Label(
-                "Select a document from the collection to view it here",
-                style=Pack(
-                    font_size=12,
-                    margin=(20, 15),
                     color="#999999"
                 )
             )
-            self.scroll_container.add_content(instruction_label)
+            
+            if self.content_container:
+                self.content_container.add(self.placeholder_label)
+            self.preview_widget = None
             
         except Exception as e:
-            logger.error(f"Failed to create placeholder content: {e}")
+            logger.error(f"Failed to create placeholder: {e}")
     
-    def set_document(self, document_data: Dict[str, Any]):
-        """Set the current document for preview"""
+    def show_file(self, file_path: str, file_data: Dict[str, Any] = None):
+        """
+        Show a file in the preview pane
+        
+        Args:
+            file_path: Path to the file to preview
+            file_data: Additional file metadata
+        """
         try:
-            self.current_document = document_data
+            if not file_path:
+                self._create_placeholder()
+                return
             
-            # Extract document information
-            self.current_page = 1
-            self.total_pages = document_data.get('page_count', 1)
+            self.current_file_path = file_path
             
-            # Clear current content
-            self.scroll_container.clear_content()
+            # Detect file type and stage
+            self.current_file_type = self._detect_file_type(file_path)
+            self.current_stage = self._detect_workflow_stage(file_path, file_data)
             
-            # Create document preview
-            self._create_document_preview(document_data)
+            # Clear existing content
+            if self.content_container:
+                for child in list(self.content_container.children):
+                    self.content_container.remove(child)
             
-            # Notify callback
-            if self.on_document_changed:
-                self.on_document_changed(document_data)
+            # Create appropriate preview widget
+            if self.current_file_type == "image":
+                self._create_image_preview(file_path)
+            elif self.current_file_type == "pdf":
+                self._create_pdf_preview(file_path)
+            elif self.current_file_type == "text":
+                self._create_text_preview(file_path)
+            elif self.current_file_type == "docx":
+                self._create_document_preview(file_path)
+            else:
+                self._create_generic_preview(file_path)
             
-            logger.info(f"Preview pane set to document: {document_data.get('name', 'Unknown')}")
+            # Notify callbacks
+            if self.on_file_changed:
+                self.on_file_changed(file_path, self.current_file_type, self.current_stage)
+            
+            logger.info(f"Showing file preview: {file_path} ({self.current_file_type}, {self.current_stage})")
             
         except Exception as e:
-            logger.error(f"Failed to set document: {e}")
+            logger.error(f"Failed to show file: {e}")
+            self._create_error_preview(str(e))
     
-    def _create_document_preview(self, document_data: Dict[str, Any]):
-        """Create the document preview content"""
+    def _detect_file_type(self, file_path: str) -> str:
+        """Detect file type from extension"""
+        if not file_path:
+            return "none"
+            
+        ext = Path(file_path).suffix.lower()
+        
+        if ext in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.heic', '.jxl']:
+            return "image"
+        elif ext == '.pdf':
+            return "pdf"
+        elif ext in ['.txt', '.md', '.text']:
+            return "text"
+        elif ext in ['.docx', '.doc']:
+            return "docx"
+        else:
+            return "unknown"
+    
+    def _detect_workflow_stage(self, file_path: str, file_data: Dict = None) -> str:
+        """
+        Detect workflow stage based on file path patterns
+        
+        Fichero workflow stages:
+        - input: Original scanned documents
+        - intermediate: Processed (cropped, enhanced, split)
+        - output: Final transcribed documents
+        """
+        if not file_path:
+            return "input"
+        
+        path_lower = file_path.lower()
+        
+        # Check for intermediate processing indicators
+        if any(keyword in path_lower for keyword in ['cropped', 'enhanced', 'split', 'processed', 'temp']):
+            return "intermediate"
+        
+        # Check for output indicators
+        if any(keyword in path_lower for keyword in ['output', 'transcribed', 'final', 'result']):
+            return "output"
+        
+        # Default to input for original files
+        return "input"
+    
+    def _create_image_preview(self, file_path: str):
+        """Create image preview widget"""
         try:
-            # Document header
-            header_container = toga.Box(
+            # For now, create a simple image view
+            # TODO: Implement full image viewer with zoom, pan, rotate
+            
+            if Path(file_path).exists():
+                logger.debug(f"Loading image preview for: {file_path}")
+                
+                # Create image widget with better styling
+                self.preview_widget = toga.ImageView(
+                    image=toga.Image(file_path),
+                    style=Pack(
+                        flex=1,
+                        margin=(10, 10),
+                        background_color="#F0F0F0"  # Light background to make image visible
+                    )
+                )
+                if self.content_container:
+                    self.content_container.add(self.preview_widget)
+                logger.info(f"✅ Image preview created successfully: {Path(file_path).name}")
+            else:
+                logger.error(f"Image file not found: {file_path}")
+                self._create_error_preview(f"Image file not found: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create image preview: {e}")
+            self._create_error_preview(f"Error loading image: {e}")
+    
+    def _create_pdf_preview(self, file_path: str):
+        """Create PDF preview widget"""
+        try:
+            # For now, show PDF info
+            # TODO: Implement PDF viewer or conversion to images
+            
+            info_text = f"PDF Document\n\nFile: {Path(file_path).name}\nPath: {file_path}\n\nPDF preview coming soon..."
+            
+            self.preview_widget = toga.MultilineTextInput(
+                value=info_text,
+                readonly=True,
                 style=Pack(
-                    direction=COLUMN,
-                    margin=(15, 15),
-                    background_color="#FFFFFF"
+                    flex=1,
+                    margin=(10, 10),
+                    font_family="monospace"
                 )
             )
+            if self.content_container:
+                self.content_container.add(self.preview_widget)
             
-            # Document name
-            name_label = toga.Label(
-                document_data.get('name', 'Unknown Document'),
+        except Exception as e:
+            logger.error(f"Failed to create PDF preview: {e}")
+            self._create_error_preview(f"Error loading PDF: {e}")
+    
+    def _create_text_preview(self, file_path: str):
+        """Create text file preview widget"""
+        try:
+            # Read and display text content
+            if Path(file_path).exists():
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                except UnicodeDecodeError:
+                    # Try with different encoding
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                
+                self.preview_widget = toga.MultilineTextInput(
+                    value=content,
+                    readonly=True,
+                    style=Pack(
+                        flex=1,
+                        margin=(10, 10),
+                        font_family="monospace"
+                    )
+                )
+                if self.content_container:
+                    self.content_container.add(self.preview_widget)
+            else:
+                self._create_error_preview(f"Text file not found: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create text preview: {e}")
+            self._create_error_preview(f"Error loading text: {e}")
+    
+    def _create_document_preview(self, file_path: str):
+        """Create Word document preview widget"""
+        try:
+            # For now, show document info
+            # TODO: Implement document preview or conversion
+            
+            info_text = f"Word Document\n\nFile: {Path(file_path).name}\nPath: {file_path}\n\nDocument preview coming soon...\n\nThis would show:\n- Document text content\n- Images/tables\n- Formatting preview"
+            
+            self.preview_widget = toga.MultilineTextInput(
+                value=info_text,
+                readonly=True,
                 style=Pack(
-                    font_size=16,
-                    font_weight="bold",
-                    color="#333333"
+                    flex=1,
+                    margin=(10, 10),
+                    font_family="monospace"
                 )
             )
-            header_container.add(name_label)
-            
-            # Document type
-            doc_type = document_data.get('type', 'Unknown')
-            type_label = toga.Label(
-                f"Type: {doc_type}",
-                style=Pack(
-                    margin=(5, 0, 0, 0),
-                    font_size=12,
-                    color="#666666"
-                )
-            )
-            header_container.add(type_label)
-            
-            # Document size
-            size = document_data.get('size', 'Unknown')
-            size_label = toga.Label(
-                f"Size: {size}",
-                style=Pack(
-                    margin=(5, 0, 0, 0),
-                    font_size=12,
-                    color="#666666"
-                )
-            )
-            header_container.add(size_label)
-            
-            self.scroll_container.add_content(header_container)
-            
-            # Page navigation controls
-            if self.total_pages > 1:
-                self._create_page_navigation()
-            
-            # Document content preview
-            self._create_content_preview(document_data)
-            
-            # Metadata section
-            if self.show_metadata:
-                self._create_metadata_section(document_data)
+            if self.content_container:
+                self.content_container.add(self.preview_widget)
             
         except Exception as e:
             logger.error(f"Failed to create document preview: {e}")
+            self._create_error_preview(f"Error loading document: {e}")
     
-    def _create_page_navigation(self):
-        """Create page navigation controls"""
+    def _create_generic_preview(self, file_path: str):
+        """Create generic file preview"""
         try:
-            nav_container = toga.Box(
+            file_info = f"File: {Path(file_path).name}\nType: {self.current_file_type}\nStage: {self.current_stage}\nPath: {file_path}\n\nUnsupported file type for preview."
+            
+            self.preview_widget = toga.MultilineTextInput(
+                value=file_info,
+                readonly=True,
                 style=Pack(
-                    direction=ROW,
-                    margin=(10, 15),
-                    background_color="#FFFFFF"
+                    flex=1,
+                    margin=(10, 10),
+                    font_family="monospace"
                 )
             )
-            
-            # Previous page button
-            prev_button = toga.Button(
-                "◀",
-                on_press=self._on_previous_page,
-                style=Pack(
-                    margin=(8, 12),
-                    background_color="#F0F0F0"
-                )
-            )
-            nav_container.add(prev_button)
-            
-            # Page info
-            page_info = toga.Label(
-                f"Page {self.current_page} of {self.total_pages}",
-                style=Pack(
-                    margin=(0, 15),
-                    font_size=12,
-                    color="#333333"
-                )
-            )
-            nav_container.add(page_info)
-            
-            # Next page button
-            next_button = toga.Button(
-                "▶",
-                on_press=self._on_next_page,
-                style=Pack(
-                    margin=(8, 12),
-                    background_color="#F0F0F0"
-                )
-            )
-            nav_container.add(next_button)
-            
-            self.scroll_container.add_content(nav_container)
+            if self.content_container:
+                self.content_container.add(self.preview_widget)
             
         except Exception as e:
-            logger.error(f"Failed to create page navigation: {e}")
+            logger.error(f"Failed to create generic preview: {e}")
     
-    def _create_content_preview(self, document_data: Dict[str, Any]):
-        """Create the document content preview"""
+    def _create_error_preview(self, error_message: str):
+        """Create error preview widget"""
         try:
-            content_container = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    margin=(15, 15),
-                    background_color="#FFFFFF"
-                )
-            )
+            error_text = f"Preview Error\n\n{error_message}"
             
-            # Content preview header
-            preview_header = toga.Label(
-                "Content Preview",
-                style=Pack(
-                    font_size=14,
-                    font_weight="bold",
-                    margin=(0, 0, 10, 0),
-                    color="#333333"
-                )
-            )
-            content_container.add(preview_header)
-            
-            # Content preview (placeholder for now)
-            content_preview = toga.Label(
-                "[Document content preview would appear here]",
+            self.preview_widget = toga.Label(
+                error_text,
                 style=Pack(
                     margin=(20, 20),
-                    background_color="#F8F8F8",
-                    color="#666666"
+                    text_align="center",
+                    color="#cc0000"
                 )
             )
-            content_container.add(content_preview)
-            
-            # Zoom controls
-            zoom_container = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    margin=(15, 0, 0, 0)
-                )
-            )
-            
-            zoom_out_button = toga.Button(
-                "🔍-",
-                on_press=self._on_zoom_out,
-                style=Pack(
-                    margin=(5, 8),
-                    background_color="#F0F0F0"
-                )
-            )
-            zoom_container.add(zoom_out_button)
-            
-            zoom_level_label = toga.Label(
-                f"{int(self.zoom_level * 100)}%",
-                style=Pack(
-                    margin=(0, 10),
-                    font_size=12,
-                    color="#666666"
-                )
-            )
-            zoom_container.add(zoom_level_label)
-            
-            zoom_in_button = toga.Button(
-                "🔍+",
-                on_press=self._on_zoom_in,
-                style=Pack(
-                    margin=(5, 8),
-                    background_color="#F0F0F0"
-                )
-            )
-            zoom_container.add(zoom_in_button)
-            
-            content_container.add(zoom_container)
-            
-            self.scroll_container.add_content(content_container)
+            if self.content_container:
+                self.content_container.add(self.preview_widget)
             
         except Exception as e:
-            logger.error(f"Failed to create content preview: {e}")
+            logger.error(f"Failed to create error preview: {e}")
     
-    def _create_metadata_section(self, document_data: Dict[str, Any]):
-        """Create the metadata display section"""
-        try:
-            metadata_container = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    margin=(15, 15),
-                    background_color="#FFFFFF"
-                )
-            )
-            
-            # Metadata header
-            metadata_header = toga.Label(
-                "Document Metadata",
-                style=Pack(
-                    font_size=14,
-                    font_weight="bold",
-                    margin=(0, 0, 10, 0),
-                    color="#333333"
-                )
-            )
-            metadata_container.add(metadata_header)
-            
-            # Metadata fields
-            metadata_fields = [
-                ('Created', document_data.get('created_date', 'Unknown')),
-                ('Modified', document_data.get('modified_date', 'Unknown')),
-                ('Author', document_data.get('author', 'Unknown')),
-                ('Tags', ', '.join(document_data.get('tags', [])) or 'None'),
-                ('Processing Status', document_data.get('processing_status', 'Unknown')),
-                ('File Path', document_data.get('file_path', 'Unknown'))
-            ]
-            
-            for field_name, field_value in metadata_fields:
-                field_container = toga.Box(
-                    style=Pack(
-                        direction=ROW,
-                        margin=(5, 0)
-                    )
-                )
-                
-                field_label = toga.Label(
-                    f"{field_name}:",
-                    style=Pack(
-                        font_size=12,
-                        font_weight="bold",
-                        width=120,
-                        color="#666666"
-                    )
-                )
-                field_container.add(field_label)
-                
-                field_value_label = toga.Label(
-                    str(field_value),
-                    style=Pack(
-                        font_size=12,
-                        color="#333333"
-                    )
-                )
-                field_container.add(field_value_label)
-                
-                metadata_container.add(field_container)
-            
-            self.scroll_container.add_content(metadata_container)
-            
-        except Exception as e:
-            logger.error(f"Failed to create metadata section: {e}")
-    
-    def _on_previous_page(self, widget):
-        """Handle previous page navigation"""
-        try:
-            if self.current_page > 1:
-                self.current_page -= 1
-                self._update_page_display()
-                
-                if self.on_page_changed:
-                    self.on_page_changed(self.current_page)
-                
-                logger.debug(f"Navigated to previous page: {self.current_page}")
-            
-        except Exception as e:
-            logger.error(f"Failed to navigate to previous page: {e}")
-    
-    def _on_next_page(self, widget):
-        """Handle next page navigation"""
-        try:
-            if self.current_page < self.total_pages:
-                self.current_page += 1
-                self._update_page_display()
-                
-                if self.on_page_changed:
-                    self.on_page_changed(self.current_page)
-                
-                logger.debug(f"Navigated to next page: {self.current_page}")
-            
-        except Exception as e:
-            logger.error(f"Failed to navigate to next page: {e}")
-    
-    def _on_zoom_in(self, widget):
-        """Handle zoom in"""
-        try:
-            if self.zoom_level < 3.0:
-                self.zoom_level = min(3.0, self.zoom_level + 0.25)
-                self._update_zoom_display()
-                
-                if self.on_zoom_changed:
-                    self.on_zoom_changed(self.zoom_level)
-                
-                logger.debug(f"Zoomed in to: {self.zoom_level}")
-            
-        except Exception as e:
-            logger.error(f"Failed to zoom in: {e}")
-    
-    def _on_zoom_out(self, widget):
-        """Handle zoom out"""
-        try:
-            if self.zoom_level > 0.25:
-                self.zoom_level = max(0.25, self.zoom_level - 0.25)
-                self._update_zoom_display()
-                
-                if self.on_zoom_changed:
-                    self.on_zoom_changed(self.zoom_level)
-                
-                logger.debug(f"Zoomed out to: {self.zoom_level}")
-            
-        except Exception as e:
-            logger.error(f"Failed to zoom out: {e}")
-    
-    def _update_page_display(self):
-        """Update the page display"""
-        try:
-            # This would update the page navigation display
-            # For now, just log the update
-            logger.debug(f"Page display updated to: {self.current_page}")
-            
-        except Exception as e:
-            logger.error(f"Failed to update page display: {e}")
-    
-    def _update_zoom_display(self):
-        """Update the zoom display"""
-        try:
-            # This would update the zoom level display
-            # For now, just log the update
-            logger.debug(f"Zoom display updated to: {self.zoom_level}")
-            
-        except Exception as e:
-            logger.error(f"Failed to update zoom display: {e}")
-    
-    def clear_document(self):
-        """Clear the current document from preview"""
-        try:
-            self.current_document = None
-            self.current_page = 1
-            self.total_pages = 1
-            
-            # Clear content and show placeholder
-            self.scroll_container.clear_content()
-            self._create_placeholder_content()
-            
-            logger.debug("Document cleared from preview pane")
-            
-        except Exception as e:
-            logger.error(f"Failed to clear document: {e}")
-    
-    def set_zoom_level(self, zoom: float):
-        """Set the zoom level"""
-        try:
-            self.zoom_level = max(0.25, min(3.0, zoom))
-            self._update_zoom_display()
-            
-            logger.debug(f"Zoom level set to: {self.zoom_level}")
-            
-        except Exception as e:
-            logger.error(f"Failed to set zoom level: {e}")
-    
-    def set_metadata_visibility(self, visible: bool):
-        """Set metadata section visibility"""
-        try:
-            self.show_metadata = visible
-            
-            # Recreate document preview if document is set
-            if self.current_document:
-                self.scroll_container.clear_content()
-                self._create_document_preview(self.current_document)
-            
-            logger.debug(f"Metadata visibility set to: {visible}")
-            
-        except Exception as e:
-            logger.error(f"Failed to set metadata visibility: {e}")
-    
-    def get_current_document(self) -> Optional[Dict[str, Any]]:
-        """Get the current document"""
-        return self.current_document
-    
-    def get_current_page(self) -> int:
-        """Get the current page number"""
-        return self.current_page
-    
-    def get_total_pages(self) -> int:
-        """Get the total number of pages"""
-        return self.total_pages
-    
-    def get_zoom_level(self) -> float:
-        """Get the current zoom level"""
-        return self.zoom_level
-    
-    def get_pane_info(self) -> Dict[str, Any]:
-        """Get information about the preview pane"""
-        return {
-            'has_document': self.current_document is not None,
-            'current_page': self.current_page,
-            'total_pages': self.total_pages,
-            'zoom_level': self.zoom_level,
-            'show_metadata': self.show_metadata,
-            'is_mobile': self.is_mobile
-        }
-    
-    def register_callbacks(self, 
-                         on_document_changed: Optional[Any] = None,
-                         on_page_changed: Optional[Any] = None,
-                         on_zoom_changed: Optional[Any] = None):
-        """Register callbacks for preview pane actions"""
-        self.on_document_changed = on_document_changed
-        self.on_page_changed = on_page_changed
-        self.on_zoom_changed = on_zoom_changed
-        
-        logger.debug("Preview pane callbacks registered")
+    def clear_preview(self):
+        """Clear the current preview"""
+        self.current_file_path = None
+        self.current_file_type = "none"
+        self.current_stage = "input"
+        self._create_placeholder()
     
     def get_container(self) -> toga.Box:
         """Get the preview pane container"""
         return self.container
     
-    def refresh(self):
-        """Refresh the preview pane"""
-        try:
-            # Refresh scroll container
-            if self.scroll_container:
-                self.scroll_container.refresh()
-            
-            logger.debug("Preview pane refreshed")
-            
-        except Exception as e:
-            logger.error(f"Failed to refresh preview pane: {e}") 
+    def get_current_file_info(self) -> Dict[str, Any]:
+        """Get information about the currently previewed file"""
+        return {
+            "file_path": self.current_file_path,
+            "file_type": self.current_file_type,
+            "stage": self.current_stage,
+            "zoom_level": self.zoom_level,
+            "view_mode": self.view_mode
+        }
+    
+    def set_zoom_level(self, zoom_level: float):
+        """Set the zoom level for the preview"""
+        self.zoom_level = zoom_level
+        # TODO: Update preview widget zoom
+        logger.debug(f"Zoom level set to: {zoom_level}")
+    
+    def set_view_mode(self, mode: str):
+        """Set the view mode (fit, actual, custom)"""
+        self.view_mode = mode
+        # TODO: Update preview widget view mode
+        logger.debug(f"View mode set to: {mode}")
+    
+    def register_file_change_callback(self, callback: Callable):
+        """Register callback for when file changes"""
+        self.on_file_changed = callback 
