@@ -176,6 +176,17 @@ class MainWindowRefactored:
             # Middle pane: Collection view (empty initially)
             collection_view = CollectionView(self.app, "", self.is_mobile)
             collection_view.register_preview_callback(self._on_file_preview_requested)
+            
+            # Register back navigation callback
+            if hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
+                collection_view.top_toolbar.register_navigation_callbacks(
+                    on_back_to_library=self._on_mobile_back_to_library,  # Even on desktop, use consistent callback
+                    on_navigate_back=collection_view._on_navigate_back,
+                    on_navigate_to_path=collection_view._on_navigate_to_path,
+                    on_add_folder=collection_view._on_add_folder,
+                    on_add_file=collection_view._on_add_file
+                )
+            
             self.pane_manager.switch_to_view("collection", collection_view, "middle")
             
             # Right pane: Preview pane (empty initially)
@@ -237,8 +248,15 @@ class MainWindowRefactored:
                 collection_view.set_collection_id(collection_id)
                 collection_view.register_preview_callback(self._on_file_preview_requested)
                 
-                # Note: Callback registration is now handled by the collection view itself
-                # to avoid overwriting properly registered navigation callbacks
+                # Register mobile back navigation callback (like preview does)
+                if self.is_mobile and hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
+                    collection_view.top_toolbar.register_navigation_callbacks(
+                        on_back_to_library=self._on_mobile_back_to_library,
+                        on_navigate_back=collection_view._on_navigate_back,  # Keep hierarchy navigation internal
+                        on_navigate_to_path=collection_view._on_navigate_to_path,
+                        on_add_folder=collection_view._on_add_folder,
+                        on_add_file=collection_view._on_add_file
+                    )
                 
                 self.cached_collection_views[collection_id] = collection_view
                 logger.info(f"📁 Created and cached collection view: {collection_name or collection_id}")

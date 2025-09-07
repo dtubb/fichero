@@ -471,31 +471,9 @@ class CollectionView(BaseView):
     def _register_toolbar_callbacks(self):
         """Register callbacks for both toolbars"""
         try:
-            # Debug: Check if methods exist
-            logger.info(f"🔧 Registering callbacks - _on_back_to_library exists: {hasattr(self, '_on_back_to_library')}")
-            logger.info(f"🔧 Registering callbacks - _on_navigate_back exists: {hasattr(self, '_on_navigate_back')}")
-            
-            # Top toolbar navigation callbacks
-            if hasattr(self.top_toolbar, 'register_navigation_callbacks'):
-                logger.info("🔧 Using register_navigation_callbacks method")
-                self.top_toolbar.register_navigation_callbacks(
-                    on_back_to_library=self._on_back_to_library,
-                    on_navigate_back=self._on_navigate_back,  # Use the wrapper method
-                    on_navigate_to_path=self._on_navigate_to_path,
-                    on_add_folder=self._on_add_folder,
-                    on_add_file=self._on_add_file
-                )
-                # Debug: Verify the callback was set
-                logger.info(f"🔧 After registration - on_navigate_back stored: {self.top_toolbar.on_navigate_back is not None}")
-            else:
-                # Fallback to old registration method
-                logger.info("🔧 Using fallback register_callbacks method")
-                self.top_toolbar.register_callbacks(
-                on_back_to_library=self._on_back_to_library,
-                on_navigate_back=self._on_navigate_back,  # Use the wrapper method
-                on_add_folder=self._on_add_folder,
-                on_add_file=self._on_add_file
-            )
+            # Note: Navigation callbacks are now registered by the main window
+            # to ensure consistent mobile navigation behavior
+            logger.info("🔧 Toolbar callbacks will be registered by main window")
 
             # Bottom toolbar callbacks
             if hasattr(self.bottom_toolbar, 'register_callbacks'):
