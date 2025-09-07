@@ -53,6 +53,9 @@ class CollectionBottomToolbar(BottomToolbar):
     def _create_toolbar(self):
         """Create the collection bottom toolbar with default state"""
         try:
+            # Call parent to set up basic structure
+            super()._create_toolbar()
+            
             # Start with default collection management mode
             self._create_default_actions()
             
@@ -62,15 +65,9 @@ class CollectionBottomToolbar(BottomToolbar):
             logger.error(f"Failed to create collection bottom toolbar: {e}")
     
     def _create_default_actions(self):
-        """Create default collection management actions"""
-        try:
-            # Clear existing content
-            self._clear_toolbar()
-            
-            # Keep toolbar completely empty - no buttons or labels needed
-            
-        except Exception as e:
-            logger.error(f"Failed to create default actions: {e}")
+        """Create empty actions to maintain minimum toolbar height"""
+        # Use the improved spacer method for consistent height
+        self.add_spacer(height=30, flex=True)
     
     def _create_file_actions(self):
         """Create file-specific actions when files are selected - only working buttons"""

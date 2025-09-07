@@ -19,7 +19,7 @@ class CollectionTopToolbar(TopToolbar):
     
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False):
         """Initialize collection top toolbar"""
-        super().__init__(app, is_mobile)
+        super().__init__(app, collection_name, is_mobile)  # Fixed: pass collection_name as title
         
         # Collection context
         self.collection_name = collection_name
@@ -43,52 +43,34 @@ class CollectionTopToolbar(TopToolbar):
     def _create_toolbar(self):
         """Create the collection top toolbar content with proper navigation"""
         try:
-            # Single back button (left) - handles both library and folder navigation
-            self.back_button = self.create_icon_button(
-                button_id="back_navigation",
-                icon="chevron.left@10x",
-                on_press=self._on_back_navigation,
-                tooltip="Back"
-            )
-            self.add_to_left(self.back_button)
+            # Call parent to set up basic structure
+            super()._create_toolbar()
             
-            # Center: Collection title
             title_text = self.collection_name if self.collection_name else "Collection"
-            self.title_label = toga.Label(
-                title_text,
-                style=Pack(
-                    flex=1,
-                    text_align="center",
-                    font_weight="bold",
-                    color="#007AFF"  # iOS system blue
+            
+            if self.is_mobile:
+                # Mobile: use smart helper for back button + title pattern
+                self.back_button, self.title_label = self.add_back_button_with_title(
+                    title_text=title_text,
+                    on_back=self._on_back_navigation,
+                    on_title_click=self._on_title_pressed
                 )
-            )
-            self.add_to_center(self.title_label)
+            else:
+                # Desktop: use smart helper for centered title
+                self.title_label = self.add_centered_title_only(title_text)
             
-            # Add folder button (right)
-            add_folder_btn = self.create_icon_button(
-                button_id="add_folder",
-                icon="add_folder",
-                on_press=self._on_add_folder,
-                tooltip="Add Folder"
-            )
-            self.add_to_right(add_folder_btn)
-            
-            # Add file button (right)
-            add_file_btn = self.create_icon_button(
-                button_id="add_file",
-                icon="add_file",
-                on_press=self._on_add_file,
-                tooltip="Add File"
-            )
-            self.add_to_right(add_file_btn)
-            
-            logger.info("Collection top toolbar created successfully with navigation buttons and title")
+            logger.info("Collection top toolbar created successfully using smart base methods")
             
         except Exception as e:
             logger.error(f"Failed to create collection toolbar content: {e}")
             # Fallback to basic toolbar
             super()._create_toolbar()
+    
+    def _on_title_pressed(self, widget):
+        """Handle title button press (mobile only)"""
+        logger.debug("Collection title pressed")
+        # Could show collection info, folder navigation, or context menu
+        pass
 
     def _create_breadcrumb_button(self, text: str, path: str = "", is_current: bool = False):
         """Create a breadcrumb button"""
@@ -127,9 +109,14 @@ class CollectionTopToolbar(TopToolbar):
                 if hasattr(self, 'back_button'):
                     self.back_button.enabled = True
             else:
-                # At collection root - disable back button (or enable to go to library)
+                # At collection root - on mobile, enable back to library; on desktop, disable
                 if hasattr(self, 'back_button'):
-                    self.back_button.enabled = False
+                    if self.is_mobile:
+                        self.back_button.enabled = True  # Mobile: back to library
+                        logger.info("🔙 Back button enabled for mobile (back to library)")
+                    else:
+                        self.back_button.enabled = False  # Desktop: no back at root level
+                        logger.info("🔙 Back button disabled for desktop (at root level)")
             
             # Note: breadcrumb display removed as requested - title should be in main toolbar
             logger.debug(f"Updated navigation state - collection: {collection_name}, path: {current_path}")
@@ -145,16 +132,26 @@ class CollectionTopToolbar(TopToolbar):
     def _on_back_navigation(self, widget):
         """Smart back navigation - goes to parent folder or library"""
         try:
+            logger.info("🔙 Back button pressed in collection view")
+            logger.info(f"🔙 Current path: {getattr(self, '_current_path', 'None')}")
+            logger.info(f"🔙 on_back_to_library callback: {self.on_back_to_library is not None}")
+            logger.info(f"🔙 on_navigate_back callback: {self.on_navigate_back is not None}")
+            
             # If we have a current path (in subfolder), go up one level
             if hasattr(self, '_current_path') and self._current_path:
                 logger.info("Back navigation: going up one folder level")
                 if self.on_navigate_back:
                     self.on_navigate_back()
+                else:
+                    logger.warning("on_navigate_back callback is None")
             else:
                 # If at root level, go back to library
                 logger.info("Back navigation: going back to library")
                 if self.on_back_to_library:
+                    logger.info("🔙 Calling on_back_to_library callback")
                     self.on_back_to_library()
+                else:
+                    logger.warning("on_back_to_library callback is None")
         except Exception as e:
             logger.error(f"Failed to handle back navigation: {e}")
     
@@ -167,23 +164,7 @@ class CollectionTopToolbar(TopToolbar):
         except Exception as e:
             logger.error(f"Failed to handle back to library: {e}")
     
-    def _on_add_folder(self, widget):
-        """Handle add folder action"""
-        try:
-            logger.info("Add folder requested from toolbar")
-            if self.navigation_callbacks and self.navigation_callbacks['on_add_folder']:
-                self.navigation_callbacks['on_add_folder']()
-        except Exception as e:
-            logger.error(f"Failed to handle add folder: {e}")
-    
-    def _on_add_file(self, widget):
-        """Handle add file action"""
-        try:
-            logger.info("Add file requested from toolbar")
-            if self.navigation_callbacks and self.navigation_callbacks['on_add_file']:
-                self.navigation_callbacks['on_add_file']()
-        except Exception as e:
-            logger.error(f"Failed to handle add file: {e}")
+
     
     def update_navigation_state(self, current_path: str, path_history: List[str]):
         """Update the navigation state from the collection view"""

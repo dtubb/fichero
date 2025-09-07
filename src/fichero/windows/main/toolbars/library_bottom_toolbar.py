@@ -33,11 +33,33 @@ class LibraryBottomToolbar(BottomToolbar):
     def _create_toolbar(self):
         """Create the library bottom toolbar content"""
         try:
-            # Create buttons in order: processing, activity monitor, about, settings
-            self._create_processing_button()
-            self._create_activity_monitor_button()
-            self._create_about_button()
-            self._create_settings_button()
+            # Call parent to set up basic structure
+            super()._create_toolbar()
+            
+            # Create buttons using consistent methods
+            self.add_button_right(
+                icon="export",
+                on_press=self._on_processing_clicked,
+                tooltip="Process Documents"
+            )
+            
+            self.add_button_right(
+                icon="activity",
+                on_press=self._on_activity_monitor_clicked,
+                tooltip="Activity Monitor"
+            )
+            
+            self.add_button_right(
+                icon="help",
+                on_press=self._on_about_clicked,
+                tooltip="About Fichero"
+            )
+            
+            self.add_button_right(
+                icon="gear@10x",
+                on_press=self._on_library_settings_clicked,
+                tooltip="Library Settings"
+            )
             
             logger.info("Library bottom toolbar created successfully with processing, activity monitor, about, and settings buttons")
             
@@ -45,18 +67,20 @@ class LibraryBottomToolbar(BottomToolbar):
             logger.error(f"Failed to create library bottom toolbar: {e}")
     
     def _create_processing_button(self):
-        """Create the processing button (leftmost)"""
-        try:
-            processing_btn = self.create_icon_button(
-                button_id="processing",
-                icon="export",  # Using export.png icon (archive box)
-                on_press=self._on_processing_clicked,
-                tooltip="Process Documents"
-            )
-            self.add_to_right(processing_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create processing button: {e}")
+        """Legacy method - no longer needed"""
+        pass
+    
+    def _create_activity_monitor_button(self):
+        """Legacy method - no longer needed"""
+        pass
+    
+    def _create_about_button(self):
+        """Legacy method - no longer needed"""
+        pass
+    
+    def _create_settings_button(self):
+        """Legacy method - no longer needed"""
+        pass
     
     def _on_processing_clicked(self, widget):
         """Handle processing button click"""
@@ -70,49 +94,6 @@ class LibraryBottomToolbar(BottomToolbar):
                 logger.error("Processing window not available - app.show_processing() not found")
         except Exception as e:
             logger.error(f"Failed to open processing: {e}")
-    
-    def _create_activity_monitor_button(self):
-        """Create the activity monitor button"""
-        try:
-            activity_btn = self.create_icon_button(
-                button_id="activity_monitor",
-                icon="activity",
-                on_press=self._on_activity_monitor_clicked,
-                tooltip="Activity Monitor"
-            )
-            self.add_to_right(activity_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create activity monitor button: {e}")
-    
-    def _create_about_button(self):
-        """Create the about button"""
-        try:
-            about_btn = self.create_icon_button(
-                button_id="about",
-                icon="help",
-                on_press=self._on_about_clicked,
-                tooltip="About Fichero"
-            )
-            self.add_to_right(about_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create about button: {e}")
-    
-    def _create_settings_button(self):
-        """Create the settings gear button on the right"""
-        try:
-            # Settings button on the right
-            settings_btn = self.create_icon_button(
-                button_id="library_settings",
-                icon="gear@10x",
-                on_press=self._on_library_settings_clicked,
-                tooltip="Library Settings"
-            )
-            self.add_to_right(settings_btn)
-            
-        except Exception as e:
-            logger.error(f"Failed to create settings button: {e}")
     
     def _on_activity_monitor_clicked(self, widget):
         """Handle activity monitor button click"""

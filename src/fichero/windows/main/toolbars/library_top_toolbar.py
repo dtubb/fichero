@@ -19,7 +19,7 @@ class LibraryTopToolbar(TopToolbar):
     
     def __init__(self, app, is_mobile: bool = False):
         """Initialize library top toolbar"""
-        super().__init__(app, is_mobile)
+        super().__init__(app, "Collections", is_mobile)  # Fixed: pass title parameter
         
         # Library-specific callbacks
         self.on_add_collection: Optional[Callable] = None
@@ -33,61 +33,40 @@ class LibraryTopToolbar(TopToolbar):
         self._create_toolbar()
     
     def _create_library_buttons(self):
-        """Create the three main library buttons with proper positioning"""
-        try:
-            # Left: Add Collection button
-            add_collection_btn = self.create_icon_button(
-                button_id="add_collection",
-                icon="add_collection",
-                on_press=self._on_add_collection_pressed,
-                tooltip="Add Collection (Local/External/URL)"
-            )
-            self.add_to_left(add_collection_btn)
-            
-            # Right: Edit Collections and Share buttons
-            edit_btn = self.create_icon_button(
-                button_id="edit_collections",
-                icon="collection_settings",  # Using collection_settings for edit
-                on_press=self._on_edit_pressed,
-                tooltip="Edit Collections"
-            )
-            self.add_to_right(edit_btn)
-            
-            share_btn = self.create_icon_button(
-                button_id="share_collections",
-                icon="export",  # Using export for share
-                on_press=self._on_share_pressed,
-                tooltip="Share/Export Collections"
-            )
-            self.add_to_right(share_btn)
-            
-            logger.info(f"Library top toolbar created with 3 buttons: left (+), right (edit, share)")
-            
-        except Exception as e:
-            logger.error(f"Failed to create library buttons: {e}")
+        """Legacy method - no longer needed"""
+        pass
     
     def _create_toolbar(self):
         """Create the library top toolbar content with simplified 3-button layout"""
         try:
-            # Create simplified library system buttons
-            self._create_library_buttons()
+            # Call parent to set up basic structure
+            super()._create_toolbar()
             
-            # Add "Collections" title to center
-            title_label = toga.Label(
-                "Collections",
-                style=Pack(
-                    flex=1,
-                    text_align="center",
-                    font_weight="bold",
-                    color="#007AFF"  # iOS system blue
-                )
+            # Left: Add Collection button
+            self.add_button_left(
+                icon="add_collection",
+                on_press=self._on_add_collection_pressed,
+                tooltip="Add Collection (Local/External/URL)"
             )
-            self.add_to_center(title_label)
             
-            # Ensure toolbar is visible
-            self.container.style = Pack(height=50, background_color="white")
+            # Center: Collections title using smart helper
+            self.add_centered_title_only("Collections", on_title_click=self._on_title_pressed)
             
-            logger.info("Library top toolbar created successfully with simplified 3-button layout")
+            # Right: Edit and Share buttons using smart helper
+            self.add_standard_right_buttons([
+                {
+                    'icon': 'collection_settings',
+                    'on_press': self._on_edit_pressed,
+                    'tooltip': 'Edit Collections'
+                },
+                {
+                    'icon': 'export',
+                    'on_press': self._on_share_pressed,
+                    'tooltip': 'Share/Export Collections'
+                }
+            ])
+            
+            logger.info("Library top toolbar created using smart base methods")
             
         except Exception as e:
             logger.error(f"Failed to create library toolbar: {e}")
@@ -109,6 +88,12 @@ class LibraryTopToolbar(TopToolbar):
         logger.debug("Share collections button pressed")
         if self.on_share_collections:
             self.on_share_collections()
+    
+    def _on_title_pressed(self, widget):
+        """Handle title button press (mobile only)"""
+        logger.debug("Library title pressed")
+        # Could show library info, statistics, or context menu
+        pass
     
     def register_callbacks(self, on_back: Optional[Callable] = None,
                          on_settings: Optional[Callable] = None,

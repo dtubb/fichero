@@ -36,6 +36,9 @@ class FicheTopToolbar(TopToolbar):
     def _create_toolbar(self):
         """Create the fiche top toolbar content with basic fiche actions"""
         try:
+            # Call parent to set up basic structure
+            super()._create_toolbar()
+            
             # Back to collection button
             back_btn = self.create_icon_button(
                 button_id="back_to_collection",

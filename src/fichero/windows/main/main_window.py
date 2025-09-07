@@ -80,6 +80,10 @@ class MainWindowRefactored:
         # Window
         self.window: Optional[toga.MainWindow] = None
         
+        # Cached views to avoid recreation
+        self.cached_library_view: Optional = None
+        self.cached_collection_views: Dict[str, Any] = {}  # collection_id -> view
+        
         # Initialize components
         self._initialize_components()
         
@@ -191,12 +195,30 @@ class MainWindowRefactored:
             logger.error(f"Failed to set up desktop views: {e}")
     
     def _setup_mobile_views(self):
-        """Set up mobile single-pane layout"""
+        """Set up mobile single-pane layout using same views as desktop"""
         try:
-            from fichero.windows.main.views.mobile_view import MobileView
-            mobile_view = MobileView(self.app)
-            self.window.content = mobile_view.container
-            logger.debug("Mobile view set up successfully")
+            print("🔍 Setting up mobile views using same container system...")
+            
+            # For mobile, start with the collection management view
+            # Cache and reuse the library view
+            if not self.cached_library_view:
+                self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                self.cached_library_view.register_collection_callback(self._on_collection_selected)
+                logger.info("📚 Created and cached library view")
+            else:
+                logger.info("📚 Reusing cached library view")
+            
+            # In mobile mode, pane_manager should show single view at a time
+            self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "mobile")
+            
+            # Set the pane manager's main container as the window content
+            main_container = self.pane_manager.get_main_container()
+            if main_container:
+                self.window.content = main_container
+                print("✅ Mobile views set up successfully using same container system")
+                logger.debug("Mobile views set up successfully using same container system")
+            else:
+                logger.error("Failed to get main container from pane manager for mobile")
                     
         except Exception as e:
             logger.error(f"Failed to set up mobile views: {e}")
@@ -209,11 +231,26 @@ class MainWindowRefactored:
             # Update command context
             self.command_bridge.set_context(CommandContext.COLLECTION)
             
-            # Switch to collection view in middle pane
-            collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
-            collection_view.set_collection_id(collection_id)
-            collection_view.register_preview_callback(self._on_file_preview_requested)
-            self.pane_manager.switch_to_view("collection", collection_view, "middle")
+            # Cache and reuse collection views
+            if collection_id not in self.cached_collection_views:
+                collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
+                collection_view.set_collection_id(collection_id)
+                collection_view.register_preview_callback(self._on_file_preview_requested)
+                
+                # Register back navigation for mobile
+                if self.is_mobile and hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
+                    collection_view.top_toolbar.register_navigation_callbacks(
+                        on_back_to_library=self._on_mobile_back_to_library
+                    )
+                
+                self.cached_collection_views[collection_id] = collection_view
+                logger.info(f"📁 Created and cached collection view: {collection_name or collection_id}")
+            else:
+                collection_view = self.cached_collection_views[collection_id]
+                logger.info(f"📁 Reusing cached collection view: {collection_name or collection_id}")
+            
+            pane = "mobile" if self.is_mobile else "middle"
+            self.pane_manager.switch_to_view("collection", collection_view, pane)
             
             logger.info(f"Successfully navigated to collection view: {collection_name or collection_id}")
             
@@ -241,18 +278,73 @@ class MainWindowRefactored:
                     'processing_status': 'Not processed'
                 }
             
-            # Show preview in right pane
-            if hasattr(self, 'preview_pane') and self.preview_pane:
-                self.preview_pane.show_file(file_path, file_data)
-                logger.info(f"File preview shown in right pane: {file_path}")
+            # Show preview - different behavior for mobile vs desktop
+            if self.is_mobile:
+                # Mobile: Push preview pane as new full-screen view
+                from fichero.windows.main.layout.preview_pane import PreviewPane
+                preview_pane = PreviewPane(self.app, self.is_mobile)
+                preview_pane.show_file(file_path, file_data)
+                
+                # Register back navigation callback
+                if hasattr(preview_pane, 'top_toolbar') and preview_pane.top_toolbar:
+                    preview_pane.top_toolbar.register_callbacks(
+                        on_back_to_fiche=self._on_mobile_back_to_collection
+                    )
+                
+                # Switch to preview view in mobile mode (full screen)
+                self.pane_manager.switch_to_view("preview", preview_pane, "mobile")
+                logger.info(f"File preview shown in mobile full-screen: {file_path}")
             else:
-                logger.warning("Preview pane not available, falling back to separate window")
-                # Fallback to separate window if needed
-                if hasattr(self.app, 'show_preview'):
-                    self.app.show_preview(file_path=file_path)
+                # Desktop: Show in right pane
+                if hasattr(self, 'preview_pane') and self.preview_pane:
+                    self.preview_pane.show_file(file_path, file_data)
+                    logger.info(f"File preview shown in right pane: {file_path}")
+                else:
+                    logger.warning("Preview pane not available, falling back to separate window")
+                    # Fallback to separate window if needed
+                    if hasattr(self.app, 'show_preview'):
+                        self.app.show_preview(file_path=file_path)
                     
         except Exception as e:
             logger.error(f"Failed to handle file preview request: {e}")
+    
+    def _on_mobile_back_to_library(self):
+        """Handle mobile back navigation from collection to library"""
+        try:
+            logger.debug("Mobile back navigation: collection -> library")
+            
+            # Use pane manager's navigation stack
+            if self.pane_manager.mobile_navigate_back():
+                logger.info("Navigated back using mobile navigation stack")
+            else:
+                # Fallback: use cached library view
+                logger.debug("No navigation stack, using cached library view")
+                if not self.cached_library_view:
+                    self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                    self.cached_library_view.register_collection_callback(self._on_collection_selected)
+                    logger.info("📚 Created cached library view for fallback")
+                
+                self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "mobile")
+                logger.info("Navigated back to library view (cached)")
+            
+        except Exception as e:
+            logger.error(f"Failed to navigate back to library: {e}")
+    
+    def _on_mobile_back_to_collection(self):
+        """Handle mobile back navigation from preview to collection"""
+        try:
+            logger.debug("Mobile back navigation: preview -> collection")
+            
+            # Use pane manager's navigation stack
+            if self.pane_manager.mobile_navigate_back():
+                logger.info("Navigated back to collection using mobile navigation stack")
+            else:
+                # Fallback: go back to library
+                logger.debug("No navigation stack, going back to library")
+                self._on_mobile_back_to_library()
+            
+        except Exception as e:
+            logger.error(f"Failed to navigate back from preview: {e}")
     
     def show(self):
         """Show the main window"""

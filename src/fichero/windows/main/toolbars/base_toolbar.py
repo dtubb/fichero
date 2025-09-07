@@ -33,6 +33,15 @@ class BaseToolbar(ABC):
             # Use the app's platform detection (set once at startup)
             self.is_mobile = self.app.is_mobile
         
+        # Platform-appropriate styling constants - use Toga defaults
+        if self.is_mobile:
+            self.TITLE_COLOR = "#007AFF"  # iOS system blue for mobile
+            self.TITLE_FONT_WEIGHT = "bold"
+        else:
+            self.TITLE_COLOR = None  # Use default system color for desktop
+            self.TITLE_FONT_WEIGHT = "normal"  # Normal weight on desktop
+        # Don't set TITLE_FONT_SIZE - let Toga use system default
+        
         # Toolbar components
         self.container: Optional[toga.Box] = None
         self.buttons: Dict[str, toga.Button] = {}
@@ -46,22 +55,24 @@ class BaseToolbar(ABC):
         # Note: _create_toolbar() is abstract and should be called by derived classes
     
     def _create_base_container(self):
-        """Create the base toolbar container with white background and borders on all sides"""
+        """Create the base toolbar container with smart platform-specific sizing and margins"""
         try:
-            # Add bottom margin on mobile to avoid home indicator
+            # Platform-specific sizing and margins
             if self.is_mobile:
-                # iOS home indicator is 34pt, but we need more space for comfort
-                bottom_margin = (0, 0, 0, 50)  # Increased from 34pt to 50pt
+                # Mobile: larger for touch, extra bottom margin for home gesture
+                toolbar_height = 56  # Taller for mobile touch targets
+                bottom_margin = (0, 0, 0, 34)  # iOS home indicator safe area
             else:
+                # Desktop: smaller, no bottom margin
+                toolbar_height = 40  # Taller than before (was 32)
                 bottom_margin = (0, 0)
             
-            # Create toolbar container with white background, dynamic height, and borders on all sides
+            # Create toolbar container with system grey background
             self.container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    # Remove fixed height - let content determine height
-                    margin=bottom_margin,  # Dynamic margin based on platform
-                    background_color=VIEW_BACKGROUND  # White background
+                    margin=bottom_margin,
+                    background_color="#E5E5EA" if self.is_mobile else "#F2F2F7"  # iOS/macOS system greys
                 )
             )
             
@@ -75,72 +86,60 @@ class BaseToolbar(ABC):
             )
             self.container.add(top_border)
             
-            # Create main content wrapper with left and right borders
+            # Create main content wrapper - no side borders to eliminate white space
             content_wrapper = toga.Box(
                 style=Pack(
                     direction=ROW,
                     flex=1,
-                    margin=(0, 0)
+                    margin=(0, 0),
+                    height=toolbar_height
                 )
             )
             
-            # Left border
-            left_border = toga.Box(
-                style=Pack(
-                    background_color=TOOLBAR_BORDER,
-                    width=1,
-                    margin=(0, 0)
-                )
-            )
-            content_wrapper.add(left_border)
-            
-            # Create main content area with proper padding and ROW direction for horizontal buttons
+            # Create main content area - reduced margins for better button positioning
             self.content = toga.Box(
                 style=Pack(
-                    direction=ROW,  # This ensures buttons are horizontal
-                    margin=(8, 12),  # Reduced internal margin for smaller height
-                    flex=1  # Take up available space
+                    direction=ROW,
+                    margin=(8, 12),  # Reduced from (12, 16) - less vertical margin
+                    flex=1,
+                    height=toolbar_height - 16  # Account for reduced padding
                 )
             )
             
-            # Create left-aligned content area for navigation/context tools
+            # Create left-aligned content area
             self.left_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(0, 0)
+                    margin=(0, 0),
+                    flex=0  # Don't expand
                 )
             )
             
-            # Create right-aligned content area for action tools
+            # Create center-aligned content area with proper centering
+            self.center_content = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    margin=(0, 16),  # Side margins for spacing
+                    flex=1,  # Expand to take remaining space
+                    text_align="center"
+                )
+            )
+            
+            # Create right-aligned content area
             self.right_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(0, 0)
+                    margin=(0, 0),
+                    flex=0  # Don't expand
                 )
             )
             
-            # Add left and right content to main content area
-            if self.is_mobile:
-                # Mobile: left-align everything
-                self.content.add(self.left_content)
-                self.content.add(self.right_content)
-            else:
-                # Desktop: left-align everything (no spacer)
-                self.content.add(self.left_content)
-                self.content.add(self.right_content)
+            # Add content areas in proper order for layout
+            self.content.add(self.left_content)
+            self.content.add(self.center_content)
+            self.content.add(self.right_content)
             
             content_wrapper.add(self.content)
-            
-            # Right border
-            right_border = toga.Box(
-                style=Pack(
-                    background_color=TOOLBAR_BORDER,
-                    width=1,
-                    margin=(0, 0)
-                )
-            )
-            content_wrapper.add(right_border)
-            
             self.container.add(content_wrapper)
             
             # Add bottom border
@@ -153,14 +152,15 @@ class BaseToolbar(ABC):
             )
             self.container.add(bottom_border)
             
-            logger.debug("Base toolbar container created with dynamic height, white background, and borders on all sides")
+            logger.debug(f"Smart toolbar container created - height: {toolbar_height}, mobile: {self.is_mobile}")
             
         except Exception as e:
-            logger.error(f"Failed to create base toolbar container: {e}")
+            logger.error(f"Failed to create smart toolbar container: {e}")
             # Create fallback container
             self.container = toga.Box(style=Pack(direction=ROW))
             self.content = toga.Box(style=Pack(direction=ROW))
             self.left_content = toga.Box(style=Pack(direction=ROW))
+            self.center_content = toga.Box(style=Pack(direction=ROW))
             self.right_content = toga.Box(style=Pack(direction=ROW))
     
     @abstractmethod
@@ -354,8 +354,36 @@ class BaseToolbar(ABC):
             self.content.add(widget)
     
     def add_to_center(self, widget):
-        """Add a widget to the center of the toolbar (main content area)"""
-        self.content.add(widget)
+        """Add a widget to the center of the toolbar (titles, etc.)"""
+        if hasattr(self, 'center_content'):
+            self.center_content.add(widget)
+        else:
+            # Fallback to main content if center_content not available
+            self.content.add(widget)
+    
+    def add_button_center(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add an icon button to the center with consistent styling"""
+        button = self.create_icon_button(
+            button_id=f"center_{icon}",
+            icon=icon,
+            on_press=on_press,
+            tooltip=tooltip
+        )
+        self.add_to_center(button)
+        return button
+    
+    def add_button_text_center(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add a text button to the center with consistent styling"""
+        button = toga.Button(
+            text=text,
+            on_press=on_press,
+            style=Pack(
+                margin=(0, 8),
+                color=self.TITLE_COLOR
+            )
+        )
+        self.add_to_center(button)
+        return button
     
     def create_separator(self, width: int = 20) -> toga.Box:
         """Create a visual separator between toolbar sections"""
@@ -509,3 +537,196 @@ class BaseToolbar(ABC):
         for button in self.buttons.values():
             if hasattr(button.style, 'color'):
                 button.style.color = color 
+    
+    def add_button_left(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add an icon button to the left side with consistent styling"""
+        button = self.create_icon_button(
+            button_id=f"left_{icon}",
+            icon=icon,
+            on_press=on_press,
+            tooltip=tooltip
+        )
+        self.add_to_left(button)
+        return button
+    
+    def add_button_right(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add an icon button to the right side with consistent styling"""
+        button = self.create_icon_button(
+            button_id=f"right_{icon}",
+            icon=icon,
+            on_press=on_press,
+            tooltip=tooltip
+        )
+        self.add_to_right(button)
+        return button
+    
+    def add_button_text_left(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add a text button to the left side with consistent styling"""
+        style_props = {'margin': (0, 8)}
+        if self.TITLE_COLOR:  # Only set color on mobile
+            style_props['color'] = self.TITLE_COLOR
+            
+        button = toga.Button(
+            text=text,
+            on_press=on_press,
+            style=Pack(**style_props)
+        )
+        self.add_to_left(button)
+        return button
+    
+    def add_button_text_right(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add a text button to the right side with consistent styling"""
+        style_props = {'margin': (0, 8)}
+        if self.TITLE_COLOR:  # Only set color on mobile
+            style_props['color'] = self.TITLE_COLOR
+            
+        button = toga.Button(
+            text=text,
+            on_press=on_press,
+            style=Pack(**style_props)
+        )
+        self.add_to_right(button)
+        return button
+    
+    def add_button_text_center(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
+        """Add a text button to the center with consistent styling"""
+        style_props = {'margin': (0, 8)}
+        if self.TITLE_COLOR:  # Only set color on mobile
+            style_props['color'] = self.TITLE_COLOR
+            
+        button = toga.Button(
+            text=text,
+            on_press=on_press,
+            style=Pack(**style_props)
+        )
+        self.add_to_center(button)
+        return button
+    
+    def add_title_left(self, text: str, margin_left: int = 0, on_click: Callable = None) -> toga.Widget:
+        """Add a title label to the left side with automatic mobile/desktop styling"""
+        # Automatically handle mobile vs desktop behavior
+        clickable = self.is_mobile and on_click is not None
+        
+        if clickable:
+            # Create clickable title as button (mobile only)
+            style_props = {
+                'margin_left': margin_left,
+                'font_weight': self.TITLE_FONT_WEIGHT,
+                'background_color': "transparent"
+            }
+            if self.TITLE_COLOR:  # Only set color on mobile
+                style_props['color'] = self.TITLE_COLOR
+            
+            title = toga.Button(
+                text=text,
+                on_press=on_click,
+                style=Pack(**style_props)
+            )
+        else:
+            # Create non-clickable title as label (desktop or mobile without callback)
+            style_props = {
+                'margin_left': margin_left,
+                'font_weight': self.TITLE_FONT_WEIGHT,
+            }
+            if self.TITLE_COLOR:  # Only set color on mobile
+                style_props['color'] = self.TITLE_COLOR
+                
+            title = toga.Label(
+                text,
+                style=Pack(**style_props)
+            )
+        self.add_to_left(title)
+        return title
+    
+    def add_title_center(self, text: str, on_click: Callable = None) -> toga.Widget:
+        """Add a title label to the center with automatic mobile/desktop styling"""
+        # Automatically handle mobile vs desktop behavior
+        clickable = self.is_mobile and on_click is not None
+        
+        if clickable:
+            # Create clickable title as button (mobile only)
+            style_props = {
+                'flex': 1,
+                'text_align': "center",
+                'font_weight': self.TITLE_FONT_WEIGHT,
+                'background_color': "transparent"
+            }
+            if self.TITLE_COLOR:  # Only set color on mobile
+                style_props['color'] = self.TITLE_COLOR
+                
+            title = toga.Button(
+                text=text,
+                on_press=on_click,
+                style=Pack(**style_props)
+            )
+        else:
+            # Create non-clickable title as label (desktop or mobile without callback)
+            style_props = {
+                'flex': 1,
+                'text_align': "center",
+                'font_weight': self.TITLE_FONT_WEIGHT,
+            }
+            if self.TITLE_COLOR:  # Only set color on mobile
+                style_props['color'] = self.TITLE_COLOR
+                
+            title = toga.Label(
+                text,
+                style=Pack(**style_props)
+            )
+        self.add_to_center(title)
+        return title
+    
+    def add_spacer(self, width: int = None, height: int = None, flex: bool = False) -> toga.Box:
+        """Add a spacer/invisible element to maintain toolbar height"""
+        style_props = {}
+        if width:
+            style_props['width'] = width
+        if height:
+            style_props['height'] = height
+        if flex:
+            style_props['flex'] = 1
+            
+        spacer = toga.Box(style=Pack(**style_props))
+        self.add_to_center(spacer)
+        return spacer 
+
+    def add_back_button_with_title(self, title_text: str, on_back: Callable, on_title_click: Callable = None) -> tuple:
+        """Smart helper: Add back button + title (common mobile pattern)"""
+        back_button = self.add_button_left(
+            icon="chevron.left@10x",
+            on_press=on_back,
+            tooltip="Back"
+        )
+        
+        title = self.add_title_left(
+            title_text,
+            margin_left=10,
+            on_click=on_title_click
+        )
+        
+        return back_button, title
+    
+    def add_centered_title_only(self, title_text: str, on_title_click: Callable = None) -> toga.Widget:
+        """Smart helper: Add only a centered title (common desktop pattern)"""
+        return self.add_title_center(title_text, on_click=on_title_click)
+    
+    def add_standard_right_buttons(self, buttons: list) -> list:
+        """Smart helper: Add multiple right-aligned buttons with consistent spacing"""
+        created_buttons = []
+        for button_config in buttons:
+            if button_config.get('text'):
+                # Text button
+                btn = self.add_button_text_right(
+                    text=button_config['text'],
+                    on_press=button_config['on_press'],
+                    tooltip=button_config.get('tooltip', '')
+                )
+            else:
+                # Icon button
+                btn = self.add_button_right(
+                    icon=button_config['icon'],
+                    on_press=button_config['on_press'],
+                    tooltip=button_config.get('tooltip', '')
+                )
+            created_buttons.append(btn)
+        return created_buttons 

@@ -30,8 +30,8 @@ class FicheBottomToolbar(BottomToolbar):
     def _create_toolbar(self):
         """Create the fiche bottom toolbar content - currently empty"""
         try:
-            # Base container already created by parent class
-            # No need to call super()._create_toolbar()
+            # Call parent to set up basic structure
+            super()._create_toolbar()
             
             # No buttons for now - toolbar is empty as requested
             # No status either - completely blank

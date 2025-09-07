@@ -62,6 +62,9 @@ class PreviewBottomToolbar(BottomToolbar):
     def _create_toolbar(self):
         """Create the preview bottom toolbar with file controls"""
         try:
+            # Call parent to set up basic structure
+            super()._create_toolbar()
+            
             # Left side: File info and type
             self._create_file_info_section()
             
@@ -83,13 +86,9 @@ class PreviewBottomToolbar(BottomToolbar):
             logger.error(f"Failed to create file info section: {e}")
     
     def _create_file_actions(self):
-        """Create file action buttons (only implemented ones)"""
-        try:
-            # Keep toolbar completely empty - no buttons needed
-            pass
-            
-        except Exception as e:
-            logger.error(f"Failed to create file actions: {e}")
+        """Create file action buttons - empty for now to maintain toolbar height"""
+        # Use the improved spacer method for consistent height
+        self.add_spacer(height=30, flex=True)
     
     def update_file_context(self, file_path: str, file_type: str = None, stage: str = "input"):
         """

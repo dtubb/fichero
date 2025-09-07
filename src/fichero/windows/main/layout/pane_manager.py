@@ -39,6 +39,10 @@ class PaneManager:
         self.current_views: Dict[str, BaseView] = {}
         self.view_history: List[str] = []
         
+        # Mobile navigation stack
+        self.mobile_navigation_stack: List[Dict[str, Any]] = []
+        self.current_mobile_view: Optional[str] = None
+        
         # Toolbar management
         # self.toolbar_manager = ToolbarManager(app, is_mobile) # No longer needed
         
@@ -230,6 +234,23 @@ class PaneManager:
                 self.set_middle_pane_content(view_container)
             elif pane == "right":
                 self.set_right_pane_content(view_container)
+            elif pane == "mobile":
+                # For mobile, use the middle pane and manage navigation stack
+                if self.is_mobile:
+                    # Push current view to navigation stack if switching to new view
+                    if self.current_mobile_view and self.current_mobile_view != view_name:
+                        current_view_data = {
+                            'view_name': self.current_mobile_view,
+                            'view': self.current_views.get(self.current_mobile_view)
+                        }
+                        self.mobile_navigation_stack.append(current_view_data)
+                        logger.debug(f"Pushed {self.current_mobile_view} to mobile navigation stack")
+                    
+                    # Set new current view
+                    self.current_mobile_view = view_name
+                    logger.debug(f"Mobile navigation: now showing {view_name}")
+                
+                self.set_middle_pane_content(view_container)
             else:
                 logger.warning(f"Unknown pane: {pane}")
                 return False
@@ -242,6 +263,46 @@ class PaneManager:
             
         except Exception as e:
             logger.error(f"Failed to switch to view {view_name}: {e}")
+            return False
+    
+    def mobile_navigate_back(self) -> bool:
+        """Navigate back in mobile navigation stack"""
+        try:
+            if not self.is_mobile:
+                logger.warning("mobile_navigate_back called on non-mobile platform")
+                return False
+            
+            if not self.mobile_navigation_stack:
+                logger.debug("No views in mobile navigation stack")
+                return False
+            
+            # Pop the previous view from stack
+            previous_view_data = self.mobile_navigation_stack.pop()
+            previous_view_name = previous_view_data['view_name']
+            previous_view = previous_view_data['view']
+            
+            if previous_view:
+                # Get view container
+                if hasattr(previous_view, 'get_container'):
+                    view_container = previous_view.get_container()
+                elif hasattr(previous_view, 'container'):
+                    view_container = previous_view.container
+                else:
+                    logger.error(f"Previous view {previous_view_name} has no container")
+                    return False
+                
+                # Set content back
+                self.set_middle_pane_content(view_container)
+                self.current_mobile_view = previous_view_name
+                
+                logger.info(f"Mobile navigation: went back to {previous_view_name}")
+                return True
+            else:
+                logger.error(f"Previous view {previous_view_name} is None")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to navigate back in mobile: {e}")
             return False
     
     def _switch_toolbar_for_view(self, view_name: str, view: BaseView):
