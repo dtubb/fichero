@@ -117,7 +117,7 @@ class BaseToolbar(ABC):
                     direction=ROW,
                     margin=(0, 16),  # Side margins for spacing
                     flex=1,  # Expand to take remaining space
-                    text_align="center"
+                    text_align="center"  # For text elements
                 )
             )
             
@@ -773,3 +773,71 @@ class BaseToolbar(ABC):
     def add_title_only(self, title_text: str, on_title_click: Callable = None) -> toga.Widget:
         """Smart helper: Add only a centered title (simple toolbar pattern)"""
         return self.add_centered_title_only(title_text, on_title_click=on_title_click) 
+
+    def add_centered_button_group(self, buttons: list) -> list:
+        """Add a group of buttons centered in the toolbar"""
+        # Create a wrapper box for centering multiple buttons
+        button_wrapper = toga.Box(
+            style=Pack(
+                direction=ROW,
+                flex=1,
+                text_align="center"
+            )
+        )
+        
+        # Add flexible spacer before buttons
+        left_spacer = toga.Box(style=Pack(flex=1))
+        button_wrapper.add(left_spacer)
+        
+        # Add buttons
+        created_buttons = []
+        for button_config in buttons:
+            if button_config.get('text'):
+                # Text button
+                btn = toga.Button(
+                    text=button_config['text'],
+                    on_press=button_config['on_press'],
+                    style=Pack(margin=(0, 4))  # Small horizontal margin between buttons
+                )
+            else:
+                # Icon button
+                btn = self.create_icon_button(
+                    button_id=f"center_group_{button_config['icon']}",
+                    icon=button_config['icon'],
+                    on_press=button_config['on_press'],
+                    tooltip=button_config.get('tooltip', '')
+                )
+            button_wrapper.add(btn)
+            created_buttons.append(btn)
+        
+        # Add flexible spacer after buttons
+        right_spacer = toga.Box(style=Pack(flex=1))
+        button_wrapper.add(right_spacer)
+        
+        # Add the wrapper to center content
+        self.add_to_center(button_wrapper)
+        return created_buttons
+
+    def add_collection_back_button_with_title(self, title_text: str, on_back: Callable, on_title_click: Callable = None) -> tuple:
+        """Smart helper: Add back button + title for collection view with hierarchy navigation support"""
+        # Mobile: always show back button
+        # Desktop: show back button for hierarchy navigation (disabled when at root, enabled when in folders)
+        
+        back_button = self.add_button_left(
+            icon="chevron.left@10x",
+            on_press=on_back,
+            tooltip="Back"
+        )
+        
+        if self.is_mobile:
+            # Mobile: title on left next to back button
+            title = self.add_title_left(
+                title_text,
+                margin_left=10,
+                on_click=on_title_click
+            )
+        else:
+            # Desktop: centered title, back button on left
+            title = self.add_centered_title_only(title_text, on_title_click=on_title_click)
+        
+        return back_button, title 

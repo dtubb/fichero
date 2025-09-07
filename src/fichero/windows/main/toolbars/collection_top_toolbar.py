@@ -46,12 +46,12 @@ class CollectionTopToolbar(TopToolbar):
             # Call parent to set up basic structure
             super()._create_toolbar()
             
-            # Use smart helper - automatically handles mobile vs desktop
+            # Use collection-specific helper - shows back button on both mobile and desktop
             title_text = self.collection_name if self.collection_name else "Collection"
-            self.back_button, self.title_label = self.add_back_button_with_title(
+            self.back_button, self.title_label = self.add_collection_back_button_with_title(
                 title_text=title_text,
                 on_back=self._on_back_navigation,
-                on_title_click=self._on_title_pressed
+                on_title_click=self._on_title_navigation
             )
             
             logger.info("Collection top toolbar created using smart base methods")
@@ -91,27 +91,46 @@ class CollectionTopToolbar(TopToolbar):
             return btn
     
     def update_breadcrumbs(self, collection_name: str, current_path: str = ""):
-        """Update breadcrumb display - disabled since title label was removed"""
+        """Update breadcrumb display and title to show parent directory navigation"""
         try:
             # Store the current path for back navigation logic
             self._current_path = current_path
             
-            # Update back button state based on current path
-            if current_path:
-                # In a subfolder - enable back button to go up
-                if hasattr(self, 'back_button'):
+            # Update back button state based on current path (back button now exists on both mobile and desktop)
+            if hasattr(self, 'back_button') and self.back_button is not None:
+                if current_path:
+                    # In a subfolder - enable back button to go up hierarchy
                     self.back_button.enabled = True
-            else:
-                # At collection root - on mobile, enable back to library; on desktop, disable
-                if hasattr(self, 'back_button'):
+                    logger.debug(f"🔙 Back button enabled (in subfolder: {current_path})")
+                else:
+                    # At collection root - different behavior for mobile vs desktop
                     if self.is_mobile:
                         self.back_button.enabled = True  # Mobile: back to library
                         logger.info("🔙 Back button enabled for mobile (back to library)")
                     else:
-                        self.back_button.enabled = False  # Desktop: no back at root level
-                        logger.info("🔙 Back button disabled for desktop (at root level)")
+                        self.back_button.enabled = False  # Desktop: no back to library
+                        logger.info("🔙 Back button disabled for desktop (at collection root - no library navigation)")
+            else:
+                # Should not happen with new collection method
+                logger.warning("🔙 No back button found - this should not happen with collection toolbar")
             
-            # Note: breadcrumb display removed as requested - title should be in main toolbar
+            # Update title to show parent directory (what you can navigate back to)
+            if hasattr(self, 'title_label') and self.title_label is not None:
+                if current_path:
+                    # In a subfolder - title shows parent directory
+                    path_parts = current_path.split('/')
+                    if len(path_parts) > 1:
+                        # In nested folder - show immediate parent folder
+                        parent_folder = path_parts[-2]
+                        self.title_label.text = parent_folder
+                    else:
+                        # In top-level folder - show collection name  
+                        self.title_label.text = collection_name
+                else:
+                    # At collection root - show "Collections" (back to library)
+                    self.title_label.text = "Collections"
+                logger.debug(f"🏷️ Updated title to: {self.title_label.text}")
+            
             logger.debug(f"Updated navigation state - collection: {collection_name}, path: {current_path}")
         except Exception as e:
             logger.error(f"Failed to update navigation state: {e}")
@@ -130,7 +149,7 @@ class CollectionTopToolbar(TopToolbar):
             logger.info(f"🔙 on_back_to_library callback: {self.on_back_to_library is not None}")
             logger.info(f"🔙 on_navigate_back callback: {self.on_navigate_back is not None}")
             
-            # If we have a current path (in subfolder), go up one level
+            # If we have a current path (in subfolder), always go up one level
             if hasattr(self, '_current_path') and self._current_path:
                 logger.info("Back navigation: going up one folder level")
                 if self.on_navigate_back:
@@ -138,15 +157,33 @@ class CollectionTopToolbar(TopToolbar):
                 else:
                     logger.warning("on_navigate_back callback is None")
             else:
-                # If at root level, go back to library
-                logger.info("Back navigation: going back to library")
-                if self.on_back_to_library:
-                    logger.info("🔙 Calling on_back_to_library callback")
-                    self.on_back_to_library()
+                # At root level - different behavior for mobile vs desktop
+                if self.is_mobile:
+                    # Mobile: go back to library
+                    logger.info("Back navigation (mobile): going back to library")
+                    if self.on_back_to_library:
+                        logger.info("🔙 Calling on_back_to_library callback")
+                        self.on_back_to_library()
+                    else:
+                        logger.warning("on_back_to_library callback is None")
                 else:
-                    logger.warning("on_back_to_library callback is None")
+                    # Desktop: do nothing (button should be disabled at root)
+                    logger.info("Back navigation (desktop): at root level, button should be disabled")
         except Exception as e:
             logger.error(f"Failed to handle back navigation: {e}")
+    
+    def _on_title_navigation(self, widget):
+        """Handle title click navigation - navigate to the parent shown in title"""
+        try:
+            logger.info("🏷️ Title clicked for navigation")
+            logger.info(f"🏷️ Current path: {getattr(self, '_current_path', 'None')}")
+            
+            # Title shows parent directory, so clicking it should navigate there
+            # This is the same as back navigation
+            self._on_back_navigation(widget)
+            
+        except Exception as e:
+            logger.error(f"Failed to handle title navigation: {e}")
     
     def _on_back_to_library(self, widget):
         """Handle back to library navigation"""

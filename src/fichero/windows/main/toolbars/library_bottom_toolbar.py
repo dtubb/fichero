@@ -36,8 +36,8 @@ class LibraryBottomToolbar(BottomToolbar):
             # Call parent to set up basic structure
             super()._create_toolbar()
             
-            # Create centered buttons using smart helper
-            self.add_standard_center_buttons([
+            # Create centered buttons using new centering method
+            self.add_centered_button_group([
                 {
                     'icon': 'export',
                     'on_press': self._on_processing_clicked,

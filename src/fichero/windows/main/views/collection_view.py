@@ -74,7 +74,20 @@ class CollectionView(BaseView):
             if self.content_container:
                 self.content_container.clear()
             
-            # No header here - titles should only be in top toolbar
+            # Add current folder header (shows what folder we're currently viewing)
+            current_folder_name = self._get_current_folder_display_name()
+            if current_folder_name:
+                folder_header = toga.Label(
+                    current_folder_name,
+                    style=Pack(
+                        margin=(15, 20, 10, 20),
+                        font_size=18,
+                        font_weight="bold",
+                        color=self.text_color
+                    )
+                )
+                self.content_container.add(folder_header)
+            
             # Show collection items if we have them, otherwise show placeholder
             if hasattr(self, 'collection_items') and self.collection_items:
                 logger.debug(f"Displaying {len(self.collection_items)} collection items")
@@ -83,7 +96,7 @@ class CollectionView(BaseView):
                 # Show placeholder message
                 if hasattr(self, 'collection_id') and self.collection_id:
                     placeholder = toga.Label(
-                        f"Collection is empty.\n\nUse the toolbar to add files and folders to this collection.",
+                        f"This folder is empty.\n\nUse the toolbar to add files and folders.",
                         style=Pack(
                             margin=(10, 20),
                             color=self.text_color
@@ -119,10 +132,44 @@ class CollectionView(BaseView):
         try:
             # Navigate back to library view
             if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, 'pane_manager'):
-                self.app.main_window.pane_manager.switch_to_view('collection_management')
+                pane_manager = self.app.main_window.pane_manager
+                
+                if self.is_mobile:
+                    # Mobile: Navigate back using mobile navigation stack
+                    if hasattr(pane_manager, 'mobile_navigate_back'):
+                        logger.info("🔄 Attempting mobile_navigate_back()")
+                        success = pane_manager.mobile_navigate_back()
+                        logger.info(f"🔄 mobile_navigate_back result: {success}")
+                        if success:
+                            logger.info("Used mobile navigation to go back to library")
+                            return
+                    
+                    # Fallback: Get the collection management view and switch to it
+                    if hasattr(pane_manager, 'current_views') and 'collection_management' in pane_manager.current_views:
+                        collection_mgmt_view = pane_manager.current_views['collection_management']
+                        logger.info(f"🔄 About to switch to collection_management view: {collection_mgmt_view}")
+                        try:
+                            result = pane_manager.switch_to_view('collection_management', collection_mgmt_view, 'mobile')
+                            logger.info(f"🔄 Switch result: {result}")
+                            logger.info("Mobile: Switched back to collection management view")
+                        except Exception as e:
+                            logger.error(f"🔄 Failed to switch view: {e}")
+                    else:
+                        logger.warning("Mobile: No collection management view found for back navigation")
+                else:
+                    # Desktop: Switch to left pane (collection management should already be there)
+                    if hasattr(pane_manager, 'current_views') and 'collection_management' in pane_manager.current_views:
+                        collection_mgmt_view = pane_manager.current_views['collection_management']
+                        # For desktop, just set focus/highlight in left pane - the view is already there
+                        logger.info("Desktop: Collection management view is in left pane (no navigation needed)")
+                    else:
+                        logger.warning("Desktop: No collection management view found")
+            
             logger.info("Navigated back to library")
         except Exception as e:
             logger.error(f"Failed to navigate back to library: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_navigate_back(self):
         """Handle hierarchical back navigation from toolbar"""
@@ -363,9 +410,24 @@ class CollectionView(BaseView):
             
             # Handle folder navigation
             if is_folder or item_type == 'folder':
-                folder_path = item_data.get('path', item_data.get('name', ''))
-                logger.info(f"FOLDER NAVIGATION: Navigating to folder path: '{folder_path}'")
-                self.navigate_to_folder(folder_path)
+                if item_type == 'back':
+                    # Handle ".." back navigation
+                    logger.info("FOLDER NAVIGATION: Going back via '..' item")
+                    self._go_back()
+                else:
+                    # Regular folder navigation
+                    folder_path = item_data.get('path', item_data.get('name', ''))
+                    logger.info(f"FOLDER NAVIGATION: Navigating to folder path: '{folder_path}'")
+                    
+                    # Check if this is an absolute path or relative path
+                    if folder_path and self.current_path and folder_path.startswith(self.current_path):
+                        # It's an absolute path, extract the relative part
+                        relative_path = folder_path[len(self.current_path):].lstrip('/')
+                        logger.info(f"FOLDER NAVIGATION: Converted absolute path '{folder_path}' to relative '{relative_path}'")
+                        self.navigate_to_folder(relative_path)
+                    else:
+                        # It's already a relative path or we're at root
+                        self.navigate_to_folder(folder_path)
             else:
                 # Handle file - check if we have a file path
                 file_path = item_data.get('file_path')
@@ -407,20 +469,28 @@ class CollectionView(BaseView):
     def _register_toolbar_callbacks(self):
         """Register callbacks for both toolbars"""
         try:
+            # Debug: Check if methods exist
+            logger.info(f"🔧 Registering callbacks - _on_back_to_library exists: {hasattr(self, '_on_back_to_library')}")
+            logger.info(f"🔧 Registering callbacks - _on_navigate_back exists: {hasattr(self, '_on_navigate_back')}")
+            
             # Top toolbar navigation callbacks
             if hasattr(self.top_toolbar, 'register_navigation_callbacks'):
+                logger.info("🔧 Using register_navigation_callbacks method")
                 self.top_toolbar.register_navigation_callbacks(
                     on_back_to_library=self._on_back_to_library,
-                    on_navigate_back=self._go_back,  # Use _go_back directly
+                    on_navigate_back=self._on_navigate_back,  # Use the wrapper method
                     on_navigate_to_path=self._on_navigate_to_path,
                     on_add_folder=self._on_add_folder,
                     on_add_file=self._on_add_file
                 )
+                # Debug: Verify the callback was set
+                logger.info(f"🔧 After registration - on_navigate_back stored: {self.top_toolbar.on_navigate_back is not None}")
             else:
                 # Fallback to old registration method
+                logger.info("🔧 Using fallback register_callbacks method")
                 self.top_toolbar.register_callbacks(
                 on_back_to_library=self._on_back_to_library,
-                on_navigate_back=self._go_back,  # Use _go_back directly
+                on_navigate_back=self._on_navigate_back,  # Use the wrapper method
                 on_add_folder=self._on_add_folder,
                 on_add_file=self._on_add_file
             )
@@ -754,6 +824,20 @@ class CollectionView(BaseView):
         except Exception as e:
             logger.error(f"Failed to load collection items: {e}")
     
+    def _get_current_folder_display_name(self):
+        """Get the display name for the current folder"""
+        try:
+            if not self.current_path:
+                # At collection root - show collection name
+                return getattr(self, 'collection_name', 'Collection')
+            else:
+                # In a subfolder - show the current folder name
+                path_parts = self.current_path.split('/')
+                return path_parts[-1]  # Last part is current folder
+        except Exception as e:
+            logger.error(f"Failed to get current folder display name: {e}")
+            return "Folder"
+    
     def _update_breadcrumbs(self):
         """Update breadcrumb display in toolbar"""
         try:
@@ -769,11 +853,16 @@ class CollectionView(BaseView):
             # Add current path to history for back navigation
             self.path_history.append(self.current_path)
             
-            # Update current path
-            if self.current_path:
-                self.current_path = f"{self.current_path}/{folder_path}"
+            # Update current path - simple append logic
+            if folder_path == "" or folder_path == ".":
+                # Going to root
+                self.current_path = ""
+            elif self.current_path:
+                # Append folder to current path
+                self.current_path = f"{self.current_path.rstrip('/')}/{folder_path.strip('/')}"
             else:
-                self.current_path = folder_path
+                # Starting from root
+                self.current_path = folder_path.strip('/')
             
             # Update breadcrumbs
             self._update_breadcrumbs()
@@ -785,7 +874,7 @@ class CollectionView(BaseView):
             # Reload items for new path
             self._load_collection_items()
             
-            logger.info(f"Navigated to folder: {folder_path}, current path: {self.current_path}")
+            logger.info(f"Navigated to folder: '{folder_path}', current path: '{self.current_path}'")
             
         except Exception as e:
             logger.error(f"Failed to navigate to folder: {e}")

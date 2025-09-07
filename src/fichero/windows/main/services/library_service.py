@@ -398,18 +398,8 @@ class LibraryService:
             
             items = []
             
-            # Add ".." entry for going back (except at root)
-            if current_relative_path:
-                items.append({
-                    'id': '..',
-                    'title': '..',
-                    'subtitle': 'Go back to parent folder',
-                    'icon': '⬆️',
-                    'type': 'back',
-                    'is_folder': True,
-                    'path': str(Path(current_relative_path).parent) if Path(current_relative_path).parent != Path('.') else '',
-                    'file_path': ''
-                })
+            # Note: Back navigation is now handled by toolbar back button
+            # No need for ".." entry in the list
             
             # Get all items in the current directory
             try:
@@ -429,13 +419,9 @@ class LibraryService:
                     # Get file type and icon
                     file_type, icon = self._get_file_type_and_icon(entry)
                     
-                    # Build relative path from collection root
-                    if current_relative_path:
-                        relative_path = f"{current_relative_path}/{entry.name}"
-                    else:
-                        relative_path = entry.name
-                    
                     # Create item data compatible with Toga DetailedList
+                    # Note: 'path' should just be the entry name for navigation
+                    # The collection view handles the full path construction
                     item_data = {
                         'id': entry.name,
                         'title': entry.name,
@@ -443,7 +429,7 @@ class LibraryService:
                         'icon': icon,
                         'type': file_type,
                         'is_folder': entry.is_dir(),
-                        'path': relative_path,
+                        'path': entry.name,  # Just the name, not full path
                         'file_path': str(entry.absolute()) if entry.is_file() else ''
                     }
                     

@@ -237,11 +237,8 @@ class MainWindowRefactored:
                 collection_view.set_collection_id(collection_id)
                 collection_view.register_preview_callback(self._on_file_preview_requested)
                 
-                # Register back navigation for mobile
-                if self.is_mobile and hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
-                    collection_view.top_toolbar.register_navigation_callbacks(
-                        on_back_to_library=self._on_mobile_back_to_library
-                    )
+                # Note: Callback registration is now handled by the collection view itself
+                # to avoid overwriting properly registered navigation callbacks
                 
                 self.cached_collection_views[collection_id] = collection_view
                 logger.info(f"📁 Created and cached collection view: {collection_name or collection_id}")
