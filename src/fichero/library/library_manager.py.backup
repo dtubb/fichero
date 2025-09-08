@@ -63,8 +63,18 @@ class LibraryManager:
         
         logger.info(f"Library manager initialized successfully with database: {db_path}")
         
-        # Auto-populate demo collections on first run
-        self._demo_setup_pending = True  # Will be handled in get_all_collections
+        # Auto-populate demo collections on first run (schedule for later)
+        try:
+            # Try to get the current event loop, if one exists
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(self._ensure_demo_collections())
+            else:
+                # No loop running, will be handled when library is first accessed
+                self._demo_setup_pending = True
+        except RuntimeError:
+            # No event loop, will be handled when library is first accessed
+            self._demo_setup_pending = True
     
     # ===== COLLECTION MANAGEMENT =====
     
@@ -177,13 +187,6 @@ class LibraryManager:
                 self._cache_timestamp and 
                 (datetime.now() - self._cache_timestamp).seconds < 30):
                 return self._collections_cache.copy()
-            
-            # Check for pending demo setup
-            if self._demo_setup_pending:
-                await self._ensure_demo_collections()
-                self._demo_setup_pending = False
-                # Force cache refresh after demo setup
-                self._clear_cache()
             
             # Load from storage
             collections = self.storage.get_all_collections()
@@ -436,8 +439,8 @@ class LibraryManager:
     async def _ensure_demo_collections(self):
         """Auto-populate demo collections if library is empty"""
         try:
-            # Check if library already has collections (directly from storage)
-            existing_collections = self.storage.get_all_collections()
+            # Check if library already has collections
+            existing_collections = await self.get_all_collections()
             if existing_collections:
                 logger.debug("Library already has collections, skipping demo setup")
                 return

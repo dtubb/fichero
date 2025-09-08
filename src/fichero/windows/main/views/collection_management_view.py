@@ -8,6 +8,7 @@ import toga
 from toga.style import Pack
 from toga.constants import ROW, COLUMN
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any
 
 from fichero.windows.main.views.base_view import BaseView
@@ -48,9 +49,11 @@ class CollectionManagementView(BaseView):
         # Initialize library manager
         self._initialize_library_system()
         
-        # Load collections directly now that timeouts are fixed
-        self._load_collections()
+        # Create initial content (will be refreshed when collections load)
         self._create_content()
+        
+        # Schedule collection loading for after initialization
+        asyncio.create_task(self._load_collections_async())
         
         logger.info("Collection management view created successfully")
     
@@ -993,12 +996,12 @@ class CollectionManagementView(BaseView):
             logger.error(f"Failed to initialize library system: {e}")
             self.library_service = None
     
-    def _load_collections(self):
-        """Load actual collections from the library system into the UI."""
+    async def _load_collections_async(self):
+        """Load collections asynchronously and update UI"""
         try:
             if self.library_service:
                 # Use service layer - it handles all the complexity and returns UI-ready data
-                all_collections = self.library_service.get_collections_sync()
+                all_collections = await self.library_service.get_collections_for_ui()
                 
                 # Service already provides UI-ready data, so we can use it directly
                 self.collections = all_collections
@@ -1007,6 +1010,9 @@ class CollectionManagementView(BaseView):
                 self.collections.sort(key=lambda x: x.get('name', ''))
                 
                 logger.debug(f"Loaded {len(self.collections)} collections from library.")
+                
+                # Refresh the display to show the loaded collections
+                self._create_content()
             else:
                 logger.warning("Library service not initialized, cannot load collections.")
                 self.collections = []

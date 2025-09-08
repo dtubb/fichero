@@ -523,6 +523,19 @@ class LibraryService:
         except Exception:
             return "Unknown"
     
+    def get_collections_sync(self) -> List[Dict[str, Any]]:
+        """Synchronous wrapper for get_collections_for_ui"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self.get_collections_for_ui())
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Failed to get collections sync: {e}")
+            return []
+    
     def get_library_stats(self) -> Dict[str, Any]:
         """Get library statistics"""
         try:
