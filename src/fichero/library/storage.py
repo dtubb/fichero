@@ -39,6 +39,11 @@ class LibraryStorage:
         """Initialize the database schema"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Configure database for better performance and iOS compatibility
+                conn.execute("PRAGMA journal_mode=WAL")  # Use Write-Ahead Logging
+                conn.execute("PRAGMA synchronous=NORMAL")  # Better performance
+                conn.execute("PRAGMA foreign_keys=ON")  # Ensure foreign key constraints
+                
                 cursor = conn.cursor()
                 
                 # Collections table
@@ -120,7 +125,13 @@ class LibraryStorage:
         """Add a collection to storage"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Configure connection
+                conn.execute("PRAGMA foreign_keys=ON")
+                conn.isolation_level = None  # Enable autocommit mode
                 cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute("BEGIN IMMEDIATE")
                 
                 cursor.execute("""
                     INSERT INTO collections 
@@ -240,7 +251,13 @@ class LibraryStorage:
         """Get all collections"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Configure connection for read operations
+                conn.execute("PRAGMA foreign_keys=ON")
+                conn.isolation_level = None  # Enable autocommit mode
                 cursor = conn.cursor()
+                
+                # Start read transaction
+                cursor.execute("BEGIN")
                 
                 cursor.execute("""
                     SELECT id, name, type, source_path, local_path, created_at, updated_at, metadata
