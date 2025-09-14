@@ -787,7 +787,7 @@ class CollectionView(BaseView):
             logger.error(f"Failed to get shared library service: {e}")
             self.library_service = None
     
-
+    
     def set_collection_id(self, collection_id: str):
         """Set the current collection ID and load its items"""
         self.collection_id = collection_id
