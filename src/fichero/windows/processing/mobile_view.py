@@ -4,7 +4,7 @@ Mobile view for processing content that can be embedded in main window
 
 import toga
 import logging
-from fichero.windows.main.views.base_view import BaseView
+from fichero.shared.views.base_view import BaseView
 from fichero.windows.processing.processing_content import ProcessingContent
 
 logger = logging.getLogger(__name__)
@@ -35,13 +35,12 @@ class ProcessingMobileView(BaseView):
         """Create top and bottom toolbars for processing view"""
         try:
             from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
             
-            # Create simple top toolbar using the standardized class
+            # Create simple top toolbar using automatic navigation (no manual on_back)
             self.top_toolbar = SimpleTopToolbar(
                 app=self.app,
                 title="Processing",
-                on_back=self._on_back_pressed,
                 is_mobile=self.is_mobile
             )
             
@@ -53,12 +52,11 @@ class ProcessingMobileView(BaseView):
             
             self.bottom_toolbar = ProcessingBottomToolbar(self.app, is_mobile=self.is_mobile)
             
-            # Set toolbars in the view
+            # Set toolbars in the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
-            logger.info("Processing mobile view toolbars created successfully")
-            
+            logger.info("Processing mobile view toolbars created successfully")            
         except Exception as e:
             logger.error(f"Failed to create processing toolbars: {e}")
     

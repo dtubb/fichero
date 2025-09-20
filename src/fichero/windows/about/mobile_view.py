@@ -6,7 +6,7 @@ Uses the standard base view pattern with consistent toolbars.
 """
 
 import logging
-from fichero.windows.main.views.base_view import BaseView
+from fichero.shared.views.base_view import BaseView
 from fichero.windows.about.about_content import AboutContent
 
 logger = logging.getLogger(__name__)
@@ -37,13 +37,12 @@ class AboutMobileView(BaseView):
         """Create top and bottom toolbars for about view"""
         try:
             from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
             
-            # Create simple top toolbar using the standardized class
+            # Create simple top toolbar using automatic navigation (no manual on_back)
             self.top_toolbar = SimpleTopToolbar(
                 app=self.app,
                 title="About Fichero",
-                on_back=self._on_back_pressed,
                 is_mobile=self.is_mobile
             )
             
@@ -59,7 +58,7 @@ class AboutMobileView(BaseView):
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
-            logger.info("About mobile view toolbars created successfully")
+            logger.info("About mobile view toolbars created with automatic navigation")
             
         except Exception as e:
             logger.error(f"Failed to create about toolbars: {e}")

@@ -1,0 +1,339 @@
+Validators
+A mechanism for validating that input meets a given set of criteria.
+
+Usage
+A validator is a callable that accepts a string as input, and returns None on success, or a string on failure. If a string is returned, that string will be used as an error message. For example, the following example will validate that the user’s input starts with the text “Hello”:
+
+def must_say_hello(value):
+    if value.lower().startswith("hello"):
+        return None
+    return "Why didn't you say hello?"
+
+Toga provides built-in validators for a range of common validation types, as well as some base classes that can be used as a starting point for custom validators.
+
+A list of validators can then be provided to any widget that performs validation, such as the TextInput widget. In the following example, a TextInput will validate that the user has entered text that starts with “hello”, and has provided at least 10 characters of input:
+
+import toga
+from toga.validators import MinLength
+
+widget = toga.TextInput(validators=[
+    must_say_hello,
+    MinLength(10)
+])
+
+Whenever the input changes, all validators will be evaluated in the order they have been specified. The first validator to fail will put the widget into an “error” state, and the error message returned by that validator will be displayed to the user.
+
+Reference
+class toga.validators.BooleanValidator(error_message, allow_empty=True)
+An abstract base class for defining a simple validator.
+
+Subclasses should implement the is_valid() method
+
+PARAMETERS:
+error_message (str) – The error to display to the user when the input isn’t valid.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+abstractmethod is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.Contains(substring, count=None, error_message=None, allow_empty=True)
+Bases: CountValidator
+
+A validator confirming that the string contains one or more copies of a substring.
+
+PARAMETERS:
+substring (str) – The substring that must exist in the input.
+count (int | None) – Optional; The exact number of matches that are expected.
+error_message (str | None) – Optional; the error message to display when the input doesn’t contain the substring (or the requested count of substrings).
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.ContainsDigit(count=None, error_message=None, allow_empty=True)
+Bases: CountValidator
+
+A validator confirming that the string contains digits.
+
+PARAMETERS:
+count (int | None) – Optional; if provided, the exact count of digits that must exist. If not provided, the existence of any digit will make the string valid.
+error_message (str | None) – Optional; the error message to display when the input doesn’t contain digits (or the requested count of digits).
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.ContainsLowercase(count=None, error_message=None, allow_empty=True)
+Bases: CountValidator
+
+A validator confirming that the string contains lower case letters.
+
+PARAMETERS:
+count (int | None) – Optional; if provided, the exact count of lower case letters that must exist. If not provided, the existence of any lower case letter will make the string valid.
+error_message (str | None) – Optional; the error message to display when the input doesn’t contain lower case letters (or the requested count of lower case letters).
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.ContainsSpecial(count=None, error_message=None, allow_empty=True)
+Bases: CountValidator
+
+A validator confirming that the string contains “special” (i.e., non-alphanumeric) characters.
+
+PARAMETERS:
+count (int | None) – Optional; if provided, the exact count of special characters that must exist. If not provided, the existence of any special character will make the string valid.
+error_message (str | None) – Optional; the error message to display when the input doesn’t contain special characters (or the requested count of special characters).
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.ContainsUppercase(count=None, error_message=None, allow_empty=True)
+Bases: CountValidator
+
+A validator confirming that the string contains upper case letters.
+
+PARAMETERS:
+count (int | None) – Optional; if provided, the exact count of upper case letters that must exist. If not provided, the existence of any upper case letter will make the string valid.
+error_message (str | None) – Optional; the error message to display when the input doesn’t contain upper case letters (or the requested count of upper case letters).
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.CountValidator(count, expected_existence_message, expected_non_existence_message, expected_count_message, allow_empty=True)
+Bases: object
+
+An abstract base class for validators that are based on counting instances of some content in the overall content.
+
+Subclasses should implement the count() method to identify the content of interest.
+
+PARAMETERS:
+count (int | None) – Optional; The expected count.
+expected_existence_message (str) – The error message to show if matches are expected, but were not found.
+expected_non_existence_message (str) – The error message to show if matches were not expected, but were found.
+expected_count_message (str) – The error message to show if matches were expected, but a different number were found.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+abstractmethod count(input_string)
+Count the instances of content of interest in the input string.
+
+PARAMETERS:
+input_string (str) – The string to inspect for content of interest.
+
+RETURNS:
+The number of instances of content that the validator is looking for.
+
+RETURN TYPE:
+int
+
+class toga.validators.Email(error_message=None, allow_empty=True)
+Bases: MatchRegex
+
+A validator confirming that the string is an email address.
+
+Note
+
+It’s impossible to do true RFC-compliant email validation with a regex. This validator does a “best effort” validation. It will inevitably allow some email addresses that aren’t technically valid. However, it shouldn’t exclude any valid email addresses.
+PARAMETERS:
+error_message (str | None) – Optional; the error message to display when the input isn’t a number.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+EMAIL_REGEX = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*$"
+class toga.validators.EndsWith(substring, error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the string ends with a given substring.
+
+PARAMETERS:
+substring (str) – The substring that the input must end with.
+error_message (str | None) – Optional; the error message to display when the string doesn’t end with the given substring.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.Integer(error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the string is an integer.
+
+PARAMETERS:
+error_message (str | None) – Optional; the error message to display when the input isn’t an integer.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.LengthBetween(min_length, max_length, error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the length of input falls in a given range.
+
+PARAMETERS:
+min_length (int | None) – The minimum length of the string (inclusive).
+max_length (int | None) – The maximum length of the string (inclusive).
+error_message (str | None) – Optional; the error message to display when the length isn’t in the given range.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.MatchRegex(regex_string, error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the string matches a given regular expression.
+
+PARAMETERS:
+regex_string (str) – A regular expression that the input must match.
+error_message (str | None) – Optional; the error message to display when the input doesn’t match the provided regular expression.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.MaxLength(length, error_message=None)
+Bases: LengthBetween
+
+A validator confirming that the length of input does not exceed a maximum size.
+
+PARAMETERS:
+length (int) – The maximum length of the string (inclusive).
+error_message (str | None) – Optional; the error message to display when the string is too long.
+class toga.validators.MinLength(length, error_message=None, allow_empty=True)
+Bases: LengthBetween
+
+A validator confirming that the length of input exceeds a minimum size.
+
+PARAMETERS:
+length (int) – The minimum length of the string (inclusive).
+error_message (str | None) – Optional; the error message to display when the string isn’t long enough.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+class toga.validators.NotContains(substring, error_message=None)
+Bases: Contains
+
+A validator confirming that the string does not contain a substring.
+
+PARAMETERS:
+substring (str) – A substring that must not exist in the input.
+error_message (str | None) – Optional; the error message to display when the input contains the provided substring.
+class toga.validators.Number(error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the string is a number.
+
+PARAMETERS:
+error_message (str | None) – Optional; the error message to display when the input isn’t a number.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+
+class toga.validators.StartsWith(substring, error_message=None, allow_empty=True)
+Bases: BooleanValidator
+
+A validator confirming that the input starts with a given substring.
+
+PARAMETERS:
+substring (str) – The substring that the input must start with.
+error_message (str | None) – Optional; the error message to display when the string doesn’t start with the given substring.
+allow_empty (bool) – Optional; Is no input considered valid? Defaults to True
+is_valid(input_string)
+Is the input string valid?
+
+PARAMETERS:
+input_string (str) – The string to validate.
+
+RETURNS:
+True if the input is valid.
+
+RETURN TYPE:
+bool
+

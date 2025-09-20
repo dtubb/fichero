@@ -27,6 +27,7 @@ class WindowType(Enum):
     PROMPTS = "prompts"
     PROCESSING = "processing"
     PREVIEW = "preview"
+    ADD_DIALOG = "add_dialog"
 
 
 class WindowViewManager:
@@ -177,6 +178,11 @@ class WindowViewManager:
                 from fichero.windows.processing import ProcessingWindow
                 window = ProcessingWindow(self.app)
             
+            elif window_type == WindowType.ADD_DIALOG:
+                from fichero.windows.add import AddWindow
+                option_id = kwargs.get('option_id')
+                window = AddWindow(self.app, option_id=option_id)
+            
             elif window_type == WindowType.PREVIEW:
                 from fichero.windows.preview import PreviewWindow
                 window = PreviewWindow(self.app)
@@ -252,34 +258,16 @@ class WindowViewManager:
             return False
     
     def _create_mobile_view(self, window_type: WindowType, **kwargs):
-        """Create a mobile view for the specified type - no back callback needed as toolbar handles it"""
+        """Create a mobile view based on the window type"""
         try:
-            logger.info(f"Creating mobile view for type: {window_type.value}")
-            
-            if window_type == WindowType.SETTINGS:
-                logger.info("Importing SettingsMobileView")
-                try:
-                    from fichero.windows.settings.mobile_view import SettingsMobileView
-                    logger.info("SettingsMobileView imported successfully")
-                except Exception as e:
-                    logger.error(f"Failed to import SettingsMobileView: {e}")
-                    return None
-                
-                logger.info("Creating SettingsMobileView instance")
-                try:
-                    mobile_view = SettingsMobileView(self.app)
-                    logger.info("SettingsMobileView instance created successfully")
-                    return mobile_view
-                except Exception as e:
-                    logger.error(f"Failed to create SettingsMobileView instance: {e}")
-                    return None
-            
-            elif window_type == WindowType.ABOUT:
+            logger.info(f"Creating mobile view for window type: {window_type}")
+
+            if window_type == WindowType.ABOUT:
                 logger.info("Importing AboutMobileView")
                 try:
                     from fichero.windows.about.mobile_view import AboutMobileView
                     logger.info("AboutMobileView imported successfully")
-                except Exception as e:
+                except ImportError as e:
                     logger.error(f"Failed to import AboutMobileView: {e}")
                     return None
                 
@@ -291,31 +279,49 @@ class WindowViewManager:
                 except Exception as e:
                     logger.error(f"Failed to create AboutMobileView instance: {e}")
                     return None
-            
+
             elif window_type == WindowType.ACTIVITY_MONITOR:
-                logger.info("Importing ActivityMonitorMobileView")
+                logger.info("Importing ActivityMobileView")
                 try:
-                    from fichero.windows.activity_monitor.mobile_view import ActivityMonitorMobileView
-                    logger.info("ActivityMonitorMobileView imported successfully")
-                except Exception as e:
-                    logger.error(f"Failed to import ActivityMonitorMobileView: {e}")
+                    from fichero.windows.activity_monitor.mobile_view import ActivityMobileView
+                    logger.info("ActivityMobileView imported successfully")
+                except ImportError as e:
+                    logger.error(f"Failed to import ActivityMobileView: {e}")
                     return None
                 
-                logger.info("Creating ActivityMonitorMobileView instance")
+                logger.info("Creating ActivityMobileView instance")
                 try:
-                    mobile_view = ActivityMonitorMobileView(self.app)
-                    logger.info("ActivityMonitorMobileView instance created successfully")
+                    mobile_view = ActivityMobileView(self.app)
+                    logger.info("ActivityMobileView instance created successfully")
                     return mobile_view
                 except Exception as e:
-                    logger.error(f"Failed to create ActivityMonitorMobileView instance: {e}")
+                    logger.error(f"Failed to create ActivityMobileView instance: {e}")
                     return None
-            
+
+            elif window_type == WindowType.SETTINGS:
+                logger.info("Importing SettingsMobileView")
+                try:
+                    from fichero.windows.settings.mobile_view import SettingsMobileView
+                    logger.info("SettingsMobileView imported successfully")
+                except ImportError as e:
+                    logger.error(f"Failed to import SettingsMobileView: {e}")
+                    return None
+                
+                logger.info("Creating SettingsMobileView instance")
+                try:
+                    mobile_view = SettingsMobileView(self.app)
+                    logger.info("SettingsMobileView instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create SettingsMobileView instance: {e}")
+                    return None
+
             elif window_type == WindowType.PLANS:
                 logger.info("Importing PlansMobileView")
                 try:
                     from fichero.windows.plans.mobile_view import PlansMobileView
                     logger.info("PlansMobileView imported successfully")
-                except Exception as e:
+                except ImportError as e:
                     logger.error(f"Failed to import PlansMobileView: {e}")
                     return None
                 
@@ -327,13 +333,13 @@ class WindowViewManager:
                 except Exception as e:
                     logger.error(f"Failed to create PlansMobileView instance: {e}")
                     return None
-            
+
             elif window_type == WindowType.PROMPTS:
                 logger.info("Importing PromptsMobileView")
                 try:
                     from fichero.windows.prompts.mobile_view import PromptsMobileView
                     logger.info("PromptsMobileView imported successfully")
-                except Exception as e:
+                except ImportError as e:
                     logger.error(f"Failed to import PromptsMobileView: {e}")
                     return None
                 
@@ -345,7 +351,7 @@ class WindowViewManager:
                 except Exception as e:
                     logger.error(f"Failed to create PromptsMobileView instance: {e}")
                     return None
-            
+
             elif window_type == WindowType.PROCESSING:
                 logger.info("Importing ProcessingMobileView")
                 try:
@@ -364,31 +370,85 @@ class WindowViewManager:
                     logger.error(f"Failed to create ProcessingMobileView instance: {e}")
                     return None
             
-            elif window_type == WindowType.PREVIEW:
-                logger.info("Importing PreviewMobileView")
+            elif window_type == WindowType.ADD_DIALOG:
+                logger.info("Creating MobileAddView for mobile")
                 try:
-                    from fichero.windows.preview.mobile_view import PreviewMobileView
-                    logger.info("PreviewMobileView imported successfully")
-                except Exception as e:
-                    logger.error(f"Failed to import PreviewMobileView: {e}")
+                    from fichero.windows.add.mobile_add_view import MobileAddView
+                    logger.info("MobileAddView imported successfully")
+                except ImportError as e:
+                    logger.error(f"Failed to import MobileAddView: {e}")
                     return None
                 
-                logger.info("Creating PreviewMobileView instance")
+                logger.info("Creating MobileAddView instance")
                 try:
-                    mobile_view = PreviewMobileView(self.app)
-                    logger.info("PreviewMobileView instance created successfully")
+                    # For mobile, use MobileAddView
+                    option_id = kwargs.get('option_id')
+                    mobile_view = MobileAddView(
+                        self.app,
+                        on_content_added=self._handle_content_added,
+                        option_id=option_id
+                    )
+                    logger.info("MobileAddView instance created successfully")
                     return mobile_view
                 except Exception as e:
-                    logger.error(f"Failed to create PreviewMobileView instance: {e}")
+                    logger.error(f"Failed to create MobileAddView instance: {e}")
                     return None
             
             else:
-                logger.error(f"Unknown view type: {window_type.value}")
+                logger.warning(f"Unsupported mobile view type: {window_type}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Failed to create mobile view {window_type.value}: {e}")
+            logger.error(f"Failed to create mobile view: {e}")
             return None
+    
+    def _handle_mobile_add_option(self, option_id: str):
+        """Handle add option selection on mobile"""
+        try:
+            logger.info(f"Mobile add option selected: {option_id}")
+            
+            # Create the appropriate add view based on option
+            if option_id == 'url':
+                from fichero.windows.add.views.url_view import URLAddView
+                view = URLAddView(
+                    self.app, 
+                    on_back=self.mobile_view_manager.go_back,
+                    on_content_added=self._handle_content_added
+                )
+                self.mobile_view_manager.show_view(view)
+                
+            elif option_id == 'website':
+                from fichero.windows.add.views.website_view import WebsiteAddView
+                view = WebsiteAddView(
+                    self.app, 
+                    on_back=self.mobile_view_manager.go_back,
+                    on_content_added=self._handle_content_added
+                )
+                self.mobile_view_manager.show_view(view)
+                
+            elif option_id == 'camera':
+                from fichero.windows.add.views.camera_view import CameraAddView
+                view = CameraAddView(
+                    self.app, 
+                    on_back=self.mobile_view_manager.go_back,
+                    on_content_added=self._handle_content_added
+                )
+                self.mobile_view_manager.show_view(view)
+                
+            else:
+                logger.warning(f"Unsupported add option: {option_id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to handle mobile add option: {e}")
+    
+    def _handle_content_added(self, content_info=None):
+        """Handle when content is successfully added"""
+        try:
+            logger.info("Content added successfully, returning to main view")
+            # Return to the main view after adding content
+            self.mobile_view_manager.go_back()
+        except Exception as e:
+            logger.error(f"Failed to handle content added: {e}")
     
     def close_window_or_view(self, window_type: WindowType) -> bool:
         """Close a window or view"""
@@ -496,6 +556,8 @@ class MobileViewManager:
             self.current_view = view_instance
             self.current_view_type = view_type
             self.view_instances[view_type] = view_instance
+            
+            # Mobile navigation is now connected automatically when toolbars are set
             
             # Create view content
             if hasattr(view_instance, 'create'):

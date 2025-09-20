@@ -1,0 +1,21 @@
+Types
+namedtuple toga.LatLng(lat, lng)
+A geographic coordinate.
+
+FIELDS:
+ lat (float) – Latitude
+ lng (float) – Longitude
+namedtuple toga.Position(x, y)
+A 2D position.
+
+FIELDS:
+ x (int) – X coordinate, in CSS pixels.
+ y (int) – Y coordinate, in CSS pixels.
+namedtuple toga.Size(width, height)
+A 2D size.
+
+FIELDS:
+ width (int) – Width, in CSS pixels.
+ height (int) – Height, in CSS pixels.
+AI-powered ad network for devs. Get your message in front of the right developers with EthicalAds.
+Ads by EthicalAds

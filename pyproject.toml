@@ -57,7 +57,6 @@ requires = [
     "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
     "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
     # CLI dependencies for macOS
-    "toga-textual>=0.5.1,<0.6.0",  # CLI support for macOS
     "typer>=0.16.0,<1.0.0",
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",
@@ -87,7 +86,6 @@ requires = [
     "toga>=0.5.1,<0.6.0",
     "pygobject < 3.52.1",
     # CLI dependencies for Linux
-    "toga-textual>=0.5.1,<0.6.0",  # CLI support for Linux
     "typer>=0.16.0,<1.0.0",
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",
@@ -117,7 +115,6 @@ requires = [
     "toga-winforms>=0.5.1,<0.6.0",
     "toga>=0.5.1,<0.6.0",
     # CLI dependencies for Windows
-    "toga-textual>=0.5.1,<0.6.0",  # CLI support for Windows
     "typer>=0.16.0,<1.0.0",
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",

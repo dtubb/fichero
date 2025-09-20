@@ -6,7 +6,7 @@ Uses the standard base view pattern with consistent toolbars.
 """
 
 import logging
-from fichero.windows.main.views.base_view import BaseView
+from fichero.shared.views.base_view import BaseView
 from fichero.windows.activity_monitor.activity_content import ActivityMonitorContent
 
 logger = logging.getLogger(__name__)
@@ -37,13 +37,12 @@ class ActivityMonitorMobileView(BaseView):
         """Create top and bottom toolbars for activity monitor view"""
         try:
             from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
             
-            # Create simple top toolbar using the standardized class
+            # Create simple top toolbar using automatic navigation (no manual on_back)
             self.top_toolbar = SimpleTopToolbar(
                 app=self.app,
                 title="Activity Monitor",
-                on_back=self._on_back_pressed,
                 is_mobile=self.is_mobile
             )
             
@@ -55,12 +54,11 @@ class ActivityMonitorMobileView(BaseView):
             
             self.bottom_toolbar = ActivityBottomToolbar(self.app, is_mobile=self.is_mobile)
             
-            # Set toolbars on the view
+            # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
-            logger.info("Activity monitor mobile view toolbars created successfully")
-            
+            logger.info("Activity monitor mobile view toolbars created successfully")            
         except Exception as e:
             logger.error(f"Failed to create activity monitor toolbars: {e}")
     

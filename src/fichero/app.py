@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 import gettext
 import locale
+from typing import Optional
 
 # Install basic gettext for now - proper translation setup happens after Toga app creation
 gettext.install('fichero')
@@ -411,6 +412,18 @@ class FicheroApp(toga.App):
                 return False
         except Exception as e:
             logger.error(f"Failed to show about: {e}")
+            return False
+
+    def show_add_dialog(self, option_id: Optional[str] = None):
+        """Show the add dialog - delegates to unified manager"""
+        try:
+            if hasattr(self, 'window_view_manager'):
+                return self.window_view_manager.show_window_or_view(WindowType.ADD_DIALOG, option_id=option_id)
+            else:
+                logger.error("Window/view manager not initialized")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show add dialog: {e}")
             return False
 
     def close_about(self):

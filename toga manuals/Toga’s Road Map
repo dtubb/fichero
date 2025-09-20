@@ -1,0 +1,27 @@
+Toga’s Road Map
+​
+ Summarize
+​
+Toga is a new project - we have lots of things that we’d like to do. If you’d like to contribute, you can provide a patch for one of these features.
+
+Other capabilities
+
+One of the aims of Toga is to provide a rich, feature-driven approach to app development. This requires the development of APIs to support rich features.
+
+Preferences - Support for saving app preferences, and visualizing them in a platform native way.
+
+Notification - A mechanism to display popup “toast”-style notifications
+
+System tray icons - Presenting an icon and/or menu in the platform’s system tray - possibly without having a main app window at all.
+
+Licensing/registration - Monetization is not a bad thing, and shouldn’t be mutually exclusive with open source.
+
+Audio - The ability to play sound files, either once off, or on a loop.
+
+Cloud data access - Traditional apps store all their files locally; however, using cloud services or network resources is increasingly common, especially in mobile apps. However, accessing cloud-based files can be very complicated; Toga is in a position to provide a file-like API that abstracts accessing these APIs.
+
+QR code scanning - The ability to scan QR codes and bar codes in an app, and return the encoded data.
+
+Platforms
+
+Toga currently has good support for Cocoa on macOS, GTK on Linux, Winforms on Windows, iOS and Android. Proof-of-concept support exists for single page web apps and consoles. Support for a more modern Windows API would be desirable, as would support for Qt.

@@ -6,18 +6,18 @@ Includes navigation, toolbars, and common services.
 """
 
 # Navigation components
-from fichero.shared.navigation import NavigationColumn, NavigationState, NavigationLevel, NavigationItem, PreviewEditPane
+# from fichero.shared.navigation import NavigationColumn, NavigationState, NavigationLevel, NavigationItem, PreviewEditPane
 
 # Toolbar components  
 from fichero.shared.toolbars import SimpleTopToolbar
 
 __all__ = [
-    # Navigation
-    'NavigationColumn',
-    'NavigationState', 
-    'NavigationLevel',
-    'NavigationItem',
-    'PreviewEditPane',
+    # Navigation - commented out due to missing module
+    # 'NavigationColumn',
+    # 'NavigationState', 
+    # 'NavigationLevel',
+    # 'NavigationItem',
+    # 'PreviewEditPane',
     
     # Toolbars
     'SimpleTopToolbar'

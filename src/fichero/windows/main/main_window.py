@@ -14,8 +14,8 @@ from typing import Optional, Dict, Any
 from fichero.windows.main.commands.command_bridge import CommandBridge, CommandContext
 from fichero.windows.main.layout.pane_manager import PaneManager
 from fichero.windows.main.command_manager import CommandManagerRefactored
-from fichero.windows.main.views.collection_management_view import CollectionManagementView
-from fichero.windows.main.views.collection_view import CollectionView
+from fichero.windows.main.views.library.library_view import LibraryView
+from fichero.windows.main.views.collection.collection_view import CollectionView
 
 logger = logging.getLogger(__name__)
 
@@ -170,10 +170,10 @@ class MainWindowRefactored:
     def _setup_desktop_views(self):
         """Set up desktop three-pane layout"""
         try:
-            print("🔍 Creating CollectionManagementView...")
+            print("🔍 Creating LibraryView...")
             # Left pane: Collection management view
-            collection_mgmt_view = CollectionManagementView(self.app, self.is_mobile)
-            print("✅ CollectionManagementView created successfully")
+            collection_mgmt_view = LibraryView(self.app, self.is_mobile)
+            print("✅ LibraryView created successfully")
             collection_mgmt_view.register_collection_callback(self._on_collection_selected)
             self.pane_manager.switch_to_view("collection_management", collection_mgmt_view, "left")
             
@@ -217,7 +217,7 @@ class MainWindowRefactored:
             # For mobile, start with the collection management view
             # Cache and reuse the library view
             if not self.cached_library_view:
-                self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                self.cached_library_view = LibraryView(self.app, self.is_mobile)
                 self.cached_library_view.register_collection_callback(self._on_collection_selected)
                 logger.info("📚 Created and cached library view")
             else:
@@ -264,11 +264,33 @@ class MainWindowRefactored:
             if hasattr(self.app, 'window_view_manager'):
                 self.app.window_view_manager.set_mobile_view_manager(mobile_view_manager)
                 logger.info("Mobile view manager connected successfully")
+                
+                # Reconnect mobile navigation for existing views now that manager is available
+                self._reconnect_existing_mobile_navigation()
             else:
                 logger.warning("App doesn't have window_view_manager")
                 
         except Exception as e:
             logger.error(f"Failed to set up mobile view manager: {e}")
+    
+    def _reconnect_existing_mobile_navigation(self):
+        """Reconnect mobile navigation for existing views after mobile_view_manager is available"""
+        try:
+            logger.info("🔙 Reconnecting mobile navigation for existing views...")
+            
+            # Reconnect for cached library view
+            if self.cached_library_view and hasattr(self.cached_library_view, 'reconnect_mobile_navigation'):
+                self.cached_library_view.reconnect_mobile_navigation()
+            
+            # Reconnect for cached collection views
+            for collection_view in self.cached_collection_views.values():
+                if hasattr(collection_view, 'reconnect_mobile_navigation'):
+                    collection_view.reconnect_mobile_navigation()
+                    
+            logger.info("🔙 Mobile navigation reconnection completed")
+            
+        except Exception as e:
+            logger.error(f"🔙 Failed to reconnect mobile navigation: {e}")
     
     def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
         """Handle collection selection"""
@@ -405,7 +427,7 @@ class MainWindowRefactored:
             
             # For desktop, show the library view in the left pane
             if not self.cached_library_view:
-                self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                self.cached_library_view = LibraryView(self.app, self.is_mobile)
                 self.cached_library_view.register_collection_callback(self._on_collection_selected)
                 logger.info("📚 Created cached library view for desktop navigation")
             
@@ -431,7 +453,7 @@ class MainWindowRefactored:
                 # Fallback: use cached library view
                 logger.debug("No navigation stack, using cached library view")
                 if not self.cached_library_view:
-                    self.cached_library_view = CollectionManagementView(self.app, self.is_mobile)
+                    self.cached_library_view = LibraryView(self.app, self.is_mobile)
                     self.cached_library_view.register_collection_callback(self._on_collection_selected)
                     logger.info("📚 Created cached library view for fallback")
                 

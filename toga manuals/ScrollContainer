@@ -1,0 +1,98 @@
+ScrollContainer
+A container that can display a layout larger than the area of the container, with overflow controlled by scroll bars.
+
+macOSLinuxWindowsAndroidiOSWebTextual ✖︎
+../../../_images/scrollcontainer-cocoa.png
+Usage
+import toga
+
+content = toga.Box(children=[...])
+
+container = toga.ScrollContainer(content=content)
+
+Reference
+class toga.ScrollContainer(id=None, style=None, horizontal=True, vertical=True, on_scroll=None, content=None, **kwargs)
+Bases: Widget
+
+Create a new Scroll Container.
+
+PARAMETERS:
+id (str | None) – The ID for the widget.
+style (StyleT | None) – A style object. If no style is provided, a default style will be applied to the widget.
+horizontal (bool) – Should horizontal scrolling be permitted?
+vertical (bool) – Should horizontal scrolling be permitted?
+on_scroll (OnScrollHandler | None) – Initial on_scroll handler.
+content (Widget | None) – The content to display in the scroll window.
+kwargs – Initial style properties.
+property content: Widget | None
+The root content widget displayed inside the scroll container.
+
+property enabled: Literal[True]
+Is the widget currently enabled? i.e., can the user interact with the widget?
+
+ScrollContainer widgets cannot be disabled; this property will always return True; any attempt to modify it will be ignored.
+
+focus()
+No-op; ScrollContainer cannot accept input focus.
+
+RETURN TYPE:
+None
+
+property horizontal: bool
+Is horizontal scrolling enabled?
+
+property horizontal_position: int
+The current horizontal scroll position.
+
+If the value provided is negative, or greater than the maximum horizontal position, the value will be clipped to the valid range.
+
+RETURNS:
+The current horizontal scroll position.
+
+RAISES:
+ValueError – If an attempt is made to change the horizontal position when horizontal scrolling is disabled.
+
+property max_horizontal_position: int
+The maximum horizontal scroll position (read-only).
+
+property max_vertical_position: int
+The maximum vertical scroll position (read-only).
+
+property on_scroll: OnScrollHandler
+Handler to invoke when the user moves a scroll bar.
+
+property position: Position
+The current scroll position.
+
+If the value provided for either axis is negative, or greater than the maximum position in that axis, the value will be clipped to the valid range.
+
+If scrolling is disabled in either axis, the value provided for that axis will be ignored.
+
+property vertical: bool
+Is vertical scrolling enabled?
+
+property vertical_position: int
+The current vertical scroll position.
+
+If the value provided is negative, or greater than the maximum vertical position, the value will be clipped to the valid range.
+
+RETURNS:
+The current vertical scroll position.
+
+RAISES:
+ValueError – If an attempt is made to change the vertical position when vertical scrolling is disabled.
+
+protocol toga.widgets.scrollcontainer.OnScrollHandler
+typing.Protocol.
+
+Classes that implement this protocol must have the following methods / attributes:
+
+__call__(widget, **kwargs)
+A handler to invoke when the container is scrolled.
+
+PARAMETERS:
+widget (ScrollContainer) – The ScrollContainer that was scrolled.
+kwargs (Any) – Ensures compatibility with arguments added in future versions.
+RETURN TYPE:
+object
+

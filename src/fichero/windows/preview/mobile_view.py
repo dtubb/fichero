@@ -13,9 +13,9 @@ from toga.constants import COLUMN, ROW
 from pathlib import Path
 
 from fichero.windows.preview.preview_content import PreviewContent
-from fichero.windows.main.views.base_view import BaseView
-from fichero.windows.main.toolbars.top_toolbar import TopToolbar
-from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+from fichero.shared.views.base_view import BaseView
+from fichero.shared.toolbars.top_toolbar import TopToolbar
+from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -43,39 +43,13 @@ class PreviewMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for preview view"""
         try:
-            # Top toolbar with back button and collection/folder name
-            class PreviewTopToolbar(TopToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    if self.is_mobile:
-                        # Mobile: back button + collection/folder name label  
-                        self.back_button = self.add_button_left(
-                            icon="chevron.left@10x",
-                            on_press=self._on_back_pressed,
-                            tooltip="Back to Collection"
-                        )
-                        self.title_label = self.add_title_left(
-                            "Collection",  # Default, will be updated when back source is known
-                            margin_left=10,
-                            on_click=self._on_title_pressed
-                        )
-                    else:
-                        self.back_button = None
-                        self.title_label = None
-                        
-                def _on_back_pressed(self, widget):
-                    if hasattr(self, 'on_back') and self.on_back:
-                        self.on_back()
-                        
-                def _on_title_pressed(self, widget):
-                    if hasattr(self, 'on_back') and self.on_back:
-                        self.on_back()
-                        
-                def update_back_label(self, back_label: str):
-                    """Update the back label to show where we came from"""
-                    if self.is_mobile and hasattr(self, 'title_label') and self.title_label:
-                        self.title_label.text = back_label
-                        logger.debug(f"Preview back label updated to: {back_label}")
+            # Top toolbar with automatic mobile navigation
+            self.top_toolbar = TopToolbar(
+                self.app, 
+                title="Collection",  # Default back title
+                auto_mobile_nav=True,
+                is_mobile=self.is_mobile
+            )
             
             # Bottom toolbar with edit actions
             class PreviewBottomToolbar(BottomToolbar):
@@ -92,18 +66,21 @@ class PreviewMobileView(BaseView):
                     logger.info("Preview edit requested")
                     # Edit functionality could be added here
             
-            # Create toolbar instances
-            self.top_toolbar = PreviewTopToolbar(self.app, is_mobile=self.is_mobile)
             self.bottom_toolbar = PreviewBottomToolbar(self.app, is_mobile=self.is_mobile)
             
-            # Set toolbars on the view
+            # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
-            logger.info("Preview toolbars created successfully")
-            
+            logger.info("Preview toolbars created successfully")            
         except Exception as e:
             logger.error(f"Failed to create preview toolbars: {e}")
+    
+    def update_back_label(self, back_label: str):
+        """Update the back label to show where we came from"""
+        if self.top_toolbar:
+            self.top_toolbar.update_title(back_label)
+            logger.debug(f"Preview back label updated to: {back_label}")
     
     def _create_content(self):
         """Create the content area"""

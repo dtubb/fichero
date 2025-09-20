@@ -12,9 +12,9 @@ import logging
 from pathlib import Path
 from typing import Optional, Callable, Dict, Any
 
-from fichero.windows.main.views.base_view import BaseView
-from fichero.windows.main.toolbars.preview_top_toolbar import PreviewTopToolbar
-from fichero.windows.main.toolbars.preview_bottom_toolbar import PreviewBottomToolbar
+from fichero.shared.views.base_view import BaseView
+from fichero.windows.preview.preview_pane_top_toolbar import PreviewPaneTopToolbar
+from fichero.windows.preview.preview_pane_bottom_toolbar import PreviewPaneBottomToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class PreviewPane(BaseView):
         self.placeholder_label: Optional[toga.Label] = None
         
         # Create toolbars
-        self.top_toolbar = PreviewTopToolbar(app, is_mobile)
-        self.bottom_toolbar = PreviewBottomToolbar(app, is_mobile)
+        self.top_toolbar = PreviewPaneTopToolbar(app, is_mobile)
+        self.bottom_toolbar = PreviewPaneBottomToolbar(app, is_mobile)
         
         # Set both toolbars using BaseView system
         self.set_toolbars(self.top_toolbar, self.bottom_toolbar)

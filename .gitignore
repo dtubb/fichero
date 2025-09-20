@@ -40,3 +40,5 @@ io_worker.log
 
 /old documents
 /.venv
+/.pytest_cache
+/.cursor

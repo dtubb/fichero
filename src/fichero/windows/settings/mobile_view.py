@@ -10,9 +10,9 @@ from toga.style import Pack
 from toga.constants import COLUMN
 
 from fichero.windows.settings.settings_content import SettingsContent
-from fichero.windows.main.views.base_view import BaseView
-from fichero.windows.main.toolbars.top_toolbar import TopToolbar
-from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+from fichero.shared.views.base_view import BaseView
+from fichero.shared.toolbars.top_toolbar import TopToolbar
+from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +57,12 @@ class SettingsMobileView(BaseView):
         """Create top and bottom toolbars for settings view"""
         try:
             from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.windows.main.toolbars.bottom_toolbar import BottomToolbar
+            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
             
-            # Create simple top toolbar using the standardized class
+            # Create simple top toolbar using automatic navigation (no manual on_back)
             self.top_toolbar = SimpleTopToolbar(
                 app=self.app,
                 title="Settings",
-                on_back=self._on_back_pressed,
                 is_mobile=self.is_mobile
             )
             
@@ -75,12 +74,11 @@ class SettingsMobileView(BaseView):
             
             self.bottom_toolbar = SettingsBottomToolbar(self.app, is_mobile=self.is_mobile)
             
-            # Set toolbars on the view
+            # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
             
-            logger.info("Settings toolbars created successfully")
-            
+            logger.info("Settings toolbars created successfully")            
         except Exception as e:
             logger.error(f"Failed to create settings toolbars: {e}")
     

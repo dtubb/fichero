@@ -1,20 +1,19 @@
 """
-Views Module for Fichero Main Window
+Main Window Views Package
 
-Provides view management and platform-specific view implementations.
+Contains all view components and their associated toolbars.
+Each view type has its own package for better organization.
 """
 
-from fichero.windows.main.views.base_view import BaseView
-from fichero.windows.main.views.mobile_view import MobileView
-from fichero.windows.main.views.collection_view import CollectionView
-from fichero.windows.main.views.collection_management_view import CollectionManagementView
-from fichero.windows.main.views.view_manager import ViewManager, ViewType
+from fichero.shared.views.base_view import BaseView
+from fichero.shared.views.view_manager import ViewManager, ViewType
+from fichero.windows.main.views.library.library_view import LibraryView
+from fichero.windows.main.views.collection.collection_view import CollectionView
 
 __all__ = [
     'BaseView',
-    'MobileView',
-    'CollectionView',
-    'CollectionManagementView',
     'ViewManager',
-    'ViewType'
-] 
+    'ViewType',
+    'LibraryView',
+    'CollectionView'
+]

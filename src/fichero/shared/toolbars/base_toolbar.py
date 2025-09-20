@@ -11,7 +11,7 @@ from toga.constants import ROW, COLUMN
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Dict
-from fichero.windows.main.styling.color_constants import (
+from fichero.shared.toolbars.color_constants import (
     TOOLBAR_BORDER, VIEW_BACKGROUND, ICON_PRIMARY, ICON_SECONDARY
 )
 
@@ -35,7 +35,7 @@ class BaseToolbar(ABC):
         
         # Platform-appropriate styling constants - use Toga defaults
         if self.is_mobile:
-            self.TITLE_COLOR = "#007AFF"  # iOS system blue for mobile
+            self.TITLE_COLOR = None  # Use default system color, not blue
             self.TITLE_FONT_WEIGHT = "bold"
         else:
             self.TITLE_COLOR = None  # Use default system color for desktop
@@ -55,20 +55,22 @@ class BaseToolbar(ABC):
         # Note: _create_toolbar() is abstract and should be called by derived classes
     
     def _create_base_container(self):
-        """Create the base toolbar container with smart platform-specific sizing"""
+        """Create the base toolbar container with iOS HIG-compliant sizing"""
         try:
-            # Platform-specific sizing - no bottom margin here (handled by subclasses)
+            # iOS HIG specifications for toolbars:
+            # Top toolbar: 56pt (mobile) / 40pt (desktop)
+            # Bottom toolbar: 49pt base (will be adjusted by BottomToolbar)
             if self.is_mobile:
-                toolbar_height = 56  # Taller for mobile touch targets
+                toolbar_height = 56  # iOS HIG for navigation bars
             else:
-                toolbar_height = 40  # Taller than before (was 32)
+                toolbar_height = 40  # Desktop adaptation
             
-            # Create toolbar container with system grey background
+            # Create toolbar container with transparent background
             self.container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    margin=(0, 0),  # No margins in base - handled by subclasses
-                    background_color="#E5E5EA" if self.is_mobile else "#F2F2F7"  # iOS/macOS system greys
+                    margin=(0, 0)  # No margins in base - handled by subclasses
+                    # No background_color = transparent
                 )
             )
             
@@ -264,33 +266,55 @@ class BaseToolbar(ABC):
             # Mobile: larger buttons for touch (44px minimum for iOS)
             button_style = Pack(
                 margin=(4, 4),   # Reduced from (8, 8) to prevent excessive spacing
-                width=44, height=44  # 44px minimum for touch
+                width=44, height=44,  # 44px minimum for touch
+                color=ICON_PRIMARY
             )
         else:
             # Desktop: smaller buttons to fit all 5 buttons
             button_style = Pack(
                 margin=(4, 4),   # Smaller square margin
-                width=22, height=22  # 22px for desktop
+                width=22, height=22,  # 22px for desktop
+                color=ICON_PRIMARY
             )
         
+        # Try to load icon - no fallback text, icons should work
         button = toga.Button(
-            text="",
+            text="",  # Empty text - icons only
             on_press=on_press or self._default_button_handler,
             enabled=enabled,
             style=button_style
         )
         
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add icon
+        # Load icon using proper Toga path - fallback to text if icon fails
         try:
-            button.icon = toga.Icon(f"resources/icons/toolbar/{icon}.png")
-        except Exception:
-            pass
+            icon_path = self.app.paths.app / f"resources/icons/toolbar/{icon}.png"
+            logger.info(f"🔧 Attempting to load icon: {icon} from {icon_path}")
+            
+            # Create button with ONLY icon (Toga doesn't support both text and icon)
+            button = toga.Button(
+                icon=toga.Icon(icon_path),  # Use icon directly, no text
+                on_press=on_press or self._default_button_handler,
+                enabled=enabled,
+                style=button_style
+            )
+            logger.info(f"✅ Icon loaded successfully: {icon}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load icon {icon}: {e}, using text fallback")
+            # Fallback to text button if icon fails
+            button = toga.Button(
+                text=icon[:1].upper(),  # Use first letter of icon name
+                on_press=on_press or self._default_button_handler,
+                enabled=enabled,
+                style=button_style
+            )
         
+        # Store button and log creation
         self.buttons[button_id] = button
+        
+        # Log button creation for debugging
+        logger.info(f"🔧 Created button {button_id}: enabled={enabled}, style={button_style}")
+        
         return button
     
     def create_display_button(self, 
@@ -337,9 +361,11 @@ class BaseToolbar(ABC):
         """Add a widget to the left side of the toolbar (navigation/context tools)"""
         if hasattr(self, 'left_content'):
             self.left_content.add(widget)
+            logger.info(f"🔧 Added widget to left content: {widget} (total left widgets: {len(self.left_content.children)})")
         else:
             # Fallback to main content if left_content not available
             self.content.add(widget)
+            logger.info(f"🔧 Added widget to main content: {widget}")
     
     def add_to_right(self, widget):
         """Add a widget to the right side of the toolbar (action tools)"""
@@ -536,6 +562,7 @@ class BaseToolbar(ABC):
     
     def add_button_left(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
         """Add an icon button to the left side with consistent styling"""
+        logger.info(f"🔧 add_button_left called with icon: {icon}")
         button = self.create_icon_button(
             button_id=f"left_{icon}",
             icon=icon,
@@ -543,6 +570,7 @@ class BaseToolbar(ABC):
             tooltip=tooltip
         )
         self.add_to_left(button)
+        logger.info(f"🔧 add_button_left completed for icon: {icon}")
         return button
     
     def add_button_right(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
@@ -605,22 +633,19 @@ class BaseToolbar(ABC):
         
         # Calculate proper top margin to center title with buttons
         if self.is_mobile:
-            # Mobile: button is 44px + 4px margin = 48px total, center title with button
-            title_top_margin = 12  # Centers text with 44px buttons
+            title_top_margin = 14  # Better centering with 44px buttons (matches center method)
         else:
-            # Desktop: button is 22px + 4px margin = 26px total, center title with button  
-            title_top_margin = 6   # Centers text with 22px buttons
+            title_top_margin = 8   # Better centering with 22px buttons (matches center method)
         
         if clickable:
-            # Create clickable title as button (mobile only) - use blue color
+            # Create clickable title as button (mobile only) - use system color
             style_props = {
                 'margin_left': margin_left,
                 'margin_top': title_top_margin,
                 'font_weight': self.TITLE_FONT_WEIGHT,
                 'background_color': "transparent"
             }
-            if self.TITLE_COLOR:  # Blue color for clickable buttons
-                style_props['color'] = self.TITLE_COLOR
+            # Don't force blue color - use system default for clickable buttons too
             
             title = toga.Button(
                 text=text,
@@ -650,9 +675,9 @@ class BaseToolbar(ABC):
         
         # Calculate proper top margin to center title with buttons
         if self.is_mobile:
-            title_top_margin = 12  # Centers text with 44px buttons
+            title_top_margin = 14  # Better centering with 44px buttons
         else:
-            title_top_margin = 6   # Centers text with 22px buttons
+            title_top_margin = 8   # Better centering with 22px buttons
         
         if clickable:
             # Create clickable title as button (mobile only) - use blue color
