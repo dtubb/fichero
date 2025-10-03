@@ -1245,18 +1245,22 @@ class LibraryView(BaseView):
             logger.error(f"Failed to update toolbars for edit mode: {e}")
 
     def _on_edit_mode_changed(self, state, context: Dict[str, Any]):
-        """Handle edit mode changes from coordinator - enables add buttons"""
+        """Handle edit mode changes from coordinator - enables add buttons and sort"""
         try:
             from fichero.shared.toolbars.toolbar_coordinator import EditModeState
 
             # Swipe actions stay fixed - no need to update them
-            # This callback is only for managing the add buttons in edit mode
+            # This callback is for managing the add buttons and sort button in edit mode
 
             if state == EditModeState.EDIT and context.get("edit_type") != "add_items":
+                # Add sort button to top toolbar when entering edit mode
+                self._add_sort_button()
+
                 # Only create add context if we don't already have it (prevents infinite loop)
                 self._create_add_context_once()
             elif state == EditModeState.NORMAL:
-                # Exiting edit mode - clear add context
+                # Exiting edit mode - remove sort button and clear add context
+                self._remove_sort_button()
                 self._clear_add_context()
 
             logger.debug(f"LibraryView edit mode changed to {state.value}")
@@ -1328,14 +1332,9 @@ class LibraryView(BaseView):
         except Exception as e:
             logger.error(f"Failed to clear add context: {e}")
 
-    # Add dialog functionality available through edit mode buttons
-
-    def _add_library_toolbar_buttons(self):
-        """Add library-specific buttons using smart toolbar system"""
+    def _add_sort_button(self):
+        """Add sort button to top toolbar in edit mode"""
         try:
-            # Library root view should NOT show titles on any platform to match mobile behavior
-            # Remove contextual title to fix desktop title display issue
-
             # Add sort toggle button (chevron up for A-Z, down for Z-A)
             sort_icon = "resources/icons/toolbar/chevron.up@10x.png" if self.sort_ascending else "resources/icons/toolbar/chevron.down@10x.png"
             self.top_toolbar.add_regular_button(
@@ -1346,6 +1345,34 @@ class LibraryView(BaseView):
                 on_press=self._on_toggle_sort,
                 style_class="right_aligned"
             )
+            logger.info("Sort button added to toolbar")
+
+        except Exception as e:
+            logger.error(f"Failed to add sort button: {e}")
+
+    def _remove_sort_button(self):
+        """Remove sort button from top toolbar when exiting edit mode"""
+        try:
+            # Remove sort button if it exists
+            if hasattr(self.top_toolbar, '_buttons') and 'sort' in self.top_toolbar._buttons:
+                sort_button = self.top_toolbar._buttons['sort']
+                # Remove from toolbar container
+                if hasattr(self.top_toolbar, 'button_container') and sort_button in self.top_toolbar.button_container.children:
+                    self.top_toolbar.button_container.remove(sort_button)
+                # Remove from buttons dict
+                del self.top_toolbar._buttons['sort']
+                logger.info("Sort button removed from toolbar")
+
+        except Exception as e:
+            logger.error(f"Failed to remove sort button: {e}")
+
+    # Add dialog functionality available through edit mode buttons
+
+    def _add_library_toolbar_buttons(self):
+        """Add library-specific buttons using smart toolbar system"""
+        try:
+            # Library root view should NOT show titles on any platform to match mobile behavior
+            # Remove contextual title to fix desktop title display issue
 
             # Add Edit button for edit mode functionality using proper BaseToolbar method
             self.top_toolbar.add_regular_button(
