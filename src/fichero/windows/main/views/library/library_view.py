@@ -12,8 +12,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 
 from fichero.shared.views.base_view import BaseView
-from fichero.windows.main.views.library.library_top_toolbar import LibraryTopToolbar
-from fichero.windows.main.views.library.library_bottom_toolbar import LibraryBottomToolbar
+from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 from fichero.shared.toolbars.color_constants import (
     COLLECTION_ACTIVE, COLLECTION_INACTIVE, VIEW_BACKGROUND
@@ -27,35 +26,87 @@ class LibraryView(BaseView):
     
     def __init__(self, app, is_mobile: bool = False):
         """Initialize library view"""
+        print(f"🔧 LibraryView.__init__ starting with app={app}, is_mobile={is_mobile}")
         logger.debug(f"LibraryView.__init__ called with app={app}, is_mobile={is_mobile}")
-        
+
         # Initialize collections attribute with empty list
+        print("🔧 Setting initial attributes...")
         self.is_edit_mode = False
         self.collections: List[Dict[str, Any]] = []
         self.selected_collection: Optional[Dict[str, Any]] = None
-        
+
+        print("🔧 Calling super().__init__...")
         super().__init__(app, is_mobile)
-        
+        print("✅ BaseView initialization complete")
+
         # Create toolbars
-        self.top_toolbar = LibraryTopToolbar(app, is_mobile)
-        self.bottom_toolbar = LibraryBottomToolbar(app, is_mobile)
+        print("🔧 Creating toolbars...")
+
+        # Create toolbar coordinator
+        self.coordinator = ToolbarCoordinator(app, is_mobile=is_mobile)
+
+        # Set up edit mode callback
+        self.coordinator.on_edit_mode_change = self._on_edit_mode_changed
+
+        # No collection management callbacks needed with swipe-only approach
+
+        # Register coordinator with NavigationController
+        try:
+            if hasattr(app, 'view_integration') and hasattr(app.view_integration, 'navigation_controller'):
+                app.view_integration.navigation_controller.register_toolbar_coordinator(self.coordinator)
+                logger.debug("Registered toolbar coordinator with navigation controller")
+        except Exception as e:
+            logger.warning(f"Could not register toolbar coordinator with navigation controller: {e}")
+
+        # Library is root view - use TopToolbar without back navigation + add buttons via composition
+        self.top_toolbar = TopToolbar(
+            app=app,
+            title="",  # Let NavigationController provide dynamic title
+            auto_mobile_nav=False,
+            is_mobile=is_mobile,
+            coordinator=self.coordinator
+        )
+        self._add_library_toolbar_buttons()
+
+        self.bottom_toolbar = BottomToolbar(
+            app=app,
+            is_mobile=is_mobile,
+            coordinator=self.coordinator
+        )
+        self._add_library_bottom_toolbar_buttons()
+        print("🔧 Setting toolbars...")
         self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-        
+        print("✅ Toolbars created and set")
+
         # Register callbacks
+        print("🔧 Registering toolbar callbacks...")
         self._register_toolbar_callbacks()
-        
+
         # Initialize callback for collection selection
+        print("🔧 Setting collection callback...")
         self.on_collection_selected = None
-        
+
         # Initialize library manager
+        print("🔧 Initializing library system...")
         self._initialize_library_system()
-        
+
         # Create initial content (will be refreshed when collections load)
+        print("🔧 Creating initial content...")
         self._create_content()
-        
-        # Schedule collection loading for after initialization
-        asyncio.create_task(self._load_collections_async())
-        
+
+        # Schedule collection loading for after initialization (safe for sync context)
+        print("🔧 Starting collection loading...")
+        try:
+            asyncio.create_task(self._load_collections_async())
+            print("✅ Async task created")
+        except RuntimeError:
+            # No event loop running, use thread-safe approach
+            print("🔧 Using thread for collection loading...")
+            import threading
+            threading.Thread(target=self._load_collections_sync, daemon=True).start()
+            print("✅ Thread started")
+
+        print("✅ LibraryView initialization complete")
         logger.info("Library view created successfully")
     
     def show(self):
@@ -104,52 +155,150 @@ class LibraryView(BaseView):
             logger.error(f"Failed to create collections display: {e}")
     
     def _create_collections_detailed_list(self):
-        """Create a detailed list view for collections with swipe actions"""
+        """Create or update detailed list view for collections with selection preservation"""
         try:
-            # Always clear any existing DetailedList to reset selection state
-            if hasattr(self, 'collections_list') and self.collections_list:
+            # Store current selection to restore later
+            current_selection_id = None
+            if (hasattr(self, 'collections_list') and
+                self.collections_list and
+                self.collections_list.selection):
                 try:
-                    # Remove from container if it exists
-                    if self.content_container and self.collections_list in self.content_container.children:
-                        self.content_container.remove(self.collections_list)
-                    logger.info("🔄 Cleared existing collections DetailedList to reset selection")
-                except Exception as e:
-                    logger.debug(f"Note: Could not remove existing collections DetailedList: {e}")
-            
-            # Format collections for Toga DetailedList
+                    current_selection_id = self.collections_list.selection.collection_data.get('id')
+                    logger.debug(f"Preserving current selection: {current_selection_id}")
+                except:
+                    pass
+
+            # Format collections for Toga DetailedList (simple, no visual selection indicators)
             collection_data = []
             for collection in self.collections:
+                collection_id = collection.get('id', '')
+                collection_name = collection.get('name', 'Unknown Collection')
+
                 formatted_item = {
-                    'id': collection.get('id', ''),
-                    'title': collection.get('name', 'Unknown Collection'),
+                    'id': collection_id,
+                    'title': collection_name,
                     'subtitle': f"{collection.get('item_count', 0)} items • {collection.get('source_type', 'local')}",
                     'icon': "folder",
                     'collection_data': collection  # Store full data for callbacks
                 }
                 collection_data.append(formatted_item)
-            
-            # Create detailed list with full width (no margins)
+
+            # Always recreate the detailed list - this is the most reliable approach
+            # (Skip the problematic in-place update that causes ListSource issues)
+            if hasattr(self, 'collections_list') and self.collections_list:
+                logger.debug("Recreating DetailedList to avoid ListSource update issues")
+                self._recreate_detailed_list(collection_data)
+            else:
+                # Create new detailed list
+                self._recreate_detailed_list(collection_data)
+
+        except Exception as e:
+            logger.error(f"Failed to create/update collections detailed list: {e}")
+
+    def _recreate_detailed_list(self, collection_data):
+        """Recreate the DetailedList widget (fallback when update fails)"""
+        try:
+            # Remove existing list if present
+            if hasattr(self, 'collections_list') and self.collections_list:
+                try:
+                    if self.content_container and self.collections_list in self.content_container.children:
+                        self.content_container.remove(self.collections_list)
+                except:
+                    pass
+
+            # Create new detailed list with context-aware swipe actions
+            primary_action, secondary_action = self._get_swipe_actions()
+
             self.collections_list = toga.DetailedList(
                 data=collection_data,
-                on_select=self._on_collection_selected,
-                primary_action="Open",
-                on_primary_action=self._on_open_collection,
-                secondary_action="Info",
-                on_secondary_action=self._on_collection_info,
+                on_select=self._on_collection_selected,  # Re-enable tap to navigate
+                primary_action=primary_action["title"],
+                on_primary_action=primary_action["handler"],
+                secondary_action=secondary_action["title"],
+                on_secondary_action=secondary_action["handler"],
                 style=Pack(
                     flex=1,
                     margin=0  # Full width - no margins
                 )
             )
-            
+
             if self.content_container:
                 self.content_container.add(self.collections_list)
-                
-            logger.debug(f"Created DetailedList with {len(collection_data)} collections")
-            
+
+            logger.debug(f"Recreated DetailedList with {len(collection_data)} collections")
+
         except Exception as e:
-            logger.error(f"Failed to create collections detailed list: {e}")
-    
+            logger.error(f"Failed to recreate detailed list: {e}")
+
+    def _get_swipe_actions(self):
+        """Get fixed swipe actions for the library interface"""
+        try:
+            # Fixed actions - simple and consistent
+            primary_action = {
+                "title": "Delete",  # Left swipe - destructive (iOS HIG)
+                "handler": self._on_swipe_delete_collection
+            }
+            secondary_action = {
+                "title": "Rename",  # Right swipe - edit action
+                "handler": self._on_swipe_rename_collection
+            }
+
+            return primary_action, secondary_action
+
+        except Exception as e:
+            logger.error(f"Failed to get swipe actions: {e}")
+            # Fallback
+            return (
+                {"title": "Delete", "handler": self._on_swipe_delete_collection},
+                {"title": "Rename", "handler": self._on_swipe_rename_collection}
+            )
+
+    def _on_swipe_delete_collection(self, widget, row):
+        """Handle delete collection swipe action"""
+        try:
+            if hasattr(row, 'collection_data'):
+                collection = row.collection_data
+                collection_id = collection.get('id', '')
+                collection_name = collection.get('name', 'Unknown Collection')
+
+                logger.info(f"Swipe delete for collection: {collection_name}")
+                # Delete immediately without confirmation
+                import asyncio
+                asyncio.create_task(self._perform_delete_collection(collection_id, collection_name))
+            else:
+                logger.warning("No collection data found in swipe delete")
+        except Exception as e:
+            logger.error(f"Failed to handle swipe delete: {e}")
+
+    def _on_swipe_rename_collection(self, widget, row):
+        """Handle rename collection swipe action"""
+        try:
+            if hasattr(row, 'collection_data'):
+                collection = row.collection_data
+                collection_id = collection.get('id', '')
+                collection_name = collection.get('name', 'Unknown Collection')
+
+                logger.info(f"Swipe rename for collection: {collection_name}")
+
+                # Use NavigationController to navigate to rename view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        success = nav_controller.navigate_to_rename_collection(collection_id, collection_name)
+                        if success:
+                            logger.info(f"Successfully navigated to rename view for: {collection_name}")
+                        else:
+                            logger.error(f"Failed to navigate to rename view for: {collection_name}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            else:
+                logger.warning("No collection data found in swipe rename")
+        except Exception as e:
+            logger.error(f"Failed to handle swipe rename: {e}")
+
+
     def _get_collection_icon(self, collection: Dict[str, Any]) -> Optional[str]:
         """Get appropriate icon for collection type"""
         collection_type = collection.get('type', 'local')
@@ -162,32 +311,6 @@ class LibraryView(BaseView):
         else:
             return '��'
     
-    def _on_open_collection(self, widget, row):
-        """Handle opening a collection (primary action)"""
-        try:
-            if row and hasattr(row, 'collection_data'):
-                collection = row.collection_data
-                collection_id = collection.get('id', '')
-                collection_name = collection.get('name', '')
-                logger.info(f"Opening collection: {collection_name}")
-                
-                if self.on_collection_selected:
-                    self.on_collection_selected(collection_id, collection_name)
-            
-        except Exception as e:
-            logger.error(f"Failed to open collection: {e}")
-    
-    def _on_collection_info(self, widget, row):
-        """Handle collection info (secondary action)"""
-        try:
-            if row and hasattr(row, 'collection_data'):
-                collection = row.collection_data
-                collection_name = collection.get('name', 'Unknown')
-                logger.info(f"Showing info for collection: {collection_name}")
-                # TODO: Implement collection info dialog
-            
-        except Exception as e:
-            logger.error(f"Failed to show collection info: {e}")
     
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
@@ -196,19 +319,32 @@ class LibraryView(BaseView):
                 collection = widget.selection.collection_data
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', '')
-                
+
                 logger.info(f"Collection selected: {collection_name}")
-                
-                # Store selected collection
+
+                # Always navigate - use fixed swipe actions for editing
                 self.selected_collection = collection
-                
+
                 # Navigate to collection if callback is registered
                 if self.on_collection_selected:
                     self.on_collection_selected(collection_id, collection_name)
-                    
+
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
-    
+
+
+    def _refresh_collections_display(self):
+        """Refresh the collections display (simple refresh)"""
+        try:
+            logger.debug("🔄 Refreshing collections display")
+
+            # Simply recreate the collections list
+            self._create_collections_detailed_list()
+
+            logger.debug("✓ Collections display refreshed successfully")
+        except Exception as e:
+            logger.error(f"Failed to refresh collections display: {e}")
+
     def _on_collection_selected_fallback(self, widget):
         """Fallback handler for collection selection (when called without item)"""
         try:
@@ -321,18 +457,17 @@ class LibraryView(BaseView):
     def _register_toolbar_callbacks(self):
         """Register callbacks for toolbar actions"""
         try:
-            # Top toolbar callbacks - register edit callback using the proper method
-            self.top_toolbar.register_edit_callback(self.toggle_edit_mode)
-            
+            # Edit mode is now handled automatically by smart toolbar system
+            # Edit button will trigger coordinator.set_edit_mode() automatically
+
             # Bottom toolbar callbacks
-            self.bottom_toolbar.on_add_clicked = self._on_add_dialog_requested
             self.bottom_toolbar.on_activity_monitor = self._on_activity_monitor
             self.bottom_toolbar.on_library_settings = self._on_library_settings
             self.bottom_toolbar.on_global_inbox = self._on_global_inbox
             self.bottom_toolbar.on_tags = self._on_tags
-            
+
             logger.debug("Library view toolbar callbacks registered")
-            
+
         except Exception as e:
             logger.error(f"Failed to register toolbar callbacks: {e}")
     
@@ -764,44 +899,67 @@ class LibraryView(BaseView):
     def _confirm_delete_collection(self, collection_id: str, collection_name: str):
         """Show confirmation dialog for collection deletion"""
         try:
-            # Create confirmation dialog
-            dialog = toga.AlertDialog(
-                title="Delete Collection",
-                message=f"Are you sure you want to delete '{collection_name}'?\n\nThis action cannot be undone.",
-                buttons=["Cancel", "Delete"]
-            )
-            
-            # Show dialog and handle response
-            dialog.show()
-            
-            # Note: Toga's AlertDialog doesn't have a callback, so we'll need to handle this differently
-            # For now, we'll use a simple approach
-            self._perform_delete_collection(collection_id, collection_name)
-            
+            # Create async task for dialog handling
+            import asyncio
+            task = asyncio.create_task(self._handle_delete_confirmation(collection_id, collection_name))
+            logger.debug(f"Created delete confirmation task for collection: {collection_name}")
         except Exception as e:
-            logger.error(f"Failed to show delete confirmation: {e}")
-            # Fallback: delete directly
-            self._perform_delete_collection(collection_id, collection_name)
-    
-    def _perform_delete_collection(self, collection_id: str, collection_name: str):
-        """Actually delete the collection from the library and UI"""
+            logger.error(f"Failed to create delete confirmation dialog: {e}")
+
+    async def _handle_delete_confirmation(self, collection_id: str, collection_name: str):
+        """Handle delete confirmation dialog asynchronously"""
         try:
-            # Delete from library system
-            if self.library_service:
-                success = self.library_manager.storage.delete_collection(collection_id)
+            # Create QuestionDialog for confirmation
+            dialog = toga.QuestionDialog(
+                title="Delete Collection",
+                message=f"Are you sure you want to delete '{collection_name}'?\n\nThis action cannot be undone."
+            )
+
+            # Show dialog and wait for user response
+            if await self.app.main_window.dialog(dialog):
+                # User confirmed deletion
+                logger.info(f"User confirmed deletion of collection: {collection_name}")
+                await self._perform_delete_collection(collection_id, collection_name)
+            else:
+                # User cancelled deletion
+                logger.info(f"User cancelled deletion of collection: {collection_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle delete confirmation: {e}")
+
+    async def _perform_delete_collection(self, collection_id: str, collection_name: str):
+        """Actually delete the collection from the library"""
+        try:
+            # Delete collection through library manager
+            if hasattr(self.app, 'library_manager') and self.app.library_manager:
+                success = await self.app.library_manager.delete_collection(collection_id)
+
                 if success:
-                    logger.info(f"Collection '{collection_name}' deleted from library")
+                    logger.info(f"Successfully deleted collection: {collection_name}")
+                    # Refresh the collections display
+                    self.refresh_collections()
                 else:
-                    logger.error(f"Failed to delete collection '{collection_name}' from library")
-                    return
-            
-            # Remove from local collections list
-            self.collections = [c for c in self.collections if c.get('id') != collection_id]
-            
-            # Refresh the display
-            self._refresh_collections_display()
-            
-            # Show success message
+                    logger.error(f"Failed to delete collection: {collection_name}")
+                    error_dialog = toga.ErrorDialog(
+                        title="Delete Failed",
+                        message=f"Failed to delete collection '{collection_name}'. Please try again."
+                    )
+                    await self.app.main_window.dialog(error_dialog)
+            else:
+                logger.error("Library manager not available for collection deletion")
+                error_dialog = toga.ErrorDialog(
+                    title="Delete Failed",
+                    message="Library system not available. Cannot delete collection."
+                )
+                await self.app.main_window.dialog(error_dialog)
+
+        except Exception as e:
+            logger.error(f"Failed to perform collection deletion: {e}")
+            error_dialog = toga.ErrorDialog(
+                title="Delete Error",
+                message=f"An error occurred while deleting the collection: {e}"
+            )
+            await self.app.main_window.dialog(error_dialog)
             self._show_message("Success", f"Collection '{collection_name}' has been deleted.")
             
         except Exception as e:
@@ -891,14 +1049,12 @@ class LibraryView(BaseView):
     def refresh_collections(self):
         """Refresh the collections display"""
         try:
-            # Clear current content
-            self.scroll_container.clear_content()
-            
-            # Recreate content
-            self._create_content()
-            
-            logger.debug("Collections display refreshed")
-            
+            # Simply reload collections from database - this is the most reliable approach
+            import asyncio
+            asyncio.create_task(self._load_collections_async())
+
+            logger.debug("Collections display refresh initiated")
+
         except Exception as e:
             logger.error(f"Failed to refresh collections: {e}")
     
@@ -1014,39 +1170,263 @@ class LibraryView(BaseView):
                 
         except Exception as e:
             logger.error(f"Failed to load collections from library: {e}")
-            self.collections = [] 
-    def toggle_edit_mode(self):
+            self.collections = []
+
+    def _load_collections_sync(self):
+        """Load collections synchronously (thread-safe version)"""
+        try:
+            if self.library_service:
+                # Use service layer synchronously
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    all_collections = loop.run_until_complete(self.library_service.get_collections_for_ui())
+
+                    # Service already provides UI-ready data, so we can use it directly
+                    self.collections = all_collections
+
+                    # Sort collections by name
+                    self.collections.sort(key=lambda x: x.get('name', ''))
+
+                    logger.debug(f"Loaded {len(self.collections)} collections from library (sync).")
+
+                    # Refresh the display to show the loaded collections (this needs to be on main thread)
+                    # We'll skip UI update here and let it happen when the view is shown
+
+                finally:
+                    loop.close()
+            else:
+                logger.warning("Library service not initialized, cannot load collections (sync).")
+                self.collections = []
+
+        except Exception as e:
+            logger.error(f"Failed to load collections from library (sync): {e}")
+            self.collections = []
+
+    def toggle_edit_mode(self, widget=None):
         """Toggle edit mode state"""
         try:
             self.is_edit_mode = not self.is_edit_mode
             self._update_toolbars_for_edit_mode()
             logger.info(f"Edit mode {'enabled' if self.is_edit_mode else 'disabled'}")
-            
+
         except Exception as e:
             logger.error(f"Failed to toggle edit mode: {e}")
-    
+
     def _update_toolbars_for_edit_mode(self):
-        """Update toolbars based on edit mode state"""
+        """Update toolbars based on edit mode state using smart coordinator"""
         try:
+            from fichero.shared.toolbars.toolbar_coordinator import EditModeState
+
             if self.is_edit_mode:
-                # Edit mode: Show "Done" in top toolbar, "Add" in bottom toolbar
-                self.top_toolbar.set_edit_mode(True)
-                self.bottom_toolbar.set_edit_mode(True)
+                # Enable edit mode using coordinator (triggers add mode automatically)
+                self.coordinator.set_edit_mode(EditModeState.EDIT)
             else:
-                # Normal mode: Show "Edit" in top toolbar, normal buttons in bottom toolbar
-                self.top_toolbar.set_edit_mode(False)
-                self.bottom_toolbar.set_edit_mode(False)
-                
+                # Disable edit mode using coordinator
+                self.coordinator.set_edit_mode(EditModeState.NORMAL)
+
         except Exception as e:
             logger.error(f"Failed to update toolbars for edit mode: {e}")
-    
-    def _on_add_dialog_requested(self):
-        """Handle add dialog request from toolbar"""
+
+    def _on_edit_mode_changed(self, state, context: Dict[str, Any]):
+        """Handle edit mode changes from coordinator - enables add buttons"""
         try:
-            logger.info("Add dialog requested from edit mode")
-            if hasattr(self.app, 'show_add_dialog'):
-                self.app.show_add_dialog()
-            else:
-                logger.warning("Add dialog not available")
+            from fichero.shared.toolbars.toolbar_coordinator import EditModeState
+
+            # Swipe actions stay fixed - no need to update them
+            # This callback is only for managing the add buttons in edit mode
+
+            if state == EditModeState.EDIT and context.get("edit_type") != "add_items":
+                # Only create add context if we don't already have it (prevents infinite loop)
+                self._create_add_context_once()
+            elif state == EditModeState.NORMAL:
+                # Exiting edit mode - clear add context
+                self._clear_add_context()
+
+            logger.debug(f"LibraryView edit mode changed to {state.value}")
+
         except Exception as e:
-            logger.error(f"Failed to show add dialog: {e}")
+            logger.error(f"Failed to handle edit mode change: {e}")
+
+    def _create_add_context_once(self):
+        """Create add context once when entering edit mode"""
+        try:
+            # Get platform features
+            from fichero.windows.add.platform_features import detect_platform_features
+            platform_features = detect_platform_features(self.app)
+
+            # Create library-specific edit context
+            edit_context = self.coordinator.create_view_edit_context(
+                "library",
+                platform_features.__dict__
+            )
+
+            # Update coordinator context WITHOUT triggering another edit mode change
+            self.coordinator._edit_context.update(edit_context)
+
+            # Notify bottom toolbar specifically (without triggering callbacks)
+            if self.coordinator.bottom_toolbar:
+                self.coordinator.bottom_toolbar.set_edit_mode(
+                    self.coordinator._edit_mode_state,
+                    self.coordinator._edit_context
+                )
+
+            logger.info("Entered add mode with platform-specific buttons")
+
+        except Exception as e:
+            logger.error(f"Failed to create add context: {e}")
+
+    def _clear_add_context(self):
+        """Clear add mode context"""
+        try:
+            self.coordinator._edit_context = {}
+            logger.info("Cleared add mode context")
+
+        except Exception as e:
+            logger.error(f"Failed to clear add context: {e}")
+
+    # Add dialog functionality available through edit mode buttons
+
+    def _add_library_toolbar_buttons(self):
+        """Add library-specific buttons using smart toolbar system"""
+        try:
+            # Library root view should NOT show titles on any platform to match mobile behavior
+            # Remove contextual title to fix desktop title display issue
+
+            # Add Edit button for edit mode functionality using proper BaseToolbar method
+            self.top_toolbar.add_regular_button(
+                button_id="edit",
+                position="right",
+                text="Edit",
+                on_press=self.top_toolbar._on_edit_pressed,
+                style_class="right_aligned"
+            )
+
+            logger.info("Library-specific toolbar buttons added using smart system")
+
+        except Exception as e:
+            logger.error(f"Failed to add library toolbar buttons: {e}")
+
+
+    def _add_library_bottom_toolbar_buttons(self):
+        """Add window navigation buttons to BottomToolbar using NavigationController"""
+        try:
+            from fichero.shared.navigation.navigation_controller import NavigationController
+
+            # Create center-aligned window navigation buttons for normal mode
+            # Settings window
+            self.bottom_toolbar.add_normal_mode_button(
+                text="Settings",
+                icon="resources/icons/toolbar/settings.png",
+                on_press=self._on_open_settings_window,
+                position="center"
+            )
+
+            # Processing window
+            self.bottom_toolbar.add_normal_mode_button(
+                text="Processing",
+                icon="resources/icons/toolbar/process.png",
+                on_press=self._on_open_processing_window,
+                position="center"
+            )
+
+            # About window (using help icon)
+            self.bottom_toolbar.add_normal_mode_button(
+                text="About",
+                icon="resources/icons/toolbar/help.png",
+                on_press=self._on_open_about_window,
+                position="center"
+            )
+
+            # Add collection functionality removed - simplified interface"
+
+            # Activity Monitor window
+            self.bottom_toolbar.add_normal_mode_button(
+                text="Activity",
+                icon="resources/icons/toolbar/activity.png",
+                on_press=self._on_open_activity_monitor_window,
+                position="center"
+            )
+
+            # Prompts window
+            self.bottom_toolbar.add_normal_mode_button(
+                text="Prompts",
+                icon="resources/icons/toolbar/prompt.png",
+                on_press=self._on_open_prompts_window,
+                position="center"
+            )
+
+            # Plans window
+            self.bottom_toolbar.add_normal_mode_button(
+                text="Plans",
+                icon="resources/icons/toolbar/plan.png",
+                on_press=self._on_open_plans_window,
+                position="center"
+            )
+
+            # Set up edit mode buttons for library management
+            # Platform-specific add buttons are created automatically by the coordinator
+            # via _create_add_context_once() when edit mode is entered
+
+            logger.info("Library window navigation buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add library toolbar buttons: {e}")
+
+
+    def _on_library_settings_clicked(self, widget=None):
+        """Handle library settings button press"""
+        try:
+            logger.info("Library settings button pressed")
+            # TODO: Open library settings or delegate to app
+            if hasattr(self.app, 'show_settings'):
+                self.app.show_settings()
+
+        except Exception as e:
+            logger.error(f"Failed to handle library settings: {e}")
+
+
+    # Window navigation button handlers using NavigationController
+    def _on_open_settings_window(self, widget=None):
+        """Handle settings window navigation"""
+        logger.info("Opening settings window")
+        self.app.view_integration.navigation_controller.navigate_to_settings()
+
+    def _on_open_processing_window(self, widget=None):
+        """Handle processing window navigation"""
+        logger.info("Opening processing window")
+        self.app.view_integration.navigation_controller.navigate_to_processing()
+
+    def _on_open_about_window(self, widget=None):
+        """Handle about window navigation"""
+        logger.info("Opening about window")
+        self.app.view_integration.navigation_controller.navigate_to_about()
+
+    def _on_open_add_window(self, widget=None):
+        """Handle add window button press - simplified interface"""
+        try:
+            logger.info("Add functionality has been simplified")
+            # Add collection functionality removed for simplified interface
+            self._show_message("Add Collection", "Add collection functionality has been simplified. Use library management tools instead.")
+        except Exception as e:
+            logger.error(f"Failed to handle add window request: {e}")
+
+    def _on_open_activity_monitor_window(self, widget=None):
+        """Handle activity monitor window navigation"""
+        logger.info("Opening activity monitor window")
+        self.app.view_integration.navigation_controller.navigate_to_activity_monitor()
+
+    def _on_open_prompts_window(self, widget=None):
+        """Handle prompts window navigation"""
+        logger.info("Opening prompts window")
+        self.app.view_integration.navigation_controller.navigate_to_prompts()
+
+    def _on_open_plans_window(self, widget=None):
+        """Handle plans window navigation"""
+        logger.info("Opening plans window")
+        self.app.view_integration.navigation_controller.navigate_to_plans()
+
+
+
+

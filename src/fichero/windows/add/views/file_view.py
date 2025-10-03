@@ -13,7 +13,7 @@ from typing import Optional, Callable, List
 from pathlib import Path
 
 from fichero.shared.views.base_view import BaseView
-from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
+from fichero.shared.toolbars import TopToolbar, BottomToolbar
 
 # Use builtin _ function installed by translation.install()
 
@@ -23,12 +23,11 @@ logger = logging.getLogger(__name__)
 class FileAddView(BaseView):
     """View for adding files to the library"""
     
-    def __init__(self, app: toga.App, on_back: Callable, on_content_added: Callable):
+    def __init__(self, app: toga.App, on_content_added: Optional[Callable] = None):
         """Initialize file add view"""
-        self.on_back = on_back
         self.on_content_added = on_content_added
         self.selected_files = []
-        
+
         # Initialize BaseView first
         super().__init__(app, is_mobile=app.is_mobile)
         
@@ -40,30 +39,34 @@ class FileAddView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for file add view"""
         try:
-            from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation (proper pattern)
-            self.top_toolbar = SimpleTopToolbar(
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Add Files",
-                on_back=self.on_back,  # Pass the callback directly
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class FileAddBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # File-specific actions could go here
-            
-            self.bottom_toolbar = FileAddBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
-            # Set toolbars on the view using the proper BaseView method
+
+            # NavigationController integration is handled automatically by TopToolbar
+
+            # Add centered title for desktop (preserving button alignment)
+            if not self.is_mobile:
+                self.top_toolbar.add_centered_title_only(
+                    title_text="Add Files",
+                    on_title_click=None
+                )
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Set toolbars on the view
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("File add view toolbars created with automatic navigation")            
+
+            logger.info("File add view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create file add toolbars: {e}")
     
@@ -219,7 +222,7 @@ class FileAddView(BaseView):
             
             # Call the callback with selected files
             if self.on_content_added:
-                self.on_content_added({'option_id': 'file', 'files': self.selected_files, 'action': 'added'})
+                await self.on_content_added({'option_id': 'file', 'files': self.selected_files, 'action': 'added'})
                 self.status_label.text = _("Files added successfully!")
                 logger.info(f"Successfully added {len(self.selected_files)} files to library")
             

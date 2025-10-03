@@ -36,29 +36,33 @@ class PromptsMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for prompts view"""
         try:
-            from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation (no manual on_back)
-            self.top_toolbar = SimpleTopToolbar(
+            from fichero.shared.toolbars import TopToolbar, BottomToolbar
+
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Prompts",
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class PromptsBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # Prompts-specific actions could go here
-            
-            self.bottom_toolbar = PromptsBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
+
+            # Set up modal-specific back navigation
+            self.top_toolbar.on_back = self._on_back_pressed
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Add prompts-specific buttons using composition
+            self._add_prompts_toolbar_buttons()
+
             # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("Prompts mobile view toolbars created successfully")            
+
+            logger.info("Prompts mobile view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create prompts toolbars: {e}")
     
@@ -76,12 +80,6 @@ class PromptsMobileView(BaseView):
         except Exception as e:
             logger.error(f"Failed to create prompts content: {e}")
     
-    def _on_back_pressed(self):
-        """Handle back button press"""
-        logger.debug("Prompts back button pressed")
-        # Use the app's window view manager to go back
-        if hasattr(self.app, 'window_view_manager') and hasattr(self.app.window_view_manager, 'mobile_view_manager'):
-            self.app.window_view_manager.mobile_view_manager.go_back()
     
     def show(self):
         """Show method for compatibility"""
@@ -101,4 +99,50 @@ class PromptsMobileView(BaseView):
     
     def refresh(self):
         """Refresh the prompts display"""
-        self.prompts_content.refresh() 
+        self.prompts_content.refresh()
+
+    def _add_prompts_toolbar_buttons(self):
+        """Add prompts-specific buttons using composition"""
+        try:
+            # Modal windows should have no toolbar buttons - only back button at top
+            logger.debug("Prompts modal view - no toolbar buttons added")
+
+            logger.debug("Prompts toolbar buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add prompts toolbar buttons: {e}")
+
+    def _on_back_pressed(self, widget=None):
+        """Handle back button press - close modal"""
+        try:
+            logger.info("Prompts view back button pressed - closing modal")
+            # Use the WindowViewManager to close the modal
+            if hasattr(self.app, 'window_view_manager'):
+                self.app.window_view_manager._close_modal_overlay()
+            else:
+                # Fallback: use NavigationController back navigation
+                self.app.view_integration.navigation_controller.navigate_back()
+        except Exception as e:
+            logger.error(f"Failed to handle back navigation: {e}")
+
+    def _on_new_prompt(self, widget=None):
+        """Handle new prompt button press"""
+        try:
+            logger.info("New prompt button pressed")
+            # TODO: Implement new prompt functionality
+            if hasattr(self.prompts_content, 'create_new_prompt'):
+                self.prompts_content.create_new_prompt()
+
+        except Exception as e:
+            logger.error(f"Failed to create new prompt: {e}")
+
+    def _on_export_prompts(self, widget=None):
+        """Handle export prompts button press"""
+        try:
+            logger.info("Export prompts button pressed")
+            # TODO: Implement export prompts functionality
+            if hasattr(self.prompts_content, 'export_prompts'):
+                self.prompts_content.export_prompts()
+
+        except Exception as e:
+            logger.error(f"Failed to export prompts: {e}")

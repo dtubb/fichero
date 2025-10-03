@@ -1,341 +1,411 @@
 """
-Top Toolbar for Fichero
+Top Toolbar for Fichero - HIG Compliant
 
-Toolbar for the top of views with:
-- Title and navigation
-- Back buttons (automatic on mobile)
-- Primary actions
-- Edit mode support
-- Context information
+Provides HIG-compliant top toolbar with:
+- NavigationController integration
+- Edit mode support with bottom toolbar coordination
+- Platform-specific behavior (iOS/macOS)
+- Clean composition-based button management
 """
 
 import toga
 from toga.style import Pack
 from toga.constants import ROW
 import logging
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, Any
 
 from fichero.shared.toolbars.base_toolbar import BaseToolbar
+from fichero.shared.toolbars.toolbar_coordinator import ToolbarCoordinator, EditModeState
 
 logger = logging.getLogger(__name__)
 
 
 class TopToolbar(BaseToolbar):
-    """Top toolbar with edit mode support"""
-    
-    def __init__(self, app, title: str = "", auto_mobile_nav: bool = True, is_mobile: bool = None):
-        """Initialize top toolbar
-        
+    """HIG-compliant top toolbar with edit mode and NavigationController support"""
+
+    def __init__(self,
+                 app,
+                 title: str = "",
+                 auto_mobile_nav: bool = True,
+                 is_mobile: bool = None,
+                 coordinator: Optional[ToolbarCoordinator] = None):
+        """
+        Initialize top toolbar
+
         Args:
             app: The Toga application
             title: Title to show (used for mobile back navigation)
             auto_mobile_nav: Whether to automatically add mobile back button + title
             is_mobile: Override mobile detection
+            coordinator: ToolbarCoordinator for edit mode management
         """
         self.title = title
         self.auto_mobile_nav = auto_mobile_nav
-        
-        # Use app.is_mobile if not provided
-        if is_mobile is None:
-            is_mobile = app.is_mobile
-            
-        super().__init__(app, is_mobile)
-        
-        # Top toolbar callbacks
+
+        # Initialize base toolbar
+        super().__init__(app, is_mobile, coordinator)
+
+        # Navigation callbacks
         self.on_back: Optional[Callable] = None
         self.on_title_click: Optional[Callable] = None
-        
-        # Edit mode support
-        self.is_edit_mode = False
-        self.on_edit: Optional[Callable] = None
+
+        # Edit mode widgets
         self.edit_button: Optional[toga.Button] = None
         self.done_button: Optional[toga.Button] = None
-        
-        # Mobile navigation widgets
-        self.back_button: Optional[toga.Button] = None
 
-        
-        # Create toolbar immediately
+        # Navigation widgets
+        self.back_button: Optional[toga.Button] = None
+        self.title_label: Optional[toga.Label] = None
+
+        # Setup NavigationController integration
+        self.setup_navigation_controller_integration()
+
+        # Register with coordinator if provided
+        if self.coordinator:
+            self.coordinator.register_top_toolbar(self)
+
+        # Create toolbar content
         self._create_toolbar()
-    
-    def _create_toolbar(self):
-        """Create the top toolbar content with automatic mobile navigation"""
+
+        logger.debug(f"TopToolbar initialized (title: {title}, auto_nav: {auto_mobile_nav})")
+
+    def setup_navigation_controller_integration(self) -> None:
+        """Set up NavigationController integration"""
         try:
-            # Clear any existing content
-            if hasattr(self, 'left_content'):
-                self.left_content.clear()
-            if hasattr(self, 'center_content'):
-                self.center_content.clear()
-            if hasattr(self, 'right_content'):
-                self.right_content.clear()
-            
-            # Automatic navigation pattern (mobile always, desktop when requested)
+            from fichero.shared.navigation.navigation_controller import NavigationController
+            from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation, unsubscribe_from_navigation, NavigationEvents
+
+            if not self.on_back:
+                self.on_back = NavigationController.create_back_handler(self.app)
+
+            # Subscribe to navigation state changes to update title dynamically
+            def on_state_changed(event_data):
+                try:
+                    self._update_contextual_title()
+                except Exception as e:
+                    logger.error(f"Failed to update title on state change: {e}")
+
+            # Store callback reference for cleanup
+            self._nav_state_callback = on_state_changed
+            subscribe_to_navigation(NavigationEvents.STATE_CHANGED, self._nav_state_callback)
+            logger.debug("NavigationController integration and title updates set up for TopToolbar")
+
+        except ImportError:
+            logger.warning("NavigationController not available")
+
+    def cleanup_callbacks(self):
+        """Clean up navigation event subscriptions"""
+        try:
+            if hasattr(self, '_nav_state_callback'):
+                from fichero.shared.navigation.navigation_event_bus import unsubscribe_from_navigation, NavigationEvents
+                unsubscribe_from_navigation(NavigationEvents.STATE_CHANGED, self._nav_state_callback)
+                delattr(self, '_nav_state_callback')
+                logger.debug("TopToolbar navigation callbacks cleaned up")
+        except Exception as e:
+            logger.error(f"Failed to cleanup TopToolbar callbacks: {e}")
+
+    def _create_toolbar(self) -> None:
+        """Create the top toolbar content"""
+        try:
+            # Clear existing content
+            self.clear_content()
+
+            # Add navigation based on configuration
             if self.auto_mobile_nav:
-                if self.is_mobile:
-                    self._add_standard_mobile_navigation()
-                else:
-                    # Desktop also gets back button when auto_mobile_nav=True (e.g., collection views)
-                    self._add_desktop_back_navigation()
-            
-            # Allow subclasses to add custom content
+                self._add_navigation_elements()
+
+            # Add edit mode support only if coordinator is provided
+            if self.coordinator:
+                self._add_edit_mode_support()
+
+            # Add custom content hook for subclasses
             self._add_custom_content()
-            
-            logger.info(f"Top toolbar created with auto mobile nav: {self.auto_mobile_nav}")
-            
+
+            logger.debug("TopToolbar content created")
+
         except Exception as e:
-            logger.error(f"Failed to create top toolbar: {e}")
-    
-    def _add_standard_mobile_navigation(self):
-        """Add standard mobile back button + title pattern"""
+            logger.error(f"Failed to create TopToolbar: {e}")
+
+    def _add_navigation_elements(self) -> None:
+        """Add navigation elements based on platform and context"""
         try:
-            # Left: Back button (only if on_back is defined)
-            if self.on_back:
-                self.back_button = self._create_back_button()
-                self.add_to_left(self.back_button)
-            
-            # Left: Title next to back button (iOS style)
-            if self.title:
-                # iOS HIG: 6 points distance from back button to title
-                title_widget = self.add_title_left(
-                    text=self.title,
-                    margin_left=6,  # iOS HIG specification: 6pt from back button
-                    on_click=self.on_back if self.on_back else None
-                )
-            
-            logger.debug("Standard mobile navigation added")
-            
-        except Exception as e:
-            logger.error(f"Failed to add mobile navigation: {e}")
-    
-    def _add_desktop_back_navigation(self):
-        """Add desktop back button (for collection views, etc.)"""
-        try:
-            # Left: Back button for desktop collection views
-            if self.on_back:
-                self.back_button = self._create_back_button()
-                self.add_to_left(self.back_button)
-            
-            # Center: Title
-            if self.title:
-                self.add_title_only(self.title)
-            
-            logger.debug("Desktop back navigation added")
-            
-        except Exception as e:
-            logger.error(f"Failed to add desktop navigation: {e}")
-    
-    def _create_back_button(self) -> toga.Button:
-        """Create a properly styled back button following iOS HIG specifications"""
-        # iOS HIG specifications for back chevron:
-        # - Chevron: 16x14 points
-        # - Distance from left edge: 8 points
-        # - Distance from bottom edge: 11 points  
-        # - Minimum button height: 18 points
-        # - Distance to title: 6 points
-        
-        if self.is_mobile:
-            # iOS-compliant mobile button
-            margin = (14, 8)  # (top, left) - 8pt from left edge per iOS HIG
-            width = 32        # Minimum touch target (chevron 16pt + padding)
-            height = 18       # Minimum height per iOS HIG
-        else:
-            # Desktop - similar proportions but adapted
-            margin = (8, 8)   # Match title top margin
-            width = 24        
-            height = 18
-        
-        style_props = {
-            'margin': margin,
-            'width': width,
-            'height': height
-        }
-        # Don't set color - use system default for better iOS appearance
-        
-        try:
-            # Try to use the proper chevron icon (should be 16x14 points for iOS compliance)
-            icon_path = self.app.paths.app / "resources/icons/toolbar/chevron.left@10x.png"
-            back_button = toga.Button(
-                icon=toga.Icon(icon_path),
-                on_press=self._handle_back_press,
-                style=Pack(**style_props)
-            )
-            logger.debug(f"Created iOS HIG-compliant back button with icon: {icon_path}")
-            
-        except Exception as e:
-            logger.warning(f"Failed to load back chevron icon: {e}, using text fallback")
-            # Fallback to text if icon fails
-            button_text = "‹" if self.is_mobile else "‹ Back"
-            back_button = toga.Button(
-                button_text,
-                on_press=self._handle_back_press,
-                style=Pack(**style_props)
-            )
-            
-        return back_button
-    
-    def _handle_back_press(self, widget):
-        """Handle back button press"""
-        if self.on_back:
-            self.on_back()
-    
-    def add_edit_support(self, on_edit_callback: Callable):
-        """Add edit mode support to the toolbar"""
-        self.on_edit = on_edit_callback
-        self._add_edit_button()
-    
-    def _add_edit_button(self):
-        """Add edit button with proper alignment"""
-        if not self.on_edit:
-            return
-            
-        # Use same top margin as title for proper alignment
-        if self.is_mobile:
-            margin = (14, 12)  # Match title top margin (14px mobile)
-        else:
-            margin = (8, 12)  # Match title top margin (8px desktop)
-        
-        style_props = {'margin': margin}
-        if self.TITLE_COLOR:  # Only set color on mobile
-            style_props['color'] = self.TITLE_COLOR
-            
-        self.edit_button = toga.Button(
-            "Edit",
-            on_press=self._handle_edit_press,
-            style=Pack(**style_props)
-        )
-        self.add_to_right(self.edit_button)
-    
-    def _handle_edit_press(self, widget):
-        """Handle edit button press"""
-        if self.on_edit:
-            self.on_edit()
-    
-    def set_edit_mode(self, is_edit_mode: bool):
-        """Set edit mode and update button layout (iOS style)"""
-        try:
-            self.is_edit_mode = is_edit_mode
-            
-            if is_edit_mode:
-                # Edit mode: Hide back button, move "Done" to top left, hide edit button
-                if self.back_button:
-                    self.back_button.style.visibility = 'hidden'
-                    
-                if self.edit_button:
-                    self.edit_button.style.visibility = 'hidden'
-                
-                # Create Done button on left side
-                self._create_done_button()
-                
+            if self.is_mobile:
+                # iOS navigation pattern
+                if self.auto_mobile_nav:  # Child views get back button
+                    self._add_back_button()
+                # Add context-aware title if NavigationController says we should
+                self._add_contextual_title()
             else:
-                # Normal mode: Show back button, show edit button on right
-                if self.back_button:
-                    self.back_button.style.visibility = 'visible'
-                    
-                if self.edit_button:
-                    self.edit_button.style.visibility = 'visible'
-                
-                # Remove Done button if it exists
-                self._remove_done_button()
-                    
-            logger.debug(f"Edit mode set to: {is_edit_mode}")
-            
+                # macOS navigation pattern
+                if self.auto_mobile_nav:  # Child views
+                    self._add_back_button()
+                # Add context-aware title if NavigationController says we should
+                self._add_contextual_title()
+
+        except Exception as e:
+            logger.error(f"Failed to add navigation elements: {e}")
+
+    def _add_back_button(self) -> None:
+        """Add HIG-compliant back button with dynamic parent context"""
+        try:
+            # Get dynamic back button text based on navigation context
+            back_text = self._get_dynamic_back_text()
+
+            self.back_button = self.add_button_left(
+                text=back_text,
+                on_press=self._on_back_pressed,
+                button_id="back"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to add back button: {e}")
+
+    def _get_dynamic_back_text(self) -> str:
+        """Get simple back button - just chevron without text"""
+        return "‹"
+
+    def _add_contextual_title(self) -> None:
+        """Add context-aware title from NavigationController"""
+        try:
+            # Get title and visibility from NavigationController
+            if hasattr(self.app, 'view_integration') and hasattr(self.app.view_integration, 'navigation_controller'):
+                nav_controller = self.app.view_integration.navigation_controller
+
+                # Check if we should show title for this context
+                if nav_controller.should_show_title():
+                    title_text = nav_controller.get_current_title()
+                    if title_text:
+                        self.title_label = self.add_title(
+                            title=title_text,
+                            on_click=self.on_title_click
+                        )
+            # Fallback to manual title if NavigationController not available
+            elif self.title:
+                self.title_label = self.add_title(
+                    title=self.title,
+                    on_click=self.on_title_click
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to add contextual title: {e}")
+
+    def _update_contextual_title(self) -> None:
+        """Update title when navigation state changes"""
+        try:
+            # Clear existing title first
+            if self.title_label and self.center_content:
+                self.center_content.clear()
+                self.title_label = None
+
+            # Re-add contextual title with current state
+            self._add_contextual_title()
+            logger.debug("Contextual title updated for state change")
+
+        except Exception as e:
+            logger.error(f"Failed to update contextual title: {e}")
+
+    def _add_title_label(self) -> None:
+        """Add title label to center (legacy method - use _add_contextual_title instead)"""
+        try:
+            if self.title:
+                self.title_label = self.add_title(
+                    title=self.title,
+                    on_click=self.on_title_click
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to add title label: {e}")
+
+    def _add_edit_mode_support(self) -> None:
+        """Add edit mode button support - but don't add to UI yet"""
+        try:
+            # Create edit button with right-aligned styling using base toolbar's system
+            self.edit_button = self.create_button(
+                text="Edit",
+                on_press=self._on_edit_pressed,
+                style_class="right_aligned"  # Use proper right-aligned style
+            )
+            self.buttons["edit"] = self.edit_button
+
+            # Create done button with left-aligned styling for edit mode
+            self.done_button = self.create_button(
+                text="Done",
+                on_press=self._on_done_pressed,
+                style_class="default"  # Standard styling for left side
+            )
+            self.buttons["done"] = self.done_button
+
+            logger.debug("Edit mode buttons created using standard toolbar styling")
+
+        except Exception as e:
+            logger.error(f"Failed to add edit mode support: {e}")
+
+    def _add_custom_content(self) -> None:
+        """Hook for subclasses to add custom content"""
+        pass
+
+    # Event handlers
+    def _on_back_pressed(self, widget) -> None:
+        """Handle back button press"""
+        try:
+            if self.on_back:
+                self.on_back()
+            else:
+                logger.warning("No back handler configured")
+
+        except Exception as e:
+            logger.error(f"Failed to handle back press: {e}")
+
+    def _on_edit_pressed(self, widget) -> None:
+        """Handle edit button press"""
+        try:
+            if self.coordinator:
+                self.coordinator.set_edit_mode(EditModeState.EDIT)
+            else:
+                # Fallback without coordinator
+                self.set_edit_mode(EditModeState.EDIT)
+
+        except Exception as e:
+            logger.error(f"Failed to handle edit press: {e}")
+
+    def _on_done_pressed(self, widget) -> None:
+        """Handle done button press"""
+        try:
+            if self.coordinator:
+                self.coordinator.set_edit_mode(EditModeState.NORMAL)
+            else:
+                # Fallback without coordinator
+                self.set_edit_mode(EditModeState.NORMAL)
+
+        except Exception as e:
+            logger.error(f"Failed to handle done press: {e}")
+
+    # ToolbarProtocol implementation
+    def set_edit_mode(self, state: EditModeState, context: Dict[str, Any] = None) -> None:
+        """Set edit mode and update UI with smart rebuilding"""
+        try:
+            # Update base state
+            super().set_edit_mode(state, context)
+
+            # Universal edit mode handling (works on all platforms)
+            if state == EditModeState.EDIT:
+                self._enter_edit_mode(context)
+            else:
+                self._exit_edit_mode()
+
+            logger.debug(f"TopToolbar edit mode set to {state.value}")
+
         except Exception as e:
             logger.error(f"Failed to set edit mode: {e}")
-    
-    def _create_done_button(self):
-        """Create Done button on the left side"""
+
+    def _enter_edit_mode(self, context: Dict[str, Any] = None) -> None:
+        """Enter universal edit mode (inspired by iOS HIG but works on all platforms)"""
         try:
-            # Remove any existing done button first
-            self._remove_done_button()
-            
-            # Use same top margin as title for proper alignment
-            if self.is_mobile:
-                margin = (14, 12)  # Match title top margin (14px mobile)
+            logger.debug(f"TopToolbar._enter_edit_mode() called with context keys: {list(context.keys()) if context else 'None'}")
+
+            # Clear all content
+            self.clear_content()
+
+            # iOS HIG: Done button on left
+            if self.done_button:
+                self.left_content.add(self.done_button)
+                logger.debug("Added Done button to left side")
+
+            # iOS HIG: Title disappears in edit mode (center stays empty)
+
+            # Add top edit actions (delete/rename) to right side in edit mode
+            if context:
+                top_edit_actions = context.get("top_edit_actions", [])
+                logger.debug(f"Found top_edit_actions in context: {top_edit_actions}")
+
+                if top_edit_actions:
+                    logger.debug(f"Creating {len(top_edit_actions)} top edit buttons for right side")
+                    for i, action in enumerate(top_edit_actions):
+                        logger.debug(f"Creating button {i+1}: {action}")
+                        button = self.add_button_right(
+                            text=None,  # No text, just icon
+                            icon=action.get("icon"),
+                            on_press=self._create_top_edit_button_handler(action["id"]),
+                            button_id=f"edit_{action['id']}"
+                        )
+                        logger.debug(f"Button {i+1} added to toolbar successfully")
+
+                    logger.debug(f"Added {len(top_edit_actions)} top edit actions to right side")
+                else:
+                    logger.warning("No top_edit_actions found in context!")
             else:
-                margin = (8, 12)  # Match title top margin (8px desktop)
-            
-            style_props = {'margin': margin}
-            if self.TITLE_COLOR:
-                style_props['color'] = self.TITLE_COLOR
-                
-            self.done_button = toga.Button(
-                "Done",
-                on_press=self._handle_done_press,
-                style=Pack(**style_props)
-            )
-            self.add_to_left(self.done_button)
-            
+                logger.warning("No context provided to _enter_edit_mode()!")
+
+            # Add any regular buttons that should persist (non-edit related)
+            # For example, desktop preview button should remain
+            for button_info in self._regular_buttons.values():
+                if button_info.get("persist_in_edit", False):
+                    self._add_button_to_position(button_info["button"], button_info["position"])
+
+            logger.debug("Entered iOS HIG-compliant edit mode")
+
         except Exception as e:
-            logger.error(f"Failed to create done button: {e}")
-    
-    def _remove_done_button(self):
-        """Remove Done button if it exists"""
+            logger.error(f"Failed to enter iOS edit mode: {e}")
+
+    def _exit_edit_mode(self) -> None:
+        """Exit universal edit mode and restore normal toolbar state"""
         try:
-            if hasattr(self, 'done_button') and self.done_button:
-                if hasattr(self, 'left_content') and self.done_button in self.left_content.children:
-                    self.left_content.remove(self.done_button)
-                self.done_button = None
-                
+            # Clear all content
+            self.clear_content()
+
+            # Restore navigation elements (back button and title) based on context
+            self._add_navigation_elements()
+
+            # Use base toolbar's smart rebuilding system for all buttons
+            # This automatically handles all registered buttons including the Edit button
+            for button_info in self._regular_buttons.values():
+                self._add_button_to_position(button_info["button"], button_info["position"])
+
+            logger.debug("Exited universal edit mode using smart button management")
+
         except Exception as e:
-            logger.error(f"Failed to remove done button: {e}")
-    
-    def _handle_done_press(self, widget):
-        """Handle done button press"""
-        if self.on_edit:
-            self.on_edit()
-    
-    def clear_buttons(self):
-        """Clear all buttons from toolbar"""
-        try:
-            if hasattr(self, 'left_content'):
-                self.left_content.clear()
-            if hasattr(self, 'center_content'):
-                self.center_content.clear()
-            if hasattr(self, 'right_content'):
-                self.right_content.clear()
-            
-            # Reset button references
-            self.back_button = None
-            self.edit_button = None
-            self.done_button = None
-            
-        except Exception as e:
-            logger.error(f"Failed to clear buttons: {e}")
-    
-    def add_title_only(self, title: str):
-        """Add just the title to center"""
-        try:
-            # Create title label with proper styling and positioning
-            style_props = {
-                'text_align': 'center', 
-                'flex': 1,
-                'margin_top': 14 if self.is_mobile else 8  # Better vertical centering
-            }
-            # Don't set color - use system default
-            if self.TITLE_FONT_WEIGHT:
-                style_props['font_weight'] = self.TITLE_FONT_WEIGHT
-                
-            title_label = toga.Label(
-                title,
-                style=Pack(**style_props)
-            )
-            self.add_to_center(title_label)
-            
-        except Exception as e:
-            logger.error(f"Failed to add title: {e}")
-    
-    def register_edit_callback(self, on_edit: Callable):
-        """Register edit callback and add edit button"""
-        self.on_edit = on_edit
-        self._add_edit_button()
-    
-    def _add_custom_content(self):
-        """Override this in subclasses to add custom content"""
+            logger.error(f"Failed to exit universal edit mode: {e}")
+
+    def _create_top_edit_button_handler(self, action_id: str):
+        """Create handler for top edit buttons (delete/rename)"""
+        def handler(widget=None):
+            try:
+                if self.coordinator:
+                    # Use the coordinator's navigation handler
+                    nav_handler = self.coordinator.get_navigation_handler(action_id)
+                    if nav_handler:
+                        nav_handler(widget)
+                    else:
+                        logger.warning(f"No handler found for top edit action: {action_id}")
+                else:
+                    logger.warning("No coordinator available for top edit action handling")
+            except Exception as e:
+                logger.error(f"Failed to handle top edit action {action_id}: {e}")
+
+        return handler
+
+    # Composition methods for backward compatibility
+    def add_centered_title_only(self, title_text: str, on_title_click: Optional[Callable] = None) -> toga.Label:
+        """Add centered title (backward compatibility method)"""
+        self.title = title_text
+        self.on_title_click = on_title_click
+        return self.add_title(title_text, on_title_click)
+
+    def add_title_only(self, title_text: str) -> toga.Label:
+        """Add title only (backward compatibility method)"""
+        return self.add_centered_title_only(title_text)
+
+    def add_button_text_right(self, text: str, on_press: Optional[Callable] = None, tooltip: Optional[str] = None) -> toga.Button:
+        """Add text button to right (backward compatibility method)"""
+        return self.add_button_right(text=text, on_press=on_press, tooltip=tooltip)
+
+    def register_edit_callback(self, callback: Callable) -> None:
+        """Register edit callback (backward compatibility method)"""
+        if self.edit_button:
+            self.edit_button.on_press = callback
+
+    def register_navigation_callbacks(self, **kwargs) -> None:
+        """Register navigation callbacks (backward compatibility method)"""
+        # Handled automatically by NavigationController integration
         pass
-    
-    def set_back_callback(self, callback: Callable):
-        """Set the back button callback for mobile navigation"""
-        self.on_back = callback
-        # Recreate the toolbar to show the back button now that we have a callback
-        self._create_toolbar()
-        logger.debug("Back callback set on TopToolbar and toolbar recreated") 
+

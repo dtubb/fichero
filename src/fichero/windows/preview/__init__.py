@@ -8,12 +8,12 @@ Includes toolbars for the main window's preview pane.
 
 from fichero.windows.preview.preview_window import PreviewWindow
 from fichero.windows.preview.mobile_view import PreviewMobileView
-from fichero.windows.preview.preview_pane_top_toolbar import PreviewPaneTopToolbar
+# PreviewPaneTopToolbar removed - now using TopToolbar directly
 from fichero.windows.preview.preview_pane_bottom_toolbar import PreviewPaneBottomToolbar
 
 __all__ = [
     'PreviewWindow',
     'PreviewMobileView',
-    'PreviewPaneTopToolbar',
+    # 'PreviewPaneTopToolbar',  # Now using TopToolbar directly
     'PreviewPaneBottomToolbar'
 ] 

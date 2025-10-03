@@ -1,8 +1,8 @@
 """
-Base Toolbar for Fichero
+Base Toolbar for Fichero - HIG Compliant
 
-Provides common toolbar functionality using Toga's native colors.
-Only applies custom colors to icons and active states.
+Provides HIG-compliant toolbar functionality for both iOS and macOS.
+Integrates with ToolbarCoordinator for edit mode management.
 """
 
 import toga
@@ -10,871 +10,439 @@ from toga.style import Pack
 from toga.constants import ROW, COLUMN
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable, Dict, Any
+from fichero.shared.toolbars.toolbar_coordinator import ToolbarCoordinator, EditModeState, ToolbarProtocol
 from fichero.shared.toolbars.color_constants import (
     TOOLBAR_BORDER, VIEW_BACKGROUND, ICON_PRIMARY, ICON_SECONDARY
 )
 
-
 logger = logging.getLogger(__name__)
 
 
-class BaseToolbar(ABC):
-    """Base class for all toolbars in Fichero"""
-    
-    def __init__(self, app, is_mobile: bool = None):
-        """Initialize base toolbar"""
+class BaseToolbar(ABC, ToolbarProtocol):
+    """HIG-compliant base class for all toolbars in Fichero"""
+
+    def __init__(self, app, is_mobile: bool = None, coordinator: Optional[ToolbarCoordinator] = None):
+        """Initialize base toolbar with HIG compliance"""
         self.app = app
-        
+
         # Use provided is_mobile parameter or get from app
         if is_mobile is not None:
             self.is_mobile = is_mobile
         else:
-            # Use the app's platform detection (set once at startup)
-            self.is_mobile = self.app.is_mobile
-        
-        # Platform-appropriate styling constants - use Toga defaults
-        if self.is_mobile:
-            self.TITLE_COLOR = None  # Use default system color, not blue
-            self.TITLE_FONT_WEIGHT = "bold"
-        else:
-            self.TITLE_COLOR = None  # Use default system color for desktop
-            self.TITLE_FONT_WEIGHT = "normal"  # Normal weight on desktop
-        # Don't set TITLE_FONT_SIZE - let Toga use system default
-        
+            self.is_mobile = getattr(app, 'is_mobile', False)
+
+        # Coordinator for edit mode management
+        self.coordinator = coordinator
+
+        # Edit mode state
+        self._edit_mode_state = EditModeState.NORMAL
+        self._edit_context: Dict[str, Any] = {}
+
+        # Get HIG specifications for current platform
+        self.hig_specs = self._get_hig_specs()
+
         # Toolbar components
         self.container: Optional[toga.Box] = None
+        self.content: Optional[toga.Box] = None
+        self.left_content: Optional[toga.Box] = None
+        self.center_content: Optional[toga.Box] = None
+        self.right_content: Optional[toga.Box] = None
+
+        # Button storage
         self.buttons: Dict[str, toga.Button] = {}
-        self.commands: Dict[str, toga.Command] = {}
-        
-        # Callbacks
-        self.action_callbacks: Dict[str, Callable] = {}
-        
-        # Create toolbar
+        self.labels: Dict[str, toga.Label] = {}
+
+        # Smart button registry for edit mode management
+        self._regular_buttons: Dict[str, Dict[str, Any]] = {}  # Persistent buttons
+        self._edit_buttons: Dict[str, Dict[str, Any]] = {}     # Edit mode only buttons
+        self._current_mode: EditModeState = EditModeState.NORMAL
+
+        # Create the base container
         self._create_base_container()
-        # Note: _create_toolbar() is abstract and should be called by derived classes
-    
+
+        logger.debug(f"BaseToolbar initialized (mobile: {self.is_mobile}, platform: {self.hig_specs['platform']})")
+
+    def _get_hig_specs(self) -> Dict[str, Any]:
+        """Get Human Interface Guidelines specifications for current platform"""
+        if self.is_mobile:
+            # iOS HIG specifications (adjusted for retina desktop display)
+            return {
+                "platform": "ios",
+                "toolbar_height": 44,  # Standard navigation bar height
+                "button_min_touch_target": 44,
+                "icon_size": 22,  # SF Symbols recommendation
+                "margin_horizontal": 16,
+                "margin_vertical": 8,
+                "button_spacing": 8,
+                "corner_radius": 8,
+                "font_size_title": 11,  # 17pt iOS → ~11px desktop (retina adjusted)
+                "font_size_caption": 11,  # 17pt iOS → ~11px desktop (retina adjusted)
+                "font_weight_title": "normal"  # iOS default weight
+            }
+        else:
+            # macOS HIG specifications
+            return {
+                "platform": "macos",
+                "toolbar_height": 52,  # Standard macOS toolbar
+                "button_min_touch_target": 32,
+                "icon_size": 16,  # macOS standard icon size
+                "margin_horizontal": 12,
+                "margin_vertical": 8,
+                "button_spacing": 6,
+                "corner_radius": 6,
+                "font_size_title": 13,  # macOS system font
+                "font_size_caption": 11,  # macOS caption
+                "font_weight_title": "normal"
+            }
+
     def _create_base_container(self):
-        """Create the base toolbar container with iOS HIG-compliant sizing"""
+        """Create stable HIG-compliant base container with consistent alignment"""
         try:
-            # iOS HIG specifications for toolbars:
-            # Top toolbar: 56pt (mobile) / 40pt (desktop)
-            # Bottom toolbar: 49pt base (will be adjusted by BottomToolbar)
-            if self.is_mobile:
-                toolbar_height = 56  # iOS HIG for navigation bars
-            else:
-                toolbar_height = 40  # Desktop adaptation
-            
-            # Create toolbar container with transparent background
+            # Main container with stable flex layout for proper alignment
+            # Note: BaseView handles outer margins, toolbar handles inner spacing only
             self.container = toga.Box(
                 style=Pack(
-                    direction=COLUMN,
-                    margin=(0, 0)  # No margins in base - handled by subclasses
-                    # No background_color = transparent
+                    direction=ROW,  # Horizontal layout for left/center/right
+                    height=self.hig_specs["toolbar_height"],
+                    margin=0,  # No outer margins - BaseView handles container positioning
+                    align_items="center",  # Vertically center all children
+                    # justify_content="space_between" not supported in Toga - use flex instead
+                    background_color="transparent",
+                    flex=1  # Take all available width from parent
                 )
             )
-            
-            # Add top border
-            top_border = toga.Box(
-                style=Pack(
-                    background_color=TOOLBAR_BORDER,
-                    height=1,
-                    margin=(0, 0)
-                )
-            )
-            self.container.add(top_border)
-            
-            # Create main content wrapper - no side borders to eliminate white space
-            content_wrapper = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    flex=1,
-                    margin=(0, 0),
-                    height=toolbar_height
-                )
-            )
-            
-            # Create main content area - reduced margins for better button positioning
-            self.content = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    margin=(4, 8),  # Further reduced margins - (4, 8) instead of (8, 12)
-                    flex=1,
-                    height=toolbar_height - 8  # Account for reduced padding
-                )
-            )
-            
-            # Create left-aligned content area
+
+            # For backward compatibility, content points to the same container
+            self.content = self.container
+
+            # Left section: Flexible width that grows with content
             self.left_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(0, 0),
-                    flex=0  # Don't expand
+                    flex=0,  # Size based on content, no fixed width
+                    margin=(0, self.hig_specs["margin_horizontal"]),
+                    align_items="center"
+                    # justify_content not supported in Toga
                 )
             )
-            
-            # Create center-aligned content area with proper centering
+
+            # Center section: True center alignment with balanced flex
             self.center_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(0, 16),  # Side margins for spacing
-                    flex=1,  # Expand to take remaining space
-                    text_align="center"  # For text elements
+                    flex=1,  # Takes remaining space
+                    margin=0,
+                    align_items="center"
+                    # text_align="center" for centering content
                 )
             )
-            
-            # Create right-aligned content area
+
+            # Right section: Flexible width that grows with content
             self.right_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    margin=(0, 0),
-                    flex=0  # Don't expand
+                    flex=0,  # Size based on content, no fixed width
+                    margin=(0, self.hig_specs["margin_horizontal"]),
+                    align_items="center"
+                    # Right alignment handled by container flex
                 )
             )
-            
-            # Add content areas in proper order for layout
-            self.content.add(self.left_content)
-            self.content.add(self.center_content)
-            self.content.add(self.right_content)
-            
-            content_wrapper.add(self.content)
-            self.container.add(content_wrapper)
-            
-            # Add bottom border
-            bottom_border = toga.Box(
-                style=Pack(
-                    background_color=TOOLBAR_BORDER,
-                    height=1,
-                    margin=(0, 0)
-                )
-            )
-            self.container.add(bottom_border)
-            
-            logger.debug(f"Smart toolbar container created - height: {toolbar_height}, mobile: {self.is_mobile}")
-            
+
+            # Add sections with stable ordering
+            self.container.add(self.left_content)
+            self.container.add(self.center_content)
+            self.container.add(self.right_content)
+
+            logger.debug("Stable HIG-compliant base container created with consistent alignment")
+
         except Exception as e:
-            logger.error(f"Failed to create smart toolbar container: {e}")
-            # Create fallback container
-            self.container = toga.Box(style=Pack(direction=ROW))
-            self.content = toga.Box(style=Pack(direction=ROW))
-            self.left_content = toga.Box(style=Pack(direction=ROW))
-            self.center_content = toga.Box(style=Pack(direction=ROW))
-            self.right_content = toga.Box(style=Pack(direction=ROW))
-    
+            logger.error(f"Failed to create base container: {e}")
+            # Create minimal fallback
+            self.container = toga.Box(style=Pack(direction=ROW, flex=1))
+            self.content = self.container
+
+    # ToolbarProtocol implementation
+    def set_edit_mode(self, state: EditModeState, context: Dict[str, Any] = None) -> None:
+        """Set edit mode state - to be implemented by subclasses"""
+        self._edit_mode_state = state
+        self._edit_context = context or {}
+        logger.debug(f"Edit mode set to {state.value}")
+
+    def get_edit_mode(self) -> EditModeState:
+        """Get current edit mode state"""
+        return self._edit_mode_state
+
+    # Button creation methods with HIG compliance
+    def create_button(self,
+                     text: Optional[str] = None,
+                     icon: Optional[str] = None,
+                     on_press: Optional[Callable] = None,
+                     style_class: str = "default") -> toga.Button:
+        """Create HIG-compliant button"""
+        try:
+            # Determine button style based on platform and class
+            if style_class == "primary":
+                if self.is_mobile:
+                    # iOS primary button style
+                    button_style = Pack(
+                        background_color="#007AFF",  # iOS blue
+                        color="white",
+                        margin=(8, 16),
+                        font_size=self.hig_specs["font_size_caption"],
+                        font_weight="normal"
+                    )
+                else:
+                    # macOS primary button style
+                    button_style = Pack(
+                        background_color="#0066CC",  # macOS blue
+                        color="white",
+                        margin=(6, 12),
+                        font_size=self.hig_specs["font_size_caption"]
+                    )
+            elif style_class == "right_aligned":
+                # Simplified right-aligned button (container handles alignment)
+                button_style = Pack(
+                    margin=(6, 8),  # Standard button margins - container handles positioning
+                    font_size=self.hig_specs["font_size_caption"]
+                )
+            else:
+                # Default button style
+                button_style = Pack(
+                    margin=(6, 12),
+                    font_size=self.hig_specs["font_size_caption"]
+                )
+
+            # Create button
+            if icon and text:
+                # TODO: Icon + text buttons when Toga supports it
+                button = toga.Button(text=text, on_press=on_press, style=button_style)
+            elif icon:
+                # Icon-only button with proper sizing
+                try:
+                    icon_resource = toga.Icon(icon)
+                    # Add icon sizing to button style
+                    icon_button_style = Pack(
+                        width=self.hig_specs["icon_size"] + 16,  # Icon size + padding
+                        height=self.hig_specs["icon_size"] + 16,  # Icon size + padding
+                        margin=button_style.margin if hasattr(button_style, 'margin') else (6, 8),
+                        font_size=button_style.font_size if hasattr(button_style, 'font_size') else self.hig_specs["font_size_caption"]
+                    )
+                    button = toga.Button(icon=icon_resource, on_press=on_press, style=icon_button_style)
+                except:
+                    # Fallback to text if icon fails
+                    button = toga.Button(text=text or "⚙", on_press=on_press, style=button_style)
+            else:
+                # Text-only button
+                button = toga.Button(text=text or "Button", on_press=on_press, style=button_style)
+
+            return button
+
+        except Exception as e:
+            logger.error(f"Failed to create button: {e}")
+            # Fallback button
+            return toga.Button(text=text or "Button", on_press=on_press)
+
+    def create_label(self,
+                    text: str,
+                    style_class: str = "default") -> toga.Label:
+        """Create HIG-compliant label"""
+        try:
+            if style_class == "title":
+                label_style = Pack(
+                    font_size=self.hig_specs["font_size_title"],
+                    font_weight=self.hig_specs["font_weight_title"],
+                    text_align="center",
+                    margin=self.hig_specs["button_spacing"]
+                )
+            else:
+                label_style = Pack(
+                    font_size=self.hig_specs["font_size_caption"],
+                    margin=self.hig_specs["button_spacing"]
+                )
+
+            return toga.Label(text=text, style=label_style)
+
+        except Exception as e:
+            logger.error(f"Failed to create label: {e}")
+            return toga.Label(text=text)
+
+    # Layout helper methods
+    def add_button_left(self,
+                       text: Optional[str] = None,
+                       icon: Optional[str] = None,
+                       on_press: Optional[Callable] = None,
+                       tooltip: Optional[str] = None,
+                       button_id: Optional[str] = None) -> toga.Button:
+        """Add button to left side of toolbar"""
+        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        self.left_content.add(button)
+
+        if button_id:
+            self.buttons[button_id] = button
+
+        return button
+
+    def add_button_right(self,
+                        text: Optional[str] = None,
+                        icon: Optional[str] = None,
+                        on_press: Optional[Callable] = None,
+                        tooltip: Optional[str] = None,
+                        button_id: Optional[str] = None) -> toga.Button:
+        """Add button to right side of toolbar"""
+        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        self.right_content.add(button)
+
+        if button_id:
+            self.buttons[button_id] = button
+
+        return button
+
+    def add_button_center(self,
+                         text: Optional[str] = None,
+                         icon: Optional[str] = None,
+                         on_press: Optional[Callable] = None,
+                         tooltip: Optional[str] = None,
+                         button_id: Optional[str] = None) -> toga.Button:
+        """Add button to center of toolbar"""
+        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        self.center_content.add(button)
+
+        if button_id:
+            self.buttons[button_id] = button
+
+        return button
+
+    def add_title(self,
+                 title: str,
+                 on_click: Optional[Callable] = None) -> toga.Label:
+        """Add title to center of toolbar"""
+        label = self.create_label(title, style_class="title")
+        self.center_content.add(label)
+
+        self.labels["title"] = label
+        return label
+
+    def clear_content(self, area: str = "all") -> None:
+        """Clear content from toolbar areas"""
+        try:
+            if area in ["all", "left"]:
+                self.left_content.clear()
+            if area in ["all", "center"]:
+                self.center_content.clear()
+            if area in ["all", "right"]:
+                self.right_content.clear()
+
+            # Clear button references
+            if area == "all":
+                self.buttons.clear()
+                self.labels.clear()
+
+        except Exception as e:
+            logger.error(f"Failed to clear content: {e}")
+
+    def setup_navigation_controller_integration(self) -> None:
+        """Set up NavigationController integration"""
+        try:
+            from fichero.shared.navigation.navigation_controller import NavigationController
+
+            # This will be implemented by subclasses as needed
+            logger.debug("NavigationController integration available")
+
+        except ImportError:
+            logger.warning("NavigationController not available")
+
     @abstractmethod
-    def _create_toolbar(self):
-        """Create the specific toolbar content - must be implemented by derived classes"""
+    def _create_toolbar(self) -> None:
+        """Create the specific toolbar content - implemented by subclasses"""
         pass
-    
-    def create_navigation_button(self, 
-                                button_id: str,
-                                text: str,
-                                on_press: Optional[Callable] = None,
-                                tooltip: Optional[str] = None,
-                                enabled: bool = True) -> toga.Button:
-        """Create a navigation button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(8, 12),  # Larger margin for touch targets
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 8),  # Smaller margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        button = toga.Button(
-            text=text,
-            on_press=on_press or self._default_button_handler,
-            enabled=enabled,
-            style=button_style
-        )
-        
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add default icon
-        try:
-            button.icon = toga.Icon("resources/icons/toolbar/chevron.left@10x.png")
-        except Exception:
-            pass
-        
-        self.buttons[button_id] = button
-        return button
-    
-    def create_action_button(self, 
-                            button_id: str,
-                            text: str,
-                            icon: Optional[str] = None,
-                            on_press: Optional[Callable] = None,
-                            tooltip: Optional[str] = None,
-                            enabled: bool = True) -> toga.Button:
-        """Create an action button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(8, 12),  # Larger margin for touch targets
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 8),  # Smaller margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        button = toga.Button(
-            text=text,
-            on_press=on_press or self._default_button_handler,
-            enabled=enabled,
-            style=button_style
-        )
-        
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add icon if specified
-        if icon:
-            try:
-                button.icon = toga.Icon(f"resources/icons/toolbar/{icon}.png")
-            except Exception:
-                pass
-        
-        self.buttons[button_id] = button
-        return button
-    
-    def create_icon_button(self, 
-                           button_id: str,
-                           icon: str,
-                           on_press: Optional[Callable] = None,
-                           tooltip: Optional[str] = None,
-                           enabled: bool = True) -> toga.Button:
-        """Create an icon-only button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(4, 4),   # Reduced from (8, 8) to prevent excessive spacing
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 4),   # Smaller square margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        # Try to load icon - no fallback text, icons should work
-        button = toga.Button(
-            text="",  # Empty text - icons only
-            on_press=on_press or self._default_button_handler,
-            enabled=enabled,
-            style=button_style
-        )
-        
-        # Load icon using proper Toga path - fallback to text if icon fails
-        try:
-            icon_path = self.app.paths.app / f"resources/icons/toolbar/{icon}.png"
-            logger.info(f"🔧 Attempting to load icon: {icon} from {icon_path}")
-            
-            # Create button with ONLY icon (Toga doesn't support both text and icon)
-            button = toga.Button(
-                icon=toga.Icon(icon_path),  # Use icon directly, no text
-                on_press=on_press or self._default_button_handler,
-                enabled=enabled,
-                style=button_style
-            )
-            logger.info(f"✅ Icon loaded successfully: {icon}")
-            
-        except Exception as e:
-            logger.warning(f"Failed to load icon {icon}: {e}, using text fallback")
-            # Fallback to text button if icon fails
-            button = toga.Button(
-                text=icon[:1].upper(),  # Use first letter of icon name
-                on_press=on_press or self._default_button_handler,
-                enabled=enabled,
-                style=button_style
-            )
-        
-        # Store button and log creation
-        self.buttons[button_id] = button
-        
-        # Log button creation for debugging
-        logger.info(f"🔧 Created button {button_id}: enabled={enabled}, style={button_style}")
-        
-        return button
-    
-    def create_display_button(self, 
-                              button_id: str,
-                              text: str,
-                              tooltip: Optional[str] = None) -> toga.Button:
-        """Create a display-only button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(8, 12),  # Larger margin for touch targets
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 8),  # Smaller margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        button = toga.Button(
-            text=text,
-            enabled=False,
-            style=button_style
-        )
-        
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add default icon
-        try:
-            button.icon = toga.Icon("resources/icons/toolbar/text_document.png")
-        except Exception:
-            pass
-        
-        self.buttons[button_id] = button
-        return button
-    
-    def add_to_left(self, widget):
-        """Add a widget to the left side of the toolbar (navigation/context tools)"""
-        if hasattr(self, 'left_content'):
-            self.left_content.add(widget)
-            logger.info(f"🔧 Added widget to left content: {widget} (total left widgets: {len(self.left_content.children)})")
-        else:
-            # Fallback to main content if left_content not available
-            self.content.add(widget)
-            logger.info(f"🔧 Added widget to main content: {widget}")
-    
-    def add_to_right(self, widget):
-        """Add a widget to the right side of the toolbar (action tools)"""
-        if hasattr(self, 'right_content'):
-            self.right_content.add(widget)
-        else:
-            # Fallback to main content if right_content not available
-            self.content.add(widget)
-    
-    def add_to_center(self, widget):
-        """Add a widget to the center of the toolbar (titles, etc.)"""
-        if hasattr(self, 'center_content'):
-            self.center_content.add(widget)
-        else:
-            # Fallback to main content if center_content not available
-            self.content.add(widget)
-    
-    def add_button_center(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add an icon button to the center with consistent styling"""
-        button = self.create_icon_button(
-            button_id=f"center_{icon}",
-            icon=icon,
-            on_press=on_press,
-            tooltip=tooltip
-        )
-        self.add_to_center(button)
-        return button
-    
-    def add_button_text_center(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add a text button to the center with consistent styling"""
-        button = toga.Button(
-            text=text,
-            on_press=on_press,
-            style=Pack(
-                margin=(0, 8),
-                color=self.TITLE_COLOR
-            )
-        )
-        self.add_to_center(button)
-        return button
-    
-    def create_separator(self, width: int = 20) -> toga.Box:
-        """Create a visual separator between toolbar sections"""
-        return toga.Box(style=Pack(width=width))
-    
-    def create_button(self, 
-                      button_id: str,
-                      text: str,
-                      icon: Optional[str] = None,
-                      on_press: Optional[Callable] = None,
-                      enabled: bool = True) -> toga.Button:
-        """Create a generic button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(8, 12),  # Larger margin for touch targets
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 8),  # Smaller margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        button = toga.Button(
-            text=text,
-            on_press=on_press or self._default_button_handler,
-            enabled=enabled,
-            style=button_style
-        )
-        
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add icon if specified
-        if icon:
-            try:
-                button.icon = toga.Icon(f"resources/icons/toolbar/{icon}.png")
-            except Exception:
-                pass
-        
-        self.buttons[button_id] = button
-        return button
-    
-    def create_command_button(self, 
-                             button_id: str,
-                             command: toga.Command,
-                             icon_path: Optional[str] = None) -> toga.Button:
-        """Create a command button with platform-appropriate sizing"""
-        # Platform-specific button sizing
-        if self.is_mobile:
-            # Mobile: larger buttons for touch (44px minimum for iOS)
-            button_style = Pack(
-                margin=(8, 12),  # Larger margin for touch targets
-                width=44, height=44,  # 44px minimum for touch
-                color=ICON_PRIMARY
-            )
-        else:
-            # Desktop: smaller buttons to fit all 5 buttons
-            button_style = Pack(
-                margin=(4, 8),  # Smaller margin
-                width=22, height=22,  # 22px for desktop
-                color=ICON_PRIMARY
-            )
-        
-        button = toga.Button(
-            text=command.text,
-            icon=icon_path and toga.Icon(icon_path) or command.icon,
-            on_press=lambda widget: command.action(widget),
-            enabled=command.enabled,
-            style=button_style
-        )
-        
-        # Remove background color
-        if hasattr(button.style, 'background_color'):
-            del button.style.background_color
-        
-        # Add default icon if none provided
-        if not button.icon:
-            try:
-                button.icon = toga.Icon("resources/icons/toolbar/gear.png")
-            except Exception:
-                pass
-        
-        self.buttons[button_id] = button
-        self.register_command(button_id, command)
-        return button
-    
-    def register_command(self, command_id: str, command: toga.Command):
-        """Register a command with the toolbar"""
-        self.commands[command_id] = command
-        logger.debug(f"Registered command: {command_id}")
-    
-    def register_action_callback(self, action_id: str, callback: Callable):
-        """Register a callback for a specific action"""
-        self.action_callbacks[action_id] = callback
-        logger.debug(f"Registered action callback: {action_id}")
-    
-    def _default_button_handler(self, widget):
-        """Default button handler for buttons without specific callbacks"""
-        logger.debug(f"Default button handler called for: {widget}")
-    
+
     def get_container(self) -> toga.Box:
-        """Get the toolbar container"""
+        """Get the toolbar container widget"""
         return self.container
-    
-    def get_buttons(self) -> Dict[str, toga.Button]:
-        """Get all buttons in the toolbar"""
-        return self.buttons
-    
-    def get_button(self, button_id: str) -> Optional[toga.Button]:
-        """Get a specific button by ID"""
-        return self.buttons.get(button_id)
-    
-    def enable_button(self, button_id: str, enabled: bool = True):
-        """Enable or disable a button"""
-        if button_id in self.buttons:
-            self.buttons[button_id].enabled = enabled
-    
-    def show_button(self, button_id: str, visible: bool = True):
-        """Show or hide a button"""
-        if button_id in self.buttons:
-            self.buttons[button_id].visible = visible
-    
-    def show(self):
-        """Show the toolbar"""
-        if self.container:
-            self.container.visible = True
-    
-    def hide(self):
-        """Hide the toolbar"""
-        if self.container:
-            self.container.visible = False
-    
-    def is_visible(self) -> bool:
-        """Check if the toolbar is visible"""
-        return self.container.visible if self.container else False
-    
-    def set_background_color(self, color: str):
-        """Set the background color of the toolbar"""
-        if self.container:
-            self.container.style.background_color = color
-    
-    def set_icon_color(self, color: str):
-        """Set the icon color for all buttons in the toolbar"""
-        for button in self.buttons.values():
-            if hasattr(button.style, 'color'):
-                button.style.color = color 
-    
-    def add_button_left(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add an icon button to the left side with consistent styling"""
-        logger.info(f"🔧 add_button_left called with icon: {icon}")
-        button = self.create_icon_button(
-            button_id=f"left_{icon}",
-            icon=icon,
-            on_press=on_press,
-            tooltip=tooltip
-        )
-        self.add_to_left(button)
-        logger.info(f"🔧 add_button_left completed for icon: {icon}")
-        return button
-    
-    def add_button_right(self, icon: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add an icon button to the right side with consistent styling"""
-        button = self.create_icon_button(
-            button_id=f"right_{icon}",
-            icon=icon,
-            on_press=on_press,
-            tooltip=tooltip
-        )
-        self.add_to_right(button)
-        return button
-    
-    def add_button_text_left(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add a text button to the left side with consistent styling"""
-        style_props = {'margin': (0, 8)}
-        if self.TITLE_COLOR:  # Only set color on mobile
-            style_props['color'] = self.TITLE_COLOR
-            
-        button = toga.Button(
-            text=text,
-            on_press=on_press,
-            style=Pack(**style_props)
-        )
-        self.add_to_left(button)
-        return button
-    
-    def add_button_text_right(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add a text button to the right side with consistent styling"""
-        style_props = {'margin': (0, 8)}
-        if self.TITLE_COLOR:  # Only set color on mobile
-            style_props['color'] = self.TITLE_COLOR
-            
-        button = toga.Button(
-            text=text,
-            on_press=on_press,
-            style=Pack(**style_props)
-        )
-        self.add_to_right(button)
-        return button
-    
-    def add_button_text_center(self, text: str, on_press: Callable, tooltip: str = "") -> toga.Button:
-        """Add a text button to the center with consistent styling"""
-        style_props = {'margin': (0, 8)}
-        if self.TITLE_COLOR:  # Only set color on mobile
-            style_props['color'] = self.TITLE_COLOR
-            
-        button = toga.Button(
-            text=text,
-            on_press=on_press,
-            style=Pack(**style_props)
-        )
-        self.add_to_center(button)
-        return button
-    
-    def add_title_left(self, text: str, margin_left: int = 0, on_click: Callable = None) -> toga.Widget:
-        """Add a title label to the left side with automatic mobile/desktop styling and proper centering"""
-        # Automatically handle mobile vs desktop behavior
-        clickable = self.is_mobile and on_click is not None
-        
-        # Calculate proper top margin to center title with buttons
-        if self.is_mobile:
-            title_top_margin = 14  # Better centering with 44px buttons (matches center method)
-        else:
-            title_top_margin = 8   # Better centering with 22px buttons (matches center method)
-        
-        if clickable:
-            # Create clickable title as button (mobile only) - use system color
-            style_props = {
-                'margin_left': margin_left,
-                'margin_top': title_top_margin,
-                'font_weight': self.TITLE_FONT_WEIGHT,
-                'background_color': "transparent"
-            }
-            # Don't force blue color - use system default for clickable buttons too
-            
-            title = toga.Button(
-                text=text,
-                on_press=on_click,
-                style=Pack(**style_props)
-            )
-        else:
-            # Create non-clickable title as label - use default system color
-            style_props = {
-                'margin_left': margin_left,
-                'margin_top': title_top_margin,
-                'font_weight': self.TITLE_FONT_WEIGHT,
-                # No color specified - use system default
-            }
-                
-            title = toga.Label(
-                text,
-                style=Pack(**style_props)
-            )
-        self.add_to_left(title)
-        return title
-    
-    def add_title_center(self, text: str, on_click: Callable = None) -> toga.Widget:
-        """Add a title label to the center with automatic mobile/desktop styling and proper centering"""
-        # Automatically handle mobile vs desktop behavior
-        clickable = self.is_mobile and on_click is not None
-        
-        # Calculate proper top margin to center title with buttons
-        if self.is_mobile:
-            title_top_margin = 14  # Better centering with 44px buttons
-        else:
-            title_top_margin = 8   # Better centering with 22px buttons
-        
-        if clickable:
-            # Create clickable title as button (mobile only) - use blue color
-            style_props = {
-                'flex': 1,
-                'text_align': "center",
-                'margin_top': title_top_margin,
-                'font_weight': self.TITLE_FONT_WEIGHT,
-                'background_color': "transparent"
-            }
-            if self.TITLE_COLOR:  # Blue color for clickable buttons
-                style_props['color'] = self.TITLE_COLOR
-                
-            title = toga.Button(
-                text=text,
-                on_press=on_click,
-                style=Pack(**style_props)
-            )
-        else:
-            # Create non-clickable title as label - use default system color
-            style_props = {
-                'flex': 1,
-                'text_align': "center",
-                'margin_top': title_top_margin,
-                'font_weight': self.TITLE_FONT_WEIGHT,
-                # No color specified - use system default
-            }
-                
-            title = toga.Label(
-                text,
-                style=Pack(**style_props)
-            )
-        self.add_to_center(title)
-        return title
-    
-    def add_spacer(self, width: int = None, height: int = None, flex: bool = False) -> toga.Box:
-        """Add a spacer/invisible element to maintain toolbar height"""
-        style_props = {}
-        if width:
-            style_props['width'] = width
-        if height:
-            style_props['height'] = height
-        if flex:
-            style_props['flex'] = 1
-            
-        spacer = toga.Box(style=Pack(**style_props))
-        self.add_to_center(spacer)
-        return spacer 
 
-    def add_back_button_with_title(self, title_text: str, on_back: Callable, on_title_click: Callable = None) -> tuple:
-        """Smart helper: Add back button + title with automatic mobile/desktop layout"""
-        if self.is_mobile:
-            # Mobile: back button + title on left
-            back_button = self.add_button_left(
-                icon="chevron.left@10x",
-                on_press=on_back,
-                tooltip="Back"
-            )
-            
-            title = self.add_title_left(
-                title_text,
-                margin_left=10,
-                on_click=on_title_click
-            )
-            
-            return back_button, title
+    # Smart button management API
+    def add_regular_button(self,
+                          button_id: str,
+                          position: str = "right",
+                          text: Optional[str] = None,
+                          icon: Optional[str] = None,
+                          on_press: Optional[Callable] = None,
+                          style_class: str = "default") -> toga.Button:
+        """Add a regular button that persists across edit mode transitions"""
+        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class)
+
+        # Store button info for smart management
+        self._regular_buttons[button_id] = {
+            "button": button,
+            "position": position,
+            "text": text,
+            "icon": icon,
+            "on_press": on_press,
+            "style_class": style_class
+        }
+
+        # Add to appropriate position
+        self._add_button_to_position(button, position)
+        return button
+
+    def add_edit_button(self,
+                       button_id: str,
+                       position: str = "right",
+                       text: Optional[str] = None,
+                       icon: Optional[str] = None,
+                       on_press: Optional[Callable] = None,
+                       style_class: str = "default") -> toga.Button:
+        """Add an edit mode button (only shown during edit mode)"""
+        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class)
+
+        # Store button info for edit mode
+        self._edit_buttons[button_id] = {
+            "button": button,
+            "position": position,
+            "text": text,
+            "icon": icon,
+            "on_press": on_press,
+            "style_class": style_class
+        }
+
+        # Don't add to UI yet - will be added during edit mode
+        return button
+
+    def _add_button_to_position(self, button: toga.Button, position: str) -> None:
+        """Add button to the specified position"""
+        if position == "left":
+            self.left_content.add(button)
+        elif position == "center":
+            self.center_content.add(button)
+        elif position == "right":
+            self.right_content.add(button)
         else:
-            # Desktop: just centered title, no back button
-            title = self.add_centered_title_only(title_text, on_title_click=on_title_click)
-            return None, title
-    
-    def add_centered_title_only(self, title_text: str, on_title_click: Callable = None) -> toga.Widget:
-        """Smart helper: Add only a centered title (common desktop pattern)"""
-        return self.add_title_center(title_text, on_click=on_title_click)
-    
-    def add_standard_right_buttons(self, buttons: list) -> list:
-        """Smart helper: Add multiple right-aligned buttons with consistent spacing"""
-        created_buttons = []
-        for button_config in buttons:
-            if button_config.get('text'):
-                # Text button
-                btn = self.add_button_text_right(
-                    text=button_config['text'],
-                    on_press=button_config['on_press'],
-                    tooltip=button_config.get('tooltip', '')
-                )
-            else:
-                # Icon button
-                btn = self.add_button_right(
-                    icon=button_config['icon'],
-                    on_press=button_config['on_press'],
-                    tooltip=button_config.get('tooltip', '')
-                )
-            created_buttons.append(btn)
-        return created_buttons 
+            logger.warning(f"Unknown button position: {position}, defaulting to right")
+            self.right_content.add(button)
 
-    def add_standard_center_buttons(self, buttons: list) -> list:
-        """Smart helper: Add multiple center-aligned buttons with consistent spacing"""
-        created_buttons = []
-        for button_config in buttons:
-            if button_config.get('text'):
-                # Text button
-                btn = self.add_button_text_center(
-                    text=button_config['text'],
-                    on_press=button_config['on_press'],
-                    tooltip=button_config.get('tooltip', '')
-                )
-            else:
-                # Icon button
-                btn = self.add_button_center(
-                    icon=button_config['icon'],
-                    on_press=button_config['on_press'],
-                    tooltip=button_config.get('tooltip', '')
-                )
-            created_buttons.append(btn)
-        return created_buttons 
+    def _rebuild_toolbar_for_mode(self, mode: EditModeState) -> None:
+        """Smart rebuild of toolbar preserving regular buttons"""
+        try:
+            # Clear all content
+            self.clear_content()
 
-    def add_title_only(self, title_text: str, on_title_click: Callable = None) -> toga.Widget:
-        """Smart helper: Add only a centered title (simple toolbar pattern)"""
-        return self.add_centered_title_only(title_text, on_title_click=on_title_click) 
+            if mode == EditModeState.NORMAL:
+                # Show only regular buttons
+                for button_info in self._regular_buttons.values():
+                    self._add_button_to_position(button_info["button"], button_info["position"])
 
-    def add_centered_button_group(self, buttons: list) -> list:
-        """Add a group of buttons centered in the toolbar"""
-        # Create a wrapper box for centering multiple buttons
-        button_wrapper = toga.Box(
-            style=Pack(
-                direction=ROW,
-                flex=1,
-                text_align="center"
-            )
-        )
-        
-        # Add flexible spacer before buttons
-        left_spacer = toga.Box(style=Pack(flex=1))
-        button_wrapper.add(left_spacer)
-        
-        # Add buttons
-        created_buttons = []
-        for button_config in buttons:
-            if button_config.get('text'):
-                # Text button
-                btn = toga.Button(
-                    text=button_config['text'],
-                    on_press=button_config['on_press'],
-                    style=Pack(margin=(0, 4))  # Small horizontal margin between buttons
-                )
-            else:
-                # Icon button
-                btn = self.create_icon_button(
-                    button_id=f"center_group_{button_config['icon']}",
-                    icon=button_config['icon'],
-                    on_press=button_config['on_press'],
-                    tooltip=button_config.get('tooltip', '')
-                )
-            button_wrapper.add(btn)
-            created_buttons.append(btn)
-        
-        # Add flexible spacer after buttons
-        right_spacer = toga.Box(style=Pack(flex=1))
-        button_wrapper.add(right_spacer)
-        
-        # Add the wrapper to center content
-        self.add_to_center(button_wrapper)
-        return created_buttons
+            elif mode == EditModeState.EDIT:
+                # Show regular buttons + edit buttons, but handle special cases
+                # This will be overridden by subclasses for specific behavior
+                for button_info in self._regular_buttons.values():
+                    self._add_button_to_position(button_info["button"], button_info["position"])
 
-    def add_collection_back_button_with_title(self, title_text: str, on_back: Callable, on_title_click: Callable = None, desktop_title_left_aligned: bool = False) -> tuple:
-        """Smart helper: Add back button + title for collection view with hierarchy navigation support"""
-        # Mobile: always show back button
-        # Desktop: show back button for hierarchy navigation (hidden when at root, shown when in folders)
-        
-        back_button = self.add_button_left(
-            icon="chevron.left@10x",
-            on_press=on_back,
-            tooltip="Back"
-        )
-        
-        if self.is_mobile:
-            # Mobile: title on left next to back button
-            title = self.add_title_left(
-                title_text,
-                margin_left=10,
-                on_click=on_title_click
-            )
-        else:
-            # Desktop: back button on left (initially hidden)
-            back_button.style.visibility = "hidden"  # Hide by default on desktop
-            
-            # Desktop title positioning depends on context
-            if desktop_title_left_aligned:
-                # In hierarchy - left-aligned title next to back button
-                title = self.add_title_left(
-                    title_text,
-                    margin_left=10,
-                    on_click=on_title_click
-                )
-            else:
-                # At collection root - centered title
-                title = self.add_centered_title_only(title_text, on_title_click=on_title_click)
-        
-        return back_button, title 
+                for button_info in self._edit_buttons.values():
+                    self._add_button_to_position(button_info["button"], button_info["position"])
+
+            self._current_mode = mode
+            logger.debug(f"Toolbar rebuilt for mode: {mode.value}")
+
+        except Exception as e:
+            logger.error(f"Failed to rebuild toolbar for mode {mode}: {e}")

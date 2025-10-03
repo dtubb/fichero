@@ -45,20 +45,38 @@ def detect_platform_features(app: toga.App) -> PlatformFeatures:
         features.is_mobile = getattr(app, 'is_mobile', False)
         features.is_desktop = not features.is_mobile
         
-        # Platform-specific feature detection
-        try:
-            platform_name = app.platforms.current.name.lower()
-        except:
-            platform_name = "unknown"
+        # Platform-specific feature detection using app's platform detection (respects debug flags)
+        import toga.platform
+        import os
+
+        # Use app's platform detection logic that respects FORCE_MOBILE_UI
+        env_mobile = os.environ.get('FORCE_MOBILE_UI')
+        if env_mobile is not None:
+            # Environment override - determine platform based on actual platform but respect mobile override
+            actual_platform = toga.platform.current_platform.lower()
+            if env_mobile.lower() in ('true', '1', 'yes', 'on'):
+                # Force mobile UI - treat as iOS for feature detection
+                platform_name = 'ios' if actual_platform == 'macos' else actual_platform
+            else:
+                # Force desktop UI
+                platform_name = actual_platform
+        else:
+            # Normal detection
+            platform_name = toga.platform.current_platform.lower()
         
         # File dialogs (desktop only)
-        if platform_name in ['macos', 'windows', 'linux', 'gtk']:
+        if platform_name in ['macos', 'windows', 'linux', 'gtk', 'cocoa']:
             features.has_file_dialog = True
             features.has_folder_dialog = True
         
-        # Camera (iOS, Android, macOS)
-        if platform_name in ['ios', 'android', 'macos']:
-            features.has_camera = hasattr(app, 'camera')
+        # Camera (iOS, Android, macOS only - not Windows/GTK)
+        if platform_name in ['ios', 'android', 'macos', 'cocoa']:
+            # Camera works well on mobile and macOS, check if app can actually access it
+            try:
+                features.has_camera = hasattr(app, 'camera') and app.camera is not None
+            except Exception:
+                # If camera initialization fails (permissions, no hardware, etc), disable it
+                features.has_camera = False
         
         # Audio recording (future feature)
         features.has_audio_recording = False

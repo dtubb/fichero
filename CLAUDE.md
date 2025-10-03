@@ -189,6 +189,27 @@ python -m pytest tests/test_library_core.py
 - Internationalization via gettext with resource files in `resources/locale/`
 - All file operations go through path validation and security checks
 
+### Toga Styling Guidelines
+
+**IMPORTANT**: When working with Toga styles, be aware of these key changes:
+
+- **`Pack.padding` is DEPRECATED**: Use `Pack.margin` instead
+- **Directional properties**: Use `margin_top`, `margin_bottom`, `margin_left`, `margin_right` instead of `padding_*`
+- **Tuple format**: `margin=(top, right, bottom, left)` or `margin=(vertical, horizontal)`
+
+**Common fixes needed:**
+```python
+# OLD (deprecated, causes crashes):
+style=Pack(padding=(5, 10))
+style=Pack(padding_right=10)
+
+# NEW (correct):
+style=Pack(margin=(5, 10))
+style=Pack(margin_right=10)
+```
+
+Reference: Toga manuals are available in `/toga manuals/` directory.
+
 ### Environment Variables
 
 - `FORCE_MOBILE_UI=true` - Force mobile UI layout on desktop

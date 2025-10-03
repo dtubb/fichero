@@ -163,10 +163,78 @@ run_cli_test() {
     echo -e "${GREEN}✅ CLI testing completed! Check logs in ./logs/cli_*.log${NC}"
 }
 
+# Function to run unit tests first
+run_unit_tests() {
+    echo -e "${BLUE}🧪 Running unit tests first...${NC}"
+
+    # Check if we're in the right directory
+    if [ -d "fichero" ] && [ -f "fichero/pyproject.toml" ]; then
+        cd fichero
+        source /Users/dtubb/code/fichero_main/fichero/.venv/bin/activate
+    elif [ -f "pyproject.toml" ]; then
+        source /Users/dtubb/code/fichero_main/fichero/.venv/bin/activate
+    else
+        echo -e "${RED}❌ Error: Cannot find fichero project directory${NC}"
+        return 1
+    fi
+
+    echo -e "${BLUE}🧪 Running unit test suite...${NC}"
+
+    # Run multiple test suites
+    echo -e "${BLUE}🧪   - Testing library service...${NC}"
+    PYTHONPATH=src python tests/unit/test_library_service.py > ./logs/unit_tests_library.log 2>&1
+    local library_tests=$?
+
+    echo -e "${BLUE}🧪   - Testing URL import...${NC}"
+    PYTHONPATH=src python -c "
+import unittest
+import sys
+sys.path.insert(0, 'tests/unit')
+from test_url_import import TestBulkImportCommands
+suite = unittest.TestSuite()
+suite.addTest(TestBulkImportCommands('test_url_format_validation'))
+suite.addTest(TestBulkImportCommands('test_extract_urls_from_text_cli'))
+suite.addTest(TestBulkImportCommands('test_generate_url_name'))
+runner = unittest.TextTestRunner(verbosity=2)
+result = runner.run(suite)
+exit(0 if result.wasSuccessful() else 1)
+" > ./logs/unit_tests_url.log 2>&1
+    local url_tests=$?
+
+    echo -e "${BLUE}🧪   - Testing center pane...${NC}"
+    PYTHONPATH=src python tests/unit/test_center_pane.py > ./logs/unit_tests_center_pane.log 2>&1
+    local center_pane_tests=$?
+
+    echo -e "${BLUE}🧪   - Testing window integration...${NC}"
+    PYTHONPATH=src python -m unittest tests.unit.test_window_integration -v > ./logs/unit_tests_window.log 2>&1
+    local window_tests=$?
+
+    echo -e "${BLUE}🧪   - Testing preview integration...${NC}"
+    PYTHONPATH=src python tests/unit/test_preview_integration.py > ./logs/unit_tests_preview.log 2>&1
+    local preview_tests=$?
+
+    local test_exit_code=$((library_tests + url_tests + center_pane_tests + window_tests + preview_tests))
+
+    if [ $test_exit_code -eq 0 ]; then
+        echo -e "${GREEN}✅ Unit tests passed! Proceeding with GUI tests...${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Unit tests failed! Check ./logs/unit_tests.log for details${NC}"
+        echo -e "${YELLOW}⚠️  Continuing with GUI tests anyway for debugging...${NC}"
+        return $test_exit_code
+    fi
+}
+
 # Function to run all four modes in parallel
 run_all_parallel() {
-    echo -e "${BLUE}🚀 Starting all three modes in parallel...${NC}"
-    
+    echo -e "${BLUE}🚀 Starting comprehensive testing...${NC}"
+
+    # Run unit tests first
+    run_unit_tests
+    local test_result=$?
+
+    echo -e "${BLUE}🚀 Starting all three GUI modes in parallel...${NC}"
+
     # Start desktop in background
     run_desktop &
     local desktop_pid=$!
@@ -212,7 +280,8 @@ show_help() {
     echo "Fichero Parallel Testing Script"
     echo ""
     echo "Usage:"
-    echo "  $0                    - Run all four modes in parallel"
+    echo "  $0                    - Run unit tests first, then all GUI modes in parallel"
+    echo "  $0 tests              - Run unit tests only"
     echo "  $0 desktop            - Run desktop mode only"
     echo "  $0 mobile             - Run desktop mobile mode only"
     echo "  $0 ios                - Run iOS simulator only"
@@ -228,6 +297,9 @@ show_help() {
 
 # Main execution logic
 case "${1:-all}" in
+    "tests")
+        run_unit_tests
+        ;;
     "desktop")
         run_desktop
         ;;

@@ -9,6 +9,10 @@ import toga
 import sys
 import os
 import logging
+
+# Enable Toga debug layout mode to visualize containers
+# DISABLED: Debug layout disabled for cleaner UI
+# toga.Widget.DEBUG_LAYOUT_ENABLED = True
 from pathlib import Path
 import gettext
 import locale
@@ -21,7 +25,6 @@ from fichero.menus import MenuManager
 # Document model removed - using library approach instead
 from fichero.core.app_initializer import initialize_gui_app
 from fichero.core.error_handler import create_gui_error_handler
-from fichero.windows.main.window_view_manager import WindowViewManager, WindowType
 from fichero import __version__
 from fichero.library.library_manager import LibraryManager
 from fichero.windows.main.services.library_service import LibraryService
@@ -94,12 +97,22 @@ class FicheroApp(toga.App):
             
             # Initialize library service
             self.library_service = LibraryService(self.library_manager)
-            logger.info("Library service initialized at app level")            # Initialize unified window/view manager
-            self.window_view_manager = WindowViewManager(self)
-            
-            # Detect platform once and set as app property
+            logger.info("Library service initialized at app level")
+
+            # Initialize simple view integration for event-driven navigation
+            from fichero.shared.navigation.view_integration import ViewIntegration
+            self.view_integration = ViewIntegration(self)
+            if self.view_integration.initialize():
+                logger.info("View integration initialized successfully")
+            else:
+                logger.warning("View integration initialization failed, using fallback")
+                self.view_integration = None
+
+            # Detect platform once and set as app property FIRST
             self.is_mobile = self._detect_platform_simple()
             logger.info(f"Platform detection complete: is_mobile={self.is_mobile}")
+
+            # Initialize unified window/view manager (after mobile detection)
             
             if not is_gui_only:
                 print("✅ Fichero components initialized")
@@ -253,25 +266,29 @@ class FicheroApp(toga.App):
 
     # Activity Monitor Management
     def show_activity_monitor(self):
-        """Show the activity monitor window - delegates to unified manager"""
+        """Show the activity monitor window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.ACTIVITY_MONITOR)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_activity_monitor()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show activity monitor: {e}")
             return False
 
     def close_activity_monitor(self):
-        """Close the activity monitor window - delegates to unified manager"""
+        """Close the activity monitor window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.ACTIVITY_MONITOR)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close activity monitor: {e}")
             return False
@@ -280,172 +297,270 @@ class FicheroApp(toga.App):
         """Show the settings window or view"""
         try:
             logger.info("=== show_settings() called ===")
-            logger.info(f"Has window_view_manager: {hasattr(self, 'window_view_manager')}")
-            if hasattr(self, 'window_view_manager'):
-                logger.info(f"WindowViewManager is_mobile: {self.window_view_manager.is_mobile}")
-                logger.info(f"Mobile view manager set: {self.window_view_manager.mobile_view_manager is not None}")
-            
-            return self.window_view_manager.show_window_or_view(WindowType.SETTINGS)
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_settings()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show settings: {e}")
             return False
 
     def close_settings(self):
-        """Close the settings window - delegates to unified manager"""
+        """Close the settings window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.SETTINGS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close settings: {e}")
             return False
 
     def show_plans(self):
-        """Show the plans window - delegates to unified manager"""
+        """Show the plans window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.PLANS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_plans()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show plans: {e}")
             return False
 
     def close_plans(self):
-        """Close the plans window - delegates to unified manager"""
+        """Close the plans window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.PLANS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close plans: {e}")
             return False
 
     def show_prompts(self):
-        """Show the prompts window - delegates to unified manager"""
+        """Show the prompts window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.PROMPTS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_prompts()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show prompts: {e}")
             return False
 
     def close_prompts(self):
-        """Close the prompts window - delegates to unified manager"""
+        """Close the prompts window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.PROMPTS)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close prompts: {e}")
             return False
 
     def show_processing(self):
-        """Show the processing window - delegates to unified manager"""
+        """Show the processing window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.PROCESSING)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_processing()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show processing: {e}")
             return False
 
     def close_processing(self):
-        """Close the processing window - delegates to unified manager"""
+        """Close the processing window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.PROCESSING)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close processing: {e}")
             return False
 
     def show_preview(self, file_path=None, **kwargs):
-        """Show the preview window - delegates to unified manager"""
+        """Show the preview window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(
-                    WindowType.PREVIEW, 
-                    file_path=file_path,
-                    **kwargs
-                )
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller and file_path:
+                    return navigation_controller.navigate_to_preview(file_path, kwargs)
+
+            logger.error("NavigationController not available or no file path provided")
+            return False
         except Exception as e:
             logger.error(f"Failed to show preview: {e}")
             return False
 
     def close_preview(self):
-        """Close the preview window - delegates to unified manager"""
+        """Close the preview window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.PREVIEW)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close preview: {e}")
             return False
 
     def show_about(self):
-        """Show the about window - delegates to unified manager"""
+        """Show the about window - uses NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.ABOUT)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_about()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to show about: {e}")
             return False
 
-    def show_add_dialog(self, option_id: Optional[str] = None):
-        """Show the add dialog - delegates to unified manager"""
+    def show_add_url(self):
+        """Show the add URL dialog"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.show_window_or_view(WindowType.ADD_DIALOG, option_id=option_id)
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_url()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add URL: {e}")
+            return False
+
+    def show_add_website(self):
+        """Show the add website dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_website()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add website: {e}")
+            return False
+
+    def show_add_file(self):
+        """Show the add file dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_file()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add file: {e}")
+            return False
+
+    def show_add_folder(self):
+        """Show the add folder dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_folder()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add folder: {e}")
+            return False
+
+    def show_add_camera(self):
+        """Show the add camera dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_camera()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add camera: {e}")
+            return False
+
+    def show_add_dialog(self, option_id: Optional[str] = None):
+        """Legacy method - redirects to specific add methods"""
+        try:
+            # Map legacy option_id to new specific methods
+            if option_id == "url":
+                return self.show_add_url()
+            elif option_id == "website":
+                return self.show_add_website()
+            elif option_id == "file":
+                return self.show_add_file()
+            elif option_id == "folder":
+                return self.show_add_folder()
+            elif option_id == "camera":
+                return self.show_add_camera()
             else:
-                logger.error("Window/view manager not initialized")
-                return False
+                # Default to URL for backward compatibility
+                return self.show_add_url()
         except Exception as e:
             logger.error(f"Failed to show add dialog: {e}")
             return False
 
     def close_about(self):
-        """Close the about window - delegates to unified manager"""
+        """Close the about window - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                return self.window_view_manager.close_window_or_view(WindowType.ABOUT)
-            else:
-                logger.error("Window/view manager not initialized")
-                return False
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
         except Exception as e:
             logger.error(f"Failed to close about: {e}")
             return False
 
     def close_all_windows(self):
-        """Close all secondary windows - delegates to unified manager"""
+        """Close all secondary windows - handled by NavigationController"""
         try:
-            if hasattr(self, 'window_view_manager'):
-                self.window_view_manager.close_all_windows_or_views()
-                logger.info("All secondary windows/views closed")
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    # Navigate back to library to close all modals
+                    navigation_controller.navigate_to_library()
+                    logger.info("All secondary windows/views closed")
+                else:
+                    logger.error("NavigationController not available")
             else:
-                logger.error("Window/view manager not initialized")
+                logger.error("Navigation integration not available")
         except Exception as e:
             logger.error(f"Failed to close all windows: {e}")
 

@@ -14,8 +14,7 @@ from pathlib import Path
 
 from fichero.windows.preview.preview_content import PreviewContent
 from fichero.shared.views.base_view import BaseView
-from fichero.shared.toolbars.top_toolbar import TopToolbar
-from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
+from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -43,39 +42,45 @@ class PreviewMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for preview view"""
         try:
-            # Top toolbar with automatic mobile navigation
+            # Create toolbar coordinator for edit mode management
+            self.coordinator = ToolbarCoordinator(self.app, is_mobile=self.is_mobile)
+
+            # Create top toolbar with new architecture
             self.top_toolbar = TopToolbar(
-                self.app, 
-                title="Collection",  # Default back title
+                app=self.app,
+                title="Preview",
                 auto_mobile_nav=True,
-                is_mobile=self.is_mobile
+                is_mobile=self.is_mobile,
+                coordinator=self.coordinator
             )
-            
-            # Bottom toolbar with edit actions
-            class PreviewBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # Add Edit button
-                    self.add_button_right(
-                        text="Edit",
-                        on_press=self._on_edit_pressed,
-                        tooltip="Edit file"
-                    )
-                    
-                def _on_edit_pressed(self, widget):
-                    logger.info("Preview edit requested")
-                    # Edit functionality could be added here
-            
-            self.bottom_toolbar = PreviewBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
-            # Set toolbars on the view (mobile navigation will be connected automatically)
+
+            # Create bottom toolbar with coordinator integration
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile,
+                coordinator=self.coordinator
+            )
+
+            # Add preview-specific buttons using composition
+            self._add_preview_toolbar_buttons()
+
+            # Set toolbars on the view
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("Preview toolbars created successfully")            
+
+            logger.info("Preview mobile view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create preview toolbars: {e}")
-    
+
+    def _add_preview_toolbar_buttons(self):
+        """Add preview-specific buttons using composition"""
+        try:
+            # Add preview specific buttons if needed
+            logger.debug("Preview mobile toolbar buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add preview toolbar buttons: {e}")
+
     def update_back_label(self, back_label: str):
         """Update the back label to show where we came from"""
         if self.top_toolbar:

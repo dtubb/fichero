@@ -23,6 +23,9 @@ from fichero.config.core.settings_manager import SettingsManager
 from fichero.config.core.plan_workflow_ui_helper import DEFAULT_PLAN_FILENAME
 import gettext  # Import translation function
 
+# Use builtin _ function installed by translation.install()
+_ = gettext.gettext
+
 logger = logging.getLogger(__name__)
 
 

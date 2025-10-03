@@ -13,7 +13,7 @@ from typing import Optional, Callable, List
 import re
 
 from fichero.shared.views.base_view import BaseView
-from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
+from fichero.shared.toolbars import TopToolbar, BottomToolbar
 
 # Use builtin _ function installed by translation.install()
 
@@ -23,11 +23,10 @@ logger = logging.getLogger(__name__)
 class URLAddView(BaseView):
     """View for adding URLs to the library"""
     
-    def __init__(self, app: toga.App, on_back: Callable, on_content_added: Callable):
+    def __init__(self, app: toga.App, on_content_added: Optional[Callable] = None):
         """Initialize URL add view"""
-        self.on_back = on_back
         self.on_content_added = on_content_added
-        
+
         # Initialize BaseView first
         super().__init__(app, is_mobile=app.is_mobile)
         
@@ -39,29 +38,34 @@ class URLAddView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for URL add view"""
         try:
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation
-            self.top_toolbar = SimpleTopToolbar(
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Add URLs",
-                on_back=self.on_back,
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class URLAddBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # URL-specific actions could go here
-            
-            self.bottom_toolbar = URLAddBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
-            # Set toolbars on the view (mobile navigation will be connected automatically)
+
+            # NavigationController integration is handled automatically by TopToolbar
+
+            # Add centered title for desktop (preserving button alignment)
+            if not self.is_mobile:
+                self.top_toolbar.add_centered_title_only(
+                    title_text="Add URLs",
+                    on_title_click=None
+                )
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Set toolbars on the view
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("URL add view toolbars created with automatic navigation")            
+
+            logger.info("URL add view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create URL add toolbars: {e}")
     
@@ -76,7 +80,7 @@ class URLAddView(BaseView):
         
         # Description
         description = toga.Label(
-            _("Add web content to your library by entering URLs. You can add single URLs or multiple URLs at once."),
+            _("Add URLs as references to your library (no files will be downloaded). Perfect for copy-paste workflow from your browser."),
             style=Pack(margin=(0, 10, 10, 10))
         )
         self.content_container.add(description)
@@ -88,24 +92,31 @@ class URLAddView(BaseView):
         
         mode_label = toga.Label(
             _("Mode:"),
-            style=Pack(padding_right=10)
+            style=Pack(margin_right=10)
         )
         mode_container.add(mode_label)
         
         self.single_button = toga.Button(
             _("Single URL"),
             on_press=lambda widget: self._switch_mode('single'),
-            style=Pack(padding=(5, 10))
+            style=Pack(margin=(5, 10))
         )
         mode_container.add(self.single_button)
         
         self.multiple_button = toga.Button(
             _("Multiple URLs"),
             on_press=lambda widget: self._switch_mode('multiple'),
-            style=Pack(padding=(5, 10))
+            style=Pack(margin=(5, 10))
         )
         mode_container.add(self.multiple_button)
-        
+
+        self.clipboard_button = toga.Button(
+            _("From Clipboard"),
+            on_press=lambda widget: self._import_from_clipboard(),
+            style=Pack(margin=(5, 10))
+        )
+        mode_container.add(self.clipboard_button)
+
         self.content_container.add(mode_container)
         
         # Single URL input
@@ -255,4 +266,95 @@ class URLAddView(BaseView):
             
         except Exception as e:
             logger.error(f"Failed to add URLs: {e}")
-            self.status_label.text = _("Error adding URLs. Please try again.") 
+            self.status_label.text = _("Error adding URLs. Please try again.")
+
+    async def _import_from_clipboard(self):
+        """Import URLs from clipboard - perfect for mobile copy-paste workflow"""
+        try:
+            self.status_label.text = _("Reading clipboard...")
+
+            # Try to get clipboard content
+            clipboard_text = await self._get_clipboard_content()
+
+            if not clipboard_text:
+                self.status_label.text = _("Clipboard is empty or contains no text")
+                return
+
+            # Parse URLs from clipboard text
+            urls = self._extract_urls_from_text(clipboard_text)
+
+            if not urls:
+                self.status_label.text = _("No valid URLs found in clipboard")
+                return
+
+            # Show what we found
+            self.status_label.text = _("Found %(count)d URLs in clipboard. Adding to library...") % {'count': len(urls)}
+
+            # Switch to multiple mode and populate the text area
+            self._switch_mode('multiple')
+            self.multiline_input.value = '\n'.join(urls)
+
+            # Add them to the library
+            if self.on_content_added:
+                self.on_content_added({'option_id': 'url', 'urls': urls, 'action': 'added'})
+                self.status_label.text = _("%(count)d URLs imported from clipboard successfully!") % {'count': len(urls)}
+                logger.info(f"Imported {len(urls)} URLs from clipboard")
+
+        except Exception as e:
+            logger.error(f"Failed to import from clipboard: {e}")
+            self.status_label.text = _("Error importing from clipboard. Please try manual paste.")
+
+    async def _get_clipboard_content(self):
+        """Get text content from clipboard (platform-specific)"""
+        try:
+            # Try to use toga's clipboard functionality if available
+            if hasattr(self.app, 'get_clipboard_text'):
+                return await self.app.get_clipboard_text()
+
+            # For now, return None - user can still use manual paste
+            # In a real implementation, this would use platform-specific clipboard APIs
+            logger.warning("Clipboard access not available - user should use manual paste")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to access clipboard: {e}")
+            return None
+
+    def _extract_urls_from_text(self, text):
+        """Extract URLs from pasted text (handles various formats)"""
+        import re
+
+        if not text:
+            return []
+
+        # Split by lines first
+        lines = text.strip().split('\n')
+        urls = []
+
+        url_pattern = re.compile(
+            r'https?://[^\s<>"]+',  # Basic URL pattern
+            re.IGNORECASE
+        )
+
+        for line in lines:
+            line = line.strip()
+
+            # Direct URL validation
+            if self._is_valid_url(line):
+                urls.append(line)
+            else:
+                # Extract URLs from mixed content (e.g., "Link: https://...")
+                found_urls = url_pattern.findall(line)
+                for url in found_urls:
+                    if self._is_valid_url(url):
+                        urls.append(url)
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_urls = []
+        for url in urls:
+            if url not in seen:
+                seen.add(url)
+                unique_urls.append(url)
+
+        return unique_urls 

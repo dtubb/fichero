@@ -1,8 +1,8 @@
 """
-Clean Main Window for Fichero
+Refactored Main Window for Fichero
 
-Simplified main window that uses the new LibraryManager integration.
-Removes all old library management code.
+Simple event-driven main window that listens to NavigationController events.
+Replaces the complex NavigationManager/PaneManager system with clean event handling.
 """
 
 import toga
@@ -11,9 +11,8 @@ from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Dict, Any
 
-from fichero.windows.main.commands.command_bridge import CommandBridge, CommandContext
-from fichero.windows.main.layout.pane_manager import PaneManager
-from fichero.windows.main.command_manager import CommandManagerRefactored
+from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation, NavigationEvents
+from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
 
@@ -21,502 +20,630 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow:
-    """Wrapper class that provides the interface the app expects"""
-    
-    def __init__(self, app):
-        """Initialize main window wrapper"""
-        self.app = app
-        self.window: Optional[toga.MainWindow] = None
-        self.is_visible = False
-        
-        # Create the refactored implementation
-        self._refactored = MainWindowRefactored(app)
-        
-        # Expose the window property
-        self.window = self._refactored.window
-        
-        logger.info("MainWindow wrapper initialized")
-    
-    def show(self):
-        """Show the main window"""
-        if self.window is None:
-            self.window = self._refactored.window
-        
-        if not self.is_visible:
-            self.window.show()
-            self.is_visible = True
-            logger.info("Main window shown")
-    
-    def hide(self):
-        """Hide the main window"""
-        if self.window and self.is_visible:
-            self.window.hide()
-            self.is_visible = False
-            logger.info("Main window hidden")
-    
-    def close(self):
-        """Close the main window"""
-        if self.window:
-            self.window.close()
-            self.is_visible = False
-            logger.info("Main window closed")
+    """Simple event-driven main window"""
 
-
-class MainWindowRefactored:
-    """Clean main window using LibraryManager integration"""
-    
     def __init__(self, app):
-        """Initialize clean main window"""
+        """Initialize main window with event-driven navigation"""
         self.app = app
-        
-        # Platform detection
-        self.is_mobile = self._detect_mobile_platform()
-        
-        # Core components
-        self.pane_manager: Optional[PaneManager] = None
-        self.command_bridge: Optional[CommandBridge] = None
-        self.command_manager: Optional[CommandManagerRefactored] = None
-        
+        self.is_mobile = app.is_mobile
+
         # Window
         self.window: Optional[toga.MainWindow] = None
-        
-        # Cached views to avoid recreation
-        self.cached_library_view: Optional = None
-        self.cached_collection_views: Dict[str, Any] = {}  # collection_id -> view
-        
-        # Initialize components
-        self._initialize_components()
-        
-        # Create window
+
+        # Simple view containers
+        self.main_container: Optional[toga.Box] = None
+        self.current_view: Optional = None
+        self.current_view_key: Optional[str] = None
+
+        # Desktop layout containers
+        self.left_pane: Optional[toga.Box] = None
+        self.center_pane: Optional[toga.Box] = None
+        self.right_pane: Optional[toga.Box] = None
+
+        # Mobile layout container
+        self.mobile_container: Optional[toga.Box] = None
+
+        # Cached views to maintain state
+        self.cached_library_view: Optional[LibraryView] = None
+
+        # Collection view cache - key by collection_id to prevent duplicates
+        self.cached_collection_views: Dict[str, CollectionView] = {}
+
+        # Get NavigationController from app
+        self.navigation_controller = self._get_navigation_controller()
+
+        # Create window and layout
         self._create_window()
-        
-        # Set up initial views
-        self._setup_initial_views()
-        
-        # Set up mobile view manager for overlay views (settings, about, etc.)
-        if self.is_mobile:
-            self._setup_mobile_view_manager()
-        
-        logger.info("Clean main window initialized successfully")
-    
-    def _detect_mobile_platform(self) -> bool:
-        """Detect if running on mobile platform"""
-        return self.app.is_mobile
-    
-    def _initialize_components(self):
-        """Initialize all core components"""
+        self._create_layout()
+
+        # Subscribe to navigation events
+        self._subscribe_to_events()
+
+        # Set up initial view
+        self._show_initial_view()
+
+        logger.info("Refactored main window initialized successfully")
+
+    def _get_navigation_controller(self) -> Optional[NavigationController]:
+        """Get NavigationController from app"""
         try:
-            # Create pane manager
-            self.pane_manager = PaneManager(self.app, self.is_mobile)
-            
-            # Create command bridge
-            self.command_bridge = CommandBridge(self.app, self.pane_manager)
-            
-            # Use the command manager from the app
-            self.command_manager = self.app.command_manager
-            if self.command_manager:
-                self.command_manager.set_command_bridge(self.command_bridge)
-            
-            # Register all commands
-            self.command_bridge.register_all_commands()
-            
-            logger.debug("All components initialized and integrated")
-            
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                return self.app.view_integration.get_navigation_controller()
+            else:
+                logger.warning("No view_integration found in app")
+                return None
         except Exception as e:
-            logger.error(f"Failed to initialize components: {e}")
-    
+            logger.error(f"Failed to get NavigationController: {e}")
+            return None
+
     def _create_window(self):
         """Create the main window"""
         try:
-            print("🔍 Creating Toga MainWindow...")
-            # Create main window
             self.window = toga.MainWindow(
                 title="Fichero",
                 size=self._get_window_size()
             )
-            print("✅ Toga MainWindow created successfully")
-            
-            # Set minimum window size
+
             if not self.is_mobile:
                 self.window.min_size = (1000, 600)
-            
-            logger.debug("Main window created successfully")
-            
+
+            logger.debug("Main window created")
+
         except Exception as e:
             logger.error(f"Failed to create main window: {e}")
-    
+
     def _get_window_size(self) -> tuple:
         """Get appropriate window size for platform"""
         if self.is_mobile:
-            # Mobile: portrait orientation
-            return (375, 667)  # iPhone 12 mini dimensions
+            return (375, 667)  # iPhone dimensions
         else:
-            # Desktop: three-pane layout
-            return (1200, 800)
-    
-    def _setup_initial_views(self):
-        """Set up initial views for the main window"""
+            return (1200, 800)  # Desktop dimensions
+
+    def _create_layout(self):
+        """Create layout containers"""
         try:
-            if not self.is_mobile:
-                # Desktop: Set up three-pane layout
-                self._setup_desktop_views()
+            if self.is_mobile:
+                self._create_mobile_layout()
             else:
-                # Mobile: Set up single-pane layout
-                self._setup_mobile_views()
-                    
+                self._create_desktop_layout()
+
+            # Set window content
+            if self.window and self.main_container:
+                self.window.content = self.main_container
+                logger.debug("Window content set")
+
         except Exception as e:
-            logger.error(f"Failed to set up initial views: {e}")
-    
-    def _setup_desktop_views(self):
-        """Set up desktop three-pane layout"""
+            logger.error(f"Failed to create layout: {e}")
+
+    def _create_mobile_layout(self):
+        """Create mobile single-pane layout"""
         try:
-            print("🔍 Creating LibraryView...")
-            # Left pane: Collection management view
-            collection_mgmt_view = LibraryView(self.app, self.is_mobile)
-            print("✅ LibraryView created successfully")
-            collection_mgmt_view.register_collection_callback(self._on_collection_selected)
-            self.pane_manager.switch_to_view("collection_management", collection_mgmt_view, "left")
-            
-            # Middle pane: Collection view (empty initially)
-            collection_view = CollectionView(self.app, "", self.is_mobile)
-            collection_view.register_preview_callback(self._on_file_preview_requested)
-            
-            # Register back navigation callback
-            if hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
-                collection_view.top_toolbar.register_navigation_callbacks(
-                    on_back_to_library=self._on_mobile_back_to_library,  # Even on desktop, use consistent callback
-                    on_navigate_back=collection_view._on_navigate_back,
-                    on_navigate_to_path=collection_view._on_navigate_to_path,
-                    on_add_folder=collection_view._on_add_folder,
-                    on_add_file=collection_view._on_add_file
-                )
-            
-            self.pane_manager.switch_to_view("collection", collection_view, "middle")
-            
-            # Right pane: Preview pane (empty initially)
-            from fichero.windows.main.layout.preview_pane import PreviewPane
-            self.preview_pane = PreviewPane(self.app, self.is_mobile)
-            self.pane_manager.switch_to_view("preview", self.preview_pane, "right")
-            
-            # Set the pane manager's main container as the window content
-            main_container = self.pane_manager.get_main_container()
-            if main_container:
-                self.window.content = main_container
-                logger.debug("Desktop three-pane layout set up successfully")
-            else:
-                logger.error("Failed to get main container from pane manager")
-                
-        except Exception as e:
-            logger.error(f"Failed to set up desktop views: {e}")
-    
-    def _setup_mobile_views(self):
-        """Set up mobile single-pane layout using same views as desktop"""
-        try:
-            print("🔍 Setting up mobile views using same container system...")
-            
-            # For mobile, start with the collection management view
-            # Cache and reuse the library view
-            if not self.cached_library_view:
-                self.cached_library_view = LibraryView(self.app, self.is_mobile)
-                self.cached_library_view.register_collection_callback(self._on_collection_selected)
-                logger.info("📚 Created and cached library view")
-            else:
-                logger.info("📚 Reusing cached library view")
-            
-            # In mobile mode, pane_manager should show single view at a time
-            self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "mobile")
-            
-            # Set the pane manager's main container as the window content
-            main_container = self.pane_manager.get_main_container()
-            if main_container:
-                self.window.content = main_container
-                print("✅ Mobile views set up successfully using same container system")
-                logger.debug("Mobile views set up successfully using same container system")
-            else:
-                logger.error("Failed to get main container from pane manager for mobile")
-                    
-        except Exception as e:
-            logger.error(f"Failed to set up mobile views: {e}")
-    
-    def _setup_mobile_view_manager(self):
-        """Set up the mobile view manager for overlay views (settings, about, etc.)"""
-        try:
-            from fichero.windows.main.window_view_manager import MobileViewManager
-            
-            # Create a separate overlay container for mobile views
-            # DO NOT use the main container - that breaks pane manager navigation
-            overlay_container = toga.Box(
+            self.mobile_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
                     flex=1,
                     background_color="#FFFFFF"
                 )
             )
-                
-            # Create mobile view manager with the overlay container
-            mobile_view_manager = MobileViewManager(overlay_container, self.app)
-            
-            # Store reference to main window and pane manager for proper restoration
-            mobile_view_manager.main_window = self
-            mobile_view_manager.pane_manager = self.pane_manager
-            
-            # Connect it to the app's window view manager
-            if hasattr(self.app, 'window_view_manager'):
-                self.app.window_view_manager.set_mobile_view_manager(mobile_view_manager)
-                logger.info("Mobile view manager connected successfully")
-                
-                # Reconnect mobile navigation for existing views now that manager is available
-                self._reconnect_existing_mobile_navigation()
-            else:
-                logger.warning("App doesn't have window_view_manager")
-                
+
+            self.main_container = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+
+            self.main_container.add(self.mobile_container)
+            logger.debug("Mobile layout created")
+
         except Exception as e:
-            logger.error(f"Failed to set up mobile view manager: {e}")
-    
-    def _reconnect_existing_mobile_navigation(self):
-        """Reconnect mobile navigation for existing views after mobile_view_manager is available"""
+            logger.error(f"Failed to create mobile layout: {e}")
+
+    def _create_desktop_layout(self):
+        """Create desktop three-pane layout"""
         try:
-            logger.info("🔙 Reconnecting mobile navigation for existing views...")
-            
-            # Reconnect for cached library view
-            if self.cached_library_view and hasattr(self.cached_library_view, 'reconnect_mobile_navigation'):
-                self.cached_library_view.reconnect_mobile_navigation()
-            
-            # Reconnect for cached collection views
-            for collection_view in self.cached_collection_views.values():
-                if hasattr(collection_view, 'reconnect_mobile_navigation'):
-                    collection_view.reconnect_mobile_navigation()
-                    
-            logger.info("🔙 Mobile navigation reconnection completed")
-            
+            # Left pane for library
+            self.left_pane = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=0,
+                    width=300,
+                    background_color="#FFFFFF"
+                )
+            )
+
+            # Center pane for collection
+            self.center_pane = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+
+            # Right pane for preview
+            self.right_pane = toga.Box(
+                style=Pack(
+                    direction=COLUMN,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+
+            # Main container with three panes
+            self.main_container = toga.Box(
+                style=Pack(
+                    direction=ROW,
+                    flex=1,
+                    background_color="#FFFFFF"
+                )
+            )
+
+            self.main_container.add(self.left_pane)
+            self.main_container.add(self.center_pane)
+            self.main_container.add(self.right_pane)
+
+            logger.debug("Desktop layout created")
+
         except Exception as e:
-            logger.error(f"🔙 Failed to reconnect mobile navigation: {e}")
-    
-    def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
-        """Handle collection selection"""
+            logger.error(f"Failed to create desktop layout: {e}")
+
+    def _subscribe_to_events(self):
+        """Subscribe to navigation events"""
         try:
-            logger.debug(f"Collection selected: {collection_id} - {collection_name}")
-            
-            # Update command context
-            self.command_bridge.set_context(CommandContext.COLLECTION)
-            
-            # Cache and reuse collection views
-            if collection_id not in self.cached_collection_views:
-                collection_view = CollectionView(self.app, collection_name or collection_id, self.is_mobile)
-                collection_view.set_collection_id(collection_id)
-                collection_view.register_preview_callback(self._on_file_preview_requested)
-                
-                # Register navigation callbacks for BOTH desktop and mobile 
-                if hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar:
-                    logger.info(f"🔙 Registering navigation callbacks for collection: {collection_name} (mobile: {self.is_mobile})")
-                    logger.info(f"🔙 Collection view has top_toolbar: {hasattr(collection_view, 'top_toolbar')}")
-                    logger.info(f"🔙 Top toolbar is not None: {collection_view.top_toolbar is not None}")
-                    logger.info(f"🔙 Top toolbar type: {type(collection_view.top_toolbar)}")
-                    
-                    collection_view.top_toolbar.register_navigation_callbacks(
-                        on_back_to_library=self._on_mobile_back_to_library if self.is_mobile else self._on_back_to_library,
-                        on_navigate_back=collection_view._on_navigate_back,  # Keep hierarchy navigation internal
-                        on_navigate_to_path=collection_view._on_navigate_to_path,
-                        on_add_folder=collection_view._on_add_folder,
-                        on_add_file=collection_view._on_add_file
-                    )
-                    
-                    logger.info("🔙 Navigation callbacks registered successfully")
-                else:
-                    logger.warning(f"🔙 Cannot register navigation callbacks - has_top_toolbar: {hasattr(collection_view, 'top_toolbar')}, toolbar_not_none: {hasattr(collection_view, 'top_toolbar') and collection_view.top_toolbar is not None}")
-                
-                self.cached_collection_views[collection_id] = collection_view
-                logger.info(f"📁 Created and cached collection view: {collection_name or collection_id}")
-            else:
-                collection_view = self.cached_collection_views[collection_id]
-                logger.info(f"📁 Reusing cached collection view: {collection_name or collection_id}")
-            
-            pane = "mobile" if self.is_mobile else "middle"
-            self.pane_manager.switch_to_view("collection", collection_view, pane)
-            
-            logger.info(f"Successfully navigated to collection view: {collection_name or collection_id}")
-            
+            subscribe_to_navigation(NavigationEvents.SHOW_LIBRARY, self._on_show_library)
+            subscribe_to_navigation(NavigationEvents.SHOW_COLLECTION, self._on_show_collection)
+            subscribe_to_navigation(NavigationEvents.SHOW_PREVIEW, self._on_show_preview)
+            subscribe_to_navigation(NavigationEvents.SHOW_MODAL, self._on_show_modal)
+            subscribe_to_navigation(NavigationEvents.NAVIGATION_ERROR, self._on_navigation_error)
+
+            logger.debug("Subscribed to navigation events")
+
         except Exception as e:
-            logger.error(f"Failed to handle collection selection: {e}")
-    
-    def _on_file_preview_requested(self, file_path: str, file_data: Dict[str, Any] = None):
-        """Handle file preview requests from collection view"""
+            logger.error(f"Failed to subscribe to navigation events: {e}")
+
+    def _show_initial_view(self):
+        """Show the initial library view"""
         try:
-            logger.debug(f"File preview requested: {file_path}")
-            
-            # Prepare document data for preview pane
-            if not file_data:
-                from pathlib import Path
-                path = Path(file_path)
-                file_data = {
-                    'name': path.name,
-                    'type': path.suffix.lower().replace('.', '') if path.suffix else 'unknown',
-                    'size': f"{path.stat().st_size} bytes" if path.exists() else 'Unknown',
-                    'file_path': str(path),
-                    'created_date': 'Unknown',
-                    'modified_date': 'Unknown',
-                    'author': 'Unknown',
-                    'tags': [],
-                    'processing_status': 'Not processed'
-                }
-            
-            # Show preview - different behavior for mobile vs desktop
+            # Get or create library view (will cache for later reuse)
+            library_view = self._get_or_create_library_view()
+
+            # Show in appropriate pane
             if self.is_mobile:
-                # Mobile: Push preview pane as new full-screen view
-                from fichero.windows.main.layout.preview_pane import PreviewPane
-                preview_pane = PreviewPane(self.app, self.is_mobile)
-                preview_pane.show_file(file_path, file_data)
-                
-                # Register back navigation callback and update back label with collection name
-                if hasattr(preview_pane, 'top_toolbar') and preview_pane.top_toolbar:
-                    preview_pane.top_toolbar.register_callbacks(
-                        on_back_to_fiche=self._on_mobile_back_to_collection
-                    )
-                    
-                    # Update back label with collection name if available
-                    collection_name = self._get_current_collection_name()
-                    if collection_name and hasattr(preview_pane.top_toolbar, 'update_back_label'):
-                        preview_pane.top_toolbar.update_back_label(collection_name)
-                        logger.debug(f"Updated preview back label to: {collection_name}")
-                
-                # Switch to preview view in mobile mode (full screen)
-                self.pane_manager.switch_to_view("preview", preview_pane, "mobile")
-                logger.info(f"File preview shown in mobile full-screen: {file_path}")
+                self._show_view_mobile("library", library_view)
             else:
-                # Desktop: Show in right pane
-                if hasattr(self, 'preview_pane') and self.preview_pane:
-                    self.preview_pane.show_file(file_path, file_data)
-                    logger.info(f"File preview shown in right pane: {file_path}")
-                else:
-                    logger.warning("Preview pane not available, falling back to separate window")
-                    # Fallback to separate window if needed
-                    if hasattr(self.app, 'show_preview'):
-                        self.app.show_preview(file_path=file_path)
-                    
+                self._show_view_desktop("library", library_view, "left")
+
+            logger.info("Initial library view displayed")
+
         except Exception as e:
-            logger.error(f"Failed to handle file preview request: {e}")
-    
-    def _get_current_collection_name(self) -> str:
-        """Get the name of the currently active collection"""
+            logger.error(f"Failed to show initial view: {e}")
+
+    def _get_or_create_library_view(self) -> LibraryView:
+        """Get cached library view or create new one if needed"""
         try:
-            # Get the current collection view from the pane manager
-            current_views = getattr(self.pane_manager, 'current_views', {})
-            collection_view = current_views.get('collection')
-            
-            if collection_view and hasattr(collection_view, 'collection_name'):
-                return collection_view.collection_name or "Collection"
-            
-            # Fallback: check mobile view if in mobile mode
-            if self.is_mobile and hasattr(self.pane_manager, 'current_mobile_view'):
-                current_mobile_view_name = getattr(self.pane_manager, 'current_mobile_view', '')
-                if current_mobile_view_name == 'collection':
-                    mobile_view = current_views.get('collection')
-                    if mobile_view and hasattr(mobile_view, 'collection_name'):
-                        return mobile_view.collection_name or "Collection"
-            
-            return "Collection"  # Default fallback
-            
-        except Exception as e:
-            logger.error(f"Failed to get current collection name: {e}")
-            return "Collection"
-    
-    def _on_back_to_library(self):
-        """Handle desktop back navigation from collection to library"""
-        try:
-            logger.debug("Desktop back navigation: collection -> library")
-            
-            # For desktop, show the library view in the left pane
-            if not self.cached_library_view:
+            if self.cached_library_view is None:
+                logger.debug("Creating new LibraryView instance")
                 self.cached_library_view = LibraryView(self.app, self.is_mobile)
                 self.cached_library_view.register_collection_callback(self._on_collection_selected)
-                logger.info("📚 Created cached library view for desktop navigation")
-            
-            # Update pane to show library view
-            self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "left")
-            logger.info("Navigated back to library view on desktop")
-            
-            # Update command context
-            self.command_bridge.set_context(CommandContext.LIBRARY)
-            
-        except Exception as e:
-            logger.error(f"Failed to navigate back to library: {e}")
-    
-    def _on_mobile_back_to_library(self):
-        """Handle mobile back navigation from collection to library"""
-        try:
-            logger.debug("Mobile back navigation: collection -> library")
-            
-            # Use pane manager's navigation stack
-            if self.pane_manager.mobile_navigate_back():
-                logger.info("Navigated back using mobile navigation stack")
             else:
-                # Fallback: use cached library view
-                logger.debug("No navigation stack, using cached library view")
-                if not self.cached_library_view:
-                    self.cached_library_view = LibraryView(self.app, self.is_mobile)
-                    self.cached_library_view.register_collection_callback(self._on_collection_selected)
-                    logger.info("📚 Created cached library view for fallback")
-                
-                self.pane_manager.switch_to_view("collection_management", self.cached_library_view, "mobile")
-                logger.info("Navigated back to library view (cached)")
-            
+                logger.debug("Reusing cached LibraryView instance")
+                # Refresh the view when reusing it
+                if hasattr(self.cached_library_view, 'show'):
+                    self.cached_library_view.show()
+
+            return self.cached_library_view
         except Exception as e:
-            logger.error(f"Failed to navigate back to library: {e}")
-    
-    def _on_mobile_back_to_collection(self):
-        """Handle mobile back navigation from preview to collection"""
+            logger.error(f"Failed to get or create library view: {e}")
+            # Fallback: create new instance
+            library_view = LibraryView(self.app, self.is_mobile)
+            library_view.register_collection_callback(self._on_collection_selected)
+            return library_view
+
+    def _get_or_create_collection_view(self, collection_id: str, collection_name: str) -> CollectionView:
+        """Get cached collection view or create new one if needed"""
         try:
-            logger.debug("Mobile back navigation: preview -> collection")
-            
-            # Use pane manager's navigation stack
-            if self.pane_manager.mobile_navigate_back():
-                logger.info("Navigated back to collection using mobile navigation stack")
+            # Check if we have a cached view for this collection_id
+            if collection_id in self.cached_collection_views:
+                logger.debug(f"Reusing cached CollectionView instance for {collection_name}")
+                collection_view = self.cached_collection_views[collection_id]
+
+                # Refresh the view when reusing it (but don't recreate content completely)
+                if hasattr(collection_view, 'show'):
+                    collection_view.show()
+                return collection_view
             else:
-                # Fallback: go back to library
-                logger.debug("No navigation stack, going back to library")
-                self._on_mobile_back_to_library()
-            
+                logger.debug(f"Creating new CollectionView instance for {collection_name}")
+                collection_view = CollectionView(self.app, collection_name, self.is_mobile)
+                collection_view.set_collection_id(collection_id)
+                collection_view.register_preview_callback(self._on_file_preview_requested)
+
+                # Cache the view for future use
+                self.cached_collection_views[collection_id] = collection_view
+                return collection_view
+
         except Exception as e:
-            logger.error(f"Failed to navigate back from preview: {e}")
-    
+            logger.error(f"Failed to get or create collection view: {e}")
+            # Fallback: create new instance (but don't cache it to avoid corrupt cache)
+            collection_view = CollectionView(self.app, collection_name, self.is_mobile)
+            collection_view.set_collection_id(collection_id)
+            collection_view.register_preview_callback(self._on_file_preview_requested)
+            return collection_view
+
+    # ===== EVENT HANDLERS =====
+
+    def _on_show_library(self, event):
+        """Handle show library event"""
+        try:
+            logger.info(f"Event: Show library - {event}")
+
+            # Get or create library view (reuses cached instance to maintain state)
+            library_view = self._get_or_create_library_view()
+
+            # Check if force refresh is requested (e.g., after collection rename)
+            force_refresh = False
+            if hasattr(event, 'data') and event.data:
+                force_refresh = event.data.get('force_refresh', False)
+            elif hasattr(event, 'get'):
+                force_refresh = event.get('force_refresh', False)
+
+            if force_refresh:
+                logger.info("🔄 LIBRARY REFRESH: Force refresh requested - reloading collections")
+                # Force reload collections from database before showing
+                if hasattr(library_view, '_load_collections_async'):
+                    import asyncio
+                    asyncio.create_task(library_view._load_collections_async())
+
+            # Show in appropriate pane
+            if self.is_mobile:
+                self._show_view_mobile("library", library_view)
+            else:
+                self._show_view_desktop("library", library_view, "left")
+
+        except Exception as e:
+            logger.error(f"Failed to handle show library event: {e}")
+
+    def _on_show_collection(self, event):
+        """Handle show collection event with improved view lifecycle management"""
+        try:
+            data = event.data
+            collection_id = data.get('collection_id')
+            collection_name = data.get('collection_name', collection_id)
+
+            logger.info(f"Event: Show collection {collection_name}")
+
+            view_key = f"collection_{collection_id}"
+
+            # Check if we already have the same collection view active
+            current_view = self.current_view
+            if (current_view and
+                hasattr(current_view, 'collection_id') and
+                current_view.collection_id == collection_id):
+                # This is the same collection - just refresh its show() method
+                logger.info(f"Refreshing existing active collection view for {collection_name}")
+                if hasattr(current_view, 'show'):
+                    current_view.show()
+                return
+
+            # Get or create collection view from cache
+            collection_view = self._get_or_create_collection_view(collection_id, collection_name)
+
+            # Show in appropriate pane
+            if self.is_mobile:
+                self._show_view_mobile(view_key, collection_view)
+            else:
+                self._show_view_desktop(view_key, collection_view, "center")
+
+        except Exception as e:
+            logger.error(f"Failed to handle show collection event: {e}")
+
+    def _on_show_preview(self, event):
+        """Handle show preview event"""
+        try:
+            data = event.data
+            file_path = data.get('file_path')
+            file_metadata = data.get('file_metadata', {})
+
+            logger.info(f"Event: Show preview {file_path}")
+
+            # Create preview view
+            from fichero.windows.main.layout.preview_pane import PreviewPane
+            preview_pane = PreviewPane(self.app, self.is_mobile)
+            preview_pane.display_document(file_path, file_metadata)
+
+            # Show in appropriate pane
+            if self.is_mobile:
+                self._show_view_mobile("preview", preview_pane)
+            else:
+                self._show_view_desktop("preview", preview_pane, "right")
+
+        except Exception as e:
+            logger.error(f"Failed to handle show preview event: {e}")
+
+    def _on_show_modal(self, event):
+        """Handle show modal event - now handles desktop window creation directly"""
+        try:
+            data = event.data
+            modal_type = data.get('modal_type')
+            context = data.get('context')
+            view = data.get('view')
+
+            logger.info(f"Event: Show modal {modal_type}")
+
+            if not view:
+                logger.error(f"No view provided for modal {modal_type}")
+                return
+
+            # For desktop (non-mobile), create a new window for the modal
+            if not self.is_mobile:
+                modal_size = self._get_modal_size(modal_type)
+                modal_window = toga.Window(
+                    title=self._get_modal_title(modal_type),
+                    size=modal_size,
+                    minimizable=False,
+                    resizable=False,
+                    closable=False
+                )
+
+                # Set the view content in the window
+                container = view.get_container() if hasattr(view, 'get_container') else view
+                modal_window.content = container
+
+                # Set the window reference on the view for closing
+                if hasattr(view, 'set_modal_window'):
+                    view.set_modal_window(modal_window)
+
+                # Show the window
+                modal_window.show()
+                logger.info(f"Modal {modal_type} shown in desktop window")
+            else:
+                # Mobile is handled by NavigationController's _show_modal_overlay
+                logger.info(f"Modal {modal_type} handled by NavigationController overlay")
+
+        except Exception as e:
+            logger.error(f"Failed to handle show modal event: {e}")
+
+    def _get_modal_title(self, modal_type: str) -> str:
+        """Get user-friendly title for modal windows"""
+        title_map = {
+            'settings': 'Settings',
+            'activity_monitor': 'Activity Monitor',
+            'processing': 'Processing',
+            'plans': 'Plans',
+            'prompts': 'Prompts',
+            'about': 'About Fichero',
+            'url': 'Add URL',
+            'website': 'Add Website',
+            'file': 'Add File',
+            'folder': 'Add Folder',
+            'camera': 'Add Camera',
+            'collection': 'Rename'
+        }
+        return title_map.get(modal_type, modal_type.title())
+
+    def _get_modal_size(self, modal_type: str) -> tuple:
+        """Get appropriate size for modal windows based on type"""
+        size_map = {
+            'settings': (600, 400),
+            'activity_monitor': (600, 400),
+            'processing': (600, 400),
+            'plans': (600, 400),
+            'prompts': (600, 400),
+            'about': (500, 300),
+            'url': (500, 300),
+            'website': (500, 300),
+            'file': (500, 300),
+            'folder': (500, 300),
+            'camera': (500, 300),
+            'collection': (350, 150)  # Smaller for simple rename dialog
+        }
+        return size_map.get(modal_type, (600, 400))
+
+    def _on_navigation_error(self, event):
+        """Handle navigation error event"""
+        try:
+            data = event.data
+            title = data.get('title', 'Navigation Error')
+            message = data.get('message', 'Unknown error')
+
+            logger.error(f"Navigation error: {title} - {message}")
+
+            # Could show error dialog here
+            # For now, just log the error
+
+        except Exception as e:
+            logger.error(f"Failed to handle navigation error event: {e}")
+
+    # ===== VIEW MANAGEMENT =====
+
+    def _cleanup_current_view_callbacks(self):
+        """Clean up NavigationController callbacks from the current view before replacing it"""
+        try:
+            if hasattr(self, 'current_view') and self.current_view:
+                # Clean up view callbacks
+                if hasattr(self.current_view, 'cleanup_callbacks'):
+                    self.current_view.cleanup_callbacks()
+                    logger.debug(f"Cleaned up callbacks for view: {getattr(self.current_view, '__class__', type(self.current_view)).__name__}")
+
+                # Clean up toolbar callbacks in the view
+                if hasattr(self.current_view, 'top_toolbar') and hasattr(self.current_view.top_toolbar, 'cleanup_callbacks'):
+                    self.current_view.top_toolbar.cleanup_callbacks()
+                    logger.debug("Cleaned up top toolbar callbacks")
+
+                if hasattr(self.current_view, 'bottom_toolbar') and hasattr(self.current_view.bottom_toolbar, 'cleanup_callbacks'):
+                    self.current_view.bottom_toolbar.cleanup_callbacks()
+                    logger.debug("Cleaned up bottom toolbar callbacks")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup current view callbacks: {e}")
+
+    def _cleanup_all_cached_views(self):
+        """Clean up all cached views to prevent memory leaks and orphaned callbacks"""
+        try:
+            # Clean up cached collection views
+            for collection_id, collection_view in self.cached_collection_views.items():
+                try:
+                    if hasattr(collection_view, 'cleanup_callbacks'):
+                        collection_view.cleanup_callbacks()
+
+                    if hasattr(collection_view, 'top_toolbar') and hasattr(collection_view.top_toolbar, 'cleanup_callbacks'):
+                        collection_view.top_toolbar.cleanup_callbacks()
+
+                    if hasattr(collection_view, 'bottom_toolbar') and hasattr(collection_view.bottom_toolbar, 'cleanup_callbacks'):
+                        collection_view.bottom_toolbar.cleanup_callbacks()
+
+                    logger.debug(f"Cleaned up cached CollectionView for {collection_id}")
+                except Exception as e:
+                    logger.error(f"Failed to cleanup cached collection view {collection_id}: {e}")
+
+            # Clean up cached library view
+            if self.cached_library_view:
+                try:
+                    if hasattr(self.cached_library_view, 'cleanup_callbacks'):
+                        self.cached_library_view.cleanup_callbacks()
+
+                    if hasattr(self.cached_library_view, 'top_toolbar') and hasattr(self.cached_library_view.top_toolbar, 'cleanup_callbacks'):
+                        self.cached_library_view.top_toolbar.cleanup_callbacks()
+
+                    if hasattr(self.cached_library_view, 'bottom_toolbar') and hasattr(self.cached_library_view.bottom_toolbar, 'cleanup_callbacks'):
+                        self.cached_library_view.bottom_toolbar.cleanup_callbacks()
+
+                    logger.debug("Cleaned up cached LibraryView")
+                except Exception as e:
+                    logger.error(f"Failed to cleanup cached library view: {e}")
+
+            logger.debug("All cached views cleaned up")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup all cached views: {e}")
+
+    def _show_view_mobile(self, view_key: str, view):
+        """Show view in mobile layout"""
+        try:
+            if not self.mobile_container:
+                logger.error("No mobile container available")
+                return
+
+            # Clean up callbacks from previous view to prevent duplicate events
+            self._cleanup_current_view_callbacks()
+
+            # Clear current view
+            self.mobile_container.clear()
+
+            # Add new view
+            view_container = view.get_container() if hasattr(view, 'get_container') else view
+            self.mobile_container.add(view_container)
+
+            # Update tracking
+            self.current_view = view
+            self.current_view_key = view_key
+
+            # Show the view
+            if hasattr(view, 'show'):
+                view.show()
+
+            logger.debug(f"Mobile view '{view_key}' displayed")
+
+        except Exception as e:
+            logger.error(f"Failed to show mobile view {view_key}: {e}")
+
+    def _show_view_desktop(self, view_key: str, view, pane: str):
+        """Show view in desktop layout"""
+        try:
+            # Get target pane
+            if pane == "left":
+                target_pane = self.left_pane
+            elif pane == "center":
+                target_pane = self.center_pane
+            elif pane == "right":
+                target_pane = self.right_pane
+            else:
+                logger.error(f"Invalid pane: {pane}")
+                return
+
+            if not target_pane:
+                logger.error(f"Pane '{pane}' not available")
+                return
+
+            # Clean up callbacks if replacing center pane (where current_view is tracked)
+            if pane == "center":
+                self._cleanup_current_view_callbacks()
+
+            # Clear target pane
+            target_pane.clear()
+
+            # Add new view
+            view_container = view.get_container() if hasattr(view, 'get_container') else view
+            target_pane.add(view_container)
+
+            # Update tracking (for mobile fallback)
+            if pane == "center":  # Track center pane as current view
+                self.current_view = view
+                self.current_view_key = view_key
+
+            # Show the view
+            if hasattr(view, 'show'):
+                view.show()
+
+            logger.debug(f"Desktop view '{view_key}' displayed in '{pane}' pane")
+
+        except Exception as e:
+            logger.error(f"Failed to show desktop view {view_key} in {pane}: {e}")
+
+    # ===== LEGACY CALLBACKS (for views that haven't been updated yet) =====
+
+    def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
+        """Handle collection selection - delegate to NavigationController"""
+        try:
+            if self.navigation_controller:
+                self.navigation_controller.navigate_to_collection(collection_id, collection_name)
+            else:
+                logger.error("No NavigationController available for collection selection")
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection selection: {e}")
+
+    def _on_file_preview_requested(self, file_path: str, file_data: Dict[str, Any] = None):
+        """Handle file preview request - delegate to NavigationController"""
+        try:
+            if self.navigation_controller:
+                self.navigation_controller.navigate_to_preview(file_path, file_data)
+            else:
+                logger.error("No NavigationController available for preview request")
+
+        except Exception as e:
+            logger.error(f"Failed to handle file preview request: {e}")
+
+    # ===== PUBLIC INTERFACE =====
+
     def show(self):
         """Show the main window"""
         try:
             if self.window:
                 self.window.show()
                 logger.info("Main window shown")
-            
         except Exception as e:
             logger.error(f"Failed to show main window: {e}")
-    
+
     def close(self):
-        """Close the main window"""
+        """Close the main window with proper cleanup"""
         try:
+            # Clean up all cached views before closing
+            self._cleanup_all_cached_views()
+
             if self.window:
                 self.window.close()
                 logger.info("Main window closed")
-            
         except Exception as e:
             logger.error(f"Failed to close main window: {e}")
-    
-    def refresh(self):
-        """Refresh the main window"""
-        try:
-            # Refresh all panes
-            if self.pane_manager:
-                self.pane_manager.refresh_all_panes()
-            
-            logger.debug("Main window refreshed")
-            
-        except Exception as e:
-            logger.error(f"Failed to refresh main window: {e}")
-    
+
+
     def get_window_info(self) -> Dict[str, Any]:
         """Get window information for debugging"""
         return {
             "is_mobile": self.is_mobile,
-            "has_pane_manager": self.pane_manager is not None,
-            "has_command_bridge": self.command_bridge is not None,
-            "has_command_manager": self.command_manager is not None,
+            "current_view_key": self.current_view_key,
+            "has_navigation_controller": self.navigation_controller is not None,
             "window_size": self._get_window_size()
         }

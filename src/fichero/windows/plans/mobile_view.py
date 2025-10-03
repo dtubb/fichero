@@ -36,32 +36,82 @@ class PlansMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for plans view"""
         try:
-            from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation (no manual on_back)
-            self.top_toolbar = SimpleTopToolbar(
+            from fichero.shared.toolbars import TopToolbar, BottomToolbar
+
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Plans",
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class PlansBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # Plans-specific actions could go here
-            
-            self.bottom_toolbar = PlansBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
+
+            # Set up modal-specific back navigation
+            self.top_toolbar.on_back = self._on_back_pressed
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Add plans-specific buttons using composition
+            self._add_plans_toolbar_buttons()
+
             # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("Plans mobile view toolbars created successfully")            
+
+            logger.info("Plans mobile view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create plans toolbars: {e}")
     
+    def _add_plans_toolbar_buttons(self):
+        """Add plans-specific buttons using composition"""
+        try:
+            # Modal windows should have no toolbar buttons - only back button at top
+            logger.debug("Plans modal view - no toolbar buttons added")
+
+            logger.debug("Plans toolbar buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add plans toolbar buttons: {e}")
+
+    def _on_back_pressed(self, widget=None):
+        """Handle back button press - close modal"""
+        try:
+            logger.info("Plans view back button pressed - closing modal")
+            # Use the WindowViewManager to close the modal
+            if hasattr(self.app, 'window_view_manager'):
+                self.app.window_view_manager._close_modal_overlay()
+            else:
+                # Fallback: use NavigationController back navigation
+                self.app.view_integration.navigation_controller.navigate_back()
+        except Exception as e:
+            logger.error(f"Failed to handle back navigation: {e}")
+
+    def _on_new_plan(self, widget=None):
+        """Handle new plan button press"""
+        try:
+            logger.info("New plan button pressed")
+            # TODO: Implement new plan functionality
+            if hasattr(self.plans_content, 'create_new_plan'):
+                self.plans_content.create_new_plan()
+
+        except Exception as e:
+            logger.error(f"Failed to create new plan: {e}")
+
+    def _on_export_plan(self, widget=None):
+        """Handle export plan button press"""
+        try:
+            logger.info("Export plan button pressed")
+            # TODO: Implement export plan functionality
+            if hasattr(self.plans_content, 'export_plan'):
+                self.plans_content.export_plan()
+
+        except Exception as e:
+            logger.error(f"Failed to export plan: {e}")
+
     def _create_content(self):
         """Create the plans content"""
         try:
@@ -76,12 +126,6 @@ class PlansMobileView(BaseView):
         except Exception as e:
             logger.error(f"Failed to create plans content: {e}")
     
-    def _on_back_pressed(self):
-        """Handle back button press"""
-        logger.debug("Plans back button pressed")
-        # Use the app's window view manager to go back
-        if hasattr(self.app, 'window_view_manager') and hasattr(self.app.window_view_manager, 'mobile_view_manager'):
-            self.app.window_view_manager.mobile_view_manager.go_back()
     
     def show(self):
         """Show method for compatibility"""

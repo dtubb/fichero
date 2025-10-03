@@ -111,68 +111,110 @@ class BaseView(ABC):
         self.set_top_toolbar(toolbar)
     
     def set_top_toolbar(self, toolbar: 'BaseToolbar'):
-        """Set the top toolbar for this view"""
+        """Set the top toolbar for this view with simplified container structure"""
         try:
             self.top_toolbar = toolbar
-            
-            # Create toolbar container
-            self.top_toolbar_container = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    height=50,  # Fixed height for toolbar
-                    padding=(5, 5)
-                    # No background_color = transparent
-                )
-            )
-            
-            # Add toolbar content to container
+
+            # Get HIG-compliant height from toolbar (no more fixed 50px)
+            toolbar_height = toolbar.hig_specs["toolbar_height"] if hasattr(toolbar, 'hig_specs') else 50
+
+            # Simplified: Use toolbar's container directly without extra wrapper
             if hasattr(toolbar, 'get_container'):
-                toolbar_content = toolbar.get_container()
+                toolbar_container = toolbar.get_container()
+
+                # Ensure toolbar container uses proper height and full width
+                if toolbar_container and hasattr(toolbar_container, 'style'):
+                    # Update toolbar's own container to ensure consistent sizing
+                    # Add small vertical margins for visual separation
+                    toolbar_container.style.update(
+                        height=toolbar_height,
+                        margin=(4, 0),  # Small vertical margins for visual separation
+                        flex=0  # Fixed height, full width
+                    )
+
+                # Insert toolbar container directly into main container
+                if self.container:
+                    self.container.insert(0, toolbar_container)
+                    self.top_toolbar_container = toolbar_container
+                    logger.debug(f"Top toolbar added with HIG height: {toolbar_height}px")
             else:
-                toolbar_content = toolbar
-            
-            self.top_toolbar_container.add(toolbar_content)
-            
-            # Insert toolbar at the beginning of the main container
-            if self.container and self.top_toolbar_container:
+                # Fallback for non-BaseToolbar implementations
+                self.top_toolbar_container = toga.Box(
+                    style=Pack(
+                        direction=ROW,
+                        height=toolbar_height,
+                        margin=0,
+                        flex=0
+                    )
+                )
+                self.top_toolbar_container.add(toolbar)
                 self.container.insert(0, self.top_toolbar_container)
-                logger.debug("Top toolbar added to view")
-            
-            # CRITICAL FIX: Connect mobile navigation AFTER toolbar is set
-            if self.is_mobile:
-                self.connect_mobile_navigation()
-            
+                logger.debug("Top toolbar added with fallback container")
+
         except Exception as e:
             logger.error(f"Failed to set top toolbar: {e}")
     
     def set_bottom_toolbar(self, toolbar: 'BaseToolbar'):
-        """Set the bottom toolbar for this view"""
+        """Set the bottom toolbar for this view with simplified container structure"""
         try:
             self.bottom_toolbar = toolbar
-            
-            # Create toolbar container
-            self.bottom_toolbar_container = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    height=50,  # Fixed height for toolbar
-                    padding=(10, 5)
-                    # No background_color = transparent
-                )
-            )
-            
-            # Add toolbar content to container
-            if hasattr(toolbar, 'get_container'):
-                toolbar_content = toolbar.get_container()
+
+            # Get HIG-compliant height from toolbar (includes safe area for mobile)
+            toolbar_height = toolbar.hig_specs["toolbar_height"] if hasattr(toolbar, 'hig_specs') else 50
+
+            # For mobile bottom toolbars, add safe area if specified
+            if hasattr(toolbar, 'hig_specs') and hasattr(toolbar, 'is_mobile') and toolbar.is_mobile:
+                safe_area = toolbar.hig_specs.get("safe_area_bottom", 0)
+                additional_margin = toolbar.hig_specs.get("additional_bottom_margin", 0)
+                total_height = toolbar_height + safe_area + additional_margin
             else:
-                toolbar_content = toolbar
-            
-            self.bottom_toolbar_container.add(toolbar_content)
-            
-            # Add toolbar at the end of the main container
-            if self.container and self.bottom_toolbar_container:
-                self.container.add(self.bottom_toolbar_container)
-                logger.debug("Bottom toolbar added to view")
-            
+                total_height = toolbar_height
+
+            # Simplified: Use toolbar's container directly without extra wrapper
+            if hasattr(toolbar, 'get_container'):
+                toolbar_container = toolbar.get_container()
+
+                # Ensure toolbar container uses proper height and full width
+                if toolbar_container and hasattr(toolbar_container, 'style'):
+                    # Update toolbar's own container to ensure consistent sizing
+                    # Add small vertical margins for visual separation (mobile only)
+                    if total_height > 0:
+                        margin_value = (4, 0)
+                        toolbar_container.style.update(
+                            height=total_height,
+                            margin=margin_value,  # Small vertical margins for mobile visual separation
+                            flex=0  # Fixed height, full width
+                        )
+                    else:
+                        # For hidden toolbars (desktop), only set safe properties (avoid height=None errors)
+                        toolbar_container.style.update(
+                            margin=(0, 0),
+                            flex=0
+                            # Don't set height=None - it causes Toga validation errors
+                        )
+
+                # Add toolbar container directly to main container
+                if self.container and total_height > 0:  # Only add if visible
+                    self.container.add(toolbar_container)
+                    self.bottom_toolbar_container = toolbar_container
+                    logger.debug(f"Bottom toolbar added with HIG height: {total_height}px")
+                elif total_height == 0:
+                    logger.debug("Bottom toolbar hidden (height=0 for desktop)")
+            else:
+                # Fallback for non-BaseToolbar implementations
+                if total_height > 0:
+                    self.bottom_toolbar_container = toga.Box(
+                        style=Pack(
+                            direction=ROW,
+                            height=total_height,
+                            margin=0,
+                            flex=0
+                        )
+                    )
+                    self.bottom_toolbar_container.add(toolbar)
+                    self.container.add(self.bottom_toolbar_container)
+                    logger.debug("Bottom toolbar added with fallback container")
+
         except Exception as e:
             logger.error(f"Failed to set bottom toolbar: {e}")
     
@@ -212,43 +254,19 @@ class BaseView(ABC):
         try:
             logger.info("🔙 Attempting to connect mobile navigation...")
             
-            # Create a simple debug callback first to test if button works at all
-            def debug_back_callback():
-                logger.info("🔙 DEBUG: Back button callback fired!")
-                
-                # Check if app has window_view_manager
-                if not hasattr(self.app, 'window_view_manager'):
-                    logger.warning("🔙 App missing window_view_manager")
-                    return False
-                    
-                window_view_manager = self.app.window_view_manager
-                if not hasattr(window_view_manager, 'mobile_view_manager'):
-                    logger.warning("🔙 WindowViewManager missing mobile_view_manager")
-                    return False
-                    
-                mobile_view_manager = window_view_manager.mobile_view_manager
-                if not mobile_view_manager:
-                    logger.warning("🔙 mobile_view_manager is None")
-                    return False
-                
-                # Call go_back
-                try:
-                    result = mobile_view_manager.go_back()
-                    logger.info(f"🔙 go_back() result: {result}")
-                    return result
-                except Exception as e:
-                    logger.error(f"🔙 Error in go_back(): {e}")
-                    return False
+            # Use NavigationController for reliable back navigation
+            from fichero.shared.navigation.navigation_controller import NavigationController
+            navigation_controller_back_callback = NavigationController.create_back_handler(self.app)
             
             # Set the callback on the toolbar
-            self.top_toolbar.set_back_callback(debug_back_callback)
+            self.top_toolbar.set_back_callback(navigation_controller_back_callback)
             logger.info("🔙 Mobile navigation connected successfully!")
             
         except Exception as e:
             logger.error(f"🔙 Failed to connect mobile navigation: {e}")
     
     def reconnect_mobile_navigation(self):
-        """Reconnect mobile navigation after mobile_view_manager becomes available"""
+        """Reconnect mobile navigation after modal overlay system becomes available"""
         if self.is_mobile and self.top_toolbar:
             logger.info("🔙 Attempting to reconnect mobile navigation...")
             self.connect_mobile_navigation()

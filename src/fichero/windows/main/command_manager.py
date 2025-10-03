@@ -24,9 +24,15 @@ class CommandManagerRefactored:
         self.registered_commands: Dict[str, toga.Command] = {}
         
         logger.info("CommandManagerRefactored initialized")
-        
+
         # Initialize commands immediately
         self._initialize_commands()
+
+    def set_command_bridge(self, command_bridge):
+        """Set command bridge - compatibility method for main window"""
+        # This method exists for compatibility with main window initialization
+        # The refactored command manager doesn't need the bridge pattern
+        logger.debug("Command bridge set (compatibility method)")
     
     def _initialize_commands(self):
         """Initialize essential commands"""

@@ -18,7 +18,7 @@ import argparse
 src_dir = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
-from fichero.windows.main.styling.color_constants import ICON_PRIMARY, ICON_SECONDARY
+from fichero.shared.toolbars.color_constants import ICON_PRIMARY, ICON_SECONDARY
 
 def hex_to_rgb(hex_color):
     """Convert hex color string to RGB tuple"""

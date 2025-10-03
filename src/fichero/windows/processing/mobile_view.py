@@ -34,43 +34,93 @@ class ProcessingMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for processing view"""
         try:
-            from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation (no manual on_back)
-            self.top_toolbar = SimpleTopToolbar(
+            from fichero.shared.toolbars import TopToolbar, BottomToolbar
+
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Processing",
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class ProcessingBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # Processing-specific actions could go here
-            
-            self.bottom_toolbar = ProcessingBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
+
+            # Set up modal-specific back navigation
+            self.top_toolbar.on_back = self._on_back_pressed
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Add processing-specific buttons using composition
+            self._add_processing_toolbar_buttons()
+
             # Set toolbars in the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("Processing mobile view toolbars created successfully")            
+
+            logger.info("Processing mobile view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create processing toolbars: {e}")
     
+    def _add_processing_toolbar_buttons(self):
+        """Add processing-specific buttons using composition"""
+        try:
+            # Modal windows should have no toolbar buttons - only back button at top
+            logger.debug("Processing modal view - no toolbar buttons added")
+
+            logger.debug("Processing toolbar buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add processing toolbar buttons: {e}")
+
+    def _on_start_processing(self, widget=None):
+        """Handle start processing button press"""
+        try:
+            logger.info("Start processing button pressed")
+            # TODO: Implement start processing functionality
+            if hasattr(self.processing_content, 'start_processing'):
+                self.processing_content.start_processing()
+
+        except Exception as e:
+            logger.error(f"Failed to start processing: {e}")
+
+    def _on_monitor_processing(self, widget=None):
+        """Handle monitor processing button press"""
+        try:
+            logger.info("Monitor processing button pressed")
+            # TODO: Implement processing monitoring functionality
+            if hasattr(self.processing_content, 'monitor_processing'):
+                self.processing_content.monitor_processing()
+
+        except Exception as e:
+            logger.error(f"Failed to monitor processing: {e}")
+
+    def _on_back_pressed(self, widget=None):
+        """Handle back button press - close modal"""
+        try:
+            logger.info("Processing view back button pressed - closing modal")
+            # Use the WindowViewManager to close the modal
+            if hasattr(self.app, 'window_view_manager'):
+                self.app.window_view_manager._close_modal_overlay()
+            else:
+                # Fallback: use NavigationController back navigation
+                self.app.view_integration.navigation_controller.navigate_back()
+        except Exception as e:
+            logger.error(f"Failed to handle back navigation: {e}")
+
     def _create_content(self):
         """Create the processing content"""
         try:
             # Create content using the shared processing content
             content = self.processing_content.create()
-            
+
             # Add to the content container
             if self.content_container and content:
                 self.content_container.add(content)
                 logger.info("Processing content added to view")
-            
+
         except Exception as e:
             logger.error(f"Failed to create processing content: {e}")
     
@@ -84,12 +134,6 @@ class ProcessingMobileView(BaseView):
         # Processing doesn't need special hide logic like activity monitor
         logger.info("Processing mobile view hidden")
     
-    def _on_back_pressed(self):
-        """Handle back button press"""
-        logger.debug("Processing back button pressed")
-        # Use the app's window view manager to go back
-        if hasattr(self.app, 'window_view_manager') and hasattr(self.app.window_view_manager, 'mobile_view_manager'):
-            self.app.window_view_manager.mobile_view_manager.go_back()
     
     def start_processing(self):
         """Start processing if available"""

@@ -57,6 +57,23 @@ class BulkImportCommands(BaseLibraryCommands):
         ):
             """Import local/external paths from text file"""
             asyncio.run(self._import_paths(text_file, collection_name, collection_type, description, validate_paths))
+
+        @app.command(name="import-clipboard", help="Import URLs from clipboard (mobile-friendly)")
+        def import_clipboard(
+            collection_name: str = typer.Argument(..., help="Name for the collection"),
+            description: str = typer.Option("", "--description", "-d", help="Description for the collection"),
+            validate_urls: bool = typer.Option(True, "--validate", help="Validate URLs before adding")
+        ):
+            """Import URLs from clipboard - perfect for mobile copy-paste workflow"""
+            asyncio.run(self._import_clipboard(collection_name, description, validate_urls))
+
+        @app.command(name="add-urls", help="Interactive URL entry for building collections")
+        def add_urls(
+            collection_name: str = typer.Argument(..., help="Name for the collection"),
+            description: str = typer.Option("", "--description", "-d", help="Description for the collection")
+        ):
+            """Interactive URL entry - type URLs one by one, press Enter twice to finish"""
+            asyncio.run(self._add_urls_interactive(collection_name, description))
     
     async def _bulk_import(self, text_file: Path, collection_name: str, collection_type: str, description: str, max_concurrent: int, validate_urls: bool, skip_duplicates: bool):
         """Bulk import from text file with mixed content types"""
@@ -340,3 +357,215 @@ class BulkImportCommands(BaseLibraryCommands):
                 return response.status < 400
         except Exception:
             return False
+
+    async def _import_clipboard(self, collection_name: str, description: str, validate_urls: bool):
+        """Import URLs from clipboard - mobile-friendly workflow"""
+        try:
+            import subprocess
+            import sys
+
+            self.console.print("[blue]📋 Reading clipboard...[/blue]")
+
+            # Try to read clipboard based on platform
+            clipboard_text = None
+            try:
+                if sys.platform == "darwin":  # macOS
+                    result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                    clipboard_text = result.stdout
+                elif sys.platform == "linux":  # Linux
+                    result = subprocess.run(['xclip', '-selection', 'clipboard', '-o'], capture_output=True, text=True)
+                    clipboard_text = result.stdout
+                elif sys.platform == "win32":  # Windows
+                    import win32clipboard
+                    win32clipboard.OpenClipboard()
+                    clipboard_text = win32clipboard.GetClipboardData()
+                    win32clipboard.CloseClipboard()
+            except Exception as e:
+                self.console.print(f"[yellow]⚠️ Could not access clipboard: {e}[/yellow]")
+                self.console.print("[yellow]Please paste URLs manually or use a text file instead[/yellow]")
+                return
+
+            if not clipboard_text or not clipboard_text.strip():
+                self.console.print("[red]❌ Clipboard is empty[/red]")
+                return
+
+            # Extract URLs from clipboard text
+            urls = self._extract_urls_from_text(clipboard_text)
+
+            if not urls:
+                self.console.print("[red]❌ No valid URLs found in clipboard[/red]")
+                self.console.print("Clipboard content preview:")
+                self.console.print(f"[dim]{clipboard_text[:200]}...[/dim]")
+                return
+
+            self.console.print(f"[green]✅ Found {len(urls)} URLs in clipboard[/green]")
+
+            # Create collection and add URLs
+            await self._import_url_list(urls, collection_name, description, validate_urls)
+
+        except Exception as e:
+            self.console.print(f"[red]❌ Error importing from clipboard: {str(e)}[/red]")
+
+    async def _add_urls_interactive(self, collection_name: str, description: str):
+        """Interactive URL entry - perfect for building collections one URL at a time"""
+        try:
+            self.console.print("[blue]🔗 Interactive URL Collection Builder[/blue]")
+            self.console.print("Enter URLs one by one. Press Enter on empty line to finish.")
+            self.console.print("Type 'quit' or 'exit' to cancel.\n")
+
+            urls = []
+            while True:
+                try:
+                    url = input(f"URL {len(urls) + 1}: ").strip()
+
+                    if not url:  # Empty line = finish
+                        break
+
+                    if url.lower() in ['quit', 'exit']:
+                        self.console.print("[yellow]Cancelled[/yellow]")
+                        return
+
+                    # Validate URL format
+                    if self._is_valid_url_format(url):
+                        urls.append(url)
+                        self.console.print(f"[green]✅ Added: {url}[/green]")
+                    else:
+                        self.console.print(f"[red]❌ Invalid URL format: {url}[/red]")
+
+                except KeyboardInterrupt:
+                    self.console.print("\n[yellow]Cancelled[/yellow]")
+                    return
+
+            if not urls:
+                self.console.print("[yellow]No URLs entered[/yellow]")
+                return
+
+            self.console.print(f"\n[blue]📝 Collected {len(urls)} URLs[/blue]")
+
+            # Create collection and add URLs
+            await self._import_url_list(urls, collection_name, description, validate_urls=True)
+
+        except Exception as e:
+            self.console.print(f"[red]❌ Error in interactive mode: {str(e)}[/red]")
+
+    def _extract_urls_from_text(self, text: str) -> List[str]:
+        """Extract URLs from mixed text content"""
+        import re
+
+        if not text:
+            return []
+
+        # URL pattern that captures various formats
+        url_pattern = re.compile(
+            r'https?://[^\s<>"\']+',
+            re.IGNORECASE
+        )
+
+        urls = []
+        lines = text.strip().split('\n')
+
+        for line in lines:
+            line = line.strip()
+
+            # Direct URL check
+            if self._is_valid_url_format(line):
+                urls.append(line)
+            else:
+                # Extract URLs from mixed content
+                found_urls = url_pattern.findall(line)
+                for url in found_urls:
+                    if self._is_valid_url_format(url):
+                        urls.append(url)
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_urls = []
+        for url in urls:
+            if url not in seen:
+                seen.add(url)
+                unique_urls.append(url)
+
+        return unique_urls
+
+    def _is_valid_url_format(self, url: str) -> bool:
+        """Quick URL format validation"""
+        import re
+        url_pattern = re.compile(
+            r'^https?://'  # http:// or https://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
+            r'localhost|'  # localhost
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ip
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+        return bool(url_pattern.match(url))
+
+    async def _import_url_list(self, urls: List[str], collection_name: str, description: str, validate_urls: bool):
+        """Common method to import a list of URLs"""
+        try:
+            # Create collection
+            from fichero.library.models import Collection
+            collection = Collection(
+                name=collection_name,
+                type="url",
+                metadata={"description": description, "import_type": "url_references"}
+            )
+
+            collection_id = await self.library_manager.add_collection(collection)
+            self.console.print(f"[green]✅ Created collection: {collection_name}[/green]")
+
+            # Validate URLs if requested
+            if validate_urls:
+                self.console.print("[blue]🔍 Validating URLs...[/blue]")
+                urls = await self._validate_urls(urls)
+
+            # Add URLs to collection
+            added_count = 0
+            with Progress() as progress:
+                task = progress.add_task("Adding URLs...", total=len(urls))
+
+                for i, url in enumerate(urls, 1):
+                    try:
+                        # Generate a meaningful name from URL
+                        name = self._generate_url_name(url, i)
+
+                        await self.library_manager.add_item_to_collection(
+                            collection_id=collection_id,
+                            item_type="url",
+                            source=url,
+                            name=name,
+                            operation="link"  # Reference only, no downloading
+                        )
+                        added_count += 1
+                        progress.update(task, advance=1)
+
+                    except Exception as e:
+                        self.console.print(f"[red]❌ Failed to add {url}: {str(e)}[/red]")
+
+            self.console.print(f"[green]✅ Successfully added {added_count}/{len(urls)} URLs as references[/green]")
+            self.console.print(f"[blue]📚 Collection '{collection_name}' ready for browsing[/blue]")
+
+        except Exception as e:
+            self.console.print(f"[red]❌ Error importing URLs: {str(e)}[/red]")
+
+    def _generate_url_name(self, url: str, index: int) -> str:
+        """Generate a meaningful name for a URL"""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+
+            # Try to extract meaningful part from path
+            path_parts = [p for p in parsed.path.split('/') if p]
+            if path_parts:
+                name = path_parts[-1]
+                # Remove file extension if present
+                if '.' in name:
+                    name = name.rsplit('.', 1)[0]
+                if name:
+                    return f"{name.replace('_', ' ').replace('-', ' ').title()}"
+
+            # Fallback to domain + index
+            domain = parsed.netloc or parsed.path
+            return f"{domain.replace('www.', '')} - Item {index:03d}"
+
+        except Exception:
+            return f"URL Reference {index:03d}"

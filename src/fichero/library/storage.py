@@ -287,21 +287,43 @@ class LibraryStorage:
     def delete_collection(self, collection_id: str) -> bool:
         """Delete a collection and all related data"""
         try:
+            logger.debug(f"Storage: Starting deletion of collection {collection_id}")
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
+                # Check if collection exists first
+                cursor.execute("SELECT id, name FROM collections WHERE id = ?", (collection_id,))
+                collection_data = cursor.fetchone()
+                if not collection_data:
+                    logger.error(f"Storage: Collection {collection_id} not found in database")
+                    return False
+
+                logger.debug(f"Storage: Found collection to delete: {collection_data[1]} (ID: {collection_data[0]})")
+
                 # Delete in order due to foreign key constraints
+                logger.debug(f"Storage: Deleting processing_history for collection {collection_id}")
                 cursor.execute("DELETE FROM processing_history WHERE item_id IN (SELECT id FROM collection_items WHERE collection_id = ?)", (collection_id,))
+
+                logger.debug(f"Storage: Deleting collection_items for collection {collection_id}")
                 cursor.execute("DELETE FROM collection_items WHERE collection_id = ?", (collection_id,))
+
+                logger.debug(f"Storage: Deleting external_paths for collection {collection_id}")
                 cursor.execute("DELETE FROM external_paths WHERE collection_id = ?", (collection_id,))
+
+                logger.debug(f"Storage: Deleting collection record {collection_id}")
                 cursor.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
-                
+
+                # Check if anything was actually deleted
+                if cursor.rowcount == 0:
+                    logger.warning(f"Storage: No collection record was deleted for ID {collection_id}")
+                    return False
+
                 conn.commit()
-                logger.debug(f"Collection deleted from storage: {collection_id}")
+                logger.info(f"Storage: Successfully deleted collection {collection_data[1]} (ID: {collection_id})")
                 return True
-                
+
         except Exception as e:
-            logger.error(f"Failed to delete collection: {e}")
+            logger.error(f"Storage: Failed to delete collection {collection_id}: {e}")
             return False
     
     def add_collection_item(self, item: CollectionItem) -> bool:

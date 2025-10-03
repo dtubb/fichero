@@ -28,6 +28,11 @@ class WindowType(Enum):
     PROCESSING = "processing"
     PREVIEW = "preview"
     ADD_DIALOG = "add_dialog"
+    ADD_URL = "add_url"
+    ADD_WEBSITE = "add_website"
+    ADD_FILE = "add_file"
+    ADD_FOLDER = "add_folder"
+    ADD_CAMERA = "add_camera"
 
 
 class WindowViewManager:
@@ -45,8 +50,9 @@ class WindowViewManager:
         # Desktop windows (separate Toga windows)
         self.desktop_windows: Dict[WindowType, Any] = {}
         
-        # Mobile view manager (for main window)
-        self.mobile_view_manager: Optional['MobileViewManager'] = None
+        # Mobile modal overlay state
+        self._current_modal_overlay: Optional[toga.Box] = None
+        self._current_modal_view = None
         
         # Callbacks for mobile navigation
         self.on_mobile_view_changed: Optional[Callable] = None
@@ -71,9 +77,8 @@ class WindowViewManager:
                 return False
     
     def set_mobile_view_manager(self, mobile_view_manager):
-        """Set the mobile view manager for handling views in main window"""
-        self.mobile_view_manager = mobile_view_manager
-        logger.info("Mobile view manager set")
+        """Legacy method - no longer needed with modal overlay system"""
+        logger.debug("set_mobile_view_manager called but mobile_view_manager is deprecated")
     
     def show_window_or_view(self, window_type: WindowType, **kwargs) -> bool:
         """
@@ -232,31 +237,115 @@ class WindowViewManager:
             logger.warning(f"Failed to add close callback for {window_type.value}: {e}")
     
     def _show_mobile_view(self, window_type: WindowType, **kwargs) -> bool:
-        """Show a view in the main window on mobile"""
+        """Show a modal view on mobile using navigation system"""
         try:
-            logger.info(f"Attempting to show mobile view: {window_type.value}")
-            logger.info(f"Mobile view manager available: {self.mobile_view_manager is not None}")
-            
-            if not self.mobile_view_manager:
-                logger.error("Mobile view manager not set - cannot show mobile view")
-                return False
-            
-            # Create mobile view
-            logger.info(f"Creating mobile view for: {window_type.value}")
+            logger.info(f"Showing mobile modal view: {window_type.value}")
+
+            # For add views, register with NavigationController first
+            if window_type.value.startswith('add'):
+                self._register_add_view_with_navigation(window_type)
+
+            # Create the mobile view
             mobile_view = self._create_mobile_view(window_type, **kwargs)
-            
-            if mobile_view:
-                logger.info(f"Mobile view created successfully for: {window_type.value}")
-                # Show view in main window
-                return self.mobile_view_manager.show_view(window_type, mobile_view)
-            else:
+            if not mobile_view:
                 logger.error(f"Failed to create mobile view: {window_type.value}")
                 return False
-                
+
+            # Get main window to show modal overlay
+            main_window = getattr(self.app, 'main_window_wrapper', None)
+            if not main_window:
+                logger.error("Main window not available for modal view")
+                return False
+
+            # Show as modal overlay in main window
+            return self._show_modal_overlay(mobile_view, window_type)
+
         except Exception as e:
-            logger.error(f"Failed to show mobile view {window_type.value}: {e}")
+            logger.error(f"Failed to show mobile modal view {window_type.value}: {e}")
             return False
-    
+
+    def _register_add_view_with_navigation(self, window_type: WindowType):
+        """Register add view with NavigationController for proper back navigation"""
+        try:
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                navigation_controller = self.app.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    # Determine the add type based on window_type
+                    add_type_map = {
+                        'add_dialog': 'dialog',
+                        'add_url': 'url',
+                        'add_website': 'website',
+                        'add_file': 'file',
+                        'add_folder': 'folder',
+                        'add_camera': 'camera'
+                    }
+                    add_type = add_type_map.get(window_type.value, 'dialog')
+
+                    # Navigate to add using NavigationController
+                    navigation_controller.navigate_to_add(add_type)
+                    logger.info(f"Registered add view '{add_type}' with NavigationController")
+                else:
+                    logger.warning("NavigationController not available")
+            else:
+                logger.warning("ViewIntegration not available")
+        except Exception as e:
+            logger.error(f"Failed to register add view with navigation: {e}")
+
+    def _show_modal_overlay(self, view, window_type: WindowType) -> bool:
+        """Show a view as a modal overlay in the main window"""
+        try:
+            # For now, let's replace the main window content temporarily
+            # This is a simple modal implementation - we can enhance it later
+            main_window = self.app.main_window_wrapper
+            if hasattr(main_window, 'main_container') and main_window.main_container:
+                container = main_window.main_container
+
+                # Store current content
+                self._modal_previous_content = list(container.children)
+
+                # Clear container and add modal view
+                container.clear()
+                container.add(view.container if hasattr(view, 'container') else view)
+
+                logger.info(f"Modal view {window_type.value} shown in main window")
+                return True
+            else:
+                logger.error("Cannot access main window container for modal")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to show modal overlay: {e}")
+            return False
+
+    def _close_modal_overlay(self) -> bool:
+        """Close modal overlay and restore previous content"""
+        try:
+            main_window = self.app.main_window_wrapper
+            if hasattr(main_window, 'main_container') and main_window.main_container:
+                container = main_window.main_container
+
+                # Restore previous content if we have it
+                if hasattr(self, '_modal_previous_content') and self._modal_previous_content:
+                    container.clear()
+                    for child in self._modal_previous_content:
+                        container.add(child)
+
+                    # Clear stored content
+                    self._modal_previous_content = None
+
+                    logger.info("Modal overlay closed, content restored")
+                    return True
+                else:
+                    logger.warning("No previous content to restore")
+                    return False
+            else:
+                logger.error("Cannot access main window container to close modal")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to close modal overlay: {e}")
+            return False
+
     def _create_mobile_view(self, window_type: WindowType, **kwargs):
         """Create a mobile view based on the window type"""
         try:
@@ -281,21 +370,21 @@ class WindowViewManager:
                     return None
 
             elif window_type == WindowType.ACTIVITY_MONITOR:
-                logger.info("Importing ActivityMobileView")
+                logger.info("Importing ActivityMonitorMobileView")
                 try:
-                    from fichero.windows.activity_monitor.mobile_view import ActivityMobileView
-                    logger.info("ActivityMobileView imported successfully")
+                    from fichero.windows.activity_monitor.mobile_view import ActivityMonitorMobileView
+                    logger.info("ActivityMonitorMobileView imported successfully")
                 except ImportError as e:
-                    logger.error(f"Failed to import ActivityMobileView: {e}")
+                    logger.error(f"Failed to import ActivityMonitorMobileView: {e}")
                     return None
-                
-                logger.info("Creating ActivityMobileView instance")
+
+                logger.info("Creating ActivityMonitorMobileView instance")
                 try:
-                    mobile_view = ActivityMobileView(self.app)
-                    logger.info("ActivityMobileView instance created successfully")
+                    mobile_view = ActivityMonitorMobileView(self.app)
+                    logger.info("ActivityMonitorMobileView instance created successfully")
                     return mobile_view
                 except Exception as e:
-                    logger.error(f"Failed to create ActivityMobileView instance: {e}")
+                    logger.error(f"Failed to create ActivityMonitorMobileView instance: {e}")
                     return None
 
             elif window_type == WindowType.SETTINGS:
@@ -371,29 +460,89 @@ class WindowViewManager:
                     return None
             
             elif window_type == WindowType.ADD_DIALOG:
-                logger.info("Creating MobileAddView for mobile")
+                logger.info("ADD_DIALOG requested - using NavigationController")
+                # Redirect to NavigationController for direct add navigation
+                option_id = kwargs.get('option_id', 'url')  # Default to URL
+                if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                    navigation_controller = self.app.view_integration.get_navigation_controller()
+                    if navigation_controller:
+                        add_type = option_id if option_id in ['url', 'website', 'file', 'folder', 'camera'] else 'url'
+                        logger.info(f"Delegating to NavigationController add navigation: {add_type}")
+                        navigation_controller.navigate_to_add(add_type)
+                        return None  # NavigationController handles this
+                logger.error("NavigationController not available for add dialog")
+                return None
+
+            elif window_type == WindowType.ADD_URL:
+                logger.info("Creating URL Add View for mobile")
                 try:
-                    from fichero.windows.add.mobile_add_view import MobileAddView
-                    logger.info("MobileAddView imported successfully")
-                except ImportError as e:
-                    logger.error(f"Failed to import MobileAddView: {e}")
-                    return None
-                
-                logger.info("Creating MobileAddView instance")
-                try:
-                    # For mobile, use MobileAddView
-                    option_id = kwargs.get('option_id')
-                    mobile_view = MobileAddView(
+                    from fichero.windows.add.views.url_view import URLAddView
+                    mobile_view = URLAddView(
                         self.app,
-                        on_content_added=self._handle_content_added,
-                        option_id=option_id
+                        on_content_added=self._handle_content_added
                     )
-                    logger.info("MobileAddView instance created successfully")
+                    logger.info("URL Add View instance created successfully")
                     return mobile_view
                 except Exception as e:
-                    logger.error(f"Failed to create MobileAddView instance: {e}")
+                    logger.error(f"Failed to create URL Add View instance: {e}")
                     return None
-            
+
+            elif window_type == WindowType.ADD_WEBSITE:
+                logger.info("Creating Website Add View for mobile")
+                try:
+                    from fichero.windows.add.views.website_view import WebsiteAddView
+                    mobile_view = WebsiteAddView(
+                        self.app,
+                        on_content_added=self._handle_content_added
+                    )
+                    logger.info("Website Add View instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create Website Add View instance: {e}")
+                    return None
+
+            elif window_type == WindowType.ADD_FILE:
+                logger.info("Creating File Add View for mobile")
+                try:
+                    from fichero.windows.add.views.file_view import FileAddView
+                    mobile_view = FileAddView(
+                        self.app,
+                        on_content_added=self._handle_content_added
+                    )
+                    logger.info("File Add View instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create File Add View instance: {e}")
+                    return None
+
+            elif window_type == WindowType.ADD_FOLDER:
+                logger.info("Creating Folder Add View for mobile")
+                try:
+                    from fichero.windows.add.views.folder_view import FolderAddView
+                    mobile_view = FolderAddView(
+                        self.app,
+                        on_content_added=self._handle_content_added
+                    )
+                    logger.info("Folder Add View instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create Folder Add View instance: {e}")
+                    return None
+
+            elif window_type == WindowType.ADD_CAMERA:
+                logger.info("Creating Camera Add View for mobile")
+                try:
+                    from fichero.windows.add.views.camera_view import CameraAddView
+                    mobile_view = CameraAddView(
+                        self.app,
+                        on_content_added=self._handle_content_added
+                    )
+                    logger.info("Camera Add View instance created successfully")
+                    return mobile_view
+                except Exception as e:
+                    logger.error(f"Failed to create Camera Add View instance: {e}")
+                    return None
+
             else:
                 logger.warning(f"Unsupported mobile view type: {window_type}")
                 return None
@@ -407,33 +556,37 @@ class WindowViewManager:
         try:
             logger.info(f"Mobile add option selected: {option_id}")
             
+            # Create NavigationController callback for consistent navigation
+            from fichero.shared.navigation.navigation_controller import NavigationController
+            navigation_callback = NavigationController.create_back_handler(self.app)
+
             # Create the appropriate add view based on option
             if option_id == 'url':
                 from fichero.windows.add.views.url_view import URLAddView
                 view = URLAddView(
-                    self.app, 
-                    on_back=self.mobile_view_manager.go_back,
+                    self.app,
+                    on_back=navigation_callback,
                     on_content_added=self._handle_content_added
                 )
-                self.mobile_view_manager.show_view(view)
-                
+                self._show_modal_overlay(view)
+
             elif option_id == 'website':
                 from fichero.windows.add.views.website_view import WebsiteAddView
                 view = WebsiteAddView(
-                    self.app, 
-                    on_back=self.mobile_view_manager.go_back,
+                    self.app,
+                    on_back=navigation_callback,
                     on_content_added=self._handle_content_added
                 )
-                self.mobile_view_manager.show_view(view)
-                
+                self._show_modal_overlay(view)
+
             elif option_id == 'camera':
                 from fichero.windows.add.views.camera_view import CameraAddView
                 view = CameraAddView(
-                    self.app, 
-                    on_back=self.mobile_view_manager.go_back,
+                    self.app,
+                    on_back=navigation_callback,
                     on_content_added=self._handle_content_added
                 )
-                self.mobile_view_manager.show_view(view)
+                self._show_modal_overlay(view)
                 
             else:
                 logger.warning(f"Unsupported add option: {option_id}")
@@ -441,22 +594,96 @@ class WindowViewManager:
         except Exception as e:
             logger.error(f"Failed to handle mobile add option: {e}")
     
-    def _handle_content_added(self, content_info=None):
+    async def _handle_content_added(self, content_info=None):
         """Handle when content is successfully added"""
         try:
-            logger.info("Content added successfully, returning to main view")
-            # Return to the main view after adding content
-            self.mobile_view_manager.go_back()
+            logger.info(f"Content added successfully: {content_info}")
+
+            # Connect to library backend to actually add the content
+            if content_info and hasattr(self.app, 'library_manager') and self.app.library_manager:
+                option_id = content_info.get('option_id')
+
+                if option_id == 'file' and 'files' in content_info:
+                    # Create a new collection for the selected files
+                    files = content_info['files']
+                    if files:
+                        first_file = files[0]
+                        # Create a collection name based on the first file's directory
+                        collection_name = f"Files from {first_file.parent.name}"
+
+                        # Create collection using library backend
+                        collection_id = await self.app.library_manager.add_collection(
+                            name=collection_name,
+                            collection_type="local",
+                            source_path=str(first_file.parent)
+                        )
+
+                        if collection_id:
+                            # Add each file to the collection
+                            for file_path in files:
+                                await self.app.library_manager.add_item_to_collection(
+                                    collection_id=collection_id,
+                                    item_type="file",
+                                    source=str(file_path),
+                                    name=file_path.name,
+                                    operation="link"
+                                )
+                            logger.info(f"Successfully added {len(files)} files to new collection: {collection_name}")
+
+                elif option_id == 'folder' and 'folders' in content_info:
+                    # Create a new collection for each selected folder
+                    folders = content_info['folders']
+                    for folder_path in folders:
+                        collection_name = f"Folder: {folder_path.name}"
+
+                        # Create collection using library backend
+                        collection_id = await self.app.library_manager.add_collection(
+                            name=collection_name,
+                            collection_type="local",
+                            source_path=str(folder_path)
+                        )
+
+                        if collection_id:
+                            # Add the folder to the collection
+                            await self.app.library_manager.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="folder",
+                                source=str(folder_path),
+                                name=folder_path.name,
+                                operation="link"
+                            )
+                            logger.info(f"Successfully created collection from folder: {collection_name}")
+
+            # Return to the main view after adding content using NavigationController
+            from fichero.shared.navigation.navigation_controller import NavigationController
+            back_handler = NavigationController.create_back_handler(self.app)
+            back_handler()
         except Exception as e:
             logger.error(f"Failed to handle content added: {e}")
+
+    def _handle_add_back(self):
+        """Handle back navigation from specific add views using NavigationController"""
+        try:
+            logger.info("Navigating back from specific add view using NavigationController")
+            # Use NavigationController for proper back navigation
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                navigation_controller = self.app.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    navigation_controller.navigate_back()
+                else:
+                    logger.warning("NavigationController not available, falling back to modal close")
+                    self._close_modal_overlay()
+            else:
+                logger.warning("ViewIntegration not available, falling back to modal close")
+                self._close_modal_overlay()
+        except Exception as e:
+            logger.error(f"Failed to handle add back navigation: {e}")
     
     def close_window_or_view(self, window_type: WindowType) -> bool:
         """Close a window or view"""
         try:
             if self.is_mobile:
-                if self.mobile_view_manager:
-                    return self.mobile_view_manager.close_view(window_type)
-                return False
+                return self._close_modal_overlay()
             else:
                 window = self.desktop_windows.get(window_type)
                 if window:
@@ -474,8 +701,7 @@ class WindowViewManager:
         """Close all windows or views"""
         try:
             if self.is_mobile:
-                if self.mobile_view_manager:
-                    self.mobile_view_manager.close_all_views()
+                self._close_modal_overlay()
             else:
                 for window_type, window in list(self.desktop_windows.items()):
                     try:
@@ -493,9 +719,7 @@ class WindowViewManager:
         """Check if a window or view is currently open"""
         try:
             if self.is_mobile:
-                if self.mobile_view_manager:
-                    return self.mobile_view_manager.is_view_open(window_type)
-                return False
+                return self._current_modal_overlay is not None
             else:
                 window = self.desktop_windows.get(window_type)
                 return window is not None and not window.closed
@@ -509,218 +733,9 @@ class WindowViewManager:
         return {
             'is_mobile': self.is_mobile,
             'desktop_windows_count': len(self.desktop_windows),
-            'mobile_view_manager': self.mobile_view_manager is not None,
+            'mobile_modal_active': self._current_modal_overlay is not None,
             'open_windows': [wt.value for wt in self.desktop_windows.keys()] if not self.is_mobile else [],
-            'mobile_views_available': self.mobile_view_manager is not None
+            'mobile_modal_view': type(self._current_modal_view).__name__ if self._current_modal_view else None
         }
 
-
-class MobileViewManager:
-    """
-    Manages views within the main window for mobile platforms.
-    
-    Handles navigation, back button behavior, and view stacking.
-    """
-    
-    def __init__(self, main_window_content_container, app):
-        """Initialize mobile view manager"""
-        self.content_container = main_window_content_container
-        self.app = app  # Store app reference for creating views
-        
-        # View stack for navigation
-        self.view_stack: list = []
-        self.current_view: Optional[Any] = None
-        self.current_view_type: Optional[WindowType] = None
-        
-        # View instances
-        self.view_instances: Dict[WindowType, Any] = {}
-        
-        # Store the original collection view to prevent duplicates
-        self.original_collection_view = None
-        
-        # Store the main window wrapper to access its content
-        self.main_window = None
-        if hasattr(self.app, 'main_window_wrapper'):
-            self.main_window = self.app.main_window_wrapper
-        
-        logger.info("MobileViewManager initialized")
-    
-    def show_view(self, view_type: WindowType, view_instance) -> bool:
-        """Show a view as an overlay in the main window"""
-        try:
-            # Store current view in stack if we have one
-            if self.current_view and self.current_view_type:
-                self.view_stack.append((self.current_view_type, self.current_view))
-            
-            # Set new view
-            self.current_view = view_instance
-            self.current_view_type = view_type
-            self.view_instances[view_type] = view_instance
-            
-            # Mobile navigation is now connected automatically when toolbars are set
-            
-            # Create view content
-            if hasattr(view_instance, 'create'):
-                view_content = view_instance.create()
-            elif hasattr(view_instance, 'get_container'):
-                view_content = view_instance.get_container()
-            else:
-                view_content = view_instance
-            
-            # Store the original main window content before overlaying
-            if not hasattr(self, 'original_main_content'):
-                self.original_main_content = self.main_window.window.content
-            
-            # Create overlay that covers the entire window
-            overlay_content = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1,
-                    background_color="#FFFFFF"
-                )
-            )
-            overlay_content.add(view_content)
-            
-            # Replace main window content with overlay
-            self.main_window.window.content = overlay_content
-            
-            # Trigger view show if available
-            if hasattr(view_instance, 'show'):
-                view_instance.show()
-            
-            logger.info(f"Mobile view shown as overlay: {view_type.value}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to show mobile view {view_type.value}: {e}")
-            return False
-    
-    def _create_mobile_view_container(self, view_type: WindowType, view_content):
-        """Create a mobile view container - views now handle their own toolbars"""
-        # Since our mobile views now extend BaseView and handle their own toolbars,
-        # we just return the view content directly
-        return view_content
-    
-    # Old toolbar creation methods removed - mobile views now handle their own toolbars using BaseView
-    
-    def _on_back_pressed(self, widget):
-        """Handle back button press"""
-        self.go_back()
-    
-    def go_back(self) -> bool:
-        """Navigate back to previous view"""
-        try:
-            if self.view_stack:
-                # Get previous view
-                previous_view_type, previous_view = self.view_stack.pop()
-                
-                # Hide current view if available
-                if self.current_view and hasattr(self.current_view, 'hide'):
-                    self.current_view.hide()
-                
-                # Set previous view as current
-                self.current_view = previous_view
-                self.current_view_type = previous_view_type
-                
-                # Show previous view
-                if hasattr(previous_view, 'create'):
-                    view_content = previous_view.create()
-                elif hasattr(previous_view, 'get_container'):
-                    view_content = previous_view.get_container()
-                else:
-                    view_content = previous_view
-                
-                mobile_view_container = self._create_mobile_view_container(previous_view_type, view_content)
-                
-                self.content_container.clear()
-                self.content_container.add(mobile_view_container)
-                
-                # Trigger view show if available
-                if hasattr(previous_view, 'show'):
-                    previous_view.show()
-                
-                logger.info(f"Navigated back to: {previous_view_type.value}")
-                return True
-            else:
-                # No previous view - go back to library/collection view
-                self._go_back_to_library()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Failed to go back: {e}")
-            return False
-    
-    def _go_back_to_library(self):
-        """Go back to the main library/collection view by restoring original content"""
-        try:
-            # Clear current view
-            if self.current_view and hasattr(self.current_view, 'hide'):
-                self.current_view.hide()
-            
-            self.current_view = None
-            self.current_view_type = None
-            
-            # Clear the view stack
-            self.view_stack.clear()
-            
-            # Restore the original main window content
-            if hasattr(self, 'original_main_content') and self.original_main_content:
-                self.main_window.window.content = self.original_main_content
-                logger.info("✅ Restored original main window content")
-            else:
-                logger.error("❌ CRITICAL: No original main content to restore")
-                raise ValueError("No original main content available")
-            
-        except Exception as e:
-            logger.error(f"❌ CRITICAL: Failed to restore original content: {e}")
-            import traceback
-            traceback.print_exc()
-            raise  # Don't hide the error - let it bubble up
-    
-    def close_view(self, view_type: WindowType) -> bool:
-        """Close a specific view"""
-        try:
-            if self.current_view_type == view_type:
-                return self.go_back()
-            else:
-                # Remove from view instances
-                if view_type in self.view_instances:
-                    view = self.view_instances[view_type]
-                    if hasattr(view, 'hide'):
-                        view.hide()
-                    del self.view_instances[view_type]
-                return True
-                
-        except Exception as e:
-            logger.error(f"Failed to close view {view_type.value}: {e}")
-            return False
-    
-    def close_all_views(self):
-        """Close all views and return to library"""
-        try:
-            # Hide all views
-            for view in self.view_instances.values():
-                if hasattr(view, 'hide'):
-                    view.hide()
-            
-            # Clear state
-            self.view_instances.clear()
-            self.view_stack.clear()
-            self.current_view = None
-            self.current_view_type = None
-            
-            # Go back to library
-            self._go_back_to_library()
-            
-            logger.info("All mobile views closed")
-            
-        except Exception as e:
-            logger.error(f"Failed to close all views: {e}")
-    
-    def is_view_open(self, view_type: WindowType) -> bool:
-        """Check if a view is currently open"""
-        return view_type in self.view_instances
-    
-    def can_go_back(self) -> bool:
-        """Check if we can navigate back"""
-        return len(self.view_stack) > 0 or self.current_view is not None 
+ 

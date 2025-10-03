@@ -14,8 +14,7 @@ from typing import Optional, List, Dict, Any, Callable
 
 from fichero.shared.views.base_view import BaseView
 from fichero.library.library_manager import LibraryManager
-from fichero.windows.main.views.collection.collection_top_toolbar import CollectionTopToolbar
-from fichero.windows.main.views.collection.collection_bottom_toolbar import CollectionBottomToolbar
+from fichero.shared.toolbars import TopToolbar, BottomToolbar
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 
 logger = logging.getLogger(__name__)
@@ -27,55 +26,75 @@ class CollectionView(BaseView):
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False):
         """Initialize refactored collection view"""
         logger.debug(f"CollectionView.__init__ called with app={app}, collection_name='{collection_name}', is_mobile={is_mobile}")
-        super().__init__(app, is_mobile)
-        
+
+        # Initialize attributes BEFORE calling super().__init__ to prevent AttributeError
+        # during _create_content() which gets called by BaseView's constructor
+
         # Collection-specific data
         self.collection_name = collection_name
         self.collections: List[Dict[str, Any]] = []
         self.current_collection: Optional[Dict[str, Any]] = None
         self.collection_id: Optional[str] = None
         self.collection_items: List[Dict[str, Any]] = []
-        
+
         # Preview callback for showing files in right pane
         self.on_file_preview_requested: Optional[Callable] = None
-        
+
         # Hierarchical navigation state
         self.current_path: str = ""  # Current path within collection (empty = root)
-        self.path_history: List[str] = []  # For back navigation
         self.breadcrumb_path: List[str] = []  # For breadcrumb display
-        
+
+        # Navigation loop protection
+        self._updating_from_navigation_callback = False
+
+        # Call parent initializer AFTER initializing our attributes
+        super().__init__(app, is_mobile)
+
         # Edit mode state
         self.is_edit_mode: bool = False
-        
+
         # Initialize library manager
         self._initialize_library_manager()
+
+        # Create toolbars after BaseView is initialized
+        self._create_toolbars()
         
-        # Create separate top and bottom toolbars
-        self.top_toolbar = CollectionTopToolbar(app, collection_name, is_mobile)
-        self.bottom_toolbar = CollectionBottomToolbar(app, is_mobile)
-        
-        # Set both toolbars
-        self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-        
-        # Note: scroll container is handled by BaseView
-        
-        # Register callbacks
-        self._register_toolbar_callbacks()
-        
+        # Register navigation callbacks for the top toolbar
+        self.setup_toolbar_callbacks(self.top_toolbar)
+
+        # Register for NavigationController state changes
+        self._register_navigation_controller_callbacks()
+
         # Create content
         self._create_content()
-        
+
         # Set up scroll container integration
         self._setup_scroll_integration()
-        
+
+        # Connect bottom toolbar preview callback
+        if self.bottom_toolbar and hasattr(self.bottom_toolbar, 'register_callbacks'):
+            self.bottom_toolbar.register_callbacks(
+                on_preview_file=self._on_preview_file_from_toolbar
+            )
+            logger.debug("Connected bottom toolbar preview callback")
+
         logger.info("Refactored collection view created successfully")
-    
+
     def show(self):
-        """Called when view becomes active - refresh DetailedList to clear cached selections"""
+        """Called when view becomes active - light refresh without recreating content"""
         try:
-            # Refresh the content to clear any cached DetailedList selection state
-            self._create_content()
-            logger.info("🔄 Collection view refreshed on show() to clear cached selections")
+            # Light refresh - just clear DetailedList selection without rebuilding everything
+            if hasattr(self, 'items_list') and self.items_list:
+                # Clear any existing selection state but don't recreate the entire list
+                try:
+                    self.items_list.selection = None
+                    logger.debug("🔄 Cleared DetailedList selection state")
+                except Exception as e:
+                    logger.debug(f"Could not clear DetailedList selection: {e}")
+
+            # Mark view as visible but don't recreate content unnecessarily
+            self.is_visible = True
+            logger.info("🔄 Collection view refreshed on show() - lightweight refresh")
         except Exception as e:
             logger.error(f"Failed to refresh collection view on show: {e}")
     
@@ -130,96 +149,75 @@ class CollectionView(BaseView):
             logger.error(f"Failed to create collection content: {e}")
     
     def setup_toolbar_callbacks(self, toolbar):
-        """Setup navigation callbacks with the collection toolbar"""
+        """Setup navigation callbacks with the collection toolbar using NavigationController only"""
         if hasattr(toolbar, 'register_navigation_callbacks'):
             toolbar.register_navigation_callbacks(
                 on_back_to_library=self._on_back_to_library,
-                on_navigate_back=self._on_navigate_back,
-                on_navigate_to_path=self._on_navigate_to_path,
+                on_navigate_back=self._on_navigate_back_via_navigation_helper,
+                on_navigate_to_path=self._on_navigate_to_path_via_navigation_controller,
                 on_add_folder=self._on_add_folder,
                 on_add_file=self._on_add_file
             )
     
-    def _on_back_to_library(self):
-        """Handle back to library navigation from toolbar"""
+    def _get_navigation_controller(self):
+        """Get the NavigationController instance"""
         try:
-            # Navigate back to library view
-            if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, 'pane_manager'):
-                pane_manager = self.app.main_window.pane_manager
-                
-                if self.is_mobile:
-                    # Mobile: Navigate back using mobile navigation stack
-                    if hasattr(pane_manager, 'mobile_navigate_back'):
-                        logger.info("🔄 Attempting mobile_navigate_back()")
-                        success = pane_manager.mobile_navigate_back()
-                        logger.info(f"🔄 mobile_navigate_back result: {success}")
-                        if success:
-                            logger.info("Used mobile navigation to go back to library")
-                            return
-                    
-                    # Fallback: Get the collection management view and switch to it
-                    if hasattr(pane_manager, 'current_views') and 'collection_management' in pane_manager.current_views:
-                        collection_mgmt_view = pane_manager.current_views['collection_management']
-                        logger.info(f"🔄 About to switch to collection_management view: {collection_mgmt_view}")
-                        try:
-                            result = pane_manager.switch_to_view('collection_management', collection_mgmt_view, 'mobile')
-                            logger.info(f"🔄 Switch result: {result}")
-                            logger.info("Mobile: Switched back to collection management view")
-                        except Exception as e:
-                            logger.error(f"🔄 Failed to switch view: {e}")
-                    else:
-                        logger.warning("Mobile: No collection management view found for back navigation")
-                else:
-                    # Desktop: Switch to left pane (collection management should already be there)
-                    if hasattr(pane_manager, 'current_views') and 'collection_management' in pane_manager.current_views:
-                        collection_mgmt_view = pane_manager.current_views['collection_management']
-                        # For desktop, just set focus/highlight in left pane - the view is already there
-                        logger.info("Desktop: Collection management view is in left pane (no navigation needed)")
-                    else:
-                        logger.warning("Desktop: No collection management view found")
-            
-            logger.info("Navigated back to library")
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                return self.app.view_integration.get_navigation_controller()
+        except Exception as e:
+            logger.debug(f"Could not get NavigationController: {e}")
+        return None
+
+    def _on_back_to_library(self):
+        """Handle back to library navigation using NavigationController"""
+        try:
+            # Use NavigationController for consistent navigation
+            logger.info("Collection view: Navigating back to library using NavigationController")
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                navigation_controller = self.app.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    navigation_controller.navigate_back()
+
         except Exception as e:
             logger.error(f"Failed to navigate back to library: {e}")
             import traceback
             traceback.print_exc()
-    
-    def _on_navigate_back(self):
-        """Handle hierarchical back navigation from toolbar"""
+
+    def _on_navigate_back_via_navigation_helper(self):
+        """Handle hierarchical back navigation using NavigationController"""
         try:
-            self._go_back()
+            logger.info("Collection toolbar: Back navigation requested via NavigationController")
+            if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                navigation_controller = self.app.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    navigation_controller.navigate_back()
+
         except Exception as e:
-            logger.error(f"Failed to navigate back: {e}")
-    
-    def _on_navigate_to_path(self, path: str):
-        """Handle navigation to specific path from toolbar breadcrumb"""
+            logger.error(f"Failed to navigate back via NavigationController: {e}")
+
+    def _on_navigate_to_path_via_navigation_controller(self, path: str):
+        """Handle navigation to specific path using NavigationController directly"""
         try:
-            logger.info(f"Navigating to breadcrumb path: {path}")
-            
-            # Update navigation state
-            self.current_path = path
-            
-            # Update path history - remove any entries after this path
-            if path == "":
-                # Going to root
-                self.path_history.clear()
-            else:
-                # Find this path in history and truncate after it
-                path_parts = path.split("/")
-                self.path_history = path_parts[:-1]  # All parts except the last one
-            
-            # Update breadcrumbs
-            self._update_breadcrumbs()
-            
-            # Reload items for the new path
-            self._load_collection_items()
-            
-            # Update toolbar
-            self._update_toolbar_navigation()
-            
+            logger.info(f"Collection toolbar: Navigate to breadcrumb path: {path}")
+
+            # Get NavigationController
+            navigation_controller = self._get_navigation_controller()
+            if not navigation_controller:
+                logger.error("❌ NavigationController not available - cannot navigate to path!")
+                raise RuntimeError("NavigationController not available")
+
+            # Use NavigationController for path navigation - NO FALLBACKS!
+            success = navigation_controller.navigate_to_path(path)
+            if not success:
+                logger.error(f"❌ NavigationController: Failed to navigate to path: '{path}'")
+                raise RuntimeError(f"NavigationController failed to navigate to path: '{path}'")
+
+            logger.info(f"✅ Successfully navigated to path: '{path}' via NavigationController")
+
         except Exception as e:
-            logger.error(f"Failed to navigate to path {path}: {e}")
-    
+            logger.error(f"Failed to navigate to path {path} via NavigationController: {e}")
+
+
     def _on_add_folder(self):
         """Handle add folder action from toolbar"""
         try:
@@ -240,7 +238,7 @@ class CollectionView(BaseView):
         """Update toolbar navigation state"""
         try:
             if hasattr(self.top_toolbar, 'update_navigation_state'):
-                self.top_toolbar.update_navigation_state(self.current_path, self.path_history)
+                self.top_toolbar.update_navigation_state(self.current_path)
         except Exception as e:
             logger.error(f"Failed to update toolbar navigation: {e}")
     
@@ -353,10 +351,15 @@ class CollectionView(BaseView):
                 }
                 
                 # Use the preview callback to show in right pane
+                print(f"🔧 Attempting preview for: {file_path}")
+                print(f"🔧 Preview callback registered: {self.on_file_preview_requested is not None}")
                 if self.on_file_preview_requested:
+                    print(f"🔧 Calling preview callback...")
                     self.on_file_preview_requested(file_path, item_data)
                     logger.info(f"File preview requested via callback: {file_path}")
+                    print(f"✅ Preview callback completed")
                 else:
+                    print(f"❌ No preview callback registered, using fallback")
                     # Fallback to preview window if no callback registered
                     try:
                         if hasattr(self.app, 'show_preview'):
@@ -434,9 +437,12 @@ class CollectionView(BaseView):
             # Handle folder navigation
             if is_folder or item_type == 'folder':
                 if item_type == 'back':
-                    # Handle ".." back navigation
-                    logger.info("FOLDER NAVIGATION: Going back via '..' item")
-                    self._go_back()
+                    # Handle ".." back navigation via NavigationController
+                    logger.info("FOLDER NAVIGATION: Going back via '..' item using NavigationController")
+                    if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                        navigation_controller = self.app.view_integration.get_navigation_controller()
+                        if navigation_controller:
+                            navigation_controller.navigate_back()
                 else:
                     # Regular folder navigation
                     folder_path = item_data.get('path', item_data.get('name', ''))
@@ -489,46 +495,121 @@ class CollectionView(BaseView):
             import traceback
             traceback.print_exc()
     
-    def _register_toolbar_callbacks(self):
-        """Register callbacks for toolbar actions"""
+    def _create_toolbars(self):
+        """Create top and bottom toolbars for collection view"""
         try:
-            # Top toolbar callbacks - register edit callback using the proper method
-            self.top_toolbar.register_edit_callback(self.toggle_edit_mode)
-            
-            # Bottom toolbar callbacks
-            self.bottom_toolbar.on_add_clicked = self._on_add_dialog_requested
-            self.bottom_toolbar.on_activity_monitor = self._on_activity_monitor
-            self.bottom_toolbar.on_collection_settings = self._on_collection_settings
-            
-            logger.debug("Collection view toolbar callbacks registered")
-            
+            # Create top toolbar without coordinator (no edit mode for collection views)
+            # Collection is child view - enable automatic mobile back navigation to Library
+            self.top_toolbar = TopToolbar(
+                app=self.app,
+                title="",  # Let NavigationController provide dynamic collection name
+                auto_mobile_nav=True,
+                is_mobile=self.is_mobile
+            )
+
+            # Add collection title via composition for desktop
+            if not self.is_mobile:
+                self.top_toolbar.add_centered_title_only(
+                    title_text=self.collection_name or "Collection",
+                    on_title_click=None
+                )
+
+            # Collection views should have no edit buttons - only back navigation
+
+            # Create bottom toolbar without coordinator (no edit mode for collection views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Add collection-specific buttons using composition
+            self._add_collection_toolbar_buttons()
+
+            # Set toolbars on the view (mobile navigation will be connected automatically)
+            self.set_top_toolbar(self.top_toolbar)
+            self.set_bottom_toolbar(self.bottom_toolbar)
+
+            logger.info("Collection view toolbars created successfully")
         except Exception as e:
-            logger.error(f"Failed to register toolbar callbacks: {e}")
-    
-    def toggle_edit_mode(self):
-        """Toggle edit mode state"""
+            logger.error(f"Failed to create collection toolbars: {e}")
+
+    def _register_navigation_controller_callbacks(self):
+        """Register callbacks with NavigationController for state changes"""
         try:
-            self.is_edit_mode = not self.is_edit_mode
-            self._update_toolbars_for_edit_mode()
-            logger.info(f"Edit mode {'enabled' if self.is_edit_mode else 'disabled'}")
-            
-        except Exception as e:
-            logger.error(f"Failed to toggle edit mode: {e}")
-    
-    def _update_toolbars_for_edit_mode(self):
-        """Update toolbars based on edit mode state"""
-        try:
-            if self.is_edit_mode:
-                # Edit mode: Show "Done" in top toolbar, "Add" in bottom toolbar
-                self.top_toolbar.set_edit_mode(True)
-                self.bottom_toolbar.set_edit_mode(True)
+            navigation_controller = self._get_navigation_controller()
+            if navigation_controller:
+                # Store callback reference for later cleanup
+                self._nav_callback_ref = self._on_navigation_state_changed
+                navigation_controller.add_callback('state_changed', self._nav_callback_ref)
+                logger.debug("Collection view registered for NavigationController state changes")
             else:
-                # Normal mode: Show "Edit" in top toolbar, normal buttons in bottom toolbar
-                self.top_toolbar.set_edit_mode(False)
-                self.bottom_toolbar.set_edit_mode(False)
-                
+                logger.warning("NavigationController not available for callback registration")
         except Exception as e:
-            logger.error(f"Failed to update toolbars for edit mode: {e}")
+            logger.error(f"Failed to register NavigationController callbacks: {e}")
+
+    def cleanup_callbacks(self):
+        """Unregister NavigationController callbacks to prevent duplicate events"""
+        try:
+            if hasattr(self, '_nav_callback_ref'):
+                navigation_controller = self._get_navigation_controller()
+                if navigation_controller:
+                    navigation_controller.remove_callback('state_changed', self._nav_callback_ref)
+                    logger.debug("Collection view unregistered NavigationController callback")
+                    delattr(self, '_nav_callback_ref')
+        except Exception as e:
+            logger.error(f"Failed to cleanup NavigationController callbacks: {e}")
+
+    def _on_navigation_state_changed(self, navigation_state):
+        """Handle NavigationController state changes - update UI accordingly"""
+        try:
+            # Prevent infinite callback loops
+            if self._updating_from_navigation_callback:
+                logger.debug("🔄 Skipping navigation state change - already updating from callback")
+                return
+
+            self._updating_from_navigation_callback = True
+
+            try:
+                from fichero.shared.navigation.navigation_state import NavigationContext
+
+                logger.info(f"🔄 Navigation state changed: {navigation_state.context.value}")
+
+                # Only update UI if we're in a collection context and it's our collection
+                if navigation_state.context == NavigationContext.COLLECTION:
+                    if navigation_state.collection_id == self.collection_id:
+                        # Check if this is actually a new path to prevent unnecessary reloads
+                        new_path = navigation_state.current_path or ""
+
+                        if new_path != self.current_path:
+                            logger.info(f"🔄 Path changed from '{self.current_path}' to '{new_path}' - updating UI")
+
+                            # Update our local state to match NavigationController
+                            self.current_path = new_path
+
+                            # Update UI elements
+                            self._update_breadcrumbs()
+
+                            # Update toolbar navigation state
+                            if hasattr(self.top_toolbar, 'set_current_path'):
+                                self.top_toolbar.set_current_path(self.current_path)
+
+                            # Reload items for new path - use silent version to avoid navigation events
+                            self._load_collection_items_silent()
+
+                            logger.info(f"✅ UI updated for path: '{self.current_path}'")
+                        else:
+                            logger.debug(f"🔄 Path unchanged ('{self.current_path}') - skipping reload to prevent event storm")
+                    else:
+                        logger.debug(f"State change for different collection: {navigation_state.collection_id}")
+                else:
+                    logger.debug(f"State change for different context: {navigation_state.context.value}")
+            finally:
+                self._updating_from_navigation_callback = False
+
+        except Exception as e:
+            logger.error(f"Failed to handle navigation state change: {e}")
+            self._updating_from_navigation_callback = False
+
     
     def _on_add_dialog_requested(self):
         """Handle add dialog request from toolbar"""
@@ -778,7 +859,7 @@ class CollectionView(BaseView):
         if self.bottom_toolbar:
             self.bottom_toolbar.set_export_available(available)
     
-    def register_callbacks(self, 
+    def register_callbacks(self,
                          on_back_to_library: Optional[Any] = None,
                          on_add_folder: Optional[Any] = None,
                          on_add_file: Optional[Any] = None,
@@ -794,13 +875,41 @@ class CollectionView(BaseView):
         self.on_process_collection = on_process_collection
         self.on_export_collection = on_export_collection
         self.on_open_collection = on_open_collection
-        
+
+        # ✅ FIX: Pass back navigation callback to top toolbar for desktop back button
+        if self.top_toolbar and on_back_to_library:
+            self.top_toolbar.on_back = on_back_to_library
+            self.top_toolbar.on_back_to_library = on_back_to_library
+            logger.debug("🔙 Desktop back navigation callback passed to collection top toolbar")
+
         logger.debug("Collection view callbacks registered")
     
     def register_preview_callback(self, callback: Callable):
         """Register callback for file preview requests"""
         self.on_file_preview_requested = callback
-        logger.debug("Preview callback registered")
+
+    def _on_preview_file_from_toolbar(self, file_data: Dict[str, Any]):
+        """Handle preview file request from bottom toolbar"""
+        try:
+            if not file_data:
+                logger.warning("No file data provided for preview")
+                return
+
+            file_path = file_data.get('file_path') or file_data.get('name')
+            if not file_path:
+                logger.warning("No file path found in file data for preview")
+                return
+
+            logger.info(f"Preview requested from toolbar for file: {file_path}")
+
+            # Use the registered preview callback
+            if self.on_file_preview_requested:
+                self.on_file_preview_requested(file_path, file_data)
+            else:
+                logger.warning("No preview callback registered")
+
+        except Exception as e:
+            logger.error(f"Failed to handle preview from toolbar: {e}")
     
     def _on_initialize(self):
         """Called when view is initialized"""
@@ -822,7 +931,16 @@ class CollectionView(BaseView):
                 
         except Exception as e:
             logger.error(f"Failed to set up scroll integration: {e}")
-    
+
+    def _add_collection_toolbar_buttons(self):
+        """Add collection-specific buttons using composition"""
+        try:
+            # Add collection specific buttons if needed
+            logger.debug("Collection toolbar buttons configured")
+
+        except Exception as e:
+            logger.error(f"Failed to add collection toolbar buttons: {e}")
+
 
     def _initialize_library_manager(self):
         """Use shared library service from app"""
@@ -850,28 +968,52 @@ class CollectionView(BaseView):
                 # Use hierarchical structure method for folder navigation
                 logger.info(f"Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
                 self.collection_items = self.library_service.get_collection_structure_sync(
-                    self.collection_id, 
+                    self.collection_id,
                     self.current_path
                 )
-                
+
                 # Debug: Log what we got back
                 logger.info(f"Received {len(self.collection_items)} items from hierarchical structure")
                 if self.collection_items:
                     first_item = self.collection_items[0]
                     logger.info(f"First item: title='{first_item.get('title', 'NO_TITLE')}', type='{first_item.get('type', 'NO_TYPE')}', is_folder={first_item.get('is_folder', 'NO_IS_FOLDER')}")
-                
+
                 # Update breadcrumbs
                 self._update_breadcrumbs()
-                
+
                 # Refresh the display with items
                 self._create_content()
                 logger.debug(f"Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
             else:
                 logger.warning("Library service not initialized or no collection ID set")
                 self._create_content() # This now handles the placeholder
-                
+
         except Exception as e:
             logger.error(f"Failed to load collection items: {e}")
+
+    def _load_collection_items_silent(self):
+        """Load items for the current collection and path - SILENT VERSION without navigation events"""
+        try:
+            if self.library_service and hasattr(self, 'collection_id') and self.collection_id:
+                # Use hierarchical structure method for folder navigation
+                logger.debug(f"SILENT: Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
+                self.collection_items = self.library_service.get_collection_structure_sync(
+                    self.collection_id,
+                    self.current_path
+                )
+
+                # Debug: Log what we got back
+                logger.debug(f"SILENT: Received {len(self.collection_items)} items from hierarchical structure")
+
+                # Refresh the display with items - NO breadcrumb updates to prevent events
+                self._create_content()
+                logger.debug(f"SILENT: Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
+            else:
+                logger.warning("SILENT: Library service not initialized or no collection ID set")
+                self._create_content() # This now handles the placeholder
+
+        except Exception as e:
+            logger.error(f"SILENT: Failed to load collection items: {e}")
     
     def _get_current_folder_display_name(self):
         """Get the display name for the current folder"""
@@ -897,103 +1039,38 @@ class CollectionView(BaseView):
             logger.error(f"Failed to update breadcrumbs: {e}")
     
     def navigate_to_folder(self, folder_path: str):
-        """Navigate into a folder"""
+        """Navigate into a folder using NavigationController"""
         try:
-            # Add current path to history for back navigation
-            self.path_history.append(self.current_path)
-            
-            # Update current path - simple append logic
+            # Calculate the new full path
             if folder_path == "" or folder_path == ".":
                 # Going to root
-                self.current_path = ""
+                new_path = ""
             elif self.current_path:
                 # Append folder to current path
-                self.current_path = f"{self.current_path.rstrip('/')}/{folder_path.strip('/')}"
+                new_path = f"{self.current_path.rstrip('/')}/{folder_path.strip('/')}"
             else:
                 # Starting from root
-                self.current_path = folder_path.strip('/')
-            
-            # Update breadcrumbs
-            self._update_breadcrumbs()
-            
-            # Update toolbar navigation state
-            if hasattr(self.top_toolbar, 'set_current_path'):
-                self.top_toolbar.set_current_path(self.current_path)
-            
-            # Reload items for new path
-            self._load_collection_items()
-            
+                new_path = folder_path.strip('/')
+
+            # Use NavigationController for path navigation - NO FALLBACKS!
+            navigation_controller = self._get_navigation_controller()
+            if not navigation_controller:
+                logger.error("❌ NavigationController not available - cannot navigate!")
+                raise RuntimeError("NavigationController not available")
+
+            logger.info(f"🔙 Collection: Using NavigationController to navigate to path: '{new_path}'")
+            success = navigation_controller.navigate_to_path(new_path)
+            if not success:
+                logger.error(f"❌ NavigationController: Failed to navigate to path: '{new_path}'")
+                raise RuntimeError(f"NavigationController failed to navigate to path: '{new_path}'")
+
             logger.info(f"Navigated to folder: '{folder_path}', current path: '{self.current_path}'")
-            
+
         except Exception as e:
             logger.error(f"Failed to navigate to folder: {e}")
     
-    def _go_back(self):
-        """Go back one level in the hierarchy"""
-        try:
-            if self.path_history:
-                # Go back to previous path
-                self.current_path = self.path_history.pop()
-                logger.info(f"Going back to: {self.current_path}")
-            else:
-                # At root level, clear current path
-                self.current_path = ""
-                logger.info("Going back to collection root")
-            
-            # Update breadcrumbs
-            self._update_breadcrumbs()
-            
-            # Update toolbar navigation state
-            if hasattr(self.top_toolbar, 'set_current_path'):
-                self.top_toolbar.set_current_path(self.current_path)
-            
-            # Reload items for new path
-            self._load_collection_items()
-            
-        except Exception as e:
-            logger.error(f"Failed to go back: {e}")
     
-    def navigate_to_breadcrumb(self, breadcrumb_index: int):
-        """Navigate to a specific breadcrumb level"""
-        try:
-            if breadcrumb_index == 0:
-                # Navigate to root
-                self.path_history.append(self.current_path)
-                self.current_path = ""
-            else:
-                # Navigate to specific level
-                path_parts = self.current_path.split('/') if self.current_path else []
-                if breadcrumb_index - 1 < len(path_parts):
-                    self.path_history.append(self.current_path)
-                    self.current_path = '/'.join(path_parts[:breadcrumb_index])
-            
-            # Update breadcrumbs
-            self._update_breadcrumbs()
-            
-            # Reload items for new path
-            self._load_collection_items()
-            
-            # Update toolbar navigation state
-            self._update_toolbar_navigation()
-            
-            logger.info(f"Navigated to breadcrumb level {breadcrumb_index}: {self.current_path or 'root'}")
-        except Exception as e:
-            logger.error(f"Failed to navigate to breadcrumb {breadcrumb_index}: {e}")
     
-    def reset_navigation(self):
-        """Reset navigation to root level"""
-        try:
-            self.current_path = ""
-            self.path_history = []
-            self.breadcrumb_path = []
-            self._load_collection_items()
-            
-            # Update toolbar navigation state
-            self._update_toolbar_navigation()
-            
-            logger.info("Navigation reset to root level")
-        except Exception as e:
-            logger.error(f"Failed to reset navigation: {e}")
 
     def refresh(self):
         """Refresh the collection view"""

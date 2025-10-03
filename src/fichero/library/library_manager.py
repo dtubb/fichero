@@ -238,16 +238,21 @@ class LibraryManager:
             if collection.type == "local" and collection.local_path:
                 local_path = Path(collection.local_path)
                 if local_path.exists():
-                    shutil.rmtree(local_path)
-                    logger.debug(f"Removed local collection files: {local_path}")
-            
+                    try:
+                        shutil.rmtree(local_path)
+                        logger.debug(f"Removed local collection files: {local_path}")
+                    except Exception as file_error:
+                        logger.warning(f"Could not remove local files for collection {collection.name}: {file_error}")
+                        # Continue with database deletion even if file removal fails
+
             # Remove from storage
+            logger.debug(f"Attempting to delete collection {collection_id} from storage")
             if self.storage.delete_collection(collection_id):
                 self._clear_cache()
                 logger.info(f"Collection deleted: {collection.name}")
                 return True
             else:
-                logger.error("Failed to delete collection from storage")
+                logger.error(f"Failed to delete collection {collection_id} from storage - check storage.delete_collection method")
                 return False
                 
         except Exception as e:

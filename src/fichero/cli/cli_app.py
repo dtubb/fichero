@@ -45,6 +45,9 @@ class CLIApp:
         
         # Register commands
         self._register_commands()
+
+        # Add textual command
+        self._setup_textual_command()
     
     def _setup_version_command(self):
         """Set up --version flag"""
@@ -99,7 +102,18 @@ class CLIApp:
             
         except Exception as e:
             logger.error(f"Failed to register commands: {e}")
-    
+
+    def _setup_textual_command(self):
+        """Set up textual interface command"""
+        @self.app.command()
+        def textual():
+            """Launch interactive textual interface for navigation testing"""
+            import asyncio
+            from fichero.textual_app import main as textual_main
+
+            self.console.print("🔧 Starting Fichero Textual Interface...")
+            asyncio.run(textual_main())
+
     def run(self):
         """Run the CLI application"""
         try:

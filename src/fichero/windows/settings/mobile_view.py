@@ -11,8 +11,7 @@ from toga.constants import COLUMN
 
 from fichero.windows.settings.settings_content import SettingsContent
 from fichero.shared.views.base_view import BaseView
-from fichero.shared.toolbars.top_toolbar import TopToolbar
-from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
+from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -56,32 +55,80 @@ class SettingsMobileView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for settings view"""
         try:
-            from fichero.shared.toolbars.simple_top_toolbar import SimpleTopToolbar
-            from fichero.shared.toolbars.bottom_toolbar import BottomToolbar
-            
-            # Create simple top toolbar using automatic navigation (no manual on_back)
-            self.top_toolbar = SimpleTopToolbar(
+            from fichero.shared.toolbars import TopToolbar, BottomToolbar
+
+            # Create top toolbar without coordinator (no edit mode for modal views)
+            self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="Settings",
+                auto_mobile_nav=True,
                 is_mobile=self.is_mobile
             )
-            
-            # Bottom toolbar (empty for now, but consistent structure)
-            class SettingsBottomToolbar(BottomToolbar):
-                def _create_toolbar(self):
-                    super()._create_toolbar()
-                    # Settings-specific actions could go here
-            
-            self.bottom_toolbar = SettingsBottomToolbar(self.app, is_mobile=self.is_mobile)
-            
+
+            # Set up modal-specific back navigation
+            self.top_toolbar.on_back = self._on_back_pressed
+
+            # Create bottom toolbar without coordinator (no edit mode for modal views)
+            self.bottom_toolbar = BottomToolbar(
+                app=self.app,
+                is_mobile=self.is_mobile
+            )
+
+            # Add settings-specific buttons using composition
+            self._add_settings_toolbar_buttons()
+
             # Set toolbars on the view (mobile navigation will be connected automatically)
             self.set_top_toolbar(self.top_toolbar)
             self.set_bottom_toolbar(self.bottom_toolbar)
-            
-            logger.info("Settings toolbars created successfully")            
+
+            logger.info("Settings toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create settings toolbars: {e}")
-    
+
+    def _add_settings_toolbar_buttons(self):
+        """Add settings-specific buttons using composition"""
+        try:
+            # Modal windows should have no toolbar buttons - only back button at top
+            logger.debug("Settings modal view - no toolbar buttons added")
+
+        except Exception as e:
+            logger.error(f"Failed to add settings toolbar buttons: {e}")
+
+    def _on_back_pressed(self, widget=None):
+        """Handle back button press - close modal"""
+        try:
+            logger.info("Settings view back button pressed - closing modal")
+            # Use the WindowViewManager to close the modal
+            if hasattr(self.app, 'window_view_manager'):
+                self.app.window_view_manager._close_modal_overlay()
+            else:
+                # Fallback: use NavigationController back navigation
+                self.app.view_integration.navigation_controller.navigate_back()
+        except Exception as e:
+            logger.error(f"Failed to handle back navigation: {e}")
+
+    def _on_save_settings(self, widget=None):
+        """Handle save settings button press"""
+        try:
+            logger.info("Save settings button pressed")
+            # TODO: Implement save settings functionality
+            if hasattr(self.settings_content, 'save_settings'):
+                self.settings_content.save_settings()
+
+        except Exception as e:
+            logger.error(f"Failed to save settings: {e}")
+
+    def _on_reset_settings(self, widget=None):
+        """Handle reset settings button press"""
+        try:
+            logger.info("Reset settings button pressed")
+            # TODO: Implement reset settings functionality
+            if hasattr(self.settings_content, 'reset_settings'):
+                self.settings_content.reset_settings()
+
+        except Exception as e:
+            logger.error(f"Failed to reset settings: {e}")
+
     def show(self):
         """Show method for compatibility"""
         # Settings don't need special show logic like activity monitor
@@ -91,13 +138,6 @@ class SettingsMobileView(BaseView):
         """Hide method for compatibility"""
         # Settings don't need special hide logic like activity monitor
         logger.info("Settings mobile view hidden")
-    
-    def _on_back_pressed(self):
-        """Handle back button press"""
-        logger.debug("Settings back button pressed")
-        # Use the app's window view manager to go back
-        if hasattr(self.app, 'window_view_manager') and hasattr(self.app.window_view_manager, 'mobile_view_manager'):
-            self.app.window_view_manager.mobile_view_manager.go_back()
     
     def save_settings(self):
         """Save current settings"""
