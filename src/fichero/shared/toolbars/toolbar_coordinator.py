@@ -255,9 +255,9 @@ class ToolbarCoordinator:
             base_context["add_actions"] = add_actions
 
             # Separate top and bottom edit actions for library view
-            # Top toolbar actions (sort button)
+            # Top toolbar actions (sort button with text)
             top_edit_actions = [
-                {"id": "sort", "title": "Sort", "icon": "resources/icons/toolbar/chevron.up@10x.png"}
+                {"id": "sort", "title": "A-Z", "icon": None, "text": "A-Z"}
             ]
 
             # Bottom toolbar actions (add/create actions + add collection)

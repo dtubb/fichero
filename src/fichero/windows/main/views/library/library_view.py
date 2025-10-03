@@ -1428,13 +1428,13 @@ class LibraryView(BaseView):
         try:
             # Toggle ascending/descending
             self.sort_ascending = not self.sort_ascending
+            new_text = "A-Z" if self.sort_ascending else "Z-A"
 
-            logger.info(f"Sort toggled: {'A-Z' if self.sort_ascending else 'Z-A'}")
+            logger.info(f"Sort toggled: {new_text}")
 
-            # Update the top_edit_actions icon in coordinator context for next rebuild
-            # The button will update automatically when edit mode is toggled next time
-            # For now, we'll just reload the collections with the new sort order
-            # TODO: Find a way to dynamically update the button icon without exiting edit mode
+            # Update the button text dynamically
+            if self.top_toolbar:
+                self.top_toolbar.update_button_text("edit_sort", new_text)
 
             # Reload collections with new sort order
             import asyncio

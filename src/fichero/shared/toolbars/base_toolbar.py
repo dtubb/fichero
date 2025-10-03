@@ -421,6 +421,21 @@ class BaseToolbar(ABC, ToolbarProtocol):
             logger.warning(f"Unknown button position: {position}, defaulting to right")
             self.right_content.add(button)
 
+    def update_button_text(self, button_id: str, new_text: str) -> bool:
+        """Update button text dynamically"""
+        try:
+            if button_id in self.buttons:
+                button = self.buttons[button_id]
+                button.text = new_text
+                logger.debug(f"Updated button {button_id} text to: {new_text}")
+                return True
+            else:
+                logger.warning(f"Button {button_id} not found")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update button text: {e}")
+            return False
+
     def _rebuild_toolbar_for_mode(self, mode: EditModeState) -> None:
         """Smart rebuild of toolbar preserving regular buttons"""
         try:

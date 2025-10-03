@@ -322,9 +322,12 @@ class TopToolbar(BaseToolbar):
                     logger.debug(f"Creating {len(top_edit_actions)} top edit buttons for right side")
                     for i, action in enumerate(top_edit_actions):
                         logger.debug(f"Creating button {i+1}: {action}")
+                        # Support both text and icon buttons
+                        button_text = action.get("text", None)
+                        button_icon = action.get("icon", None)
                         button = self.add_button_right(
-                            text=None,  # No text, just icon
-                            icon=action.get("icon"),
+                            text=button_text,  # Use text if provided
+                            icon=button_icon,  # Use icon if provided
                             on_press=self._create_top_edit_button_handler(action["id"]),
                             button_id=f"edit_{action['id']}"
                         )
