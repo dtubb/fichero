@@ -1523,21 +1523,53 @@ class LibraryView(BaseView):
             logger.error(f"Failed to open URL import: {e}")
 
     def _on_import_files(self, widget=None):
-        """Handle file import - open file picker"""
+        """Handle file import - navigate to File add view"""
         try:
             logger.info("Import files requested")
-            # TODO: Use Toga file picker when available
-            self._show_message("Import Files", "File picker will be implemented using Toga's file dialog")
+            # Use navigation controller to show File add view
+            from fichero.windows.add.views.file_view import FileAddView
+
+            file_view = FileAddView(
+                app=self.app,
+                on_content_added=self._on_files_added
+            )
+
+            # Navigate to File view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Push File view onto navigation stack
+                    nav_controller.push_view(file_view, "Add Files")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
 
         except Exception as e:
             logger.error(f"Failed to open file import: {e}")
 
     def _on_import_folder(self, widget=None):
-        """Handle folder import - open folder picker"""
+        """Handle folder import - navigate to Folder add view"""
         try:
             logger.info("Import folder requested")
-            # TODO: Use Toga folder picker when available
-            self._show_message("Import Folder", "Folder picker will be implemented using Toga's folder dialog")
+            # Use navigation controller to show Folder add view
+            from fichero.windows.add.views.folder_view import FolderAddView
+
+            folder_view = FolderAddView(
+                app=self.app,
+                on_content_added=self._on_folders_added
+            )
+
+            # Navigate to Folder view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Push Folder view onto navigation stack
+                    nav_controller.push_view(folder_view, "Add Folders")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
 
         except Exception as e:
             logger.error(f"Failed to open folder import: {e}")
@@ -1603,6 +1635,189 @@ class LibraryView(BaseView):
         except Exception as e:
             logger.error(f"Failed to create collection from URLs: {e}")
 
+    async def _on_files_added(self, data: dict):
+        """Callback when files are added from File view
 
+        Args:
+            data: Dict with 'files' list, 'action', and 'option_id'
+        """
+        try:
+            files = data.get('files', [])
+            logger.info(f"Files added callback received: {len(files)} files")
+
+            # Create a new collection for the files
+            import asyncio
+            asyncio.create_task(self._create_collection_from_files(files))
+
+        except Exception as e:
+            logger.error(f"Failed to handle files added: {e}")
+
+    async def _create_collection_from_files(self, files: List):
+        """Create a new collection and add files to it"""
+        try:
+            # Generate collection name
+            from datetime import datetime
+            collection_name = f"Files {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+            # Create collection
+            collection_id = await self.library_service.add_collection_for_ui(
+                name=collection_name,
+                collection_type="local",
+                description=f"File collection with {len(files)} items"
+            )
+
+            if collection_id:
+                # Add files to collection
+                for file_path in files:
+                    # Extract name from file path
+                    name = file_path.name
+
+                    await self.library_service.add_item_to_collection_for_ui(
+                        collection_id=collection_id,
+                        item_type="file",
+                        source=str(file_path),
+                        name=name,
+                        operation="link"  # Link by default, can be copy/move
+                    )
+
+                # Refresh collections display
+                await self._load_collections_async()
+
+                logger.info(f"Created collection '{collection_name}' with {len(files)} files")
+
+                # Pop back to library view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to create collection for files")
+
+        except Exception as e:
+            logger.error(f"Failed to create collection from files: {e}")
+
+    async def _on_folders_added(self, data: dict):
+        """Callback when folders are added from Folder view
+
+        Args:
+            data: Dict with 'folders' list, 'action', and 'option_id'
+        """
+        try:
+            folders = data.get('folders', [])
+            logger.info(f"Folders added callback received: {len(folders)} folders")
+
+            # Create a new collection for the folders
+            import asyncio
+            asyncio.create_task(self._create_collection_from_folders(folders))
+
+        except Exception as e:
+            logger.error(f"Failed to handle folders added: {e}")
+
+    async def _create_collection_from_folders(self, folders: List):
+        """Create a new collection and add folders to it"""
+        try:
+            # Generate collection name
+            from datetime import datetime
+            collection_name = f"Folders {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+            # Create collection
+            collection_id = await self.library_service.add_collection_for_ui(
+                name=collection_name,
+                collection_type="local",
+                description=f"Folder collection with {len(folders)} items"
+            )
+
+            if collection_id:
+                # Add folders to collection
+                for folder_path in folders:
+                    # Extract name from folder path
+                    name = folder_path.name
+
+                    await self.library_service.add_item_to_collection_for_ui(
+                        collection_id=collection_id,
+                        item_type="folder",
+                        source=str(folder_path),
+                        name=name,
+                        operation="link"  # Link by default
+                    )
+
+                # Refresh collections display
+                await self._load_collections_async()
+
+                logger.info(f"Created collection '{collection_name}' with {len(folders)} folders")
+
+                # Pop back to library view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to create collection for folders")
+
+        except Exception as e:
+            logger.error(f"Failed to create collection from folders: {e}")
+
+    async def _on_camera_photo_added(self, data: dict):
+        """Callback when photo is added from Camera view
+
+        Args:
+            data: Dict with 'photo_path', 'action', and 'option_id'
+        """
+        try:
+            photo_path = data.get('photo_path')
+            if not photo_path:
+                logger.warning("No photo path provided")
+                return
+
+            logger.info(f"Camera photo added callback received: {photo_path}")
+
+            # Create a new collection for the photo
+            import asyncio
+            asyncio.create_task(self._create_collection_from_photo(photo_path))
+
+        except Exception as e:
+            logger.error(f"Failed to handle camera photo added: {e}")
+
+    async def _create_collection_from_photo(self, photo_path):
+        """Create a new collection and add camera photo to it"""
+        try:
+            # Generate collection name
+            from datetime import datetime
+            from pathlib import Path
+            collection_name = f"Photo {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+            # Create collection
+            collection_id = await self.library_service.add_collection_for_ui(
+                name=collection_name,
+                collection_type="local",
+                description="Camera photo"
+            )
+
+            if collection_id:
+                # Add photo to collection
+                photo = Path(photo_path)
+                await self.library_service.add_item_to_collection_for_ui(
+                    collection_id=collection_id,
+                    item_type="camera",
+                    source=str(photo),
+                    name=photo.name,
+                    operation="copy"  # Copy camera photos
+                )
+
+                # Refresh collections display
+                await self._load_collections_async()
+
+                logger.info(f"Created collection '{collection_name}' with camera photo")
+
+                # Pop back to library view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to create collection for camera photo")
+
+        except Exception as e:
+            logger.error(f"Failed to create collection from camera photo: {e}")
 
 
