@@ -35,6 +35,10 @@ class LibraryView(BaseView):
         self.collections: List[Dict[str, Any]] = []
         self.selected_collection: Optional[Dict[str, Any]] = None
 
+        # Sort state
+        self.current_sort_mode = "name"  # Default sort by name
+        self.sort_ascending = True  # True = A-Z, False = Z-A
+
         print("🔧 Calling super().__init__...")
         super().__init__(app, is_mobile)
         print("✅ BaseView initialization complete")
@@ -1151,23 +1155,29 @@ class LibraryView(BaseView):
         """Load collections asynchronously and update UI"""
         try:
             if self.library_service:
+                # Determine sort mode based on current state
+                # For now, we only support name sorting with A-Z/Z-A toggle
+                sort_by = "name"  # Always sort by name
+
                 # Use service layer - it handles all the complexity and returns UI-ready data
-                all_collections = await self.library_service.get_collections_for_ui()
-                
-                # Service already provides UI-ready data, so we can use it directly
+                all_collections = await self.library_service.get_collections_for_ui(sort_by=sort_by)
+
+                # Service already provides UI-ready data
                 self.collections = all_collections
-                
-                # Sort collections by name
-                self.collections.sort(key=lambda x: x.get('name', ''))
-                
-                logger.debug(f"Loaded {len(self.collections)} collections from library.")
-                
+
+                # Apply ascending/descending order
+                if not self.sort_ascending:
+                    # Reverse for Z-A
+                    self.collections.reverse()
+
+                logger.debug(f"Loaded {len(self.collections)} collections from library (sort: {sort_by}, {'A-Z' if self.sort_ascending else 'Z-A'}).")
+
                 # Refresh the display to show the loaded collections
                 self._create_content()
             else:
                 logger.warning("Library service not initialized, cannot load collections.")
                 self.collections = []
-                
+
         except Exception as e:
             logger.error(f"Failed to load collections from library: {e}")
             self.collections = []
@@ -1181,15 +1191,20 @@ class LibraryView(BaseView):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    all_collections = loop.run_until_complete(self.library_service.get_collections_for_ui())
+                    # Determine sort mode
+                    sort_by = "name"  # Always sort by name
 
-                    # Service already provides UI-ready data, so we can use it directly
+                    all_collections = loop.run_until_complete(self.library_service.get_collections_for_ui(sort_by=sort_by))
+
+                    # Service already provides UI-ready data
                     self.collections = all_collections
 
-                    # Sort collections by name
-                    self.collections.sort(key=lambda x: x.get('name', ''))
+                    # Apply ascending/descending order
+                    if not self.sort_ascending:
+                        # Reverse for Z-A
+                        self.collections.reverse()
 
-                    logger.debug(f"Loaded {len(self.collections)} collections from library (sync).")
+                    logger.debug(f"Loaded {len(self.collections)} collections from library (sync, sort: {sort_by}, {'A-Z' if self.sort_ascending else 'Z-A'}).")
 
                     # Refresh the display to show the loaded collections (this needs to be on main thread)
                     # We'll skip UI update here and let it happen when the view is shown
@@ -1256,7 +1271,7 @@ class LibraryView(BaseView):
             from fichero.windows.add.platform_features import detect_platform_features
             platform_features = detect_platform_features(self.app)
 
-            # Create library-specific edit context
+            # Create library-specific edit context with import buttons
             edit_context = self.coordinator.create_view_edit_context(
                 "library",
                 platform_features.__dict__
@@ -1265,14 +1280,41 @@ class LibraryView(BaseView):
             # Update coordinator context WITHOUT triggering another edit mode change
             self.coordinator._edit_context.update(edit_context)
 
-            # Notify bottom toolbar specifically (without triggering callbacks)
+            # Add import-specific buttons to bottom toolbar
             if self.coordinator.bottom_toolbar:
+                # Add URL import button
+                self.coordinator.bottom_toolbar.add_edit_mode_button(
+                    text="URLs",
+                    icon="resources/icons/toolbar/link.png",
+                    on_press=self._on_import_urls,
+                    position="center"
+                )
+
+                # Add file import button (if supported)
+                if platform_features.file_import:
+                    self.coordinator.bottom_toolbar.add_edit_mode_button(
+                        text="Files",
+                        icon="resources/icons/toolbar/document.png",
+                        on_press=self._on_import_files,
+                        position="center"
+                    )
+
+                # Add folder import button (if supported)
+                if platform_features.folder_import:
+                    self.coordinator.bottom_toolbar.add_edit_mode_button(
+                        text="Folder",
+                        icon="resources/icons/toolbar/folder@10x.png",
+                        on_press=self._on_import_folder,
+                        position="center"
+                    )
+
+                # Notify bottom toolbar (without triggering callbacks)
                 self.coordinator.bottom_toolbar.set_edit_mode(
                     self.coordinator._edit_mode_state,
                     self.coordinator._edit_context
                 )
 
-            logger.info("Entered add mode with platform-specific buttons")
+            logger.info("Entered add mode with import buttons")
 
         except Exception as e:
             logger.error(f"Failed to create add context: {e}")
@@ -1293,6 +1335,17 @@ class LibraryView(BaseView):
         try:
             # Library root view should NOT show titles on any platform to match mobile behavior
             # Remove contextual title to fix desktop title display issue
+
+            # Add sort toggle button (chevron up for A-Z, down for Z-A)
+            sort_icon = "resources/icons/toolbar/chevron.up@10x.png" if self.sort_ascending else "resources/icons/toolbar/chevron.down@10x.png"
+            self.top_toolbar.add_regular_button(
+                button_id="sort",
+                position="right",
+                text="",  # Icon only
+                icon=sort_icon,
+                on_press=self._on_toggle_sort,
+                style_class="right_aligned"
+            )
 
             # Add Edit button for edit mode functionality using proper BaseToolbar method
             self.top_toolbar.add_regular_button(
@@ -1375,6 +1428,30 @@ class LibraryView(BaseView):
             logger.error(f"Failed to add library toolbar buttons: {e}")
 
 
+    def _on_toggle_sort(self, widget=None):
+        """Toggle sort order (A-Z <-> Z-A)"""
+        try:
+            # Toggle ascending/descending
+            self.sort_ascending = not self.sort_ascending
+
+            logger.info(f"Sort toggled: {'A-Z' if self.sort_ascending else 'Z-A'}")
+
+            # Update button icon
+            sort_icon = "resources/icons/toolbar/chevron.up@10x.png" if self.sort_ascending else "resources/icons/toolbar/chevron.down@10x.png"
+
+            # Find and update the sort button icon
+            if hasattr(self.top_toolbar, '_buttons') and 'sort' in self.top_toolbar._buttons:
+                sort_button = self.top_toolbar._buttons['sort']
+                if hasattr(sort_button, 'icon'):
+                    sort_button.icon = sort_icon
+
+            # Reload collections with new sort order
+            import asyncio
+            asyncio.create_task(self._load_collections_async())
+
+        except Exception as e:
+            logger.error(f"Failed to toggle sort: {e}")
+
     def _on_library_settings_clicked(self, widget=None):
         """Handle library settings button press"""
         try:
@@ -1426,6 +1503,114 @@ class LibraryView(BaseView):
         """Handle plans window navigation"""
         logger.info("Opening plans window")
         self.app.view_integration.navigation_controller.navigate_to_plans()
+
+    # Import handlers for Edit mode
+    def _on_import_urls(self, widget=None):
+        """Handle URL import - navigate to URL add view"""
+        try:
+            logger.info("Import URLs requested")
+            # Use navigation controller to show URL add view
+            from fichero.windows.add.views.url_view import URLAddView
+
+            url_view = URLAddView(
+                app=self.app,
+                on_content_added=self._on_urls_added
+            )
+
+            # Navigate to URL view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Push URL view onto navigation stack
+                    nav_controller.push_view(url_view, "Add URLs")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open URL import: {e}")
+
+    def _on_import_files(self, widget=None):
+        """Handle file import - open file picker"""
+        try:
+            logger.info("Import files requested")
+            # TODO: Use Toga file picker when available
+            self._show_message("Import Files", "File picker will be implemented using Toga's file dialog")
+
+        except Exception as e:
+            logger.error(f"Failed to open file import: {e}")
+
+    def _on_import_folder(self, widget=None):
+        """Handle folder import - open folder picker"""
+        try:
+            logger.info("Import folder requested")
+            # TODO: Use Toga folder picker when available
+            self._show_message("Import Folder", "Folder picker will be implemented using Toga's folder dialog")
+
+        except Exception as e:
+            logger.error(f"Failed to open folder import: {e}")
+
+    def _on_urls_added(self, data: dict):
+        """Callback when URLs are added from URL view
+
+        Args:
+            data: Dict with 'urls' list, 'action', and 'option_id'
+        """
+        try:
+            urls = data.get('urls', [])
+            logger.info(f"URLs added callback received: {len(urls)} URLs")
+
+            # Create a new collection for the URLs
+            import asyncio
+            asyncio.create_task(self._create_collection_from_urls(urls))
+
+        except Exception as e:
+            logger.error(f"Failed to handle URLs added: {e}")
+
+    async def _create_collection_from_urls(self, urls: List[str]):
+        """Create a new collection and add URLs to it"""
+        try:
+            # Generate collection name
+            from datetime import datetime
+            collection_name = f"URLs {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+            # Create collection
+            collection_id = await self.library_service.add_collection_for_ui(
+                name=collection_name,
+                collection_type="url",
+                description=f"URL collection with {len(urls)} items"
+            )
+
+            if collection_id:
+                # Add URLs to collection
+                for url in urls:
+                    # Extract name from URL
+                    name = url.split('/')[-1] or url
+
+                    await self.library_service.add_item_to_collection_for_ui(
+                        collection_id=collection_id,
+                        item_type="url",
+                        source=url,
+                        name=name,
+                        operation="link"  # Don't download, just reference
+                    )
+
+                # Refresh collections display
+                await self._load_collections_async()
+
+                logger.info(f"Created collection '{collection_name}' with {len(urls)} URLs")
+
+                # Pop back to library view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to create collection for URLs")
+
+        except Exception as e:
+            logger.error(f"Failed to create collection from URLs: {e}")
 
 
 

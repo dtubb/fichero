@@ -162,38 +162,46 @@ class LibraryManager:
         collections = await self.get_all_collections()
         return next((c for c in collections if c.name == name), None)
     
-    async def get_all_collections(self, force_refresh: bool = False) -> List[Collection]:
-        """Get all collections with caching"""
+    async def get_all_collections(self, force_refresh: bool = False, sort_by: str = "manual") -> List[Collection]:
+        """Get all collections with caching and sorting
+
+        Args:
+            force_refresh: Force refresh from database
+            sort_by: Sort mode - "manual", "name", "date_created", "date_updated", "type"
+        """
         try:
             # Check for pending demo setup
             if self._demo_setup_pending:
                 await self._ensure_demo_collections()
                 self._demo_setup_pending = False
                 force_refresh = True  # Force refresh after demo setup
-            
-            # Check cache
-            if (not force_refresh and 
-                self._collections_cache is not None and 
-                self._cache_timestamp and 
-                (datetime.now() - self._cache_timestamp).seconds < 30):
+
+            # Check cache (cache key includes sort mode)
+            cache_key = f"{sort_by}"
+            if (not force_refresh and
+                self._collections_cache is not None and
+                self._cache_timestamp and
+                (datetime.now() - self._cache_timestamp).seconds < 30 and
+                getattr(self, '_last_sort_mode', None) == sort_by):
                 return self._collections_cache.copy()
-            
+
             # Check for pending demo setup
             if self._demo_setup_pending:
                 await self._ensure_demo_collections()
                 self._demo_setup_pending = False
                 # Force cache refresh after demo setup
                 self._clear_cache()
-            
-            # Load from storage
-            collections = self.storage.get_all_collections()
-            
+
+            # Load from storage with sort mode
+            collections = self.storage.get_all_collections(sort_by=sort_by)
+
             # Update cache
             self._collections_cache = collections
             self._cache_timestamp = datetime.now()
-            
+            self._last_sort_mode = sort_by
+
             return collections
-            
+
         except Exception as e:
             logger.error(f"Failed to get all collections: {e}")
             return []
@@ -225,7 +233,56 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"Failed to update collection: {e}")
             return False
-    
+
+    async def reorder_collection(self, collection_id: str, new_position: int) -> bool:
+        """Move a collection to a new position in manual sort order
+
+        Args:
+            collection_id: ID of collection to move
+            new_position: New position (1-based index)
+        """
+        try:
+            # Get all collections in manual sort order
+            collections = await self.get_all_collections(sort_by="manual")
+
+            if new_position < 1 or new_position > len(collections):
+                logger.error(f"Invalid position {new_position}, must be between 1 and {len(collections)}")
+                return False
+
+            # Find the collection to move
+            collection_to_move = None
+            current_index = None
+            for i, col in enumerate(collections):
+                if col.id == collection_id:
+                    collection_to_move = col
+                    current_index = i
+                    break
+
+            if not collection_to_move:
+                logger.error(f"Collection {collection_id} not found")
+                return False
+
+            # Remove from current position
+            collections.pop(current_index)
+
+            # Insert at new position (convert from 1-based to 0-based)
+            collections.insert(new_position - 1, collection_to_move)
+
+            # Update sort_order for all collections
+            for i, col in enumerate(collections):
+                col.sort_order = i + 1  # 1-based sort order
+                if not self.storage.update_collection(col):
+                    logger.error(f"Failed to update sort order for {col.name}")
+                    return False
+
+            self._clear_cache()
+            logger.info(f"Collection {collection_to_move.name} moved to position {new_position}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to reorder collection: {e}")
+            return False
+
     async def delete_collection(self, collection_id: str) -> bool:
         """Delete a collection and all its data"""
         try:

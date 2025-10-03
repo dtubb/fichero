@@ -221,18 +221,150 @@ class CollectionView(BaseView):
     def _on_add_folder(self):
         """Handle add folder action from toolbar"""
         try:
-            # TODO: Implement add folder functionality
             logger.info("Add folder requested from toolbar")
+            # Use navigation controller to show folder add view
+            from fichero.windows.add.views.folder_view import FolderAddView
+
+            folder_view = FolderAddView(
+                app=self.app,
+                on_content_added=self._on_folder_added
+            )
+
+            # Navigate to folder view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    nav_controller.push_view(folder_view, "Add Folder")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
         except Exception as e:
             logger.error(f"Failed to handle add folder: {e}")
-    
+
     def _on_add_file(self):
         """Handle add file action from toolbar"""
         try:
-            # TODO: Implement add file functionality
             logger.info("Add file requested from toolbar")
+            # Use navigation controller to show file add view
+            from fichero.windows.add.views.file_view import FileAddView
+
+            file_view = FileAddView(
+                app=self.app,
+                on_content_added=self._on_file_added
+            )
+
+            # Navigate to file view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    nav_controller.push_view(file_view, "Add File")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
         except Exception as e:
             logger.error(f"Failed to handle add file: {e}")
+
+    def _on_folder_added(self, data: dict):
+        """Callback when folder is added from folder view"""
+        try:
+            folder_path = data.get('path', '')
+            logger.info(f"Folder added callback received: {folder_path}")
+
+            # Add folder to current collection
+            import asyncio
+            asyncio.create_task(self._add_folder_to_collection(folder_path))
+
+        except Exception as e:
+            logger.error(f"Failed to handle folder added: {e}")
+
+    def _on_file_added(self, data: dict):
+        """Callback when file is added from file view"""
+        try:
+            file_path = data.get('path', '')
+            logger.info(f"File added callback received: {file_path}")
+
+            # Add file to current collection
+            import asyncio
+            asyncio.create_task(self._add_file_to_collection(file_path))
+
+        except Exception as e:
+            logger.error(f"Failed to handle file added: {e}")
+
+    async def _add_folder_to_collection(self, folder_path: str):
+        """Add a folder to the current collection"""
+        try:
+            if not self.collection_id:
+                logger.error("No collection ID available")
+                return
+
+            # Get folder name
+            from pathlib import Path
+            folder_name = Path(folder_path).name
+
+            # Add to collection via library service
+            item_id = await self.app.library_service.add_item_to_collection_for_ui(
+                collection_id=self.collection_id,
+                item_type="folder",
+                source=folder_path,
+                name=folder_name,
+                operation="link"  # Link to folder, don't copy
+            )
+
+            if item_id:
+                # Refresh collection display
+                await self._load_collection_items()
+                logger.info(f"Added folder '{folder_name}' to collection")
+
+                # Pop back to collection view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to add folder to collection")
+
+        except Exception as e:
+            logger.error(f"Failed to add folder to collection: {e}")
+
+    async def _add_file_to_collection(self, file_path: str):
+        """Add a file to the current collection"""
+        try:
+            if not self.collection_id:
+                logger.error("No collection ID available")
+                return
+
+            # Get file name
+            from pathlib import Path
+            file_name = Path(file_path).name
+
+            # Add to collection via library service
+            item_id = await self.app.library_service.add_item_to_collection_for_ui(
+                collection_id=self.collection_id,
+                item_type="file",
+                source=file_path,
+                name=file_name,
+                operation="link"  # Link to file, don't copy
+            )
+
+            if item_id:
+                # Refresh collection display
+                await self._load_collection_items()
+                logger.info(f"Added file '{file_name}' to collection")
+
+                # Pop back to collection view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        nav_controller.pop_view()
+            else:
+                logger.error("Failed to add file to collection")
+
+        except Exception as e:
+            logger.error(f"Failed to add file to collection: {e}")
     
     def _update_toolbar_navigation(self):
         """Update toolbar navigation state"""

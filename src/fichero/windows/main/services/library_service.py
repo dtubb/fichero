@@ -27,18 +27,23 @@ class LibraryService:
     
     # ===== COLLECTION OPERATIONS =====
     
-    async def get_collections_for_ui(self) -> List[Dict[str, Any]]:
-        """Get all collections formatted for UI display"""
+    async def get_collections_for_ui(self, sort_by: str = "manual") -> List[Dict[str, Any]]:
+        """Get all collections formatted for UI display with sorting
+
+        Args:
+            sort_by: Sort mode - "manual", "name", "date_created", "date_updated", "type"
+        """
         try:
-            collections = await self.library_manager.get_all_collections()
-            
+            # Get collections with requested sort mode
+            collections = await self.library_manager.get_all_collections(sort_by=sort_by)
+
             # Convert to UI format
             ui_collections = []
             for collection in collections:
                 # Get item count
                 items = await self.library_manager.get_collection_items(collection.id)
                 item_count = len(items)
-                
+
                 collection_data = {
                     'id': collection.id,
                     'name': collection.name,
@@ -49,15 +54,16 @@ class LibraryService:
                     'updated_at': collection.updated_at,
                     'source_path': collection.source_path,
                     'local_path': collection.local_path,
-                    'status': self._get_collection_status(collection)
+                    'sort_order': collection.sort_order,
+                    'status': self._get_collection_status(collection),
+                    'source_type': collection.type  # Alias for compatibility
                 }
                 ui_collections.append(collection_data)
-            
-            # Sort by name
-            ui_collections.sort(key=lambda x: x['name'])
-            logger.debug(f"Retrieved {len(ui_collections)} collections for UI")
+
+            # Collections are already sorted by library_manager based on sort_by parameter
+            logger.debug(f"Retrieved {len(ui_collections)} collections for UI (sorted by {sort_by})")
             return ui_collections
-            
+
         except Exception as e:
             logger.error(f"Failed to get collections for UI: {e}")
             return []
@@ -119,16 +125,37 @@ class LibraryService:
         """Delete a collection from UI"""
         try:
             success = await self.library_manager.delete_collection(collection_id)
-            
+
             if success:
                 logger.info(f"Deleted collection with ID: {collection_id}")
             else:
                 logger.error(f"Failed to delete collection with ID: {collection_id}")
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Failed to delete collection {collection_id}: {e}")
+            return False
+
+    async def reorder_collection_for_ui(self, collection_id: str, new_position: int) -> bool:
+        """Reorder a collection to a new position from UI
+
+        Args:
+            collection_id: ID of collection to move
+            new_position: New position (1-based index)
+        """
+        try:
+            success = await self.library_manager.reorder_collection(collection_id, new_position)
+
+            if success:
+                logger.info(f"Reordered collection {collection_id} to position {new_position}")
+            else:
+                logger.error(f"Failed to reorder collection {collection_id}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Failed to reorder collection {collection_id}: {e}")
             return False
     
     async def add_item_to_collection_for_ui(self,

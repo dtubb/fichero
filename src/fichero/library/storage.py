@@ -56,9 +56,17 @@ class LibraryStorage:
                         local_path TEXT,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL,
+                        sort_order INTEGER DEFAULT 0,
                         metadata TEXT
                     )
                 """)
+
+                # Migration: Add sort_order column if it doesn't exist (for existing databases)
+                try:
+                    cursor.execute("SELECT sort_order FROM collections LIMIT 1")
+                except sqlite3.OperationalError:
+                    logger.info("Adding sort_order column to existing collections table")
+                    cursor.execute("ALTER TABLE collections ADD COLUMN sort_order INTEGER DEFAULT 0")
                 
                 # Collection items table
                 cursor.execute("""
@@ -134,9 +142,9 @@ class LibraryStorage:
                 cursor.execute("BEGIN IMMEDIATE")
                 
                 cursor.execute("""
-                    INSERT INTO collections 
-                    (id, name, type, source_path, local_path, created_at, updated_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO collections
+                    (id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     collection.id,
                     collection.name,
@@ -145,6 +153,7 @@ class LibraryStorage:
                     collection.local_path,
                     collection.created_at.isoformat(),
                     collection.updated_at.isoformat(),
+                    collection.sort_order,
                     self._serialize_metadata(collection.metadata)
                 ))
                 
@@ -163,9 +172,9 @@ class LibraryStorage:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    UPDATE collections 
-                    SET name = ?, type = ?, source_path = ?, local_path = ?, 
-                        updated_at = ?, metadata = ?
+                    UPDATE collections
+                    SET name = ?, type = ?, source_path = ?, local_path = ?,
+                        updated_at = ?, sort_order = ?, metadata = ?
                     WHERE id = ?
                 """, (
                     collection.name,
@@ -173,6 +182,7 @@ class LibraryStorage:
                     collection.source_path,
                     collection.local_path,
                     datetime.now().isoformat(),
+                    collection.sort_order,
                     self._serialize_metadata(collection.metadata),
                     collection.id
                 ))
@@ -192,10 +202,10 @@ class LibraryStorage:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    SELECT id, name, type, source_path, local_path, created_at, updated_at, metadata
+                    SELECT id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata
                     FROM collections WHERE id = ?
                 """, (collection_id,))
-                
+
                 row = cursor.fetchone()
                 if row:
                     collection = Collection(
@@ -206,7 +216,8 @@ class LibraryStorage:
                         local_path=row[4],
                         created_at=datetime.fromisoformat(row[5]),
                         updated_at=datetime.fromisoformat(row[6]),
-                        metadata=self._deserialize_metadata(row[7])
+                        sort_order=row[7] if row[7] is not None else 0,
+                        metadata=self._deserialize_metadata(row[8])
                     )
                     return collection
                 else:
@@ -223,10 +234,10 @@ class LibraryStorage:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    SELECT id, name, type, source_path, local_path, created_at, updated_at, metadata
+                    SELECT id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata
                     FROM collections WHERE name = ?
                 """, (name,))
-                
+
                 row = cursor.fetchone()
                 if row:
                     collection = Collection(
@@ -237,7 +248,8 @@ class LibraryStorage:
                         local_path=row[4],
                         created_at=datetime.fromisoformat(row[5]),
                         updated_at=datetime.fromisoformat(row[6]),
-                        metadata=self._deserialize_metadata(row[7])
+                        sort_order=row[7] if row[7] is not None else 0,
+                        metadata=self._deserialize_metadata(row[8])
                     )
                     return collection
                 else:
@@ -247,23 +259,43 @@ class LibraryStorage:
             logger.error(f"Failed to get collection by name: {e}")
             return None
     
-    def get_all_collections(self) -> List[Collection]:
-        """Get all collections"""
+    def get_all_collections(self, sort_by: str = "manual") -> List[Collection]:
+        """Get all collections with sorting
+
+        Args:
+            sort_by: Sort mode - "manual", "name", "date_created", "date_updated", "type"
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # Configure connection for read operations
                 conn.execute("PRAGMA foreign_keys=ON")
                 conn.isolation_level = None  # Enable autocommit mode
                 cursor = conn.cursor()
-                
+
                 # Start read transaction
                 cursor.execute("BEGIN")
-                
-                cursor.execute("""
-                    SELECT id, name, type, source_path, local_path, created_at, updated_at, metadata
-                    FROM collections ORDER BY updated_at DESC
+
+                # Determine sort order based on mode
+                if sort_by == "manual":
+                    # Manual sort: sort_order ASC (0 = auto), then by name for ties
+                    order_clause = "ORDER BY CASE WHEN sort_order = 0 THEN 1 ELSE 0 END, sort_order ASC, name ASC"
+                elif sort_by == "name":
+                    order_clause = "ORDER BY name COLLATE NOCASE ASC"
+                elif sort_by == "date_created":
+                    order_clause = "ORDER BY created_at DESC"
+                elif sort_by == "date_updated":
+                    order_clause = "ORDER BY updated_at DESC"
+                elif sort_by == "type":
+                    order_clause = "ORDER BY type ASC, name ASC"
+                else:
+                    # Fallback to manual
+                    order_clause = "ORDER BY CASE WHEN sort_order = 0 THEN 1 ELSE 0 END, sort_order ASC, name ASC"
+
+                cursor.execute(f"""
+                    SELECT id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata
+                    FROM collections {order_clause}
                 """)
-                
+
                 collections = []
                 for row in cursor.fetchall():
                     collection = Collection(
@@ -274,12 +306,13 @@ class LibraryStorage:
                         local_path=row[4],
                         created_at=datetime.fromisoformat(row[5]),
                         updated_at=datetime.fromisoformat(row[6]),
-                        metadata=self._deserialize_metadata(row[7])
+                        sort_order=row[7] if row[7] is not None else 0,
+                        metadata=self._deserialize_metadata(row[8])
                     )
                     collections.append(collection)
-                
+
                 return collections
-                
+
         except Exception as e:
             logger.error(f"Failed to get all collections: {e}")
             return []

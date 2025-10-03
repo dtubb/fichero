@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Collection:
     """Represents a collection of documents and resources"""
-    
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
     type: Literal["local", "external", "url", "hybrid"] = "local"
@@ -21,6 +21,7 @@ class Collection:
     local_path: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+    sort_order: int = 0  # Manual sort order (0 = default/auto)
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -33,6 +34,7 @@ class Collection:
             "local_path": self.local_path,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "sort_order": self.sort_order,
             "metadata": self.metadata
         }
     
