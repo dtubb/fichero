@@ -470,6 +470,10 @@ class LibraryView(BaseView):
             self.bottom_toolbar.on_global_inbox = self._on_global_inbox
             self.bottom_toolbar.on_tags = self._on_tags
 
+            # Register sort handler with toolbar coordinator
+            if self.coordinator:
+                self.coordinator.handle_sort = self._on_toggle_sort
+
             logger.debug("Library view toolbar callbacks registered")
 
         except Exception as e:
@@ -1245,22 +1249,19 @@ class LibraryView(BaseView):
             logger.error(f"Failed to update toolbars for edit mode: {e}")
 
     def _on_edit_mode_changed(self, state, context: Dict[str, Any]):
-        """Handle edit mode changes from coordinator - enables add buttons and sort"""
+        """Handle edit mode changes from coordinator - enables add buttons"""
         try:
             from fichero.shared.toolbars.toolbar_coordinator import EditModeState
 
             # Swipe actions stay fixed - no need to update them
-            # This callback is for managing the add buttons and sort button in edit mode
+            # Sort button is now handled by top_edit_actions in toolbar coordinator
+            # This callback is for managing the add buttons in edit mode
 
             if state == EditModeState.EDIT and context.get("edit_type") != "add_items":
-                # Add sort button to top toolbar when entering edit mode
-                self._add_sort_button()
-
                 # Only create add context if we don't already have it (prevents infinite loop)
                 self._create_add_context_once()
             elif state == EditModeState.NORMAL:
-                # Exiting edit mode - remove sort button and clear add context
-                self._remove_sort_button()
+                # Exiting edit mode - clear add context
                 self._clear_add_context()
 
             logger.debug(f"LibraryView edit mode changed to {state.value}")
@@ -1332,39 +1333,6 @@ class LibraryView(BaseView):
         except Exception as e:
             logger.error(f"Failed to clear add context: {e}")
 
-    def _add_sort_button(self):
-        """Add sort button to top toolbar in edit mode"""
-        try:
-            # Add sort toggle button (chevron up for A-Z, down for Z-A)
-            sort_icon = "resources/icons/toolbar/chevron.up@10x.png" if self.sort_ascending else "resources/icons/toolbar/chevron.down@10x.png"
-            self.top_toolbar.add_regular_button(
-                button_id="sort",
-                position="right",
-                text="",  # Icon only
-                icon=sort_icon,
-                on_press=self._on_toggle_sort,
-                style_class="right_aligned"
-            )
-            logger.info("Sort button added to toolbar")
-
-        except Exception as e:
-            logger.error(f"Failed to add sort button: {e}")
-
-    def _remove_sort_button(self):
-        """Remove sort button from top toolbar when exiting edit mode"""
-        try:
-            # Remove sort button if it exists
-            if hasattr(self.top_toolbar, '_buttons') and 'sort' in self.top_toolbar._buttons:
-                sort_button = self.top_toolbar._buttons['sort']
-                # Remove from toolbar container
-                if hasattr(self.top_toolbar, 'button_container') and sort_button in self.top_toolbar.button_container.children:
-                    self.top_toolbar.button_container.remove(sort_button)
-                # Remove from buttons dict
-                del self.top_toolbar._buttons['sort']
-                logger.info("Sort button removed from toolbar")
-
-        except Exception as e:
-            logger.error(f"Failed to remove sort button: {e}")
 
     # Add dialog functionality available through edit mode buttons
 
@@ -1463,14 +1431,10 @@ class LibraryView(BaseView):
 
             logger.info(f"Sort toggled: {'A-Z' if self.sort_ascending else 'Z-A'}")
 
-            # Update button icon
-            sort_icon = "resources/icons/toolbar/chevron.up@10x.png" if self.sort_ascending else "resources/icons/toolbar/chevron.down@10x.png"
-
-            # Find and update the sort button icon
-            if hasattr(self.top_toolbar, '_buttons') and 'sort' in self.top_toolbar._buttons:
-                sort_button = self.top_toolbar._buttons['sort']
-                if hasattr(sort_button, 'icon'):
-                    sort_button.icon = sort_icon
+            # Update the top_edit_actions icon in coordinator context for next rebuild
+            # The button will update automatically when edit mode is toggled next time
+            # For now, we'll just reload the collections with the new sort order
+            # TODO: Find a way to dynamically update the button icon without exiting edit mode
 
             # Reload collections with new sort order
             import asyncio

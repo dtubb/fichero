@@ -64,6 +64,7 @@ class ToolbarCoordinator:
         self.get_selected_collections: Optional[Callable[[], List[str]]] = None
         self.handle_edit_collection: Optional[Callable[[List[str]], None]] = None
         self.handle_delete_collection: Optional[Callable[[List[str]], None]] = None
+        self.handle_sort: Optional[Callable[[], None]] = None
 
         logger.info(f"ToolbarCoordinator initialized (mobile: {self.is_mobile})")
 
@@ -254,8 +255,10 @@ class ToolbarCoordinator:
             base_context["add_actions"] = add_actions
 
             # Separate top and bottom edit actions for library view
-            # Top toolbar actions (now empty - rename/delete done via swipes)
-            top_edit_actions = []
+            # Top toolbar actions (sort button)
+            top_edit_actions = [
+                {"id": "sort", "title": "Sort", "icon": "resources/icons/toolbar/chevron.up@10x.png"}
+            ]
 
             # Bottom toolbar actions (add/create actions + add collection)
             bottom_edit_actions = add_actions + [
@@ -293,7 +296,8 @@ class ToolbarCoordinator:
                         # Collection management actions
                         "add_collection": self._handle_add_collection,
                         "edit_collection": self._handle_edit_collection,
-                        "delete_collection": self._handle_delete_collection
+                        "delete_collection": self._handle_delete_collection,
+                        "sort": self._handle_sort
                     }
                     return action_map.get(action_id)
         except Exception as e:
@@ -357,6 +361,18 @@ class ToolbarCoordinator:
 
         except Exception as e:
             logger.error(f"Failed to handle delete collection: {e}")
+
+    def _handle_sort(self, widget=None):
+        """Handle Sort button press"""
+        try:
+            logger.info("Sort button pressed")
+            if self.handle_sort:
+                self.handle_sort()
+            else:
+                logger.warning("No sort handler registered")
+
+        except Exception as e:
+            logger.error(f"Failed to handle sort: {e}")
 
     def _show_add_collection_dialog(self):
         """Show Add Collection dialog"""
