@@ -668,17 +668,17 @@ class CollectionView(BaseView):
     def _add_collection_toolbar_buttons(self):
         """Add collection-specific toolbar buttons"""
         try:
-            # Add Preview/Download button (enabled when item selected)
-            self.bottom_toolbar.add_button(
+            # Add Preview button for normal mode (enabled when item selected)
+            self.bottom_toolbar.add_normal_mode_button(
                 text="Preview",
                 icon="resources/icons/toolbar/preview.png",
                 on_press=self._on_preview_selected_item,
                 position="center"
             )
 
-            # Add Download All URLs button (for URL collections)
-            self.bottom_toolbar.add_button(
-                text="Download",
+            # Add Download All URLs button for edit mode (for URL collections)
+            self.bottom_toolbar.add_edit_mode_button(
+                text="Download All",
                 icon="resources/icons/toolbar/download.png",
                 on_press=self._on_download_all_urls,
                 position="center"
