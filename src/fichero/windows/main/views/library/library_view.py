@@ -1287,6 +1287,14 @@ class LibraryView(BaseView):
 
             # Add import-specific buttons to bottom toolbar
             if self.coordinator.bottom_toolbar:
+                # Add export button for selected collection
+                self.coordinator.bottom_toolbar.add_edit_mode_button(
+                    text="Export",
+                    icon="resources/icons/toolbar/download.png",
+                    on_press=self._on_export_collection,
+                    position="center"
+                )
+
                 # Add bulk import button (text file or zip)
                 self.coordinator.bottom_toolbar.add_edit_mode_button(
                     text="Bulk",
@@ -1503,7 +1511,85 @@ class LibraryView(BaseView):
         logger.info("Opening plans window")
         self.app.view_integration.navigation_controller.navigate_to_plans()
 
-    # Import handlers for Edit mode
+    # Export/Import handlers for Edit mode
+    def _on_export_collection(self, widget=None):
+        """Handle collection export - save collection to zip file"""
+        try:
+            # Check if a collection is selected
+            if not self.selected_collection:
+                self.app.main_window.info_dialog(
+                    "No Collection Selected",
+                    "Please select a collection to export first."
+                )
+                return
+
+            collection_id = self.selected_collection.get('id', '')
+            collection_name = self.selected_collection.get('name', 'Unknown')
+
+            logger.info(f"Export requested for collection: {collection_name}")
+
+            # Show save file dialog
+            from pathlib import Path
+            default_filename = f"{collection_name.replace(' ', '_')}_export.zip"
+
+            self.app.main_window.save_file_dialog(
+                title=f"Export {collection_name}",
+                suggested_filename=default_filename,
+                file_types=['zip'],
+                on_result=lambda widget, path: asyncio.create_task(
+                    self._perform_export_collection(collection_id, collection_name, path)
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to initiate export: {e}")
+            self.app.main_window.error_dialog("Export Error", str(e))
+
+    async def _perform_export_collection(self, collection_id: str, collection_name: str, output_path):
+        """Actually perform the export operation"""
+        try:
+            if not output_path:
+                logger.info("Export cancelled by user")
+                return
+
+            from pathlib import Path
+            output_path = Path(output_path)
+
+            logger.info(f"Exporting collection {collection_name} to {output_path}")
+
+            # Get library service
+            if not hasattr(self.app, 'view_integration'):
+                self.app.main_window.error_dialog("Error", "Library service not available")
+                return
+
+            library_service = self.app.view_integration.library_service
+
+            # Perform export
+            success = await library_service.library_manager.export_collection(collection_id, output_path)
+
+            if success:
+                # Calculate file size
+                file_size = output_path.stat().st_size
+                size_mb = file_size / (1024 * 1024)
+
+                self.app.main_window.info_dialog(
+                    "Export Successful",
+                    f"Collection '{collection_name}' exported successfully.\n\n"
+                    f"Location: {output_path}\n"
+                    f"Size: {size_mb:.1f} MB"
+                )
+                logger.info(f"Export completed: {output_path} ({size_mb:.1f} MB)")
+            else:
+                self.app.main_window.error_dialog(
+                    "Export Failed",
+                    f"Failed to export collection '{collection_name}'"
+                )
+                logger.error(f"Export failed for collection: {collection_name}")
+
+        except Exception as e:
+            logger.error(f"Export operation failed: {e}")
+            self.app.main_window.error_dialog("Export Error", str(e))
+
     def _on_import_urls(self, widget=None):
         """Handle URL import - navigate to URL add view"""
         try:

@@ -830,4 +830,263 @@ class LibraryManager:
 
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
-            return 0 
+            return 0
+
+    async def export_collection(self, collection_id: str, output_path: Path) -> bool:
+        """
+        Export collection with all files and metadata to zip archive
+
+        Args:
+            collection_id: ID of collection to export
+            output_path: Path where zip file should be created
+
+        Returns:
+            bool: True if export succeeded, False otherwise
+        """
+        import json
+        import zipfile
+        import tempfile
+        import shutil
+
+        try:
+            # Get collection
+            collection = self.storage.get_collection(collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {collection_id}")
+                return False
+
+            # Get all items
+            items = await self.get_collection_items(collection_id)
+
+            # Create temporary directory for building export
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+
+                # Create export structure
+                files_dir = temp_path / "files"
+                cache_dir = temp_path / "cache"
+                files_dir.mkdir()
+                cache_dir.mkdir()
+
+                # Export manifest
+                manifest = {
+                    "collection_id": collection.id,
+                    "collection_name": collection.name,
+                    "collection_type": collection.type,
+                    "description": collection.metadata.get("description", ""),
+                    "created_at": collection.created_at.isoformat(),
+                    "updated_at": collection.updated_at.isoformat(),
+                    "metadata": collection.metadata,
+                    "export_version": "1.0",
+                    "export_date": datetime.now().isoformat(),
+                    "item_count": len(items)
+                }
+
+                with open(temp_path / "manifest.json", 'w') as f:
+                    json.dump(manifest, f, indent=2)
+
+                # Export items and collect files
+                items_export = []
+                for item in items:
+                    item_export = {
+                        "id": item.id,
+                        "type": item.type,
+                        "name": item.name,
+                        "status": item.status,
+                        "created_at": item.created_at.isoformat(),
+                        "updated_at": item.updated_at.isoformat(),
+                        "metadata": item.metadata
+                    }
+
+                    # Handle file/folder items
+                    if item.type in ["file", "folder"] and item.source_path:
+                        source = Path(item.source_path)
+                        if source.exists():
+                            item_dir = files_dir / item.id
+                            item_dir.mkdir()
+
+                            if source.is_file():
+                                shutil.copy2(source, item_dir / source.name)
+                                item_export["file_path"] = f"files/{item.id}/{source.name}"
+                            elif source.is_dir():
+                                shutil.copytree(source, item_dir / source.name)
+                                item_export["folder_path"] = f"files/{item.id}/{source.name}"
+
+                    # Handle URL items with cached files
+                    if item.type == "url":
+                        item_export["original_url"] = item.source_path
+
+                        if item.local_path:
+                            cached_file = Path(item.local_path)
+                            if cached_file.exists():
+                                cache_filename = f"{item.id}_{cached_file.name}"
+                                shutil.copy2(cached_file, cache_dir / cache_filename)
+                                item_export["cached_path"] = f"cache/{cache_filename}"
+
+                    items_export.append(item_export)
+
+                # Save items list
+                with open(temp_path / "items.json", 'w') as f:
+                    json.dump(items_export, f, indent=2)
+
+                # Create zip file
+                output_path = Path(output_path)
+                if not output_path.suffix.lower() == '.zip':
+                    output_path = output_path.with_suffix('.zip')
+
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path in temp_path.rglob('*'):
+                        if file_path.is_file():
+                            arcname = file_path.relative_to(temp_path)
+                            zipf.write(file_path, arcname)
+
+                file_size = output_path.stat().st_size
+                logger.info(f"Exported collection '{collection.name}' to {output_path} ({file_size / (1024*1024):.1f} MB)")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to export collection: {e}")
+            return False
+
+    async def import_collection(self, zip_path: Path, name: Optional[str] = None) -> Optional[str]:
+        """
+        Import collection from export zip archive
+
+        Args:
+            zip_path: Path to exported zip file
+            name: Optional new name for collection (uses original if not provided)
+
+        Returns:
+            str: New collection ID if import succeeded, None otherwise
+        """
+        import json
+        import zipfile
+        import tempfile
+        import shutil
+
+        try:
+            if not zip_path.exists():
+                logger.error(f"Zip file not found: {zip_path}")
+                return None
+
+            # Extract zip to temp directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+
+                with zipfile.ZipFile(zip_path, 'r') as zipf:
+                    zipf.extractall(temp_path)
+
+                # Read manifest
+                manifest_path = temp_path / "manifest.json"
+                if not manifest_path.exists():
+                    logger.error("Invalid export: manifest.json not found")
+                    return None
+
+                with open(manifest_path, 'r') as f:
+                    manifest = json.load(f)
+
+                # Read items
+                items_path = temp_path / "items.json"
+                if not items_path.exists():
+                    logger.error("Invalid export: items.json not found")
+                    return None
+
+                with open(items_path, 'r') as f:
+                    items_data = json.load(f)
+
+                # Create new collection
+                collection_name = name or manifest["collection_name"]
+                collection_id = await self.add_collection(
+                    name=collection_name,
+                    collection_type=manifest["collection_type"],
+                    description=manifest.get("description", f"Imported from {zip_path.name}"),
+                    metadata=manifest.get("metadata", {})
+                )
+
+                if not collection_id:
+                    logger.error("Failed to create collection")
+                    return None
+
+                # Import items
+                for item_data in items_data:
+                    item_id = item_data["id"]
+                    item_type = item_data["type"]
+                    item_name = item_data["name"]
+
+                    # Handle file items
+                    if "file_path" in item_data:
+                        src_file = temp_path / item_data["file_path"]
+                        if src_file.exists():
+                            # Copy file to library storage
+                            dest_dir = self.library_path / collection_id / "files"
+                            dest_dir.mkdir(parents=True, exist_ok=True)
+                            dest_file = dest_dir / src_file.name
+                            shutil.copy2(src_file, dest_file)
+
+                            await self.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="file",
+                                source=str(dest_file),
+                                name=item_name,
+                                operation="link"
+                            )
+
+                    # Handle folder items
+                    elif "folder_path" in item_data:
+                        src_folder = temp_path / item_data["folder_path"]
+                        if src_folder.exists():
+                            # Copy folder to library storage
+                            dest_dir = self.library_path / collection_id / "folders"
+                            dest_dir.mkdir(parents=True, exist_ok=True)
+                            dest_folder = dest_dir / src_folder.name
+                            shutil.copytree(src_folder, dest_folder)
+
+                            await self.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="folder",
+                                source=str(dest_folder),
+                                name=item_name,
+                                operation="link"
+                            )
+
+                    # Handle URL items
+                    elif item_type == "url":
+                        original_url = item_data.get("original_url")
+                        if original_url:
+                            # Add URL item
+                            new_item_id = await self.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="url",
+                                source=original_url,
+                                name=item_name,
+                                operation="link"
+                            )
+
+                            # Restore cached file if present
+                            if "cached_path" in item_data:
+                                src_cache = temp_path / item_data["cached_path"]
+                                if src_cache.exists() and new_item_id:
+                                    # Copy to cache directory
+                                    cache_dest = self.downloader.cache_root / collection_id
+                                    cache_dest.mkdir(parents=True, exist_ok=True)
+                                    cache_file = cache_dest / src_cache.name
+                                    shutil.copy2(src_cache, cache_file)
+
+                                    # Update item with cache info
+                                    item = self.storage.get_item(new_item_id)
+                                    if item:
+                                        item.local_path = str(cache_file)
+                                        item.metadata.update(item_data.get("metadata", {}))
+                                        self.storage.update_item(item)
+
+                logger.info(f"Imported collection '{collection_name}' with {len(items_data)} items")
+                return collection_id
+
+        except zipfile.BadZipFile:
+            logger.error(f"Invalid zip file: {zip_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to import collection: {e}")
+            return None 
