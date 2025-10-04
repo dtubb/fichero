@@ -390,7 +390,38 @@ class LibraryStorage:
         except Exception as e:
             logger.error(f"Failed to add collection item: {e}")
             return False
-    
+
+    def update_item(self, item: CollectionItem) -> bool:
+        """Update an existing collection item"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE collection_items
+                    SET type = ?, source_path = ?, local_path = ?, storage_type = ?,
+                        name = ?, status = ?, updated_at = ?, metadata = ?
+                    WHERE id = ?
+                """, (
+                    item.type,
+                    item.source_path,
+                    item.local_path,
+                    item.storage_type,
+                    item.name,
+                    item.status,
+                    datetime.now().isoformat(),
+                    self._serialize_metadata(item.metadata),
+                    item.id
+                ))
+
+                conn.commit()
+                logger.debug(f"Collection item updated: {item.name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update collection item: {e}")
+            return False
+
     def get_collection_items(self, collection_id: str) -> List[CollectionItem]:
         """Get all items in a collection"""
         try:
@@ -420,11 +451,44 @@ class LibraryStorage:
                     items.append(item)
                 
                 return items
-                
+
         except Exception as e:
             logger.error(f"Failed to get collection items: {e}")
             return []
-    
+
+    def get_item(self, item_id: str) -> Optional[CollectionItem]:
+        """Get a single item by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, created_at, updated_at, metadata
+                    FROM collection_items WHERE id = ?
+                """, (item_id,))
+
+                row = cursor.fetchone()
+                if row:
+                    item = CollectionItem(
+                        id=row[0],
+                        collection_id=row[1],
+                        type=row[2],
+                        source_path=row[3],
+                        local_path=row[4],
+                        storage_type=row[5],
+                        name=row[6],
+                        status=row[7],
+                        created_at=datetime.fromisoformat(row[8]),
+                        updated_at=datetime.fromisoformat(row[9]),
+                        metadata=self._deserialize_metadata(row[10])
+                    )
+                    return item
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to get item: {e}")
+            return None
+
     def add_processing_result(self, result: ProcessingResult) -> bool:
         """Add a processing result"""
         try:

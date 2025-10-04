@@ -15,16 +15,19 @@ try:
     from fichero.library.models import Collection, CollectionItem, ProcessingResult, ExternalPath
     from fichero.library.storage import LibraryStorage
     from fichero.library.import_export import CollectionExporter, CollectionImporter
+    from fichero.library.url_downloader import URLDownloader
 except ImportError:
     try:
         from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
         from .storage import LibraryStorage
         from .import_export import CollectionExporter, CollectionImporter
+        from .url_downloader import URLDownloader
     except ImportError:
         # Direct import for testing
         import models
         import storage
         import import_export
+        import url_downloader
         Collection = models.Collection
         CollectionItem = models.CollectionItem
         ProcessingResult = models.ProcessingResult
@@ -32,6 +35,7 @@ except ImportError:
         LibraryStorage = storage.LibraryStorage
         CollectionExporter = import_export.CollectionExporter
         CollectionImporter = import_export.CollectionImporter
+        URLDownloader = url_downloader.URLDownloader
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +55,20 @@ class LibraryManager:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
         self.storage = LibraryStorage(db_path)
-        
+
         # Initialize import/export
         self.exporter = CollectionExporter(self.storage)
         self.importer = CollectionImporter(self.storage)
-        
+
+        # Initialize URL downloader with cache directory
+        cache_root = db_path.parent / "cache"
+        self.downloader = URLDownloader(cache_root)
+
         # Collection cache
         self._collections_cache: Optional[List[Collection]] = None
         self._cache_timestamp: Optional[datetime] = None
         self._demo_setup_pending: bool = False
-        
+
         logger.info(f"Library manager initialized successfully with database: {db_path}")
         
         # Auto-populate demo collections on first run
@@ -433,7 +441,11 @@ class LibraryManager:
     async def get_collection_items(self, collection_id: str) -> List[CollectionItem]:
         """Get all items in a collection"""
         return self.storage.get_collection_items(collection_id)
-    
+
+    async def get_item(self, item_id: str) -> Optional[CollectionItem]:
+        """Get a single item by ID"""
+        return self.storage.get_item(item_id)
+
     async def update_item_status(self, item_id: str, status: str) -> bool:
         """Update item processing status"""
         try:
@@ -593,7 +605,229 @@ class LibraryManager:
                         logger.warning(f"External collection unmounted: {collection.name}")
             
             return external_status
-            
+
         except Exception as e:
             logger.error(f"Failed to scan external collections: {e}")
-            return {} 
+            return {}
+
+    # ===== URL DOWNLOAD/CACHE MANAGEMENT =====
+
+    async def download_url_item(self, item_id: str, timeout: int = 30) -> bool:
+        """
+        Download and cache a URL item
+
+        Args:
+            item_id: ID of the URL item to download
+            timeout: Download timeout in seconds
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get item
+            item = await self.get_item(item_id)
+            if not item:
+                logger.error(f"Item not found: {item_id}")
+                return False
+
+            # Verify it's a URL item
+            if item.type != "url" or not item.source_path:
+                logger.error(f"Item {item_id} is not a URL item")
+                return False
+
+            # Check if already cached
+            if item.local_path and Path(item.local_path).exists():
+                logger.info(f"Item {item_id} already cached at {item.local_path}")
+                return True
+
+            # Download
+            logger.info(f"Downloading URL item {item_id}: {item.source_path}")
+            cache_metadata = await self.downloader.download_url(
+                url=item.source_path,
+                collection_id=item.collection_id,
+                item_id=item_id,
+                timeout=timeout
+            )
+
+            # Update item with cache info
+            item.local_path = cache_metadata["cached_path"]
+            item.metadata.update(cache_metadata)
+            item.updated_at = datetime.now()
+
+            # Save to database
+            self.storage.update_item(item)
+
+            logger.info(f"Successfully downloaded and cached item {item_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to download URL item {item_id}: {e}")
+            return False
+
+    async def download_collection_urls(
+        self,
+        collection_id: str,
+        max_concurrent: int = 5,
+        skip_cached: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Download all URL items in a collection
+
+        Args:
+            collection_id: ID of the collection
+            max_concurrent: Maximum concurrent downloads
+            skip_cached: Skip already cached items
+
+        Returns:
+            Dict with download statistics
+        """
+        try:
+            # Get all items in collection
+            items = await self.get_collection_items(collection_id)
+            url_items = [item for item in items if item.type == "url"]
+
+            if not url_items:
+                logger.warning(f"No URL items found in collection {collection_id}")
+                return {
+                    "total": 0,
+                    "downloaded": 0,
+                    "skipped": 0,
+                    "failed": 0
+                }
+
+            # Filter out already cached if requested
+            if skip_cached:
+                url_items = [
+                    item for item in url_items
+                    if not item.local_path or not Path(item.local_path).exists()
+                ]
+
+            logger.info(f"Downloading {len(url_items)} URL items from collection {collection_id}")
+
+            # Download with concurrency limit
+            semaphore = asyncio.Semaphore(max_concurrent)
+            results = {
+                "total": len(url_items),
+                "downloaded": 0,
+                "skipped": 0,
+                "failed": 0
+            }
+
+            async def download_with_semaphore(item):
+                async with semaphore:
+                    try:
+                        success = await self.download_url_item(item.id)
+                        if success:
+                            results["downloaded"] += 1
+                        else:
+                            results["failed"] += 1
+                    except Exception as e:
+                        logger.error(f"Failed to download item {item.id}: {e}")
+                        results["failed"] += 1
+
+            # Download all items
+            await asyncio.gather(*[download_with_semaphore(item) for item in url_items])
+
+            logger.info(f"Bulk download complete: {results}")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to download collection URLs: {e}")
+            return {
+                "total": 0,
+                "downloaded": 0,
+                "skipped": 0,
+                "failed": 0,
+                "error": str(e)
+            }
+
+    async def get_cache_info(self, collection_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get cache information
+
+        Args:
+            collection_id: Optional collection ID to filter by
+
+        Returns:
+            Dict with cache statistics
+        """
+        try:
+            total_size = self.downloader.get_cache_size(collection_id)
+
+            # Count cached items
+            if collection_id:
+                items = await self.get_collection_items(collection_id)
+                cached_items = len([
+                    item for item in items
+                    if item.local_path and Path(item.local_path).exists()
+                ])
+                total_items = len([item for item in items if item.type == "url"])
+            else:
+                # Count all cached items across all collections
+                collections = await self.get_all_collections()
+                cached_items = 0
+                total_items = 0
+                for collection in collections:
+                    items = await self.get_collection_items(collection.id)
+                    cached_items += len([
+                        item for item in items
+                        if item.local_path and Path(item.local_path).exists()
+                    ])
+                    total_items += len([item for item in items if item.type == "url"])
+
+            return {
+                "total_size_bytes": total_size,
+                "total_size_mb": round(total_size / (1024 * 1024), 2),
+                "cached_items": cached_items,
+                "total_url_items": total_items,
+                "cache_percentage": round((cached_items / total_items * 100) if total_items > 0 else 0, 1)
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get cache info: {e}")
+            return {
+                "total_size_bytes": 0,
+                "total_size_mb": 0.0,
+                "cached_items": 0,
+                "total_url_items": 0,
+                "cache_percentage": 0.0,
+                "error": str(e)
+            }
+
+    async def clear_cache(self, collection_id: Optional[str] = None) -> int:
+        """
+        Clear cached files
+
+        Args:
+            collection_id: Optional collection ID to clear (clears all if None)
+
+        Returns:
+            Number of files deleted
+        """
+        try:
+            # Clear files from cache directory
+            deleted_count = self.downloader.clear_cache(collection_id)
+
+            # Update items in database to remove local_path
+            if collection_id:
+                items = await self.get_collection_items(collection_id)
+            else:
+                collections = await self.get_all_collections()
+                items = []
+                for collection in collections:
+                    items.extend(await self.get_collection_items(collection.id))
+
+            for item in items:
+                if item.type == "url" and item.local_path:
+                    item.local_path = None
+                    item.metadata = {k: v for k, v in item.metadata.items()
+                                   if k not in ["cached_path", "cached_at", "file_size", "content_type", "checksum"]}
+                    item.updated_at = datetime.now()
+                    self.storage.update_item(item)
+
+            logger.info(f"Cleared {deleted_count} cached files")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Failed to clear cache: {e}")
+            return 0 
