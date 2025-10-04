@@ -455,8 +455,12 @@ class LibraryService:
                                 item_type=file_type,
                                 size=(64, 64)
                             )
+                            if icon:
+                                logger.info(f"✅ Generated icon for {entry.name}")
+                            else:
+                                logger.warning(f"⚠️ No icon generated for {entry.name} (type: {file_type})")
                         except Exception as e:
-                            logger.debug(f"Failed to generate icon for {entry.name}: {e}")
+                            logger.warning(f"❌ Failed to generate icon for {entry.name}: {e}")
 
                     # Create item data compatible with Toga DetailedList
                     # Note: 'path' should just be the entry name for navigation
