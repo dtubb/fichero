@@ -1198,16 +1198,6 @@ class CollectionView(BaseView):
         except Exception as e:
             logger.error(f"Failed to set up scroll integration: {e}")
 
-    def _add_collection_toolbar_buttons(self):
-        """Add collection-specific buttons using composition"""
-        try:
-            # Add collection specific buttons if needed
-            logger.debug("Collection toolbar buttons configured")
-
-        except Exception as e:
-            logger.error(f"Failed to add collection toolbar buttons: {e}")
-
-
     def _initialize_library_manager(self):
         """Use shared library service from app"""
         try:
