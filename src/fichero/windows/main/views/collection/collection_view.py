@@ -668,81 +668,10 @@ class CollectionView(BaseView):
     def _add_collection_toolbar_buttons(self):
         """Add collection-specific toolbar buttons"""
         try:
-            # Add Preview button for normal mode (enabled when item selected)
-            self.bottom_toolbar.add_normal_mode_button(
-                text="Preview",
-                icon="resources/icons/toolbar/preview.png",
-                on_press=self._on_preview_selected_item,
-                position="center"
-            )
-
-            logger.info("Collection toolbar buttons added successfully")
+            # No custom buttons needed - tapping items opens preview automatically
+            logger.info("Collection toolbar buttons configured")
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
-
-    def _on_preview_selected_item(self, widget):
-        """Preview/download the currently selected item"""
-        try:
-            if not hasattr(self, 'items_list') or not self.items_list:
-                logger.warning("No items list available")
-                return
-
-            if not hasattr(self.items_list, 'selection') or not self.items_list.selection:
-                self.app.main_window.info_dialog(
-                    "No Selection",
-                    "Please select an item to preview"
-                )
-                return
-
-            selected_row = self.items_list.selection
-            item_id = getattr(selected_row, 'id', None)
-
-            if not item_id:
-                logger.warning("Selected item has no ID")
-                return
-
-            logger.info(f"Preview requested for item: {item_id}")
-            asyncio.create_task(self._perform_preview_item(item_id))
-
-        except Exception as e:
-            logger.error(f"Failed to preview item: {e}")
-            self.app.main_window.error_dialog("Preview Error", str(e))
-
-    async def _perform_preview_item(self, item_id: str):
-        """Actually perform the preview operation"""
-        try:
-            # Get library service
-            if not hasattr(self.app, 'view_integration'):
-                self.app.main_window.error_dialog("Error", "Library service not available")
-                return
-
-            library_service = self.app.view_integration.library_service
-
-            # Get file (downloads if URL not cached)
-            file_path = await library_service.library_manager.get_item_file(
-                item_id,
-                download_if_url=True
-            )
-
-            if file_path and file_path.exists():
-                # Show in preview pane or open with system viewer
-                logger.info(f"File ready for preview: {file_path}")
-
-                # TODO: Integrate with preview pane if available
-                # For now, just show success message
-                self.app.main_window.info_dialog(
-                    "File Ready",
-                    f"File available at:\n{file_path}"
-                )
-            else:
-                self.app.main_window.error_dialog(
-                    "Preview Failed",
-                    "Could not retrieve file for preview"
-                )
-
-        except Exception as e:
-            logger.error(f"Failed to perform preview: {e}")
-            self.app.main_window.error_dialog("Preview Error", str(e))
 
     def _register_navigation_controller_callbacks(self):
         """Register callbacks with NavigationController for state changes"""
