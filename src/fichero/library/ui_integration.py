@@ -205,17 +205,35 @@ class LibraryUIIntegration:
             return []
     
     async def get_collection_items_for_ui(self, collection_id: str) -> List[Dict[str, Any]]:
-        """Get collection items formatted for UI display"""
+        """Get collection items formatted for UI display with icons"""
         try:
             items = await self.library_manager.get_collection_items(collection_id)
-            
+
             ui_items = []
             for item in items:
                 # Get processing history
                 history = await self.library_manager.get_processing_history(item.id)
                 latest_result = history[0] if history else None
-                
+
+                # Get icon/thumbnail for item
+                icon = await self._get_item_icon(item)
+
+                # Format subtitle with useful info
+                subtitle_parts = [item.type]
+                if item.status != "pending":
+                    subtitle_parts.append(item.status)
+                if latest_result:
+                    subtitle_parts.append(latest_result.status)
+                subtitle = " • ".join(subtitle_parts)
+
+                # Format for DetailedList (title, subtitle, icon)
                 ui_item = {
+                    # DetailedList required fields
+                    "title": item.name,
+                    "subtitle": subtitle,
+                    "icon": icon,
+
+                    # Additional data for handlers
                     "id": item.id,
                     "name": item.name,
                     "type": item.type,
@@ -227,15 +245,55 @@ class LibraryUIIntegration:
                     "updated_at": item.updated_at.isoformat(),
                     "processing_status": latest_result.status if latest_result else "not_processed",
                     "last_workflow": latest_result.workflow if latest_result else None,
-                    "last_processed": latest_result.completed_at.isoformat() if latest_result else None
+                    "last_processed": latest_result.completed_at.isoformat() if latest_result else None,
+
+                    # For compatibility with existing code
+                    "is_folder": item.type == "folder",
+                    "path": item.source_path or item.local_path or "",
+                    "file_path": item.local_path or item.source_path or ""
                 }
                 ui_items.append(ui_item)
-            
+
             return ui_items
-            
+
         except Exception as e:
             logger.error(f"Failed to get collection items for UI: {e}")
             return []
+
+    async def _get_item_icon(self, item: CollectionItem) -> str:
+        """
+        Get icon for an item (toga.Image or emoji fallback)
+
+        Args:
+            item: CollectionItem to get icon for
+
+        Returns:
+            toga.Image if thumbnail available, otherwise emoji string
+        """
+        try:
+            # Try to get actual thumbnail
+            icon = await self.library_manager.get_item_icon(item.id, size=(64, 64))
+
+            if icon:
+                return icon  # toga.Image
+
+            # Fallback to emoji based on type
+            return self._get_type_emoji(item.type)
+
+        except Exception as e:
+            logger.debug(f"Failed to get icon for item {item.id}: {e}")
+            return self._get_type_emoji(item.type)
+
+    def _get_type_emoji(self, item_type: str) -> str:
+        """Get emoji icon for item type"""
+        emoji_map = {
+            'file': '📄',
+            'folder': '📁',
+            'url': '🌐',
+            'camera': '📷',
+            'audio': '🎵'
+        }
+        return emoji_map.get(item_type, '📄')
     
     # ===== PROCESSING INTEGRATION =====
     
