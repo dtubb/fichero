@@ -16,18 +16,21 @@ try:
     from fichero.library.storage import LibraryStorage
     from fichero.library.import_export import CollectionExporter, CollectionImporter
     from fichero.library.url_downloader import URLDownloader
+    from fichero.library.icon_generator import IconGenerator
 except ImportError:
     try:
         from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
         from .storage import LibraryStorage
         from .import_export import CollectionExporter, CollectionImporter
         from .url_downloader import URLDownloader
+        from .icon_generator import IconGenerator
     except ImportError:
         # Direct import for testing
         import models
         import storage
         import import_export
         import url_downloader
+        import icon_generator
         Collection = models.Collection
         CollectionItem = models.CollectionItem
         ProcessingResult = models.ProcessingResult
@@ -36,6 +39,7 @@ except ImportError:
         CollectionExporter = import_export.CollectionExporter
         CollectionImporter = import_export.CollectionImporter
         URLDownloader = url_downloader.URLDownloader
+        IconGenerator = icon_generator.IconGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,13 @@ class LibraryManager:
         # Initialize URL downloader with cache directory
         cache_root = db_path.parent / "cache"
         self.downloader = URLDownloader(cache_root)
+
+        # Initialize icon generator with thumbnail cache
+        icon_cache_dir = db_path.parent / "thumbnails"
+        self.icon_generator = IconGenerator(icon_cache_dir)
+
+        # Store library path for file operations
+        self.library_path = db_path.parent
 
         # Collection cache
         self._collections_cache: Optional[List[Collection]] = None
@@ -323,7 +334,46 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"Failed to delete collection: {e}")
             return False
-    
+
+    async def rename_collection(self, collection_id: str, new_name: str) -> bool:
+        """
+        Rename a collection
+
+        Args:
+            collection_id: ID of collection to rename
+            new_name: New name for the collection
+
+        Returns:
+            bool: True if rename succeeded, False otherwise
+        """
+        try:
+            collection = await self.get_collection(collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {collection_id}")
+                return False
+
+            # Check for duplicate name
+            existing = await self.get_collection_by_name(new_name)
+            if existing and existing.id != collection_id:
+                logger.error(f"Collection with name '{new_name}' already exists")
+                return False
+
+            # Update name
+            collection.name = new_name.strip()
+            collection.updated_at = datetime.now()
+
+            if self.storage.update_collection(collection):
+                self._clear_cache()
+                logger.info(f"Collection renamed to: {new_name}")
+                return True
+            else:
+                logger.error(f"Failed to update collection in storage")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to rename collection: {e}")
+            return False
+
     # ===== ITEM MANAGEMENT =====
     
     async def add_item_to_collection(self, 
@@ -830,6 +880,152 @@ class LibraryManager:
 
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
+            return 0
+
+    # ===== FILE AND ICON OPERATIONS =====
+
+    async def get_item_file(self, item_id: str, download_if_url: bool = True) -> Optional[Path]:
+        """
+        Get file path for an item, downloading URL if needed
+
+        Args:
+            item_id: ID of the item
+            download_if_url: If True, download and cache URL items
+
+        Returns:
+            Path to file or None if not available
+        """
+        try:
+            item = self.storage.get_item(item_id)
+            if not item:
+                logger.error(f"Item not found: {item_id}")
+                return None
+
+            # For file and folder items, return source or local path
+            if item.type in ["file", "folder"]:
+                if item.local_path and Path(item.local_path).exists():
+                    return Path(item.local_path)
+                elif item.source_path and Path(item.source_path).exists():
+                    return Path(item.source_path)
+                else:
+                    logger.warning(f"File not found for item {item_id}")
+                    return None
+
+            # For URL items, check cache or download
+            if item.type == "url":
+                # Check if already cached
+                if item.local_path and Path(item.local_path).exists():
+                    return Path(item.local_path)
+
+                # Download if requested
+                if download_if_url and item.source_path:
+                    logger.info(f"Downloading URL for item {item_id}")
+                    success = await self.download_url_item(item_id)
+                    if success:
+                        # Reload item to get updated local_path
+                        item = self.storage.get_item(item_id)
+                        if item and item.local_path and Path(item.local_path).exists():
+                            return Path(item.local_path)
+
+                return None
+
+            logger.warning(f"Unsupported item type: {item.type}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get file for item {item_id}: {e}")
+            return None
+
+    async def get_item_icon(self, item_id: str, size: tuple = None) -> Optional['toga.Image']:
+        """
+        Get icon/thumbnail for an item
+
+        Args:
+            item_id: ID of the item
+            size: Optional (width, height) for icon size
+
+        Returns:
+            toga.Image or None
+        """
+        try:
+            item = self.storage.get_item(item_id)
+            if not item:
+                logger.error(f"Item not found: {item_id}")
+                return None
+
+            # Get file path (prefer cached for URLs)
+            file_path = None
+            if item.local_path and Path(item.local_path).exists():
+                file_path = item.local_path
+            elif item.source_path and Path(item.source_path).exists():
+                file_path = item.source_path
+
+            # Generate icon
+            return self.icon_generator.get_item_icon(file_path, item.type, size)
+
+        except Exception as e:
+            logger.error(f"Failed to get icon for item {item_id}: {e}")
+            return None
+
+    async def get_collection_icon(self, collection_id: str, size: tuple = None) -> Optional['toga.Image']:
+        """
+        Get icon for a collection (uses first image item)
+
+        Args:
+            collection_id: ID of the collection
+            size: Optional (width, height) for icon size
+
+        Returns:
+            toga.Image or None
+        """
+        try:
+            collection = self.storage.get_collection(collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {collection_id}")
+                return None
+
+            # Get first image item for icon
+            items = await self.get_collection_items(collection_id)
+            for item in items:
+                # Try to get icon from first available image
+                icon = await self.get_item_icon(item.id, size)
+                if icon:
+                    return icon
+
+            # No items or no images, return default collection icon
+            return self.icon_generator._get_default_icon('folder')
+
+        except Exception as e:
+            logger.error(f"Failed to get collection icon: {e}")
+            return None
+
+    async def preload_thumbnails(self, collection_id: str) -> int:
+        """
+        Pre-generate thumbnails for all items in a collection
+
+        Args:
+            collection_id: ID of the collection
+
+        Returns:
+            Number of thumbnails generated
+        """
+        try:
+            items = await self.get_collection_items(collection_id)
+            generated = 0
+
+            for item in items:
+                try:
+                    icon = await self.get_item_icon(item.id)
+                    if icon:
+                        generated += 1
+                except Exception as e:
+                    logger.warning(f"Failed to generate thumbnail for item {item.id}: {e}")
+
+            logger.info(f"Pre-generated {generated} thumbnails for collection {collection_id}")
+            return generated
+
+        except Exception as e:
+            logger.error(f"Failed to preload thumbnails: {e}")
             return 0
 
     async def export_collection(self, collection_id: str, output_path: Path) -> bool:
