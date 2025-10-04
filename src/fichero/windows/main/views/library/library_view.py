@@ -1287,6 +1287,14 @@ class LibraryView(BaseView):
 
             # Add import-specific buttons to bottom toolbar
             if self.coordinator.bottom_toolbar:
+                # Add bulk import button (text file or zip)
+                self.coordinator.bottom_toolbar.add_edit_mode_button(
+                    text="Bulk",
+                    icon="resources/icons/toolbar/document.png",
+                    on_press=self._on_import_bulk,
+                    position="center"
+                )
+
                 # Add URL import button
                 self.coordinator.bottom_toolbar.add_edit_mode_button(
                     text="URLs",
@@ -1522,6 +1530,32 @@ class LibraryView(BaseView):
         except Exception as e:
             logger.error(f"Failed to open URL import: {e}")
 
+    def _on_import_bulk(self, widget=None):
+        """Handle bulk import - navigate to Bulk Import view"""
+        try:
+            logger.info("Bulk import requested")
+            # Use navigation controller to show Bulk Import view
+            from fichero.windows.add.views.bulk_import_view import BulkImportView
+
+            bulk_view = BulkImportView(
+                app=self.app,
+                on_content_added=self._on_bulk_import_added
+            )
+
+            # Navigate to Bulk Import view
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Push Bulk Import view onto navigation stack
+                    nav_controller.push_view(bulk_view, "Bulk Import")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open bulk import: {e}")
+
     def _on_import_files(self, widget=None):
         """Handle file import - navigate to File add view"""
         try:
@@ -1695,6 +1729,25 @@ class LibraryView(BaseView):
 
         except Exception as e:
             logger.error(f"Failed to create collection from files: {e}")
+
+    async def _on_bulk_import_added(self, data: dict):
+        """Callback when bulk import is completed
+
+        Args:
+            data: Dict with 'collection_id', 'collection_name', 'item_count'
+        """
+        try:
+            collection_id = data.get('collection_id')
+            collection_name = data.get('collection_name')
+            item_count = data.get('item_count', 0)
+
+            logger.info(f"Bulk import completed: {collection_name} with {item_count} items")
+
+            # Refresh library to show new collection
+            await self._refresh_collections()
+
+        except Exception as e:
+            logger.error(f"Failed to handle bulk import completion: {e}")
 
     async def _on_folders_added(self, data: dict):
         """Callback when folders are added from Folder view

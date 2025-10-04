@@ -34,29 +34,16 @@ class BulkImportCommands(BaseLibraryCommands):
             validate_urls: bool = typer.Option(True, "--validate", help="Validate URLs before adding"),
             skip_duplicates: bool = typer.Option(True, "--skip-duplicates", help="Skip duplicate URLs/paths")
         ):
-            """Bulk import from text file containing URLs, URIs, or paths"""
+            """Bulk import from text file containing URLs, URIs, or paths.
+
+            Smart auto-detection:
+            - Lines starting with http/https/ftp are treated as URLs
+            - All other lines are treated as file/folder paths
+            - Use --type=url to create URL-only collection
+            - Use --type=local/external for path-only collection
+            - Use --type=hybrid (default) for mixed content
+            """
             asyncio.run(self._bulk_import(text_file, collection_name, collection_type, description, max_concurrent, validate_urls, skip_duplicates))
-        
-        @app.command(name="import-urls", help="Import URLs directly as URL collection (no downloading)")
-        def import_urls(
-            text_file: Path = typer.Argument(..., help="Text file containing URLs (one per line)"),
-            collection_name: str = typer.Argument(..., help="Name for the collection"),
-            description: str = typer.Option("", "--description", "-d", help="Description for the collection"),
-            validate_urls: bool = typer.Option(True, "--validate", help="Validate URLs before adding")
-        ):
-            """Import URLs directly as URL collection (no downloading)"""
-            asyncio.run(self._import_urls(text_file, collection_name, description, validate_urls))
-        
-        @app.command(name="import-paths", help="Import local/external paths from text file")
-        def import_paths(
-            text_file: Path = typer.Argument(..., help="Text file containing paths (one per line)"),
-            collection_name: str = typer.Argument(..., help="Name for the collection"),
-            collection_type: str = typer.Option("external", "--type", "-t", help="Collection type: local, external"),
-            description: str = typer.Option("", "--description", "-d", help="Description for the collection"),
-            validate_paths: bool = typer.Option(True, "--validate", help="Validate paths before adding")
-        ):
-            """Import local/external paths from text file"""
-            asyncio.run(self._import_paths(text_file, collection_name, collection_type, description, validate_paths))
 
         @app.command(name="import-clipboard", help="Import URLs from clipboard (mobile-friendly)")
         def import_clipboard(
@@ -145,105 +132,6 @@ class BulkImportCommands(BaseLibraryCommands):
             
         except Exception as e:
             self.console.print(f"[red]Failed to bulk import: {e}[/red]")
-    
-    async def _import_urls(self, text_file: Path, collection_name: str, description: str, validate_urls: bool):
-        """Import URLs directly as URL collection"""
-        try:
-            # Read text file
-            if not text_file.exists():
-                self.console.print(f"[red]Text file not found: {text_file}[/red]")
-                return
-            
-            async with aiofiles.open(text_file, 'r') as f:
-                content = await f.read()
-            
-            urls = [line.strip() for line in content.split('\n') if line.strip() and line.startswith(('http://', 'https://', 'ftp://'))]
-            
-            if not urls:
-                self.console.print("[yellow]No valid URLs found in text file[/yellow]")
-                return
-            
-            self.console.print(f"[blue]Found {len(urls)} URLs in text file[/blue]")
-            
-            # Create URL collection
-            collection_id = await self.library_manager.add_collection(
-                name=collection_name,
-                collection_type="url",
-                description=description,
-                metadata={
-                    'bulk_imported': True,
-                    'source_file': str(text_file),
-                    'url_count': len(urls)
-                }
-            )
-            
-            if not collection_id:
-                self.console.print("[red]Failed to create collection[/red]")
-                return
-            
-            self.console.print(f"[green]✅ URL collection '{collection_name}' created with ID: {collection_id}[/green]")
-            
-            # Add URLs as items
-            await self._process_urls(collection_id, urls, validate_urls, True, 10)
-            
-            # Show final stats
-            items = await self.library_manager.get_collection_items(collection_id)
-            self.console.print(f"[green]✅ URL import complete! Added {len(items)} URL items[/green]")
-            
-        except Exception as e:
-            self.console.print(f"[red]Failed to import URLs: {e}[/red]")
-    
-    async def _import_paths(self, text_file: Path, collection_name: str, collection_type: str, description: str, validate_paths: bool):
-        """Import paths from text file"""
-        try:
-            # Validate collection type
-            if collection_type not in ["local", "external"]:
-                self.console.print("[red]Collection type must be 'local' or 'external' for path import[/red]")
-                return
-            
-            # Read text file
-            if not text_file.exists():
-                self.console.print(f"[red]Text file not found: {text_file}[/red]")
-                return
-            
-            async with aiofiles.open(text_file, 'r') as f:
-                content = await f.read()
-            
-            paths = [line.strip() for line in content.split('\n') if line.strip() and not line.startswith(('http://', 'https://', 'ftp://'))]
-            
-            if not paths:
-                self.console.print("[yellow]No valid paths found in text file[/yellow]")
-                return
-            
-            self.console.print(f"[blue]Found {len(paths)} paths in text file[/blue]")
-            
-            # Create collection
-            collection_id = await self.library_manager.add_collection(
-                name=collection_name,
-                collection_type=collection_type,
-                description=description,
-                metadata={
-                    'bulk_imported': True,
-                    'source_file': str(text_file),
-                    'path_count': len(paths)
-                }
-            )
-            
-            if not collection_id:
-                self.console.print("[red]Failed to create collection[/red]")
-                return
-            
-            self.console.print(f"[green]✅ Path collection '{collection_name}' created with ID: {collection_id}[/green]")
-            
-            # Process paths
-            await self._process_paths(collection_id, paths, True, validate_paths)
-            
-            # Show final stats
-            items = await self.library_manager.get_collection_items(collection_id)
-            self.console.print(f"[green]✅ Path import complete! Added {len(items)} path items[/green]")
-            
-        except Exception as e:
-            self.console.print(f"[red]Failed to import paths: {e}[/red]")
     
     async def _process_urls(self, collection_id: str, urls: List[str], validate_urls: bool, skip_duplicates: bool, max_concurrent: int):
         """Process URLs and add them as items"""
