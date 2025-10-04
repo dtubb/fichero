@@ -260,40 +260,24 @@ class LibraryUIIntegration:
             logger.error(f"Failed to get collection items for UI: {e}")
             return []
 
-    async def _get_item_icon(self, item: CollectionItem) -> str:
+    async def _get_item_icon(self, item: CollectionItem):
         """
-        Get icon for an item (toga.Image or emoji fallback)
+        Get icon for an item (toga.Image or None)
 
         Args:
             item: CollectionItem to get icon for
 
         Returns:
-            toga.Image if thumbnail available, otherwise emoji string
+            toga.Image if thumbnail available, otherwise None
         """
         try:
             # Try to get actual thumbnail
             icon = await self.library_manager.get_item_icon(item.id, size=(64, 64))
-
-            if icon:
-                return icon  # toga.Image
-
-            # Fallback to emoji based on type
-            return self._get_type_emoji(item.type)
+            return icon  # toga.Image or None
 
         except Exception as e:
             logger.debug(f"Failed to get icon for item {item.id}: {e}")
-            return self._get_type_emoji(item.type)
-
-    def _get_type_emoji(self, item_type: str) -> str:
-        """Get emoji icon for item type"""
-        emoji_map = {
-            'file': '📄',
-            'folder': '📁',
-            'url': '🌐',
-            'camera': '📷',
-            'audio': '🎵'
-        }
-        return emoji_map.get(item_type, '📄')
+            return None
     
     # ===== PROCESSING INTEGRATION =====
     

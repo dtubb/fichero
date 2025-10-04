@@ -676,14 +676,6 @@ class CollectionView(BaseView):
                 position="center"
             )
 
-            # Add Download All URLs button for edit mode (for URL collections)
-            self.bottom_toolbar.add_edit_mode_button(
-                text="Download All",
-                icon="resources/icons/toolbar/download.png",
-                on_press=self._on_download_all_urls,
-                position="center"
-            )
-
             logger.info("Collection toolbar buttons added successfully")
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
@@ -751,53 +743,6 @@ class CollectionView(BaseView):
         except Exception as e:
             logger.error(f"Failed to perform preview: {e}")
             self.app.main_window.error_dialog("Preview Error", str(e))
-
-    def _on_download_all_urls(self, widget):
-        """Download all URLs in the collection"""
-        try:
-            if not self.collection_id:
-                logger.warning("No collection selected")
-                return
-
-            logger.info(f"Download all URLs requested for collection: {self.collection_id}")
-            asyncio.create_task(self._perform_download_all_urls())
-
-        except Exception as e:
-            logger.error(f"Failed to download all URLs: {e}")
-            self.app.main_window.error_dialog("Download Error", str(e))
-
-    async def _perform_download_all_urls(self):
-        """Actually perform bulk URL download"""
-        try:
-            # Get library service
-            if not hasattr(self.app, 'view_integration'):
-                self.app.main_window.error_dialog("Error", "Library service not available")
-                return
-
-            library_service = self.app.view_integration.library_service
-
-            # Download all URLs in collection
-            result = await library_service.library_manager.download_collection_urls(
-                self.collection_id
-            )
-
-            if result:
-                self.app.main_window.info_dialog(
-                    "Download Complete",
-                    f"Downloaded {result['downloaded']} of {result['total']} URLs"
-                )
-
-                # Refresh item list to show cached status
-                await self._load_collection_items()
-            else:
-                self.app.main_window.error_dialog(
-                    "Download Failed",
-                    "Failed to download URLs"
-                )
-
-        except Exception as e:
-            logger.error(f"Failed to perform download all: {e}")
-            self.app.main_window.error_dialog("Download Error", str(e))
 
     def _register_navigation_controller_callbacks(self):
         """Register callbacks with NavigationController for state changes"""
