@@ -442,10 +442,22 @@ class LibraryService:
                     # Skip hidden files (starting with .)
                     if entry.name.startswith('.') and entry.name not in ['..']:
                         continue
-                    
-                    # Get file type and icon
-                    file_type, icon = self._get_file_type_and_icon(entry)
-                    
+
+                    # Get file type
+                    file_type, _ = self._get_file_type_and_icon(entry)
+
+                    # Generate icon using library backend icon_generator
+                    icon = None
+                    if entry.is_file() and hasattr(self.library_manager, 'icon_generator'):
+                        try:
+                            icon = self.library_manager.icon_generator.get_item_icon(
+                                item_path=str(entry.absolute()),
+                                item_type=file_type,
+                                size=(64, 64)
+                            )
+                        except Exception as e:
+                            logger.debug(f"Failed to generate icon for {entry.name}: {e}")
+
                     # Create item data compatible with Toga DetailedList
                     # Note: 'path' should just be the entry name for navigation
                     # The collection view handles the full path construction
@@ -453,13 +465,13 @@ class LibraryService:
                         'id': entry.name,
                         'title': entry.name,
                         'subtitle': self._get_item_subtitle(entry, file_type),
-                        'icon': icon,
+                        'icon': icon,  # toga.Image or None
                         'type': file_type,
                         'is_folder': entry.is_dir(),
                         'path': entry.name,  # Just the name, not full path
                         'file_path': str(entry.absolute()) if entry.is_file() else ''
                     }
-                    
+
                     items.append(item_data)
                     
                 except (OSError, PermissionError) as e:
