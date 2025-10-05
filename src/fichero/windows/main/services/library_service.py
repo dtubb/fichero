@@ -195,17 +195,33 @@ class LibraryService:
             
             # Convert to Toga DetailedList format
             toga_collections = []
+
+            # Load collection icon once (reuse for all collections)
+            collection_icon = None
+            try:
+                import toga
+                folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                logger.info(f"Looking for collection icon at: {folder_icon_path}")
+                logger.info(f"Icon path exists: {folder_icon_path.exists()}")
+                if folder_icon_path.exists():
+                    collection_icon = toga.Image(str(folder_icon_path))
+                    logger.info(f"✅ Loaded collection icon: {collection_icon}")
+                else:
+                    logger.warning(f"❌ Collection icon not found at: {folder_icon_path}")
+            except Exception as e:
+                logger.error(f"Could not load collection icon: {e}", exc_info=True)
+
             for collection in collections:
                 # Get item count
                 items = self.library_manager.storage.get_collection_items(collection.id)
                 item_count = len(items)
-                
+
                 # Create Toga DetailedList compatible data
                 collection_data = {
                     # Toga DetailedList attributes
                     'title': collection.name,
                     'subtitle': f"{item_count} items • {collection.type}",
-                    'icon': "📁",  # Collection icon
+                    'icon': collection_icon,  # Collection icon from resources
                     
                     # Additional data for navigation
                     'id': collection.id,
@@ -446,21 +462,9 @@ class LibraryService:
                     # Get file type
                     file_type, _ = self._get_file_type_and_icon(entry)
 
-                    # Generate icon using library backend icon_generator
-                    icon = None
-                    if entry.is_file() and hasattr(self.library_manager, 'icon_generator'):
-                        try:
-                            icon = self.library_manager.icon_generator.get_item_icon(
-                                item_path=str(entry.absolute()),
-                                item_type=file_type,
-                                size=(64, 64)
-                            )
-                            if icon:
-                                logger.info(f"✅ Generated icon for {entry.name}")
-                            else:
-                                logger.warning(f"⚠️ No icon generated for {entry.name} (type: {file_type})")
-                        except Exception as e:
-                            logger.warning(f"❌ Failed to generate icon for {entry.name}: {e}")
+                    # Get icon from library (don't generate to avoid UI freezing)
+                    # Only load cached thumbnails and static folder icons
+                    icon = self.library_manager.get_filesystem_icon(entry, generate=False)
 
                     # Create item data compatible with Toga DetailedList
                     # Note: 'path' should just be the entry name for navigation

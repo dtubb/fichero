@@ -165,9 +165,16 @@ class TopToolbar(BaseToolbar):
         return "‹"
 
     def _add_contextual_title(self) -> None:
-        """Add context-aware title from NavigationController"""
+        """Add context-aware title from NavigationController (mobile only)"""
         try:
-            # Get title and visibility from NavigationController
+            # On desktop, title is shown in window title bar, not toolbar
+            # On mobile, we need the title in the toolbar for navigation context
+            logger.info(f"🔍 _add_contextual_title called: is_mobile={self.is_mobile}")
+            if not self.is_mobile:
+                logger.info("✅ Desktop mode: skipping toolbar title (shown in window title bar)")
+                return
+
+            # Mobile: Get title and visibility from NavigationController
             if hasattr(self.app, 'view_integration') and hasattr(self.app.view_integration, 'navigation_controller'):
                 nav_controller = self.app.view_integration.navigation_controller
 
@@ -221,7 +228,7 @@ class TopToolbar(BaseToolbar):
         try:
             # Create edit button with right-aligned styling using base toolbar's system
             self.edit_button = self.create_button(
-                text="Edit",
+                text=_("Edit"),
                 on_press=self._on_edit_pressed,
                 style_class="right_aligned"  # Use proper right-aligned style
             )
@@ -229,7 +236,7 @@ class TopToolbar(BaseToolbar):
 
             # Create done button with left-aligned styling for edit mode
             self.done_button = self.create_button(
-                text="Done",
+                text=_("Done"),
                 on_press=self._on_done_pressed,
                 style_class="default"  # Standard styling for left side
             )
@@ -325,11 +332,13 @@ class TopToolbar(BaseToolbar):
                         # Support both text and icon buttons
                         button_text = action.get("text", None)
                         button_icon = action.get("icon", None)
+                        button_label = action.get("label", None)
                         button = self.add_button_right(
                             text=button_text,  # Use text if provided
                             icon=button_icon,  # Use icon if provided
                             on_press=self._create_top_edit_button_handler(action["id"]),
-                            button_id=f"edit_{action['id']}"
+                            button_id=f"edit_{action['id']}",
+                            label=button_label  # Add label if provided
                         )
                         logger.debug(f"Button {i+1} added to toolbar successfully")
 

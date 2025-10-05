@@ -15,6 +15,7 @@ from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigati
 from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
+from fichero.windows.main.views.output.output_view import OutputView
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class MainWindow:
         self.is_mobile = app.is_mobile
 
         # Window
-        self.window: Optional[toga.MainWindow] = None
+        self.window: Optional[toga.Window] = None
 
         # Simple view containers
         self.main_container: Optional[toga.Box] = None
@@ -45,6 +46,7 @@ class MainWindow:
 
         # Cached views to maintain state
         self.cached_library_view: Optional[LibraryView] = None
+        self.cached_output_view: Optional[OutputView] = None
 
         # Collection view cache - key by collection_id to prevent duplicates
         self.cached_collection_views: Dict[str, CollectionView] = {}
@@ -80,7 +82,7 @@ class MainWindow:
         """Create the main window"""
         try:
             self.window = toga.MainWindow(
-                title="Fichero",
+                title=self.app.formal_name,  # Set window title
                 size=self._get_window_size()
             )
 
@@ -153,11 +155,12 @@ class MainWindow:
                 )
             )
 
-            # Center pane for collection
+            # Center pane for collection (same width as library pane)
             self.center_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=1,
+                    flex=0,
+                    width=300,
                     background_color="#FFFFFF"
                 )
             )
@@ -339,24 +342,56 @@ class MainWindow:
             logger.error(f"Failed to handle show collection event: {e}")
 
     def _on_show_preview(self, event):
-        """Handle show preview event"""
+        """Handle show preview event - now shows OutputView"""
         try:
             data = event.data
             file_path = data.get('file_path')
             file_metadata = data.get('file_metadata', {})
+            collection_items = data.get('collection_items', [])
+            item_index = data.get('item_index', 0)
 
-            logger.info(f"Event: Show preview {file_path}")
+            logger.info(f"Event: Show output for {file_path}")
 
-            # Create preview view
-            from fichero.windows.main.layout.preview_pane import PreviewPane
-            preview_pane = PreviewPane(self.app, self.is_mobile)
-            preview_pane.display_document(file_path, file_metadata)
+            # Create or reuse OutputView
+            if not self.cached_output_view:
+                self.cached_output_view = OutputView(self.app, self.is_mobile)
+                logger.debug("Created new OutputView")
+
+            # Get collection items from current center view if not provided
+            if not collection_items:
+                # The center view is stored in self.current_view (from _show_view_desktop)
+                center_view = self.current_view if hasattr(self, 'current_view') else None
+                logger.info(f"📋 Getting collection items from center view: {center_view}")
+                if center_view and hasattr(center_view, 'collection_items'):
+                    collection_items = center_view.collection_items
+                    logger.info(f"📋 Found {len(collection_items)} items in collection_items")
+                else:
+                    logger.warning(f"📋 No collection_items found on center view")
+
+            # Convert collection items to source file paths
+            from pathlib import Path
+            source_files = []
+            source_index = 0
+
+            if collection_items:
+                for i, item in enumerate(collection_items):
+                    item_file_path = item.get('file_path') or item.get('path')
+                    if item_file_path:
+                        source_files.append(Path(item_file_path))
+                        # Track which index matches our current file
+                        if str(item_file_path) == str(file_path):
+                            source_index = i
+
+                logger.info(f"📋 Extracted {len(source_files)} source files, current index={source_index}")
+
+            # Load the output with source files for navigation
+            self.cached_output_view.load_output(Path(file_path), source_files, source_index)
 
             # Show in appropriate pane
             if self.is_mobile:
-                self._show_view_mobile("preview", preview_pane)
+                self._show_view_mobile("output", self.cached_output_view)
             else:
-                self._show_view_desktop("preview", preview_pane, "right")
+                self._show_view_desktop("output", self.cached_output_view, "right")
 
         except Exception as e:
             logger.error(f"Failed to handle show preview event: {e}")
@@ -375,28 +410,61 @@ class MainWindow:
                 logger.error(f"No view provided for modal {modal_type}")
                 return
 
-            # For desktop (non-mobile), create a new window for the modal
+            # For desktop (non-mobile), create a standalone window (not modal)
+            # Only rename/delete dialogs should be truly modal
             if not self.is_mobile:
-                modal_size = self._get_modal_size(modal_type)
-                modal_window = toga.Window(
+                window_size = self._get_modal_size(modal_type)
+                is_dialog = modal_type in ['collection', 'rename', 'delete']
+
+                standalone_window = toga.Window(
                     title=self._get_modal_title(modal_type),
-                    size=modal_size,
-                    minimizable=False,
-                    resizable=False,
-                    closable=False
+                    size=window_size,
+                    minimizable=not is_dialog,  # Dialogs can't minimize
+                    resizable=not is_dialog,    # Dialogs can't resize
+                    closable=True
                 )
 
                 # Set the view content in the window
                 container = view.get_container() if hasattr(view, 'get_container') else view
-                modal_window.content = container
+
+                # For standalone windows, temporarily remove toolbars (they have window chrome)
+                removed_top = None
+                removed_bottom = None
+                if hasattr(view, 'container') and view.container:
+                    if hasattr(view, 'top_toolbar_container') and view.top_toolbar_container:
+                        try:
+                            view.container.remove(view.top_toolbar_container)
+                            removed_top = view.top_toolbar_container
+                            logger.debug(f"Removed top toolbar for standalone window {modal_type}")
+                        except Exception as e:
+                            logger.debug(f"Could not remove top toolbar: {e}")
+
+                    if hasattr(view, 'bottom_toolbar_container') and view.bottom_toolbar_container:
+                        try:
+                            view.container.remove(view.bottom_toolbar_container)
+                            removed_bottom = view.bottom_toolbar_container
+                            logger.debug(f"Removed bottom toolbar for standalone window {modal_type}")
+                        except Exception as e:
+                            logger.debug(f"Could not remove bottom toolbar: {e}")
+
+                standalone_window.content = container
+
+                # Store removed toolbars on the view for potential restoration
+                if removed_top or removed_bottom:
+                    view._desktop_removed_toolbars = {
+                        'top': removed_top,
+                        'bottom': removed_bottom
+                    }
 
                 # Set the window reference on the view for closing
                 if hasattr(view, 'set_modal_window'):
-                    view.set_modal_window(modal_window)
+                    view.set_modal_window(standalone_window)
 
-                # Show the window
-                modal_window.show()
-                logger.info(f"Modal {modal_type} shown in desktop window")
+                # Show the window (non-blocking for standalone windows, blocking for dialogs)
+                standalone_window.show()
+
+                window_type = "dialog" if is_dialog else "standalone window"
+                logger.info(f"{modal_type} shown as {window_type} on desktop")
             else:
                 # Mobile is handled by NavigationController's _show_modal_overlay
                 logger.info(f"Modal {modal_type} handled by NavigationController overlay")
@@ -405,40 +473,60 @@ class MainWindow:
             logger.error(f"Failed to handle show modal event: {e}")
 
     def _get_modal_title(self, modal_type: str) -> str:
-        """Get user-friendly title for modal windows"""
-        title_map = {
-            'settings': 'Settings',
-            'activity_monitor': 'Activity Monitor',
-            'processing': 'Processing',
-            'plans': 'Plans',
-            'prompts': 'Prompts',
-            'about': 'About Fichero',
-            'url': 'Add URL',
-            'website': 'Add Website',
-            'file': 'Add File',
-            'folder': 'Add Folder',
-            'camera': 'Add Camera',
-            'collection': 'Rename'
-        }
-        return title_map.get(modal_type, modal_type.title())
+        """Get user-friendly title for modal windows with translation support"""
+        # Use the globally installed _() function from gettext.install()
+        try:
+            title_map = {
+                'settings': _('preferences_title'),
+                'activity_monitor': _('activity_monitor_title'),
+                'processing': _('document_processing'),
+                'plans': _('menu_plans'),
+                'prompts': _('menu_prompts'),
+                'about': _('about_window_title'),
+                'url': _('Add URL'),
+                'website': _('Add Website'),
+                'file': _('Add File'),
+                'folder': _('Add Folder'),
+                'camera': _('Add Picture'),
+                'collection': _('Rename')
+            }
+            return title_map.get(modal_type, modal_type.title())
+        except NameError:
+            # Fallback if _ is not defined
+            logger.warning("Translation function _ not available, using English fallbacks")
+            fallback_map = {
+                'settings': 'Settings',
+                'activity_monitor': 'Activity Monitor',
+                'processing': 'Processing',
+                'plans': 'Plans',
+                'prompts': 'Prompts',
+                'about': 'About Fichero',
+                'url': 'Add URL',
+                'website': 'Add Website',
+                'file': 'Add File',
+                'folder': 'Add Folder',
+                'camera': 'Add Picture',
+                'collection': 'Rename'
+            }
+            return fallback_map.get(modal_type, modal_type.title())
 
     def _get_modal_size(self, modal_type: str) -> tuple:
         """Get appropriate size for modal windows based on type"""
         size_map = {
-            'settings': (600, 400),
-            'activity_monitor': (600, 400),
-            'processing': (600, 400),
-            'plans': (600, 400),
-            'prompts': (600, 400),
-            'about': (500, 300),
-            'url': (500, 300),
-            'website': (500, 300),
-            'file': (500, 300),
-            'folder': (500, 300),
-            'camera': (500, 300),
-            'collection': (350, 150)  # Smaller for simple rename dialog
+            'settings': (700, 600),
+            'activity_monitor': (800, 600),
+            'processing': (700, 600),
+            'plans': (700, 600),
+            'prompts': (700, 600),
+            'about': (300, 400),
+            'url': (600, 500),
+            'website': (800, 600),
+            'file': (600, 500),
+            'folder': (600, 500),
+            'camera': (600, 500),
+            'collection': (400, 200)  # Smaller for simple rename dialog
         }
-        return size_map.get(modal_type, (600, 400))
+        return size_map.get(modal_type, (700, 600))
 
     def _on_navigation_error(self, event):
         """Handle navigation error event"""

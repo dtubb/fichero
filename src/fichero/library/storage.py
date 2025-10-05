@@ -11,11 +11,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 try:
-    from fichero.library.models import Collection, CollectionItem, ProcessingResult, ExternalPath
+    from fichero.library.models import Collection, CollectionItem, ProcessingResult, ExternalPath, ThumbnailRecord
 except ImportError:
     try:
         # Fallback for direct testing
-        from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
+        from .models import Collection, CollectionItem, ProcessingResult, ExternalPath, ThumbnailRecord
     except ImportError:
         # Direct import for testing
         import models
@@ -23,6 +23,7 @@ except ImportError:
         CollectionItem = models.CollectionItem
         ProcessingResult = models.ProcessingResult
         ExternalPath = models.ExternalPath
+        ThumbnailRecord = models.ThumbnailRecord
 
 logger = logging.getLogger(__name__)
 
@@ -116,11 +117,26 @@ class LibraryStorage:
                         FOREIGN KEY (collection_id) REFERENCES collections(id)
                     )
                 """)
-                
+
+                # Thumbnails tracking table for deduplication
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS thumbnails (
+                        id TEXT PRIMARY KEY,
+                        source_file_hash TEXT NOT NULL,
+                        thumbnail_hash TEXT NOT NULL,
+                        thumbnail_path TEXT NOT NULL,
+                        size TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        last_accessed TEXT NOT NULL
+                    )
+                """)
+
                 # Create indexes for performance
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_history_item_id ON processing_history(item_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_external_paths_collection_id ON external_paths(collection_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_thumbnails_source_hash ON thumbnails(source_file_hash, size)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_thumbnails_hash ON thumbnails(thumbnail_hash)")
                 
                 conn.commit()
                 logger.info("Library database initialized successfully")
@@ -591,4 +607,192 @@ class LibraryStorage:
                 return json.loads(items_str)
             return []
         except Exception:
-            return [] 
+            return []
+
+    # Thumbnail tracking methods
+
+    def add_thumbnail(self, thumbnail: ThumbnailRecord) -> bool:
+        """Add a thumbnail record to storage"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    INSERT INTO thumbnails
+                    (id, source_file_hash, thumbnail_hash, thumbnail_path, size, created_at, last_accessed)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    thumbnail.id,
+                    thumbnail.source_file_hash,
+                    thumbnail.thumbnail_hash,
+                    thumbnail.thumbnail_path,
+                    thumbnail.size,
+                    thumbnail.created_at.isoformat(),
+                    thumbnail.last_accessed.isoformat()
+                ))
+
+                conn.commit()
+                logger.debug(f"Thumbnail record added: {thumbnail.thumbnail_path}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add thumbnail record: {e}")
+            return False
+
+    def get_thumbnail(self, source_file_hash: str, size: str) -> Optional[ThumbnailRecord]:
+        """Get thumbnail record by source file hash and size"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, source_file_hash, thumbnail_hash, thumbnail_path, size, created_at, last_accessed
+                    FROM thumbnails WHERE source_file_hash = ? AND size = ?
+                """, (source_file_hash, size))
+
+                row = cursor.fetchone()
+                if row:
+                    thumbnail = ThumbnailRecord(
+                        id=row[0],
+                        source_file_hash=row[1],
+                        thumbnail_hash=row[2],
+                        thumbnail_path=row[3],
+                        size=row[4],
+                        created_at=datetime.fromisoformat(row[5]),
+                        last_accessed=datetime.fromisoformat(row[6])
+                    )
+                    return thumbnail
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to get thumbnail record: {e}")
+            return None
+
+    def get_thumbnail_by_id(self, thumbnail_id: str) -> Optional[ThumbnailRecord]:
+        """Get thumbnail record by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, source_file_hash, thumbnail_hash, thumbnail_path, size, created_at, last_accessed
+                    FROM thumbnails WHERE id = ?
+                """, (thumbnail_id,))
+
+                row = cursor.fetchone()
+                if row:
+                    thumbnail = ThumbnailRecord(
+                        id=row[0],
+                        source_file_hash=row[1],
+                        thumbnail_hash=row[2],
+                        thumbnail_path=row[3],
+                        size=row[4],
+                        created_at=datetime.fromisoformat(row[5]),
+                        last_accessed=datetime.fromisoformat(row[6])
+                    )
+                    return thumbnail
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to get thumbnail by ID: {e}")
+            return None
+
+    def update_thumbnail_access(self, thumbnail_id: str) -> bool:
+        """Update thumbnail last_accessed timestamp"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE thumbnails SET last_accessed = ? WHERE id = ?
+                """, (datetime.now().isoformat(), thumbnail_id))
+
+                conn.commit()
+                logger.debug(f"Thumbnail access updated: {thumbnail_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update thumbnail access: {e}")
+            return False
+
+    def delete_thumbnail(self, thumbnail_id: str) -> bool:
+        """Delete a thumbnail record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("DELETE FROM thumbnails WHERE id = ?", (thumbnail_id,))
+
+                conn.commit()
+                logger.debug(f"Thumbnail record deleted: {thumbnail_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete thumbnail record: {e}")
+            return False
+
+    def get_thumbnails_by_file_hash(self, source_file_hash: str) -> List[ThumbnailRecord]:
+        """Get all thumbnail records for a source file (all sizes)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, source_file_hash, thumbnail_hash, thumbnail_path, size, created_at, last_accessed
+                    FROM thumbnails WHERE source_file_hash = ?
+                """, (source_file_hash,))
+
+                thumbnails = []
+                for row in cursor.fetchall():
+                    thumbnail = ThumbnailRecord(
+                        id=row[0],
+                        source_file_hash=row[1],
+                        thumbnail_hash=row[2],
+                        thumbnail_path=row[3],
+                        size=row[4],
+                        created_at=datetime.fromisoformat(row[5]),
+                        last_accessed=datetime.fromisoformat(row[6])
+                    )
+                    thumbnails.append(thumbnail)
+
+                return thumbnails
+
+        except Exception as e:
+            logger.error(f"Failed to get thumbnails by file hash: {e}")
+            return []
+
+    def count_items_with_file_hash(self, file_hash: str, exclude_collection_id: str = None) -> int:
+        """Count how many collection items reference this file_hash
+
+        Args:
+            file_hash: The SHA256 hash of the file
+            exclude_collection_id: Optional collection ID to exclude from count
+
+        Returns:
+            Number of items that reference this file_hash
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if exclude_collection_id:
+                    # Count items with this hash EXCLUDING items from specified collection
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM collection_items
+                        WHERE json_extract(metadata, '$.file_hash') = ?
+                        AND collection_id != ?
+                    """, (file_hash, exclude_collection_id))
+                else:
+                    # Count all items with this hash
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM collection_items
+                        WHERE json_extract(metadata, '$.file_hash') = ?
+                    """, (file_hash,))
+
+                count = cursor.fetchone()[0]
+                logger.debug(f"Found {count} items with file_hash {file_hash[:8]}...")
+                return count
+
+        except Exception as e:
+            logger.error(f"Failed to count items with file hash: {e}")
+            return 0 

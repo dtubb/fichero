@@ -685,3 +685,1047 @@ msgstr "Moniteur d'Activité Global (Celery/Redis) - Appuyez sur Ctrl+C pour qui
 msgid "task_table_monitoring_stopped"
 msgstr "{mode} arrêté"
 
+# Window Titles
+msgid "Rename"
+msgstr "Renommer"
+
+msgid "➕ Add URL to Library"
+msgstr "➕ Ajouter une URL à la bibliothèque"
+
+msgid "➕ Add URLs to Library"
+msgstr "➕ Ajouter des URLs à la bibliothèque"
+
+msgid "✓ Photo captured successfully"
+msgstr "✓ Photo capturée avec succès"
+
+msgid "📷 Take Photo"
+msgstr "📷 Prendre une photo"
+
+msgid "... and %(count)d more files"
+msgstr "... et %(count)d fichiers supplémentaires"
+
+msgid "... and %(count)d more folders"
+msgstr "... et %(count)d dossiers supplémentaires"
+
+msgid "%(count)d files selected"
+msgstr "%(count)d fichiers sélectionnés"
+
+msgid "%(count)d folders selected"
+msgstr "%(count)d dossiers sélectionnés"
+
+msgid "%(count)d URLs added successfully!"
+msgstr "%(count)d URLs ajoutées avec succès!"
+
+msgid "%(count)d URLs imported from clipboard successfully!"
+msgstr "%(count)d URLs importées du presse-papiers avec succès!"
+
+msgid "1 file selected"
+msgstr "1 fichier sélectionné"
+
+msgid "1 folder selected"
+msgstr "1 dossier sélectionné"
+
+msgid "1. Click 'Select Files' to open the file browser"
+msgstr "1. Cliquez sur 'Sélectionner des fichiers' pour ouvrir le navigateur de fichiers"
+
+msgid "2. Choose one or more files to add"
+msgstr "2. Choisissez un ou plusieurs fichiers à ajouter"
+
+msgid "3. Review your selection"
+msgstr "3. Vérifiez votre sélection"
+
+msgid "4. Click 'Add to Library' to complete"
+msgstr "4. Cliquez sur 'Ajouter à la bibliothèque' pour terminer"
+
+msgid "About Fichero"
+msgstr "À propos de Fichero"
+
+msgid "activity_monitor_window_title"
+msgstr "Moniteur d'activité"
+
+msgid "Add Files to Library"
+msgstr "Ajouter des fichiers à la bibliothèque"
+
+msgid "Add Folders to Library"
+msgstr "Ajouter des dossiers à la bibliothèque"
+
+msgid "Add Photo to Library"
+msgstr "Ajouter une photo à la bibliothèque"
+
+msgid "Add Selected Files to Library"
+msgstr "Ajouter les fichiers sélectionnés à la bibliothèque"
+
+msgid "Add Selected Folders to Library"
+msgstr "Ajouter les dossiers sélectionnés à la bibliothèque"
+
+msgid "Add to Library"
+msgstr "Ajouter à la bibliothèque"
+
+msgid "Add URLs as references to your library (no files will be downloaded). Perfect for copy-paste workflow from your browser."
+msgstr "Ajoutez des URLs comme références à votre bibliothèque (aucun fichier ne sera téléchargé). Parfait pour copier-coller depuis votre navigateur."
+
+msgid "Add URLs to Library"
+msgstr "Ajouter des URLs à la bibliothèque"
+
+msgid "Add Website Content"
+msgstr "Ajouter du contenu web"
+
+msgid "Adding %(count)d URLs to library..."
+msgstr "Ajout de %(count)d URLs à la bibliothèque..."
+
+msgid "Adding files to library..."
+msgstr "Ajout de fichiers à la bibliothèque..."
+
+msgid "Adding folders to library..."
+msgstr "Ajout de dossiers à la bibliothèque..."
+
+msgid "Adding photo to library..."
+msgstr "Ajout de la photo à la bibliothèque..."
+
+msgid "Adding URL to library..."
+msgstr "Ajout de l'URL à la bibliothèque..."
+
+msgid "Adding website to library..."
+msgstr "Ajout du site web à la bibliothèque..."
+
+msgid "Browse websites and select content to add to your library."
+msgstr "Parcourez des sites web et sélectionnez du contenu à ajouter à votre bibliothèque."
+
+msgid "Camera not available on this platform"
+msgstr "Caméra non disponible sur cette plateforme"
+
+msgid "Camera permission denied"
+msgstr "Autorisation de la caméra refusée"
+
+msgid "Clipboard is empty or contains no text"
+msgstr "Le presse-papiers est vide ou ne contient pas de texte"
+
+msgid "defaults.workflow"
+msgstr "workflow par défaut"
+
+msgid "Enter a single URL:"
+msgstr "Entrez une URL unique:"
+
+msgid "Enter multiple URLs (one per line):"
+msgstr "Entrez plusieurs URLs (une par ligne):"
+
+msgid "Enter website URL (e.g., https://example.com)..."
+msgstr "Entrez l'URL du site web (ex: https://exemple.com)..."
+
+msgid "Error adding files. Please try again."
+msgstr "Erreur lors de l'ajout de fichiers. Veuillez réessayer."
+
+msgid "Error adding folders. Please try again."
+msgstr "Erreur lors de l'ajout de dossiers. Veuillez réessayer."
+
+msgid "Error adding photo. Please try again."
+msgstr "Erreur lors de l'ajout de la photo. Veuillez réessayer."
+
+msgid "Error adding URL. Please try again."
+msgstr "Erreur lors de l'ajout de l'URL. Veuillez réessayer."
+
+msgid "Error adding URLs. Please try again."
+msgstr "Erreur lors de l'ajout des URLs. Veuillez réessayer."
+
+msgid "Error adding website. Please try again."
+msgstr "Erreur lors de l'ajout du site web. Veuillez réessayer."
+
+msgid "Error capturing photo. Please try again."
+msgstr "Erreur lors de la capture de la photo. Veuillez réessayer."
+
+msgid "Error importing from clipboard. Please try manual paste."
+msgstr "Erreur lors de l'importation du presse-papiers. Veuillez coller manuellement."
+
+msgid "Error loading website"
+msgstr "Erreur lors du chargement du site web"
+
+msgid "Error selecting files. Please try again."
+msgstr "Erreur lors de la sélection de fichiers. Veuillez réessayer."
+
+msgid "Error selecting folders. Please try again."
+msgstr "Erreur lors de la sélection de dossiers. Veuillez réessayer."
+
+msgid "Failed to save photo"
+msgstr "Échec de l'enregistrement de la photo"
+
+msgid "Fichero - Process"
+msgstr "Fichero - Traiter"
+
+msgid "Fichero Activity Monitor"
+msgstr "Moniteur d'activité Fichero"
+
+msgid "Fichero Settings"
+msgstr "Paramètres Fichero"
+
+msgid "Files added successfully!"
+msgstr "Fichiers ajoutés avec succès!"
+
+msgid "Folders added successfully!"
+msgstr "Dossiers ajoutés avec succès!"
+
+msgid "Found %(count)d URLs in clipboard. Adding to library..."
+msgstr "%(count)d URLs trouvées dans le presse-papiers. Ajout à la bibliothèque..."
+
+msgid "From Clipboard"
+msgstr "Depuis le presse-papiers"
+
+msgid "Go"
+msgstr "Aller"
+
+msgid "https://example.com"
+msgstr "https://exemple.com"
+
+msgid "https://example1.com\nhttps://example2.com\nhttps://example3.com"
+msgstr "https://exemple1.com\nhttps://exemple2.com\nhttps://exemple3.com"
+
+msgid "Instructions:"
+msgstr "Instructions:"
+
+msgid "Instructions:\n1. Click 'Take Photo' to open camera\n2. Take your photo\n3. Click 'Add Photo to Library' to save"
+msgstr "Instructions:\n1. Cliquez sur 'Prendre une photo' pour ouvrir la caméra\n2. Prenez votre photo\n3. Cliquez sur 'Ajouter à la bibliothèque' pour enregistrer"
+
+msgid "label"
+msgstr "étiquette"
+
+msgid "Loading website..."
+msgstr "Chargement du site web..."
+
+msgid "Mode:"
+msgstr "Mode:"
+
+msgid "Multiple URLs"
+msgstr "URLs multiples"
+
+msgid "Navigate to a website and click 'Add to Library' to add its content to your library."
+msgstr "Naviguez vers un site web et cliquez sur 'Ajouter à la bibliothèque' pour ajouter son contenu à votre bibliothèque."
+
+msgid "No files selected"
+msgstr "Aucun fichier sélectionné"
+
+msgid "No folders selected"
+msgstr "Aucun dossier sélectionné"
+
+msgid "No photo to add"
+msgstr "Aucune photo à ajouter"
+
+msgid "No valid URLs found"
+msgstr "Aucune URL valide trouvée"
+
+msgid "No valid URLs found in clipboard"
+msgstr "Aucune URL valide trouvée dans le presse-papiers"
+
+msgid "Opening camera..."
+msgstr "Ouverture de la caméra..."
+
+msgid "Photo added successfully!"
+msgstr "Photo ajoutée avec succès!"
+
+msgid "Photo capture cancelled"
+msgstr "Capture de photo annulée"
+
+msgid "Photo captured successfully"
+msgstr "Photo capturée avec succès"
+
+msgid "Photo preview will appear here"
+msgstr "L'aperçu de la photo apparaîtra ici"
+
+msgid "Please enter a URL"
+msgstr "Veuillez entrer une URL"
+
+msgid "Please enter a valid URL"
+msgstr "Veuillez entrer une URL valide"
+
+msgid "Please enter URLs"
+msgstr "Veuillez entrer des URLs"
+
+msgid "Please navigate to a website first"
+msgstr "Veuillez d'abord naviguer vers un site web"
+
+msgid "processing_window_title"
+msgstr "Traitement"
+
+msgid "Reading clipboard..."
+msgstr "Lecture du presse-papiers..."
+
+msgid "Ready to add URLs"
+msgstr "Prêt à ajouter des URLs"
+
+msgid "Ready to browse websites"
+msgstr "Prêt à parcourir des sites web"
+
+msgid "Ready to take photo"
+msgstr "Prêt à prendre une photo"
+
+msgid "Select entire folders to add to your library. All files within the folders will be included."
+msgstr "Sélectionnez des dossiers entiers à ajouter à votre bibliothèque. Tous les fichiers dans les dossiers seront inclus."
+
+msgid "Select Files"
+msgstr "Sélectionner des fichiers"
+
+msgid "Select files from your computer to add to your library. Multiple files can be selected at once."
+msgstr "Sélectionnez des fichiers de votre ordinateur à ajouter à votre bibliothèque. Plusieurs fichiers peuvent être sélectionnés à la fois."
+
+msgid "Select Files to Add to Library"
+msgstr "Sélectionner des fichiers à ajouter à la bibliothèque"
+
+msgid "Select Folders"
+msgstr "Sélectionner des dossiers"
+
+msgid "Select Folders to Add to Library"
+msgstr "Sélectionner des dossiers à ajouter à la bibliothèque"
+
+msgid "Single URL"
+msgstr "URL unique"
+
+msgid "Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, MP4, MP3, ZIP, and more"
+msgstr "Formats supportés: PDF, DOC, DOCX, TXT, JPG, PNG, MP4, MP3, ZIP, et plus"
+
+msgid "Take Picture"
+msgstr "Prendre une photo"
+
+msgid "Taking photo..."
+msgstr "Prise de photo en cours..."
+
+msgid "title"
+msgstr "titre"
+
+msgid "URL added successfully!"
+msgstr "URL ajoutée avec succès!"
+
+msgid "Use your device's camera to take a photo and add it to your library."
+msgstr "Utilisez la caméra de votre appareil pour prendre une photo et l'ajouter à votre bibliothèque."
+
+msgid "Website added successfully!"
+msgstr "Site web ajouté avec succès!"
+
+msgid "WebView not available on this platform"
+msgstr "WebView non disponible sur cette plateforme"
+
+msgid "You can paste URLs from your demo files or enter them manually"
+msgstr "Vous pouvez coller des URLs depuis vos fichiers de démonstration ou les entrer manuellement"
+
+
+msgid "preferences_auto_copy_collections"
+msgstr "Copie automatique des collections"
+
+msgid "preferences_auto_copy_collections_help"
+msgstr "Copier automatiquement les fichiers lors de l'ajout de collections (recommandé pour la fiabilité)"
+
+msgid "preferences_collection_settings_description"
+msgstr "Configurer la création et la gestion des collections"
+
+msgid "preferences_collection_settings_title"
+msgstr "Paramètres des collections"
+
+msgid "preferences_default_collection_type"
+msgstr "Type de collection par défaut"
+
+msgid "preferences_default_collection_type_help"
+msgstr "Choisir si les nouvelles collections copient les fichiers ou créent des liens vers les originaux"
+
+msgid "preferences_library_description"
+msgstr "Configurer l'emplacement et le comportement du stockage de la bibliothèque"
+
+msgid "preferences_library_path"
+msgstr "Chemin de la bibliothèque"
+
+msgid "preferences_library_path_description"
+msgstr "Choisir où Fichero stocke les données de votre bibliothèque"
+
+msgid "preferences_library_path_help"
+msgstr "Chemin où les collections et le cache sont stockés"
+
+msgid "preferences_library_path_title"
+msgstr "Emplacement de la bibliothèque"
+
+msgid "preferences_library_reset_to_default"
+msgstr "Réinitialiser à l'emplacement par défaut"
+
+msgid "preferences_library_reset_to_default_help"
+msgstr "Réinitialiser le chemin de la bibliothèque à l'emplacement par défaut"
+
+msgid "preferences_library_title"
+msgstr "Bibliothèque"
+
+msgid "task_table_loading"
+msgstr "Chargement des tâches..."
+
+msgid "workflow_editor"
+msgstr "Éditeur de flux de travail"
+
+msgid "workflow_manager"
+msgstr "Gestionnaire de flux de travail"
+
+msgid "← Back"
+msgstr "← Retour"
+
+msgid "option_alphabetical"
+msgstr "Alphabétique"
+
+msgid "option_reverse_alphabetical"
+msgstr "Alphabétique Inverse"
+
+msgid "option_least_images_first"
+msgstr "Moins d'Images en Premier"
+
+msgid "option_most_images_first"
+msgstr "Plus d'Images en Premier"
+
+msgid "option_copy"
+msgstr "Copier"
+
+msgid "option_link"
+msgstr "Lier"
+
+msgid "option_python"
+msgstr "Python"
+
+msgid "Add Audio Recording"
+msgstr "Enregistrer de l'audio"
+
+msgid "Add File"
+msgstr "Ajouter un fichier"
+
+msgid "Add Folder"
+msgstr "Ajouter un dossier"
+
+msgid "Add Picture"
+msgstr "Ajouter une image"
+
+msgid "Add URL"
+msgstr "Ajouter une URL"
+
+msgid "Add URLs"
+msgstr "Ajouter des URLs"
+
+msgid "Add Website"
+msgstr "Ajouter un site web"
+
+msgid "Add content from a web URL"
+msgstr "Ajouter du contenu depuis une URL web"
+
+msgid "Add entire folders to your library"
+msgstr "Ajouter des dossiers entiers à votre bibliothèque"
+
+msgid "Add files from your computer"
+msgstr "Ajouter des fichiers depuis votre ordinateur"
+
+msgid "Browse and add content from websites"
+msgstr "Parcourir et ajouter du contenu depuis des sites web"
+
+msgid "Enter URL (e.g., https://example.com)..."
+msgstr "Entrer l'URL (ex: https://exemple.com)..."
+
+msgid "https://example1.com\nhttps://example2.com\n..."
+msgstr "https://exemple1.com\nhttps://exemple2.com\n..."
+
+msgid "Navigate to a website and click 'Select' to add its content to your library."
+msgstr "Naviguez vers un site web et cliquez sur 'Sélectionner' pour ajouter son contenu à votre bibliothèque."
+
+msgid "Photo capture failed or cancelled"
+msgstr "Capture de photo échouée ou annulée"
+
+msgid "Record audio to add to your library"
+msgstr "Enregistrer de l'audio à ajouter à votre bibliothèque"
+
+msgid "Select"
+msgstr "Sélectionner"
+
+msgid "Take a photo with your camera"
+msgstr "Prenez une photo avec votre appareil photo"
+
+msgid "collection_settings_title"
+msgstr "Paramètres de Collection"
+
+msgid "collection_settings_description"
+msgstr "Configurer les paramètres de cette collection"
+
+msgid "collection_settings_window_title"
+msgstr "Paramètres de Collection"
+
+msgid "collection_settings_basic_title"
+msgstr "Informations de Base"
+
+msgid "collection_settings_basic_description"
+msgstr "Détails essentiels sur cette collection"
+
+msgid "collection_settings_name"
+msgstr "Nom de la Collection"
+
+msgid "collection_settings_name_help"
+msgstr "Un nom unique pour identifier cette collection"
+
+msgid "collection_settings_description_help"
+msgstr "Une description détaillée du contenu de cette collection"
+
+msgid "collection_settings_type_title"
+msgstr "Type de Collection"
+
+msgid "collection_settings_type_description"
+msgstr "Choisir comment les fichiers sont stockés dans cette collection"
+
+msgid "collection_settings_type"
+msgstr "Type de Stockage"
+
+msgid "collection_settings_type_help"
+msgstr "Copier les fichiers dans la bibliothèque ou lier aux emplacements d'origine"
+
+msgid "collection_settings_processing_title"
+msgstr "Paramètres de Traitement"
+
+msgid "collection_settings_processing_description"
+msgstr "Configurer comment cette collection est traitée"
+
+msgid "collection_settings_processing_location"
+msgstr "Emplacement de Traitement"
+
+msgid "collection_settings_processing_location_help"
+msgstr "Où stocker les sorties de traitement"
+
+msgid "collection_settings_processing_path"
+msgstr "Chemin de Traitement Personnalisé"
+
+msgid "collection_settings_processing_path_help"
+msgstr "Répertoire pour les sorties de traitement (lors de l'utilisation d'un emplacement externe)"
+
+msgid "collection_settings_metadata_title"
+msgstr "Métadonnées"
+
+msgid "collection_settings_metadata_description"
+msgstr "Informations supplémentaires pour organiser cette collection"
+
+msgid "collection_settings_tags"
+msgstr "Étiquettes"
+
+msgid "collection_settings_tags_help"
+msgstr "Étiquettes séparées par des virgules pour faciliter la recherche"
+
+msgid "collection_settings_category"
+msgstr "Catégorie"
+
+msgid "collection_settings_category_help"
+msgstr "La catégorie à laquelle appartient cette collection"
+
+msgid "collection_settings_priority"
+msgstr "Priorité"
+
+msgid "collection_settings_priority_help"
+msgstr "Priorité de traitement pour cette collection"
+
+msgid "collection_settings_advanced_title"
+msgstr "Options Avancées"
+
+msgid "collection_settings_advanced_description"
+msgstr "Paramètres avancés pour utilisateurs expérimentés"
+
+msgid "collection_settings_auto_process"
+msgstr "Traitement Automatique"
+
+msgid "collection_settings_auto_process_help"
+msgstr "Traiter automatiquement les nouveaux fichiers ajoutés à cette collection"
+
+msgid "collection_settings_process_on_add"
+msgstr "Traiter lors de l'Ajout"
+
+msgid "collection_settings_process_on_add_help"
+msgstr "Traiter les fichiers immédiatement lorsqu'ils sont ajoutés à la collection"
+
+msgid "collection_settings_retention_policy"
+msgstr "Politique de Rétention"
+
+msgid "collection_settings_retention_policy_help"
+msgstr "Durée de conservation des fichiers traités"
+
+msgid "keep_forever"
+msgstr "Conserver Indéfiniment"
+
+msgid "keep_30_days"
+msgstr "Conserver 30 Jours"
+
+msgid "keep_90_days"
+msgstr "Conserver 90 Jours"
+
+msgid "keep_1_year"
+msgstr "Conserver 1 An"
+
+msgid "plans_title"
+msgstr "Plans"
+
+msgid "plans_description"
+msgstr "Configurer les plans de traitement"
+
+msgid "plans_window_title"
+msgstr "Éditeur de Plans"
+
+msgid "plans_general_title"
+msgstr "Général"
+
+msgid "plans_project_info_title"
+msgstr "Informations du Projet"
+
+msgid "plans_project_title"
+msgstr "Titre du Projet"
+
+msgid "plans_project_title_placeholder"
+msgstr "Saisir le titre du projet"
+
+msgid "plans_description_label"
+msgstr "Description"
+
+msgid "plans_description_placeholder"
+msgstr "Saisir la description du projet"
+
+msgid "plans_variables_title"
+msgstr "Variables"
+
+msgid "plans_basic_config_title"
+msgstr "Configuration de Base"
+
+msgid "plans_project_name"
+msgstr "Nom du Projet"
+
+msgid "plans_language"
+msgstr "Langue"
+
+msgid "plans_text_direction"
+msgstr "Direction du Texte"
+
+msgid "plans_version"
+msgstr "Version"
+
+msgid "plans_image_formats_title"
+msgstr "Formats d'Image"
+
+msgid "plans_image_formats_description"
+msgstr "Choisir les formats de sortie pour les images traitées"
+
+msgid "plans_crop_format"
+msgstr "Format de Recadrage"
+
+msgid "plans_split_format"
+msgstr "Format de Division"
+
+msgid "plans_rotate_format"
+msgstr "Format de Rotation"
+
+msgid "plans_enhance_format"
+msgstr "Format d'Amélioration"
+
+msgid "plans_background_removed_format"
+msgstr "Format sans Arrière-plan"
+
+msgid "plans_processing_methods_title"
+msgstr "Méthodes de Traitement"
+
+msgid "plans_processing_methods_description"
+msgstr "Sélectionner les algorithmes pour le traitement d'images"
+
+msgid "plans_background_removal_method"
+msgstr "Méthode de Suppression d'Arrière-plan"
+
+msgid "plans_background_removal_method_help"
+msgstr "Choisir entre OpenCV ou suppression basée sur l'IA"
+
+msgid "plans_background_removal_ai_model"
+msgstr "Modèle d'IA"
+
+msgid "plans_background_removal_ai_model_help"
+msgstr "Sélectionner le modèle d'IA à utiliser pour la suppression d'arrière-plan"
+
+msgid "plans_llm_config_title"
+msgstr "Configuration LLM"
+
+msgid "plans_lmstudio_url"
+msgstr "URL de LM Studio"
+
+msgid "plans_lmstudio_url_placeholder"
+msgstr "http://localhost:1234/v1"
+
+msgid "plans_lmstudio_model"
+msgstr "Modèle LM Studio"
+
+msgid "plans_lmstudio_model_placeholder"
+msgstr "Saisir le nom du modèle"
+
+msgid "plans_default_prompt"
+msgstr "Prompt par Défaut"
+
+msgid "plans_default_prompt_placeholder"
+msgstr "Saisir le prompt par défaut"
+
+msgid "plans_paths_title"
+msgstr "Chemins"
+
+msgid "plans_key_paths_title"
+msgstr "Chemins Principaux"
+
+msgid "plans_key_paths_description"
+msgstr "Emplacements importants des répertoires"
+
+msgid "plans_project_folder"
+msgstr "Dossier du Projet"
+
+msgid "plans_project_folder_help"
+msgstr "Dossier racine pour ce projet"
+
+msgid "plans_documents_folder"
+msgstr "Dossier de Documents"
+
+msgid "plans_documents_folder_help"
+msgstr "Où stocker les documents de sortie"
+
+msgid "plans_assets_folder"
+msgstr "Dossier de Ressources"
+
+msgid "plans_assets_folder_help"
+msgstr "Où stocker les ressources du projet"
+
+msgid "plans_workflows_title"
+msgstr "Flux de Travail"
+
+msgid "plans_workflow_management_title"
+msgstr "Gestion des Flux de Travail"
+
+msgid "plans_workflow_management_description"
+msgstr "Créer et modifier les flux de travail de traitement"
+
+msgid "plans_workflow_editor"
+msgstr "Éditeur de Flux de Travail"
+
+msgid "plans_workflow_editor_help"
+msgstr "Glisser-déposer les outils pour créer des flux de travail"
+
+msgid "plans_commands_title"
+msgstr "Commandes"
+
+msgid "plans_command_config_title"
+msgstr "Configuration des Commandes"
+
+msgid "plans_command_config_description"
+msgstr "Configuration avancée des commandes basée sur YAML"
+
+msgid "plans_commands_yaml"
+msgstr "Commandes (YAML)"
+
+msgid "plans_commands_yaml_help"
+msgstr "Modifier les commandes au format YAML"
+
+msgid "plans_commands_yaml_placeholder"
+msgstr "# Saisir les commandes YAML ici"
+
+msgid "prompts_title"
+msgstr "Prompts"
+
+msgid "prompts_description"
+msgstr "Configurer les prompts IA et les paramètres LLM"
+
+msgid "prompts_window_title"
+msgstr "Éditeur de Prompts"
+
+msgid "prompts_general_title"
+msgstr "Général"
+
+msgid "prompts_config_info_title"
+msgstr "Informations de Configuration"
+
+msgid "prompts_config_name"
+msgstr "Nom de la Configuration"
+
+msgid "prompts_config_name_help"
+msgstr "Un nom unique pour cette configuration de prompt"
+
+msgid "prompts_description_label"
+msgstr "Description"
+
+msgid "prompts_description_help"
+msgstr "Ce que fait cette configuration de prompt"
+
+msgid "prompts_intelligent_chunking"
+msgstr "Fragmentation Intelligente"
+
+msgid "prompts_intelligent_chunking_help"
+msgstr "Utiliser l'IA pour diviser intelligemment les textes volumineux"
+
+msgid "prompts_chunk_overlap"
+msgstr "Chevauchement des Fragments"
+
+msgid "prompts_chunk_overlap_help"
+msgstr "Nombre de caractères de chevauchement entre les fragments"
+
+msgid "prompts_llm_settings_title"
+msgstr "Paramètres LLM"
+
+msgid "prompts_model_config_title"
+msgstr "Configuration du Modèle"
+
+msgid "prompts_backend"
+msgstr "Backend"
+
+msgid "prompts_backend_help"
+msgstr "Choisir le fournisseur LLM"
+
+msgid "prompts_model_name"
+msgstr "Nom du Modèle"
+
+msgid "prompts_model_name_help"
+msgstr "Le modèle spécifique à utiliser"
+
+msgid "prompts_model_name_placeholder"
+msgstr "gpt-4, claude-3, etc."
+
+msgid "prompts_temperature"
+msgstr "Température"
+
+msgid "prompts_temperature_help"
+msgstr "Contrôle l'aléatoire (0=déterministe, 2=très aléatoire)"
+
+msgid "prompts_max_tokens"
+msgstr "Tokens Maximums"
+
+msgid "prompts_max_tokens_help"
+msgstr "Nombre maximum de tokens dans la réponse"
+
+msgid "prompts_top_p"
+msgstr "Top P"
+
+msgid "prompts_top_p_help"
+msgstr "Seuil d'échantillonnage de noyau"
+
+msgid "prompts_frequency_penalty"
+msgstr "Pénalité de Fréquence"
+
+msgid "prompts_frequency_penalty_help"
+msgstr "Pénaliser les tokens répétés"
+
+msgid "prompts_presence_penalty"
+msgstr "Pénalité de Présence"
+
+msgid "prompts_presence_penalty_help"
+msgstr "Pénaliser les tokens selon leur présence"
+
+msgid "prompts_request_settings_title"
+msgstr "Paramètres de Requête"
+
+msgid "prompts_timeout"
+msgstr "Délai d'Attente (secondes)"
+
+msgid "prompts_timeout_help"
+msgstr "Temps d'attente maximum pour la réponse API"
+
+msgid "prompts_retry_attempts"
+msgstr "Tentatives de Réessai"
+
+msgid "prompts_retry_attempts_help"
+msgstr "Nombre de réessais en cas d'échec"
+
+msgid "prompts_retry_delay"
+msgstr "Délai de Réessai (secondes)"
+
+msgid "prompts_retry_delay_help"
+msgstr "Temps d'attente entre les réessais"
+
+msgid "prompts_prompts_title"
+msgstr "Prompts"
+
+msgid "prompts_system_prompts_title"
+msgstr "Prompts Système"
+
+msgid "prompts_system_prompt"
+msgstr "Prompt Système"
+
+msgid "prompts_system_prompt_help"
+msgstr "Le message système qui établit le contexte"
+
+msgid "prompts_user_prompt_template"
+msgstr "Modèle de Prompt Utilisateur"
+
+msgid "prompts_user_prompt_template_help"
+msgstr "Modèle pour les messages utilisateur (peut utiliser des variables)"
+
+msgid "prompts_processing_steps_title"
+msgstr "Étapes de Traitement"
+
+msgid "prompts_steps_config_title"
+msgstr "Configuration des Étapes"
+
+msgid "prompts_steps_config_description"
+msgstr "Configurer le traitement multi-étapes"
+
+msgid "prompts_steps_info"
+msgstr "Informations sur les Étapes"
+
+msgid "u2net_human"
+msgstr "Segmentation Humaine U2-Net"
+
+# Toolbar buttons
+msgid "Edit"
+msgstr "Modifier"
+
+msgid "Done"
+msgstr "Terminé"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Select All"
+msgstr "Tout Sélectionner"
+
+msgid "Share"
+msgstr "Partager"
+
+# Toolbar labels
+msgid "Settings"
+msgstr "Paramètres"
+
+msgid "Processing"
+msgstr "Traitement"
+
+msgid "About"
+msgstr "À Propos"
+
+msgid "Activity"
+msgstr "Activité"
+
+msgid "Prompts"
+msgstr "Prompts"
+
+msgid "Plans"
+msgstr "Plans"
+
+msgid "Process"
+msgstr "Traiter"
+
+msgid "Previous\nFile"
+msgstr "Fichier\nPrécédent"
+
+msgid "Next\nFile"
+msgstr "Fichier\nSuivant"
+
+msgid "Previous\nStep"
+msgstr "Étape\nPrécédente"
+
+msgid "Next\nStep"
+msgstr "Étape\nSuivante"
+
+msgid "−"
+msgstr "−"
+
+msgid "Fit"
+msgstr "Ajuster"
+
+msgid "Width"
+msgstr "Largeur"
+
+msgid "Height"
+msgstr "Hauteur"
+
+msgid "100%"
+msgstr "100%"
+
+msgid "+"
+msgstr "+"
+
+msgid "Rotate\nLeft"
+msgstr "Pivoter\nGauche"
+
+msgid "Rotate\nRight"
+msgstr "Pivoter\nDroite"
+
+
+# Dialog titles and messages
+msgid "Delete Collection"
+msgstr "Supprimer la Collection"
+
+msgid "delete_collection_confirm"
+msgstr "Êtes-vous sûr de vouloir supprimer '{name}' ?\n\nCette action ne peut pas être annulée."
+
+msgid "Delete Failed"
+msgstr "Suppression Échouée"
+
+msgid "delete_failed_message"
+msgstr "Impossible de supprimer la collection '{name}'. Veuillez réessayer."
+
+msgid "delete_failed_no_service"
+msgstr "Système de bibliothèque non disponible. Impossible de supprimer la collection."
+
+msgid "Delete Error"
+msgstr "Erreur de Suppression"
+
+msgid "delete_error_message"
+msgstr "Une erreur s'est produite lors de la suppression de la collection : {error}"
+
+msgid "Edit Collection"
+msgstr "Modifier la Collection"
+
+msgid "Export"
+msgstr "Exporter"
+
+msgid "Export Error"
+msgstr "Erreur d'Exportation"
+
+msgid "Error"
+msgstr "Erreur"
+
+msgid "library_service_unavailable"
+msgstr "Service de bibliothèque non disponible"
+
+msgid "Export Successful"
+msgstr "Exportation Réussie"
+
+msgid "export_successful_message"
+msgstr "Collection exportée avec succès vers :\n{path}\n\nTaille : {size} Mo"
+
+msgid "Export Failed"
+msgstr "Exportation Échouée"
+
+msgid "export_failed_message"
+msgstr "Impossible d'exporter la collection : {error}"
+
+msgid "Select Folder to Add"
+msgstr "Sélectionner le Dossier à Ajouter"
+
+msgid "Collection"
+msgstr "Collection"
+
+msgid "No Collection"
+msgstr "Aucune Collection"
+
+msgid "no_collection_selected"
+msgstr "Veuillez d'abord sélectionner une collection."
+
+msgid "Processing Error"
+msgstr "Erreur de Traitement"
+
+msgid "Collection Not Found"
+msgstr "Collection Non Trouvée"
+
+msgid "collection_not_found_message"
+msgstr "Impossible de trouver la collection."
+
+msgid "processing_error_message"
+msgstr "Échec du démarrage du traitement : {error}"
+
+msgid "Service Not Available"
+msgstr "Service Non Disponible"
+
+msgid "service_not_available_message"
+msgstr "Le service d'intégration Director n'est pas disponible."
+
+msgid "No Path"
+msgstr "Aucun Chemin"
+
+msgid "no_path_message"
+msgstr "La collection n'a pas de chemin de dossier à traiter."
+
+msgid "Path Not Found"
+msgstr "Chemin Non Trouvé"
+
+msgid "path_not_found_message"
+msgstr "Dossier de la collection introuvable : {path}"
+
+msgid "Success"
+msgstr "Succès"
+
+msgid "collection_deleted_success"
+msgstr "La collection '{name}' a été supprimée."
+

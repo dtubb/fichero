@@ -606,12 +606,34 @@ class BaseConfigLibrary(ABC):
             )
         
         elif field_type == WidgetType.SELECTION:
+            # Get options and translate them
+            raw_options = field.get('options', [])
+            translated_options = [_(opt) for opt in raw_options]
+
+            # Create reverse mapping for saving (translated -> raw)
+            option_reverse_map = {_(opt): opt for opt in raw_options}
+
+            # Find the current value - it might be stored as raw or translated
+            current_display_value = None
+            if current_value:
+                # If current value is a raw key, translate it for display
+                if current_value in raw_options:
+                    current_display_value = _(current_value)
+                # If it's already translated, use it as-is
+                elif current_value in translated_options:
+                    current_display_value = current_value
+
             widget = toga.Selection(
-                items=field.get('options', []),
-                value=current_value if current_value in field.get('options', []) else None,
+                items=translated_options,
+                value=current_display_value if current_display_value in translated_options else None,
                 style=Pack(margin_bottom=3, font_size=9),
                 on_change=self._on_widget_change
             )
+
+            # Store the reverse mapping for this widget
+            if not hasattr(self, 'option_reverse_maps'):
+                self.option_reverse_maps = {}
+            self.option_reverse_maps[field_id] = option_reverse_map
         
         elif field_type == WidgetType.BUTTON:
             widget = toga.Button(
@@ -887,7 +909,14 @@ class BaseConfigLibrary(ABC):
                 elif isinstance(widget, toga.Switch):
                     value = widget.value
                 elif isinstance(widget, toga.Selection):
-                    value = widget.value
+                    # Get the displayed value
+                    displayed_value = widget.value
+
+                    # If we have a reverse mapping, convert back to raw value
+                    if hasattr(self, 'option_reverse_maps') and field_id in self.option_reverse_maps:
+                        value = self.option_reverse_maps[field_id].get(displayed_value, displayed_value)
+                    else:
+                        value = displayed_value
                 else:
                     continue
                 

@@ -101,6 +101,12 @@ class NavigationEvents:
     # Error events
     NAVIGATION_ERROR = "navigation_error"
 
+    # Library state change events
+    COLLECTION_ADDED = "collection_added"
+    COLLECTION_DELETED = "collection_deleted"
+    COLLECTION_UPDATED = "collection_updated"
+    COLLECTION_ITEMS_CHANGED = "collection_items_changed"
+
 
 # Global event bus instance
 _event_bus: NavigationEventBus = None

@@ -73,30 +73,45 @@ def setup_translations(app: Optional[toga.App] = None) -> bool:
 def _detect_system_language() -> str:
     """
     Detect the system language using various methods.
-    
+
+    Priority order:
+    1. FICHERO_LANG environment variable (highest priority)
+    2. System locale
+    3. LANG/LC_ALL environment variables
+    4. Default to 'en' (English)
+
     Returns:
-        str: Language code (en, es, fr) with 'en' as fallback
+        str: Language code (en, es, fr, it, pt) with 'en' as fallback
     """
+    import os
+
     try:
-        # Try to get the current locale
+        # 1. Check FICHERO_LANG environment variable first (highest priority)
+        fichero_lang = os.environ.get('FICHERO_LANG', '').strip().lower()
+        if fichero_lang and fichero_lang in ['en', 'es', 'fr', 'it', 'pt']:
+            logger.info(f"Using language from FICHERO_LANG: {fichero_lang}")
+            return fichero_lang
+
+        # 2. Try to get the current locale
         current_locale = locale.getlocale()
         if current_locale and current_locale[0]:
             lang = current_locale[0].split('_')[0].lower()
         else:
-            # Fallback to environment variables
-            import os
+            # 3. Fallback to environment variables
             lang_env = os.environ.get('LANG', '') or os.environ.get('LC_ALL', '')
             if lang_env:
                 lang = lang_env.split('_')[0].split('.')[0].lower()
             else:
+                # 4. Default to English
                 lang = 'en'
     except Exception:
+        # Default to English
         lang = 'en'
-    
+
     # Validate language - only support languages we have translations for
-    if lang not in ['en', 'es', 'fr']:
-        lang = 'en'
-    
+    if lang not in ['en', 'es', 'fr', 'it', 'pt']:
+        lang = 'en'  # Default to English
+
     return lang
 
 

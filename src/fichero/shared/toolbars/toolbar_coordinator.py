@@ -242,27 +242,27 @@ class ToolbarCoordinator:
             add_actions = []
             if platform_features:
                 if platform_features.get("has_url_input", True):
-                    add_actions.append({"id": "url", "title": "Add URL", "icon": "resources/icons/toolbar/link.png"})
+                    add_actions.append({"id": "url", "title": "Add URL", "icon": "resources/icons/toolbar/link.png", "label": "URL"})
                 if platform_features.get("has_web_view", True):
-                    add_actions.append({"id": "website", "title": "Add Website", "icon": "resources/icons/toolbar/globe.png"})
+                    add_actions.append({"id": "website", "title": "Add Website", "icon": "resources/icons/toolbar/globe.png", "label": "Website"})
                 if platform_features.get("has_file_dialog", False):
-                    add_actions.append({"id": "file", "title": "Add File", "icon": "resources/icons/toolbar/document.png"})
+                    add_actions.append({"id": "file", "title": "Add File", "icon": "resources/icons/toolbar/document.png", "label": "File"})
                 if platform_features.get("has_folder_dialog", False):
-                    add_actions.append({"id": "folder", "title": "Add Folder", "icon": "resources/icons/toolbar/add_folder.png"})
+                    add_actions.append({"id": "folder", "title": "Add Folder", "icon": "resources/icons/toolbar/add_folder.png", "label": "Folder"})
                 if platform_features.get("has_camera", False):
-                    add_actions.append({"id": "camera", "title": "Add Picture", "icon": "resources/icons/toolbar/camera.png"})
+                    add_actions.append({"id": "camera", "title": "Add Picture", "icon": "resources/icons/toolbar/camera.png", "label": "Camera"})
 
             base_context["add_actions"] = add_actions
 
             # Separate top and bottom edit actions for library view
             # Top toolbar actions (sort button with text)
             top_edit_actions = [
-                {"id": "sort", "title": "A-Z", "icon": None, "text": "A-Z"}
+                {"id": "sort", "title": "A-Z", "icon": None, "text": "A-Z", "label": "Sort"}
             ]
 
             # Bottom toolbar actions (add/create actions + add collection)
             bottom_edit_actions = add_actions + [
-                {"id": "add_collection", "title": "Add Collection", "icon": "resources/icons/toolbar/add_collection.png"}
+                {"id": "add_collection", "title": "Add Collection", "icon": "resources/icons/toolbar/add_collection.png", "label": "Collection"}
             ]
 
             base_context["top_edit_actions"] = top_edit_actions
@@ -379,12 +379,12 @@ class ToolbarCoordinator:
         try:
             import toga
 
-            # Simple input dialog for now
-            dialog = toga.InfoDialog(
-                title="Add Collection",
-                message="Collection creation feature coming soon!"
-            )
-            self.app.main_window.info_dialog(dialog)
+            # Use navigation controller to show add dialog
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    import asyncio
+                    asyncio.create_task(nav_controller.show_add_dialog())
         except Exception as e:
             logger.error(f"Failed to show add collection dialog: {e}")
 

@@ -52,7 +52,7 @@ class BottomToolbar(BaseToolbar):
         if self.is_mobile:
             # iOS HIG bottom toolbar (tab bar) specifications
             specs.update({
-                "toolbar_height": 49,  # Tab bar height (83 with home indicator)
+                "toolbar_height": 60,  # Increased height for labels (was 49)
                 "safe_area_bottom": 64,  # Home indicator safe area + 30px additional margin
                 "icon_size": 22,  # Tab bar icon size (reduced for better density)
                 "touch_target": 36,  # Minimum touch target (reduced for better density)
@@ -61,9 +61,9 @@ class BottomToolbar(BaseToolbar):
                 "additional_bottom_margin": 30  # Additional bottom margin for iOS
             })
         else:
-            # Desktop: Enable bottom toolbar to match mobile behavior (user requested)
+            # Desktop: Enable bottom toolbar with taller height for labels
             specs.update({
-                "toolbar_height": 44,  # Standard desktop toolbar height (match mobile)
+                "toolbar_height": 100,  # Taller to accommodate labels with more bottom margin (was 80)
                 "icon_size": 16,
                 "touch_target": 32,
                 "spacing": 6
@@ -88,7 +88,7 @@ class BottomToolbar(BaseToolbar):
                     direction=ROW,
                     height=tab_bar_height,
                     margin=0,  # No outer margins - BaseView handles container positioning
-                    align_items="center",
+                    align_items="start",  # Align to top instead of center
                     # justify_content not supported in Toga - use flex instead
                     background_color="transparent",
                     flex=0  # Fixed height container
@@ -104,7 +104,7 @@ class BottomToolbar(BaseToolbar):
                     direction=ROW,
                     flex=0,  # Size based on content, no fixed width
                     margin=(0, self.hig_specs["margin_horizontal"]),
-                    align_items="center"
+                    align_items="start"  # Align to top
                 )
             )
 
@@ -114,7 +114,7 @@ class BottomToolbar(BaseToolbar):
                     direction=ROW,
                     flex=1,
                     margin=0,
-                    align_items="center"
+                    align_items="start"  # Align to top
                 )
             )
 
@@ -124,7 +124,7 @@ class BottomToolbar(BaseToolbar):
                     direction=ROW,
                     flex=0,  # Size based on content, no fixed width
                     margin=(0, self.hig_specs["margin_horizontal"]),
-                    align_items="center"
+                    align_items="start"  # Align to top
                 )
             )
 
@@ -144,10 +144,7 @@ class BottomToolbar(BaseToolbar):
     def _create_toolbar(self) -> None:
         """Create the bottom toolbar content"""
         try:
-            if not self.is_mobile:
-                # macOS: no bottom toolbar by default
-                return
-
+            # Enable bottom toolbar on both mobile and desktop (per user request)
             # Create normal mode buttons
             self._create_normal_mode_buttons()
 
@@ -179,18 +176,18 @@ class BottomToolbar(BaseToolbar):
         try:
             # Common edit mode buttons
             self.edit_buttons["delete"] = self.create_button(
-                text="Delete",
+                text=_("Delete"),
                 on_press=self._on_delete_pressed,
                 style_class="destructive"
             )
 
             self.edit_buttons["select_all"] = self.create_button(
-                text="Select All",
+                text=_("Select All"),
                 on_press=self._on_select_all_pressed
             )
 
             self.edit_buttons["share"] = self.create_button(
-                text="Share",
+                text=_("Share"),
                 on_press=self._on_share_pressed
             )
 
@@ -203,7 +200,8 @@ class BottomToolbar(BaseToolbar):
                      text: Optional[str] = None,
                      icon: Optional[str] = None,
                      on_press: Optional[Callable] = None,
-                     style_class: str = "default") -> toga.Button:
+                     style_class: str = "default",
+                     label: Optional[str] = None):
         """Create HIG-compliant bottom toolbar button"""
         try:
             # iOS tab bar button styling
@@ -247,7 +245,32 @@ class BottomToolbar(BaseToolbar):
             else:
                 button = toga.Button(text=text or "Button", on_press=on_press, style=button_style)
 
-            return button
+            # If label is provided, wrap button in vertical container with label below
+            if label:
+                from toga.constants import COLUMN, CENTER
+                container = toga.Box(
+                    style=Pack(
+                        direction=COLUMN,
+                        alignment=CENTER,
+                        margin=(2, 4, 0, 4)  # Small top margin, side margins, no bottom margin
+                    )
+                )
+
+                # Create small label below button
+                label_widget = toga.Label(
+                    text=label,
+                    style=Pack(
+                        font_size=7,  # Small text
+                        text_align=CENTER,
+                        margin=(0, 0, 2, 0)  # Small bottom margin for label
+                    )
+                )
+
+                container.add(button)
+                container.add(label_widget)
+                return container
+            else:
+                return button
 
         except Exception as e:
             logger.error(f"Failed to create bottom toolbar button: {e}")
@@ -452,10 +475,10 @@ class BottomToolbar(BaseToolbar):
             # Create buttons dynamically and distribute them
             for i, action in enumerate(all_actions):
                 button = self.create_button(
-                    text=action["title"],
                     icon=action.get("icon"),
                     on_press=self._create_add_button_handler(action["id"]),
-                    style_class="default"
+                    style_class="default",
+                    label=action.get("label", action["title"])  # Use label if provided, otherwise title
                 )
 
                 # Mark as dynamic edit mode button
@@ -535,7 +558,8 @@ class BottomToolbar(BaseToolbar):
                               on_press: Optional[Callable] = None,
                               position: str = "center",
                               key: Optional[str] = None,
-                              tooltip: Optional[str] = None) -> toga.Button:
+                              tooltip: Optional[str] = None,
+                              label: Optional[str] = None):
         """Add button for normal mode using smart button system"""
         # Support both new (text) and legacy (key) parameter styles
         button_id = key or text or icon or "button"
@@ -544,7 +568,8 @@ class BottomToolbar(BaseToolbar):
             position=position,
             text=text,
             icon=icon,
-            on_press=on_press
+            on_press=on_press,
+            label=label
         )
 
     def add_edit_mode_button(self,
@@ -552,7 +577,8 @@ class BottomToolbar(BaseToolbar):
                             icon: Optional[str] = None,
                             on_press: Optional[Callable] = None,
                             style_class: str = "default",
-                            position: str = "center") -> toga.Button:
+                            position: str = "center",
+                            label: Optional[str] = None):
         """Add button for edit mode using BaseToolbar's proper system"""
         button_id = text or icon or "edit_button"
         return self.add_edit_button(
@@ -561,5 +587,6 @@ class BottomToolbar(BaseToolbar):
             text=text,
             icon=icon,
             on_press=on_press,
-            style_class=style_class
+            style_class=style_class,
+            label=label
         )

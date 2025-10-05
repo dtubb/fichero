@@ -15,10 +15,10 @@ except:
 
 class AcknowledgmentsManager:
     """Manages acknowledgments content and HTML generation"""
-    
-    def __init__(self):
+
+    def __init__(self, is_mobile=False):
         """Initialize the acknowledgments manager"""
-        pass
+        self.is_mobile = is_mobile
     
     def get_acknowledgments_text(self):
         """Get the acknowledgments text from i18n system"""
@@ -68,31 +68,36 @@ All rights reserved."""
     def generate_html(self):
         """Generate HTML content for the acknowledgments section"""
         acknowledgments_text = self.get_acknowledgments_text()
-        
+
         # Convert markdown-style text to HTML
         acknowledgments_html = self._markdown_to_html(acknowledgments_text)
-        
+
+        # Use larger font size for mobile (16pt) vs desktop (8pt)
+        font_size = '16pt' if self.is_mobile else '8pt'
+        line_height = '1.4' if self.is_mobile else '1.1'
+
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body {{
-                    font-family: 'Lucida Grande', 'Lucida Sans Unicode', 'Lucida Sans', Geneva, Verdana, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
                     margin: 0;
                     padding: 15px;
                     background-color: white;
-                    line-height: 1.1;
-                    font-size: 8pt;
+                    line-height: {line_height};
+                    font-size: {font_size};
                     color: #000;
                     text-align: center;
                 }}
                 h1, h2, h3, h4, p {{
                     margin: 0;
                     padding: 0;
-                    font-size: 8pt;
-                    line-height: 1.1;
+                    font-size: {font_size};
+                    line-height: {line_height};
                     text-align: center;
                 }}
                 h1, h2 {{
@@ -122,7 +127,7 @@ All rights reserved."""
         </body>
         </html>
         """
-        
+
         return html
     
     def _markdown_to_html(self, text):

@@ -1,0 +1,1757 @@
+# English translations for Fichero.
+# Copyright (C) 2024 Daniel Tubb
+# This file is distributed under the same license as the Fichero package.
+msgid ""
+msgstr ""
+"Project-Id-Version: Fichero 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-08-02 18:00+0000\n"
+"PO-Revision-Date: 2024-08-02 18:00+0000\n"
+"Last-Translator: Fichero Team\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "app_title"
+msgstr "Fichero"
+
+msgid "choose_folder"
+msgstr "Choose Folder…"
+
+msgid "description"
+msgstr "*Fichero* processes large collections of scanned documents—hundreds or even tens of thousands—by automatically cropping, enhancing, segmenting, AI-transcribing, and cataloging. It generates outputs in Word and Excel files.\n\nYou can [learn more](https://www.tubb.ca/fichero/) about how it works if you're interested, but the short version is that Fichero uses various tools to break down each step, calls Visual Large Language Models, and runs on various folders in parallel.\n\nTo get started, choose a folder to process using the button above."
+
+msgid "help"
+msgstr "?"
+
+msgid "process"
+msgstr "Process Folder"
+
+msgid "processing"
+msgstr "Processing"
+
+msgid "folder_icon_label"
+msgstr "📁"
+
+msgid "folder_status"
+msgstr "No folder selected"
+
+msgid "menu_about"
+msgstr "About Fichero"
+
+msgid "menu_preferences"
+msgstr "Preferences…"
+
+msgid "menu_quit"
+msgstr "Quit Fichero"
+
+msgid "menu_help_website"
+msgstr "Support Website"
+
+msgid "menu_help_support"
+msgstr "Help and Support"
+
+msgid "menu_cut"
+msgstr "Cut"
+
+msgid "menu_copy"
+msgstr "Copy"
+
+msgid "menu_paste"
+msgstr "Paste"
+
+msgid "menu_select_all"
+msgstr "Select All"
+
+msgid "menu_undo"
+msgstr "Undo"
+
+msgid "menu_redo"
+msgstr "Redo"
+
+msgid "menu_zoom_in"
+msgstr "Zoom In"
+
+msgid "menu_zoom_out"
+msgstr "Zoom Out"
+
+msgid "menu_zoom_reset"
+msgstr "Actual Size"
+
+msgid "menu_fullscreen"
+msgstr "Fullscreen"
+
+msgid "menu_minimize"
+msgstr "Minimize"
+
+msgid "menu_close"
+msgstr "Close Window"
+
+msgid "menu_activity_monitor"
+msgstr "Activity Monitor"
+
+msgid "menu_new_document"
+msgstr "New Document"
+
+msgid "menu_open_document"
+msgstr "Open…"
+
+msgid "menu_save_document"
+msgstr "Save"
+
+msgid "menu_save_document_as"
+msgstr "Save As…"
+
+msgid "menu_edit_processing_plans"
+msgstr "Processing Plans…"
+
+msgid "menu_document_plans"
+msgstr "Document Plans…"
+
+msgid "menu_document_settings"
+msgstr "Document Settings…"
+
+msgid "menu_global_plans_template"
+msgstr "Global Plans Template…"
+
+msgid "menu_llm_config_editor"
+msgstr "LLM Configuration…"
+
+msgid "menu_plans"
+msgstr "Plans…"
+
+msgid "menu_prompts"
+msgstr "Prompts…"
+
+msgid "menu_open_recent"
+msgstr "Open Recent"
+
+msgid "menu_no_recent_documents"
+msgstr "No Recent Documents"
+
+msgid "menu_clear_recent_documents"
+msgstr "Clear Recent Documents"
+
+msgid "select_folder_title"
+msgstr "Select Folder to Process"
+
+msgid "about_acknowledgments"
+msgstr "Riconoscimenti"
+
+msgid "app_preferences"
+msgstr "Preferences"
+
+msgid "api_servers"
+msgstr "API Servers"
+
+msgid "advanced"
+msgstr "Advanced"
+
+msgid "worker_performance"
+msgstr "Worker Performance"
+
+msgid "cancel"
+msgstr "Cancel"
+
+msgid "save"
+msgstr "Save"
+
+msgid "document_window_title"
+msgstr "Document Window"
+
+msgid "document_untitled"
+msgstr "Untitled"
+
+msgid "document_save_changes"
+msgstr "Save Changes?"
+
+msgid "document_save_changes_message"
+msgstr "Do you want to save changes to this document?"
+
+msgid "document_save_error"
+msgstr "Error Saving"
+
+msgid "document_open_error"
+msgstr "Error Opening"
+
+msgid "document_processing"
+msgstr "Processing Document"
+
+msgid "document_processing_complete"
+msgstr "Processing Complete"
+
+msgid "document_processing_error"
+msgstr "Processing Error"
+
+msgid "document_auto_save"
+msgstr "Auto-saving..."
+
+msgid "activity_monitor_title"
+msgstr "Activity Monitor"
+
+msgid "activity_monitor_status"
+msgstr "Status"
+
+msgid "activity_monitor_tasks"
+msgstr "Tasks"
+
+msgid "activity_monitor_workers"
+msgstr "Workers"
+
+msgid "activity_monitor_refresh"
+msgstr "Refresh"
+
+msgid "activity_monitor_no_tasks"
+msgstr "No active tasks"
+
+msgid "activity_monitor_worker_active"
+msgstr "Active"
+
+msgid "activity_monitor_worker_idle"
+msgstr "Idle"
+
+msgid "activity_monitor_worker_error"
+msgstr "Error"
+
+msgid "activity_monitor_task_queued"
+msgstr "Queued"
+
+msgid "activity_monitor_task_running"
+msgstr "Running"
+
+msgid "activity_monitor_task_completed"
+msgstr "Completed"
+
+msgid "activity_monitor_task_failed"
+msgstr "Failed"
+
+msgid "preferences_general"
+msgstr "General"
+
+msgid "preferences_language"
+msgstr "Language"
+
+msgid "preferences_theme"
+msgstr "Theme"
+
+msgid "preferences_auto_save"
+msgstr "Auto Save"
+
+msgid "preferences_auto_save_interval"
+msgstr "Save Interval"
+
+msgid "preferences_processing"
+msgstr "Processing"
+
+msgid "preferences_default_backend"
+msgstr "Default Backend"
+
+msgid "preferences_worker_count"
+msgstr "Worker Count"
+
+msgid "preferences_max_memory"
+msgstr "Maximum Memory Usage"
+
+msgid "preferences_api_keys"
+msgstr "API Keys"
+
+msgid "preferences_api_key_warning"
+msgstr "API keys are stored securely"
+
+msgid "preferences_restart_required"
+msgstr "Restart required"
+
+msgid "preferences_restart_message"
+msgstr "Some changes will take effect after restarting the application"
+
+msgid "document_processing_ready"
+msgstr "Ready to process…"
+
+msgid "document_processing_results"
+msgstr "Processing completed with the following results:\n{results}"
+
+msgid "document_processing_output"
+msgstr "Output saved to:\n{path}"
+
+msgid "document_view_output"
+msgstr "View Output"
+
+msgid "document_processing_status"
+msgstr "Processing: {folder}"
+
+msgid "document_error_director"
+msgstr "Director not available"
+
+msgid "document_error_task_display"
+msgstr "Failed to create task display"
+
+msgid "document_output_exists"
+msgstr "L'output esiste già"
+
+msgid "document_continue_processing"
+msgstr "Continua elaborazione"
+
+msgid "document_stop_processing"
+msgstr "Interrompi elaborazione"
+
+msgid "document_stop_confirm"
+msgstr "Conferma interruzione"
+
+msgid "task_status_pending"
+msgstr "Pending"
+
+msgid "task_status_running"
+msgstr "Running"
+
+msgid "task_status_completed"
+msgstr "Completed"
+
+msgid "task_status_failed"
+msgstr "Failed"
+
+msgid "task_status_cancelled"
+msgstr "Cancelled"
+
+msgid "task_status_waiting"
+msgstr "Waiting for processing"
+
+msgid "task_worker_unknown"
+msgstr "Unknown Worker"
+
+msgid "task_worker_cpu"
+msgstr "CPU Worker {id}"
+
+msgid "task_worker_io"
+msgstr "IO Worker {id}"
+
+msgid "task_worker_celery"
+msgstr "on Celery"
+
+msgid "task_step_transcribe"
+msgstr "Transcribing Audio"
+
+msgid "task_step_extract"
+msgstr "Extracting Text"
+
+msgid "task_step_ocr"
+msgstr "OCR in Progress"
+
+msgid "task_step_process_images"
+msgstr "Processing Images"
+
+msgid "task_step_convert"
+msgstr "Converting Format"
+
+msgid "task_step_organize"
+msgstr "Organizing Files"
+
+msgid "task_step_backup"
+msgstr "Backing up Files"
+
+msgid "task_step_compress"
+msgstr "Compressing Files"
+
+msgid "task_step_upload"
+msgstr "Uploading Files"
+
+msgid "task_step_generic"
+msgstr "Processing"
+
+msgid "task_step_transcribe_done"
+msgstr "Audio Transcribed"
+
+msgid "task_step_extract_done"
+msgstr "Text Extracted"
+
+msgid "task_step_ocr_done"
+msgstr "OCR Completed"
+
+msgid "task_step_process_images_done"
+msgstr "Images Processed"
+
+msgid "task_step_convert_done"
+msgstr "Format Converted"
+
+msgid "task_step_organize_done"
+msgstr "Files Organized"
+
+msgid "task_step_backup_done"
+msgstr "Files Backed Up"
+
+msgid "task_step_compress_done"
+msgstr "Files Compressed"
+
+msgid "task_step_upload_done"
+msgstr "Files Uploaded"
+
+msgid "task_step_generic_done"
+msgstr "Processing Complete"
+
+msgid "task_step_waiting"
+msgstr "Waiting for {action}"
+
+msgid "task_step_failed"
+msgstr "Failed to {action}"
+
+msgid "task_source_gui"
+msgstr "GUI"
+
+msgid "task_source_cli"
+msgstr "CLI"
+
+msgid "task_source_standalone"
+msgstr "Standalone"
+
+msgid "preferences_title"
+msgstr "Preferenze"
+
+msgid "preferences_window_title"
+msgstr "Fichero Settings"
+
+msgid "preferences_description"
+msgstr "Application settings"
+
+msgid "preferences_error"
+msgstr "Error"
+
+msgid "preferences_load_error"
+msgstr "Failed to load configuration schema: {error}"
+
+msgid "preferences_select_plan"
+msgstr "Select a plan first"
+
+msgid "preferences_no_plans"
+msgstr "No plans found"
+
+msgid "preferences_error_loading_plans"
+msgstr "Error loading plans"
+
+msgid "preferences_no_options"
+msgstr "No options available"
+
+msgid "preferences_no_content"
+msgstr "Nessun contenuto delle preferenze"
+
+msgid "preferences_restore_defaults"
+msgstr "Ripristina impostazioni predefinite"
+
+msgid "preferences_defaults_title"
+msgstr "Predefiniti"
+
+msgid "preferences_processing_defaults_title"
+msgstr "Processing Defaults"
+
+msgid "preferences_processing_defaults_description"
+msgstr "Default settings for document processing"
+
+msgid "preferences_default_plan"
+msgstr "Default Plan"
+
+msgid "preferences_default_plan_help"
+msgstr "The plan to use by default for new documents"
+
+msgid "preferences_default_workflow"
+msgstr "Default Workflow"
+
+msgid "preferences_default_workflow_help"
+msgstr "The workflow to use by default for new documents"
+
+msgid "preferences_folder_order"
+msgstr "Folder Processing Order"
+
+msgid "preferences_folder_order_help"
+msgstr "The order in which folders are processed"
+
+msgid "preferences_appearance_title"
+msgstr "Appearance"
+
+msgid "preferences_language_title"
+msgstr "Language"
+
+msgid "preferences_language_description"
+msgstr "Choose the interface language for Fichero"
+
+msgid "preferences_language_help"
+msgstr "Sets the interface language. 'System' follows macOS language settings."
+
+msgid "language_system"
+msgstr "System"
+
+msgid "language_en"
+msgstr "English"
+
+msgid "language_es"
+msgstr "Español"
+
+msgid "language_fr"
+msgstr "Français"
+
+msgid "preferences_performance_title"
+msgstr "Prestazioni"
+
+msgid "preferences_backend_title"
+msgstr "Processing Backend"
+
+msgid "preferences_backend_description"
+msgstr "Configure document processing"
+
+msgid "preferences_backend_type"
+msgstr "Backend Type"
+
+msgid "preferences_backend_type_help"
+msgstr "The type of backend to use for processing"
+
+msgid "preferences_workers_title"
+msgstr "Worker Configuration"
+
+msgid "preferences_workers_description"
+msgstr "Configure processing workers"
+
+msgid "preferences_cpu_workers"
+msgstr "CPU Workers"
+
+msgid "preferences_cpu_workers_help"
+msgstr "Number of CPU-intensive workers"
+
+msgid "preferences_io_workers"
+msgstr "IO Workers"
+
+msgid "preferences_io_workers_help"
+msgstr "Number of IO-intensive workers"
+
+msgid "preferences_auto_calculate"
+msgstr "Auto Calculate"
+
+msgid "preferences_auto_calculate_help"
+msgstr "Automatically calculate optimal number of workers"
+
+msgid "preferences_ai_title"
+msgstr "Configurazione IA"
+
+msgid "preferences_openai_title"
+msgstr "OpenAI"
+
+msgid "preferences_api_key"
+msgstr "API Key"
+
+msgid "preferences_openai_api_key_help"
+msgstr "Your OpenAI API key"
+
+msgid "preferences_base_url"
+msgstr "Base URL"
+
+msgid "preferences_qwen_title"
+msgstr "Qwen"
+
+msgid "preferences_qwen_api_key_help"
+msgstr "Your Qwen API key"
+
+msgid "preferences_claude_title"
+msgstr "Claude"
+
+msgid "preferences_claude_api_key_help"
+msgstr "Your Claude API key"
+
+msgid "preferences_ollama_title"
+msgstr "Ollama"
+
+msgid "preferences_ollama_url_help"
+msgstr "Your Ollama server URL"
+
+msgid "preferences_lmstudio_title"
+msgstr "LM Studio"
+
+msgid "preferences_lmstudio_url_help"
+msgstr "Your LM Studio server URL"
+
+msgid "preferences_blackfish_title"
+msgstr "Blackfish"
+
+msgid "preferences_blackfish_url_help"
+msgstr "Your Blackfish server URL"
+
+msgid "preferences_huggingface_title"
+msgstr "Hugging Face"
+
+msgid "preferences_huggingface_api_key_help"
+msgstr "Your Hugging Face API key"
+
+msgid "workflow_selector_label"
+msgstr "Select workflow:"
+
+msgid "workflow_new_btn"
+msgstr "New"
+
+msgid "workflow_copy_btn"
+msgstr "Copy"
+
+msgid "workflow_steps_label"
+msgstr "Workflow steps:"
+
+msgid "about_window_title"
+msgstr "Informazioni"
+
+msgid "task_table_folder"
+msgstr "Folder"
+
+msgid "task_table_status"
+msgstr "Status"
+
+msgid "task_table_empty"
+msgstr "No tasks to display"
+
+msgid "task_table_no_active"
+msgstr "No active tasks"
+
+msgid "task_table_ready"
+msgstr "Ready"
+
+msgid "task_table_error"
+msgstr "Display error"
+
+msgid "task_table_active_count"
+msgstr "{count} active"
+
+msgid "task_table_completed_count"
+msgstr "{count} completed"
+
+msgid "task_table_failed_count"
+msgstr "{count} failed"
+
+msgid "task_button_stop_document"
+msgstr "Stop Document Tasks"
+
+msgid "task_button_stop_all"
+msgstr "Stop All Tasks"
+
+msgid "task_worker_efficiency"
+msgstr "on Efficiency Worker"
+
+msgid "task_worker_celery_efficiency"
+msgstr "on Celery Efficiency Worker"
+
+msgid "task_worker_performance"
+msgstr "Performance Worker"
+
+msgid "task_status_queued_celery"
+msgstr "Queued for Celery"
+
+msgid "task_status_completed_duration"
+msgstr "Completed ({duration})"
+
+msgid "task_status_failed_duration"
+msgstr "Failed ({duration})"
+
+msgid "task_status_cancelled_duration"
+msgstr "Cancelled ({duration})"
+
+msgid "task_status_processing_duration"
+msgstr "Processing ({duration})"
+
+msgid "task_status_processing_step"
+msgstr "{step} ({duration})"
+
+msgid "task_status_waiting_efficiency"
+msgstr "Waiting for processing on Efficiency Worker"
+
+msgid "task_status_waiting_performance"
+msgstr "Waiting for processing"
+
+msgid "task_status_waiting_celery"
+msgstr "Queued for Celery"
+
+msgid "task_status_waiting_celery_efficiency"
+msgstr "Queued for Celery Efficiency Worker"
+
+msgid "task_status_summary_separator"
+msgstr " | "
+
+msgid "task_table_local_session"
+msgstr "Local Session Tasks"
+
+msgid "task_table_local_session_header"
+msgstr "Local Session Tasks (Python Backend)"
+
+msgid "task_table_all_tasks"
+msgstr "All Tasks"
+
+msgid "task_table_global_monitor"
+msgstr "Global Activity Monitor"
+
+msgid "task_table_global_monitor_header"
+msgstr "Global Activity Monitor (Celery/Redis) - Press Ctrl+C to quit"
+
+msgid "task_table_monitoring_stopped"
+msgstr "{mode} stopped"
+
+# Add Window
+msgid "Add to Library"
+msgstr "Aggiungi alla libreria"
+
+msgid "Add URL"
+msgstr "Add URL"
+
+msgid "Add content from a web URL"
+msgstr "Add content from a web URL"
+
+msgid "Add Website"
+msgstr "Add Website"
+
+msgid "Browse and add content from websites"
+msgstr "Browse and add content from websites"
+
+msgid "Add File"
+msgstr "Add File"
+
+msgid "Add files from your computer"
+msgstr "Add files from your computer"
+
+msgid "Add Folder"
+msgstr "Add Folder"
+
+msgid "Add entire folders to your library"
+msgstr "Add entire folders to your library"
+
+msgid "Add Picture"
+msgstr "Add Picture"
+
+msgid "Take a photo with your camera"
+msgstr "Take a photo with your camera"
+
+msgid "Add Audio Recording"
+msgstr "Add Audio Recording"
+
+msgid "Record audio to add to your library"
+msgstr "Record audio to add to your library"
+
+# File Selector
+msgid "Select Files to Add to Library"
+msgstr "Seleziona file da aggiungere alla libreria"
+
+msgid "Select Files"
+msgstr "Seleziona file"
+
+msgid "No files selected"
+msgstr "Nessun file selezionato"
+
+msgid "%(count)d files selected"
+msgstr "%(count)d file selezionati"
+
+# Folder Selector
+msgid "Select Folders to Add to Library"
+msgstr "Seleziona cartelle da aggiungere alla libreria"
+
+msgid "Select Folders"
+msgstr "Seleziona cartelle"
+
+msgid "No folders selected"
+msgstr "Nessuna cartella selezionata"
+
+msgid "1 folder selected"
+msgstr "1 cartella selezionata"
+
+msgid "%(count)d folders selected"
+msgstr "%(count)d cartelle selezionate"
+
+# Camera Selector
+msgid "📷 Take Photo"
+msgstr "📷 Scatta foto"
+
+msgid "Ready to take photo"
+msgstr "Pronto per scattare foto"
+
+msgid "Taking photo..."
+msgstr "Scatto foto in corso..."
+
+msgid "Photo captured successfully"
+msgstr "Foto catturata con successo"
+
+msgid "Photo capture failed or cancelled"
+msgstr "Photo capture failed or cancelled"
+
+# URL Selector
+msgid "Single URL"
+msgstr "URL singolo"
+
+msgid "Multiple URLs"
+msgstr "URL multipli"
+
+msgid "Enter URL (e.g., https://example.com)..."
+msgstr "Enter URL (e.g., https://example.com)..."
+
+msgid "Enter multiple URLs (one per line):"
+msgstr "Inserisci più URL (uno per riga):"
+
+msgid "https://example1.com\nhttps://example2.com\n..."
+msgstr "https://example1.com\nhttps://example2.com\n..."
+
+msgid "Add URLs"
+msgstr "Add URLs"
+
+# Website Selector
+msgid "Enter website URL (e.g., https://example.com)..."
+msgstr "Inserisci URL del sito web (es. https://esempio.com)..."
+
+msgid "Go"
+msgstr "Vai"
+
+msgid "Select"
+msgstr "Select"
+
+msgid "WebView not available on this platform"
+msgstr "WebView non disponibile su questa piattaforma"
+
+msgid "Navigate to a website and click 'Select' to add its content to your library."
+msgstr "Navigate to a website and click 'Select' to add its content to your library."
+
+# Window Titles
+msgid "Rename"
+msgstr "Rename"
+msgid "➕ Add URL to Library"
+msgstr "➕ Aggiungi URL alla libreria"
+
+msgid "➕ Add URLs to Library"
+msgstr "➕ Aggiungi URL alla libreria"
+
+msgid "✓ Photo captured successfully"
+msgstr "✓ Foto catturata con successo"
+
+msgid "... and %(count)d more files"
+msgstr "... e altri %(count)d file"
+
+msgid "... and %(count)d more folders"
+msgstr "... e altre %(count)d cartelle"
+
+msgid "%(count)d URLs added successfully!"
+msgstr "%(count)d URL aggiunti con successo!"
+
+msgid "%(count)d URLs imported from clipboard successfully!"
+msgstr "%(count)d URL importati dagli appunti con successo!"
+
+msgid "1 file selected"
+msgstr "1 file selezionato"
+
+msgid "1. Click 'Select Files' to open the file browser"
+msgstr "1. Fai clic su 'Seleziona file' per aprire il browser dei file"
+
+msgid "2. Choose one or more files to add"
+msgstr "2. Scegli uno o più file da aggiungere"
+
+msgid "3. Review your selection"
+msgstr "3. Rivedi la tua selezione"
+
+msgid "4. Click 'Add to Library' to complete"
+msgstr "4. Fai clic su 'Aggiungi alla libreria' per completare"
+
+msgid "About Fichero"
+msgstr "Informazioni su Fichero"
+
+msgid "activity_monitor_window_title"
+msgstr "Monitor attività"
+
+msgid "Add Files to Library"
+msgstr "Aggiungi file alla libreria"
+
+msgid "Add Folders to Library"
+msgstr "Aggiungi cartelle alla libreria"
+
+msgid "Add Photo to Library"
+msgstr "Aggiungi foto alla libreria"
+
+msgid "Add Selected Files to Library"
+msgstr "Aggiungi file selezionati alla libreria"
+
+msgid "Add Selected Folders to Library"
+msgstr "Aggiungi cartelle selezionate alla libreria"
+
+msgid "Add URLs as references to your library (no files will be downloaded). Perfect for copy-paste workflow from your browser."
+msgstr "Aggiungi URL come riferimenti alla tua libreria (nessun file verrà scaricato). Perfetto per il flusso di lavoro copia-incolla dal tuo browser."
+
+msgid "Add URLs to Library"
+msgstr "Aggiungi URL alla libreria"
+
+msgid "Add Website Content"
+msgstr "Aggiungi contenuto del sito web"
+
+msgid "Adding %(count)d URLs to library..."
+msgstr "Aggiunta di %(count)d URL alla libreria..."
+
+msgid "Adding files to library..."
+msgstr "Aggiunta di file alla libreria..."
+
+msgid "Adding folders to library..."
+msgstr "Aggiunta di cartelle alla libreria..."
+
+msgid "Adding photo to library..."
+msgstr "Aggiunta di foto alla libreria..."
+
+msgid "Adding URL to library..."
+msgstr "Aggiunta di URL alla libreria..."
+
+msgid "Adding website to library..."
+msgstr "Aggiunta del sito web alla libreria..."
+
+msgid "Browse websites and select content to add to your library."
+msgstr "Sfoglia siti web e seleziona contenuti da aggiungere alla tua libreria."
+
+msgid "Camera not available on this platform"
+msgstr "Fotocamera non disponibile su questa piattaforma"
+
+msgid "Camera permission denied"
+msgstr "Autorizzazione fotocamera negata"
+
+msgid "Clipboard is empty or contains no text"
+msgstr "Gli appunti sono vuoti o non contengono testo"
+
+msgid "defaults.workflow"
+msgstr "workflow predefinito"
+
+msgid "Enter a single URL:"
+msgstr "Inserisci un singolo URL:"
+
+msgid "Error adding files. Please try again."
+msgstr "Errore nell'aggiunta di file. Riprova."
+
+msgid "Error adding folders. Please try again."
+msgstr "Errore nell'aggiunta di cartelle. Riprova."
+
+msgid "Error adding photo. Please try again."
+msgstr "Errore nell'aggiunta della foto. Riprova."
+
+msgid "Error adding URL. Please try again."
+msgstr "Errore nell'aggiunta dell'URL. Riprova."
+
+msgid "Error adding URLs. Please try again."
+msgstr "Errore nell'aggiunta degli URL. Riprova."
+
+msgid "Error adding website. Please try again."
+msgstr "Errore nell'aggiunta del sito web. Riprova."
+
+msgid "Error capturing photo. Please try again."
+msgstr "Errore nella cattura della foto. Riprova."
+
+msgid "Error importing from clipboard. Please try manual paste."
+msgstr "Errore nell'importazione dagli appunti. Prova a incollare manualmente."
+
+msgid "Error loading website"
+msgstr "Errore nel caricamento del sito web"
+
+msgid "Error selecting files. Please try again."
+msgstr "Errore nella selezione dei file. Riprova."
+
+msgid "Error selecting folders. Please try again."
+msgstr "Errore nella selezione delle cartelle. Riprova."
+
+msgid "Failed to save photo"
+msgstr "Impossibile salvare la foto"
+
+msgid "Fichero - Process"
+msgstr "Fichero - Elabora"
+
+msgid "Fichero Activity Monitor"
+msgstr "Monitor attività Fichero"
+
+msgid "Fichero Settings"
+msgstr "Impostazioni Fichero"
+
+msgid "Files added successfully!"
+msgstr "File aggiunti con successo!"
+
+msgid "Folders added successfully!"
+msgstr "Cartelle aggiunte con successo!"
+
+msgid "Found %(count)d URLs in clipboard. Adding to library..."
+msgstr "Trovati %(count)d URL negli appunti. Aggiunta alla libreria..."
+
+msgid "From Clipboard"
+msgstr "Dagli appunti"
+
+msgid "https://example.com"
+msgstr "https://esempio.com"
+
+msgid "https://example1.com\nhttps://example2.com\nhttps://example3.com"
+msgstr "https://esempio1.com\nhttps://esempio2.com\nhttps://esempio3.com"
+
+msgid "Instructions:"
+msgstr "Istruzioni:"
+
+msgid "Instructions:\n1. Click 'Take Photo' to open camera\n2. Take your photo\n3. Click 'Add Photo to Library' to save"
+msgstr "Istruzioni:\n1. Fai clic su 'Scatta foto' per aprire la fotocamera\n2. Scatta la tua foto\n3. Fai clic su 'Aggiungi alla libreria' per salvare"
+
+msgid "label"
+msgstr "etichetta"
+
+msgid "Loading website..."
+msgstr "Caricamento del sito web..."
+
+msgid "Mode:"
+msgstr "Modalità:"
+
+msgid "Navigate to a website and click 'Add to Library' to add its content to your library."
+msgstr "Naviga verso un sito web e fai clic su 'Aggiungi alla libreria' per aggiungere il suo contenuto alla tua libreria."
+
+msgid "No photo to add"
+msgstr "Nessuna foto da aggiungere"
+
+msgid "No valid URLs found"
+msgstr "Nessun URL valido trovato"
+
+msgid "No valid URLs found in clipboard"
+msgstr "Nessun URL valido trovato negli appunti"
+
+msgid "Opening camera..."
+msgstr "Apertura fotocamera..."
+
+msgid "Photo added successfully!"
+msgstr "Foto aggiunta con successo!"
+
+msgid "Photo capture cancelled"
+msgstr "Cattura foto annullata"
+
+msgid "Photo preview will appear here"
+msgstr "L'anteprima della foto apparirà qui"
+
+msgid "Please enter a URL"
+msgstr "Inserisci un URL"
+
+msgid "Please enter a valid URL"
+msgstr "Inserisci un URL valido"
+
+msgid "Please enter URLs"
+msgstr "Inserisci URL"
+
+msgid "Please navigate to a website first"
+msgstr "Naviga prima verso un sito web"
+
+msgid "processing_window_title"
+msgstr "Elaborazione"
+
+msgid "Reading clipboard..."
+msgstr "Lettura appunti..."
+
+msgid "Ready to add URLs"
+msgstr "Pronto per aggiungere URL"
+
+msgid "Ready to browse websites"
+msgstr "Pronto per navigare siti web"
+
+msgid "Select entire folders to add to your library. All files within the folders will be included."
+msgstr "Seleziona cartelle intere da aggiungere alla tua libreria. Tutti i file nelle cartelle saranno inclusi."
+
+msgid "Select files from your computer to add to your library. Multiple files can be selected at once."
+msgstr "Seleziona file dal tuo computer da aggiungere alla tua libreria. È possibile selezionare più file contemporaneamente."
+
+msgid "Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, MP4, MP3, ZIP, and more"
+msgstr "Formati supportati: PDF, DOC, DOCX, TXT, JPG, PNG, MP4, MP3, ZIP e altro"
+
+msgid "Take Picture"
+msgstr "Scatta foto"
+
+msgid "title"
+msgstr "titolo"
+
+msgid "URL added successfully!"
+msgstr "URL aggiunto con successo!"
+
+msgid "Use your device's camera to take a photo and add it to your library."
+msgstr "Usa la fotocamera del tuo dispositivo per scattare una foto e aggiungerla alla tua libreria."
+
+msgid "Website added successfully!"
+msgstr "Sito web aggiunto con successo!"
+
+msgid "You can paste URLs from your demo files or enter them manually"
+msgstr "Puoi incollare URL dai tuoi file demo o inserirli manualmente"
+
+
+msgid "preferences_auto_copy_collections"
+msgstr "Copia automatica delle raccolte"
+
+msgid "preferences_auto_copy_collections_help"
+msgstr "Copia automaticamente i file quando si aggiungono raccolte (consigliato per affidabilità)"
+
+msgid "preferences_collection_settings_description"
+msgstr "Configurare come le raccolte vengono create e gestite"
+
+msgid "preferences_collection_settings_title"
+msgstr "Impostazioni raccolte"
+
+msgid "preferences_default_collection_type"
+msgstr "Tipo di raccolta predefinito"
+
+msgid "preferences_default_collection_type_help"
+msgstr "Scegliere se le nuove raccolte copiano i file o collegano agli originali"
+
+msgid "preferences_library_description"
+msgstr "Configurare la posizione e il comportamento dell'archiviazione della libreria"
+
+msgid "preferences_library_path"
+msgstr "Percorso della libreria"
+
+msgid "preferences_library_path_description"
+msgstr "Scegliere dove Fichero memorizza i dati della tua libreria"
+
+msgid "preferences_library_path_help"
+msgstr "Percorso dove sono memorizzate le raccolte e la cache"
+
+msgid "preferences_library_path_title"
+msgstr "Posizione della libreria"
+
+msgid "preferences_library_reset_to_default"
+msgstr "Ripristina posizione predefinita"
+
+msgid "preferences_library_reset_to_default_help"
+msgstr "Ripristina il percorso della libreria alla posizione predefinita"
+
+msgid "preferences_library_title"
+msgstr "Libreria"
+
+msgid "task_table_loading"
+msgstr "Caricamento attività..."
+
+msgid "workflow_editor"
+msgstr "Editor flusso di lavoro"
+
+msgid "workflow_manager"
+msgstr "Gestore flusso di lavoro"
+
+msgid "← Back"
+msgstr "← Indietro"
+
+msgid "option_alphabetical"
+msgstr "Alfabetico"
+
+msgid "option_reverse_alphabetical"
+msgstr "Alfabetico Inverso"
+
+msgid "option_least_images_first"
+msgstr "Meno Immagini Prima"
+
+msgid "option_most_images_first"
+msgstr "Più Immagini Prima"
+
+msgid "option_copy"
+msgstr "Copia"
+
+msgid "option_link"
+msgstr "Collega"
+
+msgid "option_python"
+msgstr "Python"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Italian Schema Translations for Fichero
+# Collection Settings through U2Net Model (141 strings)
+
+msgid "collection_settings_title"
+msgstr "Impostazioni Collezione"
+
+msgid "collection_settings_description"
+msgstr "Configura le impostazioni per questa collezione"
+
+msgid "collection_settings_window_title"
+msgstr "Impostazioni Collezione"
+
+msgid "collection_settings_basic_title"
+msgstr "Informazioni di Base"
+
+msgid "collection_settings_basic_description"
+msgstr "Dettagli essenziali su questa collezione"
+
+msgid "collection_settings_name"
+msgstr "Nome Collezione"
+
+msgid "collection_settings_name_help"
+msgstr "Un nome univoco per identificare questa collezione"
+
+msgid "collection_settings_description_help"
+msgstr "Una descrizione dettagliata del contenuto di questa collezione"
+
+msgid "collection_settings_type_title"
+msgstr "Tipo di Collezione"
+
+msgid "collection_settings_type_description"
+msgstr "Scegli come vengono archiviati i file in questa collezione"
+
+msgid "collection_settings_type"
+msgstr "Tipo di Archiviazione"
+
+msgid "collection_settings_type_help"
+msgstr "Copia i file nella libreria o collega alle posizioni originali"
+
+msgid "collection_settings_processing_title"
+msgstr "Impostazioni di Elaborazione"
+
+msgid "collection_settings_processing_description"
+msgstr "Configura come viene elaborata questa collezione"
+
+msgid "collection_settings_processing_location"
+msgstr "Posizione di Elaborazione"
+
+msgid "collection_settings_processing_location_help"
+msgstr "Dove archiviare i risultati di elaborazione"
+
+msgid "collection_settings_processing_path"
+msgstr "Percorso di Elaborazione Personalizzato"
+
+msgid "collection_settings_processing_path_help"
+msgstr "Directory per i risultati di elaborazione (quando si utilizza una posizione esterna)"
+
+msgid "collection_settings_metadata_title"
+msgstr "Metadati"
+
+msgid "collection_settings_metadata_description"
+msgstr "Informazioni aggiuntive per organizzare questa collezione"
+
+msgid "collection_settings_tags"
+msgstr "Etichette"
+
+msgid "collection_settings_tags_help"
+msgstr "Etichette separate da virgole per facilitare la ricerca"
+
+msgid "collection_settings_category"
+msgstr "Categoria"
+
+msgid "collection_settings_category_help"
+msgstr "La categoria a cui appartiene questa collezione"
+
+msgid "collection_settings_priority"
+msgstr "Priorità"
+
+msgid "collection_settings_priority_help"
+msgstr "Priorità di elaborazione per questa collezione"
+
+msgid "collection_settings_advanced_title"
+msgstr "Opzioni Avanzate"
+
+msgid "collection_settings_advanced_description"
+msgstr "Impostazioni avanzate per utenti esperti"
+
+msgid "collection_settings_auto_process"
+msgstr "Elaborazione Automatica"
+
+msgid "collection_settings_auto_process_help"
+msgstr "Elabora automaticamente i nuovi file aggiunti a questa collezione"
+
+msgid "collection_settings_process_on_add"
+msgstr "Elabora all'Aggiunta"
+
+msgid "collection_settings_process_on_add_help"
+msgstr "Elabora i file immediatamente quando vengono aggiunti alla collezione"
+
+msgid "collection_settings_retention_policy"
+msgstr "Politica di Conservazione"
+
+msgid "collection_settings_retention_policy_help"
+msgstr "Quanto tempo conservare i file elaborati"
+
+msgid "keep_forever"
+msgstr "Conserva per Sempre"
+
+msgid "keep_30_days"
+msgstr "Conserva 30 Giorni"
+
+msgid "keep_90_days"
+msgstr "Conserva 90 Giorni"
+
+msgid "keep_1_year"
+msgstr "Conserva 1 Anno"
+
+msgid "plans_title"
+msgstr "Piani"
+
+msgid "plans_description"
+msgstr "Configura i piani di elaborazione"
+
+msgid "plans_window_title"
+msgstr "Editor di Piani"
+
+msgid "plans_general_title"
+msgstr "Generale"
+
+msgid "plans_project_info_title"
+msgstr "Informazioni Progetto"
+
+msgid "plans_project_title"
+msgstr "Titolo Progetto"
+
+msgid "plans_project_title_placeholder"
+msgstr "Inserisci titolo progetto"
+
+msgid "plans_description_label"
+msgstr "Descrizione"
+
+msgid "plans_description_placeholder"
+msgstr "Inserisci descrizione progetto"
+
+msgid "plans_variables_title"
+msgstr "Variabili"
+
+msgid "plans_basic_config_title"
+msgstr "Configurazione di Base"
+
+msgid "plans_project_name"
+msgstr "Nome Progetto"
+
+msgid "plans_language"
+msgstr "Lingua"
+
+msgid "plans_text_direction"
+msgstr "Direzione Testo"
+
+msgid "plans_version"
+msgstr "Versione"
+
+msgid "plans_image_formats_title"
+msgstr "Formati Immagine"
+
+msgid "plans_image_formats_description"
+msgstr "Scegli i formati di output per le immagini elaborate"
+
+msgid "plans_crop_format"
+msgstr "Formato Ritaglio"
+
+msgid "plans_split_format"
+msgstr "Formato Divisione"
+
+msgid "plans_rotate_format"
+msgstr "Formato Rotazione"
+
+msgid "plans_enhance_format"
+msgstr "Formato Miglioramento"
+
+msgid "plans_background_removed_format"
+msgstr "Formato senza Sfondo"
+
+msgid "plans_processing_methods_title"
+msgstr "Metodi di Elaborazione"
+
+msgid "plans_processing_methods_description"
+msgstr "Seleziona gli algoritmi per l'elaborazione delle immagini"
+
+msgid "plans_background_removal_method"
+msgstr "Metodo di Rimozione Sfondo"
+
+msgid "plans_background_removal_method_help"
+msgstr "Scegli tra OpenCV o rimozione basata su IA"
+
+msgid "plans_background_removal_ai_model"
+msgstr "Modello IA"
+
+msgid "plans_background_removal_ai_model_help"
+msgstr "Seleziona quale modello IA utilizzare per la rimozione dello sfondo"
+
+msgid "plans_llm_config_title"
+msgstr "Configurazione LLM"
+
+msgid "plans_lmstudio_url"
+msgstr "URL di LM Studio"
+
+msgid "plans_lmstudio_url_placeholder"
+msgstr "http://localhost:1234/v1"
+
+msgid "plans_lmstudio_model"
+msgstr "Modello LM Studio"
+
+msgid "plans_lmstudio_model_placeholder"
+msgstr "Inserisci nome modello"
+
+msgid "plans_default_prompt"
+msgstr "Prompt Predefinito"
+
+msgid "plans_default_prompt_placeholder"
+msgstr "Inserisci prompt predefinito"
+
+msgid "plans_paths_title"
+msgstr "Percorsi"
+
+msgid "plans_key_paths_title"
+msgstr "Percorsi Principali"
+
+msgid "plans_key_paths_description"
+msgstr "Posizioni importanti delle directory"
+
+msgid "plans_project_folder"
+msgstr "Cartella Progetto"
+
+msgid "plans_project_folder_help"
+msgstr "Cartella radice per questo progetto"
+
+msgid "plans_documents_folder"
+msgstr "Cartella Documenti"
+
+msgid "plans_documents_folder_help"
+msgstr "Dove archiviare i documenti di output"
+
+msgid "plans_assets_folder"
+msgstr "Cartella Risorse"
+
+msgid "plans_assets_folder_help"
+msgstr "Dove archiviare le risorse del progetto"
+
+msgid "plans_workflows_title"
+msgstr "Flussi di Lavoro"
+
+msgid "plans_workflow_management_title"
+msgstr "Gestione Flussi di Lavoro"
+
+msgid "plans_workflow_management_description"
+msgstr "Crea e modifica i flussi di lavoro di elaborazione"
+
+msgid "plans_workflow_editor"
+msgstr "Editor Flusso di Lavoro"
+
+msgid "plans_workflow_editor_help"
+msgstr "Trascina e rilascia gli strumenti per creare flussi di lavoro"
+
+msgid "plans_commands_title"
+msgstr "Comandi"
+
+msgid "plans_command_config_title"
+msgstr "Configurazione Comandi"
+
+msgid "plans_command_config_description"
+msgstr "Configurazione avanzata dei comandi basata su YAML"
+
+msgid "plans_commands_yaml"
+msgstr "Comandi (YAML)"
+
+msgid "plans_commands_yaml_help"
+msgstr "Modifica i comandi in formato YAML"
+
+msgid "plans_commands_yaml_placeholder"
+msgstr "# Inserisci comandi YAML qui"
+
+msgid "prompts_title"
+msgstr "Prompt"
+
+msgid "prompts_description"
+msgstr "Configura i prompt IA e le impostazioni LLM"
+
+msgid "prompts_window_title"
+msgstr "Editor di Prompt"
+
+msgid "prompts_general_title"
+msgstr "Generale"
+
+msgid "prompts_config_info_title"
+msgstr "Informazioni Configurazione"
+
+msgid "prompts_config_name"
+msgstr "Nome Configurazione"
+
+msgid "prompts_config_name_help"
+msgstr "Un nome univoco per questa configurazione di prompt"
+
+msgid "prompts_description_label"
+msgstr "Descrizione"
+
+msgid "prompts_description_help"
+msgstr "Cosa fa questa configurazione di prompt"
+
+msgid "prompts_intelligent_chunking"
+msgstr "Suddivisione Intelligente"
+
+msgid "prompts_intelligent_chunking_help"
+msgstr "Usa l'IA per suddividere intelligentemente testi di grandi dimensioni"
+
+msgid "prompts_chunk_overlap"
+msgstr "Sovrapposizione Frammenti"
+
+msgid "prompts_chunk_overlap_help"
+msgstr "Numero di caratteri da sovrapporre tra i frammenti"
+
+msgid "prompts_llm_settings_title"
+msgstr "Impostazioni LLM"
+
+msgid "prompts_model_config_title"
+msgstr "Configurazione Modello"
+
+msgid "prompts_backend"
+msgstr "Backend"
+
+msgid "prompts_backend_help"
+msgstr "Scegli il provider LLM"
+
+msgid "prompts_model_name"
+msgstr "Nome Modello"
+
+msgid "prompts_model_name_help"
+msgstr "Il modello specifico da utilizzare"
+
+msgid "prompts_model_name_placeholder"
+msgstr "gpt-4, claude-3, ecc."
+
+msgid "prompts_temperature"
+msgstr "Temperatura"
+
+msgid "prompts_temperature_help"
+msgstr "Controlla la casualità (0=deterministico, 2=molto casuale)"
+
+msgid "prompts_max_tokens"
+msgstr "Token Massimi"
+
+msgid "prompts_max_tokens_help"
+msgstr "Numero massimo di token nella risposta"
+
+msgid "prompts_top_p"
+msgstr "Top P"
+
+msgid "prompts_top_p_help"
+msgstr "Soglia di campionamento nucleare"
+
+msgid "prompts_frequency_penalty"
+msgstr "Penalità di Frequenza"
+
+msgid "prompts_frequency_penalty_help"
+msgstr "Penalizza i token ripetuti"
+
+msgid "prompts_presence_penalty"
+msgstr "Penalità di Presenza"
+
+msgid "prompts_presence_penalty_help"
+msgstr "Penalizza i token in base alla presenza"
+
+msgid "prompts_request_settings_title"
+msgstr "Impostazioni Richiesta"
+
+msgid "prompts_timeout"
+msgstr "Timeout (secondi)"
+
+msgid "prompts_timeout_help"
+msgstr "Tempo massimo di attesa per la risposta API"
+
+msgid "prompts_retry_attempts"
+msgstr "Tentativi di Ripetizione"
+
+msgid "prompts_retry_attempts_help"
+msgstr "Numero di tentativi in caso di errore"
+
+msgid "prompts_retry_delay"
+msgstr "Ritardo Ripetizione (secondi)"
+
+msgid "prompts_retry_delay_help"
+msgstr "Tempo di attesa tra i tentativi"
+
+msgid "prompts_prompts_title"
+msgstr "Prompt"
+
+msgid "prompts_system_prompts_title"
+msgstr "Prompt di Sistema"
+
+msgid "prompts_system_prompt"
+msgstr "Prompt di Sistema"
+
+msgid "prompts_system_prompt_help"
+msgstr "Il messaggio di sistema che stabilisce il contesto"
+
+msgid "prompts_user_prompt_template"
+msgstr "Modello Prompt Utente"
+
+msgid "prompts_user_prompt_template_help"
+msgstr "Modello per i messaggi utente (può usare variabili)"
+
+msgid "prompts_processing_steps_title"
+msgstr "Passi di Elaborazione"
+
+msgid "prompts_steps_config_title"
+msgstr "Configurazione Passi"
+
+msgid "prompts_steps_config_description"
+msgstr "Configura l'elaborazione multi-passo"
+
+msgid "prompts_steps_info"
+msgstr "Informazioni Passi"
+
+msgid "u2net_human"
+msgstr "Segmentazione Umana U2-Net"
+
+# Toolbar buttons
+msgid "Edit"
+msgstr "Modifica"
+
+msgid "Done"
+msgstr "Fine"
+
+msgid "Delete"
+msgstr "Elimina"
+
+msgid "Select All"
+msgstr "Seleziona Tutto"
+
+msgid "Share"
+msgstr "Condividi"
+
+# Toolbar labels
+msgid "Settings"
+msgstr "Impostazioni"
+
+msgid "Processing"
+msgstr "Elaborazione"
+
+msgid "About"
+msgstr "Informazioni"
+
+msgid "Activity"
+msgstr "Attività"
+
+msgid "Prompts"
+msgstr "Prompt"
+
+msgid "Plans"
+msgstr "Piani"
+
+msgid "Process"
+msgstr "Elabora"
+
+msgid "Previous\nFile"
+msgstr "File\nPrecedente"
+
+msgid "Next\nFile"
+msgstr "File\nSuccessivo"
+
+msgid "Previous\nStep"
+msgstr "Passo\nPrecedente"
+
+msgid "Next\nStep"
+msgstr "Passo\nSuccessivo"
+
+msgid "−"
+msgstr "−"
+
+msgid "Fit"
+msgstr "Adatta"
+
+msgid "Width"
+msgstr "Larghezza"
+
+msgid "Height"
+msgstr "Altezza"
+
+msgid "100%"
+msgstr "100%"
+
+msgid "+"
+msgstr "+"
+
+msgid "Rotate\nLeft"
+msgstr "Ruota\nSinistra"
+
+msgid "Rotate\nRight"
+msgstr "Ruota\nDestra"
+
+
+# Dialog titles and messages
+msgid "Delete Collection"
+msgstr "Elimina Collezione"
+
+msgid "delete_collection_confirm"
+msgstr "Sei sicuro di voler eliminare '{name}'?\n\nQuesta azione non può essere annullata."
+
+msgid "Delete Failed"
+msgstr "Eliminazione Fallita"
+
+msgid "delete_failed_message"
+msgstr "Impossibile eliminare la collezione '{name}'. Riprova."
+
+msgid "delete_failed_no_service"
+msgstr "Sistema libreria non disponibile. Impossibile eliminare la collezione."
+
+msgid "Delete Error"
+msgstr "Errore di Eliminazione"
+
+msgid "delete_error_message"
+msgstr "Si è verificato un errore durante l'eliminazione della collezione: {error}"
+
+msgid "Edit Collection"
+msgstr "Modifica Collezione"
+
+msgid "Export"
+msgstr "Esporta"
+
+msgid "Export Error"
+msgstr "Errore di Esportazione"
+
+msgid "Error"
+msgstr "Errore"
+
+msgid "library_service_unavailable"
+msgstr "Servizio libreria non disponibile"
+
+msgid "Export Successful"
+msgstr "Esportazione Riuscita"
+
+msgid "export_successful_message"
+msgstr "Collezione esportata con successo in:\n{path}\n\nDimensione: {size} MB"
+
+msgid "Export Failed"
+msgstr "Esportazione Fallita"
+
+msgid "export_failed_message"
+msgstr "Impossibile esportare la collezione: {error}"
+
+msgid "Select Folder to Add"
+msgstr "Seleziona Cartella da Aggiungere"
+
+msgid "Collection"
+msgstr "Collezione"
+
+msgid "No Collection"
+msgstr "Nessuna Collezione"
+
+msgid "no_collection_selected"
+msgstr "Seleziona prima una collezione."
+
+msgid "Processing Error"
+msgstr "Errore di Elaborazione"
+
+msgid "Collection Not Found"
+msgstr "Collezione Non Trovata"
+
+msgid "collection_not_found_message"
+msgstr "Impossibile trovare la collezione."
+
+msgid "processing_error_message"
+msgstr "Impossibile avviare l'elaborazione: {error}"
+
+msgid "Service Not Available"
+msgstr "Servizio Non Disponibile"
+
+msgid "service_not_available_message"
+msgstr "Servizio di integrazione Director non disponibile."
+
+msgid "No Path"
+msgstr "Nessun Percorso"
+
+msgid "no_path_message"
+msgstr "La collezione non ha un percorso cartella da elaborare."
+
+msgid "Path Not Found"
+msgstr "Percorso Non Trovato"
+
+msgid "path_not_found_message"
+msgstr "Cartella della collezione non trovata: {path}"
+
+msgid "Success"
+msgstr "Successo"
+
+msgid "collection_deleted_success"
+msgstr "La collezione '{name}' è stata eliminata."
+

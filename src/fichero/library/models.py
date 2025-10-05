@@ -52,8 +52,17 @@ class Collection:
 
 @dataclass
 class CollectionItem:
-    """Represents an individual item within a collection"""
-    
+    """Represents an individual item within a collection
+
+    Metadata fields for Director integration:
+        - director_task_id (str): Links to Director task
+        - director_workflow (str): Workflow name used
+        - director_output_path (str): Path to output folder
+        - director_status (str): "pending" | "running" | "success" | "failed"
+        - director_progress (float): 0-100
+        - director_error (str): Error message if failed
+    """
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     collection_id: str = ""
     type: Literal["file", "folder", "url", "camera", "audio"] = "file"
@@ -143,13 +152,13 @@ class ProcessingResult:
 @dataclass
 class ExternalPath:
     """Represents an external path that needs monitoring"""
-    
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     collection_id: str = ""
     path: str = ""
     last_seen: Optional[datetime] = None
     status: Literal["available", "unmounted", "error"] = "available"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -159,12 +168,48 @@ class ExternalPath:
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "status": self.status
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ExternalPath':
         """Create from dictionary"""
         # Handle datetime conversion
         if 'last_seen' in data and data['last_seen']:
             data['last_seen'] = datetime.fromisoformat(data['last_seen'])
-        
+
+        return cls(**data)
+
+
+@dataclass
+class ThumbnailRecord:
+    """Represents a generated thumbnail with deduplication tracking"""
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    source_file_hash: str = ""  # SHA256 of source file content
+    thumbnail_hash: str = ""  # SHA256 of thumbnail (for verification)
+    thumbnail_path: str = ""  # Relative path from cache_dir: aa/bb/aabbcc...png
+    size: str = ""  # e.g., "128x128"
+    created_at: datetime = field(default_factory=datetime.now)
+    last_accessed: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            "id": self.id,
+            "source_file_hash": self.source_file_hash,
+            "thumbnail_hash": self.thumbnail_hash,
+            "thumbnail_path": self.thumbnail_path,
+            "size": self.size,
+            "created_at": self.created_at.isoformat(),
+            "last_accessed": self.last_accessed.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ThumbnailRecord':
+        """Create from dictionary"""
+        # Handle datetime conversion
+        if 'created_at' in data and isinstance(data['created_at'], str):
+            data['created_at'] = datetime.fromisoformat(data['created_at'])
+        if 'last_accessed' in data and isinstance(data['last_accessed'], str):
+            data['last_accessed'] = datetime.fromisoformat(data['last_accessed'])
+
         return cls(**data) 

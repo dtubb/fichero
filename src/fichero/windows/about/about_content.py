@@ -21,12 +21,13 @@ class AboutContent:
         """Initialize the about content"""
         self.app = app
         self.acknowledgments_webview = None
-        
+
         # Import specialized components
         from fichero.windows.about.acknowledgments import AcknowledgmentsManager
         from fichero.windows.about.version_info import VersionManager
-        
-        self.acknowledgments_manager = AcknowledgmentsManager()
+
+        # Pass is_mobile to AcknowledgmentsManager for responsive font sizing
+        self.acknowledgments_manager = AcknowledgmentsManager(is_mobile=app.is_mobile)
         self.version_manager = VersionManager(app)
     
     def create(self):

@@ -94,10 +94,19 @@ class FicheroApp(toga.App):
             # Initialize library manager
             self.library_manager = LibraryManager(self)
             logger.info("Library manager initialized at app level")
-            
+
             # Initialize library service
             self.library_service = LibraryService(self.library_manager)
             logger.info("Library service initialized at app level")
+
+            # Initialize Director integration service
+            from fichero.library.director_integration import DirectorIntegrationService
+            self.director_integration = DirectorIntegrationService(
+                app=self,
+                library_manager=self.library_manager,
+                director=self.director
+            )
+            logger.info("Director integration service initialized at app level")
 
             # Initialize simple view integration for event-driven navigation
             from fichero.shared.navigation.view_integration import ViewIntegration
@@ -250,10 +259,10 @@ class FicheroApp(toga.App):
                 import traceback
                 traceback.print_exc()
                 raise
-            
+
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
-            
+
         except Exception as e:
             error_msg = f"GUI interface setup failed: {e}"
             logger.error(error_msg)

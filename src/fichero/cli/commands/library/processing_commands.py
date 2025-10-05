@@ -61,14 +61,16 @@ class ProcessingCommands(BaseLibraryCommands):
             """View content of a specific file"""
             asyncio.run(self._view_file(collection_id, step_name, file_name, max_lines))
         
-        @app.command(name="process", help="Process a collection through the director")
+        @app.command(name="process", help="Process collection items through Fichero Director")
         def process_collection(
             collection_id: str = typer.Argument(..., help="ID of the collection to process"),
-            steps: Optional[str] = typer.Option(None, "--steps", "-s", help="Comma-separated list of steps to process"),
-            level: Optional[int] = typer.Option(None, "--level", "-l", help="Process specific level of hierarchy")
+            item_ids: Optional[str] = typer.Option(None, "--items", "-i", help="Comma-separated item IDs to process (default: all items)"),
+            plan: str = typer.Option("Default", "--plan", "-p", help="Director plan to use"),
+            workflow: str = typer.Option("default", "--workflow", "-w", help="Workflow name within the plan"),
+            output: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory path")
         ):
-            """Process a collection through the director"""
-            asyncio.run(self._process_collection(collection_id, steps, level))
+            """Process collection items through Fichero Director"""
+            asyncio.run(self._process_collection_director(collection_id, item_ids, plan, workflow, output))
         
         @app.command(name="status", help="Get processing status of a collection")
         def get_processing_status(
@@ -84,6 +86,15 @@ class ProcessingCommands(BaseLibraryCommands):
         ):
             """Preview collection structure"""
             asyncio.run(self._preview_structure(collection_id, max_depth))
+
+        @app.command(name="inspect-outputs", help="Inspect Director processing outputs")
+        def inspect_outputs(
+            output_path: str = typer.Argument(..., help="Path to Director output folder"),
+            file_name: Optional[str] = typer.Option(None, "--file", "-f", help="Show steps for specific file only"),
+            show_paths: bool = typer.Option(False, "--paths", "-p", help="Show full file paths")
+        ):
+            """Inspect Director processing outputs and show steps"""
+            asyncio.run(self._inspect_outputs(output_path, file_name, show_paths))
     
     async def _list_processing_steps(self, collection_id: str, show_files: bool):
         """List processing steps for a collection"""
@@ -314,40 +325,86 @@ class ProcessingCommands(BaseLibraryCommands):
         except Exception as e:
             self.console.print(f"[red]Failed to view file: {e}[/red]")
     
-    async def _process_collection(self, collection_id: str, steps: Optional[str], level: Optional[int]):
-        """Process a collection through the director"""
+    async def _process_collection_director(self, collection_id: str, item_ids: Optional[str],
+                                          plan: str, workflow: str, output: Optional[str]):
+        """Process collection items through Fichero Director"""
         try:
             # Get collection
             collection = await self.get_collection_by_id(collection_id)
             if not collection:
                 return
-            
-            collection_path = Path(collection.local_path) if collection.local_path else None
-            if not collection_path or not collection_path.exists():
-                self.console.print(f"[red]Collection path not found: {collection_path}[/red]")
+
+            # Get items to process
+            if item_ids:
+                # Process specific items
+                ids_list = [i.strip() for i in item_ids.split(',')]
+                items = []
+                for item_id in ids_list:
+                    item = await self.library_manager.get_item(item_id)
+                    if item:
+                        items.append(item)
+                    else:
+                        self.console.print(f"[yellow]Warning: Item {item_id} not found[/yellow]")
+
+                if not items:
+                    self.console.print(f"[red]No valid items found[/red]")
+                    return
+
+                items_to_process = ids_list
+            else:
+                # Process all items in collection
+                items = await self.library_manager.get_collection_items(collection_id)
+                if not items:
+                    self.console.print(f"[yellow]No items in collection[/yellow]")
+                    return
+
+                items_to_process = [item.id for item in items]
+
+            # Display processing info
+            self.console.print(f"\n[bold cyan]Processing Collection Items through Fichero Director[/bold cyan]")
+            self.console.print(f"Collection: {collection.name}")
+            self.console.print(f"Items: {len(items_to_process)}")
+            self.console.print(f"Plan: {plan}")
+            self.console.print(f"Workflow: {workflow}")
+
+            # Determine output path
+            output_path = Path(output) if output else None
+            if output_path:
+                self.console.print(f"Output: {output_path}")
+
+            # Get director integration service
+            from fichero.library.director_integration import DirectorIntegrationService
+            if not hasattr(self.library_manager.app, 'director_integration'):
+                self.console.print("[red]Director integration service not available[/red]")
                 return
-            
-            # Parse steps
-            steps_list = None
-            if steps:
-                steps_list = [s.strip() for s in steps.split(',')]
-            
-            # Process collection
-            if level is not None:
-                self.console.print(f"[blue]Processing collection at level {level}...[/blue]")
-                result = await self.bridge.process_collection_level(collection_path, level)
+
+            director_integration = self.library_manager.app.director_integration
+
+            # Process items
+            self.console.print("\n[blue]Submitting processing tasks...[/blue]")
+            task_ids = await director_integration.process_items(
+                collection_id=collection_id,
+                item_ids=items_to_process,
+                plan_name=plan,
+                workflow_name=workflow,
+                output_base_path=output_path
+            )
+
+            if task_ids:
+                self.console.print(f"[green]✅ Submitted {len(task_ids)} task(s) to Director[/green]")
+                self.console.print("\n[bold]Task IDs:[/bold]")
+                for task_id in task_ids:
+                    self.console.print(f"  • {task_id}")
+
+                # Show status message
+                self.console.print(f"\n[yellow]Use 'fichero library status {collection_id}' to check progress[/yellow]")
             else:
-                self.console.print(f"[blue]Processing collection...[/blue]")
-                result = await self.bridge.process_collection(collection_path, steps_list)
-            
-            if result["success"]:
-                self.console.print("[green]✅ Collection processed successfully![/green]")
-                self.console.print(f"Processed steps: {result.get('processed_steps', 'N/A')}")
-            else:
-                self.console.print(f"[red]❌ Processing failed: {result.get('error', 'Unknown error')}[/red]")
-            
+                self.console.print("[yellow]No tasks were submitted[/yellow]")
+
         except Exception as e:
+            import traceback
             self.console.print(f"[red]Failed to process collection: {e}[/red]")
+            self.console.print(traceback.format_exc())
     
     async def _get_processing_status(self, collection_id: str):
         """Get processing status of a collection"""
@@ -417,3 +474,78 @@ class ProcessingCommands(BaseLibraryCommands):
             
         except Exception as e:
             self.console.print(f"[red]Failed to preview structure: {e}[/red]")
+
+    async def _inspect_outputs(self, output_path_str: str, file_name: Optional[str], show_paths: bool):
+        """Inspect Director processing outputs"""
+        try:
+            from fichero.library.director_output_parser import DirectorOutputParser
+
+            output_path = Path(output_path_str)
+            if not output_path.exists():
+                self.console.print(f"[red]Output path does not exist: {output_path}[/red]")
+                return
+
+            parser = DirectorOutputParser()
+
+            # Parse the output folder
+            self.console.print(f"\n[bold cyan]Inspecting Director Outputs[/bold cyan]")
+            self.console.print(f"Path: {output_path}")
+
+            # Get all file outputs
+            file_outputs = parser.get_all_file_outputs(output_path)
+
+            if not file_outputs:
+                self.console.print("[yellow]No processed files found in output folder[/yellow]")
+                return
+
+            self.console.print(f"Found: {len(file_outputs)} processed file(s)\n")
+
+            # Filter to specific file if requested
+            if file_name:
+                file_outputs = [fo for fo in file_outputs if fo.original_file and fo.original_file.name == file_name]
+                if not file_outputs:
+                    self.console.print(f"[yellow]File '{file_name}' not found in outputs[/yellow]")
+                    return
+
+            # Display each file and its steps
+            for file_output in file_outputs:
+                if not file_output.original_file:
+                    continue
+
+                # Get processing steps
+                steps = parser.get_processing_steps(file_output)
+
+                if not steps:
+                    self.console.print(f"[yellow]No steps found for {file_output.original_file.name}[/yellow]")
+                    continue
+
+                # Create table for this file
+                table = Table(title=f"Processing Steps: {file_output.original_file.name}")
+                table.add_column("#", justify="right", style="cyan", width=4)
+                table.add_column("Step Name", style="green")
+                table.add_column("Type", style="yellow")
+                if show_paths:
+                    table.add_column("Path", style="white")
+                table.add_column("Description", style="blue")
+
+                for step in steps:
+                    row = [
+                        str(step.step_number),
+                        step.step_name,
+                        step.file_type,
+                    ]
+                    if show_paths:
+                        row.append(str(step.file_path))
+                    row.append(step.description or "")
+                    table.add_row(*row)
+
+                self.console.print(table)
+                self.console.print()  # Blank line between files
+
+            # Summary
+            self.console.print(f"[green]✅ Inspected {len(file_outputs)} file(s)[/green]")
+
+        except Exception as e:
+            import traceback
+            self.console.print(f"[red]Failed to inspect outputs: {e}[/red]")
+            self.console.print(traceback.format_exc())

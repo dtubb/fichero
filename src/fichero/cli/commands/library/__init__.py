@@ -17,6 +17,7 @@ from .bulk_import_commands import BulkImportCommands
 from .lookup_commands import LookupCommands
 from .batch_commands import BatchCommands
 from .cache_commands import CacheCommands
+from .outputs_commands import OutputsCommands
 
 
 class LibraryCommands(BaseLibraryCommands):
@@ -37,6 +38,7 @@ class LibraryCommands(BaseLibraryCommands):
         self.lookup_commands = LookupCommands(app_initializer)
         self.batch_commands = BatchCommands(app_initializer)
         self.cache_commands = CacheCommands(app_initializer)
+        self.outputs_commands = OutputsCommands(app_initializer)
         
         # Register all commands
         self._register_commands()
@@ -70,3 +72,6 @@ class LibraryCommands(BaseLibraryCommands):
 
         # Cache management commands
         self.cache_commands.register_commands(self.app)
+
+        # Outputs management commands
+        self.outputs_commands.register_commands(self.app)

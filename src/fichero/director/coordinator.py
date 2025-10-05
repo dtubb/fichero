@@ -92,7 +92,7 @@ class ProcessingCoordinator:
         from fichero.director.folder_processor import FolderProcessor
         
         # Create a folder processor instance using the current director
-        from fichero.director_service import FicheroDirector
+        from fichero.director.director_service import FicheroDirector
         director = FicheroDirector.get_instance()
         
         folder_processor = FolderProcessor(director)

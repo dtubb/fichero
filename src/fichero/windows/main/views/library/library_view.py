@@ -110,6 +110,14 @@ class LibraryView(BaseView):
             threading.Thread(target=self._load_collections_sync, daemon=True).start()
             print("✅ Thread started")
 
+        # Subscribe to library state events for automatic synchronization
+        print("🔧 Subscribing to library state events...")
+        from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
+        subscribe_to_navigation("collection_added", self._on_collection_added_event)
+        subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
+        subscribe_to_navigation("collection_updated", self._on_collection_updated_event)
+        print("✅ Event subscriptions registered")
+
         print("✅ LibraryView initialization complete")
         logger.info("Library view created successfully")
     
@@ -174,6 +182,20 @@ class LibraryView(BaseView):
 
             # Format collections for Toga DetailedList (simple, no visual selection indicators)
             collection_data = []
+
+            # Load folder icon once for all collections
+            folder_icon = None
+            try:
+                import toga
+                folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                if folder_icon_path.exists():
+                    folder_icon = toga.Image(str(folder_icon_path))
+                    logger.info(f"✅ Loaded collection folder icon")
+                else:
+                    logger.warning(f"❌ Folder icon not found at: {folder_icon_path}")
+            except Exception as e:
+                logger.error(f"Failed to load folder icon: {e}", exc_info=True)
+
             for collection in self.collections:
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', 'Unknown Collection')
@@ -182,7 +204,7 @@ class LibraryView(BaseView):
                     'id': collection_id,
                     'title': collection_name,
                     'subtitle': f"{collection.get('item_count', 0)} items • {collection.get('source_type', 'local')}",
-                    'icon': "folder",
+                    'icon': folder_icon,  # toga.Image or None
                     'collection_data': collection  # Store full data for callbacks
                 }
                 collection_data.append(formatted_item)
@@ -919,8 +941,8 @@ class LibraryView(BaseView):
         try:
             # Create QuestionDialog for confirmation
             dialog = toga.QuestionDialog(
-                title="Delete Collection",
-                message=f"Are you sure you want to delete '{collection_name}'?\n\nThis action cannot be undone."
+                title=_("Delete Collection"),
+                message=_("delete_collection_confirm").format(name=collection_name)
             )
 
             # Show dialog and wait for user response
@@ -944,28 +966,38 @@ class LibraryView(BaseView):
 
                 if success:
                     logger.info(f"Successfully deleted collection: {collection_name}")
+
+                    # If we're currently viewing this collection, navigate back to library view
+                    if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                        current_view = self.app.main_window_wrapper.center_pane
+                        # Check if current view is a collection view showing this collection
+                        if hasattr(current_view, 'collection_id') and current_view.collection_id == collection_id:
+                            logger.info(f"Navigating away from deleted collection view")
+                            # Show library view
+                            self.app.main_window_wrapper.show_library_view()
+
                     # Refresh the collections display
                     self.refresh_collections()
                 else:
                     logger.error(f"Failed to delete collection: {collection_name}")
                     error_dialog = toga.ErrorDialog(
-                        title="Delete Failed",
-                        message=f"Failed to delete collection '{collection_name}'. Please try again."
+                        title=_("Delete Failed"),
+                        message=_("delete_failed_message").format(name=collection_name)
                     )
                     await self.app.main_window.dialog(error_dialog)
             else:
                 logger.error("Library manager not available for collection deletion")
                 error_dialog = toga.ErrorDialog(
-                    title="Delete Failed",
-                    message="Library system not available. Cannot delete collection."
+                    title=_("Delete Failed"),
+                    message=_("delete_failed_no_service")
                 )
                 await self.app.main_window.dialog(error_dialog)
 
         except Exception as e:
             logger.error(f"Failed to perform collection deletion: {e}")
             error_dialog = toga.ErrorDialog(
-                title="Delete Error",
-                message=f"An error occurred while deleting the collection: {e}"
+                title=_("Delete Error"),
+                message=_("delete_error_message").format(error=str(e))
             )
             await self.app.main_window.dialog(error_dialog)
             self._show_message("Success", f"Collection '{collection_name}' has been deleted.")
@@ -985,7 +1017,7 @@ class LibraryView(BaseView):
             
             # Create edit dialog
             dialog = toga.AlertDialog(
-                title="Edit Collection",
+                title=_("Edit Collection"),
                 message=f"Editing: {collection_name}\n\nThis feature will be implemented in the next iteration.",
                 buttons=["OK"]
             )
@@ -1282,54 +1314,38 @@ class LibraryView(BaseView):
                 platform_features.__dict__
             )
 
+            # Add custom library-specific buttons to context before triggering edit mode
+            custom_buttons = [
+                {"id": "export", "title": _("Export"), "icon": "resources/icons/toolbar/download.png", "label": _("Export")},
+                {"id": "bulk", "title": "Bulk Import", "icon": "resources/icons/toolbar/document.png", "label": "Bulk"},
+                {"id": "urls", "title": "Import URLs", "icon": "resources/icons/toolbar/link.png", "label": "URLs"},
+            ]
+
+            # Add platform-specific buttons
+            if platform_features.file_import:
+                custom_buttons.append({"id": "files", "title": "Import Files", "icon": "resources/icons/toolbar/document.png", "label": "Files"})
+            if platform_features.folder_import:
+                custom_buttons.append({"id": "folder", "title": "Import Folder", "icon": "resources/icons/toolbar/folder@10x.png", "label": "Folder"})
+
+            # Add custom buttons to the context's bottom_edit_actions
+            if "bottom_edit_actions" not in edit_context:
+                edit_context["bottom_edit_actions"] = []
+            edit_context["bottom_edit_actions"].extend(custom_buttons)
+
             # Update coordinator context WITHOUT triggering another edit mode change
             self.coordinator._edit_context.update(edit_context)
 
-            # Add import-specific buttons to bottom toolbar
+            # Register custom button handlers with coordinator
+            self.coordinator.register_navigation_handler("export", self._on_export_collection)
+            self.coordinator.register_navigation_handler("bulk", self._on_import_bulk)
+            self.coordinator.register_navigation_handler("urls", self._on_import_urls)
+            if platform_features.file_import:
+                self.coordinator.register_navigation_handler("files", self._on_import_files)
+            if platform_features.folder_import:
+                self.coordinator.register_navigation_handler("folder", self._on_import_folder)
+
+            # Notify bottom toolbar to rebuild with updated context
             if self.coordinator.bottom_toolbar:
-                # Add export button for selected collection
-                self.coordinator.bottom_toolbar.add_edit_mode_button(
-                    text="Export",
-                    icon="resources/icons/toolbar/download.png",
-                    on_press=self._on_export_collection,
-                    position="center"
-                )
-
-                # Add bulk import button (text file or zip)
-                self.coordinator.bottom_toolbar.add_edit_mode_button(
-                    text="Bulk",
-                    icon="resources/icons/toolbar/document.png",
-                    on_press=self._on_import_bulk,
-                    position="center"
-                )
-
-                # Add URL import button
-                self.coordinator.bottom_toolbar.add_edit_mode_button(
-                    text="URLs",
-                    icon="resources/icons/toolbar/link.png",
-                    on_press=self._on_import_urls,
-                    position="center"
-                )
-
-                # Add file import button (if supported)
-                if platform_features.file_import:
-                    self.coordinator.bottom_toolbar.add_edit_mode_button(
-                        text="Files",
-                        icon="resources/icons/toolbar/document.png",
-                        on_press=self._on_import_files,
-                        position="center"
-                    )
-
-                # Add folder import button (if supported)
-                if platform_features.folder_import:
-                    self.coordinator.bottom_toolbar.add_edit_mode_button(
-                        text="Folder",
-                        icon="resources/icons/toolbar/folder@10x.png",
-                        on_press=self._on_import_folder,
-                        position="center"
-                    )
-
-                # Notify bottom toolbar (without triggering callbacks)
                 self.coordinator.bottom_toolbar.set_edit_mode(
                     self.coordinator._edit_mode_state,
                     self.coordinator._edit_context
@@ -1381,52 +1397,52 @@ class LibraryView(BaseView):
             # Create center-aligned window navigation buttons for normal mode
             # Settings window
             self.bottom_toolbar.add_normal_mode_button(
-                text="Settings",
                 icon="resources/icons/toolbar/settings.png",
                 on_press=self._on_open_settings_window,
-                position="center"
+                position="center",
+                label=_("Settings")
             )
 
             # Processing window
             self.bottom_toolbar.add_normal_mode_button(
-                text="Processing",
                 icon="resources/icons/toolbar/process.png",
                 on_press=self._on_open_processing_window,
-                position="center"
+                position="center",
+                label=_("Processing")
             )
 
             # About window (using help icon)
             self.bottom_toolbar.add_normal_mode_button(
-                text="About",
                 icon="resources/icons/toolbar/help.png",
                 on_press=self._on_open_about_window,
-                position="center"
+                position="center",
+                label=_("About")
             )
 
             # Add collection functionality removed - simplified interface"
 
             # Activity Monitor window
             self.bottom_toolbar.add_normal_mode_button(
-                text="Activity",
                 icon="resources/icons/toolbar/activity.png",
                 on_press=self._on_open_activity_monitor_window,
-                position="center"
+                position="center",
+                label=_("Activity")
             )
 
             # Prompts window
             self.bottom_toolbar.add_normal_mode_button(
-                text="Prompts",
                 icon="resources/icons/toolbar/prompt.png",
                 on_press=self._on_open_prompts_window,
-                position="center"
+                position="center",
+                label=_("Prompts")
             )
 
             # Plans window
             self.bottom_toolbar.add_normal_mode_button(
-                text="Plans",
                 icon="resources/icons/toolbar/plan.png",
                 on_press=self._on_open_plans_window,
-                position="center"
+                position="center",
+                label=_("Plans")
             )
 
             # Set up edit mode buttons for library management
@@ -1533,7 +1549,7 @@ class LibraryView(BaseView):
             default_filename = f"{collection_name.replace(' ', '_')}_export.zip"
 
             self.app.main_window.save_file_dialog(
-                title=f"Export {collection_name}",
+                title=_("Export") + f" {collection_name}",
                 suggested_filename=default_filename,
                 file_types=['zip'],
                 on_result=lambda widget, path: asyncio.create_task(
@@ -1543,7 +1559,7 @@ class LibraryView(BaseView):
 
         except Exception as e:
             logger.error(f"Failed to initiate export: {e}")
-            self.app.main_window.error_dialog("Export Error", str(e))
+            self.app.main_window.error_dialog(_("Export Error"), str(e))
 
     async def _perform_export_collection(self, collection_id: str, collection_name: str, output_path):
         """Actually perform the export operation"""
@@ -1559,7 +1575,7 @@ class LibraryView(BaseView):
 
             # Get library service
             if not hasattr(self.app, 'view_integration'):
-                self.app.main_window.error_dialog("Error", "Library service not available")
+                self.app.main_window.error_dialog(_("Error"), _("library_service_unavailable"))
                 return
 
             library_service = self.app.view_integration.library_service
@@ -1573,22 +1589,20 @@ class LibraryView(BaseView):
                 size_mb = file_size / (1024 * 1024)
 
                 self.app.main_window.info_dialog(
-                    "Export Successful",
-                    f"Collection '{collection_name}' exported successfully.\n\n"
-                    f"Location: {output_path}\n"
-                    f"Size: {size_mb:.1f} MB"
+                    _("Export Successful"),
+                    _("export_successful_message").format(path=output_path, size=f"{size_mb:.1f}")
                 )
                 logger.info(f"Export completed: {output_path} ({size_mb:.1f} MB)")
             else:
                 self.app.main_window.error_dialog(
-                    "Export Failed",
-                    f"Failed to export collection '{collection_name}'"
+                    _("Export Failed"),
+                    _("export_failed_message").format(error=collection_name)
                 )
                 logger.error(f"Export failed for collection: {collection_name}")
 
         except Exception as e:
             logger.error(f"Export operation failed: {e}")
-            self.app.main_window.error_dialog("Export Error", str(e))
+            self.app.main_window.error_dialog(_("Export Error"), str(e))
 
     def _on_import_urls(self, widget=None):
         """Handle URL import - navigate to URL add view"""
@@ -1958,5 +1972,43 @@ class LibraryView(BaseView):
 
         except Exception as e:
             logger.error(f"Failed to create collection from camera photo: {e}")
+
+    # ===== EVENT HANDLERS FOR LIBRARY STATE SYNCHRONIZATION =====
+
+    def _on_collection_added_event(self, event):
+        """Handle collection_added event - auto-refresh library view"""
+        try:
+            collection_name = event.data.get("collection_name", "Unknown")
+            logger.info(f"📡 Event received: collection_added - {collection_name}")
+
+            # Reload collections to show the new one
+            asyncio.create_task(self._load_collections_async())
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_added event: {e}")
+
+    def _on_collection_deleted_event(self, event):
+        """Handle collection_deleted event - auto-refresh library view"""
+        try:
+            collection_name = event.data.get("collection_name", "Unknown")
+            logger.info(f"📡 Event received: collection_deleted - {collection_name}")
+
+            # Reload collections to remove the deleted one
+            asyncio.create_task(self._load_collections_async())
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_deleted event: {e}")
+
+    def _on_collection_updated_event(self, event):
+        """Handle collection_updated event - auto-refresh library view"""
+        try:
+            collection_name = event.data.get("collection_name", "Unknown")
+            logger.info(f"📡 Event received: collection_updated - {collection_name}")
+
+            # Reload collections to show updates
+            asyncio.create_task(self._load_collections_async())
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_updated event: {e}")
 
 

@@ -104,7 +104,7 @@
       "combine": true,
       "json": true,
       "iterative_refinement": false,
-      "refinement_prompt": null,
+    "refinement_prompt": null,
       "async": false,
       "async_batch_size": 0,
       "chunking_strategy": "none",

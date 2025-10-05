@@ -1049,28 +1049,35 @@ class NavigationController:
                             logger.info(f"Successfully added {len(files)} files to new collection: {collection_name}")
 
                 elif option_id == 'folder' and 'folders' in content_info:
-                    # Create a new collection for each selected folder
+                    # Create a new collection for each selected folder and import all files
                     folders = content_info['folders']
                     for folder_path in folders:
                         collection_name = f"Folder: {folder_path.name}"
 
-                        # Create collection using library backend
+                        # Create collection using library backend (use 'external' to link files without copying)
                         collection_id = await self.app.library_manager.add_collection(
                             name=collection_name,
-                            collection_type="local",
+                            collection_type="external",
                             source_path=str(folder_path)
                         )
 
                         if collection_id:
-                            # Add the folder to the collection
-                            await self.app.library_manager.add_item_to_collection(
+                            # Add all files in folder as individual items (NEW ARCHITECTURE)
+                            stats = await self.app.library_manager.add_folder_items_to_collection(
                                 collection_id=collection_id,
-                                item_type="folder",
-                                source=str(folder_path),
-                                name=folder_path.name,
-                                operation="link"
+                                folder_path=str(folder_path),
+                                operation="link",
+                                recursive=True
                             )
-                            logger.info(f"Successfully created collection from folder: {collection_name}")
+                            logger.info(
+                                f"Successfully created collection from folder: {collection_name} "
+                                f"(Added: {stats['added']}, Skipped: {stats['skipped']}, Errors: {stats['errors']})"
+                            )
+
+                            # Refresh library view to show the new collection
+                            if hasattr(self.app, 'library_service'):
+                                await self.app.library_service.refresh_collections()
+                                logger.info("Refreshed library view after folder import")
 
         except Exception as e:
             logger.error(f"Failed to handle desktop content added: {e}")

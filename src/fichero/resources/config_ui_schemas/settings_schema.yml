@@ -23,7 +23,7 @@ sections:
           - id: "preferences.folder_processing_order"
             type: "selection"
             label: "preferences_folder_order"
-            options: ["alphabetical", "reverse_alphabetical", "least_images_first", "most_images_first"]
+            options: ["option_alphabetical", "option_reverse_alphabetical", "option_least_images_first", "option_most_images_first"]
             help: "preferences_folder_order_help"
 
 
@@ -37,7 +37,7 @@ sections:
           - id: "workers.backend"
             type: "selection"
             label: "preferences_backend_type"
-            options: ["python"]
+            options: ["option_python"]
             help: "preferences_backend_type_help"
             
       - title: "preferences_workers_title"
@@ -84,7 +84,7 @@ sections:
           - id: "library.default_collection_type"
             type: "selection"
             label: "preferences_default_collection_type"
-            options: ["copy", "link"]
+            options: ["option_copy", "option_link"]
             help: "preferences_default_collection_type_help"
           - id: "library.auto_copy_collections"
             type: "switch"

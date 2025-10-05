@@ -7,7 +7,7 @@ Integrates with ToolbarCoordinator for edit mode management.
 
 import toga
 from toga.style import Pack
-from toga.constants import ROW, COLUMN
+from toga.constants import ROW, COLUMN, CENTER
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Dict, Any
@@ -178,7 +178,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
                      text: Optional[str] = None,
                      icon: Optional[str] = None,
                      on_press: Optional[Callable] = None,
-                     style_class: str = "default") -> toga.Button:
+                     style_class: str = "default",
+                     label: Optional[str] = None):
         """Create HIG-compliant button"""
         try:
             # Determine button style based on platform and class
@@ -236,7 +237,31 @@ class BaseToolbar(ABC, ToolbarProtocol):
                 # Text-only button
                 button = toga.Button(text=text or "Button", on_press=on_press, style=button_style)
 
-            return button
+            # If label is provided, wrap button in vertical container with label below
+            if label:
+                container = toga.Box(
+                    style=Pack(
+                        direction=COLUMN,
+                        alignment=CENTER,
+                        margin=(2, 4, 0, 4)  # Small top margin, side margins, no bottom margin
+                    )
+                )
+
+                # Create small label below button
+                label_widget = toga.Label(
+                    text=label,
+                    style=Pack(
+                        font_size=7,  # Small text
+                        text_align=CENTER,
+                        margin=(0, 0, 2, 0)  # Small bottom margin for label
+                    )
+                )
+
+                container.add(button)
+                container.add(label_widget)
+                return container
+            else:
+                return button
 
         except Exception as e:
             logger.error(f"Failed to create button: {e}")
@@ -273,9 +298,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                        icon: Optional[str] = None,
                        on_press: Optional[Callable] = None,
                        tooltip: Optional[str] = None,
-                       button_id: Optional[str] = None) -> toga.Button:
+                       button_id: Optional[str] = None,
+                       label: Optional[str] = None):
         """Add button to left side of toolbar"""
-        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        button = self.create_button(text=text, icon=icon, on_press=on_press, label=label)
         self.left_content.add(button)
 
         if button_id:
@@ -288,9 +314,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                         icon: Optional[str] = None,
                         on_press: Optional[Callable] = None,
                         tooltip: Optional[str] = None,
-                        button_id: Optional[str] = None) -> toga.Button:
+                        button_id: Optional[str] = None,
+                        label: Optional[str] = None):
         """Add button to right side of toolbar"""
-        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        button = self.create_button(text=text, icon=icon, on_press=on_press, label=label)
         self.right_content.add(button)
 
         if button_id:
@@ -303,9 +330,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                          icon: Optional[str] = None,
                          on_press: Optional[Callable] = None,
                          tooltip: Optional[str] = None,
-                         button_id: Optional[str] = None) -> toga.Button:
+                         button_id: Optional[str] = None,
+                         label: Optional[str] = None):
         """Add button to center of toolbar"""
-        button = self.create_button(text=text, icon=icon, on_press=on_press)
+        button = self.create_button(text=text, icon=icon, on_press=on_press, label=label)
         self.center_content.add(button)
 
         if button_id:
@@ -317,6 +345,7 @@ class BaseToolbar(ABC, ToolbarProtocol):
                  title: str,
                  on_click: Optional[Callable] = None) -> toga.Label:
         """Add title to center of toolbar"""
+        logger.info(f"🎯 add_title called with: '{title}', is_mobile={getattr(self, 'is_mobile', 'unknown')}")
         label = self.create_label(title, style_class="title")
         self.center_content.add(label)
 
@@ -368,9 +397,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                           text: Optional[str] = None,
                           icon: Optional[str] = None,
                           on_press: Optional[Callable] = None,
-                          style_class: str = "default") -> toga.Button:
+                          style_class: str = "default",
+                          label: Optional[str] = None):
         """Add a regular button that persists across edit mode transitions"""
-        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class)
+        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class, label=label)
 
         # Store button info for smart management
         self._regular_buttons[button_id] = {
@@ -379,7 +409,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
             "text": text,
             "icon": icon,
             "on_press": on_press,
-            "style_class": style_class
+            "style_class": style_class,
+            "label": label
         }
 
         # Add to appropriate position
@@ -392,9 +423,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                        text: Optional[str] = None,
                        icon: Optional[str] = None,
                        on_press: Optional[Callable] = None,
-                       style_class: str = "default") -> toga.Button:
+                       style_class: str = "default",
+                       label: Optional[str] = None):
         """Add an edit mode button (only shown during edit mode)"""
-        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class)
+        button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class, label=label)
 
         # Store button info for edit mode
         self._edit_buttons[button_id] = {
@@ -403,7 +435,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
             "text": text,
             "icon": icon,
             "on_press": on_press,
-            "style_class": style_class
+            "style_class": style_class,
+            "label": label
         }
 
         # Don't add to UI yet - will be added during edit mode

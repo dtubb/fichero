@@ -78,6 +78,12 @@ class CollectionView(BaseView):
             )
             logger.debug("Connected bottom toolbar preview callback")
 
+        # Subscribe to library state events for automatic synchronization
+        from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
+        subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
+        subscribe_to_navigation("collection_items_changed", self._on_collection_items_changed_event)
+        logger.debug("Event subscriptions registered for collection view")
+
         logger.info("Refactored collection view created successfully")
 
     def show(self):
@@ -222,26 +228,39 @@ class CollectionView(BaseView):
         """Handle add folder action from toolbar"""
         try:
             logger.info("Add folder requested from toolbar")
-            # Use navigation controller to show folder add view
-            from fichero.windows.add.views.folder_view import FolderAddView
 
-            folder_view = FolderAddView(
-                app=self.app,
-                on_content_added=self._on_folder_added
-            )
-
-            # Navigate to folder view
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    nav_controller.push_view(folder_view, "Add Folder")
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            # Use Toga folder selection dialog
+            import asyncio
+            asyncio.create_task(self._select_and_add_folder())
 
         except Exception as e:
             logger.error(f"Failed to handle add folder: {e}")
+
+    async def _select_and_add_folder(self):
+        """Show folder selection dialog and add selected folder to collection"""
+        try:
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show folder selection dialog
+            selected_path = await window.select_folder_dialog(
+                title=_("Select Folder to Add"),
+                initial_directory=None
+            )
+
+            if selected_path:
+                logger.info(f"Folder selected: {selected_path}")
+                # Add folder to current collection
+                await self._add_folder_to_collection(str(selected_path))
+            else:
+                logger.info("Folder selection cancelled")
+
+        except Exception as e:
+            logger.error(f"Failed to select and add folder: {e}")
 
     def _on_add_file(self):
         """Handle add file action from toolbar"""
@@ -668,10 +687,180 @@ class CollectionView(BaseView):
     def _add_collection_toolbar_buttons(self):
         """Add collection-specific toolbar buttons"""
         try:
-            # No custom buttons needed - tapping items opens preview automatically
-            logger.info("Collection toolbar buttons configured")
+            # Add Process button for Director integration
+            if self.bottom_toolbar:
+                self.bottom_toolbar.add_normal_mode_button(
+                    text="⚙️",
+                    label=_("Process"),
+                    on_press=self._on_process_requested,
+                    position="center",
+                    key="process",
+                    tooltip="Process items with Fichero Director"
+                )
+                logger.info("Collection toolbar buttons configured with Process button")
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
+
+    async def _on_process_requested(self, widget):
+        """Handle Process button click"""
+        try:
+            logger.info("Process button clicked")
+
+            # Debug: Check director integration
+            logger.info(f"App has director_integration: {hasattr(self.app, 'director_integration')}")
+            if hasattr(self.app, 'director_integration'):
+                logger.info(f"director_integration is: {self.app.director_integration}")
+
+            # Check if we have a collection
+            if not self.collection_id:
+                await self.app.main_window.dialog(
+                    toga.InfoDialog(_("No Collection"), _("no_collection_selected"))
+                )
+                return
+
+            # Get currently selected item (if any)
+            selected_item_id = None
+            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
+                try:
+                    # Get the selected item's ID from the row data
+                    selected_row = self.items_list.selection
+                    if hasattr(selected_row, 'item_id'):
+                        selected_item_id = selected_row.item_id
+                    elif hasattr(selected_row, 'id'):
+                        selected_item_id = selected_row.id
+                except Exception as e:
+                    logger.debug(f"Could not get selected item: {e}")
+
+            # Show processing dialog
+            await self._show_process_dialog(selected_item_id)
+
+        except Exception as e:
+            logger.error(f"Error handling process request: {e}")
+            await self.app.main_window.error_dialog(
+                title=_("Processing Error"),
+                message=_("processing_error_message").format(error=str(e))
+            )
+
+    async def _show_process_dialog(self, selected_item_id: Optional[str] = None):
+        """Show simple confirmation and process directly"""
+        try:
+            # Get collection first
+            collection = await self.app.library_manager.get_collection(self.collection_id)
+            if not collection:
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(_("Collection Not Found"), _("collection_not_found_message"))
+                )
+                return
+
+            # Check if we have items in the database
+            all_items = await self.app.library_manager.get_collection_items(self.collection_id)
+
+            # Determine processing approach based on what we have
+            if all_items:
+                # We have items in database - use DirectorIntegrationService
+                await self._process_via_items(collection, all_items, selected_item_id)
+            else:
+                # No items in database - process folder directly
+                await self._process_via_folder(collection)
+
+        except Exception as e:
+            logger.error(f"Error in process dialog: {e}")
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(_("Processing Error"), _("processing_error_message").format(error=str(e)))
+            )
+
+    async def _process_via_items(self, collection, all_items, selected_item_id: Optional[str] = None):
+        """Process using DirectorIntegrationService (items from database)"""
+        # Determine scope
+        if selected_item_id:
+            item = await self.app.library_manager.get_item(selected_item_id)
+            scope_text = f"Selected: {item.name}" if item else "All items"
+            item_ids = [selected_item_id] if item else [item.id for item in all_items]
+        else:
+            scope_text = f"All {len(all_items)} items"
+            item_ids = [item.id for item in all_items]
+
+        # Simple confirmation dialog
+        proceed = await self.app.main_window.dialog(
+            toga.ConfirmDialog(
+                "Process Items",
+                f"Collection: {collection.name}\n{scope_text}\n\nThis will use the Default plan with default workflow.\n\nContinue?"
+            )
+        )
+
+        if not proceed:
+            return
+
+        # Check director integration service
+        if not hasattr(self.app, 'director_integration'):
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(_("Service Not Available"), _("service_not_available_message"))
+            )
+            return
+
+        logger.info(f"Processing {len(item_ids)} items via DirectorIntegrationService")
+
+        # Process items
+        task_ids = await self.app.director_integration.process_items(
+            collection_id=self.collection_id,
+            item_ids=item_ids,
+            plan_name="Default",
+            workflow_name="default"
+        )
+
+        # Show success
+        await self.app.main_window.dialog(
+            toga.InfoDialog(
+                "Processing Started",
+                f"Submitted {len(task_ids)} task(s) to Director.\n\nProcessing will run in the background."
+            )
+        )
+
+    async def _process_via_folder(self, collection):
+        """Process using Director directly (folder on disk, no database items)"""
+        # Simple confirmation dialog
+        proceed = await self.app.main_window.dialog(
+            toga.ConfirmDialog(
+                "Process Folder",
+                f"Collection: {collection.name}\n\nThis collection folder will be processed with auto-detection.\n\nThis will use the Default plan with default workflow.\n\nContinue?"
+            )
+        )
+
+        if not proceed:
+            return
+
+        # Get the collection folder path
+        collection_path = collection.local_path or collection.source_path
+        if not collection_path:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(_("No Path"), _("no_path_message"))
+            )
+            return
+
+        from pathlib import Path
+        if not Path(collection_path).exists():
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(_("Path Not Found"), _("path_not_found_message").format(path=collection_path))
+            )
+            return
+
+        logger.info(f"Processing collection folder: {collection_path}")
+
+        # Use Director's process_with_auto_detection for folder processing
+        task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
+            input_path=Path(collection_path),
+            output_path=Path(self.app.paths.data) / "processed" / collection.name,
+            plan_name="Default",
+            workflow_name="default"
+        )
+
+        # Show success
+        await self.app.main_window.dialog(
+            toga.InfoDialog(
+                "Processing Started",
+                f"Submitted {len(task_ids)} task(s) to Director.\n\nProcessing will run in the background."
+            )
+        )
 
     def _register_navigation_controller_callbacks(self):
         """Register callbacks with NavigationController for state changes"""
@@ -1114,6 +1303,10 @@ class CollectionView(BaseView):
                 # Refresh the display with items
                 self._create_content()
                 logger.debug(f"Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
+
+                # Start async thumbnail generation in background
+                import asyncio
+                asyncio.create_task(self._load_thumbnails_async())
             else:
                 logger.warning("Library service not initialized or no collection ID set")
                 self._create_content() # This now handles the placeholder
@@ -1167,7 +1360,74 @@ class CollectionView(BaseView):
                 self.top_toolbar.update_breadcrumbs(collection_name, self.current_path)
         except Exception as e:
             logger.error(f"Failed to update breadcrumbs: {e}")
-    
+
+    async def _load_thumbnails_async(self):
+        """Load thumbnails asynchronously in background without blocking UI"""
+        try:
+            import asyncio
+            from pathlib import Path
+
+            if not self.collection_items:
+                return
+
+            logger.info(f"🎨 Starting async thumbnail generation for {len(self.collection_items)} items")
+
+            # Generate thumbnails for image files (skip folders and non-images)
+            generated_count = 0
+            skipped_count = 0
+            for idx, item in enumerate(self.collection_items):
+                # Skip folders (they already have folder icons)
+                if item.get('is_folder', False):
+                    logger.debug(f"Skipping folder: {item.get('title', 'unknown')}")
+                    skipped_count += 1
+                    continue
+
+                # Skip if already has an icon (not None)
+                if item.get('icon') is not None:
+                    logger.debug(f"Skipping item with existing icon: {item.get('title', 'unknown')}")
+                    skipped_count += 1
+                    continue
+
+                # Get file path
+                file_path = item.get('file_path')
+                if not file_path:
+                    logger.debug(f"No file_path for: {item.get('title', 'unknown')}")
+                    skipped_count += 1
+                    continue
+
+                try:
+                    path = Path(file_path)
+
+                    # Generate thumbnail using library (runs in thread pool via asyncio)
+                    icon = await asyncio.to_thread(
+                        self.app.library_manager.get_filesystem_icon,
+                        path,
+                        None,  # size
+                        True   # generate=True
+                    )
+
+                    if icon:
+                        # Update the item with the new icon
+                        item['icon'] = icon
+                        generated_count += 1
+                        logger.info(f"✅ Generated thumbnail {generated_count}/{len(self.collection_items)}: {path.name}")
+
+                        # Update DetailedList data to show the new icon
+                        # Toga DetailedList automatically refreshes when data changes
+                        if hasattr(self, 'items_list') and self.items_list:
+                            self.items_list.data = self.collection_items
+                    else:
+                        logger.warning(f"❌ No icon returned for: {path.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to generate thumbnail for {file_path}: {e}")
+                    continue
+
+            logger.info(f"✅ Async thumbnail generation completed: {generated_count} generated, {skipped_count} skipped")
+
+        except Exception as e:
+            logger.error(f"Failed in async thumbnail loading: {e}")
+
     def navigate_to_folder(self, folder_path: str):
         """Navigate into a folder using NavigationController"""
         try:
@@ -1241,4 +1501,45 @@ class CollectionView(BaseView):
             # This would typically handle collection selection
             pass
         except Exception as e:
-            logger.error(f"Failed to handle collection selection: {e}") 
+            logger.error(f"Failed to handle collection selection: {e}")
+
+    # ===== EVENT HANDLERS FOR LIBRARY STATE SYNCHRONIZATION =====
+
+    def _on_collection_deleted_event(self, event):
+        """Handle collection_deleted event - navigate away if viewing deleted collection"""
+        try:
+            deleted_id = event.data.get("collection_id")
+            collection_name = event.data.get("collection_name", "Unknown")
+            logger.info(f"📡 Event received: collection_deleted - {collection_name}")
+
+            # Check if we're viewing the deleted collection
+            if self.collection_id == deleted_id:
+                logger.info(f"Currently viewing deleted collection - navigating back to library")
+
+                # Navigate back to library view
+                nav_controller = self._get_navigation_controller()
+                if nav_controller:
+                    nav_controller.navigate_back()
+                else:
+                    logger.warning("NavigationController not available - cannot navigate away from deleted collection")
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_deleted event: {e}")
+
+    def _on_collection_items_changed_event(self, event):
+        """Handle collection_items_changed event - reload items if this collection changed"""
+        try:
+            changed_id = event.data.get("collection_id")
+            added_count = event.data.get("added_count", 0)
+            logger.info(f"📡 Event received: collection_items_changed - {added_count} items added")
+
+            # Check if this is our collection
+            if self.collection_id == changed_id:
+                logger.info(f"Items changed in current collection - reloading collection view")
+
+                # Reload collection items
+                # For now, just recreate the content
+                self._create_content()
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_items_changed event: {e}") 

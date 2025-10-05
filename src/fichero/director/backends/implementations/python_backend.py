@@ -694,7 +694,7 @@ class PythonProcessingBackend(ProcessingBackend):
             logger.info(f"Task {task.task_id} running on {executor_type.upper()} worker: {worker_id} (thread: {current_thread.name})")
             
             # Create workflow executor with progress callback
-            from fichero.workflow_executor import WorkflowExecutor
+            from fichero.director.workflow_executor import WorkflowExecutor
             executor = WorkflowExecutor(progress_callback=lambda task_id, data: self._notify_progress_with_worker_and_document(task_id, data, worker_id, task.document_id))
             
             # Store executor for cancellation support

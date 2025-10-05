@@ -177,21 +177,23 @@ class BaseView(ABC):
                 # Ensure toolbar container uses proper height and full width
                 if toolbar_container and hasattr(toolbar_container, 'style'):
                     # Update toolbar's own container to ensure consistent sizing
-                    # Add small vertical margins for visual separation (mobile only)
+                    # Add small vertical margins for visual separation (both mobile and desktop)
                     if total_height > 0:
                         margin_value = (4, 0)
                         toolbar_container.style.update(
                             height=total_height,
-                            margin=margin_value,  # Small vertical margins for mobile visual separation
+                            margin=margin_value,  # Small vertical margins for visual separation
                             flex=0  # Fixed height, full width
                         )
+                        logger.debug(f"Bottom toolbar container configured: height={total_height}px, is_mobile={getattr(toolbar, 'is_mobile', 'unknown')}")
                     else:
-                        # For hidden toolbars (desktop), only set safe properties (avoid height=None errors)
+                        # For hidden toolbars (desktop with height=0), only set safe properties (avoid height=None errors)
                         toolbar_container.style.update(
                             margin=(0, 0),
                             flex=0
                             # Don't set height=None - it causes Toga validation errors
                         )
+                        logger.debug("Bottom toolbar hidden (height=0)")
 
                 # Add toolbar container directly to main container
                 if self.container and total_height > 0:  # Only add if visible

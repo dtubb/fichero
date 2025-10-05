@@ -12,6 +12,14 @@ from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
 try:
+    from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
+except ImportError:
+    # Fallback for when navigation events aren't available (e.g., in CLI mode)
+    def emit_navigation_event(event_type: str, data: Dict[str, Any] = None):
+        """No-op fallback for emit_navigation_event"""
+        pass
+
+try:
     from fichero.library.models import Collection, CollectionItem, ProcessingResult, ExternalPath
     from fichero.library.storage import LibraryStorage
     from fichero.library.import_export import CollectionExporter, CollectionImporter
@@ -68,9 +76,9 @@ class LibraryManager:
         cache_root = db_path.parent / "cache"
         self.downloader = URLDownloader(cache_root)
 
-        # Initialize icon generator with thumbnail cache
+        # Initialize icon generator with thumbnail cache and storage
         icon_cache_dir = db_path.parent / "thumbnails"
-        self.icon_generator = IconGenerator(icon_cache_dir)
+        self.icon_generator = IconGenerator(icon_cache_dir, self.storage)
 
         # Store library path for file operations
         self.library_path = db_path.parent
@@ -138,6 +146,14 @@ class LibraryManager:
                 # Clear cache
                 self._clear_cache()
                 logger.info(f"Collection added: {name} ({collection_type})")
+
+                # Emit event to notify views
+                emit_navigation_event("collection_added", {
+                    "collection_id": collection.id,
+                    "collection_name": name,
+                    "collection_type": collection_type
+                })
+
                 return collection.id
             else:
                 logger.error("Failed to save collection to storage")
@@ -153,21 +169,21 @@ class LibraryManager:
             source = Path(source_path)
             if not source.exists():
                 raise FileNotFoundError(f"Source path does not exist: {source_path}")
-            
-            # Create library collection directory
-            library_collection_path = self.app.paths.data / "library" / "collections" / collection.name
+
+            # Create library collection directory using self.library_path
+            library_collection_path = self.library_path / "collections" / collection.name
             library_collection_path.mkdir(parents=True, exist_ok=True)
-            
+
             if source.is_file():
                 # Copy single file
                 shutil.copy2(source, library_collection_path / source.name)
             elif source.is_dir():
                 # Copy directory contents
                 shutil.copytree(source, library_collection_path, dirs_exist_ok=True)
-            
+
             logger.debug(f"Collection copied to library: {library_collection_path}")
             return library_collection_path
-            
+
         except Exception as e:
             logger.error(f"Failed to copy collection to library: {e}")
             raise
@@ -176,6 +192,10 @@ class LibraryManager:
         """Get a collection by ID"""
         return self.storage.get_collection(collection_id)
     
+    async def get_collection_by_id(self, collection_id: str) -> Optional[Collection]:
+        """Get a collection by ID (alias for get_collection)"""
+        return await self.get_collection(collection_id)
+
     async def get_collection_by_name(self, name: str) -> Optional[Collection]:
         """Get a collection by name"""
         collections = await self.get_all_collections()
@@ -309,7 +329,10 @@ class LibraryManager:
             if not collection:
                 logger.error(f"Collection not found: {collection_id}")
                 return False
-            
+
+            # Clean up thumbnails for items in this collection
+            await self._delete_collection_thumbnails(collection_id)
+
             # Remove local files if it's a local collection
             if collection.type == "local" and collection.local_path:
                 local_path = Path(collection.local_path)
@@ -323,14 +346,22 @@ class LibraryManager:
 
             # Remove from storage
             logger.debug(f"Attempting to delete collection {collection_id} from storage")
+            collection_name = collection.name  # Save name before deletion for event
             if self.storage.delete_collection(collection_id):
                 self._clear_cache()
-                logger.info(f"Collection deleted: {collection.name}")
+                logger.info(f"Collection deleted: {collection_name}")
+
+                # Emit event to notify views
+                emit_navigation_event("collection_deleted", {
+                    "collection_id": collection_id,
+                    "collection_name": collection_name
+                })
+
                 return True
             else:
                 logger.error(f"Failed to delete collection {collection_id} from storage - check storage.delete_collection method")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Failed to delete collection: {e}")
             return False
@@ -426,16 +457,168 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"Failed to add item to collection: {e}")
             return None
-    
+
+    async def add_folder_items_to_collection(
+        self,
+        collection_id: str,
+        folder_path: str,
+        operation: Literal["link", "copy", "move"] = "link",
+        recursive: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Add all files in a folder as individual items to collection
+
+        Args:
+            collection_id: Collection to add items to
+            folder_path: Path to folder
+            operation: How to handle files (link, copy, or move)
+            recursive: Whether to recurse into subdirectories
+
+        Returns:
+            Dict with stats: {"added": int, "skipped": int, "errors": int, "item_ids": List[str]}
+        """
+        try:
+            folder = Path(folder_path)
+            if not folder.exists() or not folder.is_dir():
+                logger.error(f"Folder does not exist: {folder_path}")
+                return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
+
+            # Validate collection exists
+            collection = await self.get_collection(collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {collection_id}")
+                return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
+
+            # Stats tracking
+            stats = {
+                "added": 0,
+                "skipped": 0,
+                "errors": 0,
+                "item_ids": []
+            }
+
+            # Track thumbnail generation tasks to await completion (prevents race condition)
+            thumbnail_tasks = []
+
+            # Get all files (recursively or not)
+            if recursive:
+                files = list(folder.rglob('*'))
+            else:
+                files = list(folder.glob('*'))
+
+            # Filter to only files (not directories)
+            files = [f for f in files if f.is_file()]
+
+            logger.info(f"Found {len(files)} files in folder: {folder_path}")
+
+            # Process each file
+            for file_path in files:
+                try:
+                    # Calculate file hash for deduplication
+                    file_hash = self.icon_generator.calculate_file_hash(file_path)
+
+                    # Check if file already exists in this collection
+                    existing_items = self.storage.get_collection_items(collection_id)
+                    file_exists = any(
+                        item.metadata.get('file_hash') == file_hash
+                        for item in existing_items
+                    )
+
+                    if file_exists:
+                        logger.debug(f"File already in collection (hash: {file_hash[:8]}...): {file_path.name}")
+                        stats["skipped"] += 1
+                        continue
+
+                    # Create metadata with file hash
+                    metadata = {
+                        "file_hash": file_hash,
+                        "original_path": str(file_path),
+                        "relative_path": str(file_path.relative_to(folder)) if file_path.is_relative_to(folder) else None
+                    }
+
+                    # Create item
+                    item = CollectionItem(
+                        collection_id=collection_id,
+                        type="file",
+                        name=file_path.name,
+                        metadata=metadata
+                    )
+
+                    # Handle different operations
+                    if operation == "link":
+                        # Just reference the source
+                        item.source_path = str(file_path)
+                        item.storage_type = "external"
+                    elif operation in ["copy", "move"]:
+                        # Copy or move to library
+                        local_path = await self._add_item_to_library(collection, str(file_path), file_path.name, operation)
+                        item.local_path = str(local_path)
+                        item.storage_type = "local"
+
+                    # Save to storage
+                    if self.storage.add_collection_item(item):
+                        logger.debug(f"Added file to collection: {file_path.name}")
+                        stats["added"] += 1
+                        stats["item_ids"].append(item.id)
+
+                        # Generate thumbnail asynchronously (will use deduplication automatically)
+                        try:
+                            import asyncio
+                            # Create task and add to list (will await later to prevent race condition)
+                            task = asyncio.create_task(
+                                asyncio.to_thread(
+                                    self.icon_generator.get_item_icon,
+                                    str(file_path),
+                                    "file",
+                                    self.icon_generator.thumbnail_size
+                                )
+                            )
+                            thumbnail_tasks.append(task)
+                        except Exception as thumb_error:
+                            logger.warning(f"Failed to generate thumbnail for {file_path.name}: {thumb_error}")
+
+                    else:
+                        logger.error(f"Failed to save item: {file_path.name}")
+                        stats["errors"] += 1
+
+                except Exception as file_error:
+                    logger.error(f"Failed to process file {file_path}: {file_error}")
+                    stats["errors"] += 1
+
+            # Wait for all thumbnail generation tasks to complete (ensures deduplication works 100%)
+            if thumbnail_tasks:
+                logger.info(f"Waiting for {len(thumbnail_tasks)} thumbnail generation tasks to complete...")
+                await asyncio.gather(*thumbnail_tasks, return_exceptions=True)
+                logger.info(f"All thumbnail generation tasks completed")
+
+            logger.info(
+                f"Folder import complete - Added: {stats['added']}, "
+                f"Skipped: {stats['skipped']}, Errors: {stats['errors']}"
+            )
+
+            # Emit event if items were added
+            if stats['added'] > 0:
+                emit_navigation_event("collection_items_changed", {
+                    "collection_id": collection_id,
+                    "added_count": stats['added'],
+                    "total_items": stats['added'] + stats['skipped']
+                })
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Failed to add folder items to collection: {e}")
+            return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
+
     async def _add_item_to_library(self, collection: Collection, source: str, name: str, operation: str) -> Path:
         """Add item to library directory"""
         try:
             source_path = Path(source)
             if not source_path.exists():
                 raise FileNotFoundError(f"Source does not exist: {source}")
-            
-            # Create library item directory
-            library_item_path = self.app.paths.data / "library" / "collections" / collection.name / "items"
+
+            # Create library item directory using self.library_path
+            library_item_path = self.library_path / "collections" / collection.name / "items"
             library_item_path.mkdir(parents=True, exist_ok=True)
             
             # Generate unique filename
@@ -462,8 +645,8 @@ class LibraryManager:
     async def _save_captured_content(self, collection: Collection, name: str, item_type: str) -> Path:
         """Save captured content (camera/audio) to library"""
         try:
-            # Create captured content directory
-            captured_path = self.app.paths.data / "library" / "collections" / collection.name / "captured"
+            # Create captured content directory using self.library_path
+            captured_path = self.library_path / "collections" / collection.name / "captured"
             captured_path.mkdir(parents=True, exist_ok=True)
             
             # Generate filename for captured content
@@ -567,9 +750,19 @@ class LibraryManager:
                 return
             
             logger.info("Empty library detected, setting up demo collections...")
-            
-            # Get demo collection paths
-            demo_resources_path = Path(self.app.paths.app) / "resources" / "demo_collection"
+
+            # Get demo collection paths (skip if app.paths not available - e.g., CLI mode)
+            # Check if app.paths exists AND is not a Mock (Mock returns Mock for any attribute)
+            try:
+                if not hasattr(self.app, 'paths') or not hasattr(self.app.paths, 'app'):
+                    logger.debug("App paths not available (likely CLI mode), skipping demo setup")
+                    return
+
+                # Try to convert to Path - will fail if it's a Mock
+                demo_resources_path = Path(self.app.paths.app) / "resources" / "demo_collection"
+            except (TypeError, AttributeError) as path_error:
+                logger.debug(f"App paths not functional (likely CLI mode): {path_error}, skipping demo setup")
+                return
             
             if not demo_resources_path.exists():
                 logger.warning(f"Demo collection resources not found at: {demo_resources_path}")
@@ -606,6 +799,85 @@ class LibraryManager:
     
     # ===== UTILITY METHODS =====
     
+    async def _delete_collection_thumbnails(self, collection_id: str):
+        """Delete thumbnails for items in collection (only if not shared with other collections)"""
+        try:
+            logger.info(f"🗑️ Starting thumbnail deletion for collection {collection_id}")
+
+            # Get all items in the collection
+            items = self.storage.get_collection_items(collection_id)
+            logger.info(f"Found {len(items) if items else 0} items in collection")
+
+            if not items:
+                logger.info("No items found, skipping thumbnail deletion")
+                return
+
+            deleted_files = 0
+            deleted_records = 0
+            skipped_shared = 0
+            cache_dir = self.icon_generator.cache_dir
+
+            if not cache_dir or not cache_dir.exists():
+                logger.warning(f"Cache directory doesn't exist: {cache_dir}")
+                return
+
+            # Track unique file hashes to avoid processing duplicates within this collection
+            processed_hashes = set()
+
+            # Process each item's thumbnails
+            for item in items:
+                # Get file hash from item metadata
+                file_hash = item.metadata.get('file_hash')
+
+                if not file_hash:
+                    logger.debug(f"No file_hash in metadata for item: {item.name}")
+                    continue
+
+                # Skip if we already processed this hash
+                if file_hash in processed_hashes:
+                    continue
+                processed_hashes.add(file_hash)
+
+                # Check if OTHER collections have items with this same file_hash
+                other_refs = self.storage.count_items_with_file_hash(file_hash, exclude_collection_id=collection_id)
+
+                if other_refs > 0:
+                    # Other collections reference this file - DON'T delete thumbnail
+                    logger.debug(f"Keeping thumbnail for {file_hash[:8]}... ({other_refs} other references)")
+                    skipped_shared += 1
+                    continue
+
+                # No other references - safe to delete
+                try:
+                    # Get all thumbnail records for this file_hash
+                    thumbnails = self.storage.get_thumbnails_by_file_hash(file_hash)
+
+                    for thumb in thumbnails:
+                        # Delete thumbnail file
+                        thumbnail_path = cache_dir / thumb.thumbnail_path
+                        if thumbnail_path.exists():
+                            thumbnail_path.unlink()
+                            deleted_files += 1
+                            logger.debug(f"✅ Deleted thumbnail file: {thumb.thumbnail_path}")
+
+                        # Delete database record
+                        if self.storage.delete_thumbnail(thumb.id):
+                            deleted_records += 1
+                            logger.debug(f"✅ Deleted thumbnail record: {thumb.id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to delete thumbnails for hash {file_hash[:8]}...: {e}", exc_info=True)
+                    continue
+
+            logger.info(
+                f"🗑️ Thumbnail deletion complete - "
+                f"Deleted: {deleted_files} files, {deleted_records} records, "
+                f"Skipped (shared): {skipped_shared}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to delete collection thumbnails: {e}", exc_info=True)
+
     def _clear_cache(self):
         """Clear the collections cache"""
         self._collections_cache = None
@@ -631,7 +903,7 @@ class LibraryManager:
                 "total_collections": len(collections),
                 "total_items": total_items,
                 "total_processing_results": total_processing_results,
-                "library_path": str(self.app.paths.data / "library"),
+                "library_path": str(self.library_path),
                 "last_updated": datetime.now().isoformat()
             }
             
@@ -999,6 +1271,59 @@ class LibraryManager:
             logger.error(f"Failed to get collection icon: {e}")
             return None
 
+    def get_filesystem_icon(self, path: Path, size: tuple = None, generate: bool = True) -> Optional['toga.Image']:
+        """
+        Get icon for a filesystem path (not necessarily a library item)
+
+        Args:
+            path: Path to file or directory
+            size: Optional (width, height) for icon size
+            generate: Whether to generate thumbnail if not cached (default: True)
+
+        Returns:
+            toga.Image or None
+        """
+        try:
+            import toga
+
+            if path.is_dir():
+                # Use static folder icon from resources (only available in GUI mode)
+                if hasattr(self.app, 'paths'):
+                    folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                    if folder_icon_path.exists():
+                        return toga.Image(str(folder_icon_path))
+                return None
+
+            elif path.is_file():
+                # Determine file type
+                suffix = path.suffix.lower()
+                image_formats = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp'}
+
+                if suffix in image_formats:
+                    # For images, use icon_generator which handles caching and generation
+                    if generate:
+                        icon = self.icon_generator.get_item_icon(str(path), 'file', size)
+                        return icon
+                    else:
+                        # Only check cache, don't generate
+                        cache_dir = Path(self.icon_generator.cache_dir)
+                        cache_key = f"{path.stem}_64x64.png" if not size else f"{path.stem}_{size[0]}x{size[1]}.png"
+                        cached_thumb = cache_dir / cache_key
+
+                        if cached_thumb.exists():
+                            return toga.Image(str(cached_thumb))
+                        else:
+                            return None
+                else:
+                    # For non-images, use default file icon
+                    return self.icon_generator._get_default_icon('file', suffix)
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error loading icon for {path}: {e}")
+            return None
+
     async def preload_thumbnails(self, collection_id: str) -> int:
         """
         Pre-generate thumbnails for all items in a collection
@@ -1276,6 +1601,18 @@ class LibraryManager:
                                         item.local_path = str(cache_file)
                                         item.metadata.update(item_data.get("metadata", {}))
                                         self.storage.update_item(item)
+
+                    # Handle items without physical files (metadata-only or broken references)
+                    else:
+                        # Import as metadata-only item, preserving original data
+                        await self.add_item_to_collection(
+                            collection_id=collection_id,
+                            item_type=item_type,
+                            source=item_data.get("metadata", {}).get("original_path", ""),
+                            name=item_name,
+                            operation="link",
+                            metadata=item_data.get("metadata", {})
+                        )
 
                 logger.info(f"Imported collection '{collection_name}' with {len(items_data)} items")
                 return collection_id

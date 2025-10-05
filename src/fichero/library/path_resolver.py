@@ -80,11 +80,22 @@ def _get_path_from_settings(app) -> Optional[Path]:
 def _get_path_from_app_paths(app) -> Optional[Path]:
     """Try to get library path from app paths"""
     try:
+        # First check if app has a get_library_path method (for testing)
+        if app and hasattr(app, 'get_library_path') and callable(app.get_library_path):
+            db_path = app.get_library_path()
+            if db_path:
+                # If it's a .db file, return parent directory
+                path = Path(db_path)
+                if path.suffix == '.db':
+                    path = path.parent
+                logger.debug(f"Found library path from app.get_library_path(): {path}")
+                return path
+
         if app and hasattr(app, 'paths') and hasattr(app.paths, 'data'):
             path = app.paths.data / "library"
             logger.debug(f"Found library path from app paths: {path}")
             return path
-        
+
         # Try to get from Toga app if not provided
         try:
             import toga
@@ -95,10 +106,10 @@ def _get_path_from_app_paths(app) -> Optional[Path]:
                 return path
         except Exception:
             pass
-        
+
         logger.debug("No app paths available")
         return None
-        
+
     except Exception as e:
         logger.debug(f"Could not get library path from app paths: {e}")
         return None

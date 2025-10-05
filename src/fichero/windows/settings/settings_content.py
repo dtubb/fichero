@@ -21,10 +21,8 @@ from toga.constants import COLUMN, ROW
 from fichero.config.ui.base_config_library import BaseConfigLibrary, UISchema
 from fichero.config.core.settings_manager import SettingsManager
 from fichero.config.core.plan_workflow_ui_helper import DEFAULT_PLAN_FILENAME
-import gettext  # Import translation function
-
-# Use builtin _ function installed by translation.install()
-_ = gettext.gettext
+# Translation function - use builtin installed by gettext.install()
+# The _ function is installed into builtins by setup_translations() in app startup
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +111,7 @@ class SettingsContent(BaseConfigLibrary):
             )
             
             back_button = toga.Button(
-                text="← Back",
+                text=_("← Back"),
                 on_press=self.on_back
             )
             
