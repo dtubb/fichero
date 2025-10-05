@@ -38,29 +38,29 @@ class ProcessingCoordinator:
         
         logger.info("ProcessingCoordinator initialized")
     
-    def process_folders(self, folders: List[Path], plan_name: str, 
-                       workflow_name: str = "default", 
+    def process_folders(self, folders, plan_name: str,
+                       workflow_name: str = "default",
                        output_path: Path = None,
                        document_context: Dict = None) -> str:
         """
         Convenience method to process folders using a plan name
-        
+
         Args:
-            folders: List of folder paths to process
+            folders: List of folder paths OR dicts with 'output_folder' and 'documents_folder' keys
             plan_name: Name of the plan to use
             workflow_name: Name of workflow within the plan
             output_path: Base output directory
             document_context: Context from document window (optional)
-        
+
         Returns:
             Task ID string
         """
         # Load plan configuration
         plan_config = self._load_plan_config(plan_name)
-        
+
         # Generate variables from output_path and plan config if provided
         variables = self.variable_generator.generate_variables(plan_config, output_path, folders)
-        
+
         # Submit task
         return self.task_manager.submit_task(
             folders=folders,

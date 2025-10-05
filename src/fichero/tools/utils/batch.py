@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
-from fichero.manifest import ManifestProcessor
-from fichero.tool_logger import get_tool_logger
+from fichero.tools.utils.manifest import ManifestProcessor
+from fichero.tools.utils.tool_logger import get_tool_logger
 import sys
 
 tool_logger = get_tool_logger('batch')
@@ -17,7 +17,8 @@ class BatchProcessor:
         processor_fn: Callable,
         batch_size: int = 100,
         base_folder: Path = None,
-        use_source: bool = False
+        use_source: bool = False,
+        add_documents_prefix: bool = True
     ):
         self.input_manifest = Path(input_manifest)
         self.output_folder = Path(output_folder)
@@ -26,6 +27,7 @@ class BatchProcessor:
         self.processor_fn = processor_fn
         self.batch_size = batch_size
         self.use_source = use_source
+        self.add_documents_prefix = add_documents_prefix
         
         # Setup folders and files
         self.output_folder.mkdir(parents=True, exist_ok=True)
@@ -138,8 +140,8 @@ class BatchProcessor:
                 
                 # Use base folder directly without adding documents/ prefix
                 if self.base_folder:
-                    # Only add documents/ if it's not already in the base folder and path doesn't start with projects/
-                    if "documents" not in str(self.base_folder) and not str(path).startswith("projects/"):
+                    # Only add documents/ if requested and conditions are met
+                    if self.add_documents_prefix and "documents" not in str(self.base_folder) and not str(path).startswith("projects/"):
                         full_path = self.base_folder / "documents" / path
                     else:
                         full_path = self.base_folder / path

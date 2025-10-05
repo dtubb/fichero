@@ -25,12 +25,12 @@ try:
     from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # When run as standalone script (relative imports work)
-    from utils.batch import BatchProcessor
-    from utils.processor import process_file
-    from utils.segment_handler import SegmentHandler
-    from utils.files import ensure_dirs
-    from utils.manifest import ManifestProcessor
-    from utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.manifest import ManifestProcessor
+    from fichero.tools.utils.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('json_to_word')
 

@@ -31,12 +31,16 @@ class FolderTask:
     plan_config: Dict
     workflow_name: str
     output_path: Path
+    documents_folder: Path = None  # Source folder with documents (for in-place processing)
     variables: Dict = None
     document_id: str = None  # For GUI: which document window owns this
-    
+
     def __post_init__(self):
         if self.variables is None:
             self.variables = {}
+        # If documents_folder not specified, assume it's in output_path/documents
+        if self.documents_folder is None:
+            self.documents_folder = self.output_path / "documents"
 
 
 @dataclass 
@@ -190,9 +194,9 @@ class ProcessingBackend(ABC):
         return commands
 
 
-def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict, 
+def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict,
                       workflow_name: str = "default", variables: Dict = None,
-                      document_id: str = None) -> FolderTask:
+                      document_id: str = None, documents_folder: Path = None) -> FolderTask:
     """Helper to create a folder task"""
     return FolderTask(
         task_id=str(uuid.uuid4()),
@@ -200,6 +204,7 @@ def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict,
         plan_config=plan_config,
         workflow_name=workflow_name,
         output_path=output_path,
+        documents_folder=documents_folder,
         variables=variables or {},
         document_id=document_id
     ) 

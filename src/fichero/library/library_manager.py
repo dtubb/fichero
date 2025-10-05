@@ -679,6 +679,16 @@ class LibraryManager:
         """Get a single item by ID"""
         return self.storage.get_item(item_id)
 
+    async def update_item(self, item: CollectionItem) -> bool:
+        """Update an item in storage"""
+        try:
+            self.storage.update_item(item)
+            logger.debug(f"Item updated: {item.id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update item {item.id}: {e}")
+            return False
+
     async def update_item_status(self, item_id: str, status: str) -> bool:
         """Update item processing status"""
         try:

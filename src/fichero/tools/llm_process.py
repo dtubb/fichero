@@ -33,18 +33,18 @@ try:
     from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # Fall back to relative imports (when run standalone)
-    from utils.manifest import ManifestProcessor
-    from utils.batch import BatchProcessor
-    from utils.files import ensure_dirs, get_relative_path, batch_check_files
-    from utils.segment_handler import SegmentHandler
-    from utils.progress import ProcessingProgress, ProgressTracker
-    from utils.llm_utils import (
+    from fichero.tools.utils.manifest import ManifestProcessor
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.files import ensure_dirs, get_relative_path, batch_check_files
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.progress import ProcessingProgress, ProgressTracker
+    from fichero.tools.utils.llm_utils import (
         LLMBackend, ChatGPTBackend, ClaudeBackend, QwenBackend, LMStudioBackend, OllamaBackend,
         get_llm_backend, chunk_text_intelligently, process_with_iterative_refinement,
         load_prompt_config, process_document_with_llm, process_folder_with_llm, LLMProcessor
     )
-    from utils.hierarchy import DocumentHierarchy
-    from utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.hierarchy import DocumentHierarchy
+    from fichero.tools.utils.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('llm_process')
 

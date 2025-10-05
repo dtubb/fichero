@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Union
-from fichero.image_format import get_supported_extensions_list
+from fichero.tools.utils.image_format import get_supported_extensions_list
 
 def batch_check_files(files_to_check: List[Path], batch_size: int = 100) -> Dict[Path, bool]:
     """Check existence of multiple files in batches to reduce disk seeks"""

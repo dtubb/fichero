@@ -18,10 +18,10 @@ try:
     from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # Fall back to relative imports (when run standalone)
-    from utils.batch import BatchProcessor
-    from utils.segment_handler import SegmentHandler
-    from utils.api_keys import get_qwen_key
-    from utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.api_keys import get_qwen_key
+    from fichero.tools.utils.tool_logger import get_tool_logger
 
 # Configure tool_logger
 tool_logger = get_tool_logger('transcribe_qwen_max')

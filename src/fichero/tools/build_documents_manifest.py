@@ -4,17 +4,10 @@ from pathlib import Path
 import os
 import re
 
-# Support both standalone CLI usage and workflow executor imports
-try:
-    # When imported by workflow executor (absolute imports work)
-    from fichero.tools.utils.files import get_image_files, ensure_dirs, get_relative_path
-    from fichero.tools.utils.image_format import get_supported_extensions, get_supported_extensions_list, InputFormat
-    from fichero.tools.utils.tool_logger import get_tool_logger
-except ImportError:
-    # When run as standalone script (relative imports work)
-    from utils.files import get_image_files, ensure_dirs, get_relative_path
-    from utils.image_format import get_supported_extensions, get_supported_extensions_list, InputFormat
-    from utils.tool_logger import get_tool_logger
+# Always use absolute imports from fichero.tools.utils
+from fichero.tools.utils.files import get_image_files, ensure_dirs, get_relative_path
+from fichero.tools.utils.image_format import get_supported_extensions, get_supported_extensions_list, InputFormat
+from fichero.tools.utils.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('build_documents_manifest')
 

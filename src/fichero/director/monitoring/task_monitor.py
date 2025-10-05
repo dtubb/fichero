@@ -137,7 +137,7 @@ def get_step_verb(step_name: str, status: str) -> str:
 class StepInfo:
     """Information about a workflow step"""
     step_name: str
-    status: str = _("task_status_pending").lower()           # pending, running, completed, failed
+    status: str = "pending"           # pending, running, completed, failed
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     error_message: str = ""
@@ -174,17 +174,17 @@ class TaskInfo:
     
     # Context
     document_id: Optional[str] = None       # "doc_window_1", None for CLI
-    instance_id: str = _("task_worker_unknown").lower()
-    source: str = _("task_worker_unknown").lower()
-    
+    instance_id: str = "unknown"
+    source: str = "unknown"
+
     # Processing Details
-    plan_name: str = _("task_worker_unknown").lower()
-    workflow_name: str = _("task_worker_unknown").lower()
+    plan_name: str = "unknown"
+    workflow_name: str = "unknown"
     input_folder: str = ""
     output_folder: str = ""
-    folder_name: str = _("task_worker_unknown").lower()            # Just the folder name for display
-    worker: str = _("task_worker_unknown").lower()                 # Worker ID processing this task
-    executor_type: str = _("task_worker_unknown").lower()          # Type of executor (cpu, io, celery)
+    folder_name: str = "unknown"            # Just the folder name for display
+    worker: str = "unknown"                 # Worker ID processing this task
+    executor_type: str = "unknown"          # Type of executor (cpu, io, celery)
     
     # Progress - Task Level
     current_step: str = ""
@@ -197,7 +197,7 @@ class TaskInfo:
     step_names: List[str] = field(default_factory=list)  # Ordered list of step names
     
     # Status
-    status: str = _("task_status_pending").lower()                 # pending, running, completed, failed, cancelled
+    status: str = "pending"                 # pending, running, completed, failed, cancelled
     error_message: str = ""
     warnings: List[str] = field(default_factory=list)
     

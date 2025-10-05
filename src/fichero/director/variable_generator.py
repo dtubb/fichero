@@ -42,33 +42,45 @@ class VariableGenerator:
         try:
             # Generate system paths
             variables.update(self._generate_script_paths())
-            
+
             # Add output path if provided
             if output_path:
                 variables['output_path'] = str(output_path)
                 variables['output_folder'] = str(output_path)  # Backward compatibility
-            
+
             # Just copy simple vars from catalogue (no expansion needed since we hardcoded paths)
-            plan_vars = plan_config.get('vars', {})
-            variables.update(plan_vars)
-            
+            if plan_config:
+                plan_vars = plan_config.get('vars', {})
+                variables.update(plan_vars)
+            else:
+                logger.warning("No plan_config provided, using defaults only")
+
             logger.info(f"Generated {len(variables)} variables for workflow execution")
             return variables
-            
+
         except Exception as e:
             logger.error(f"Failed to generate variables: {e}")
             return {}
     
     def _generate_script_paths(self) -> Dict[str, str]:
         """Generate script and resource path variables"""
-        # Get paths from Toga app - fail if not available
-        import toga
-        app = toga.App.app
-        if not app or not hasattr(app, 'paths'):
-            raise RuntimeError("Toga app not available - cannot get resource paths")
-        
-        app_root = app.paths.app
-        
+        # Try to get paths from Toga app first
+        app_root = None
+
+        try:
+            import toga
+            app = toga.App.app
+            if app and hasattr(app, 'paths'):
+                app_root = app.paths.app
+        except:
+            pass  # Toga not available, will use fallback
+
+        # Fallback to development paths if Toga not available
+        if not app_root:
+            # Use fichero package root
+            app_root = Path(__file__).parent.parent
+            logger.debug(f"Using development path for resources: {app_root}")
+
         return {
             'fichero_root': str(app_root),
             'scripts_dir': str(app_root / "tools"),

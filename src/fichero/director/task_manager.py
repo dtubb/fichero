@@ -53,44 +53,56 @@ class TaskManager:
         """Stop the task manager"""
         logger.info("TaskManager stopped")
     
-    def submit_task(self, folders: List[Path], plan_config: Dict, workflow_name: str, 
+    def submit_task(self, folders, plan_config: Dict, workflow_name: str,
                    variables: Dict = None, priority: TaskPriority = TaskPriority.NORMAL,
                    document_context: Dict = None) -> str:
         """
         Submit a new processing task
-        
+
         Args:
-            folders: List of prepared folder paths (with documents/, assets/, logs/ structure)
+            folders: List of prepared folder paths OR dicts with 'output_folder' and 'documents_folder'
             plan_config: Plan configuration
             workflow_name: Name of workflow to run
             variables: Additional variables for workflow
             priority: Task priority level (not used in simple version)
             document_context: Context from document window (optional)
-        
+
         Returns:
             Task ID string
         """
         if not folders:
             raise ValueError("No folders provided")
-        
+
         # Create tasks for each prepared folder
         tasks = []
         for prepared_folder in folders:
             # Debug logging for document_id
             document_id = document_context.get('document_id') if document_context else None
-            logger.debug(f"TaskManager.submit_task: creating task for folder={prepared_folder}, document_id={document_id}")
-            
-            # Prepared folders are used as both input and output (they contain the structure)
+
+            # Handle both dict format (new) and Path format (legacy)
+            if isinstance(prepared_folder, dict):
+                # New format: dict with output_folder and documents_folder
+                output_folder = prepared_folder['output_folder']
+                documents_folder = prepared_folder['documents_folder']
+                logger.debug(f"TaskManager.submit_task: dict format - output={output_folder}, documents={documents_folder}, document_id={document_id}")
+            else:
+                # Legacy format: Path object (output folder with documents/ inside)
+                output_folder = prepared_folder
+                documents_folder = None  # Will default to output_folder/documents in FolderTask
+                logger.debug(f"TaskManager.submit_task: Path format - folder={prepared_folder}, document_id={document_id}")
+
+            # Create task with both folders
             task = create_folder_task(
-                folder_path=prepared_folder,
-                output_path=prepared_folder,
+                folder_path=output_folder,
+                output_path=output_folder,
+                documents_folder=documents_folder,
                 plan_config=plan_config,
                 workflow_name=workflow_name,
                 variables=variables or {},
                 document_id=document_id
             )
             tasks.append(task)
-            logger.info(f"Created task for prepared folder: {prepared_folder}")
+            logger.info(f"Created task for output folder: {output_folder} (documents: {documents_folder or 'default'})")
         
         # Submit to backend
         results = self.backend.process_folders(tasks)

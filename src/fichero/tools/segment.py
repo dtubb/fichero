@@ -21,12 +21,12 @@ try:
     from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 except ImportError:
     # When run as standalone script (relative imports work)
-    from utils.batch import BatchProcessor
-    from utils.processor import process_file
-    from utils.segment_handler import SegmentHandler
-    from utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
-    from utils.tool_logger import get_tool_logger
-    from utils.parallel_batch_processor import create_parallel_batch_processor
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.processor import process_file
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.image_format import ImageFormat, save_image, load_image, get_supported_extensions_list, validate_format
+    from fichero.tools.utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.parallel_batch_processor import create_parallel_batch_processor
 
 tool_logger = get_tool_logger('segment')
 

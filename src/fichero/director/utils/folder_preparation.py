@@ -107,68 +107,87 @@ def sanitize_name(name: str, preserve_extension: bool = True) -> str:
     return final_name
 
 
-def prepare_folder(input_folder: Path, output_folder: Path) -> Path:
+def prepare_folder(input_folder: Path, output_folder: Path, processing_mode: str = "in_place") -> tuple[Path, Path]:
     """
-    Prepare a folder for processing by creating the required structure and copying files.
-    Based on the original director.py prepare_folder function.
-    
+    Prepare a folder for processing by creating the required structure.
+
+    Supports two modes:
+    - "in_place": Process files from source location (no copying)
+    - "copy": Copy files to output before processing
+
     Args:
         input_folder: Source folder containing files to process
         output_folder: Base output directory
-    
+        processing_mode: "in_place" or "copy" (default: "in_place")
+
     Returns:
-        Path to the prepared folder with documents subfolder
+        Tuple of (output_subfolder, documents_folder)
+        - output_subfolder: Base folder for outputs (assets, logs)
+        - documents_folder: Folder containing source files (either input_folder or copied location)
     """
-    logger.info(f"Preparing folder: {input_folder} -> {output_folder}")
-    
+    logger.info(f"Preparing folder: {input_folder} -> {output_folder} (mode: {processing_mode})")
+
     # Create output folder with sanitized name
     sanitized_folder_name = sanitize_name(input_folder.name, preserve_extension=False)
     output_subfolder = output_folder / sanitized_folder_name
     output_subfolder.mkdir(parents=True, exist_ok=True)
-    
-    # Create required subfolders
+
+    # Create required subfolders for outputs
     (output_subfolder / "assets").mkdir(parents=True, exist_ok=True)
-    (output_subfolder / "documents").mkdir(parents=True, exist_ok=True)
     (output_subfolder / "logs").mkdir(parents=True, exist_ok=True)
-    
-    # Create the parent folder within documents to preserve original structure
-    # Scripts expect documents/OriginalFolderName/... structure
-    sanitized_input_name = sanitize_name(input_folder.name, preserve_extension=False)
-    parent_folder_in_docs = output_subfolder / "documents" / sanitized_input_name
-    parent_folder_in_docs.mkdir(parents=True, exist_ok=True)
-    
-    # Copy the entire folder structure to documents/OriginalFolderName/
-    def _copy_folder_structure(src_folder: Path, dst_folder: Path):
-        """Recursively copy folder structure with sanitized names"""
-        for item in src_folder.iterdir():
-            # Skip .DS_Store files
-            if item.name == '.DS_Store':
-                continue
-                    
-            if item.is_file():
-                # Copy files with sanitized names
-                sanitized_name = sanitize_name(item.name, preserve_extension=True)
-                dst_path = dst_folder / sanitized_name
-                dst_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Skip if file already exists (avoid unnecessary copying)
-                if dst_path.exists():
-                    logger.debug(f"Skipped existing file: {item.name} -> {sanitized_name}")
+
+    if processing_mode == "in_place":
+        # In-place mode: No file copying, process from source location
+        # Set documents_folder to parent directory where actual files reside
+        # The workflow executor will pass add_documents_prefix=False to prevent
+        # BatchProcessor from adding /documents/ to file paths
+        documents_folder = input_folder.parent
+
+        logger.info(f"✓ In-place mode: documents_folder = {documents_folder}")
+    else:
+        # Copy mode: Copy files to output/documents before processing
+        (output_subfolder / "documents").mkdir(parents=True, exist_ok=True)
+
+        # Create the parent folder within documents to preserve original structure
+        # Scripts expect documents/OriginalFolderName/... structure
+        sanitized_input_name = sanitize_name(input_folder.name, preserve_extension=False)
+        parent_folder_in_docs = output_subfolder / "documents" / sanitized_input_name
+        parent_folder_in_docs.mkdir(parents=True, exist_ok=True)
+
+        # Copy the entire folder structure to documents/OriginalFolderName/
+        def _copy_folder_structure(src_folder: Path, dst_folder: Path):
+            """Recursively copy folder structure with sanitized names"""
+            for item in src_folder.iterdir():
+                # Skip .DS_Store files
+                if item.name == '.DS_Store':
                     continue
-                
-                # Try APFS clone first (fast), fall back to regular copy
-                if not _try_apfs_clone(item, dst_path):
-                    shutil.copy2(str(item), str(dst_path))
-                    logger.debug(f"Copied file: {item.name} -> {sanitized_name}")
-            elif item.is_dir():
-                # Create subdirectory with sanitized name and recurse
-                sanitized_dir_name = sanitize_name(item.name, preserve_extension=False)
-                target_subdir = dst_folder / sanitized_dir_name
-                target_subdir.mkdir(parents=True, exist_ok=True)
-                # Recursively copy contents
-                _copy_folder_structure(item, target_subdir)
-    
-    _copy_folder_structure(input_folder, parent_folder_in_docs)
-    
-    logger.info(f"Folder preparation completed. Output: {output_subfolder}")
-    return output_subfolder 
+
+                if item.is_file():
+                    # Copy files with sanitized names
+                    sanitized_name = sanitize_name(item.name, preserve_extension=True)
+                    dst_path = dst_folder / sanitized_name
+                    dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Skip if file already exists (avoid unnecessary copying)
+                    if dst_path.exists():
+                        logger.debug(f"Skipped existing file: {item.name} -> {sanitized_name}")
+                        continue
+
+                    # Try APFS clone first (fast), fall back to regular copy
+                    if not _try_apfs_clone(item, dst_path):
+                        shutil.copy2(str(item), str(dst_path))
+                        logger.debug(f"Copied file: {item.name} -> {sanitized_name}")
+                elif item.is_dir():
+                    # Create subdirectory with sanitized name and recurse
+                    sanitized_dir_name = sanitize_name(item.name, preserve_extension=False)
+                    target_subdir = dst_folder / sanitized_dir_name
+                    target_subdir.mkdir(parents=True, exist_ok=True)
+                    # Recursively copy contents
+                    _copy_folder_structure(item, target_subdir)
+
+        _copy_folder_structure(input_folder, parent_folder_in_docs)
+        logger.info(f"✓ Copy mode: Files copied to {parent_folder_in_docs}")
+        documents_folder = parent_folder_in_docs
+
+    logger.info(f"Folder preparation completed. Output: {output_subfolder}, Documents: {documents_folder}")
+    return output_subfolder, documents_folder 

@@ -13,7 +13,7 @@ from typing import Dict, List, Callable, Optional
 from contextlib import contextmanager
 
 from fichero.director.backends.implementations.base import ProcessingResult
-from fichero.workflow_logger import WorkflowLogger
+from fichero.director.workflow_logger import WorkflowLogger
 
 logger = logging.getLogger(__name__)
 
@@ -55,16 +55,24 @@ class WorkflowExecutor:
         logger.info(f"⚙️ Workflow: '{workflow_name}' with {parallel_workers} parallel workers")
         
         try:
+            if not plan_config:
+                error_msg = f"No plan configuration provided"
+                logger.error(error_msg)
+                return ProcessingResult(
+                    task_id=task_id, success=False, folder_path=folder_path,
+                    output_path=output_path, execution_time=time.time() - start_time
+                )
+
             # Get workflow steps
             workflows = plan_config.get('workflows', {})
             workflow_steps = workflows.get(workflow_name, [])
-            
+
             if not workflow_steps:
                 return ProcessingResult(
-                    task_id=task_id, success=True, folder_path=folder_path, 
+                    task_id=task_id, success=True, folder_path=folder_path,
                     output_path=output_path, execution_time=time.time() - start_time
                 )
-            
+
             # Get commands
             commands = {cmd['name']: cmd for cmd in plan_config.get('commands', [])}
             
@@ -251,7 +259,11 @@ class WorkflowExecutor:
                             expanded_args[key] = potential_paths[0]
                     # Regular path handling
                     elif not value.startswith('/'):
-                        expanded_args[key] = output_path / value
+                        # Special handling for "documents" folder - use documents_folder variable if available
+                        if value == "documents" and 'documents_folder' in variables:
+                            expanded_args[key] = Path(variables['documents_folder'])
+                        else:
+                            expanded_args[key] = output_path / value
                     else:
                         expanded_args[key] = Path(value)
                 else:
@@ -262,6 +274,10 @@ class WorkflowExecutor:
             # Text processing tools (fuzzy_clean, recombine_segments) and post-transcription steps don't need this
             if any(keyword in function_path.lower() for keyword in ['crop', 'split', 'rotate', 'enhance', 'remove_background', 'segment', 'transcribe']):
                 expanded_args['parallel_workers'] = parallel_workers
+
+            # Add add_documents_prefix flag if available in variables (for in-place processing)
+            if 'add_documents_prefix' in variables:
+                expanded_args['add_documents_prefix'] = variables['add_documents_prefix']
             
             # Log step start
             workflow_logger.log_step_start(step_name, function_path, expanded_args)

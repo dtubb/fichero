@@ -2,19 +2,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 import json
-from fichero.batch import BatchProcessor
-from fichero.manifest import ManifestProcessor
-from fichero.progress import ProcessingProgress, ProgressTracker
-from fichero.files import ensure_dirs
-from fichero.segment_handler import SegmentHandler
-
-# Support both standalone CLI usage and workflow executor imports
-try:
-    # When imported by workflow executor (absolute imports work)
-    from fichero.tools.utils.tool_logger import get_tool_logger
-except ImportError:
-    # When run as standalone script (relative imports work)
-    from tool_logger import get_tool_logger
+from fichero.tools.utils.batch import BatchProcessor
+from fichero.tools.utils.manifest import ManifestProcessor
+from fichero.tools.utils.progress import ProcessingProgress, ProgressTracker
+from fichero.tools.utils.files import ensure_dirs
+from fichero.tools.utils.segment_handler import SegmentHandler
+from fichero.tools.utils.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('hierarchy')
 

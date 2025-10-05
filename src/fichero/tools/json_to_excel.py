@@ -16,7 +16,7 @@ try:
     from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # When run as standalone script (relative imports work)
-    from utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.tool_logger import get_tool_logger
 
 tool_logger = get_tool_logger('json_to_excel')
 

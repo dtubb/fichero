@@ -45,26 +45,26 @@ class CoreCommands:
     
     def process(self,
         input_folder: Path = typer.Argument(..., help="Input folder to process (auto-detects subfolders)"),
-        plan: Optional[Path] = typer.Option(None, "--plan", "-p", help="Processing plan file (.yml) - uses default if not specified"),
+        plan: Optional[str] = typer.Option(None, "--plan", "-p", help="Plan name or path to .yml file - uses default if not specified"),
         output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
         workflow: str = typer.Option(None, "--workflow", "-w", help="Workflow to use"),
         backend: str = typer.Option("python", "--backend", "-b", help="Backend: python or celery/redis"),
         cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers"),
         io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers"),
-    
+
         verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output")
     ):
         """Process folders with specified plan and workflow"""
         error_handler = create_cli_error_handler(self.console)
-        
+
         try:
             if verbose:
                 self._enable_verbose_logging()
-            
+
             if not self.director:
                 self.console.print("❌ Director not available", style="red")
                 raise typer.Exit(1)
-            
+
             # Configure backend if specified
             if backend != "python":
                 self.console.print(f"🔧 Configuring backend: {backend}", style="cyan")
@@ -74,31 +74,35 @@ class CoreCommands:
                     cpu_workers=cpu_workers,
                     io_workers=io_workers
                 )
-            
+
             # Validate input folder
             if not input_folder.exists():
                 self.console.print(f"❌ Input folder does not exist: {input_folder}", style="red")
                 raise typer.Exit(1)
-            
+
             # Set output directory
             if output is None:
                 output = input_folder / "output"
-            
+
             output.mkdir(parents=True, exist_ok=True)
-            
+
             # Get default settings
             from fichero.config.core.settings import get_app_settings
             app_settings = get_app_settings(self.director.app if hasattr(self.director, 'app') else None)
-            
+
             # Determine plan name
             if plan is None:
                 # Get default plan from settings
-                plan_name = app_settings.get_setting('defaults.plan', 'Catalogue')
+                plan_name = app_settings.get_setting('defaults.plan', 'Default')
             else:
-                if not plan.exists():
-                    self.console.print(f"❌ Plan file does not exist: {plan}", style="red")
-                    raise typer.Exit(1)
-                plan_name = plan.stem
+                # Check if it's a path or a name
+                plan_path = Path(plan)
+                if plan_path.exists() and plan_path.suffix == '.yml':
+                    # It's a path to a plan file
+                    plan_name = plan_path.stem
+                else:
+                    # It's a plan name
+                    plan_name = plan
             
             # Determine workflow name
             if workflow is None:

@@ -232,7 +232,7 @@ class PythonProcessingBackend(ProcessingBackend):
                     "folder": str(task.folder_path),
                     "folder_name": task.folder_path.name,  # Add folder_name for task monitor
                     "workflow": task.workflow_name,
-                    "plan": task.plan_config.get('name', 'Unknown'),
+                    "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                     "executor_type": executor_type,
                     "worker": f"{executor_type.upper()}-pending"
                 }
@@ -705,6 +705,19 @@ class PythonProcessingBackend(ProcessingBackend):
             # Determine parallel workers based on current load
             parallel_workers = self._get_parallel_workers_for_task(task)
             
+            # Add documents_folder to variables for source file access
+            workflow_variables = task.variables.copy()
+            workflow_variables['documents_folder'] = str(task.documents_folder)
+
+            # Control /documents prefix in batch processing
+            # The BatchProcessor adds "documents/" prefix unless:
+            # 1. add_documents_prefix=False (explicit override), OR
+            # 2. "documents" is already in base_folder path
+            #
+            # For both copy and in-place modes, documents_folder IS the actual location
+            # We never want to add /documents/ prefix, so always disable it
+            workflow_variables['add_documents_prefix'] = False
+
             # Execute workflow with full integration
             result = executor.execute_workflow(
                 task_id=task.task_id,
@@ -712,7 +725,7 @@ class PythonProcessingBackend(ProcessingBackend):
                 output_path=task.output_path,
                 workflow_name=task.workflow_name,
                 plan_config=task.plan_config,
-                variables=task.variables,
+                variables=workflow_variables,
                 parallel_workers=parallel_workers
             )
             
@@ -732,7 +745,7 @@ class PythonProcessingBackend(ProcessingBackend):
                         "status": "completed",
                         "folder": str(task.folder_path),
                         "folder_name": task.folder_path.name,  # Add folder_name for task monitor
-                        "plan": task.plan_config.get('name', 'Unknown'),
+                        "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                         "worker": worker_id,
                         "execution_time": result.execution_time,
                         "document_id": task.document_id
@@ -745,7 +758,7 @@ class PythonProcessingBackend(ProcessingBackend):
                         "status": "failed",
                         "folder": str(task.folder_path),
                         "folder_name": task.folder_path.name,  # Add folder_name for task monitor
-                        "plan": task.plan_config.get('name', 'Unknown'),
+                        "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                         "worker": worker_id,
                         "error": result.error_message,
                         "document_id": task.document_id
@@ -784,7 +797,7 @@ class PythonProcessingBackend(ProcessingBackend):
             self._notify_progress(task.task_id, {
                 "status": "failed",
                 "folder": str(task.folder_path),
-                "plan": task.plan_config.get('name', 'Unknown'),
+                "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                 "worker": worker_id,
                 "error": error_msg,
                 "document_id": task.document_id

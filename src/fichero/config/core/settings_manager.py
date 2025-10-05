@@ -217,7 +217,7 @@ class SettingsManager(FileManager):
         try:
             # Use proper user settings directory, not Toga's config path
             if self.app and hasattr(self.app, 'paths'):
-                # GUI mode - use existing app.paths
+                # GUI/CLI mode - use app.paths
                 logger.info(f"App paths: data={self.app.paths.data}, app={self.app.paths.app}, config={self.app.paths.config}")
                 user_dir = self.app.paths.data / "settings"
                 user_dir.mkdir(parents=True, exist_ok=True)
@@ -225,17 +225,17 @@ class SettingsManager(FileManager):
                 logger.info(f"User settings path: {user_file}")
                 return user_file
             else:
-                # CLI mode - fail if no app
+                # No app available - try toga.App.app
                 import toga
                 app = toga.App.app
-                if not app or not hasattr(app, 'paths'):
+                if app and hasattr(app, 'paths'):
+                    user_dir = app.paths.data / "settings"
+                    user_dir.mkdir(parents=True, exist_ok=True)
+                    user_file = user_dir / "settings.yml"
+                    logger.info(f"Using Toga app paths: {user_file}")
+                    return user_file
+                else:
                     raise RuntimeError("Toga app not available - cannot get settings path")
-                
-                user_dir = app.paths.data / "settings"
-                user_dir.mkdir(parents=True, exist_ok=True)
-                user_file = user_dir / "settings.yml"
-                logger.info(f"CLI using Toga paths: {user_file}")
-                return user_file
         except Exception as e:
             logger.error(f"Failed to get user settings path: {e}")
             return None

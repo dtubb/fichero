@@ -45,12 +45,25 @@ class BaseLibraryCommands:
         mock_app_for_manager = Mock()
         mock_app_for_manager.paths = Mock()
         mock_app_for_manager.paths.data = db_path.parent.parent  # Parent of library dir
-        
+
+        # Initialize library manager first
         self.library_manager = LibraryManager(mock_app_for_manager)
-        
-        # Initialize director bridge
+
+        # Initialize director and its backend
         self.director = FicheroDirector()
+        # CRITICAL: Initialize backend to create task_manager and processing_coordinator
+        if not self.director.initialize_backend():
+            self.console.print("[red]Failed to initialize Fichero Director backend[/red]")
+
         self.bridge = LibraryDirectorBridge(self.director)
+
+        # Initialize director integration service
+        from fichero.library.director_integration import DirectorIntegrationService
+        mock_app_for_manager.director_integration = DirectorIntegrationService(
+            app=mock_app_for_manager,
+            library_manager=self.library_manager,
+            director=self.director
+        )
     
     async def get_collection_by_id(self, collection_id: str):
         """Get collection by ID"""

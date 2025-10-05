@@ -1,8 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Callable, Any
-from fichero.image_format import get_supported_extensions_list
-from fichero.files import get_relative_path, ensure_dirs
+from fichero.tools.utils.image_format import get_supported_extensions_list
+from fichero.tools.utils.files import get_relative_path, ensure_dirs
 
 # Support both standalone CLI usage and workflow executor imports
 try:

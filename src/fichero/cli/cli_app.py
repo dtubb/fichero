@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class CLIApp:
     """Main CLI application class"""
-    
+
     def __init__(self):
         """Initialize CLI application"""
         self.console = Console()
@@ -35,9 +35,19 @@ class CLIApp:
             help="Fichero - Document Processing System",
             add_completion=False
         )
-        
-        # Initialize app components
-        self.app_initializer = FicheroAppInitializer()
+
+        # Create minimal Toga app for path management (using textual backend)
+        import toga
+        self.toga_app = toga.App(
+            formal_name="Fichero",
+            app_id="ca.tubb.fichero",
+            app_name="fichero"
+        )
+
+        # Initialize app components with toga app context
+        self.app_initializer = FicheroAppInitializer(app_context=self.toga_app, cli_mode=True)
+        # CRITICAL: Must call initialize_full_app() to actually initialize director!
+        self.app_initializer.initialize_full_app()
         self.director = self.app_initializer.director
         
         # Set up version command

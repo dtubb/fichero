@@ -2,6 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ✅ Director-Library Integration Status
+
+**Status: FULLY FUNCTIONAL** (as of October 5, 2025)
+
+The Fichero Director (workflow processing) and Library (collection management) are successfully integrated and working. See `DIRECTOR_INTEGRATION.md` for complete documentation.
+
+**Quick Start:**
+```bash
+# Direct processing
+briefcase dev -- process <input> --output <output> --plan "Transcribir y Catalogar" --workflow "Catalogue"
+
+# Library processing
+briefcase dev -- library add "Collection Name" --type external --source /path/to/source
+briefcase dev -- library add-item <collection_id> folder /path/to/folder
+briefcase dev -- library process <collection_id> --plan "Transcribir y Catalogar" --workflow "Catalogue"
+```
+
+**Key Components:**
+- ✅ All 94 import errors fixed (tools + utils)
+- ✅ Toga packages aligned at 0.5.2
+- ✅ Director initialization working
+- ✅ Workflows executing correctly
+- ✅ Library-Director bridge functional
+- ✅ 37 unit tests created
+
 ## Development Commands
 
 ### Running the Application

@@ -37,41 +37,57 @@ class FolderProcessor:
         if progress_callback:
             director.register_progress_callback(self._handle_progress_update)
     
-    def detect_and_prepare_folders(self, input_folders: List[Path], output: Path) -> List[Path]:
+    def detect_and_prepare_folders(self, input_folders: List[Path], output: Path) -> List[Dict[str, Path]]:
         """
         Detect top-level subfolders with images and prepare them for processing.
-        
+
         Each top-level subfolder becomes a separate processing task that will
         recursively process all images in its entire folder tree.
-        
-        Returns list of prepared folder paths (one per top-level folder with images).
+
+        Returns list of dicts with 'output_folder' and 'documents_folder' for each prepared folder.
         """
+        # Get processing mode from settings
+        processing_mode = "in_place"  # default
+        if hasattr(self.director, 'settings_manager'):
+            try:
+                settings = self.director.settings_manager.load_settings()
+                processing_mode = settings.get('preferences', {}).get('processing_mode', 'in_place')
+                logger.info(f"Using processing mode from settings: {processing_mode}")
+            except Exception as e:
+                logger.warning(f"Could not load processing mode from settings, using default: {e}")
+
         prepared_folders = []
-        
+
         for input_folder in input_folders:
             logger.info(f"Analyzing input folder: {input_folder}")
-            
+
             # Find top-level subfolders that contain images (recursively)
             image_folders = self._find_folders_with_images(input_folder)
-            
+
             if image_folders:
                 logger.info(f"Found {len(image_folders)} top-level subfolders with images - each will be processed as a separate task")
-                
+
                 for image_folder in image_folders:
                     logger.info(f"Preparing top-level folder: {image_folder.name} (will process entire folder tree recursively)")
-                    prepared_folder = prepare_folder(image_folder, output)
-                    prepared_folders.append(prepared_folder)
-                    
+                    output_folder, documents_folder = prepare_folder(image_folder, output, processing_mode)
+                    prepared_folders.append({
+                        'output_folder': output_folder,
+                        'documents_folder': documents_folder
+                    })
+
             else:
                 # FALLBACK: No subfolders with images found, check if root folder itself has images
                 if self._folder_has_images_direct(input_folder):
                     logger.info(f"No subfolders found, but root folder contains images - treating input folder as single task to process")
-                    prepared_folder = prepare_folder(input_folder, output)
-                    prepared_folders.append(prepared_folder)
+                    output_folder, documents_folder = prepare_folder(input_folder, output, processing_mode)
+                    prepared_folders.append({
+                        'output_folder': output_folder,
+                        'documents_folder': documents_folder
+                    })
                 else:
                     # No images found anywhere
                     logger.warning(f"No supported image files found in: {input_folder}")
-        
+
         logger.info(f"Prepared {len(prepared_folders)} folder(s) for parallel processing")
         return prepared_folders
     
@@ -225,38 +241,48 @@ class FolderProcessor:
             
         return False
     
-    def submit_processing_tasks(self, prepared_folders: List[Path], plan_name: str, 
-                              workflow_name: str = "default", 
+    def submit_processing_tasks(self, prepared_folders: List[Dict[str, Path]], plan_name: str,
+                              workflow_name: str = "default",
                               document_context: Dict = None) -> List[str]:
         """
         Submit processing tasks for prepared folders.
         Each folder becomes a separate task for parallel processing.
-        
+
+        Args:
+            prepared_folders: List of dicts with 'output_folder' and 'documents_folder' keys
+            plan_name: Name of the processing plan
+            workflow_name: Name of workflow within the plan
+            document_context: Additional document metadata
+
         Returns list of task IDs.
         """
         task_ids = []
-        
-        for prepared_folder in prepared_folders:
+
+        for folder_info in prepared_folders:
+            output_folder = folder_info['output_folder']
+            documents_folder = folder_info['documents_folder']
+
             # Submit each folder as a separate task
             task_id = self.director.process_folders(
-                folders=[prepared_folder],  # Single folder per task
+                folders=[{'output_folder': output_folder, 'documents_folder': documents_folder}],
                 plan_name=plan_name,
                 workflow_name=workflow_name,
                 document_context=document_context or {}
             )
             task_ids.append(task_id)
-            
+
             # Track task info for progress updates
             self.task_info[task_id] = {
-                'folder_name': prepared_folder.name,
-                'folder_path': prepared_folder,
+                'folder_name': output_folder.name,
+                'folder_path': output_folder,
+                'documents_path': documents_folder,
                 'status': 'pending',
                 'progress': 0,
                 'start_time': time.time()
             }
-            
-            logger.info(f"Submitted task {task_id} for folder: {prepared_folder.name}")
-        
+
+            logger.info(f"Submitted task {task_id} for folder: {output_folder.name} (documents: {documents_folder})")
+
         logger.info(f"Submitted {len(task_ids)} tasks for parallel processing")
         return task_ids
     

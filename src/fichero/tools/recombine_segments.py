@@ -11,10 +11,10 @@ try:
     from fichero.tools.utils.tool_logger import get_tool_logger
 except ImportError:
     # When run as standalone script (relative imports work)
-    from utils.batch import BatchProcessor
-    from utils.files import ensure_dirs
-    from utils.segment_handler import SegmentHandler
-    from utils.tool_logger import get_tool_logger
+    from fichero.tools.utils.batch import BatchProcessor
+    from fichero.tools.utils.files import ensure_dirs
+    from fichero.tools.utils.segment_handler import SegmentHandler
+    from fichero.tools.utils.tool_logger import get_tool_logger
 
 import json
 import re

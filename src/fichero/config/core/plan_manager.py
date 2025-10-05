@@ -517,14 +517,23 @@ class PlanManager:
                 # User plans from app data
                 user_plans_dir = app.paths.data / "plans"
             else:
-                # For CLI or when app is not available - fail if no app
-                import toga
-                app = toga.App.app
-                if not app or not hasattr(app, 'paths'):
-                    raise RuntimeError("Toga app not available - cannot get plan directories")
-                
-                default_plans_dir = app.paths.app / "resources" / "config_defaults" / "plans"
-                user_plans_dir = app.paths.data / "plans"
+                # For CLI or when app is not available - try to get toga app, but don't fail
+                try:
+                    import toga
+                    app = toga.App.app
+                    if app and hasattr(app, 'paths'):
+                        default_plans_dir = app.paths.app / "resources" / "config_defaults" / "plans"
+                        user_plans_dir = app.paths.data / "plans"
+                    else:
+                        # No toga app - will use dev paths fallback below
+                        app = None
+                        default_plans_dir = None
+                        user_plans_dir = None
+                except:
+                    # Toga not available in CLI mode - will use dev paths fallback below
+                    app = None
+                    default_plans_dir = None
+                    user_plans_dir = None
             
             # Debug logging for built app troubleshooting
             logger.debug(f"Plan directories - default: {default_plans_dir}, user: {user_plans_dir}")

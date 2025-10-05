@@ -596,3 +596,111 @@ class LibraryService:
         except Exception as e:
             logger.error(f"Failed to get library stats: {e}")
             return {'status': 'Error', 'error': str(e)}
+
+    # ===== DIRECTOR INTEGRATION =====
+
+    async def process_collection(self, collection_id: str, plan_name: str,
+                                workflow_name: str = "default",
+                                progress_callback: Optional[callable] = None) -> Dict[str, Any]:
+        """
+        Process a collection using Fichero Director
+
+        Args:
+            collection_id: ID of collection to process
+            plan_name: Name of the plan to use
+            workflow_name: Name of workflow within the plan
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dict with processing results
+        """
+        try:
+            logger.info(f"Starting director processing for collection {collection_id}")
+            logger.info(f"Plan: {plan_name}, Workflow: {workflow_name}")
+
+            # Get collection
+            collection = await self.library_manager.get_collection(collection_id)
+            if not collection:
+                return {
+                    'success': False,
+                    'error': f"Collection {collection_id} not found"
+                }
+
+            # Get director integration service
+            if not hasattr(self.library_manager, 'director_integration'):
+                return {
+                    'success': False,
+                    'error': "Director integration not available"
+                }
+
+            # Process through director
+            result = await self.library_manager.director_integration.process_collection(
+                collection_id=collection_id,
+                plan_name=plan_name,
+                workflow_name=workflow_name,
+                progress_callback=progress_callback
+            )
+
+            logger.info(f"Director processing completed: {result.get('success', False)}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to process collection: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def process_collection_sync(self, collection_id: str, plan_name: str,
+                               workflow_name: str = "default") -> Dict[str, Any]:
+        """Synchronous wrapper for process_collection"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(
+                    self.process_collection(collection_id, plan_name, workflow_name)
+                )
+                return result
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Failed to process collection sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    async def get_available_plans(self) -> List[Dict[str, Any]]:
+        """Get list of available processing plans"""
+        try:
+            # Get plan manager from director
+            if hasattr(self.library_manager, 'director_integration'):
+                director = self.library_manager.director_integration.director
+                if hasattr(director, 'plan_manager'):
+                    plans = director.plan_manager.get_all_plans()
+                    return [
+                        {
+                            'name': name,
+                            'title': plan.get('title', name),
+                            'description': plan.get('description', ''),
+                            'workflows': list(plan.get('workflows', {}).keys())
+                        }
+                        for name, plan in plans.items()
+                    ]
+
+            return []
+        except Exception as e:
+            logger.error(f"Failed to get available plans: {e}")
+            return []
+
+    def get_available_plans_sync(self) -> List[Dict[str, Any]]:
+        """Synchronous wrapper for get_available_plans"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self.get_available_plans())
+                return result
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Failed to get plans sync: {e}")
+            return []

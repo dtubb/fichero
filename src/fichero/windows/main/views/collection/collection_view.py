@@ -82,7 +82,9 @@ class CollectionView(BaseView):
         from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
         subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
         subscribe_to_navigation("collection_items_changed", self._on_collection_items_changed_event)
-        logger.debug("Event subscriptions registered for collection view")
+        subscribe_to_navigation("collection_item_updated", self._on_item_progress_updated)
+        subscribe_to_navigation("processing_completed", self._on_processing_completed)
+        logger.debug("Event subscriptions registered for collection view (including progress updates)")
 
         logger.info("Refactored collection view created successfully")
 
@@ -429,10 +431,20 @@ class CollectionView(BaseView):
                 self.content_container.add(self.items_list)
                 
             logger.debug(f"Created DetailedList with {len(items)} items in native Toga format")
-            
+
         except Exception as e:
             logger.error(f"Failed to create collection items list: {e}")
-    
+
+    def _update_items_list(self):
+        """Update the DetailedList with current collection_items data"""
+        try:
+            if hasattr(self, 'items_list') and self.items_list:
+                # Update the data property to refresh the list
+                self.items_list.data = self.collection_items
+                logger.debug(f"Updated DetailedList with {len(self.collection_items)} items")
+        except Exception as e:
+            logger.error(f"Failed to update items list: {e}")
+
     def _on_item_selected(self, widget):
         """Handle item selection from detailed list"""
         try:
@@ -846,13 +858,34 @@ class CollectionView(BaseView):
 
         logger.info(f"Processing collection folder: {collection_path}")
 
+        # Create progress callback for real-time updates
+        def progress_callback(event_type: str, task_info):
+            """Handle progress updates from Director"""
+            try:
+                logger.info(f"Progress: {event_type} - Task {task_info.task_id}: {task_info.overall_progress}%")
+                # In the future, we could update a progress bar here
+            except Exception as e:
+                logger.error(f"Error in progress callback: {e}")
+
         # Use Director's process_with_auto_detection for folder processing
-        task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
-            input_path=Path(collection_path),
-            output_path=Path(self.app.paths.data) / "processed" / collection.name,
-            plan_name="Default",
-            workflow_name="default"
-        )
+        # Note: Director coordinator may not support progress_callback parameter yet
+        try:
+            task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
+                input_path=Path(collection_path),
+                output_path=Path(self.app.paths.data) / "processed" / collection.name,
+                plan_name="Default",
+                workflow_name="default",
+                progress_callback=progress_callback
+            )
+        except TypeError:
+            # Fallback if progress_callback parameter not supported
+            logger.info("Director doesn't support progress_callback, processing without progress updates")
+            task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
+                input_path=Path(collection_path),
+                output_path=Path(self.app.paths.data) / "processed" / collection.name,
+                plan_name="Default",
+                workflow_name="default"
+            )
 
         # Show success
         await self.app.main_window.dialog(
@@ -1542,4 +1575,98 @@ class CollectionView(BaseView):
                 self._create_content()
 
         except Exception as e:
-            logger.error(f"Failed to handle collection_items_changed event: {e}") 
+            logger.error(f"Failed to handle collection_items_changed event: {e}")
+
+    def _on_item_progress_updated(self, event):
+        """Handle collection_item_updated event - update progress display for item"""
+        try:
+            item_id = event.data.get("item_id")
+            progress = event.data.get("progress", 0)
+
+            logger.debug(f"📡 Progress update for item {item_id}: {progress}%")
+
+            # Check if this item is in our current collection
+            if not self.collection_id:
+                return
+
+            # Find the item in our items list
+            item_index = None
+            for i, item in enumerate(self.collection_items):
+                if item.get("id") == item_id:
+                    item_index = i
+                    break
+
+            if item_index is None:
+                return
+
+            # Update the item's progress in our local cache
+            self.collection_items[item_index]["progress"] = progress
+
+            # Update the DetailedList display if it exists
+            if hasattr(self, 'items_list') and self.items_list:
+                try:
+                    # Get the updated item data
+                    item = self.collection_items[item_index]
+
+                    # Update the subtitle to show progress
+                    status = item.get("status", "unknown")
+                    if progress < 100:
+                        subtitle = f"Processing: {progress}% - {status}"
+                    else:
+                        subtitle = f"Completed - {status}"
+
+                    # Refresh the item in the list
+                    # Note: DetailedList doesn't have a direct update method,
+                    # so we need to rebuild the data
+                    self._update_items_list()
+
+                except Exception as e:
+                    logger.debug(f"Could not update DetailedList for progress: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle item progress update: {e}")
+
+    def _on_processing_completed(self, event):
+        """Handle processing_completed event - refresh item display"""
+        try:
+            item_id = event.data.get("item_id")
+            task_id = event.data.get("task_id")
+            status = event.data.get("status", "unknown")
+
+            logger.info(f"📡 Processing completed for item {item_id}: {status}")
+
+            # Check if this item is in our current collection
+            if not self.collection_id:
+                return
+
+            # Find the item in our items list
+            item_index = None
+            for i, item in enumerate(self.collection_items):
+                if item.get("id") == item_id:
+                    item_index = i
+                    break
+
+            if item_index is None:
+                return
+
+            # Update the item's status
+            self.collection_items[item_index]["director_status"] = status
+            self.collection_items[item_index]["director_task_id"] = task_id
+            self.collection_items[item_index]["progress"] = 100
+
+            # Refresh the display
+            if hasattr(self, 'items_list') and self.items_list:
+                try:
+                    self._update_items_list()
+                except Exception as e:
+                    logger.debug(f"Could not update DetailedList after completion: {e}")
+
+            # Show completion notification if configured
+            # (This could be optional based on settings)
+            if status == "success":
+                logger.info(f"✅ Item {item_id} processed successfully")
+            else:
+                logger.warning(f"❌ Item {item_id} processing failed: {status}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle processing completion: {e}") 
