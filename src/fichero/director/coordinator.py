@@ -56,7 +56,13 @@ class ProcessingCoordinator:
             Task ID string
         """
         # Load plan configuration
-        plan_config = self._load_plan_config(plan_name)
+        try:
+            plan_config = self._load_plan_config(plan_name)
+            if not plan_config:
+                logger.error(f"Plan config is None for plan: {plan_name}")
+        except Exception as e:
+            logger.error(f"Failed to load plan '{plan_name}': {e}", exc_info=True)
+            plan_config = None
 
         # Generate variables from output_path and plan config if provided
         variables = self.variable_generator.generate_variables(plan_config, output_path, folders)

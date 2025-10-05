@@ -51,18 +51,40 @@ class ConfigurationManager:
     
     def load_plan_config(self, plan_name: str) -> Dict:
         """Load plan configuration by name"""
+        logger.info(f"=== load_plan_config called with plan_name: '{plan_name}' ===")
         try:
             # Import here to avoid circular dependencies
             from fichero.config.core.plan_manager import PlanManager
-            
+            from pathlib import Path
+
+            # Try normal path resolution first
+            logger.info(f"Calling PlanManager.get_plan_file_path('{plan_name}', {self.director.app})")
             plan_file = PlanManager.get_plan_file_path(plan_name, self.director.app)
+            logger.info(f"PlanManager returned: {plan_file}")
+
+            # If not found and no app, try direct fallback to development paths
+            if not plan_file:
+                logger.warning(f"Plan file not found via PlanManager, trying fallback paths for: {plan_name}")
+                # Fallback: try development paths directly
+                dev_path = Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "plans"
+                for ext in ['.yml', '.yaml']:
+                    test_path = dev_path / f"{plan_name}{ext}"
+                    if test_path.exists():
+                        logger.info(f"Found plan via fallback: {test_path}")
+                        plan_file = test_path
+                        break
+
             if plan_file and plan_file.exists():
                 from ruamel.yaml import YAML
                 yaml = YAML()
                 with open(plan_file, "r", encoding="utf-8") as f:
-                    return yaml.load(f)
+                    config = yaml.load(f)
+                    logger.info(f"Successfully loaded plan '{plan_name}' from {plan_file}")
+                    return config
             else:
-                raise FileNotFoundError(f"Plan file not found: {plan_name}")
+                error_msg = f"Plan file not found: {plan_name}"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
         except Exception as e:
             logger.error(f"Failed to load plan config '{plan_name}': {e}")
             raise

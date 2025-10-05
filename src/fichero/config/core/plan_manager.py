@@ -261,36 +261,45 @@ class PlanManager:
     def get_plan_file_path(plan_name: str, app=None) -> Optional[Path]:
         """
         Get the file path for a specific plan
-        
+
         Args:
-            plan_name: Display name of the plan (from title field)
+            plan_name: Display name of the plan (from title field) OR filename stem
             app: Application instance to get paths
-            
+
         Returns:
             Path to the plan file or None if not found
         """
         try:
             if not plan_name or plan_name in ["No plans found", "Error loading plans", "Manage Plans..."]:
                 return None
-            
-            # First try to get filename from display name
+
+            logger.debug(f"Looking for plan: '{plan_name}'")
+
+            # First try to get filename from display name (title -> filename mapping)
             filename_stem = PlanManager.get_plan_filename_from_display_name(plan_name, app)
             if filename_stem:
+                logger.debug(f"Mapped display name '{plan_name}' to filename '{filename_stem}'")
                 plan_name = filename_stem
-                
+            else:
+                logger.debug(f"No title mapping found, using '{plan_name}' as filename")
+
             default_dir, user_dir = PlanManager._get_plan_directories(app)
-            
+            logger.debug(f"Plan directories - default: {default_dir}, user: {user_dir}")
+
             # Check user directory first (takes precedence)
             for plans_dir in [user_dir, default_dir]:
                 if plans_dir and plans_dir.exists():
                     for ext in ConfigLoader.get_supported_extensions():
                         plan_file = plans_dir / f"{plan_name}{ext}"
+                        logger.debug(f"Checking: {plan_file}")
                         if plan_file.exists():
+                            logger.info(f"Found plan file: {plan_file}")
                             return plan_file
-            
+
             logger.warning(f"Plan file not found for: {plan_name}")
+            logger.warning(f"Searched in: {[str(d) for d in [user_dir, default_dir] if d]}")
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting plan file path for {plan_name}: {e}")
             return None
