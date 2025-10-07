@@ -6,7 +6,7 @@ version = "0.1.0.dev1"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "dtubb"
-author_email = "daniel@tuI addplease dobb.ca"
+author_email = "daniel@tuI addplease do``   bb.ca"
 
 # GUI Application
 [tool.briefcase.app.fichero]

@@ -85,8 +85,11 @@ class BaseView(ABC):
             )
             
             # Create scroll container with content - Toga's recommended pattern
+            # Enable both horizontal and vertical scrolling to prevent content overflow
             self.scroll_container = toga.ScrollContainer(
                 content=self.content_container,  # Pass content in constructor
+                horizontal=True,  # Enable horizontal scrolling for wide content
+                vertical=True,    # Enable vertical scrolling (default)
                 style=Pack(
                     flex=1,
                     background_color=VIEW_BACKGROUND  # White background

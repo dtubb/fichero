@@ -88,11 +88,14 @@ class OutputView(BaseView):
         logger.info("Creating output view content")
 
         # Content area (will hold single or split view)
+        # Don't use flex=1 - this prevents horizontal expansion
+        # Instead, content will naturally size and scroll if needed
         self.content_area = toga.Box(
             style=Pack(
                 direction=ROW if self.split_mode else COLUMN,
                 flex=1,
                 margin=10
+                # No min-width/max-width - let pane constrain it
             )
         )
 
@@ -721,12 +724,17 @@ class OutputView(BaseView):
             self._show_error_message(f"No output files in step: {current_step.tool_name}")
     
     def _create_pane_box(self, file_path: Path, step_name: str):
-        """Create a pane box for displaying content"""
+        """Create a pane box for displaying content
+
+        In desktop mode, panes are constrained by the parent container width.
+        They should not expand horizontally beyond the right pane's allocated space.
+        """
         pane = toga.Box(
             style=Pack(
                 direction=COLUMN,
-                flex=1,
+                flex=1,  # Fills vertical space
                 margin=5
+                # No width set - constrained by parent (right_pane from MainWindow)
             )
         )
         
@@ -815,6 +823,7 @@ class OutputView(BaseView):
             mime_type = mime_types.get(file_path.suffix.lower(), 'image/jpeg')
 
             # Create simple HTML viewer - toolbar will provide controls
+            # Use container-based sizing (100%, not viewport units) to respect parent constraints
             html = f"""
             <!DOCTYPE html>
             <html>
@@ -823,12 +832,11 @@ class OutputView(BaseView):
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
                 <style>
                     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                    body {{
+                    html, body {{
+                        width: 100%;
+                        height: 100%;
                         background: #2c2c2c;
                         overflow: hidden;
-                        width: 100vw;
-                        height: 100vh;
-                        position: fixed;
                     }}
                     #imageContainer {{
                         width: 100%;
@@ -848,6 +856,8 @@ class OutputView(BaseView):
                     }}
                     img {{
                         display: block;
+                        max-width: 100%;
+                        height: auto;
                         user-select: none;
                         -webkit-user-select: none;
                         pointer-events: none;

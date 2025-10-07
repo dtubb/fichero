@@ -97,24 +97,35 @@ class BaseToolbar(ABC, ToolbarProtocol):
             }
 
     def _create_base_container(self):
-        """Create stable HIG-compliant base container with consistent alignment"""
+        """Create stable HIG-compliant base container with consistent alignment and horizontal scrolling"""
         try:
-            # Main container with stable flex layout for proper alignment
-            # Note: BaseView handles outer margins, toolbar handles inner spacing only
-            self.container = toga.Box(
+            # Inner toolbar container with button content
+            # This will be wrapped in a ScrollContainer for horizontal scrolling
+            inner_container = toga.Box(
                 style=Pack(
                     direction=ROW,  # Horizontal layout for left/center/right
                     height=self.hig_specs["toolbar_height"],
-                    margin=0,  # No outer margins - BaseView handles container positioning
+                    margin=0,
                     align_items="center",  # Vertically center all children
-                    # justify_content="space_between" not supported in Toga - use flex instead
                     background_color="transparent",
+                    flex=0  # Size based on content width (may exceed parent)
+                )
+            )
+
+            # Wrap inner container in ScrollContainer for horizontal scrolling
+            # This prevents toolbar from expanding the window when there are too many buttons
+            self.container = toga.ScrollContainer(
+                content=inner_container,
+                horizontal=True,  # Enable horizontal scrolling
+                vertical=False,   # Disable vertical scrolling (toolbar is fixed height)
+                style=Pack(
+                    height=self.hig_specs["toolbar_height"],
                     flex=1  # Take all available width from parent
                 )
             )
 
-            # For backward compatibility, content points to the same container
-            self.content = self.container
+            # For backward compatibility and button addition, content points to inner container
+            self.content = inner_container
 
             # Left section: Flexible width that grows with content
             self.left_content = toga.Box(
@@ -149,10 +160,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                 )
             )
 
-            # Add sections with stable ordering
-            self.container.add(self.left_content)
-            self.container.add(self.center_content)
-            self.container.add(self.right_content)
+            # Add sections to inner container (not the ScrollContainer wrapper)
+            inner_container.add(self.left_content)
+            inner_container.add(self.center_content)
+            inner_container.add(self.right_content)
 
             logger.debug("Stable HIG-compliant base container created with consistent alignment")
 

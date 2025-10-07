@@ -166,21 +166,27 @@ class MainWindow:
                 )
             )
 
-            # Right pane for preview
+            # Right pane for preview - flex=1 to fill remaining space, but won't expand beyond window
+            # Content inside will scroll horizontally if needed
             self.right_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
                     flex=1,
                     background_color="#FFFFFF"
+                    # No width set - takes remaining space after fixed panes
+                    # Content overflow will be handled by ScrollContainer in OutputView
                 )
             )
 
             # Main container with three panes
+            # Use flex=1 to fill window but don't allow panes to expand window
             self.main_container = toga.Box(
                 style=Pack(
                     direction=ROW,
                     flex=1,
                     background_color="#FFFFFF"
+                    # Panes inside are constrained: left=300px, center=300px, right=flex (remaining space)
+                    # Content overflow will scroll, not expand window
                 )
             )
 
