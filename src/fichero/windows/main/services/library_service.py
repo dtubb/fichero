@@ -318,11 +318,11 @@ class LibraryService:
 
     def get_collection_structure_sync(self, collection_id: str, current_path: str = "") -> List[Dict[str, Any]]:
         """Get hierarchical collection structure for GUI navigation
-        
+
         Args:
             collection_id: The collection ID
             current_path: Current path within collection (empty for root)
-            
+
         Returns:
             List of folders and files in Toga DetailedList format
         """
@@ -332,13 +332,18 @@ class LibraryService:
             if not collection:
                 logger.warning(f"Collection {collection_id} not found")
                 return []
-            
-            # Use source_path (for imported collections) or local_path
-            collection_path = collection.source_path or collection.local_path
-            if collection_path:
-                return self._get_filesystem_structure(Path(collection_path), current_path)
+
+            # IMPORTANT: Different behavior based on collection type
+            # - External collections: Browse source_path directly (files in original location)
+            # - Local/URL collections: Get items from library database
+            if collection.type == "external" and collection.source_path:
+                # External collection: Browse filesystem directly (files not in library)
+                # Pass collection_id so we can look up library item IDs for processed files
+                logger.debug(f"Browsing external collection filesystem: {collection.source_path}")
+                return self._get_filesystem_structure(Path(collection.source_path), current_path, collection_id)
             else:
-                # Fall back to flat items if no filesystem structure
+                # Local/URL/Hybrid collections: Get items from library database
+                logger.debug(f"Getting items from library database for collection type: {collection.type}")
                 return self.get_collection_items_sync(collection_id)
                 
         except Exception as e:
@@ -417,18 +422,47 @@ class LibraryService:
 
         return type_mapping.get(suffix, 'file'), None
 
-    def _get_filesystem_structure(self, base_path: Path, current_relative_path: str) -> List[Dict[str, Any]]:
+    def _get_filesystem_structure(self, base_path: Path, current_relative_path: str, collection_id: str = None) -> List[Dict[str, Any]]:
         """
         Get hierarchical filesystem structure from a collection's source path
-        
+
         Args:
             base_path: The collection's source path (absolute)
             current_relative_path: The current path within the collection (relative to base_path)
-        
+            collection_id: Optional collection ID to look up library item IDs for processed files
+
         Returns:
             List of dictionaries compatible with Toga DetailedList
         """
         try:
+            # Build a mapping of source_path -> item_id for folders in this collection
+            # For external collections, the collection root folder is tracked as a collection item
+            # All files inherit the root folder's item_id for processing result lookup
+            item_id_map = {}
+            parent_folder_item_id = None  # For files in current directory
+
+            if collection_id:
+                try:
+                    items = self.library_manager.storage.get_collection_items(collection_id)
+                    current_path = base_path / current_relative_path if current_relative_path else base_path
+                    current_path_str = str(current_path.absolute())
+
+                    for item in items:
+                        if hasattr(item, 'source_path') and item.source_path:
+                            abs_path = str(Path(item.source_path).absolute())
+                            item_id_map[abs_path] = item.id
+
+                            # Check if current_path is this item OR a subdirectory of this item
+                            # This allows files in subfolders to use the root folder's item_id
+                            if current_path_str == abs_path or current_path_str.startswith(abs_path + '/'):
+                                parent_folder_item_id = item.id
+                                logger.debug(f"📊 Found parent folder item_id: {parent_folder_item_id} for path: {current_path}")
+                                logger.debug(f"📊   Item source_path: {abs_path}")
+                                logger.debug(f"📊   Current path: {current_path_str}")
+
+                    logger.debug(f"Built item ID map with {len(item_id_map)} entries, parent_folder_item_id: {parent_folder_item_id}")
+                except Exception as e:
+                    logger.debug(f"Could not build item ID map: {e}")
             # Determine the actual path to scan
             if current_relative_path:
                 current_path = base_path / current_relative_path
@@ -466,11 +500,22 @@ class LibraryService:
                     # Only load cached thumbnails and static folder icons
                     icon = self.library_manager.get_filesystem_icon(entry, generate=False)
 
+                    # Look up library item ID for this entry
+                    # For folders: check if the folder itself has an item_id
+                    # For files: use the parent folder's item_id (since files inherit folder processing)
+                    library_item_id = None
+                    if entry.is_dir():
+                        # Folders may have their own item_id if added to library
+                        library_item_id = item_id_map.get(str(entry.absolute()))
+                    else:
+                        # Files inherit their parent folder's item_id for processing result lookup
+                        library_item_id = parent_folder_item_id
+
                     # Create item data compatible with Toga DetailedList
                     # Note: 'path' should just be the entry name for navigation
                     # The collection view handles the full path construction
                     item_data = {
-                        'id': entry.name,
+                        'id': library_item_id if library_item_id else entry.name,  # Use library ID if available, else filename
                         'title': entry.name,
                         'subtitle': self._get_item_subtitle(entry, file_type),
                         'icon': icon,  # toga.Image or None
@@ -601,7 +646,8 @@ class LibraryService:
 
     async def process_collection(self, collection_id: str, plan_name: str,
                                 workflow_name: str = "default",
-                                progress_callback: Optional[callable] = None) -> Dict[str, Any]:
+                                progress_callback: Optional[callable] = None,
+                                output_path: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a collection using Fichero Director
 
@@ -610,6 +656,7 @@ class LibraryService:
             plan_name: Name of the plan to use
             workflow_name: Name of workflow within the plan
             progress_callback: Optional callback for progress updates
+            output_path: Optional custom output path (defaults to library storage)
 
         Returns:
             Dict with processing results
@@ -617,6 +664,8 @@ class LibraryService:
         try:
             logger.info(f"Starting director processing for collection {collection_id}")
             logger.info(f"Plan: {plan_name}, Workflow: {workflow_name}")
+            if output_path:
+                logger.info(f"Custom output path: {output_path}")
 
             # Get collection
             collection = await self.library_manager.get_collection(collection_id)
@@ -633,12 +682,16 @@ class LibraryService:
                     'error': "Director integration not available"
                 }
 
+            # Convert output path to Path object if provided
+            output_base_path = Path(output_path) if output_path else None
+
             # Process through director
             result = await self.library_manager.director_integration.process_collection(
                 collection_id=collection_id,
                 plan_name=plan_name,
                 workflow_name=workflow_name,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                output_base_path=output_base_path
             )
 
             logger.info(f"Director processing completed: {result.get('success', False)}")

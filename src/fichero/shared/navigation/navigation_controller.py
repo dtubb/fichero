@@ -1049,12 +1049,12 @@ class NavigationController:
                             logger.info(f"Successfully added {len(files)} files to new collection: {collection_name}")
 
                 elif option_id == 'folder' and 'folders' in content_info:
-                    # Create a new collection for each selected folder and import all files
+                    # Create a new collection for each selected folder (store reference only, don't enumerate files)
                     folders = content_info['folders']
                     for folder_path in folders:
                         collection_name = f"Folder: {folder_path.name}"
 
-                        # Create collection using library backend (use 'external' to link files without copying)
+                        # Create collection using library backend (use 'external' to link without copying)
                         collection_id = await self.app.library_manager.add_collection(
                             name=collection_name,
                             collection_type="external",
@@ -1062,17 +1062,23 @@ class NavigationController:
                         )
 
                         if collection_id:
-                            # Add all files in folder as individual items (NEW ARCHITECTURE)
-                            stats = await self.app.library_manager.add_folder_items_to_collection(
+                            # Add the folder itself as a single item (files discovered during processing)
+                            # This matches CLI behavior: don't read filesystem until processing
+                            item_id = await self.app.library_manager.add_item_to_collection(
                                 collection_id=collection_id,
-                                folder_path=str(folder_path),
-                                operation="link",
-                                recursive=True
+                                item_type="folder",
+                                source=str(folder_path),
+                                name=folder_path.name,
+                                operation="link"
                             )
-                            logger.info(
-                                f"Successfully created collection from folder: {collection_name} "
-                                f"(Added: {stats['added']}, Skipped: {stats['skipped']}, Errors: {stats['errors']})"
-                            )
+
+                            if item_id:
+                                logger.info(
+                                    f"Successfully created collection from folder: {collection_name} "
+                                    f"(Folder stored as reference, files will be discovered during processing)"
+                                )
+                            else:
+                                logger.warning(f"Failed to add folder item to collection: {collection_name}")
 
                             # Refresh library view to show the new collection
                             if hasattr(self.app, 'library_service'):

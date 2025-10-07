@@ -52,6 +52,12 @@ try:
     from rich.layout import Layout
     RICH_AVAILABLE = True
 except ImportError:
+    # Define placeholder types for when rich is not available (iOS)
+    Console = None
+    Table = None
+    Panel = None
+    Live = None
+    Layout = None
     RICH_AVAILABLE = False
 
 from fichero.director.monitoring.task_monitor import TaskMonitor
@@ -63,16 +69,16 @@ logger = logging.getLogger(__name__)
 class CLITaskDisplay:
     """
     Terminal-based task display using Rich formatting.
-    
+
     Thin presentation layer that reads from TaskMonitor and formats
     the data for terminal display in two backend-aware modes.
-    
+
     Attributes:
         console (Console): Rich console for formatted output
         task_monitor (TaskMonitor): Source of task data
     """
-    
-    def __init__(self, console: Optional[Console] = None, task_monitor: Optional[TaskMonitor] = None):
+
+    def __init__(self, console: Optional["Console"] = None, task_monitor: Optional[TaskMonitor] = None):
         """
         Initialize CLI display.
         

@@ -65,19 +65,25 @@ sections:
     title: "preferences_library_title"
     description: "preferences_library_description"
     sections:
-      - title: "preferences_library_path_title"
-        description: "preferences_library_path_description"
+      - title: "preferences_library_storage_title"
+        description: "preferences_library_storage_description"
+        platform: "desktop"  # Only show on desktop
         fields:
-          - id: "library.path"
+          - id: "library.library_path"
             type: "text_input"
             label: "preferences_library_path"
-            placeholder: "~/Library/Fichero"
+            placeholder: "~/Library/Application Support/ca.tubb.fichero/library"
             help: "preferences_library_path_help"
-          - id: "library.reset_to_default"
+          - id: "library.processing_output_path"
+            type: "text_input"
+            label: "preferences_processing_output_path"
+            placeholder: "~/Library/Application Support/ca.tubb.fichero/processed"
+            help: "preferences_processing_output_path_help"
+          - id: "library.reset_paths_to_default"
             type: "button"
-            label: "preferences_library_reset_to_default"
-            help: "preferences_library_reset_to_default_help"
-      
+            label: "preferences_library_reset_paths_to_default"
+            help: "preferences_library_reset_paths_to_default_help"
+
       - title: "preferences_collection_settings_title"
         description: "preferences_collection_settings_description"
         fields:

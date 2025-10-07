@@ -67,27 +67,38 @@ class ConfigurationManager:
                 logger.warning(f"Plan file not found via PlanManager, trying fallback paths for: {plan_name}")
                 # Fallback: try development paths directly
                 dev_path = Path(__file__).parent.parent.parent / "resources" / "config_defaults" / "plans"
+                logger.info(f"Fallback directory: {dev_path}")
                 for ext in ['.yml', '.yaml']:
                     test_path = dev_path / f"{plan_name}{ext}"
+                    logger.info(f"Checking fallback path: {test_path}")
                     if test_path.exists():
                         logger.info(f"Found plan via fallback: {test_path}")
                         plan_file = test_path
                         break
 
             if plan_file and plan_file.exists():
-                from ruamel.yaml import YAML
-                yaml = YAML()
-                with open(plan_file, "r", encoding="utf-8") as f:
-                    config = yaml.load(f)
-                    logger.info(f"Successfully loaded plan '{plan_name}' from {plan_file}")
-                    return config
+                try:
+                    from ruamel.yaml import YAML
+                    yaml = YAML()
+                    logger.info(f"Opening plan file: {plan_file}")
+                    with open(plan_file, "r", encoding="utf-8") as f:
+                        config = yaml.load(f)
+                        logger.info(f"Successfully loaded plan '{plan_name}' from {plan_file}")
+                        return config
+                except ImportError as ie:
+                    logger.error(f"Failed to import ruamel.yaml: {ie}")
+                    logger.error("This should not happen - ruamel.yaml is in requirements")
+                    raise
             else:
-                error_msg = f"Plan file not found: {plan_name}"
+                error_msg = f"Plan file not found: {plan_name} (checked: {plan_file})"
                 logger.error(error_msg)
-                raise FileNotFoundError(error_msg)
-        except Exception as e:
-            logger.error(f"Failed to load plan config '{plan_name}': {e}")
+                return None  # Return None instead of raising to allow graceful handling
+        except ImportError:
+            # Re-raise import errors
             raise
+        except Exception as e:
+            logger.error(f"Failed to load plan config '{plan_name}': {e}", exc_info=True)
+            return None  # Return None instead of raising
     
     def validate_configuration(self) -> Dict[str, Any]:
         """Validate current configuration and return status"""

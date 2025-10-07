@@ -625,22 +625,10 @@ class CollectionView(BaseView):
                 file_path = item_data.get('file_path')
                 if file_path:
                     logger.info(f"FILE NAVIGATION: Opening preview for file: {file_path}")
-                    # Use the preview callback to show in right pane
-                    if self.on_file_preview_requested:
-                        self.on_file_preview_requested(file_path, item_data)
-                        logger.info(f"File preview requested via callback: {file_path}")
-                    else:
-                        # Fallback to preview window if no callback registered
-                        try:
-                            if hasattr(self.app, 'show_preview'):
-                                self.app.show_preview(file_path=file_path)
-                            else:
-                                # Final fallback to system app
-                                logger.warning("No preview available, opening with system app")
-                                self._open_file(file_path)
-                        except Exception as e:
-                            logger.error(f"Failed to show preview, falling back to system app: {e}")
-                            self._open_file(file_path)
+
+                    # Load item outputs - this will emit the preview event with output_path if available
+                    # If no outputs, it will fall back to emitting without output_path
+                    asyncio.create_task(self._load_item_outputs(item_data, file_path))
                 else:
                     # No file path - show info
                     logger.info(f"INFO NAVIGATION: Showing info for item")
@@ -657,7 +645,79 @@ class CollectionView(BaseView):
             logger.error(f"Failed to handle item navigation: {e}")
             import traceback
             traceback.print_exc()
-    
+
+    async def _load_item_outputs(self, item_data: Dict[str, Any], file_path: str):
+        """Load processing outputs for an item into the OutputView via navigation event
+
+        Always emits a preview event, with output_path if processing outputs exist
+        """
+        try:
+            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
+
+            # Get collection items for file navigation
+            collection_items = self.collection_items if hasattr(self, 'collection_items') else []
+
+            # Find current item index
+            item_index = 0
+            for i, item in enumerate(collection_items):
+                if item.get('file_path') == file_path or item.get('path') == file_path:
+                    item_index = i
+                    break
+
+            # Try to find processing outputs
+            output_path = None
+            item_id = item_data.get('id')
+            logger.info(f"📊 Checking for outputs - item_id: {item_id}, file_path: {file_path}")
+
+            if item_id:
+                # Get processing results using storage layer directly (synchronous)
+                # This avoids async event loop conflicts
+                history = self.app.library_manager.storage.get_processing_history(item_id)
+                logger.info(f"📊 Query result - history count: {len(history) if history else 0}")
+
+                if history:
+                    # Filter for successful results with output paths
+                    successful = [r for r in history if r.status == "success" and r.output_paths]
+
+                    if successful:
+                        # Get most recent successful result
+                        processing_result = successful[0]
+                        candidate_path = Path(processing_result.output_paths[0])
+
+                        if candidate_path.exists():
+                            output_path = candidate_path
+                            logger.info(f"📊 Found processing output: {output_path}")
+                        else:
+                            logger.warning(f"Processing output path does not exist: {candidate_path}")
+                    else:
+                        logger.debug(f"No successful processing outputs for item: {item_id}")
+                else:
+                    logger.debug(f"No processing history found for item: {item_id}")
+            else:
+                logger.debug("No item ID available - cannot query for outputs")
+
+            # Emit preview event - with or without output_path
+            event_data = {
+                'file_path': str(file_path),
+                'file_metadata': item_data,
+                'collection_items': collection_items,
+                'item_index': item_index
+            }
+
+            if output_path:
+                event_data['output_path'] = str(output_path)
+                logger.info(f"📊 Emitting preview event WITH output path: {output_path}")
+            else:
+                logger.info(f"📊 Emitting preview event WITHOUT output path (original file only)")
+
+            emit_navigation_event('show_preview', event_data)
+            logger.info(f"✅ Emitted preview event for file: {file_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to load item outputs: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _create_toolbars(self):
         """Create top and bottom toolbars for collection view"""
         try:
@@ -792,11 +852,29 @@ class CollectionView(BaseView):
             scope_text = f"All {len(all_items)} items"
             item_ids = [item.id for item in all_items]
 
-        # Simple confirmation dialog
+        # Get item names for confirmation dialog
+        item_names = []
+        for item_id in item_ids[:5]:  # Show first 5 items
+            item = await self.app.library_manager.get_item(item_id)
+            if item:
+                # Show item name and truncate if too long
+                name = item.name[:50] + "..." if len(item.name) > 50 else item.name
+                item_names.append(f"  • {name}")
+
+        item_list = "\n".join(item_names)
+        if len(item_ids) > 5:
+            item_list += f"\n  ... and {len(item_ids) - 5} more"
+
+        # Detailed confirmation dialog
         proceed = await self.app.main_window.dialog(
             toga.ConfirmDialog(
                 "Process Items",
-                f"Collection: {collection.name}\n{scope_text}\n\nThis will use the Default plan with default workflow.\n\nContinue?"
+                f"Collection: {collection.name}\n\n"
+                f"Items to process ({len(item_ids)}):\n{item_list}\n\n"
+                f"Plan: Default\n"
+                f"Workflow: Catalogue\n\n"
+                f"Processing will run in the background.\n\n"
+                f"Continue?"
             )
         )
 
@@ -813,18 +891,35 @@ class CollectionView(BaseView):
         logger.info(f"Processing {len(item_ids)} items via DirectorIntegrationService")
 
         # Process items
+        # Use first workflow from the plan (typically "Catalogue")
         task_ids = await self.app.director_integration.process_items(
             collection_id=self.collection_id,
             item_ids=item_ids,
             plan_name="Default",
-            workflow_name="default"
+            workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
         )
+
+        logger.info(f"✅ Submitted {len(task_ids)} task(s) to Director: {task_ids}")
+
+        # Force Activity Monitor to refresh if visible
+        if hasattr(self.app, 'activity_monitor_window') and self.app.activity_monitor_window:
+            if self.app.activity_monitor_window.is_visible:
+                logger.info("Forcing Activity Monitor refresh after task submission")
+                try:
+                    content = self.app.activity_monitor_window.activity_content
+                    if hasattr(content, 'display') and content.display:
+                        content.display.refresh_tasks()
+                except Exception as e:
+                    logger.error(f"Failed to refresh Activity Monitor: {e}")
 
         # Show success
         await self.app.main_window.dialog(
             toga.InfoDialog(
                 "Processing Started",
-                f"Submitted {len(task_ids)} task(s) to Director.\n\nProcessing will run in the background."
+                f"Submitted {len(task_ids)} task(s) to Director.\n\n"
+                f"Task IDs: {', '.join(str(tid)[:8] + '...' for tid in task_ids)}\n\n"
+                f"Processing will run in the background.\n"
+                f"Open Activity Monitor to track progress."
             )
         )
 
@@ -874,7 +969,7 @@ class CollectionView(BaseView):
                 input_path=Path(collection_path),
                 output_path=Path(self.app.paths.data) / "processed" / collection.name,
                 plan_name="Default",
-                workflow_name="default",
+                workflow_name="Catalogue",  # Changed from "default" to match actual workflow in plan
                 progress_callback=progress_callback
             )
         except TypeError:
@@ -884,7 +979,7 @@ class CollectionView(BaseView):
                 input_path=Path(collection_path),
                 output_path=Path(self.app.paths.data) / "processed" / collection.name,
                 plan_name="Default",
-                workflow_name="default"
+                workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
             )
 
         # Show success
@@ -1639,7 +1734,15 @@ class CollectionView(BaseView):
             if not self.collection_id:
                 return
 
-            # Find the item in our items list
+            # IMPORTANT: Reload collection structure to rebuild item ID map
+            # This is critical for external collections where files get library IDs during processing
+            logger.info(f"🔄 Reloading collection structure to update item IDs after processing")
+            self.collection_items = self.library_service.get_collection_structure_sync(
+                self.collection_id,
+                self.current_path
+            )
+
+            # Find the item in our updated items list
             item_index = None
             for i, item in enumerate(self.collection_items):
                 if item.get("id") == item_id:
@@ -1647,6 +1750,7 @@ class CollectionView(BaseView):
                     break
 
             if item_index is None:
+                logger.debug(f"Item {item_id} not found in collection after reload")
                 return
 
             # Update the item's status

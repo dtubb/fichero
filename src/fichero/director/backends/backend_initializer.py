@@ -116,12 +116,13 @@ class BackendInitializer:
         self.director.task_manager = TaskManager(backend)
         self.director.task_manager.start()
         
-        # Initialize processing coordinator
+        # Initialize processing coordinator with director reference
         from fichero.director.coordinator import ProcessingCoordinator
         self.director.processing_coordinator = ProcessingCoordinator(
-            self.director.task_manager, 
+            self.director.task_manager,
             self.director.variable_generator,
-            self.director.configuration_manager.load_plan_config
+            self.director.configuration_manager.load_plan_config,
+            director=self.director  # Pass director instance to avoid circular import
         )
         
         # Register progress callbacks

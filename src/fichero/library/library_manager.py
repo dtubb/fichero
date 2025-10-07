@@ -25,6 +25,7 @@ try:
     from fichero.library.import_export import CollectionExporter, CollectionImporter
     from fichero.library.url_downloader import URLDownloader
     from fichero.library.icon_generator import IconGenerator
+    from fichero.library.director_output_parser import DirectorOutputParser, ProcessingStep
 except ImportError:
     try:
         from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
@@ -32,6 +33,7 @@ except ImportError:
         from .import_export import CollectionExporter, CollectionImporter
         from .url_downloader import URLDownloader
         from .icon_generator import IconGenerator
+        from .director_output_parser import DirectorOutputParser, ProcessingStep
     except ImportError:
         # Direct import for testing
         import models
@@ -79,6 +81,9 @@ class LibraryManager:
         # Initialize icon generator with thumbnail cache and storage
         icon_cache_dir = db_path.parent / "thumbnails"
         self.icon_generator = IconGenerator(icon_cache_dir, self.storage)
+
+        # Initialize output parser for reading Director processing results
+        self.output_parser = DirectorOutputParser()
 
         # Store library path for file operations
         self.library_path = db_path.parent
@@ -134,12 +139,22 @@ class LibraryManager:
                 local_path = await self._copy_to_library(collection, source_path)
                 collection.local_path = str(local_path)
             elif collection_type == "external" and source_path:
-                # Link to external location
+                # Link to external location (store reference but also create library workspace)
                 collection.source_path = source_path
+                # Create library workspace for this external collection (for outputs, cache, etc.)
+                workspace_path = self.library_path / "collections" / str(collection.id)
+                workspace_path.mkdir(parents=True, exist_ok=True)
+                collection.local_path = str(workspace_path)
+                logger.debug(f"Created library workspace for external collection: {workspace_path}")
             elif collection_type == "url" and source_path:
-                # Store URL reference
+                # Store URL reference and create workspace
                 collection.source_path = source_path
                 collection.metadata["url"] = source_path
+                # Create library workspace for URL collection
+                workspace_path = self.library_path / "collections" / str(collection.id)
+                workspace_path.mkdir(parents=True, exist_ok=True)
+                collection.local_path = str(workspace_path)
+                logger.debug(f"Created library workspace for URL collection: {workspace_path}")
             
             # Save to storage
             if self.storage.add_collection(collection):
@@ -737,7 +752,74 @@ class LibraryManager:
     async def get_processing_history(self, item_id: str) -> List[ProcessingResult]:
         """Get processing history for an item"""
         return self.storage.get_processing_history(item_id)
-    
+
+    async def get_latest_processing_result(self, item_id: str) -> Optional[ProcessingResult]:
+        """Get the most recent successful processing result for an item"""
+        try:
+            history = await self.get_processing_history(item_id)
+            if not history:
+                return None
+
+            # Filter for successful results only
+            successful = [r for r in history if r.status == "success" and r.output_paths]
+
+            if not successful:
+                return None
+
+            # Sort by completed_at descending (most recent first)
+            successful.sort(key=lambda r: r.completed_at or datetime.min, reverse=True)
+
+            return successful[0]
+
+        except Exception as e:
+            logger.error(f"Failed to get latest processing result: {e}")
+            return None
+
+    async def get_file_processing_steps(self, source_file_path: Path, processing_result: ProcessingResult) -> List[ProcessingStep]:
+        """
+        Get ordered list of processing steps for a file from a processing result
+
+        This method parses the Director output folder to discover what processing
+        steps were performed and returns them in order.
+
+        Args:
+            source_file_path: Path to the original source file
+            processing_result: ProcessingResult containing output_paths
+
+        Returns:
+            List of ProcessingStep objects showing the workflow progression
+        """
+        try:
+            if not processing_result or not processing_result.output_paths:
+                logger.debug("No processing result or output paths provided")
+                return []
+
+            output_path = Path(processing_result.output_paths[0])
+            if not output_path.exists():
+                logger.warning(f"Processing output path does not exist: {output_path}")
+                return []
+
+            # Get file outputs for this specific file
+            filename = source_file_path.name
+            file_outputs = self.output_parser.get_file_outputs(output_path, filename)
+
+            if not file_outputs:
+                logger.debug(f"No file outputs found for {filename} in {output_path}")
+                return []
+
+            # Get processing steps from the first file output
+            # (usually there's only one, unless it's a batch with duplicates)
+            steps = self.output_parser.get_processing_steps(file_outputs[0])
+
+            logger.info(f"Found {len(steps)} processing steps for {filename}")
+            return steps
+
+        except Exception as e:
+            logger.error(f"Failed to get processing steps: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
     # ===== IMPORT/EXPORT =====
     
     async def export_collection(self, collection_id: str, output_path: Path, include_files: bool = False) -> bool:

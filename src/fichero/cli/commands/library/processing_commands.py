@@ -66,7 +66,7 @@ class ProcessingCommands(BaseLibraryCommands):
             collection_id: str = typer.Argument(..., help="ID of the collection to process"),
             item_ids: Optional[str] = typer.Option(None, "--items", "-i", help="Comma-separated item IDs to process (default: all items)"),
             plan: str = typer.Option("Default", "--plan", "-p", help="Director plan to use"),
-            workflow: str = typer.Option("default", "--workflow", "-w", help="Workflow name within the plan"),
+            workflow: str = typer.Option("Catalogue", "--workflow", "-w", help="Workflow name within the plan"),
             output: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory path")
         ):
             """Process collection items through Fichero Director"""
@@ -95,6 +95,16 @@ class ProcessingCommands(BaseLibraryCommands):
         ):
             """Inspect Director processing outputs and show steps"""
             asyncio.run(self._inspect_outputs(output_path, file_name, show_paths))
+
+        @app.command(name="cleanup", help="Clean up processing outputs from filesystem and database")
+        def cleanup_outputs(
+            item_id: Optional[str] = typer.Option(None, "--item", "-i", help="Clean up specific item's outputs"),
+            collection_id: Optional[str] = typer.Option(None, "--collection", "-c", help="Clean up all outputs for a collection"),
+            before_date: Optional[str] = typer.Option(None, "--before-date", "-d", help="Clean up outputs before date (YYYY-MM-DD)"),
+            dry_run: bool = typer.Option(True, "--dry-run/--execute", help="Dry run (preview only) or execute cleanup")
+        ):
+            """Clean up processing outputs from filesystem and database"""
+            asyncio.run(self._cleanup_processing_outputs(item_id, collection_id, before_date, dry_run))
     
     async def _list_processing_steps(self, collection_id: str, show_files: bool):
         """List processing steps for a collection"""
@@ -548,4 +558,109 @@ class ProcessingCommands(BaseLibraryCommands):
         except Exception as e:
             import traceback
             self.console.print(f"[red]Failed to inspect outputs: {e}[/red]")
+            self.console.print(traceback.format_exc())
+
+    async def _cleanup_processing_outputs(self, item_id: Optional[str],
+                                         collection_id: Optional[str],
+                                         before_date: Optional[str],
+                                         dry_run: bool):
+        """Clean up processing outputs from filesystem and database"""
+        try:
+            from datetime import datetime
+
+            # Parse before_date if provided
+            parsed_date = None
+            if before_date:
+                try:
+                    parsed_date = datetime.fromisoformat(before_date)
+                except ValueError:
+                    self.console.print(f"[red]Invalid date format. Use YYYY-MM-DD[/red]")
+                    return
+
+            # Determine what we're cleaning up
+            if item_id:
+                scope = f"item {item_id}"
+            elif collection_id:
+                collection = await self.get_collection_by_id(collection_id)
+                if not collection:
+                    return
+                scope = f"collection '{collection.name}'"
+            elif before_date:
+                scope = f"outputs before {before_date}"
+            else:
+                self.console.print("[red]Must specify --item, --collection, or --before-date[/red]")
+                return
+
+            # Show what will be cleaned
+            mode = "[yellow](DRY RUN)[/yellow]" if dry_run else ""
+            self.console.print(f"\n[bold cyan]Cleanup Processing Outputs {mode}[/bold cyan]")
+            self.console.print(f"Scope: {scope}")
+
+            # Confirm if not dry run
+            if not dry_run:
+                self.console.print("\n[yellow]⚠️  This will permanently delete output files and database records![/yellow]")
+                confirm = input("Type 'yes' to confirm: ")
+                if confirm.lower() != 'yes':
+                    self.console.print("[yellow]Cleanup cancelled[/yellow]")
+                    return
+
+            # Perform cleanup
+            self.console.print("\n[blue]Analyzing outputs...[/blue]")
+            stats = self.library_manager.storage.cleanup_processing_outputs(
+                item_id=item_id,
+                collection_id=collection_id,
+                before_date=parsed_date,
+                dry_run=dry_run
+            )
+
+            # Display results
+            self.console.print("\n[bold]Cleanup Results:[/bold]")
+
+            # Format bytes
+            bytes_freed = stats['bytes_freed']
+            if bytes_freed < 1024:
+                size_str = f"{bytes_freed} bytes"
+            elif bytes_freed < 1024 * 1024:
+                size_str = f"{bytes_freed / 1024:.2f} KB"
+            elif bytes_freed < 1024 * 1024 * 1024:
+                size_str = f"{bytes_freed / (1024 * 1024):.2f} MB"
+            else:
+                size_str = f"{bytes_freed / (1024 * 1024 * 1024):.2f} GB"
+
+            # Create results table
+            table = Table(show_header=False)
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+
+            table.add_row("Files deleted", str(stats['files_deleted']))
+            table.add_row("Directories deleted", str(stats['dirs_deleted']))
+            table.add_row("Space freed", size_str)
+            table.add_row("Database records deleted", str(stats['records_deleted']))
+
+            self.console.print(table)
+
+            # Show deleted paths
+            if stats['deleted_paths']:
+                self.console.print("\n[bold]Deleted paths:[/bold]")
+                for path in stats['deleted_paths'][:10]:
+                    self.console.print(f"  • {path}")
+                if len(stats['deleted_paths']) > 10:
+                    self.console.print(f"  ... and {len(stats['deleted_paths']) - 10} more")
+
+            # Show errors
+            if stats['errors']:
+                self.console.print("\n[bold red]Errors:[/bold red]")
+                for error in stats['errors']:
+                    self.console.print(f"  • {error}")
+
+            # Summary
+            if dry_run:
+                self.console.print(f"\n[yellow]DRY RUN: No files were actually deleted[/yellow]")
+                self.console.print(f"[yellow]Run without --dry-run to perform cleanup[/yellow]")
+            else:
+                self.console.print(f"\n[green]✅ Cleanup completed successfully[/green]")
+
+        except Exception as e:
+            import traceback
+            self.console.print(f"[red]Failed to cleanup outputs: {e}[/red]")
             self.console.print(traceback.format_exc())

@@ -9,7 +9,16 @@ from typing import List, Dict, Optional, Any
 import logging
 
 from fichero.library.processing_navigator import ProcessingNavigator, ProcessingStep
-from fichero.director.director_service import FicheroDirector
+
+# Try to import Director - will fail on iOS due to multiprocessing
+try:
+    from fichero.director.director_service import FicheroDirector
+    DIRECTOR_AVAILABLE = True
+except ImportError as e:
+    # iOS doesn't support Director (multiprocessing not available)
+    DIRECTOR_AVAILABLE = False
+    FicheroDirector = None
+    logging.warning(f"Director not available (likely iOS): {e}")
 
 logger = logging.getLogger(__name__)
 

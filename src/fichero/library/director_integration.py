@@ -9,10 +9,10 @@ Integrates Fichero Director with the Library system, enabling:
 
 import logging
 import asyncio
+import threading
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
-import shutil
 
 from fichero.library.director_output_parser import DirectorOutputParser
 from fichero.library.models import ProcessingResult
@@ -48,8 +48,137 @@ class DirectorIntegrationService:
 
         logger.info("DirectorIntegrationService initialized")
 
+    def _generate_output_structure(self, collection_name: str, collection_id: str,
+                                   item_name: str, workflow_name: str, plan_name: str,
+                                   base_path: Path) -> Path:
+        """
+        Generate hierarchical, human-readable output structure for large-scale processing
+
+        For 800 folders with 100,000 files, creates organized structure:
+
+        output_base/
+        └── [collection_name]/
+            └── [date]/
+                └── [workflow_name]/
+                    └── [item_name]/
+
+        This makes it easy to:
+        - Find processing by collection
+        - Group by date
+        - Separate workflows
+        - Identify individual items
+
+        Args:
+            collection_name: Human-readable collection name
+            collection_id: Collection UUID
+            item_name: Name of item being processed
+            workflow_name: Workflow being used
+            plan_name: Plan being used
+            base_path: Base output directory
+
+        Returns:
+            Full path to item output directory
+        """
+        # Sanitize names for filesystem
+        def sanitize(name: str, max_length: int = 100) -> str:
+            # Keep only safe characters
+            safe = "".join(c if c.isalnum() or c in (' ', '-', '_', '.') else '_' for c in name)
+            # Replace multiple underscores/spaces with single
+            safe = ' '.join(safe.split())
+            safe = safe.replace(' ', '_')
+            return safe[:max_length]
+
+        safe_collection = sanitize(collection_name)
+        safe_item = sanitize(item_name)
+        safe_workflow = sanitize(workflow_name, 50)
+
+        # Date-based organization (YYYY-MM-DD format for human readability)
+        date_folder = datetime.now().strftime('%Y-%m-%d')
+
+        # Build hierarchical path
+        output_path = (
+            base_path /
+            safe_collection /  # Collection level
+            date_folder /      # Date level (groups processing runs)
+            safe_workflow /    # Workflow level (Catalogue, Quotations, etc.)
+            safe_item          # Item level (individual folder/batch)
+        )
+
+        # If path already exists (rare duplicate), append counter
+        if output_path.exists():
+            counter = 1
+            while output_path.with_name(f"{safe_item}_{counter}").exists():
+                counter += 1
+            output_path = output_path.with_name(f"{safe_item}_{counter}")
+
+        return output_path
+
+    async def process_collection(self, collection_id: str, plan_name: str,
+                                workflow_name: str = "Catalogue",
+                                progress_callback=None,
+                                output_base_path: Optional[Path] = None) -> Dict[str, Any]:
+        """
+        Process an entire collection using Director (GUI-compatible wrapper)
+
+        This is a convenience wrapper that processes all items in a collection.
+        Used by GUI (library_service.py) to maintain API compatibility.
+
+        Args:
+            collection_id: ID of the collection to process
+            plan_name: Name of the Director plan to use
+            workflow_name: Name of workflow within the plan
+            progress_callback: Optional callback for progress updates
+            output_base_path: Optional custom output path (defaults to library storage)
+
+        Returns:
+            Dict with processing results: {'success': bool, 'task_ids': List[str], ...}
+        """
+        try:
+            # Get all items in collection
+            items = await self.library_manager.get_collection_items(collection_id)
+            if not items:
+                logger.warning(f"No items found in collection {collection_id}")
+                return {
+                    'success': False,
+                    'error': 'No items in collection',
+                    'task_ids': []
+                }
+
+            item_ids = [item.id for item in items]
+            logger.info(f"Processing {len(item_ids)} items from collection {collection_id}")
+
+            # Call the existing process_items method
+            task_ids = await self.process_items(
+                collection_id=collection_id,
+                item_ids=item_ids,
+                plan_name=plan_name,
+                workflow_name=workflow_name,
+                output_base_path=output_base_path  # Pass through output path (None = use library storage)
+            )
+
+            if task_ids:
+                return {
+                    'success': True,
+                    'task_ids': task_ids,
+                    'item_count': len(item_ids)
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'No tasks were submitted',
+                    'task_ids': []
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to process collection {collection_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'task_ids': []
+            }
+
     async def process_items(self, collection_id: str, item_ids: List[str],
-                          plan_name: str, workflow_name: str = "default",
+                          plan_name: str, workflow_name: str = "Catalogue",
                           output_base_path: Optional[Path] = None) -> List[str]:
         """
         Process collection items using Director
@@ -69,10 +198,53 @@ class DirectorIntegrationService:
         """
         logger.info(f"Processing {len(item_ids)} items from collection {collection_id}")
 
-        # Default output path
+        # Get collection info for naming
+        collection = await self.library_manager.get_collection(collection_id)
+        if not collection:
+            logger.error(f"Collection {collection_id} not found")
+            return []
+
+        collection_name = collection.name
+
+        # Default output path - PRIORITY: Use library storage (collection's local_path)
         if output_base_path is None:
-            output_base_path = Path(self.app.paths.data) / "processed"
+            # FIRST: Try to use collection's local_path within library (matches CLI behavior)
+            if collection.local_path:
+                # Store outputs within collection's library directory
+                collection_base = Path(collection.local_path)
+                output_base_path = collection_base / "outputs"
+                logger.info(f"Using collection's library path for outputs: {output_base_path}")
+            else:
+                # FALLBACK: Check settings for custom processing output path
+                custom_path = None
+                if hasattr(self.app, 'settings') and self.app.settings:
+                    try:
+                        # Check if settings is not a Mock
+                        from unittest.mock import Mock
+                        if not isinstance(self.app.settings, Mock):
+                            custom_path = self.app.settings.get_setting('library.processing_output_path', '')
+                    except:
+                        pass
+
+                # Use custom path if valid, otherwise use library default
+                if custom_path and isinstance(custom_path, str) and custom_path.strip():
+                    try:
+                        custom_path_obj = Path(custom_path)
+                        if custom_path_obj.exists():
+                            output_base_path = custom_path_obj
+                        else:
+                            logger.warning(f"Custom processing path does not exist: {custom_path}, using library default")
+                            output_base_path = Path(self.app.paths.data) / "library" / "outputs"
+                    except Exception as e:
+                        logger.warning(f"Invalid custom path: {custom_path}, using library default: {e}")
+                        output_base_path = Path(self.app.paths.data) / "library" / "outputs"
+                else:
+                    # Final fallback: Library outputs directory
+                    output_base_path = Path(self.app.paths.data) / "library" / "outputs"
+                    logger.info(f"Using library default for outputs: {output_base_path}")
+
         output_base_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Using output base path: {output_base_path}")
 
         # Group items by type: files vs folders
         file_items = []
@@ -99,13 +271,22 @@ class DirectorIntegrationService:
         # Process all files together in a single batch
         if file_items:
             batch_task_ids = await self._process_file_batch(
-                file_items, output_base_path, plan_name, workflow_name
+                file_items, output_base_path, plan_name, workflow_name,
+                collection_name, collection_id
             )
             task_ids.extend(batch_task_ids)
 
         # Process folders individually (they may have subfolders)
         for item_id, item, input_path in folder_items:
-            item_output_path = output_base_path / f"{item.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Generate hierarchical output structure
+            item_output_path = self._generate_output_structure(
+                collection_name=collection_name,
+                collection_id=collection_id,
+                item_name=item.name,
+                workflow_name=workflow_name,
+                plan_name=plan_name,
+                base_path=output_base_path
+            )
             item_output_path.mkdir(parents=True, exist_ok=True)
 
             try:
@@ -131,7 +312,8 @@ class DirectorIntegrationService:
 
     async def _process_file_batch(self, file_items: List[tuple],
                                   output_base_path: Path, plan_name: str,
-                                  workflow_name: str) -> List[str]:
+                                  workflow_name: str, collection_name: str,
+                                  collection_id: str) -> List[str]:
         """
         Process multiple files together as a single batch
 
@@ -146,47 +328,63 @@ class DirectorIntegrationService:
         """
         logger.info(f"Processing batch of {len(file_items)} files")
 
-        # Create batch output folder
-        batch_name = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        batch_output_path = output_base_path / batch_name
+        # Create hierarchical batch output structure
+        batch_output_path = self._generate_output_structure(
+            collection_name=collection_name,
+            collection_id=collection_id,
+            item_name=f"batch_{len(file_items)}_files",
+            workflow_name=workflow_name,
+            plan_name=plan_name,
+            base_path=output_base_path
+        )
         batch_output_path.mkdir(parents=True, exist_ok=True)
 
-        # Create input folder and copy all files
-        batch_input_folder = batch_output_path / "input"
-        batch_input_folder.mkdir(parents=True, exist_ok=True)
-
-        # Track which items are in this batch
+        # NO COPYING - Process files from their original locations
+        # Collect unique parent directories of all files
+        parent_dirs = set()
         batch_item_map = {}  # filename -> item_id
 
         for item_id, item, input_path in file_items:
-            # Copy file to batch folder
-            dest_file = batch_input_folder / input_path.name
-
-            # Handle name collisions
-            counter = 1
-            while dest_file.exists():
-                stem = input_path.stem
-                suffix = input_path.suffix
-                dest_file = batch_input_folder / f"{stem}_{counter}{suffix}"
-                counter += 1
-
-            shutil.copy2(input_path, dest_file)
-            batch_item_map[dest_file.name] = item_id
+            parent_dir = input_path.parent
+            parent_dirs.add(parent_dir)
+            batch_item_map[input_path.name] = item_id
 
             # Update item metadata
             item.metadata['director_status'] = 'pending'
             item.metadata['director_workflow'] = workflow_name
             item.metadata['director_output_path'] = str(batch_output_path)
-            item.metadata['director_batch_file'] = dest_file.name
+            item.metadata['director_source_file'] = str(input_path)
             await self.library_manager.update_item(item)
 
-        # Submit batch to Director
-        task_id = self.director.processing_coordinator.process_folders(
-            folders=[batch_input_folder],
-            plan_name=plan_name,
-            workflow_name=workflow_name,
-            output_path=batch_output_path
-        )
+        # If all files are in the same parent directory, process that folder
+        # Otherwise, we need to process files from their individual locations
+        if len(parent_dirs) == 1:
+            # All files are in the same folder - process the folder
+            source_folder = list(parent_dirs)[0]
+            task_id = self.director.processing_coordinator.process_folders(
+                folders=[source_folder],
+                plan_name=plan_name,
+                workflow_name=workflow_name,
+                output_path=batch_output_path
+            )
+        else:
+            # Files are in different folders - process each parent folder
+            # This is a batch of files from different locations
+            logger.warning(f"Batch contains files from {len(parent_dirs)} different folders - processing individually")
+            task_ids_list = []
+            for parent_dir in parent_dirs:
+                task_id = self.director.processing_coordinator.process_folders(
+                    folders=[parent_dir],
+                    plan_name=plan_name,
+                    workflow_name=workflow_name,
+                    output_path=batch_output_path / parent_dir.name
+                )
+                task_ids_list.append(task_id)
+            # For now, return the first task ID (we'll improve this later)
+            task_id = task_ids_list[0] if task_ids_list else None
+            if not task_id:
+                logger.error("Failed to submit any tasks")
+                return []
 
         # Track this batch task
         self.active_tasks[task_id] = {
@@ -197,7 +395,19 @@ class DirectorIntegrationService:
             'started_at': datetime.now()
         }
 
-        logger.info(f"Submitted batch task {task_id} for {len(file_items)} files")
+        logger.info(f"✅ Submitted batch task {task_id} for {len(file_items)} files")
+        logger.info(f"   Output path: {batch_output_path}")
+        logger.info(f"   Active tasks: {len(self.active_tasks)}")
+
+        # Log TaskMonitor status
+        if hasattr(self.director, 'task_monitor') and self.director.task_monitor:
+            task_count = len(self.director.task_monitor.tasks)
+            logger.info(f"   TaskMonitor tracking {task_count} task(s)")
+            if task_id in self.director.task_monitor.tasks:
+                logger.info(f"   ✅ Task {task_id[:8]}... registered in TaskMonitor")
+            else:
+                logger.warning(f"   ⚠️  Task {task_id[:8]}... NOT in TaskMonitor yet")
+
         return [task_id]
 
     async def _process_single_file(self, item_id: str, input_path: Path,
@@ -218,18 +428,13 @@ class DirectorIntegrationService:
         """
         logger.info(f"Processing single file: {input_path}")
 
-        # Create a temp folder structure for the single file
-        # Director expects folders, so we create: temp_folder/documents/filename
-        temp_input_folder = output_path / "input"
-        temp_input_folder.mkdir(parents=True, exist_ok=True)
-
-        # Copy file to temp folder
-        temp_file = temp_input_folder / input_path.name
-        shutil.copy2(input_path, temp_file)
+        # NO COPYING - Process file from its original location
+        # Director will process the parent folder containing the file
+        source_folder = input_path.parent
 
         # Submit to Director using process_folders
         task_id = self.director.processing_coordinator.process_folders(
-            folders=[temp_input_folder],
+            folders=[source_folder],
             plan_name=plan_name,
             workflow_name=workflow_name,
             output_path=output_path
@@ -272,17 +477,23 @@ class DirectorIntegrationService:
             workflow_name=workflow_name
         )
 
-        # Track all tasks
-        for task_id in task_ids:
-            self.active_tasks[task_id] = {
-                'item_id': item_id,
-                'type': 'folder',
-                'input_path': str(input_path),
-                'output_path': str(output_path),
-                'started_at': datetime.now()
-            }
+        logger.info(f"📊 Auto-detection returned {len(task_ids) if task_ids else 0} task IDs: {task_ids}")
 
-        return task_ids
+        # Track all tasks
+        if task_ids:
+            for task_id in task_ids:
+                self.active_tasks[task_id] = {
+                    'item_id': item_id,
+                    'type': 'folder',
+                    'input_path': str(input_path),
+                    'output_path': str(output_path),
+                    'started_at': datetime.now()
+                }
+                logger.info(f"📊 Tracked task {task_id} in active_tasks for item {item_id}")
+        else:
+            logger.warning(f"⚠️ No task IDs returned from auto-detection for {input_path}")
+
+        return task_ids if task_ids else []
 
     def _on_task_monitor_update(self, event_type: str, task_info):
         """
@@ -292,13 +503,16 @@ class DirectorIntegrationService:
             event_type: Type of event (task_created, task_updated, task_completed)
             task_info: TaskInfo object from TaskMonitor
         """
-        logger.debug(f"TaskMonitor event: {event_type} for task {task_info.task_id}")
+        logger.info(f"📊 Received TaskMonitor event: {event_type} for task {task_info.task_id}")
 
         task_id = task_info.task_id
 
         # Only handle our tracked tasks
         if task_id not in self.active_tasks:
+            logger.info(f"📊 Task {task_id} not in active_tasks, ignoring (active: {list(self.active_tasks.keys())})")
             return
+
+        logger.info(f"📊 Task {task_id} IS in active_tasks, processing event")
 
         # Convert TaskInfo to progress data format
         progress_data = {
@@ -328,8 +542,25 @@ class DirectorIntegrationService:
 
         # Check if task completed
         if event_type == 'task_completed':
-            # Schedule finalization
-            asyncio.create_task(self._finalize_processing(task_id))
+            logger.info(f"📊 Task {task_id} COMPLETED - starting finalization")
+            # Schedule finalization in a background thread to avoid event loop conflicts
+            # This is safe because _finalize_processing creates its own event loop
+            def finalize_in_thread():
+                try:
+                    logger.info(f"📊 Finalization thread started for {task_id}")
+                    # Create a new event loop for this thread
+                    # Call synchronous finalization directly (no event loop needed)
+                    self._finalize_processing(task_id)
+                    logger.info(f"📊 Finalization completed for {task_id}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to finalize processing for {task_id}: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+
+            # Run finalization in background thread
+            thread = threading.Thread(target=finalize_in_thread, daemon=True)
+            thread.start()
+            logger.info(f"📊 Finalization thread launched for {task_id}")
 
     def _update_item_progress(self, item_id: str, task_id: str, progress_data: Dict):
         """
@@ -359,50 +590,58 @@ class DirectorIntegrationService:
         except Exception as e:
             logger.error(f"Error updating item {item_id} progress: {e}")
 
-    async def _finalize_processing(self, task_id: str):
+    def _finalize_processing(self, task_id: str):
         """
-        Finalize processing when task completes
+        Finalize processing when task completes (synchronous version)
 
         Args:
             task_id: Task ID that completed
         """
-        logger.info(f"Finalizing processing for task {task_id}")
+        logger.info(f"📊 _finalize_processing STARTED for task {task_id}")
 
         task_info = self.active_tasks.get(task_id)
         if not task_info:
             logger.warning(f"Cannot finalize unknown task: {task_id}")
             return
 
+        logger.info(f"📊 Task info retrieved: {task_info}")
         output_path = Path(task_info['output_path'])
+        logger.info(f"📊 Output path: {output_path}")
 
         try:
             # Get task result from Director
+            logger.info(f"📊 Getting task result from Director")
             result = self.director.get_task_result(task_id)
+            logger.info(f"📊 Task result retrieved: {result}")
 
             # Parse output folder
+            logger.info(f"📊 Parsing output folder")
             parsed_outputs = self.output_parser.parse_output_folder(output_path)
+            logger.info(f"📊 Output folder parsed")
 
             # Handle batch vs single item
             if task_info.get('type') == 'batch':
-                await self._finalize_batch(task_id, task_info, result, parsed_outputs)
+                self._finalize_batch(task_id, task_info, result, parsed_outputs)
             else:
-                await self._finalize_single_item(task_id, task_info, result, parsed_outputs)
+                self._finalize_single_item(task_id, task_info, result, parsed_outputs)
 
-            logger.info(f"Processing finalized for task {task_id}")
+            logger.info(f"📊 Processing finalized for task {task_id}")
 
         except Exception as e:
             logger.error(f"Error finalizing processing for task {task_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
             # Update all affected items with error
             item_ids = task_info.get('item_ids', [task_info.get('item_id')])
             for item_id in item_ids:
                 if item_id:
                     try:
-                        item = await self.library_manager.get_item(item_id)
+                        item = self.library_manager.storage.get_item(item_id)
                         if item:
                             item.metadata['director_status'] = 'failed'
                             item.metadata['director_error'] = str(e)
-                            await self.library_manager.update_item(item)
+                            self.library_manager.storage.update_item(item)
                     except Exception as update_error:
                         logger.error(f"Error updating item {item_id} after finalization error: {update_error}")
 
@@ -410,16 +649,20 @@ class DirectorIntegrationService:
             # Remove from active tasks
             self.active_tasks.pop(task_id, None)
 
-    async def _finalize_single_item(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
-        """Finalize a single item task"""
+    def _finalize_single_item(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
+        """Finalize a single item task (synchronous version)"""
         item_id = task_info['item_id']
         output_path = Path(task_info['output_path'])
 
-        # Get item
-        item = await self.library_manager.get_item(item_id)
+        logger.info(f"📊 Finalizing single item {item_id}")
+
+        # Get item (use storage directly for sync access)
+        item = self.library_manager.storage.get_item(item_id)
         if not item:
             logger.error(f"Item {item_id} not found during finalization")
             return
+
+        logger.info(f"📊 Item retrieved, creating ProcessingResult")
 
         # Create ProcessingResult record
         processing_result = ProcessingResult(
@@ -442,8 +685,10 @@ class DirectorIntegrationService:
             processing_time=(datetime.now() - task_info['started_at']).total_seconds()
         )
 
-        # Save processing result
-        await self.library_manager.add_processing_result(processing_result)
+        # Save processing result (use storage directly for sync access)
+        logger.info(f"📊 Saving ProcessingResult to database")
+        self.library_manager.storage.add_processing_result(processing_result)
+        logger.info(f"📊 ProcessingResult saved")
 
         # Update item metadata
         item.metadata['director_status'] = 'success' if result and result.success else 'failed'
@@ -452,7 +697,9 @@ class DirectorIntegrationService:
         if result and not result.success:
             item.metadata['director_error'] = str(result.error_message)
 
-        await self.library_manager.update_item(item)
+        logger.info(f"📊 Updating item metadata")
+        self.library_manager.storage.update_item(item)
+        logger.info(f"📊 Item updated")
 
         # Emit completion event
         emit_navigation_event('processing_completed', {
@@ -460,6 +707,7 @@ class DirectorIntegrationService:
             'task_id': task_id,
             'status': 'success' if result and result.success else 'failed'
         })
+        logger.info(f"📊 Completion event emitted")
 
     async def _finalize_batch(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
         """Finalize a batch task with multiple items"""

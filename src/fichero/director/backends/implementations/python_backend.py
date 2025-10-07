@@ -367,6 +367,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             
                             # Notify completion
                             completion_data = {
+                                "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
+                                "success": True,
                                 "status": "completed",
                                 "folder": str(result.folder_path),
                                 "folder_name": result.folder_path.name,  # Add folder_name for task monitor
@@ -395,12 +397,14 @@ class PythonProcessingBackend(ProcessingBackend):
                             
                             # Notify failure
                             failure_data = {
+                                "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
+                                "success": False,
+                                "error": result.error_message,
                                 "status": "failed",
                                 "folder": str(result.folder_path),
                                 "folder_name": result.folder_path.name,  # Add folder_name for task monitor
                                 "plan": "Unknown",
                                 "worker": worker_id,
-                                "error": result.error_message,
                                 "executor_type": executor_type
                             }
                             
@@ -742,6 +746,8 @@ class PythonProcessingBackend(ProcessingBackend):
                     logger.info(f"Successfully processed folder (ThreadPool): {task.folder_path} ({result.execution_time:.1f}s)")
                     # Notify completion
                     self._notify_progress(task.task_id, {
+                        "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
+                        "success": True,
                         "status": "completed",
                         "folder": str(task.folder_path),
                         "folder_name": task.folder_path.name,  # Add folder_name for task monitor
@@ -755,12 +761,14 @@ class PythonProcessingBackend(ProcessingBackend):
                     logger.error(f"Failed to process folder (ThreadPool): {task.folder_path} - {result.error_message}")
                     # Notify failure
                     self._notify_progress(task.task_id, {
+                        "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
+                        "success": False,
+                        "error": result.error_message,
                         "status": "failed",
                         "folder": str(task.folder_path),
                         "folder_name": task.folder_path.name,  # Add folder_name for task monitor
                         "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                         "worker": worker_id,
-                        "error": result.error_message,
                         "document_id": task.document_id
                     })
             
@@ -795,11 +803,14 @@ class PythonProcessingBackend(ProcessingBackend):
             current_thread = threading.current_thread()
             worker_id = f"UNKNOWN-{current_thread.ident % 1000}"
             self._notify_progress(task.task_id, {
+                "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
+                "success": False,
+                "error": error_msg,
                 "status": "failed",
                 "folder": str(task.folder_path),
+                "folder_name": task.folder_path.name,
                 "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                 "worker": worker_id,
-                "error": error_msg,
                 "document_id": task.document_id
             })
             

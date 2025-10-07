@@ -572,7 +572,212 @@ class LibraryStorage:
         except Exception as e:
             logger.error(f"Failed to get processing history: {e}")
             return []
-    
+
+    def get_processing_results_by_collection(self, collection_id: str) -> List[ProcessingResult]:
+        """Get all processing results for items in a collection"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT ph.id, ph.item_id, ph.workflow, ph.prompt_config, ph.status,
+                           ph.started_at, ph.completed_at, ph.output_paths, ph.logs_path,
+                           ph.metadata, ph.llm_backend, ph.processing_time
+                    FROM processing_history ph
+                    JOIN collection_items ci ON ph.item_id = ci.id
+                    WHERE ci.collection_id = ?
+                    ORDER BY ph.started_at DESC
+                """, (collection_id,))
+
+                results = []
+                for row in cursor.fetchall():
+                    result = ProcessingResult(
+                        id=row[0],
+                        item_id=row[1],
+                        workflow=row[2],
+                        prompt_config=row[3],
+                        status=row[4],
+                        started_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                        completed_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                        output_paths=self._deserialize_list(row[7]),
+                        logs_path=row[8],
+                        metadata=self._deserialize_metadata(row[9]),
+                        llm_backend=row[10],
+                        processing_time=row[11]
+                    )
+                    results.append(result)
+
+                return results
+
+        except Exception as e:
+            logger.error(f"Failed to get processing results for collection: {e}")
+            return []
+
+    def get_processing_results_before_date(self, before_date: datetime) -> List[ProcessingResult]:
+        """Get all processing results completed before a specific date"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, item_id, workflow, prompt_config, status, started_at,
+                           completed_at, output_paths, logs_path, metadata, llm_backend, processing_time
+                    FROM processing_history
+                    WHERE completed_at < ?
+                    ORDER BY completed_at DESC
+                """, (before_date.isoformat(),))
+
+                results = []
+                for row in cursor.fetchall():
+                    result = ProcessingResult(
+                        id=row[0],
+                        item_id=row[1],
+                        workflow=row[2],
+                        prompt_config=row[3],
+                        status=row[4],
+                        started_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                        completed_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                        output_paths=self._deserialize_list(row[7]),
+                        logs_path=row[8],
+                        metadata=self._deserialize_metadata(row[9]),
+                        llm_backend=row[10],
+                        processing_time=row[11]
+                    )
+                    results.append(result)
+
+                return results
+
+        except Exception as e:
+            logger.error(f"Failed to get processing results before date: {e}")
+            return []
+
+    def cleanup_processing_outputs(self, item_id: str = None,
+                                   collection_id: str = None,
+                                   before_date: datetime = None,
+                                   dry_run: bool = False) -> Dict[str, Any]:
+        """
+        Delete processing outputs from filesystem AND database
+
+        Args:
+            item_id: Clean up specific item's outputs
+            collection_id: Clean up all outputs for a collection
+            before_date: Clean up outputs completed before this date
+            dry_run: If True, report what would be deleted without actually deleting
+
+        Returns:
+            Dict with cleanup stats: {
+                'files_deleted': int,
+                'dirs_deleted': int,
+                'bytes_freed': int,
+                'records_deleted': int,
+                'errors': List[str],
+                'deleted_paths': List[str]
+            }
+        """
+        import shutil
+
+        stats = {
+            'files_deleted': 0,
+            'dirs_deleted': 0,
+            'bytes_freed': 0,
+            'records_deleted': 0,
+            'errors': [],
+            'deleted_paths': []
+        }
+
+        try:
+            # Get processing results to clean up
+            if item_id:
+                results = self.get_processing_history(item_id)
+                logger.info(f"Cleanup: Found {len(results)} processing results for item {item_id}")
+            elif collection_id:
+                results = self.get_processing_results_by_collection(collection_id)
+                logger.info(f"Cleanup: Found {len(results)} processing results for collection {collection_id}")
+            elif before_date:
+                results = self.get_processing_results_before_date(before_date)
+                logger.info(f"Cleanup: Found {len(results)} processing results before {before_date.isoformat()}")
+            else:
+                logger.error("Cleanup: Must specify item_id, collection_id, or before_date")
+                stats['errors'].append("Must specify item_id, collection_id, or before_date")
+                return stats
+
+            if not results:
+                logger.info("Cleanup: No processing results found to clean up")
+                return stats
+
+            # Delete filesystem outputs
+            for result in results:
+                for output_path_str in result.output_paths:
+                    output_path = Path(output_path_str)
+
+                    if not output_path.exists():
+                        logger.debug(f"Cleanup: Output path does not exist, skipping: {output_path}")
+                        continue
+
+                    # Calculate size before deletion
+                    try:
+                        size = sum(f.stat().st_size for f in output_path.rglob('*') if f.is_file())
+                    except Exception as e:
+                        logger.warning(f"Cleanup: Failed to calculate size for {output_path}: {e}")
+                        size = 0
+
+                    # Count files and directories
+                    try:
+                        file_count = sum(1 for _ in output_path.rglob('*') if _.is_file())
+                        dir_count = sum(1 for _ in output_path.rglob('*') if _.is_dir())
+                    except Exception as e:
+                        logger.warning(f"Cleanup: Failed to count files for {output_path}: {e}")
+                        file_count = 0
+                        dir_count = 0
+
+                    # Delete the directory
+                    if not dry_run:
+                        try:
+                            shutil.rmtree(output_path)
+                            logger.info(f"Cleanup: Deleted output directory: {output_path}")
+                            stats['files_deleted'] += file_count
+                            stats['dirs_deleted'] += dir_count + 1  # +1 for the output_path itself
+                            stats['bytes_freed'] += size
+                            stats['deleted_paths'].append(str(output_path))
+                        except Exception as e:
+                            error_msg = f"Failed to delete {output_path}: {e}"
+                            logger.error(f"Cleanup: {error_msg}")
+                            stats['errors'].append(error_msg)
+                    else:
+                        logger.info(f"Cleanup (dry run): Would delete {output_path} ({file_count} files, {size} bytes)")
+                        stats['files_deleted'] += file_count
+                        stats['dirs_deleted'] += dir_count + 1
+                        stats['bytes_freed'] += size
+                        stats['deleted_paths'].append(str(output_path))
+
+            # Delete database records
+            if not dry_run:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.cursor()
+
+                    result_ids = [result.id for result in results]
+                    placeholders = ','.join('?' * len(result_ids))
+
+                    cursor.execute(f"""
+                        DELETE FROM processing_history
+                        WHERE id IN ({placeholders})
+                    """, result_ids)
+
+                    stats['records_deleted'] = cursor.rowcount
+                    conn.commit()
+                    logger.info(f"Cleanup: Deleted {stats['records_deleted']} processing_history records")
+            else:
+                stats['records_deleted'] = len(results)
+                logger.info(f"Cleanup (dry run): Would delete {len(results)} processing_history records")
+
+            return stats
+
+        except Exception as e:
+            error_msg = f"Failed to cleanup processing outputs: {e}"
+            logger.error(f"Cleanup: {error_msg}")
+            stats['errors'].append(error_msg)
+            return stats
+
     def _serialize_metadata(self, metadata: Dict[str, Any]) -> str:
         """Serialize metadata to JSON string"""
         try:

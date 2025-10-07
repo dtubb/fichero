@@ -38,6 +38,10 @@ class OutputView(BaseView):
         self.current_file_index: int = 0
         self.current_file_path: Optional[Path] = None
 
+        # Library integration (for item_id-based loading)
+        self.current_item_id: Optional[str] = None
+        self.library_manager = None  # Will be set when loading from library
+
         # Source file list (for file navigation across different input files)
         self.source_files: List[Path] = []
         self.current_source_index: int = 0
@@ -45,7 +49,7 @@ class OutputView(BaseView):
         # Dual pane state (desktop only)
         self.left_step_index: int = 0
         self.right_step_index: int = 0
-        self.split_mode: bool = not is_mobile
+        self.split_mode: bool = False  # Single view by default
 
         # Persistent viewer state (preserved across file/step changes)
         self.viewer_state = {
@@ -54,7 +58,7 @@ class OutputView(BaseView):
             'scroll_x': 0,
             'scroll_y': 0
         }
-        
+
         # UI components
         self.content_area = None
         self.left_pane = None
@@ -239,6 +243,22 @@ class OutputView(BaseView):
             )
             self.rotate_right_btn.style.display = "none"  # Hidden by default
 
+            # Add step selector dropdown in center of bottom toolbar
+            import toga
+            self.step_selector = toga.Selection(
+                items=["No steps loaded"],
+                on_change=self._on_step_selected,
+                style=Pack(flex=1, margin=(5, 10))
+            )
+            self.step_selector.enabled = False
+
+            # Add to toolbar center
+            if hasattr(self.bottom_toolbar, 'center_content'):
+                self.bottom_toolbar.center_content.add(self.step_selector)
+                logger.debug("Added step selector to bottom toolbar center")
+            else:
+                logger.warning("Bottom toolbar has no center_content attribute")
+
             # Set toolbars using BaseView method
             self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
 
@@ -247,77 +267,156 @@ class OutputView(BaseView):
         except Exception as e:
             logger.error(f"Failed to set up toolbars: {e}")
     
-    def load_output(self, file_path: Path, source_files: List[Path] = None, source_index: int = 0):
+    def load_output(self, file_path: Path = None, source_files: List[Path] = None, source_index: int = 0,
+                   output_root_path: Path = None, item_id: str = None):
         """Load output from Director-processed file or original file
 
         Args:
-            file_path: Path to the file to display
+            file_path: Path to the file to display (legacy mode)
             source_files: List of source files for file navigation (up/down between files)
             source_index: Current index in source_files
+            output_root_path: Direct path to Director output folder (preferred)
+            item_id: Library item ID to load processing results from (future enhancement)
         """
         try:
-            logger.info(f"Loading output from: {file_path}")
-
-            self.current_file_path = file_path
+            # Store item_id for future library queries
+            self.current_item_id = item_id
 
             # Store source file list for file navigation
-            # Only update if we have a non-empty list, or if we don't have any files yet
             if source_files or not hasattr(self, 'source_files') or not self.source_files:
                 self.source_files = source_files or []
                 self.current_source_index = source_index
                 logger.info(f"Loaded {len(self.source_files)} source files, current index: {source_index}")
             else:
-                # Keep existing source files, just update the index
                 logger.info(f"Keeping existing {len(self.source_files)} source files, updating index to: {source_index}")
 
-            # Try to detect Director output structure
-            output_root = self._find_output_root(file_path)
+            # Prioritize explicit output_root_path over file-based discovery
+            if output_root_path:
+                logger.info(f"📊 Loading from Director output root: {output_root_path}")
+                self._load_from_output_root(output_root_path, file_path)
+            elif file_path:
+                logger.info(f"Loading output from file: {file_path}")
+                self.current_file_path = file_path
 
-            if output_root:
-                # Load Director outputs
-                self.output_session = self.outputs_manager.load_output_folder(output_root)
-                self.processing_steps = self.outputs_manager.list_tools(self.output_session)
+                # Try to detect Director output structure
+                output_root = self._find_output_root(file_path)
 
-                if self.processing_steps:
-                    # Found processing steps - show them
-                    self._find_current_step(file_path)
-                    self._update_navigation()
-                    self._show_output_content()
-                    logger.info(f"✅ Loaded {len(self.processing_steps)} processing steps")
+                if output_root:
+                    self._load_from_output_root(output_root, file_path)
                 else:
-                    # Director output folder exists but no steps - show original file as first step
-                    logger.info("No processing steps found, showing original file as single step")
+                    # Not a Director output - show original file as single step
+                    logger.info("Not a Director output, showing original file as single step")
                     self._show_original_as_single_step(file_path)
             else:
-                # Not a Director output - show original file as single step
-                logger.info("Not a Director output, showing original file as single step")
-                self._show_original_as_single_step(file_path)
+                logger.error("No file_path or output_root_path provided")
+                self._show_error_message("No file to display")
+                return
 
             # Update file navigation buttons based on collection context
             self._update_file_navigation_buttons()
 
         except Exception as e:
             logger.error(f"Error loading output: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             self._show_error_message(f"Failed to load output: {e}")
     
+    def _load_from_output_root(self, output_root: Path, original_file_path: Path = None):
+        """Load processing steps from Director output root folder
+
+        Args:
+            output_root: Path to Director output folder root
+            original_file_path: Optional original file path to highlight current step
+        """
+        try:
+            logger.info(f"📊 Loading outputs from: {output_root}")
+
+            # Load Director outputs
+            self.output_session = self.outputs_manager.load_output_folder(output_root)
+            all_steps = self.outputs_manager.list_tools(self.output_session)
+
+            # Filter out build_documents_manifest step
+            self.processing_steps = [step for step in all_steps if step.tool_name != "build_documents_manifest"]
+
+            # Add "Original" step at the beginning with the source file
+            if original_file_path and original_file_path.exists():
+                from fichero.library.outputs_manager import ToolOutput
+                original_step = ToolOutput(
+                    tool_name="Original",
+                    output_folder=original_file_path.parent,
+                    manifest_path=original_file_path.parent / "original.jsonl"
+                )
+                # Manually set the files to just the original file
+                original_step._files = [original_file_path]
+                self.processing_steps.insert(0, original_step)
+
+            if self.processing_steps:
+                logger.info(f"📊 Found {len(self.processing_steps)} processing steps (including Original)")
+
+                # Update step selector dropdown
+                self._update_step_selector()
+
+                # If we have an original file path, try to find matching step
+                if original_file_path:
+                    self.current_file_path = original_file_path
+                    self._find_current_step(original_file_path)
+                else:
+                    # Default to first step with files
+                    first_step_with_files = next((i for i, step in enumerate(self.processing_steps) if step.files), None)
+                    if first_step_with_files is not None:
+                        self.current_step_index = first_step_with_files
+                        self.left_step_index = first_step_with_files
+                        self.right_step_index = first_step_with_files
+                        # Set current_file_path to first file in first step
+                        self.current_file_path = Path(self.processing_steps[first_step_with_files].files[0])
+                    else:
+                        # No steps have files
+                        logger.warning("No processing steps contain output files")
+                        self.current_step_index = 0
+                        self.left_step_index = 0
+                        self.right_step_index = 0
+
+                self._update_navigation()
+                self._show_output_content()
+                logger.info(f"✅ Successfully loaded {len(self.processing_steps)} processing steps")
+            else:
+                # Director output folder exists but no steps
+                logger.info("No processing steps found in output folder")
+                if original_file_path:
+                    self._show_original_as_single_step(original_file_path)
+                else:
+                    self._show_error_message("No processing steps found in output folder")
+
+        except Exception as e:
+            logger.error(f"Error loading from output root: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            if original_file_path:
+                logger.info("Falling back to showing original file")
+                self._show_original_as_single_step(original_file_path)
+            else:
+                self._show_error_message(f"Failed to load outputs: {e}")
+
     def _find_output_root(self, file_path: Path) -> Optional[Path]:
         """Find Director output root folder"""
         try:
             current = file_path.parent
-            
-            # Walk up to find folder with 'assets' and 'documents'
+
+            # Walk up to find folder with 'assets' folder containing 'manifests'
+            # Note: Director creates 'assets' and 'logs' but NOT 'documents'
             for _ in range(5):
-                if (current / 'assets').exists() and (current / 'documents').exists():
+                if (current / 'assets').exists():
                     if (current / 'assets' / 'manifests').exists():
+                        logger.debug(f"Found Director output root: {current}")
                         return current
-                
+
                 if current.parent == current:
                     break
-                
+
                 current = current.parent
-            
+
             return None
-        
+
         except Exception as e:
             logger.debug(f"Error finding output root: {e}")
             return None
@@ -591,25 +690,35 @@ class OutputView(BaseView):
         """Show dual-pane split view"""
         # Left pane
         left_step = self.processing_steps[self.left_step_index]
-        left_file = left_step.files[self.current_file_index] if self.current_file_index < len(left_step.files) else left_step.files[0]
-        
-        left_box = self._create_pane_box(left_file, left_step.tool_name)
-        self.content_area.add(left_box)
-        
+        if left_step.files:
+            left_file = left_step.files[self.current_file_index] if self.current_file_index < len(left_step.files) else left_step.files[0]
+            left_box = self._create_pane_box(left_file, left_step.tool_name)
+            self.content_area.add(left_box)
+        else:
+            # No files in this step, show message
+            self._show_error_message(f"No output files in step: {left_step.tool_name}")
+            return
+
         # Right pane
         right_step = self.processing_steps[self.right_step_index]
-        right_file = right_step.files[self.current_file_index] if self.current_file_index < len(right_step.files) else right_step.files[0]
-        
-        right_box = self._create_pane_box(right_file, right_step.tool_name)
-        self.content_area.add(right_box)
+        if right_step.files:
+            right_file = right_step.files[self.current_file_index] if self.current_file_index < len(right_step.files) else right_step.files[0]
+            right_box = self._create_pane_box(right_file, right_step.tool_name)
+            self.content_area.add(right_box)
+        else:
+            # No files in this step, show left pane only with message
+            pass
     
     def _show_single_view(self):
         """Show single pane view"""
         current_step = self.processing_steps[self.current_step_index]
-        current_file = current_step.files[self.current_file_index]
-        
-        single_box = self._create_pane_box(current_file, current_step.tool_name)
-        self.content_area.add(single_box)
+        if current_step.files:
+            current_file = current_step.files[self.current_file_index] if self.current_file_index < len(current_step.files) else current_step.files[0]
+            single_box = self._create_pane_box(current_file, current_step.tool_name)
+            self.content_area.add(single_box)
+        else:
+            # No files in this step, show message
+            self._show_error_message(f"No output files in step: {current_step.tool_name}")
     
     def _create_pane_box(self, file_path: Path, step_name: str):
         """Create a pane box for displaying content"""
@@ -1342,5 +1451,70 @@ class OutputView(BaseView):
             )
         )
         error_box.add(text)
-        
+
         self.content_area.add(error_box)
+
+    def _update_step_selector(self):
+        """Update the step selector dropdown with processing step names"""
+        try:
+            if not hasattr(self, 'step_selector') or not self.step_selector:
+                return
+
+            if not self.processing_steps:
+                self.step_selector.items = ["No steps loaded"]
+                self.step_selector.enabled = False
+                return
+
+            # Build list of step names
+            step_names = []
+            for idx, step in enumerate(self.processing_steps):
+                step_name = f"{idx + 1}. {step.tool_name}"
+                step_names.append(step_name)
+
+            self.step_selector.items = step_names
+            self.step_selector.enabled = True
+
+            # Set current selection
+            if hasattr(self, 'current_step_index') and 0 <= self.current_step_index < len(step_names):
+                self.step_selector.value = step_names[self.current_step_index]
+
+            logger.debug(f"Updated step selector with {len(step_names)} steps")
+
+        except Exception as e:
+            logger.error(f"Failed to update step selector: {e}")
+
+    def _on_step_selected(self, widget):
+        """Handle step selection from dropdown"""
+        try:
+            if not self.processing_steps or not widget.value:
+                return
+
+            # Extract step index from selection (format: "1. step_name")
+            selection_text = str(widget.value)
+            if '. ' not in selection_text:
+                return
+
+            step_num_str = selection_text.split('.')[0]
+            try:
+                step_index = int(step_num_str) - 1
+            except ValueError:
+                return
+
+            if 0 <= step_index < len(self.processing_steps):
+                logger.info(f"Step selected from dropdown: {step_index} ({self.processing_steps[step_index].tool_name})")
+
+                # Update current step index
+                self.current_step_index = step_index
+                self.left_step_index = step_index
+                self.right_step_index = step_index
+
+                # Update current file to first file in selected step
+                if self.processing_steps[step_index].files:
+                    self.current_file_path = Path(self.processing_steps[step_index].files[0])
+
+                # Refresh display
+                self._update_navigation()
+                self._show_output_content()
+
+        except Exception as e:
+            logger.error(f"Failed to handle step selection: {e}")

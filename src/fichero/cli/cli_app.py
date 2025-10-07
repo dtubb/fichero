@@ -1,5 +1,6 @@
 import os
-os.environ["TOGA_BACKEND"] = "toga_textual"
+# Set default backend to Cocoa (toga_textual was uninstalled)
+os.environ.setdefault("TOGA_BACKEND", "toga_cocoa")
 """
 Fichero CLI Application
 Handles command-line interface for Fichero

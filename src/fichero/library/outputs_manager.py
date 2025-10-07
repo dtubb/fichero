@@ -24,14 +24,37 @@ class ToolOutput:
 
     @property
     def files(self) -> List[Path]:
-        """Get list of output files (excluding manifest)"""
+        """Get list of output files by parsing manifest"""
         if self._files is None:
             self._files = []
-            if self.output_folder.exists():
-                # Get all files except the manifest itself
-                for file_path in self.output_folder.iterdir():
-                    if file_path.is_file() and file_path != self.manifest_path:
-                        self._files.append(file_path)
+            if self.manifest_path.exists():
+                try:
+                    with open(self.manifest_path, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                entry = json.loads(line)
+                                # Get output files from manifest entry
+                                if 'outputs' in entry and isinstance(entry['outputs'], list):
+                                    for output_path in entry['outputs']:
+                                        # Extract just the filename
+                                        filename = Path(output_path).name
+                                        # Search for this file under output_folder tree
+                                        for found_file in self.output_folder.rglob(filename):
+                                            if found_file.is_file() and found_file not in self._files:
+                                                self._files.append(found_file)
+                                # Also include source file if available
+                                if 'source' in entry:
+                                    filename = Path(entry['source']).name
+                                    for found_file in self.output_folder.rglob(filename):
+                                        if found_file.is_file() and found_file not in self._files:
+                                            self._files.append(found_file)
+                            except json.JSONDecodeError:
+                                continue
+                except Exception as e:
+                    logger.warning(f"Could not read files from manifest {self.manifest_path}: {e}")
             self._files.sort()
         return self._files
 
@@ -125,24 +148,43 @@ class OutputsManager:
         # Scan for manifests to discover tools
         # Check common locations
 
-        # 1. Check assets/manifests/ folder
-        manifests_dir = session.output_path / "assets" / "manifests"
-        if manifests_dir.exists():
-            for manifest_file in manifests_dir.glob("*_manifest.jsonl"):
-                tool_name = self._extract_tool_name_from_manifest(manifest_file)
-                if tool_name:
-                    # Determine output folder based on manifest name
-                    output_folder = self._find_output_folder_for_tool(session.output_path, tool_name, manifest_file)
-                    if output_folder:
-                        tools.append(ToolOutput(
-                            tool_name=tool_name,
-                            output_folder=output_folder,
-                            manifest_path=manifest_file
-                        ))
+        # Find all assets directories (may be nested for folder-based processing)
+        assets_dirs = []
 
-        # 2. Check for manifests in output folders
-        assets_dir = session.output_path / "assets"
-        if assets_dir.exists():
+        # 1. Check direct assets/ folder
+        direct_assets = session.output_path / "assets"
+        if direct_assets.exists():
+            assets_dirs.append(direct_assets)
+
+        # 2. Check for nested assets/ folders (e.g., output/folder_name/assets/)
+        for subdir in session.output_path.iterdir():
+            if subdir.is_dir() and subdir.name != "assets":
+                nested_assets = subdir / "assets"
+                if nested_assets.exists():
+                    assets_dirs.append(nested_assets)
+
+        self.logger.debug(f"Found {len(assets_dirs)} assets directories to scan")
+
+        # Scan each assets directory for manifests
+        for assets_dir in assets_dirs:
+            # Check assets/manifests/ folder
+            manifests_dir = assets_dir / "manifests"
+            if manifests_dir.exists():
+                for manifest_file in manifests_dir.glob("*_manifest.jsonl"):
+                    tool_name = self._extract_tool_name_from_manifest(manifest_file)
+                    if tool_name:
+                        # Determine output folder based on manifest name
+                        output_folder = self._find_output_folder_for_tool(assets_dir.parent, tool_name, manifest_file)
+                        if output_folder:
+                            # Check if not already added
+                            if not any(t.tool_name == tool_name for t in tools):
+                                tools.append(ToolOutput(
+                                    tool_name=tool_name,
+                                    output_folder=output_folder,
+                                    manifest_path=manifest_file
+                                ))
+
+            # Check for manifests in output folders under assets/
             for subfolder in assets_dir.iterdir():
                 if subfolder.is_dir() and subfolder.name != "manifests":
                     # Look for manifest in this folder

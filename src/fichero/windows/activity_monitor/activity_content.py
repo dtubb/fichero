@@ -30,7 +30,11 @@ class ActivityMonitorContent:
         """Create the activity monitor content UI"""
         # Create the main display
         self._create_display()
-        
+
+        # Auto-start monitoring when created
+        self.start_monitoring()
+        logger.info("Activity Monitor auto-started monitoring")
+
         return self.display.container
     
     def _create_display(self):

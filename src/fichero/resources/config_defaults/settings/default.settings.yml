@@ -49,6 +49,16 @@ defaults:
   workflow: "00) default" 
 # Library Configuration
 library:
-  path: ""  # Will be set to app.paths.data by the settings system
+  # Library storage location (desktop only - mobile uses app.paths.data)
+  library_path: ""  # Empty = default to app.paths.data/library, or set custom path
+
+  # Processing output location (desktop only - mobile uses app.paths.data/processed)
+  processing_output_path: ""  # Empty = default to app.paths.data/processed, or set custom path
+
+  # Collection defaults
   default_collection_type: "copy"
   auto_copy_collections: true
+
+  # Platform-specific settings
+  allow_custom_paths_desktop: true  # Allow custom paths on desktop
+  allow_custom_paths_mobile: false  # Mobile always uses app.paths

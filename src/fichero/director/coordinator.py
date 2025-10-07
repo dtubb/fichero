@@ -19,23 +19,24 @@ logger = logging.getLogger(__name__)
 class ProcessingCoordinator:
     """
     Coordinates processing workflows for the director service.
-    
+
     Pure processing logic - NO display responsibilities.
-    
+
     Handles:
     - Folder processing coordination
-    - Auto-detection of subfolders  
+    - Auto-detection of subfolders
     - Task submission orchestration
     - Variable generation coordination
-    
+
     Display logic is handled by monitoring/displays/ modules.
     """
-    
-    def __init__(self, task_manager: TaskManager, variable_generator, plan_loader_func):
+
+    def __init__(self, task_manager: TaskManager, variable_generator, plan_loader_func, director=None):
         self.task_manager = task_manager
         self.variable_generator = variable_generator
         self._load_plan_config = plan_loader_func
-        
+        self.director = director  # Store director reference to avoid circular import
+
         logger.info("ProcessingCoordinator initialized")
     
     def process_folders(self, folders, plan_name: str,
@@ -56,10 +57,13 @@ class ProcessingCoordinator:
             Task ID string
         """
         # Load plan configuration
+        logger.info(f"Loading plan configuration for: {plan_name}")
         try:
             plan_config = self._load_plan_config(plan_name)
             if not plan_config:
                 logger.error(f"Plan config is None for plan: {plan_name}")
+            else:
+                logger.info(f"Successfully loaded plan config for: {plan_name}")
         except Exception as e:
             logger.error(f"Failed to load plan '{plan_name}': {e}", exc_info=True)
             plan_config = None
@@ -93,15 +97,15 @@ class ProcessingCoordinator:
             List of task IDs for each folder being processed
         """
         logger.info(f"Processing with auto-detection: {input_path} -> {output_path}")
-        
+
         # Use the proper folder processor for two-phase processing
         from fichero.director.folder_processor import FolderProcessor
-        
-        # Create a folder processor instance using the current director
-        from fichero.director.director_service import FicheroDirector
-        director = FicheroDirector.get_instance()
-        
-        folder_processor = FolderProcessor(director)
+
+        # Use the director instance passed during initialization
+        if not self.director:
+            raise RuntimeError("Director instance not available in ProcessingCoordinator")
+
+        folder_processor = FolderProcessor(self.director)
         
         # Phase 1: Detect and prepare all folders (sequential)
         logger.info("Phase 1: Detecting and preparing folders...")

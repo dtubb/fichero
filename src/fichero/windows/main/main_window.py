@@ -10,6 +10,7 @@ from toga.style import Pack
 from toga.constants import ROW, COLUMN
 import logging
 from typing import Optional, Dict, Any
+from pathlib import Path
 
 from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation, NavigationEvents
 from fichero.shared.navigation.navigation_controller import NavigationController
@@ -342,15 +343,18 @@ class MainWindow:
             logger.error(f"Failed to handle show collection event: {e}")
 
     def _on_show_preview(self, event):
-        """Handle show preview event - now shows OutputView"""
+        """Handle show preview event - now shows OutputView with optional Director outputs"""
         try:
             data = event.data
             file_path = data.get('file_path')
+            output_path = data.get('output_path')  # NEW: Optional Director output folder path
             file_metadata = data.get('file_metadata', {})
             collection_items = data.get('collection_items', [])
             item_index = data.get('item_index', 0)
 
             logger.info(f"Event: Show output for {file_path}")
+            if output_path:
+                logger.info(f"📊 With processing outputs from: {output_path}")
 
             # Create or reuse OutputView
             if not self.cached_output_view:
@@ -369,7 +373,6 @@ class MainWindow:
                     logger.warning(f"📋 No collection_items found on center view")
 
             # Convert collection items to source file paths
-            from pathlib import Path
             source_files = []
             source_index = 0
 
@@ -384,8 +387,30 @@ class MainWindow:
 
                 logger.info(f"📋 Extracted {len(source_files)} source files, current index={source_index}")
 
-            # Load the output with source files for navigation
-            self.cached_output_view.load_output(Path(file_path), source_files, source_index)
+            # Note: output_path should already be provided by collection_view when available
+            # collection_view queries the library and passes output_path in the event data
+
+            # Determine what to load into OutputView
+            if output_path:
+                # Load from Director output folder - pass output_root_path directly
+                output_root = Path(output_path)
+                logger.info(f"📊 Loading from Director output folder: {output_root}")
+
+                # Pass output_root_path directly to OutputView - it will handle loading steps
+                # Also pass original file_path for context
+                self.cached_output_view.load_output(
+                    file_path=Path(file_path),
+                    source_files=source_files,
+                    source_index=source_index,
+                    output_root_path=output_root
+                )
+            else:
+                # Load original file (no processing outputs)
+                self.cached_output_view.load_output(
+                    file_path=Path(file_path),
+                    source_files=source_files,
+                    source_index=source_index
+                )
 
             # Show in appropriate pane
             if self.is_mobile:
