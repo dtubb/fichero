@@ -20,22 +20,43 @@ logger = logging.getLogger(__name__)
 class BaseView(ABC):
     """Base class for all views in Fichero"""
     
-    def __init__(self, app, is_mobile: bool = False):
-        """Initialize base view"""
+    def __init__(self, app, is_mobile: bool = False, use_native_toolbar: bool = None):
+        """Initialize base view
+
+        Args:
+            app: Application instance
+            is_mobile: Whether this is mobile UI
+            use_native_toolbar: Whether to use native window toolbar (desktop only)
+                               If None, auto-detect: True on desktop, False on mobile
+        """
         self.app = app
         self.is_mobile = is_mobile
-        
+
+        # Determine native toolbar usage
+        if use_native_toolbar is None:
+            # Auto-detect: use native toolbar on desktop, custom toolbar on mobile
+            self.use_native_toolbar = not is_mobile
+        else:
+            self.use_native_toolbar = use_native_toolbar and not is_mobile
+
         # View containers
         self.container: Optional[toga.Box] = None
         self.content_container: Optional[toga.Box] = None
         self.scroll_container: Optional[toga.ScrollContainer] = None
-        
+
         # Toolbars
         self.top_toolbar: Optional['BaseToolbar'] = None
         self.top_toolbar_container: Optional[toga.Box] = None
         self.bottom_toolbar: Optional['BaseToolbar'] = None
         self.bottom_toolbar_container: Optional[toga.Box] = None
-        
+
+        # Native toolbar command IDs (for desktop native toolbar)
+        self.native_toolbar_command_ids: list = []
+
+        # Bottom toolbar configuration
+        # Set to True in subclass to force bottom toolbar on desktop (useful for complex navigation)
+        self.force_bottom_toolbar_on_desktop: bool = False
+
         # Icon colors for line art icons only
         self.icon_primary = ICON_PRIMARY      # For active states, buttons, etc.
         self.icon_secondary = ICON_SECONDARY  # For inactive states
@@ -125,14 +146,14 @@ class BaseView(ABC):
             if hasattr(toolbar, 'get_container'):
                 toolbar_container = toolbar.get_container()
 
-                # Ensure toolbar container uses proper height and full width
+                # Ensure toolbar container uses proper height and expands to full width
                 if toolbar_container and hasattr(toolbar_container, 'style'):
-                    # Update toolbar's own container to ensure consistent sizing
-                    # Add small vertical margins for visual separation
+                    # DON'T set flex here - let ScrollContainer keep its flex=1 from BaseToolbar
+                    # Only update height and margin
                     toolbar_container.style.update(
                         height=toolbar_height,
-                        margin=(4, 0),  # Small vertical margins for visual separation
-                        flex=0  # Fixed height, full width
+                        margin=(4, 0)  # Small vertical margins for visual separation
+                        # flex=1 inherited from BaseToolbar - allows expansion when parent resizes
                     )
 
                 # Insert toolbar container directly into main container
@@ -177,24 +198,24 @@ class BaseView(ABC):
             if hasattr(toolbar, 'get_container'):
                 toolbar_container = toolbar.get_container()
 
-                # Ensure toolbar container uses proper height and full width
+                # Ensure toolbar container uses proper height and expands to full width
                 if toolbar_container and hasattr(toolbar_container, 'style'):
-                    # Update toolbar's own container to ensure consistent sizing
-                    # Add small vertical margins for visual separation (both mobile and desktop)
+                    # DON'T set flex here - let ScrollContainer keep its flex=1 from BaseToolbar
+                    # Only update height and margin
                     if total_height > 0:
                         margin_value = (4, 0)
                         toolbar_container.style.update(
                             height=total_height,
-                            margin=margin_value,  # Small vertical margins for visual separation
-                            flex=0  # Fixed height, full width
+                            margin=margin_value  # Small vertical margins for visual separation
+                            # flex=1 inherited from BaseToolbar - allows expansion when parent resizes
                         )
                         logger.debug(f"Bottom toolbar container configured: height={total_height}px, is_mobile={getattr(toolbar, 'is_mobile', 'unknown')}")
                     else:
-                        # For hidden toolbars (desktop with height=0), only set safe properties (avoid height=None errors)
+                        # For hidden toolbars (desktop with height=0), only set safe properties
                         toolbar_container.style.update(
-                            margin=(0, 0),
-                            flex=0
+                            margin=(0, 0)
                             # Don't set height=None - it causes Toga validation errors
+                            # Don't set flex=0 - let it keep flex=1 for expansion
                         )
                         logger.debug("Bottom toolbar hidden (height=0)")
 
@@ -223,10 +244,91 @@ class BaseView(ABC):
         except Exception as e:
             logger.error(f"Failed to set bottom toolbar: {e}")
     
-    def set_toolbars(self, top_toolbar: 'BaseToolbar', bottom_toolbar: 'BaseToolbar'):
-        """Set both top and bottom toolbars at once"""
-        self.set_top_toolbar(top_toolbar)
-        self.set_bottom_toolbar(bottom_toolbar)
+    def set_toolbars(self, top_toolbar: 'BaseToolbar' = None, bottom_toolbar: 'BaseToolbar' = None):
+        """
+        Set toolbars with platform-adaptive rendering.
+
+        Platform behavior:
+        - Desktop: Only renders top toolbar if provided. Bottom toolbar is skipped (native window.toolbar used instead)
+        - Mobile: Renders both toolbars. Toolbars auto-populate from registered commands.
+
+        Args:
+            top_toolbar: Top toolbar instance (optional)
+            bottom_toolbar: Bottom toolbar instance (optional)
+        """
+        try:
+            # Top toolbar: Render on both platforms
+            if top_toolbar:
+                self.set_top_toolbar(top_toolbar)
+
+                # Auto-populate from commands if view has view_id
+                if hasattr(self, 'view_id'):
+                    try:
+                        top_toolbar.populate_from_commands(
+                            view_id=self.view_id,
+                            context='normal',  # Will update on mode change
+                            toolbar_type='top'  # Specifically for top toolbar
+                        )
+                        logger.debug(f"Top toolbar populated for view '{self.view_id}'")
+                    except Exception as e:
+                        logger.warning(f"Could not auto-populate top toolbar: {e}")
+
+            # Bottom toolbar: Platform-adaptive behavior
+            if bottom_toolbar:
+                if self.is_mobile or self.force_bottom_toolbar_on_desktop:
+                    # Mobile OR forced desktop: Render bottom toolbar and populate from commands
+                    self.set_bottom_toolbar(bottom_toolbar)
+
+                    # Auto-populate from commands if view has view_id
+                    if hasattr(self, 'view_id'):
+                        try:
+                            bottom_toolbar.populate_from_commands(
+                                view_id=self.view_id,
+                                context='normal',  # Will update on mode change
+                                toolbar_type='bottom'  # Specifically for bottom toolbar
+                            )
+                            platform_str = "mobile" if self.is_mobile else "desktop (forced)"
+                            logger.debug(f"Bottom toolbar populated for view '{self.view_id}' ({platform_str})")
+                        except Exception as e:
+                            logger.warning(f"Could not auto-populate bottom toolbar: {e}")
+                else:
+                    # Desktop: Skip bottom toolbar - commands shown in native window.toolbar
+                    logger.debug("Skipping bottom toolbar on desktop - using native window.toolbar")
+                    self.bottom_toolbar_container = None
+
+        except Exception as e:
+            logger.error(f"Failed to set toolbars: {e}")
+
+    def setup_native_toolbar(self, window: 'toga.Window', command_ids: list):
+        """
+        Setup native Toga toolbar for this view (desktop only)
+
+        Args:
+            window: Window to add toolbar to
+            command_ids: List of command IDs to include in toolbar
+
+        Example:
+            # In OutputView, after registering commands:
+            if not self.is_mobile:
+                self.setup_native_toolbar(
+                    self.app.main_window.window,
+                    ['output.edit.rotate_left', 'output.edit.rotate_right', 'output.edit.crop', 'output.edit.reset']
+                )
+        """
+        if not self.use_native_toolbar:
+            logger.debug("Native toolbar disabled for this view")
+            return
+
+        try:
+            from fichero.shared.commands import CommandManager
+
+            command_manager = CommandManager.get_instance()
+            command_manager.build_native_toolbar(window, command_ids)
+            self.native_toolbar_command_ids = command_ids
+            logger.info(f"✅ Native toolbar setup complete with {len(command_ids)} commands")
+
+        except Exception as e:
+            logger.error(f"Failed to setup native toolbar: {e}")
     
     def get_container(self) -> toga.Box:
         """Get the main container for this view"""

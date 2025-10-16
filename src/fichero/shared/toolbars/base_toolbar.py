@@ -101,6 +101,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
         try:
             # Inner toolbar container with button content
             # This will be wrapped in a ScrollContainer for horizontal scrolling
+            # CRITICAL: flex=0 allows content to determine width (can exceed ScrollContainer)
+            # Without flex=0, Toga compresses content to fit instead of scrolling
             inner_container = toga.Box(
                 style=Pack(
                     direction=ROW,  # Horizontal layout for left/center/right
@@ -108,7 +110,7 @@ class BaseToolbar(ABC, ToolbarProtocol):
                     margin=0,
                     align_items="center",  # Vertically center all children
                     background_color="transparent",
-                    flex=0  # Size based on content width (may exceed parent)
+                    flex=0  # CRITICAL: Don't compress content - let it determine natural width
                 )
             )
 
@@ -138,14 +140,15 @@ class BaseToolbar(ABC, ToolbarProtocol):
                 )
             )
 
-            # Center section: True center alignment with balanced flex
+            # Center section: Size based on content (no flex)
+            # IMPORTANT: flex=0 prevents toolbar from expanding beyond content width
+            # This allows ScrollContainer to work when content is too wide
             self.center_content = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    flex=1,  # Takes remaining space
+                    flex=0,  # Size based on content, don't expand
                     margin=0,
                     align_items="center"
-                    # text_align="center" for centering content
                 )
             )
 
@@ -232,7 +235,15 @@ class BaseToolbar(ABC, ToolbarProtocol):
             elif icon:
                 # Icon-only button with proper sizing
                 try:
-                    icon_resource = toga.Icon(icon)
+                    # Convert relative icon path to absolute path using app.paths.app
+                    from pathlib import Path
+                    if isinstance(icon, str):
+                        icon_path = self.app.paths.app / icon
+                        icon_resource = toga.Icon(str(icon_path))
+                    else:
+                        # Already a Path or toga.Icon object
+                        icon_resource = toga.Icon(icon) if not isinstance(icon, toga.Icon) else icon
+
                     # Add icon sizing to button style
                     icon_button_style = Pack(
                         width=self.hig_specs["icon_size"] + 16,  # Icon size + padding
@@ -241,8 +252,10 @@ class BaseToolbar(ABC, ToolbarProtocol):
                         font_size=button_style.font_size if hasattr(button_style, 'font_size') else self.hig_specs["font_size_caption"]
                     )
                     button = toga.Button(icon=icon_resource, on_press=on_press, style=icon_button_style)
-                except:
+                    logger.debug(f"Created icon button with path: {icon_path if isinstance(icon, str) else icon}")
+                except Exception as e:
                     # Fallback to text if icon fails
+                    logger.warning(f"Failed to load icon '{icon}': {e}, using text fallback")
                     button = toga.Button(text=text or "⚙", on_press=on_press, style=button_style)
             else:
                 # Text-only button
@@ -401,6 +414,189 @@ class BaseToolbar(ABC, ToolbarProtocol):
         """Get the toolbar container widget"""
         return self.container
 
+    # Command system integration
+    def populate_from_commands(self, view_id: str, context: str = "normal", toolbar_type: str = None) -> None:
+        """
+        Auto-populate toolbar with commands from CommandManager.
+
+        This is the unified way to populate toolbars with commands. The toolbar
+        automatically queries CommandManager for relevant commands and adds them.
+
+        Args:
+            view_id: View identifier (e.g., "library", "output", "collection")
+            context: Context for filtering commands (e.g., "normal", "edit")
+            toolbar_type: Type of toolbar ("top", "bottom", "native")
+                         If None, uses legacy behavior (any toolbar flag)
+
+        Example:
+            # In any view's toolbar setup:
+            self.top_toolbar.populate_from_commands("output", context="normal", toolbar_type="top")
+            self.bottom_toolbar.populate_from_commands("output", context="edit", toolbar_type="bottom")
+        """
+        try:
+            from fichero.shared.commands.command_manager import CommandManager
+
+            # Get command manager
+            command_manager = CommandManager.get_instance(self.app)
+
+            # Get commands for this view
+            commands = command_manager.get_toolbar_commands(view_id=view_id, context=context, toolbar_type=toolbar_type)
+
+            logger.info(f"Populating toolbar with {len(commands)} commands for view '{view_id}' (context: {context}, type: {toolbar_type})")
+
+            # Add each command to toolbar using platform-adaptive method
+            for command in commands:
+                self.add_button_from_command(command)
+
+            logger.info(f"✅ Toolbar populated with {len(commands)} commands")
+
+        except Exception as e:
+            logger.error(f"Failed to populate toolbar from commands: {e}")
+
+    def add_button_from_command(self, command) -> toga.Widget:
+        """
+        Create and add button from FicheroCommand with automatic platform-adaptive routing.
+
+        This is the platform-adaptive method that respects command hints for toolbar placement.
+        Views should not call this directly - use populate_from_commands() instead.
+
+        Args:
+            command: FicheroCommand instance
+
+        Returns:
+            The created button widget
+
+        Example:
+            # Called automatically by populate_from_commands():
+            toolbar.populate_from_commands(view_id='library', context='normal')
+        """
+        try:
+            # Determine position from command
+            position = command.toolbar_position or 'center'
+
+            # Determine mode from context
+            mode = "edit" if command.context == "edit" else "normal"
+
+            # Create wrapper action that logs toolbar button press
+            def logged_action(widget):
+                logger.info(f"🎯 Toolbar button pressed: {command.id} ({command.label})")
+                return command.execute(widget)
+
+            # Use appropriate button addition method based on mode
+            if mode == "edit":
+                return self.add_edit_button(
+                    button_id=command.id,
+                    position=position,
+                    text=command.toolbar_text if not command.icon else None,
+                    icon=command.icon,
+                    on_press=logged_action,
+                    tooltip=command.description,
+                    label=None  # Icons don't need labels - icon is self-explanatory
+                )
+            else:  # mode == "normal"
+                return self.add_regular_button(
+                    button_id=command.id,
+                    position=position,
+                    text=command.toolbar_text if not command.icon else None,
+                    icon=command.icon,
+                    on_press=logged_action,
+                    tooltip=command.description,
+                    label=None  # Icons don't need labels - icon is self-explanatory
+                )
+
+            logger.debug(f"Added button for command: {command.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to add button from command {command.id}: {e}")
+            return None
+
+    def add_command_button(self,
+                          command,  # FicheroCommand instance
+                          position: str = "left",
+                          mode: str = "normal") -> toga.Widget:
+        """
+        Add a button that executes a FicheroCommand with logging.
+
+        This is the NEW unified way to add command-backed toolbar buttons.
+        Replaces both add_command() and direct button creation.
+
+        Args:
+            command: FicheroCommand instance to bind to button
+            position: "left", "center", or "right"
+            mode: "normal" (persistent button) or "edit" (edit-mode only button)
+
+        Returns:
+            The created button widget
+
+        Example:
+            # In OutputView:
+            from fichero.shared.commands import CommandRegistry
+
+            registry = CommandRegistry.get_instance()
+            rotate_left_cmd = registry.get("output.rotate_left")
+
+            # Add as edit mode button
+            self.top_toolbar.add_command_button(rotate_left_cmd, position="left", mode="edit")
+
+            # Add as normal mode button
+            zoom_in_cmd = registry.get("output.view.zoom_in")
+            self.top_toolbar.add_command_button(zoom_in_cmd, position="right", mode="normal")
+        """
+        # Create wrapper action that logs toolbar button press
+        def logged_action(widget):
+            logger.info(f"🎯 Toolbar button pressed: {command.id} ({command.label})")
+            return command.execute(widget)
+
+        # Use appropriate button addition method based on mode
+        if mode == "edit":
+            return self.add_edit_button(
+                button_id=command.id,
+                position=position,
+                text=command.toolbar_text if not command.icon else None,
+                icon=command.icon,
+                on_press=logged_action,
+                label=command.toolbar_text if command.icon else None
+            )
+        else:  # mode == "normal"
+            return self.add_regular_button(
+                button_id=command.id,
+                position=position,
+                text=command.toolbar_text if not command.icon else None,
+                icon=command.icon,
+                on_press=logged_action,
+                label=command.toolbar_text if command.icon else None
+            )
+
+    def add_command(self,
+                   command,  # FicheroCommand instance
+                   position: str = "left") -> toga.Widget:
+        """
+        DEPRECATED: Use add_command_button() instead.
+
+        Add a button that executes a FicheroCommand.
+
+        This method integrates the command system with toolbars, allowing
+        commands to be triggered from toolbar buttons while maintaining
+        all command metadata (shortcuts, labels, icons).
+
+        Args:
+            command: FicheroCommand instance to bind to button
+            position: "left", "center", or "right"
+
+        Returns:
+            The created button widget
+
+        Example:
+            # In OutputView:
+            from fichero.shared.commands import CommandRegistry
+
+            registry = CommandRegistry.get_instance()
+            rotate_left_cmd = registry.get("output.rotate_left")
+            self.toolbar.add_command(rotate_left_cmd, position="left")
+        """
+        logger.warning("add_command() is deprecated, use add_command_button() instead")
+        return self.add_command_button(command, position=position, mode="normal")
+
     # Smart button management API
     def add_regular_button(self,
                           button_id: str,
@@ -409,7 +605,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
                           icon: Optional[str] = None,
                           on_press: Optional[Callable] = None,
                           style_class: str = "default",
-                          label: Optional[str] = None):
+                          label: Optional[str] = None,
+                          tooltip: Optional[str] = None):
         """Add a regular button that persists across edit mode transitions"""
         button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class, label=label)
 
@@ -435,7 +632,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
                        icon: Optional[str] = None,
                        on_press: Optional[Callable] = None,
                        style_class: str = "default",
-                       label: Optional[str] = None):
+                       label: Optional[str] = None,
+                       tooltip: Optional[str] = None):
         """Add an edit mode button (only shown during edit mode)"""
         button = self.create_button(text=text, icon=icon, on_press=on_press, style_class=style_class, label=label)
 

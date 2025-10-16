@@ -13,6 +13,7 @@ from toga.style import Pack
 from toga.constants import COLUMN, ROW
 
 from fichero.shared.views.base_view import BaseView
+from fichero.shared.commands.view_mixin import ViewCommandMixin
 from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 from fichero.library.outputs_manager import OutputsManager, OutputSession, ToolOutput
 from fichero.library.outputs.editor_registry import EditorRegistry
@@ -20,9 +21,9 @@ from fichero.library.outputs.editor_registry import EditorRegistry
 logger = logging.getLogger(__name__)
 
 
-class OutputView(BaseView):
+class OutputView(BaseView, ViewCommandMixin):
     """Output view for main window center pane"""
-    
+
     def __init__(self, app, is_mobile: bool = False):
         """Initialize output view"""
         logger.info("🔧 OutputView.__init__ starting")
@@ -75,14 +76,262 @@ class OutputView(BaseView):
         except Exception as e:
             logger.warning(f"Could not register toolbar coordinator with navigation controller: {e}")
 
-        # Call parent init (creates toolbars)
+        # Call parent init FIRST (sets self.app and self.is_mobile)
         super().__init__(app, is_mobile)
 
+        # Set view_id for command registration
+        self.view_id = 'output'
+
+        # Initialize ViewCommandMixin
+        ViewCommandMixin.__init__(self)
+
+        # Force bottom toolbar on desktop for navigation controls (file/step navigation, plan/step selectors)
+        self.force_bottom_toolbar_on_desktop = True
+
+        # Define and register commands using ViewCommandMixin pattern
+        self.define_commands()
+        self.register_commands()
+
         # Set up toolbars with custom buttons
+        # Commands are now available in registry for _create_edit_mode_buttons()
         self._setup_toolbars()
 
         logger.info("✅ OutputView initialization complete")
-    
+
+    def define_commands(self):
+        """Define all commands for OutputView using ViewCommandMixin pattern"""
+        from fichero.shared.commands import FicheroCommand
+        import toga
+
+        try:
+            # Create custom menu groups
+            go_group = toga.Group("Go", order=40)  # After View (30), before Tools
+            tools_group = toga.Group("Tools", order=50)  # After Go (40), before Window (90)
+
+            self.commands = {
+                # ===== TOOLS MENU - Image Edit Commands =====
+                'rotate_left': FicheroCommand(
+                    id=f'{self.view_id}.rotate_left',
+                    label=_("Rotate Left"),
+                    action=self._on_rotate_left,
+                    shortcut=toga.Key.MOD_1 + 'l',
+                    icon='resources/icons/toolbar/rotate.left@10x.png',
+                    description=_("Rotate image 90° counter-clockwise"),
+                    group=tools_group,
+                    section=0,
+                    order=0,
+                    toolbar_text=_("Rotate\nLeft"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,  # Show in edit mode toolbar
+                    desktop_only=False,
+                    context='edit'  # Only show in edit mode
+                ),
+                'rotate_right': FicheroCommand(
+                    id=f'{self.view_id}.rotate_right',
+                    label=_("Rotate Right"),
+                    action=self._on_rotate_right,
+                    shortcut=toga.Key.MOD_1 + 'r',
+                    icon='resources/icons/toolbar/rotate.right@10x.png',
+                    description=_("Rotate image 90° clockwise"),
+                    group=tools_group,
+                    section=0,
+                    order=1,
+                    toolbar_text=_("Rotate\nRight"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,  # Show in edit mode toolbar
+                    desktop_only=False,
+                    context='edit'  # Only show in edit mode
+                ),
+                'crop': FicheroCommand(
+                    id=f'{self.view_id}.crop',
+                    label=_("Crop Image"),
+                    action=self._on_crop,
+                    shortcut=toga.Key.MOD_1 + 'k',
+                    icon='resources/icons/chatgpt_icons/crop.png',
+                    description=_("Crop image to selection"),
+                    group=tools_group,
+                    section=0,
+                    order=2,
+                    toolbar_text=_("Crop"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,  # Show in edit mode toolbar
+                    desktop_only=False,
+                    context='edit'  # Only show in edit mode
+                ),
+                'reset': FicheroCommand(
+                    id=f'{self.view_id}.reset',
+                    label=_("Reset to Original"),
+                    action=self._on_reset,
+                    shortcut=toga.Key.MOD_1 + '0',
+                    icon='resources/icons/toolbar/arrow.up.left.and.arrow.down.right@10x.png',
+                    description=_("Reset image to original state"),
+                    group=tools_group,
+                    section=0,
+                    order=3,
+                    toolbar_text=_("Reset"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,  # Show in edit mode toolbar
+                    desktop_only=False,
+                    context='edit'  # Only show in edit mode
+                ),
+
+                # ===== VIEW MENU - Zoom Commands =====
+                'zoom_in': FicheroCommand(
+                    id=f'{self.view_id}.zoom_in',
+                    label=_("Zoom In"),
+                    action=self._on_zoom_in,
+                    shortcut=toga.Key.MOD_1 + toga.Key.PLUS,
+                    description=_("Zoom in on image"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'zoom_out': FicheroCommand(
+                    id=f'{self.view_id}.zoom_out',
+                    label=_("Zoom Out"),
+                    action=self._on_zoom_out,
+                    shortcut=toga.Key.MOD_1 + toga.Key.MINUS,
+                    description=_("Zoom out on image"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'zoom_fit': FicheroCommand(
+                    id=f'{self.view_id}.zoom_fit',
+                    label=_("Zoom to Fit"),
+                    action=self._on_zoom_fit,
+                    shortcut=toga.Key.MOD_1 + '9',
+                    description=_("Fit image to window"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=2,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'actual_size': FicheroCommand(
+                    id=f'{self.view_id}.actual_size',
+                    label=_("Actual Size"),
+                    action=self._on_zoom_100,
+                    shortcut=toga.Key.MOD_1 + '0',
+                    description=_("Zoom to 100% (actual size)"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=3,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'fit_width': FicheroCommand(
+                    id=f'{self.view_id}.fit_width',
+                    label=_("Fit Width"),
+                    action=self._on_zoom_fit_width,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '0',
+                    description=_("Fit image to window width"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=4,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'fit_height': FicheroCommand(
+                    id=f'{self.view_id}.fit_height',
+                    label=_("Fit Height"),
+                    action=self._on_zoom_fit_height,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '9',
+                    description=_("Fit image to window height"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=5,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'zoom_selection': FicheroCommand(
+                    id=f'{self.view_id}.zoom_selection',
+                    label=_("Zoom to Selection"),
+                    action=self._on_zoom_selection,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '8',
+                    description=_("Zoom to selected area"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=6,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                # ===== GO MENU - Navigation Commands =====
+                'prev_step': FicheroCommand(
+                    id=f'{self.view_id}.prev_step',
+                    label=_("Previous Step"),
+                    action=lambda w: self._on_prev_step(w),
+                    shortcut=toga.Key.MOD_1 + toga.Key.LEFT,
+                    description=_("Navigate to previous processing step"),
+                    group=go_group,
+                    section=0,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'next_step': FicheroCommand(
+                    id=f'{self.view_id}.next_step',
+                    label=_("Next Step"),
+                    action=lambda w: self._on_next_step(w),
+                    shortcut=toga.Key.MOD_1 + toga.Key.RIGHT,
+                    description=_("Navigate to next processing step"),
+                    group=go_group,
+                    section=0,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'prev_file': FicheroCommand(
+                    id=f'{self.view_id}.prev_file',
+                    label=_("Previous File"),
+                    action=self._on_prev_file,
+                    shortcut=toga.Key.MOD_1 + toga.Key.UP,
+                    description=_("Navigate to previous file"),
+                    group=go_group,
+                    section=1,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'next_file': FicheroCommand(
+                    id=f'{self.view_id}.next_file',
+                    label=_("Next File"),
+                    action=self._on_next_file,
+                    shortcut=toga.Key.MOD_1 + toga.Key.DOWN,
+                    description=_("Navigate to next file"),
+                    group=go_group,
+                    section=1,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+            }
+            logger.info(f"✅ Defined {len(self.commands)} commands for OutputView")
+
+        except Exception as e:
+            logger.error(f"Failed to define commands: {e}")
+            self.commands = {}
+
     def _create_content(self):
         """Create output view content - implements BaseView abstract method"""
         logger.info("Creating output view content")
@@ -110,8 +359,16 @@ class OutputView(BaseView):
         return self.container
 
     def show(self):
-        """Show callback"""
-        self.is_visible = True
+        """Show callback - called when view becomes active"""
+        try:
+            self.is_visible = True
+
+            # Tell the coordinator that this view is now active
+            if hasattr(self, 'coordinator') and self.coordinator:
+                self.coordinator.set_active_view('output')
+                logger.debug("OutputView notified coordinator of activation")
+        except Exception as e:
+            logger.error(f"Failed to notify coordinator in show(): {e}")
 
     def _setup_toolbars(self):
         """Set up toolbars with navigation buttons using proper toolbar methods"""
@@ -126,48 +383,71 @@ class OutputView(BaseView):
                 coordinator=self.coordinator
             )
 
-            # Add file navigation buttons to top toolbar right side
-            # Previous file (up chevron)
-            self.prev_file_btn = self.top_toolbar.add_regular_button(
-                button_id="prev_file",
+            # Add Edit button to top toolbar (right side, text-only like Library button)
+            # This toggles edit mode on/off and shows edit mode toolbar when active
+            self.edit_btn = self.top_toolbar.add_regular_button(
+                button_id="edit_output",
                 position="right",
-                icon="resources/icons/toolbar/chevron.up@10x.png",
-                on_press=self._on_prev_file,
-                label=_("Previous\nFile")
+                text=_("Edit"),  # Text parameter for consistency with Library
+                on_press=self._on_edit_pressed,
+                style_class="right_aligned"
             )
-            self.prev_file_btn.enabled = False
+            self.edit_btn.enabled = True
 
-            # Next file (down chevron)
-            self.next_file_btn = self.top_toolbar.add_regular_button(
-                button_id="next_file",
-                position="right",
-                icon="resources/icons/toolbar/chevron.down@10x.png",
-                on_press=self._on_next_file,
-                label=_("Next\nFile")
-            )
-            self.next_file_btn.enabled = False
-
-            # Create bottom toolbar with step navigation (left/right chevrons)
-            # Will use add_title for centered step indicator
+            # Create bottom toolbar with new layout:
+            # LEFT: File navigation (prev/next file)
+            # CENTER: Plan selector + Step selector dropdowns
+            # RIGHT: Step navigation (prev/next step)
             self.bottom_toolbar = BottomToolbar(
                 self.app,
                 is_mobile=self.is_mobile,
                 coordinator=self.coordinator
             )
 
-            # Add centered step indicator title
-            self.step_title = self.bottom_toolbar.add_title(
-                title="Step 1/1",
-                on_click=None
+            # LEFT: File navigation buttons (up/down arrows for file navigation)
+            # Previous file (up chevron)
+            self.bottom_prev_file_btn = self.bottom_toolbar.add_normal_mode_button(
+                icon="resources/icons/toolbar/chevron.up@10x.png",
+                on_press=self._on_prev_file,
+                position="left",
+                label=_("Prev\nFile")
             )
+            self.bottom_prev_file_btn.enabled = False
 
-            # Add step navigation buttons to bottom toolbar right side
+            # Next file (down chevron)
+            self.bottom_next_file_btn = self.bottom_toolbar.add_normal_mode_button(
+                icon="resources/icons/toolbar/chevron.down@10x.png",
+                on_press=self._on_next_file,
+                position="left",
+                label=_("Next\nFile")
+            )
+            self.bottom_next_file_btn.enabled = False
+
+            # CENTER: Step selector dropdown only (plan selector removed per user request)
+            import toga
+
+            # Step selector dropdown (shows current step)
+            self.step_selector = toga.Selection(
+                items=["No steps loaded"],
+                on_change=self._on_step_selected,
+                style=Pack(flex=1, margin=(5, 10))
+            )
+            self.step_selector.enabled = False
+
+            # Add step selector to toolbar center (plan selector removed)
+            if hasattr(self.bottom_toolbar, 'center_content'):
+                self.bottom_toolbar.center_content.add(self.step_selector)
+                logger.debug("Added step selector to bottom toolbar center")
+            else:
+                logger.warning("Bottom toolbar has no center_content attribute")
+
+            # RIGHT: Step navigation buttons (left/right chevrons)
             # Previous step (left chevron)
             self.prev_step_btn = self.bottom_toolbar.add_normal_mode_button(
                 icon="resources/icons/toolbar/chevron.left@10x.png",
                 on_press=self._on_prev_step,
                 position="right",
-                label=_("Previous\nStep")
+                label=_("Prev\nStep")
             )
             self.prev_step_btn.enabled = False
 
@@ -180,87 +460,12 @@ class OutputView(BaseView):
             )
             self.next_step_btn.enabled = False
 
-            # Add image zoom controls (shown only when viewing images)
-            self.zoom_out_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/minus.magnifyingglass@10x.png",
-                on_press=self._on_zoom_out,
-                position="left",
-                label=_("−")
-            )
-            self.zoom_out_btn.style.display = "none"  # Hidden by default
+            # Create edit mode buttons for bottom toolbar (initially hidden)
+            # These will be shown when Edit button is pressed
+            self._create_edit_mode_buttons()
 
-            self.zoom_fit_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/arrow.up.left.and.arrow.down.right@10x.png",
-                on_press=self._on_zoom_fit,
-                position="left",
-                label=_("Fit")
-            )
-            self.zoom_fit_btn.style.display = "none"  # Hidden by default
-
-            self.zoom_fit_width_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/arrow.left.and.right@10x.png",
-                on_press=self._on_zoom_fit_width,
-                position="left",
-                label=_("Width")
-            )
-            self.zoom_fit_width_btn.style.display = "none"  # Hidden by default
-
-            self.zoom_fit_height_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/arrow.up.and.down@10x.png",
-                on_press=self._on_zoom_fit_height,
-                position="left",
-                label=_("Height")
-            )
-            self.zoom_fit_height_btn.style.display = "none"  # Hidden by default
-
-            self.zoom_100_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/arrow.up.left.and.down.right.magnifyingglass@10x.png",
-                on_press=self._on_zoom_100,
-                position="left",
-                label=_("100%")
-            )
-            self.zoom_100_btn.style.display = "none"  # Hidden by default
-
-            self.zoom_in_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/plus.magnifyingglass@10x.png",
-                on_press=self._on_zoom_in,
-                position="left",
-                label=_("+")
-            )
-            self.zoom_in_btn.style.display = "none"  # Hidden by default
-
-            # Add rotation controls (shown only when viewing images)
-            self.rotate_left_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/rotate.left@10x.png",
-                on_press=self._on_rotate_left,
-                position="left",
-                label=_("Rotate\nLeft")
-            )
-            self.rotate_left_btn.style.display = "none"  # Hidden by default
-
-            self.rotate_right_btn = self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/rotate.right@10x.png",
-                on_press=self._on_rotate_right,
-                position="left",
-                label=_("Rotate\nRight")
-            )
-            self.rotate_right_btn.style.display = "none"  # Hidden by default
-
-            # Add step selector dropdown in center of bottom toolbar
-            import toga
-            self.step_selector = toga.Selection(
-                items=["No steps loaded"],
-                on_change=self._on_step_selected,
-                style=Pack(flex=1, margin=(5, 10))
-            )
-            self.step_selector.enabled = False
-
-            # Add to toolbar center
-            if hasattr(self.bottom_toolbar, 'center_content'):
-                self.bottom_toolbar.center_content.add(self.step_selector)
-                logger.debug("Added step selector to bottom toolbar center")
-            else:
-                logger.warning("Bottom toolbar has no center_content attribute")
+            # Edit mode state
+            self.is_edit_mode = False
 
             # Set toolbars using BaseView method
             self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
@@ -269,7 +474,182 @@ class OutputView(BaseView):
 
         except Exception as e:
             logger.error(f"Failed to set up toolbars: {e}")
-    
+
+    def _create_edit_mode_buttons(self):
+        """Create edit mode buttons for bottom toolbar using unified command system"""
+        try:
+            from fichero.shared.commands import CommandRegistry
+
+            logger.info(f"🔧 Creating edit mode buttons for bottom toolbar (id={id(self.bottom_toolbar)})")
+
+            # Get command registry
+            registry = CommandRegistry.get_instance()
+
+            # Add edit commands as toolbar buttons (edit mode only)
+            # Commands are now registered via ViewCommandMixin in define_commands()
+            # All edit buttons removed per user request - access via Edit menu and keyboard shortcuts
+            edit_commands = [
+                # No toolbar buttons - all commands available via menu/shortcuts
+            ]
+
+            for command_id, position in edit_commands:
+                command = registry.get(command_id)
+                if command and command.show_in_bottom_toolbar:
+                    # Use add_command_button with mode="edit"
+                    btn = self.bottom_toolbar.add_command_button(
+                        command=command,
+                        position=position,
+                        mode="edit"
+                    )
+                    # Store button references for enable/disable operations
+                    if "rotate_left" in command_id:
+                        self.rotate_left_btn = btn
+                    elif "rotate_right" in command_id:
+                        self.rotate_right_btn = btn
+                    elif "crop" in command_id:
+                        self.crop_btn = btn
+                    elif "reset" in command_id:
+                        self.reset_btn = btn
+
+            logger.info(f"✅ Created {len(self.bottom_toolbar._edit_buttons)} edit mode buttons using unified command system")
+
+        except Exception as e:
+            logger.error(f"Failed to create edit mode buttons: {e}")
+
+    def _on_edit_pressed(self, widget):
+        """Handle Edit button press - toggle edit mode"""
+        try:
+            self.is_edit_mode = not self.is_edit_mode
+
+            if self.is_edit_mode:
+                # Enter edit mode
+                logger.info("Entering edit mode")
+                self._enter_edit_mode()
+            else:
+                # Exit edit mode
+                logger.info("Exiting edit mode")
+                self._exit_edit_mode()
+
+        except Exception as e:
+            logger.error(f"Failed to toggle edit mode: {e}")
+
+    def _enter_edit_mode(self):
+        """Enter edit mode - show edit toolbar"""
+        try:
+            # Update Edit button text to "Done"
+            if hasattr(self, 'edit_btn'):
+                # Find the button in the toolbar and update its text
+                # Note: Toga buttons don't support text updates easily, so we'll use coordinator
+                pass
+
+            # Use the toolbar coordinator to switch to edit mode
+            # Pass view_id so toolbar can query declarative commands
+            if self.coordinator:
+                from fichero.shared.toolbars.toolbar_coordinator import EditModeState
+                # Pass view_id for declarative command system
+                self.coordinator.set_edit_mode(
+                    EditModeState.EDIT,
+                    context={'view_id': 'output'}
+                )
+
+            logger.debug("Entered output edit mode")
+
+        except Exception as e:
+            logger.error(f"Failed to enter edit mode: {e}")
+
+    def _exit_edit_mode(self):
+        """Exit edit mode - restore normal toolbar"""
+        try:
+            # Update Done button back to "Edit"
+            if hasattr(self, 'edit_btn'):
+                pass
+
+            # Use the toolbar coordinator to switch to normal mode
+            if self.coordinator:
+                from fichero.shared.toolbars.toolbar_coordinator import EditModeState
+                # Pass view_id for consistency with declarative system
+                self.coordinator.set_edit_mode(
+                    EditModeState.NORMAL,
+                    context={'view_id': 'output'}
+                )
+
+            logger.debug("Exited output edit mode")
+
+        except Exception as e:
+            logger.error(f"Failed to exit edit mode: {e}")
+
+    async def _on_rotate_left(self, widget):
+        """Rotate image 90 degrees counter-clockwise"""
+        try:
+            if hasattr(self, 'current_webview') and self.current_webview:
+                await self.current_webview.evaluate_javascript("rotateLeft();")
+                logger.debug("Rotate: left (counter-clockwise)")
+        except Exception as e:
+            logger.error(f"Error rotating left: {e}")
+
+    async def _on_rotate_right(self, widget):
+        """Rotate image 90 degrees clockwise"""
+        try:
+            if hasattr(self, 'current_webview') and self.current_webview:
+                await self.current_webview.evaluate_javascript("rotateRight();")
+                logger.debug("Rotate: right (clockwise)")
+        except Exception as e:
+            logger.error(f"Error rotating right: {e}")
+
+    async def _on_crop(self, widget):
+        """Crop image (placeholder for future implementation)"""
+        try:
+            logger.info("Crop button pressed - feature to be implemented")
+            # TODO: Implement crop functionality
+        except Exception as e:
+            logger.error(f"Error cropping: {e}")
+
+    async def _on_reset(self, widget):
+        """Reset image to original state"""
+        try:
+            if hasattr(self, 'current_webview') and self.current_webview:
+                # Reset zoom to fit and rotation to 0
+                await self.current_webview.evaluate_javascript("fitToWindow(); rotation = 0; updateImageSize();")
+                logger.debug("Reset image to original state")
+        except Exception as e:
+            logger.error(f"Error resetting image: {e}")
+
+    # Zoom command handlers
+    async def _on_zoom_in(self, widget=None):
+        """Zoom in"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("zoomIn();")
+
+    async def _on_zoom_out(self, widget=None):
+        """Zoom out"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("zoomOut();")
+
+    async def _on_zoom_100(self, widget=None):
+        """Zoom to 100% (actual size)"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("actualSize();")
+
+    async def _on_zoom_fit(self, widget=None):
+        """Zoom to fit window"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("fitToWindow();")
+
+    async def _on_zoom_fit_width(self, widget=None):
+        """Zoom to fit width"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("fitToWidth();")
+
+    async def _on_zoom_fit_height(self, widget=None):
+        """Zoom to fit height"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("fitToHeight();")
+
+    async def _on_zoom_selection(self, widget=None):
+        """Zoom to selected area (if selection exists)"""
+        if hasattr(self, 'current_webview') and self.current_webview:
+            await self.current_webview.evaluate_javascript("zoomToSelection();")
+
     def load_output(self, file_path: Path = None, source_files: List[Path] = None, source_index: int = 0,
                    output_root_path: Path = None, item_id: str = None):
         """Load output from Director-processed file or original file
@@ -449,20 +829,19 @@ class OutputView(BaseView):
 
             current_step = self.processing_steps[self.current_step_index]
 
-            # Update bottom toolbar title to show step indicator (truncate tool name if needed)
-            if hasattr(self, 'step_title') and self.step_title:
-                tool_name = current_step.tool_name
-                max_tool_length = 30
-                if len(tool_name) > max_tool_length:
-                    tool_name = tool_name[:max_tool_length-3] + "..."
-                self.step_title.text = f"Step {self.current_step_index + 1}/{len(self.processing_steps)}: {tool_name}"
-
-            # Show/hide step navigation buttons based on position (use display to remove from layout)
+            # Update step navigation buttons based on position (use display to remove from layout)
             has_prev_step = self.current_step_index > 0
             has_next_step = self.current_step_index < len(self.processing_steps) - 1
 
             self.prev_step_btn.style.display = "pack" if has_prev_step else "none"
             self.next_step_btn.style.display = "pack" if has_next_step else "none"
+
+            # Update file navigation buttons on bottom toolbar
+            has_prev_file = self.source_files and self.current_source_index > 0
+            has_next_file = self.source_files and self.current_source_index < len(self.source_files) - 1
+
+            self.bottom_prev_file_btn.style.display = "pack" if has_prev_file else "none"
+            self.bottom_next_file_btn.style.display = "pack" if has_next_file else "none"
 
         except Exception as e:
             logger.error(f"Error updating navigation: {e}")
@@ -521,8 +900,7 @@ class OutputView(BaseView):
                 self.top_toolbar.title_label.text = "File 1/1"
 
             # Show/hide buttons based on position (use display to remove from layout)
-            self.prev_file_btn.style.display = "pack" if has_prev else "none"
-            self.next_file_btn.style.display = "pack" if has_next else "none"
+            # Note: Top toolbar file nav buttons removed per user request
 
             logger.debug(f"File nav buttons: prev={has_prev}, next={has_next}, source={self.current_source_index + 1}/{len(self.source_files)}")
 
@@ -551,77 +929,39 @@ class OutputView(BaseView):
             self._load_current_file()
             self._update_navigation()
 
-    async def _on_zoom_fit(self, widget):
-        """Fit image to window"""
+    def _on_back_to_collection(self, widget=None):
+        """Navigate back to collection view using navigation controller"""
         try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("fitToWindow();")
-                logger.debug("Zoom: fit to window")
-        except Exception as e:
-            logger.error(f"Error fitting image: {e}")
+            if hasattr(self.app, 'view_integration') and hasattr(self.app.view_integration, 'navigation_controller'):
+                nav_controller = self.app.view_integration.navigation_controller
 
-    async def _on_zoom_fit_width(self, widget):
-        """Fit image width to window"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("fitToWidth();")
-                logger.debug("Zoom: fit to width")
+                # Navigate back once (output -> collection)
+                if hasattr(nav_controller, 'navigate_back'):
+                    nav_controller.navigate_back()
+                    logger.info("Navigated back to collection view")
+                else:
+                    logger.warning("NavigationController has no navigate_back method")
+            else:
+                logger.warning("Navigation controller not available")
         except Exception as e:
-            logger.error(f"Error fitting to width: {e}")
+            logger.error(f"Error navigating back to collection: {e}")
 
-    async def _on_zoom_fit_height(self, widget):
-        """Fit image height to window"""
+    def _on_back_to_library(self, widget=None):
+        """Navigate back to library view using navigation controller"""
         try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("fitToHeight();")
-                logger.debug("Zoom: fit to height")
-        except Exception as e:
-            logger.error(f"Error fitting to height: {e}")
+            if hasattr(self.app, 'view_integration') and hasattr(self.app.view_integration, 'navigation_controller'):
+                nav_controller = self.app.view_integration.navigation_controller
 
-    async def _on_zoom_100(self, widget):
-        """Set image to actual size (100%)"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("actualSize();")
-                logger.debug("Zoom: 100%")
+                # Navigate to library directly
+                if hasattr(nav_controller, 'navigate_to_library'):
+                    nav_controller.navigate_to_library()
+                    logger.info("Navigated back to library view")
+                else:
+                    logger.warning("NavigationController has no navigate_to_library method")
+            else:
+                logger.warning("Navigation controller not available")
         except Exception as e:
-            logger.error(f"Error setting actual size: {e}")
-
-    async def _on_zoom_in(self, widget):
-        """Zoom in"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("zoomIn();")
-                logger.debug("Zoom: in")
-        except Exception as e:
-            logger.error(f"Error zooming in: {e}")
-
-    async def _on_zoom_out(self, widget):
-        """Zoom out"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("zoomOut();")
-                logger.debug("Zoom: out")
-        except Exception as e:
-            logger.error(f"Error zooming out: {e}")
-
-    async def _on_rotate_left(self, widget):
-        """Rotate image 90 degrees counter-clockwise"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("rotateLeft();")
-                logger.debug("Rotate: left (counter-clockwise)")
-        except Exception as e:
-            logger.error(f"Error rotating left: {e}")
-
-    async def _on_rotate_right(self, widget):
-        """Rotate image 90 degrees clockwise"""
-        try:
-            if hasattr(self, 'current_webview') and self.current_webview:
-                await self.current_webview.evaluate_javascript("rotateRight();")
-                logger.debug("Rotate: right (clockwise)")
-        except Exception as e:
-            logger.error(f"Error rotating right: {e}")
+            logger.error(f"Error navigating back to library: {e}")
 
     async def _save_viewer_state(self):
         """Save current viewer state (zoom, rotation, scroll position)"""
@@ -653,21 +993,6 @@ class OutputView(BaseView):
         except Exception as e:
             logger.debug(f"Could not restore viewer state: {e}")
 
-    def _show_zoom_controls(self, show: bool):
-        """Show or hide zoom and rotation control buttons"""
-        try:
-            display = "pack" if show else "none"
-            self.zoom_out_btn.style.display = display
-            self.zoom_fit_btn.style.display = display
-            self.zoom_fit_width_btn.style.display = display
-            self.zoom_fit_height_btn.style.display = display
-            self.zoom_100_btn.style.display = display
-            self.zoom_in_btn.style.display = display
-            self.rotate_left_btn.style.display = display
-            self.rotate_right_btn.style.display = display
-            logger.debug(f"Image controls: {'shown' if show else 'hidden'}")
-        except Exception as e:
-            logger.error(f"Error toggling image controls: {e}")
 
     def _load_current_file(self):
         """Load current file and update display"""
@@ -770,37 +1095,30 @@ class OutputView(BaseView):
             # Image formats - wrap in HTML for better display control
             if suffix in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.gif', '.bmp', '.webp']:
                 viewer = self._create_webview_image_viewer(file_path)
-                self._show_zoom_controls(True)  # Show zoom controls for images
                 return viewer
 
             # HTML files - direct WebView
             elif suffix in ['.html', '.htm']:
-                self._show_zoom_controls(False)  # Hide zoom controls
                 return self._create_webview_direct(file_path)
 
             # PDF - WebView with PDF.js or native PDF support
             elif suffix == '.pdf':
-                self._show_zoom_controls(False)  # Hide zoom controls
                 return self._create_webview_pdf_viewer(file_path)
 
             # Text-based formats - wrap in HTML for syntax highlighting
             elif suffix in ['.txt', '.md', '.log', '.csv', '.xml', '.json']:
-                self._show_zoom_controls(False)  # Hide zoom controls
                 return self._create_webview_text_viewer(file_path)
 
             # Office documents - convert to HTML
             elif suffix in ['.docx', '.doc']:
-                self._show_zoom_controls(False)  # Hide zoom controls
                 return self._create_webview_docx_viewer(file_path)
 
             # Fallback - show as text in HTML
             else:
-                self._show_zoom_controls(False)  # Hide zoom controls
                 return self._create_webview_text_viewer(file_path)
 
         except Exception as e:
             logger.error(f"Error creating viewer: {e}")
-            self._show_zoom_controls(False)  # Hide zoom controls on error
             # Ultimate fallback - show error message
             return toga.Label(f"Error loading file: {e}", style=Pack(margin=20))
 
@@ -886,12 +1204,21 @@ class OutputView(BaseView):
                         cursor: move;
                         pointer-events: auto;
                     }}
+                    #selectionBox {{
+                        position: absolute;
+                        border: 2px dashed #FF9800;
+                        background: rgba(255, 152, 0, 0.1);
+                        display: none;
+                        pointer-events: none;
+                        z-index: 10;
+                    }}
                 </style>
             </head>
             <body>
                 <div id="imageContainer">
                     <div id="imageWrapper">
                         <img id="image" src="data:{mime_type};base64,{image_data}" alt="{file_path.name}">
+                        <div id="selectionBox"></div>
                     </div>
                 </div>
                 <div id="minimap">
@@ -902,6 +1229,9 @@ class OutputView(BaseView):
                     let scale = 1;
                     let rotation = 0;  // Track rotation in degrees (0, 90, 180, 270)
                     let isDragging = false;
+                    let isSelecting = false;
+                    let selectionStart = null;
+                    let selectionRect = null;
                     let startX, startY, scrollLeft, scrollTop;
 
                     const img = document.getElementById('image');
@@ -910,6 +1240,7 @@ class OutputView(BaseView):
                     const minimap = document.getElementById('minimap');
                     const minimapCanvas = document.getElementById('minimapCanvas');
                     const minimapViewport = document.getElementById('minimapViewport');
+                    const selectionBox = document.getElementById('selectionBox');
                     const ctx = minimapCanvas.getContext('2d');
 
                     // Load image fitted to window by default
@@ -994,6 +1325,31 @@ class OutputView(BaseView):
                     function rotateRight() {{
                         rotation = (rotation + 90) % 360;
                         updateImageSize();
+                    }}
+
+                    function zoomToSelection() {{
+                        // Check if there's a stored selection
+                        if (!selectionRect) {{
+                            console.log("No selection to zoom to");
+                            return;
+                        }}
+
+                        // Calculate the scale needed to fit the selection
+                        const containerRect = container.getBoundingClientRect();
+                        const scaleX = containerRect.width / selectionRect.width;
+                        const scaleY = containerRect.height / selectionRect.height;
+                        scale = Math.min(scaleX, scaleY, 5);  // Cap at 5x zoom
+
+                        updateImageSize();
+
+                        // Center the selection in the viewport
+                        const selectionCenterX = selectionRect.x + selectionRect.width / 2;
+                        const selectionCenterY = selectionRect.y + selectionRect.height / 2;
+                        container.scrollLeft = selectionCenterX - containerRect.width / 2;
+                        container.scrollTop = selectionCenterY - containerRect.height / 2;
+
+                        // Hide selection box after zooming
+                        selectionBox.style.display = 'none';
                     }}
 
                     function restoreViewerState(savedScale, savedRotation, savedScrollX, savedScrollY) {{
@@ -1155,35 +1511,113 @@ class OutputView(BaseView):
                         // Otherwise allow native scrolling
                     }}, {{ passive: false }});
 
-                    // Pan with mouse drag
+                    // Pan with mouse drag OR selection with Shift+drag
                     container.addEventListener('mousedown', function(e) {{
-                        isDragging = true;
-                        container.classList.add('grabbing');
-                        startX = e.pageX - container.offsetLeft;
-                        startY = e.pageY - container.offsetTop;
-                        scrollLeft = container.scrollLeft;
-                        scrollTop = container.scrollTop;
+                        // Shift key enables selection mode
+                        if (e.shiftKey) {{
+                            isSelecting = true;
+                            isDragging = false;
+
+                            // Get mouse position relative to the image
+                            const rect = img.getBoundingClientRect();
+                            selectionStart = {{
+                                x: e.clientX - rect.left,
+                                y: e.clientY - rect.top
+                            }};
+
+                            // Show selection box at start position
+                            selectionBox.style.left = e.clientX - container.getBoundingClientRect().left + 'px';
+                            selectionBox.style.top = e.clientY - container.getBoundingClientRect().top + 'px';
+                            selectionBox.style.width = '0px';
+                            selectionBox.style.height = '0px';
+                            selectionBox.style.display = 'block';
+
+                            container.style.cursor = 'crosshair';
+                        }} else {{
+                            isDragging = true;
+                            isSelecting = false;
+                            container.classList.add('grabbing');
+                            startX = e.pageX - container.offsetLeft;
+                            startY = e.pageY - container.offsetTop;
+                            scrollLeft = container.scrollLeft;
+                            scrollTop = container.scrollTop;
+                        }}
                     }});
 
                     container.addEventListener('mouseleave', function() {{
                         isDragging = false;
+                        isSelecting = false;
                         container.classList.remove('grabbing');
+                        container.style.cursor = 'grab';
                     }});
 
-                    container.addEventListener('mouseup', function() {{
+                    container.addEventListener('mouseup', function(e) {{
+                        if (isSelecting) {{
+                            // Finalize selection
+                            isSelecting = false;
+                            container.style.cursor = 'grab';
+
+                            // Save selection rect for zoom-to-selection
+                            if (selectionRect && selectionRect.width > 10 && selectionRect.height > 10) {{
+                                console.log("Selection created:", selectionRect);
+                            }} else {{
+                                // Too small, clear it
+                                selectionBox.style.display = 'none';
+                                selectionRect = null;
+                            }}
+                        }}
+
                         isDragging = false;
                         container.classList.remove('grabbing');
                     }});
 
                     container.addEventListener('mousemove', function(e) {{
-                        if (!isDragging) return;
-                        e.preventDefault();
-                        const x = e.pageX - container.offsetLeft;
-                        const y = e.pageY - container.offsetTop;
-                        const walkX = (x - startX);
-                        const walkY = (y - startY);
-                        container.scrollLeft = scrollLeft - walkX;
-                        container.scrollTop = scrollTop - walkY;
+                        if (isSelecting) {{
+                            // Update selection box
+                            const containerRect = container.getBoundingClientRect();
+                            const currentX = e.clientX - containerRect.left;
+                            const currentY = e.clientY - containerRect.top;
+
+                            const startXContainer = parseFloat(selectionBox.style.left);
+                            const startYContainer = parseFloat(selectionBox.style.top);
+
+                            const width = currentX - startXContainer;
+                            const height = currentY - startYContainer;
+
+                            // Update selection box visual
+                            if (width >= 0) {{
+                                selectionBox.style.width = width + 'px';
+                            }} else {{
+                                selectionBox.style.left = currentX + 'px';
+                                selectionBox.style.width = Math.abs(width) + 'px';
+                            }}
+
+                            if (height >= 0) {{
+                                selectionBox.style.height = height + 'px';
+                            }} else {{
+                                selectionBox.style.top = currentY + 'px';
+                                selectionBox.style.height = Math.abs(height) + 'px';
+                            }}
+
+                            // Store selection rectangle in image coordinates
+                            const imgRect = img.getBoundingClientRect();
+                            selectionRect = {{
+                                x: parseFloat(selectionBox.style.left) + container.scrollLeft,
+                                y: parseFloat(selectionBox.style.top) + container.scrollTop,
+                                width: Math.abs(width),
+                                height: Math.abs(height)
+                            }};
+
+                        }} else if (isDragging) {{
+                            // Pan the image
+                            e.preventDefault();
+                            const x = e.pageX - container.offsetLeft;
+                            const y = e.pageY - container.offsetTop;
+                            const walkX = (x - startX);
+                            const walkY = (y - startY);
+                            container.scrollLeft = scrollLeft - walkX;
+                            container.scrollTop = scrollTop - walkY;
+                        }}
                     }});
 
                     // Pinch-to-zoom support for touch devices
@@ -1385,12 +1819,9 @@ class OutputView(BaseView):
             self.top_toolbar.title_label.text = "File 1/1"
 
         # Hide file navigation buttons (no other files in this context)
-        self.prev_file_btn.style.display = "none"
-        self.next_file_btn.style.display = "none"
-
-        # Update bottom toolbar title to show "Step 1/1: Original"
-        if hasattr(self, 'step_title') and self.step_title:
-            self.step_title.text = "Step 1/1: Original"
+        # Note: Top toolbar file nav buttons removed per user request
+        self.bottom_prev_file_btn.style.display = "none"
+        self.bottom_next_file_btn.style.display = "none"
 
         # Hide step navigation buttons (no processing steps)
         self.prev_step_btn.style.display = "none"
@@ -1492,6 +1923,22 @@ class OutputView(BaseView):
 
         except Exception as e:
             logger.error(f"Failed to update step selector: {e}")
+
+    def _on_plan_selected(self, widget):
+        """Handle plan selection from dropdown"""
+        try:
+            if not widget.value:
+                return
+
+            # Extract plan information from selection
+            selection_text = str(widget.value)
+            logger.info(f"Plan selected from dropdown: {selection_text}")
+
+            # TODO: Implement plan switching logic when needed
+            # For now, this is a display-only dropdown showing the current plan
+
+        except Exception as e:
+            logger.error(f"Failed to handle plan selection: {e}")
 
     def _on_step_selected(self, widget):
         """Handle step selection from dropdown"""

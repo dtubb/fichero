@@ -13,11 +13,59 @@ logger = logging.getLogger(__name__)
 
 class MenuManager:
     """Minimal menu manager - no custom overrides, pure Toga standard"""
-    
+
     def __init__(self, app):
         """Initialize the menu manager"""
         self.app = app
+        self._command_map = {}  # Maps FicheroCommand.id to Toga Command
         logger.info("MenuManager initialized - using pure Toga standard commands")
+
+    def add_command(self, fichero_command, group=None):
+        """
+        Add a FicheroCommand to the menu system with keyboard shortcut.
+
+        This creates a Toga Command with keyboard shortcut support and adds it
+        to the app's command set. The command can be triggered from menus,
+        toolbars, or direct keyboard shortcuts.
+
+        Args:
+            fichero_command: FicheroCommand instance with id, label, action, and shortcut
+            group: Optional Toga command group (e.g., toga.Group.EDIT, toga.Group.VIEW)
+
+        Example:
+            # In app initialization:
+            from fichero.shared.commands import CommandRegistry
+
+            registry = CommandRegistry.get_instance()
+            rotate_left = registry.get("output.rotate_left")
+            menu_manager.add_command(rotate_left, group=toga.Group.EDIT)
+        """
+        try:
+            # Create wrapper action that logs menu selection before executing
+            def logged_action(widget):
+                logger.info(f"🎯 Menu/Shortcut triggered: {fichero_command.id} ({fichero_command.label})")
+                return fichero_command.execute(widget)
+
+            # Create Toga command from FicheroCommand
+            toga_cmd = toga.Command(
+                action=logged_action,
+                text=fichero_command.label,
+                tooltip=fichero_command.description,
+                shortcut=fichero_command.shortcut,
+                group=group or toga.Group.COMMANDS,
+                section=0
+            )
+
+            # Add to app commands
+            self.app.commands.add(toga_cmd)
+
+            # Store mapping for later reference
+            self._command_map[fichero_command.id] = toga_cmd
+
+            logger.debug(f"Added command to menu: {fichero_command.label} (shortcut: {fichero_command.shortcut})")
+
+        except Exception as e:
+            logger.error(f"Failed to add command {fichero_command.id}: {e}")
     
     def customize_standard_commands(self):
         """No customizations - let Toga handle everything"""

@@ -21,7 +21,7 @@ from typing import Optional
 # Install basic gettext for now - proper translation setup happens after Toga app creation
 gettext.install('fichero')
 
-from fichero.menus import MenuManager
+# MenuManager import removed - using CommandManager now
 # Document model removed - using library approach instead
 from fichero.core.app_initializer import initialize_gui_app
 from fichero.core.error_handler import create_gui_error_handler
@@ -211,6 +211,10 @@ class FicheroApp(toga.App):
         """Override Toga's default About dialog with custom About window"""
         self.show_about()
 
+    def preferences(self):
+        """Override Toga's default Preferences dialog with custom Settings window"""
+        self.show_settings()
+
     def _setup_gui_interface(self):
         """Set up GUI-specific interface elements"""
         print("🔍 Starting _setup_gui_interface...")
@@ -222,22 +226,23 @@ class FicheroApp(toga.App):
             current_platform = toga.platform.current_platform
             is_desktop = current_platform not in ['iOS', 'android']
             
+            # Initialize unified CommandManager (platform-adaptive)
+            # Desktop: Creates native menu items with keyboard shortcuts
+            # Mobile: Stores commands for toolbar use only (no native menus)
+            from fichero.shared.commands import CommandManager
+            self.command_manager = CommandManager.get_instance(self)
+
             if is_desktop:
-                # Desktop only: Initialize command manager for native menus/toolbars
-                from fichero.windows.main.command_manager import CommandManagerRefactored
-                self.command_manager = CommandManagerRefactored(self)
-                self.command_manager.add_to_app()
-                
-                # Initialize menu system (only handles custom overrides)
-                self.menu_manager = MenuManager(self)
-                self.menu_manager.customize_standard_commands()
-                
-                # Customize standard commands (remove unimplemented ones)
-                self.menu_manager.customize_standard_commands()
+                # Desktop only: Customize standard commands (remove unimplemented ones)
+                self.command_manager.customize_standard_commands()
+                logger.info("CommandManager initialized for desktop with native menus")
             else:
-                # Mobile: Skip command manager and menu system (use mobile toolbar only)
-                self.command_manager = None
-                self.menu_manager = None
+                # Mobile: CommandManager stores commands for toolbar use
+                logger.info("CommandManager initialized for mobile (toolbar-only mode)")
+
+            # NOTE: View-specific commands are registered by each view when created
+            # (e.g., OutputView registers its edit/zoom/nav commands)
+            # This avoids warnings about commands not existing during app initialization
             
             # Create main window for collection library view (only once)
             print("🔍 Creating MainWindow...")
@@ -262,6 +267,9 @@ class FicheroApp(toga.App):
 
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
+
+            # Note: Native toolbar is built by MainWindow._update_toolbar_for_*_view()
+            # when each view is shown. Don't build it here - MainWindow handles timing.
 
         except Exception as e:
             error_msg = f"GUI interface setup failed: {e}"

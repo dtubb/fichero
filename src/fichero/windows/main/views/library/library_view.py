@@ -13,6 +13,7 @@ from typing import Optional, List, Dict, Any
 
 from fichero.shared.views.base_view import BaseView
 from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
+from fichero.shared.commands import FicheroCommand, ViewCommandMixin
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 from fichero.shared.toolbars.color_constants import (
     COLLECTION_ACTIVE, COLLECTION_INACTIVE, VIEW_BACKGROUND
@@ -21,13 +22,16 @@ from fichero.shared.toolbars.color_constants import (
 logger = logging.getLogger(__name__)
 
 
-class LibraryView(BaseView):
+class LibraryView(BaseView, ViewCommandMixin):
     """Library view showing all collections using the BaseView system"""
-    
+
     def __init__(self, app, is_mobile: bool = False):
         """Initialize library view"""
         print(f"🔧 LibraryView.__init__ starting with app={app}, is_mobile={is_mobile}")
         logger.debug(f"LibraryView.__init__ called with app={app}, is_mobile={is_mobile}")
+
+        # Set view_id BEFORE super().__init__
+        self.view_id = "library"
 
         # Initialize collections attribute with empty list
         print("🔧 Setting initial attributes...")
@@ -41,7 +45,17 @@ class LibraryView(BaseView):
 
         print("🔧 Calling super().__init__...")
         super().__init__(app, is_mobile)
+        ViewCommandMixin.__init__(self)
         print("✅ BaseView initialization complete")
+
+        # Define and register commands
+        print("🔧 Defining commands...")
+        self.define_commands()
+        self.register_commands()
+        print("✅ Commands defined and registered")
+
+        # Note: Native toolbar will be built by MainWindow after this view is created
+        # and app.main_window is set. Don't build it here - app.main_window doesn't exist yet!
 
         # Create toolbars
         print("🔧 Creating toolbars...")
@@ -62,25 +76,32 @@ class LibraryView(BaseView):
         except Exception as e:
             logger.warning(f"Could not register toolbar coordinator with navigation controller: {e}")
 
-        # Library is root view - use TopToolbar without back navigation + add buttons via composition
-        self.top_toolbar = TopToolbar(
-            app=app,
-            title="",  # Let NavigationController provide dynamic title
-            auto_mobile_nav=False,
-            is_mobile=is_mobile,
-            coordinator=self.coordinator
-        )
-        self._add_library_toolbar_buttons()
+        # MOBILE ONLY: Create custom Toga toolbars
+        # Desktop uses ONLY native window.toolbar (no custom TopToolbar/BottomToolbar widgets)
+        if is_mobile:
+            # Library is root view - use TopToolbar without back navigation + add buttons via composition
+            self.top_toolbar = TopToolbar(
+                app=app,
+                title="",  # Let NavigationController provide dynamic title
+                auto_mobile_nav=False,
+                is_mobile=is_mobile,
+                coordinator=self.coordinator
+            )
 
-        self.bottom_toolbar = BottomToolbar(
-            app=app,
-            is_mobile=is_mobile,
-            coordinator=self.coordinator
-        )
-        self._add_library_bottom_toolbar_buttons()
-        print("🔧 Setting toolbars...")
-        self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-        print("✅ Toolbars created and set")
+            self.bottom_toolbar = BottomToolbar(
+                app=app,
+                is_mobile=is_mobile,
+                coordinator=self.coordinator
+            )
+            # Toolbars will be populated automatically by set_toolbars() from command definitions
+            print("🔧 Setting mobile toolbars...")
+            self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
+            print("✅ Mobile toolbars created and set")
+        else:
+            # Desktop: No custom toolbars - use native window.toolbar exclusively
+            self.top_toolbar = None
+            self.bottom_toolbar = None
+            print("✅ Desktop mode: Using native window.toolbar only")
 
         # Register callbacks
         print("🔧 Registering toolbar callbacks...")
@@ -124,6 +145,10 @@ class LibraryView(BaseView):
     def show(self):
         """Called when view becomes active - refresh DetailedList to clear cached selections"""
         try:
+            # Tell the coordinator that this view is now active
+            if hasattr(self, 'coordinator') and self.coordinator:
+                self.coordinator.set_active_view('library')
+
             # Refresh the collections display to clear any cached DetailedList selection state
             self._create_collections_display()
             logger.info("🔄 Library view refreshed on show() to clear cached selections")
@@ -486,11 +511,12 @@ class LibraryView(BaseView):
             # Edit mode is now handled automatically by smart toolbar system
             # Edit button will trigger coordinator.set_edit_mode() automatically
 
-            # Bottom toolbar callbacks
-            self.bottom_toolbar.on_activity_monitor = self._on_activity_monitor
-            self.bottom_toolbar.on_library_settings = self._on_library_settings
-            self.bottom_toolbar.on_global_inbox = self._on_global_inbox
-            self.bottom_toolbar.on_tags = self._on_tags
+            # Bottom toolbar callbacks (mobile only - desktop uses native menus)
+            if self.bottom_toolbar:
+                self.bottom_toolbar.on_activity_monitor = self._on_activity_monitor
+                self.bottom_toolbar.on_library_settings = self._on_library_settings
+                self.bottom_toolbar.on_global_inbox = self._on_global_inbox
+                self.bottom_toolbar.on_tags = self._on_tags
 
             # Register sort handler with toolbar coordinator
             if self.coordinator:
@@ -512,7 +538,21 @@ class LibraryView(BaseView):
             # Fallback to basic functionality
             if hasattr(self, 'on_add_collection') and self.on_add_collection:
                 self.on_add_collection()
-    
+
+    def _on_new_collection(self, widget=None):
+        """Handle new collection command (Cmd+N) - creates empty collection"""
+        logger.debug("New collection requested")
+        try:
+            # Create a new empty collection using library system
+            self._add_collection_with_library()
+        except Exception as e:
+            logger.error(f"Failed to create new collection: {e}")
+            # Show error message to user
+            try:
+                self._show_message("Error", f"Failed to create new collection: {str(e)}")
+            except:
+                logger.error("Could not show error dialog")
+
     def _on_edit_collection(self, widget=None):
         """Handle edit collection action"""
         logger.debug("Edit collection requested")
@@ -673,7 +713,7 @@ class LibraryView(BaseView):
                 )
                 
                 # Add to library storage
-                success = self.library_manager.storage.add_collection(new_collection)
+                success = self.library_service.storage.add_collection(new_collection)
                 if success:
                     logger.info(f"Collection '{collection_name}' added via library system")
                     
@@ -1131,12 +1171,302 @@ class LibraryView(BaseView):
         
         logger.debug("Collection management view callbacks registered")
     
+    def define_commands(self):
+        """Define all commands for LibraryView"""
+        try:
+            # Note: _() is available globally via gettext.install() in app.py
+            self.commands = {
+                # ===== FILE MENU - NEW COLLECTION =====
+                'new_collection': FicheroCommand(
+                    id=f'{self.view_id}.new_collection',
+                    label=_("New Collection…"),
+                    action=self._on_new_collection,
+                    shortcut=toga.Key.MOD_1 + 'n',  # Cmd+N (standard Mac shortcut for New)
+                    icon='resources/icons/toolbar/folder@10x.png',  # Folder icon for new collection
+                    description=_("Create a new empty collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    section=0,  # First section of File menu
+                    order=0,  # First item in section
+                    show_in_menu=True,  # Appear in File menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar
+                    show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop
+                    context='normal'  # Always visible on desktop
+                ),
+
+                # ===== FILE MENU - IMPORT SUBMENU PARENT =====
+                'import': FicheroCommand(
+                    id=f'{self.view_id}.import',
+                    label=_("Import"),
+                    action=None,  # Submenu parent has no action
+                    description=_("Import items into collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    section=1,  # Second section of File menu (with divider after New Collection)
+                    order=0,  # First item in this section
+                    show_in_menu=True,  # Appear in File menu on desktop
+                    show_in_toolbar=False,  # Not in toolbar
+                    show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop
+                    context='normal'  # Always visible on desktop
+                ),
+
+                # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
+                # These commands are nested under the Import submenu in menus
+                # But also appear as individual toolbar buttons on desktop
+                'import_file': FicheroCommand(
+                    id=f'{self.view_id}.import_file',
+                    label=_("File…"),
+                    action=self._on_import_files,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Import files from disk"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=0,  # First item in Import submenu
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_top_toolbar=True,  # FIXED: Show in desktop top toolbar ✅
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
+                'import_folder': FicheroCommand(
+                    id=f'{self.view_id}.import_folder',
+                    label=_("Folder…"),
+                    action=self._on_import_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Import folder from disk"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=1,  # Second item in Import submenu
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar as individual button
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
+                'import_url': FicheroCommand(
+                    id=f'{self.view_id}.import_url',
+                    label=_("URL…"),
+                    action=self._on_import_urls,
+                    icon='resources/icons/toolbar/link.png',
+                    description=_("Import from URL"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=2,  # Third item in Import submenu
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar as individual button
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
+                # ===== WINDOW NAVIGATION COMMANDS =====
+                # Desktop: Application/Window menus | Mobile: Bottom toolbar
+                'settings': FicheroCommand(
+                    id=f'{self.view_id}.settings',
+                    label=_("Settings…"),
+                    action=self._on_open_settings_window,
+                    shortcut=toga.Key.MOD_1 + ',',  # Standard macOS: Cmd+, (Command+Comma)
+                    icon='resources/icons/toolbar/settings.png',
+                    description=_("Open settings window"),
+                    group=toga.Group.APP,  # Application menu on desktop (Fichero menu on macOS)
+                    section=0,  # First section - before Plans/Prompts
+                    order=0,  # First item in section
+                    show_in_menu=True,  # Appear in App menu
+                    show_in_toolbar=True,  # Show in desktop toolbar ONLY (not mobile top toolbar)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'processing': FicheroCommand(
+                    id=f'{self.view_id}.processing',
+                    label=_("Processing"),
+                    action=self._on_open_processing_window,
+                    icon='resources/icons/toolbar/process.png',
+                    description=_("Open processing window"),
+                    group=toga.Group.WINDOW,  # Window menu on desktop
+                    show_in_menu=True,  # Appear in Window menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'about': FicheroCommand(
+                    id=f'{self.view_id}.about',
+                    label=_("About"),
+                    action=self._on_open_about_window,
+                    icon='resources/icons/toolbar/help.png',
+                    description=_("Open about window"),
+                    group=toga.Group.APP,  # Application menu on desktop (Fichero menu on macOS)
+                    show_in_menu=False,  # Don't add to App menu (Toga/system may provide About automatically)
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'activity': FicheroCommand(
+                    id=f'{self.view_id}.activity',
+                    label=_("Activity"),
+                    action=self._on_open_activity_monitor_window,
+                    icon='resources/icons/toolbar/activity.png',
+                    description=_("Open activity monitor"),
+                    group=toga.Group.WINDOW,  # Window menu on desktop
+                    show_in_menu=True,  # Appear in Window menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'plans': FicheroCommand(
+                    id=f'{self.view_id}.plans',
+                    label=_("Plans…"),
+                    action=self._on_open_plans_window,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 'l',  # Cmd+Shift+L
+                    icon='resources/icons/toolbar/plan.png',
+                    description=_("Open plans window"),
+                    group=toga.Group.APP,  # Application menu on desktop (Fichero menu on macOS)
+                    section=1,  # Second section - Settings/Plans/Prompts grouped
+                    order=1,  # Second item after Settings
+                    show_in_menu=True,  # Appear in App menu
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'prompts': FicheroCommand(
+                    id=f'{self.view_id}.prompts',
+                    label=_("Prompts…"),
+                    action=self._on_open_prompts_window,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 'p',  # Cmd+Shift+P
+                    icon='resources/icons/toolbar/prompt.png',
+                    description=_("Open prompts window"),
+                    group=toga.Group.APP,  # Application menu on desktop (Fichero menu on macOS)
+                    section=1,  # Second section - Settings/Plans/Prompts grouped
+                    order=2,  # Third item after Settings and Plans
+                    show_in_menu=True,  # Appear in App menu
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                'output': FicheroCommand(
+                    id=f'{self.view_id}.output',
+                    label=_("Output"),
+                    action=self._on_open_output_window,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Open output window"),
+                    group=toga.Group.WINDOW,  # Window menu on desktop
+                    show_in_menu=True,  # Appear in Window menu on desktop
+                    show_in_toolbar=False,  # Not in desktop toolbar (not needed)
+                    show_in_bottom_toolbar=False,  # Not in mobile toolbar
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+
+                # ===== EDIT MODE IMPORT COMMANDS =====
+                # These commands appear in edit mode on both mobile bottom toolbar and desktop bottom toolbar
+                'export': FicheroCommand(
+                    id=f'{self.view_id}.export',
+                    label=_("Export"),
+                    action=self._on_export_collection,
+                    icon='resources/icons/toolbar/download.png',
+                    description=_("Export selected collection"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both mobile and desktop
+                    context='edit'
+                ),
+
+                'bulk_import': FicheroCommand(
+                    id=f'{self.view_id}.bulk_import',
+                    label=_("Bulk Import"),
+                    action=self._on_import_bulk,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Bulk import items"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both mobile and desktop
+                    context='edit'
+                ),
+
+                'edit_import_urls': FicheroCommand(
+                    id=f'{self.view_id}.edit_import_urls',
+                    label=_("Import URLs"),
+                    action=self._on_import_urls,
+                    icon='resources/icons/toolbar/link.png',
+                    description=_("Import from URLs"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both mobile and desktop
+                    context='edit'
+                ),
+
+                'edit_import_files': FicheroCommand(
+                    id=f'{self.view_id}.edit_import_files',
+                    label=_("Import Files"),
+                    action=self._on_import_files,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Import files"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both mobile and desktop
+                    context='edit'
+                ),
+
+                'edit_import_folder': FicheroCommand(
+                    id=f'{self.view_id}.edit_import_folder',
+                    label=_("Import Folder"),
+                    action=self._on_import_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Import folder"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=False,  # Available on both mobile and desktop
+                    context='edit'
+                ),
+            }
+
+            logger.debug(f"Defined {len(self.commands)} commands for LibraryView")
+
+        except Exception as e:
+            logger.error(f"Failed to define LibraryView commands: {e}")
+            self.commands = {}
+
     def _on_initialize(self):
         """Called when view is initialized"""
         try:
             # Set up collection management-specific features
             logger.debug("Collection management view initialized")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize collection management view: {e}")
     
@@ -1266,193 +1596,69 @@ class LibraryView(BaseView):
             logger.error(f"Failed to toggle edit mode: {e}")
 
     def _update_toolbars_for_edit_mode(self):
-        """Update toolbars based on edit mode state using smart coordinator"""
+        """Update toolbars based on edit mode state using pure declarative system"""
         try:
             from fichero.shared.toolbars.toolbar_coordinator import EditModeState
 
             if self.is_edit_mode:
-                # Enable edit mode using coordinator (triggers add mode automatically)
-                self.coordinator.set_edit_mode(EditModeState.EDIT)
+                # Enable edit mode - pass view_id so toolbar can query declarative commands
+                self.coordinator.set_edit_mode(
+                    EditModeState.EDIT,
+                    context={'view_id': 'library'}
+                )
             else:
-                # Disable edit mode using coordinator
-                self.coordinator.set_edit_mode(EditModeState.NORMAL)
+                # Disable edit mode - pass view_id for consistency
+                self.coordinator.set_edit_mode(
+                    EditModeState.NORMAL,
+                    context={'view_id': 'library'}
+                )
 
         except Exception as e:
             logger.error(f"Failed to update toolbars for edit mode: {e}")
 
     def _on_edit_mode_changed(self, state, context: Dict[str, Any]):
-        """Handle edit mode changes from coordinator - enables add buttons"""
+        """Handle edit mode changes from coordinator - pure declarative system"""
         try:
             from fichero.shared.toolbars.toolbar_coordinator import EditModeState
 
-            # Swipe actions stay fixed - no need to update them
-            # Sort button is now handled by top_edit_actions in toolbar coordinator
-            # This callback is for managing the add buttons in edit mode
+            # Pure declarative system: Bottom toolbar will query CommandRegistry automatically
+            # for commands matching view_id='library', context='edit', show_in_bottom_toolbar=True
+            #
+            # No need to create action dicts or inject context - commands are already declared
+            # in define_commands() with proper metadata
 
-            if state == EditModeState.EDIT and context.get("edit_type") != "add_items":
-                # Only create add context if we don't already have it (prevents infinite loop)
-                self._create_add_context_once()
-            elif state == EditModeState.NORMAL:
-                # Exiting edit mode - clear add context
-                self._clear_add_context()
-
-            logger.debug(f"LibraryView edit mode changed to {state.value}")
+            logger.debug(f"LibraryView edit mode changed to {state.value} (pure declarative)")
 
         except Exception as e:
             logger.error(f"Failed to handle edit mode change: {e}")
 
-    def _create_add_context_once(self):
-        """Create add context once when entering edit mode"""
-        try:
-            # Get platform features
-            from fichero.windows.add.platform_features import detect_platform_features
-            platform_features = detect_platform_features(self.app)
-
-            # Create library-specific edit context with import buttons
-            edit_context = self.coordinator.create_view_edit_context(
-                "library",
-                platform_features.__dict__
-            )
-
-            # Add custom library-specific buttons to context before triggering edit mode
-            custom_buttons = [
-                {"id": "export", "title": _("Export"), "icon": "resources/icons/toolbar/download.png", "label": _("Export")},
-                {"id": "bulk", "title": "Bulk Import", "icon": "resources/icons/toolbar/document.png", "label": "Bulk"},
-                {"id": "urls", "title": "Import URLs", "icon": "resources/icons/toolbar/link.png", "label": "URLs"},
-            ]
-
-            # Add platform-specific buttons
-            if platform_features.file_import:
-                custom_buttons.append({"id": "files", "title": "Import Files", "icon": "resources/icons/toolbar/document.png", "label": "Files"})
-            if platform_features.folder_import:
-                custom_buttons.append({"id": "folder", "title": "Import Folder", "icon": "resources/icons/toolbar/folder@10x.png", "label": "Folder"})
-
-            # Add custom buttons to the context's bottom_edit_actions
-            if "bottom_edit_actions" not in edit_context:
-                edit_context["bottom_edit_actions"] = []
-            edit_context["bottom_edit_actions"].extend(custom_buttons)
-
-            # Update coordinator context WITHOUT triggering another edit mode change
-            self.coordinator._edit_context.update(edit_context)
-
-            # Register custom button handlers with coordinator
-            self.coordinator.register_navigation_handler("export", self._on_export_collection)
-            self.coordinator.register_navigation_handler("bulk", self._on_import_bulk)
-            self.coordinator.register_navigation_handler("urls", self._on_import_urls)
-            if platform_features.file_import:
-                self.coordinator.register_navigation_handler("files", self._on_import_files)
-            if platform_features.folder_import:
-                self.coordinator.register_navigation_handler("folder", self._on_import_folder)
-
-            # Notify bottom toolbar to rebuild with updated context
-            if self.coordinator.bottom_toolbar:
-                self.coordinator.bottom_toolbar.set_edit_mode(
-                    self.coordinator._edit_mode_state,
-                    self.coordinator._edit_context
-                )
-
-            logger.info("Entered add mode with import buttons")
-
-        except Exception as e:
-            logger.error(f"Failed to create add context: {e}")
-
-    def _clear_add_context(self):
-        """Clear add mode context"""
-        try:
-            self.coordinator._edit_context = {}
-            logger.info("Cleared add mode context")
-
-        except Exception as e:
-            logger.error(f"Failed to clear add context: {e}")
+    # REMOVED: Parallel non-declarative system methods
+    # - _create_add_context_once() - Created action dicts instead of using declared commands
+    # - _clear_add_context() - Cleared parallel system context
+    #
+    # Edit mode buttons are now declared as FicheroCommands in define_commands() above:
+    # - edit_import_urls, edit_import_files, edit_import_folder, export, bulk_import
+    # - All marked with context='edit', show_in_bottom_toolbar=True, mobile_only=True
+    #
+    # Bottom toolbar queries CommandRegistry.get_commands_for_view() to populate buttons automatically
 
 
     # Add dialog functionality available through edit mode buttons
 
-    def _add_library_toolbar_buttons(self):
-        """Add library-specific buttons using smart toolbar system"""
+    def _on_edit_pressed(self, widget=None):
+        """Handle Edit button press - wrapper for top toolbar handler"""
         try:
-            # Library root view should NOT show titles on any platform to match mobile behavior
-            # Remove contextual title to fix desktop title display issue
-
-            # Add Edit button for edit mode functionality using proper BaseToolbar method
-            self.top_toolbar.add_regular_button(
-                button_id="edit",
-                position="right",
-                text="Edit",
-                on_press=self.top_toolbar._on_edit_pressed,
-                style_class="right_aligned"
-            )
-
-            logger.info("Library-specific toolbar buttons added using smart system")
-
+            if hasattr(self.top_toolbar, '_on_edit_pressed'):
+                self.top_toolbar._on_edit_pressed(widget)
+            else:
+                # Fallback: toggle edit mode directly
+                self.toggle_edit_mode()
         except Exception as e:
-            logger.error(f"Failed to add library toolbar buttons: {e}")
+            logger.error(f"Failed to handle edit press: {e}")
 
-
-    def _add_library_bottom_toolbar_buttons(self):
-        """Add window navigation buttons to BottomToolbar using NavigationController"""
-        try:
-            from fichero.shared.navigation.navigation_controller import NavigationController
-
-            # Create center-aligned window navigation buttons for normal mode
-            # Settings window
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/settings.png",
-                on_press=self._on_open_settings_window,
-                position="center",
-                label=_("Settings")
-            )
-
-            # Processing window
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/process.png",
-                on_press=self._on_open_processing_window,
-                position="center",
-                label=_("Processing")
-            )
-
-            # About window (using help icon)
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/help.png",
-                on_press=self._on_open_about_window,
-                position="center",
-                label=_("About")
-            )
-
-            # Add collection functionality removed - simplified interface"
-
-            # Activity Monitor window
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/activity.png",
-                on_press=self._on_open_activity_monitor_window,
-                position="center",
-                label=_("Activity")
-            )
-
-            # Prompts window
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/prompt.png",
-                on_press=self._on_open_prompts_window,
-                position="center",
-                label=_("Prompts")
-            )
-
-            # Plans window
-            self.bottom_toolbar.add_normal_mode_button(
-                icon="resources/icons/toolbar/plan.png",
-                on_press=self._on_open_plans_window,
-                position="center",
-                label=_("Plans")
-            )
-
-            # Set up edit mode buttons for library management
-            # Platform-specific add buttons are created automatically by the coordinator
-            # via _create_add_context_once() when edit mode is entered
-
-            logger.info("Library window navigation buttons configured")
-
-        except Exception as e:
-            logger.error(f"Failed to add library toolbar buttons: {e}")
+    # REMOVED: Manual toolbar button creation methods
+    # Toolbars are now populated automatically from command definitions via BaseView.set_toolbars()
+    # Commands are defined in define_commands() with show_in_toolbar flags
 
 
     def _on_toggle_sort(self, widget=None):
@@ -1526,6 +1732,11 @@ class LibraryView(BaseView):
         """Handle plans window navigation"""
         logger.info("Opening plans window")
         self.app.view_integration.navigation_controller.navigate_to_plans()
+
+    def _on_open_output_window(self, widget=None):
+        """Handle output window navigation"""
+        logger.info("Opening output window")
+        self.app.view_integration.navigation_controller.navigate_to_output()
 
     # Export/Import handlers for Edit mode
     def _on_export_collection(self, widget=None):
@@ -1608,20 +1819,11 @@ class LibraryView(BaseView):
         """Handle URL import - navigate to URL add view"""
         try:
             logger.info("Import URLs requested")
-            # Use navigation controller to show URL add view
-            from fichero.windows.add.views.url_view import URLAddView
-
-            url_view = URLAddView(
-                app=self.app,
-                on_content_added=self._on_urls_added
-            )
-
-            # Navigate to URL view
+            # Use NavigationController to navigate to URL add view
             if hasattr(self.app, 'view_integration'):
                 nav_controller = self.app.view_integration.get_navigation_controller()
                 if nav_controller:
-                    # Push URL view onto navigation stack
-                    nav_controller.push_view(url_view, "Add URLs")
+                    nav_controller.navigate_to_add_url()
                 else:
                     logger.error("NavigationController not available")
             else:
@@ -1631,27 +1833,12 @@ class LibraryView(BaseView):
             logger.error(f"Failed to open URL import: {e}")
 
     def _on_import_bulk(self, widget=None):
-        """Handle bulk import - navigate to Bulk Import view"""
+        """Handle bulk import - not yet implemented in NavigationController"""
         try:
             logger.info("Bulk import requested")
-            # Use navigation controller to show Bulk Import view
-            from fichero.windows.add.views.bulk_import_view import BulkImportView
-
-            bulk_view = BulkImportView(
-                app=self.app,
-                on_content_added=self._on_bulk_import_added
-            )
-
-            # Navigate to Bulk Import view
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    # Push Bulk Import view onto navigation stack
-                    nav_controller.push_view(bulk_view, "Bulk Import")
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            # TODO: Add navigate_to_bulk_import() to NavigationController
+            logger.warning("Bulk import navigation not yet implemented")
+            self._show_message("Bulk Import", "Bulk import feature coming soon")
 
         except Exception as e:
             logger.error(f"Failed to open bulk import: {e}")
@@ -1660,20 +1847,11 @@ class LibraryView(BaseView):
         """Handle file import - navigate to File add view"""
         try:
             logger.info("Import files requested")
-            # Use navigation controller to show File add view
-            from fichero.windows.add.views.file_view import FileAddView
-
-            file_view = FileAddView(
-                app=self.app,
-                on_content_added=self._on_files_added
-            )
-
-            # Navigate to File view
+            # Use NavigationController to navigate to file add view (opens native dialog on desktop)
             if hasattr(self.app, 'view_integration'):
                 nav_controller = self.app.view_integration.get_navigation_controller()
                 if nav_controller:
-                    # Push File view onto navigation stack
-                    nav_controller.push_view(file_view, "Add Files")
+                    nav_controller.navigate_to_add_file()
                 else:
                     logger.error("NavigationController not available")
             else:
@@ -1686,20 +1864,11 @@ class LibraryView(BaseView):
         """Handle folder import - navigate to Folder add view"""
         try:
             logger.info("Import folder requested")
-            # Use navigation controller to show Folder add view
-            from fichero.windows.add.views.folder_view import FolderAddView
-
-            folder_view = FolderAddView(
-                app=self.app,
-                on_content_added=self._on_folders_added
-            )
-
-            # Navigate to Folder view
+            # Use NavigationController to navigate to folder add view (opens native dialog on desktop)
             if hasattr(self.app, 'view_integration'):
                 nav_controller = self.app.view_integration.get_navigation_controller()
                 if nav_controller:
-                    # Push Folder view onto navigation stack
-                    nav_controller.push_view(folder_view, "Add Folders")
+                    nav_controller.navigate_to_add_folder()
                 else:
                     logger.error("NavigationController not available")
             else:

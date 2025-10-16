@@ -56,6 +56,9 @@ class ToolbarCoordinator:
         self._edit_mode_state = EditModeState.NORMAL
         self._edit_context: Dict[str, Any] = {}
 
+        # Track current active view for edit mode
+        self._current_view_id: Optional[str] = None
+
         # Callbacks
         self.on_edit_mode_change: Optional[Callable[[EditModeState, Dict[str, Any]], None]] = None
         self.on_navigation_back: Optional[Callable] = None
@@ -90,13 +93,21 @@ class ToolbarCoordinator:
             if context is None:
                 context = {}
 
-            # When entering edit mode, populate context with edit actions
+            # If view_id is provided in context, remember it as the active view
+            if 'view_id' in context:
+                self._current_view_id = context['view_id']
+                logger.debug(f"ToolbarCoordinator: Stored active view_id: {self._current_view_id}")
+
+            # If no view_id in context but we have a stored one, use it
+            elif self._current_view_id and 'view_id' not in context:
+                context = context.copy()
+                context['view_id'] = self._current_view_id
+                logger.debug(f"ToolbarCoordinator: Using stored view_id: {self._current_view_id}")
+
+            # Views should provide their own context via declarative commands
+            # No automatic context creation - views declare commands, toolbars query registry
             if state == EditModeState.EDIT:
-                # Get the platform-specific edit actions
-                edit_context = self.create_edit_actions_context()
-                logger.debug(f"ToolbarCoordinator: Created edit context: {edit_context}")
-                context.update(edit_context)
-                logger.debug(f"ToolbarCoordinator: Final context keys: {list(context.keys())}")
+                logger.debug(f"ToolbarCoordinator: Edit mode with context keys: {list(context.keys())}")
 
             self._edit_mode_state = state
             self._edit_context = context.copy()
@@ -126,6 +137,20 @@ class ToolbarCoordinator:
     def get_edit_context(self) -> Dict[str, Any]:
         """Get current edit context"""
         return self._edit_context.copy()
+
+    def set_active_view(self, view_id: str) -> None:
+        """
+        Set the currently active view for edit mode context
+
+        Args:
+            view_id: The view identifier (e.g., 'library', 'output', 'collection')
+        """
+        self._current_view_id = view_id
+        logger.debug(f"ToolbarCoordinator: Active view set to: {view_id}")
+
+    def get_active_view(self) -> Optional[str]:
+        """Get the currently active view_id"""
+        return self._current_view_id
 
     def toggle_edit_mode(self) -> None:
         """Toggle between normal and edit mode"""
@@ -192,118 +217,12 @@ class ToolbarCoordinator:
                 "animation_duration": 0.25
             }
 
-    def create_edit_actions_context(self, selected_count: int = 0) -> Dict[str, Any]:
-        """Create standard edit actions context with library view support"""
-        hig = self.get_hig_specs()
-
-        # Try to detect platform features for library view
-        platform_features = None
-        try:
-            from fichero.windows.add.platform_features import detect_platform_features
-            platform_features = detect_platform_features(self.app)
-            logger.debug(f"ToolbarCoordinator: Detected platform features: {platform_features}")
-        except Exception as e:
-            logger.warning(f"Failed to detect platform features: {e}")
-
-        # Create library view context automatically (assume library view if no specific context provided)
-        library_context = self.create_view_edit_context("library", platform_features.__dict__ if platform_features else None)
-        logger.debug(f"ToolbarCoordinator: Created library edit context: {list(library_context.keys())}")
-
-        base_context = {
-            "selected_count": selected_count,
-            "has_selection": selected_count > 0,
-            "platform_specs": hig,
-            "actions": {
-                "delete": selected_count > 0,
-                "select_all": True,
-                "deselect_all": selected_count > 0,
-                "share": selected_count > 0,
-                "copy": selected_count > 0,
-                "move": selected_count > 0
-            }
-        }
-
-        # Merge library context into base context
-        base_context.update(library_context)
-        return base_context
-
-    def create_view_edit_context(self, view_type: str, platform_features: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Create view-specific edit context for add functionality"""
-        hig = self.get_hig_specs()
-
-        base_context = {
-            "view_type": view_type,
-            "platform_specs": hig,
-            "edit_type": "add_items"
-        }
-
-        if view_type == "library":
-            # Library view add options
-            add_actions = []
-            if platform_features:
-                if platform_features.get("has_url_input", True):
-                    add_actions.append({"id": "url", "title": "Add URL", "icon": "resources/icons/toolbar/link.png", "label": "URL"})
-                if platform_features.get("has_web_view", True):
-                    add_actions.append({"id": "website", "title": "Add Website", "icon": "resources/icons/toolbar/globe.png", "label": "Website"})
-                if platform_features.get("has_file_dialog", False):
-                    add_actions.append({"id": "file", "title": "Add File", "icon": "resources/icons/toolbar/document.png", "label": "File"})
-                if platform_features.get("has_folder_dialog", False):
-                    add_actions.append({"id": "folder", "title": "Add Folder", "icon": "resources/icons/toolbar/add_folder.png", "label": "Folder"})
-                if platform_features.get("has_camera", False):
-                    add_actions.append({"id": "camera", "title": "Add Picture", "icon": "resources/icons/toolbar/camera.png", "label": "Camera"})
-
-            base_context["add_actions"] = add_actions
-
-            # Separate top and bottom edit actions for library view
-            # Top toolbar actions (sort button with text)
-            top_edit_actions = [
-                {"id": "sort", "title": "A-Z", "icon": None, "text": "A-Z", "label": "Sort"}
-            ]
-
-            # Bottom toolbar actions (add/create actions + add collection)
-            bottom_edit_actions = add_actions + [
-                {"id": "add_collection", "title": "Add Collection", "icon": "resources/icons/toolbar/add_collection.png", "label": "Collection"}
-            ]
-
-            base_context["top_edit_actions"] = top_edit_actions
-            base_context["bottom_edit_actions"] = bottom_edit_actions
-
-            # Keep old collection_actions for backward compatibility (now empty since we split them)
-            base_context["collection_actions"] = []
-
-        elif view_type == "collection":
-            # Collection view add options (similar to library)
-            base_context["add_actions"] = []
-
-        elif view_type == "preview":
-            # Preview view edit options (sharing, annotations, etc.)
-            base_context["add_actions"] = []
-
-        return base_context
-
-    def get_navigation_handler(self, action_id: str) -> Optional[Callable]:
-        """Get NavigationController handler for add action"""
-        try:
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    action_map = {
-                        "url": nav_controller.navigate_to_add_url,
-                        "website": nav_controller.navigate_to_add_website,
-                        "file": nav_controller.navigate_to_add_file,
-                        "folder": nav_controller.navigate_to_add_folder,
-                        "camera": nav_controller.navigate_to_add_camera,
-                        # Collection management actions
-                        "add_collection": self._handle_add_collection,
-                        "edit_collection": self._handle_edit_collection,
-                        "delete_collection": self._handle_delete_collection,
-                        "sort": self._handle_sort
-                    }
-                    return action_map.get(action_id)
-        except Exception as e:
-            logger.error(f"Failed to get navigation handler for {action_id}: {e}")
-
-        return None
+    # REMOVED: Parallel non-declarative system methods
+    # - create_edit_actions_context() - Views should declare commands, not inject action dicts
+    # - create_view_edit_context() - Views should declare commands, not inject action dicts
+    # - get_navigation_handler() - Moved to view command handlers directly
+    #
+    # Collection management actions are now declared as FicheroCommands in LibraryView
 
     def _handle_add_collection(self, widget=None):
         """Handle Add Collection button press"""

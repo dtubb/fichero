@@ -497,8 +497,15 @@ class LibraryService:
                     file_type, _ = self._get_file_type_and_icon(entry)
 
                     # Get icon from library (don't generate to avoid UI freezing)
-                    # Only load cached thumbnails and static folder icons
-                    icon = self.library_manager.get_filesystem_icon(entry, generate=False)
+                    # IMPORTANT: Set icon=None for IMAGE files to allow async thumbnail generation
+                    # Only load static folder icons here; let async loader generate all file thumbnails
+                    if entry.is_dir():
+                        # Get folder icon immediately (static resource)
+                        icon = self.library_manager.get_filesystem_icon(entry, generate=False)
+                    else:
+                        # For ALL files (image and non-image), set icon=None initially
+                        # The async thumbnail loader in collection_view.py will generate thumbnails for images
+                        icon = None
 
                     # Look up library item ID for this entry
                     # For folders: check if the folder itself has an item_id

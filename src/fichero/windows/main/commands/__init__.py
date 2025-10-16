@@ -4,9 +4,7 @@ Commands Module for Fichero Main Window
 Provides Toga command integration and management.
 """
 
-from fichero.windows.main.commands.command_bridge import CommandBridge, CommandContext
+# This module is currently empty - command functionality has been moved to
+# the shared command system (fichero.shared.commands)
 
-__all__ = [
-    'CommandBridge',
-    'CommandContext'
-] 
+__all__ = [] 

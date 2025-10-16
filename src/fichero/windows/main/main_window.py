@@ -62,6 +62,10 @@ class MainWindow:
         # Subscribe to navigation events
         self._subscribe_to_events()
 
+        # Pre-create OutputView to register its Edit menu commands at startup
+        # (Even though the view won't be shown until needed, its commands need to be available)
+        self._precreate_output_view()
+
         # Set up initial view
         self._show_initial_view()
 
@@ -144,57 +148,59 @@ class MainWindow:
             logger.error(f"Failed to create mobile layout: {e}")
 
     def _create_desktop_layout(self):
-        """Create desktop three-pane layout"""
+        """Create desktop three-pane layout with nested resizable SplitContainers"""
         try:
+            # Create simple vertical Box containers for each pane
+            # These will hold views added dynamically via _show_view_desktop
+            # flex=1 to fill allocated space from SplitContainer
+
             # Left pane for library
             self.left_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=0,
-                    width=300,
+                    flex=1,  # Fill allocated space
                     background_color="#FFFFFF"
                 )
             )
 
-            # Center pane for collection (same width as library pane)
+            # Center pane for collection
             self.center_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=0,
-                    width=300,
+                    flex=1,  # Fill allocated space
                     background_color="#FFFFFF"
                 )
             )
 
-            # Right pane for preview - flex=1 to fill remaining space, but won't expand beyond window
-            # Content inside will scroll horizontally if needed
+            # Right pane for output
             self.right_pane = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    flex=1,
+                    flex=1,  # Fill allocated space
                     background_color="#FFFFFF"
-                    # No width set - takes remaining space after fixed panes
-                    # Content overflow will be handled by ScrollContainer in OutputView
                 )
             )
 
-            # Main container with three panes
-            # Use flex=1 to fill window but don't allow panes to expand window
-            self.main_container = toga.Box(
-                style=Pack(
-                    direction=ROW,
-                    flex=1,
-                    background_color="#FFFFFF"
-                    # Panes inside are constrained: left=300px, center=300px, right=flex (remaining space)
-                    # Content overflow will scroll, not expand window
-                )
+            # SplitContainer only supports 2 panes, so we need to nest them
+            # First split: center | right
+            center_right_split = toga.SplitContainer(
+                direction=toga.SplitContainer.VERTICAL,
+                content=[
+                    (self.center_pane, 1),  # Center pane - weight 1
+                    (self.right_pane, 2)    # Right pane - weight 2 (larger)
+                ]
             )
 
-            self.main_container.add(self.left_pane)
-            self.main_container.add(self.center_pane)
-            self.main_container.add(self.right_pane)
+            # Second split: left | center_right_split
+            self.main_container = toga.SplitContainer(
+                direction=toga.SplitContainer.VERTICAL,
+                content=[
+                    (self.left_pane, 1),           # Library - weight 1
+                    (center_right_split, 3)        # Center + Right combined - weight 3
+                ]
+            )
 
-            logger.debug("Desktop layout created")
+            logger.debug("Desktop layout created with nested resizable SplitContainers")
 
         except Exception as e:
             logger.error(f"Failed to create desktop layout: {e}")
@@ -213,11 +219,28 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to subscribe to navigation events: {e}")
 
+    def _precreate_output_view(self):
+        """
+        Pre-create OutputView at startup to register its Edit menu commands.
+        The view won't be shown yet, but its commands need to be available in menus.
+        """
+        try:
+            if self.cached_output_view is None:
+                logger.debug("Pre-creating OutputView to register Edit menu commands")
+                self.cached_output_view = OutputView(self.app, self.is_mobile)
+                logger.info("✅ OutputView pre-created - Edit menu commands registered")
+        except Exception as e:
+            logger.error(f"Failed to pre-create OutputView: {e}")
+
     def _show_initial_view(self):
         """Show the initial library view"""
         try:
             # Get or create library view (will cache for later reuse)
             library_view = self._get_or_create_library_view()
+
+            # Update native toolbar on desktop (LibraryView shows Add File/Folder/URL commands)
+            if not self.is_mobile:
+                self._update_toolbar_for_library_view(context='normal')
 
             # Show in appropriate pane
             if self.is_mobile:
@@ -281,6 +304,59 @@ class MainWindow:
             collection_view.register_preview_callback(self._on_file_preview_requested)
             return collection_view
 
+    # ===== TOOLBAR MANAGEMENT =====
+
+    def _update_toolbar_for_library_view(self, context: str = 'normal'):
+        """Update native toolbar for LibraryView on desktop"""
+        try:
+            from fichero.shared.commands import CommandManager
+
+            command_manager = CommandManager.get_instance(self.app)
+            command_manager.build_native_toolbar(
+                self.window,
+                view_id='library',
+                context=context
+            )
+
+            logger.debug(f"Updated native toolbar for LibraryView (context={context})")
+
+        except Exception as e:
+            logger.error(f"Failed to update toolbar for LibraryView: {e}")
+
+    def _update_toolbar_for_collection_view(self, context: str = 'normal'):
+        """Update native toolbar for CollectionView on desktop"""
+        try:
+            from fichero.shared.commands import CommandManager
+
+            command_manager = CommandManager.get_instance(self.app)
+            command_manager.build_native_toolbar(
+                self.window,
+                view_id='collection',
+                context=context
+            )
+
+            logger.debug(f"Updated native toolbar for CollectionView (context={context})")
+
+        except Exception as e:
+            logger.error(f"Failed to update toolbar for CollectionView: {e}")
+
+    def _update_toolbar_for_output_view(self, context: str = 'normal'):
+        """Update native toolbar for OutputView on desktop"""
+        try:
+            from fichero.shared.commands import CommandManager
+
+            command_manager = CommandManager.get_instance(self.app)
+            command_manager.build_native_toolbar(
+                self.window,
+                view_id='output',
+                context=context
+            )
+
+            logger.debug(f"Updated native toolbar for OutputView (context={context})")
+
+        except Exception as e:
+            logger.error(f"Failed to update toolbar for OutputView: {e}")
+
     # ===== EVENT HANDLERS =====
 
     def _on_show_library(self, event):
@@ -304,6 +380,10 @@ class MainWindow:
                 if hasattr(library_view, '_load_collections_async'):
                     import asyncio
                     asyncio.create_task(library_view._load_collections_async())
+
+            # Update native toolbar on desktop (LibraryView shows Add File/Folder/URL commands)
+            if not self.is_mobile:
+                self._update_toolbar_for_library_view(context='normal')
 
             # Show in appropriate pane
             if self.is_mobile:
@@ -338,6 +418,10 @@ class MainWindow:
 
             # Get or create collection view from cache
             collection_view = self._get_or_create_collection_view(collection_id, collection_name)
+
+            # Update native toolbar on desktop (CollectionView has persistent toolbar with commands)
+            if not self.is_mobile:
+                self._update_toolbar_for_collection_view(context='normal')
 
             # Show in appropriate pane
             if self.is_mobile:
@@ -417,6 +501,10 @@ class MainWindow:
                     source_files=source_files,
                     source_index=source_index
                 )
+
+            # Update native toolbar on desktop (OutputView has persistent toolbar with editing commands)
+            if not self.is_mobile:
+                self._update_toolbar_for_output_view(context='normal')
 
             # Show in appropriate pane
             if self.is_mobile:

@@ -358,6 +358,10 @@ class NavigationController:
         """Navigate to about modal view"""
         return self._navigate_to_modal(NavigationContext.ABOUT, "about")
 
+    def navigate_to_output(self) -> bool:
+        """Navigate to output modal view"""
+        return self._navigate_to_modal(NavigationContext.PREVIEW, "output")
+
     def navigate_to_add_url(self) -> bool:
         """Navigate to add URL modal view"""
         return self._navigate_to_modal(NavigationContext.ADD, "url")
@@ -442,6 +446,8 @@ class NavigationController:
                         params.get("collection_id"),
                         params.get("collection_name")
                     )
+            elif modal_type == "output":
+                view = self._create_output_view()
 
             if not view:
                 logger.error(f"Failed to create view for modal type: {modal_type}")
@@ -880,6 +886,15 @@ class NavigationController:
             )
         except Exception as e:
             logger.error(f"Failed to create rename collection view: {e}")
+            return None
+
+    def _create_output_view(self):
+        """Create output modal view"""
+        try:
+            from fichero.windows.main.views.output.output_view import OutputView
+            return OutputView(self.app, self.is_mobile)
+        except Exception as e:
+            logger.error(f"Failed to create output view: {e}")
             return None
 
     # ===== MODAL OVERLAY MANAGEMENT =====

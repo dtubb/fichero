@@ -110,13 +110,12 @@ class TopToolbar(BaseToolbar):
             # Clear existing content
             self.clear_content()
 
-            # Add navigation based on configuration
-            if self.auto_mobile_nav:
-                self._add_navigation_elements()
-
-            # Add edit mode support only if coordinator is provided
+            # Add edit mode support FIRST (creates Edit button) if coordinator is provided
             if self.coordinator:
                 self._add_edit_mode_support()
+
+            # Always add navigation elements (what gets added depends on auto_mobile_nav)
+            self._add_navigation_elements()
 
             # Add custom content hook for subclasses
             self._add_custom_content()
@@ -133,6 +132,8 @@ class TopToolbar(BaseToolbar):
                 # iOS navigation pattern
                 if self.auto_mobile_nav:  # Child views get back button
                     self._add_back_button()
+                else:  # Root views get Edit button on right
+                    self._add_edit_button_for_root_view()
                 # Add context-aware title if NavigationController says we should
                 self._add_contextual_title()
             else:
@@ -246,6 +247,23 @@ class TopToolbar(BaseToolbar):
 
         except Exception as e:
             logger.error(f"Failed to add edit mode support: {e}")
+
+    def _add_edit_button_for_root_view(self) -> None:
+        """Add Edit button to right side for mobile root views"""
+        try:
+            if self.edit_button:
+                # Add Edit button directly to right side of toolbar
+                self.add_button_right(
+                    text=_("Edit"),
+                    on_press=self._on_edit_pressed,
+                    button_id="edit"
+                )
+                logger.debug("✅ Edit button added to right side for mobile root view")
+            else:
+                logger.warning("❌ Edit button not created yet, cannot add to toolbar")
+
+        except Exception as e:
+            logger.error(f"Failed to add Edit button for root view: {e}")
 
     def _add_custom_content(self) -> None:
         """Hook for subclasses to add custom content"""

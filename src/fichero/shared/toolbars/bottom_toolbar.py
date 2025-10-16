@@ -359,33 +359,8 @@ class BottomToolbar(BaseToolbar):
         except Exception as e:
             logger.error(f"Failed to show edit mode: {e}")
 
-    def _show_add_buttons_mode(self, context: Dict[str, Any]) -> None:
-        """Show bottom edit actions (add buttons + add collection)"""
-        try:
-            # Use the new separated bottom edit actions
-            all_actions = context.get("bottom_edit_actions", [])
-
-            # Distribute buttons across the bottom toolbar
-            for i, action in enumerate(all_actions):
-                button = self.create_button(
-                    text=action["title"],
-                    icon=action.get("icon"),
-                    on_press=self._create_add_button_handler(action["id"]),
-                    style_class="default"
-                )
-
-                # Distribute across left, center, right for visual balance
-                if i % 3 == 0:
-                    self.left_content.add(button)
-                elif i % 3 == 1:
-                    self.center_content.add(button)
-                else:
-                    self.right_content.add(button)
-
-            logger.debug(f"Bottom toolbar showing {len(all_actions)} edit actions (add + collection)")
-
-        except Exception as e:
-            logger.error(f"Failed to show add buttons mode: {e}")
+    # REMOVED: _show_add_buttons_mode() - Parallel non-declarative system
+    # Replaced by _show_smart_edit_mode() which queries CommandRegistry
 
     def _show_selection_edit_mode(self, context: Dict[str, Any]) -> None:
         """Show traditional selection edit buttons"""
@@ -409,24 +384,8 @@ class BottomToolbar(BaseToolbar):
         except Exception as e:
             logger.error(f"Failed to show selection edit mode: {e}")
 
-    def _create_add_button_handler(self, action_id: str) -> Callable:
-        """Create handler for add button"""
-        def handler(widget):
-            try:
-                if self.coordinator:
-                    nav_handler = self.coordinator.get_navigation_handler(action_id)
-                    if nav_handler:
-                        nav_handler()
-                        # KEEP edit mode active - user should explicitly click Done to exit
-                    else:
-                        logger.warning(f"No navigation handler for {action_id}")
-                else:
-                    logger.warning("No coordinator available for add button")
-
-            except Exception as e:
-                logger.error(f"Failed to handle add button {action_id}: {e}")
-
-        return handler
+    # REMOVED: _create_add_button_handler() - No longer needed
+    # Commands now have their own action handlers defined declaratively
 
     def _show_smart_normal_mode(self) -> None:
         """Show normal mode using smart button system"""
@@ -444,54 +403,54 @@ class BottomToolbar(BaseToolbar):
             logger.error(f"Failed to show smart normal mode: {e}")
 
     def _show_smart_edit_mode(self, context: Dict[str, Any] = None) -> None:
-        """Show edit mode using smart button system and context"""
+        """Show edit mode using pure declarative CommandRegistry system"""
         try:
-            if not context:
-                return
+            from fichero.shared.commands import CommandRegistry
 
-            # Clear all content
+            # Clear all content first
             self.clear_content()
 
-            edit_type = context.get("edit_type", "selection")
+            # Get view_id from context to query its commands
+            view_id = context.get("view_id") if context else None
 
-            if edit_type == "add_items":
-                # Create dynamic add buttons from context
-                self._create_dynamic_add_buttons(context)
-            else:
-                # Show traditional selection edit buttons
-                self._show_selection_edit_buttons(context)
+            if not view_id:
+                logger.warning("No view_id in edit mode context - cannot query commands")
+                return
 
-            logger.debug(f"BottomToolbar showing smart edit mode (type: {edit_type})")
+            # Query CommandRegistry for edit mode, bottom toolbar commands
+            registry = CommandRegistry.get_instance()
+            edit_commands = registry.get_commands_for_view(
+                view_id=view_id,
+                context='edit',
+                show_in_bottom_toolbar=True
+            )
+
+            if not edit_commands:
+                logger.debug(f"No edit mode bottom toolbar commands declared for view '{view_id}'")
+                return
+
+            # Create buttons from declared commands
+            for command in edit_commands:
+                position = command.toolbar_position or 'center'
+                btn = self.add_command_button(command, position, mode='edit')
+
+                # CRITICAL: add_command_button() creates and stores the button,
+                # but doesn't add it to UI. We must manually add it to the toolbar.
+                if btn:
+                    btn._is_edit_mode_button = True  # Mark for cleanup
+                    self._add_button_to_position(btn, position)
+                    logger.debug(f"Added edit command button to UI: {command.id} at {position}")
+                else:
+                    logger.warning(f"Failed to create button for command: {command.id}")
+
+            logger.info(f"BottomToolbar showing {len(edit_commands)} declarative edit commands for view '{view_id}'")
 
         except Exception as e:
             logger.error(f"Failed to show smart edit mode: {e}")
 
-    def _create_dynamic_add_buttons(self, context: Dict[str, Any]) -> None:
-        """Create dynamic bottom edit actions based on platform context"""
-        try:
-            # Use the new separated bottom edit actions
-            all_actions = context.get("bottom_edit_actions", [])
-
-            # Create buttons dynamically and distribute them
-            for i, action in enumerate(all_actions):
-                button = self.create_button(
-                    icon=action.get("icon"),
-                    on_press=self._create_add_button_handler(action["id"]),
-                    style_class="default",
-                    label=action.get("label", action["title"])  # Use label if provided, otherwise title
-                )
-
-                # Mark as dynamic edit mode button
-                button._is_edit_mode_button = True
-
-                # Distribute across left, center, right for balance
-                position = ["left", "center", "right"][i % 3]
-                self._add_button_to_position(button, position)
-
-            logger.debug(f"Created {len(all_actions)} bottom edit action buttons")
-
-        except Exception as e:
-            logger.error(f"Failed to create dynamic add buttons: {e}")
+    # REMOVED: _create_dynamic_add_buttons() - Parallel non-declarative system
+    # Bottom toolbar now queries CommandRegistry for view's declared edit mode commands
+    # Views declare commands with show_in_bottom_toolbar=True, context='edit'
 
     def _show_selection_edit_buttons(self, context: Dict[str, Any]) -> None:
         """Show traditional selection edit buttons"""
