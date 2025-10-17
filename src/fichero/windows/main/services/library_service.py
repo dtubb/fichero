@@ -8,6 +8,7 @@ duplication and provides proper async handling.
 
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -15,6 +16,29 @@ from fichero.library.library_manager import LibraryManager
 from fichero.library.models import Collection, CollectionItem
 
 logger = logging.getLogger(__name__)
+
+
+def natural_sort_key(text: str) -> List:
+    """
+    Generate a sort key for natural/numeric sorting.
+
+    This ensures that "1", "2", "10", "100" sort correctly instead of "1", "10", "100", "2".
+    Also preserves manifest order by sorting numbers naturally.
+
+    Args:
+        text: String to generate sort key for
+
+    Returns:
+        List of strings and integers for natural sorting
+
+    Example:
+        >>> sorted(["1", "10", "2", "100"], key=natural_sort_key)
+        ["1", "2", "10", "100"]
+    """
+    def convert(part):
+        return int(part) if part.isdigit() else part.lower()
+
+    return [convert(c) for c in re.split(r'(\d+)', str(text))]
 
 
 class LibraryService:
@@ -234,8 +258,8 @@ class LibraryService:
                 
                 toga_collections.append(collection_data)
             
-            # Sort by title (name)
-            toga_collections.sort(key=lambda x: x.get('title', ''))
+            # Sort by title (name) using natural numeric sorting
+            toga_collections.sort(key=lambda x: natural_sort_key(x.get('title', '')))
             
             logger.debug(f"Returned {len(toga_collections)} collections in Toga format")
             return toga_collections
@@ -304,8 +328,8 @@ class LibraryService:
                 
                 toga_items.append(item_data)
             
-            # Sort by title (name)
-            toga_items.sort(key=lambda x: x.get('title', ''))
+            # Sort by title (name) using natural numeric sorting
+            toga_items.sort(key=lambda x: natural_sort_key(x.get('title', '')))
             
             logger.debug(f"Returned {len(toga_items)} items for collection {collection_id} in Toga format")
             return toga_items
@@ -481,7 +505,8 @@ class LibraryService:
             try:
                 entries = list(current_path.iterdir())
                 # Sort: directories first, then files, alphabetically within each group
-                entries.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
+                # Sort: directories first, then files, using natural numeric sorting
+                entries.sort(key=lambda x: (not x.is_dir(), natural_sort_key(x.name)))
             except PermissionError:
                 logger.warning(f"Permission denied accessing: {current_path}")
                 return items
@@ -646,8 +671,8 @@ class LibraryService:
 
                 toga_items.append(item_data)
 
-            # Sort: folders first, then files, alphabetically
-            toga_items.sort(key=lambda x: (not x['is_folder'], x['title'].lower()))
+            # Sort: folders first, then files, using natural numeric sorting
+            toga_items.sort(key=lambda x: (not x['is_folder'], natural_sort_key(x['title'])))
 
             logger.debug(f"Returned {len(toga_items)} hierarchical items for path '{current_path}'")
             return toga_items
