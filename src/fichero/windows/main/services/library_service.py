@@ -161,6 +161,16 @@ class LibraryService:
             logger.error(f"Failed to delete collection {collection_id}: {e}")
             return False
 
+    async def refresh_collections(self):
+        """Refresh collections view - triggers library view refresh"""
+        try:
+            # Emit collection_list_changed event to trigger refresh
+            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event, NavigationEvents
+            emit_navigation_event(NavigationEvents.COLLECTION_LIST_CHANGED, {})
+            logger.debug("Emitted collection list changed event to refresh view")
+        except Exception as e:
+            logger.error(f"Failed to refresh collections: {e}")
+
     async def reorder_collection_for_ui(self, collection_id: str, new_position: int) -> bool:
         """Reorder a collection to a new position from UI
 
@@ -197,18 +207,350 @@ class LibraryService:
                 name=name,
                 operation=operation
             )
-            
+
             if item_id:
                 logger.info(f"Added item '{name}' to collection {collection_id}")
             else:
                 logger.error(f"Failed to add item '{name}' to collection {collection_id}")
-            
+
             return item_id
-            
+
         except Exception as e:
             logger.error(f"Failed to add item '{name}' to collection {collection_id}: {e}")
             return None
-    
+
+    # ===== IMPORT OPERATIONS =====
+
+    async def import_url_for_ui(
+        self,
+        url: str,
+        collection_name: Optional[str] = None,
+        description: Optional[str] = None,
+        timeout: int = 600,
+        max_items: int = 1000,
+        download_mode: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Import content from URL using shared URLImporter - for UI"""
+        try:
+            from fichero.library.url_importer import URLImporter
+
+            # Create URL importer (shared with CLI)
+            importer = URLImporter(self.library_manager)
+
+            # Perform import
+            result = await importer.import_from_url(
+                url=url,
+                collection_name=collection_name,
+                description=description,
+                timeout=timeout,
+                max_items=max_items,
+                download_mode=download_mode
+            )
+
+            if result['success']:
+                logger.info(f"Successfully imported from URL: {url}")
+            else:
+                logger.error(f"Failed to import from URL: {result['error_message']}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to import URL {url}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'collection_id': None,
+                'collection_name': '',
+                'files_imported': 0,
+                'files_skipped': 0,
+                'errors': 1,
+                'error_message': str(e),
+                'metadata': {}
+            }
+
+    async def import_files_for_ui(
+        self,
+        files: list,
+        collection_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Import files into a new collection - for UI"""
+        try:
+            if not files:
+                return {
+                    'success': False,
+                    'collection_id': None,
+                    'collection_name': '',
+                    'files_imported': 0,
+                    'files_skipped': 0,
+                    'errors': 1,
+                    'error_message': "No files provided",
+                    'metadata': {}
+                }
+
+            # Convert Path objects to strings if needed
+            file_paths = [Path(f) if not isinstance(f, Path) else f for f in files]
+
+            # Generate collection name if not provided
+            if not collection_name:
+                first_file = file_paths[0]
+                collection_name = f"Files from {first_file.parent.name}"
+
+            # Create collection using library manager
+            collection_id = await self.library_manager.add_collection(
+                name=collection_name,
+                collection_type="local",
+                source_path=str(file_paths[0].parent)
+            )
+
+            if not collection_id:
+                logger.error("Failed to create collection for files")
+                return {
+                    'success': False,
+                    'collection_id': None,
+                    'collection_name': collection_name,
+                    'files_imported': 0,
+                    'files_skipped': 0,
+                    'errors': 1,
+                    'error_message': "Failed to create collection",
+                    'metadata': {}
+                }
+
+            # Add each file to the collection
+            files_imported = 0
+            files_skipped = 0
+            errors = 0
+
+            for file_path in file_paths:
+                try:
+                    item_id = await self.library_manager.add_item_to_collection(
+                        collection_id=collection_id,
+                        item_type="file",
+                        source=str(file_path),
+                        name=file_path.name,
+                        operation="link"
+                    )
+                    if item_id:
+                        files_imported += 1
+                    else:
+                        files_skipped += 1
+                except Exception as e:
+                    logger.error(f"Failed to add file {file_path}: {e}")
+                    errors += 1
+
+            logger.info(f"Successfully imported {files_imported} files to collection: {collection_name}")
+
+            return {
+                'success': True,
+                'collection_id': collection_id,
+                'collection_name': collection_name,
+                'files_imported': files_imported,
+                'files_skipped': files_skipped,
+                'errors': errors,
+                'error_message': None,
+                'metadata': {}
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to import files: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'collection_id': None,
+                'collection_name': collection_name or '',
+                'files_imported': 0,
+                'files_skipped': 0,
+                'errors': 1,
+                'error_message': str(e),
+                'metadata': {}
+            }
+
+    async def import_folder_for_ui(
+        self,
+        folder_path: Path,
+        collection_name: Optional[str] = None,
+        operation: str = "link"
+    ) -> Dict[str, Any]:
+        """Import folder as a collection - for UI
+
+        Args:
+            folder_path: Path to folder to import
+            collection_name: Optional collection name (auto-generated if None)
+            operation: 'link' (reference) or 'copy' (copy files to library)
+        """
+        try:
+            # Generate collection name if not provided
+            if not collection_name:
+                collection_name = f"Folder: {folder_path.name}"
+
+            # Create collection using library manager
+            # Use 'external' type for link operation (reference only)
+            # Use 'local' type for copy operation
+            collection_type = "external" if operation == "link" else "local"
+
+            collection_id = await self.library_manager.add_collection(
+                name=collection_name,
+                collection_type=collection_type,
+                source_path=str(folder_path)
+            )
+
+            if not collection_id:
+                logger.error(f"Failed to create collection for folder: {folder_path}")
+                return {
+                    'success': False,
+                    'collection_id': None,
+                    'collection_name': collection_name,
+                    'files_imported': 0,
+                    'files_skipped': 0,
+                    'errors': 1,
+                    'error_message': "Failed to create collection",
+                    'metadata': {}
+                }
+
+            # Add the folder itself as a single item
+            # Files will be discovered during browsing or processing
+            item_id = await self.library_manager.add_item_to_collection(
+                collection_id=collection_id,
+                item_type="folder",
+                source=str(folder_path),
+                name=folder_path.name,
+                operation=operation
+            )
+
+            if item_id:
+                logger.info(
+                    f"Successfully created collection from folder: {collection_name} "
+                    f"(Files will be discovered during processing)"
+                )
+                return {
+                    'success': True,
+                    'collection_id': collection_id,
+                    'collection_name': collection_name,
+                    'files_imported': 1,  # The folder item itself
+                    'files_skipped': 0,
+                    'errors': 0,
+                    'error_message': None,
+                    'metadata': {'operation': operation}
+                }
+            else:
+                logger.warning(f"Failed to add folder item to collection: {collection_name}")
+                return {
+                    'success': False,
+                    'collection_id': collection_id,
+                    'collection_name': collection_name,
+                    'files_imported': 0,
+                    'files_skipped': 0,
+                    'errors': 1,
+                    'error_message': "Failed to add folder item",
+                    'metadata': {}
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to import folder {folder_path}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'collection_id': None,
+                'collection_name': collection_name or '',
+                'files_imported': 0,
+                'files_skipped': 0,
+                'errors': 1,
+                'error_message': str(e),
+                'metadata': {}
+            }
+
+    async def add_camera_photo_for_ui(
+        self,
+        photo_path: Path,
+        collection_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Add a camera photo to a collection - for UI
+
+        Args:
+            photo_path: Path to the captured photo
+            collection_id: Optional collection ID to add to (creates "Camera Photos" if None)
+
+        Returns:
+            Dict with success status and details
+        """
+        try:
+            # If no collection specified, get or create "Camera Photos" collection
+            if not collection_id:
+                # Check if "Camera Photos" collection exists
+                collections = await self.library_manager.get_all_collections()
+                camera_collection = None
+
+                for collection in collections:
+                    if collection.name == "Camera Photos":
+                        camera_collection = collection
+                        collection_id = collection.id
+                        break
+
+                # Create "Camera Photos" collection if it doesn't exist
+                if not camera_collection:
+                    collection_id = await self.library_manager.add_collection(
+                        name="Camera Photos",
+                        collection_type="local",
+                        description="Photos taken with camera"
+                    )
+
+                    if not collection_id:
+                        logger.error("Failed to create Camera Photos collection")
+                        return {
+                            'success': False,
+                            'collection_id': None,
+                            'collection_name': 'Camera Photos',
+                            'files_imported': 0,
+                            'error_message': "Failed to create Camera Photos collection",
+                            'metadata': {}
+                        }
+
+            # Add photo to collection
+            # Copy the photo to library (don't just link since it's in temp directory)
+            item_id = await self.library_manager.add_item_to_collection(
+                collection_id=collection_id,
+                item_type="file",
+                source=str(photo_path),
+                name=photo_path.name,
+                operation="copy"  # Copy from temp to library
+            )
+
+            if item_id:
+                logger.info(f"Successfully added camera photo to collection: {collection_id}")
+                return {
+                    'success': True,
+                    'collection_id': collection_id,
+                    'collection_name': 'Camera Photos',
+                    'files_imported': 1,
+                    'error_message': None,
+                    'metadata': {'item_id': item_id}
+                }
+            else:
+                logger.error(f"Failed to add camera photo to collection: {collection_id}")
+                return {
+                    'success': False,
+                    'collection_id': collection_id,
+                    'collection_name': 'Camera Photos',
+                    'files_imported': 0,
+                    'error_message': "Failed to add photo item",
+                    'metadata': {}
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to add camera photo: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'collection_id': None,
+                'collection_name': 'Camera Photos',
+                'files_imported': 0,
+                'error_message': str(e),
+                'metadata': {}
+            }
+
     # ===== SYNC WRAPPERS FOR UI =====
     
     def get_collections_sync(self) -> List[Dict[str, Any]]:

@@ -1524,7 +1524,45 @@ class CollectionView(BaseView):
                     continue
 
                 try:
+                    # Check if this is a URL item (starts with http:// or https://)
+                    if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                        # URL item - use a generic URL icon instead of thumbnail
+                        logger.debug(f"URL item detected: {item.get('title', 'unknown')} -> {file_path[:50]}...")
+
+                        # Try to load a URL icon from resources
+                        try:
+                            import toga
+                            url_icon_path = self.app.paths.app / "resources" / "icons" / "url_icon.png"
+                            if url_icon_path.exists():
+                                icon = toga.Image(str(url_icon_path))
+                            else:
+                                # Fallback: use link emoji as string (will show as text in DetailedList)
+                                icon = "🔗"
+                                logger.debug(f"URL icon not found at {url_icon_path}, using emoji")
+                        except Exception as e:
+                            logger.debug(f"Failed to load URL icon: {e}")
+                            icon = "🔗"  # Fallback emoji
+
+                        if icon:
+                            item['icon'] = icon
+                            generated_count += 1
+                            logger.debug(f"✅ Set URL icon for {item.get('title', 'unknown')}")
+
+                            # Update DetailedList
+                            if hasattr(self, 'items_list') and self.items_list:
+                                self.items_list.data = self.collection_items
+
+                        skipped_count += 1
+                        continue
+
+                    # Local file - generate thumbnail
                     path = Path(file_path)
+
+                    # Check if file exists before trying to generate thumbnail
+                    if not path.exists():
+                        logger.debug(f"File does not exist: {path}")
+                        skipped_count += 1
+                        continue
 
                     # Generate thumbnail using library (runs in thread pool via asyncio)
                     icon = await asyncio.to_thread(

@@ -137,8 +137,8 @@ class URLAddView(BaseView):
         self.single_container.add(self.url_input)
         
         self.add_single_button = toga.Button(
-            _("➕ Add URL to Library"),
-            on_press=self._on_add_single,
+            _("Add URL to Library"),
+            on_press=self._on_add_single_sync,
             style=Pack(margin=(10, 0))
         )
         self.single_container.add(self.add_single_button)
@@ -167,8 +167,8 @@ class URLAddView(BaseView):
         self.multiple_container.add(self.multiline_input)
         
         self.add_multiple_button = toga.Button(
-            _("➕ Add URLs to Library"),
-            on_press=self._on_add_multiple,
+            _("Add URLs to Library"),
+            on_press=self._on_add_multiple_sync,
             style=Pack(margin=(10, 0))
         )
         self.multiple_container.add(self.add_multiple_button)
@@ -212,7 +212,17 @@ class URLAddView(BaseView):
             r'(?::\d+)?'  # optional port
             r'(?:/?|[/?]\S+)$', re.IGNORECASE)
         return bool(url_pattern.match(url))
-    
+
+    def _on_add_single_sync(self, widget):
+        """Synchronous wrapper for _on_add_single"""
+        import asyncio
+        asyncio.create_task(self._on_add_single(widget))
+
+    def _on_add_multiple_sync(self, widget):
+        """Synchronous wrapper for _on_add_multiple"""
+        import asyncio
+        asyncio.create_task(self._on_add_multiple(widget))
+
     async def _on_add_single(self, widget):
         """Handle adding a single URL"""
         try:
@@ -220,22 +230,41 @@ class URLAddView(BaseView):
             if not url:
                 self.status_label.text = _("Please enter a URL")
                 return
-            
+
             if not self._is_valid_url(url):
                 self.status_label.text = _("Please enter a valid URL")
                 return
-            
-            self.status_label.text = _("Adding URL to library...")
-            
-            # Call the callback with the URL
+
+            # Switch to activity view
+            self._show_activity_view(_("Importing from URL..."))
+
+            # Call the callback with the URL and await the import to complete
             if self.on_content_added:
-                self.on_content_added({'option_id': 'url', 'urls': [url], 'action': 'added'})
-                self.status_label.text = _("URL added successfully!")
-                logger.info(f"Added URL to library: {url}")
-            
+                # The callback returns an async task that we can await
+                task = self.on_content_added({'option_id': 'url', 'urls': [url], 'action': 'added'})
+                logger.info(f"Import started for URL: {url}")
+
+                # Update message to indicate import is in progress
+                self.activity_message.text = _("Import in progress... This may take several minutes for large collections.")
+
+                # Wait for the import to complete
+                if task:
+                    await task
+                    logger.info(f"Import completed for URL: {url}")
+
+                # Show success briefly
+                self._show_success_view(_("Import completed successfully!"))
+
+                import asyncio
+                await asyncio.sleep(2)
+
+                # Reset view for another import
+                self._show_import_view()
+                self.url_input.value = ""
+
         except Exception as e:
             logger.error(f"Failed to add URL: {e}")
-            self.status_label.text = _("Error adding URL. Please try again.")
+            self._show_error_view(str(e))
     
     async def _on_add_multiple(self, widget):
         """Handle adding multiple URLs"""
@@ -244,29 +273,48 @@ class URLAddView(BaseView):
             if not text:
                 self.status_label.text = _("Please enter URLs")
                 return
-            
+
             # Extract URLs from text
             urls = []
             for line in text.split('\n'):
                 url = line.strip()
                 if url and self._is_valid_url(url):
                     urls.append(url)
-            
+
             if not urls:
                 self.status_label.text = _("No valid URLs found")
                 return
-            
-            self.status_label.text = _("Adding %(count)d URLs to library...") % {'count': len(urls)}
-            
-            # Call the callback with the URLs
+
+            # Switch to activity view
+            self._show_activity_view(_("Importing %(count)d URLs...") % {'count': len(urls)})
+
+            # Call the callback with the URLs and await the import to complete
             if self.on_content_added:
-                self.on_content_added({'option_id': 'url', 'urls': urls, 'action': 'added'})
-                self.status_label.text = _("%(count)d URLs added successfully!") % {'count': len(urls)}
-                logger.info(f"Added {len(urls)} URLs to library")
-            
+                # The callback returns an async task that we can await
+                task = self.on_content_added({'option_id': 'url', 'urls': urls, 'action': 'added'})
+                logger.info(f"Import started for {len(urls)} URLs")
+
+                # Update message to indicate import is in progress
+                self.activity_message.text = _("Import in progress... This may take several minutes for large collections.")
+
+                # Wait for the import to complete
+                if task:
+                    await task
+                    logger.info(f"Import completed for {len(urls)} URLs")
+
+                # Show success briefly
+                self._show_success_view(_("%(count)d URLs imported successfully!") % {'count': len(urls)})
+
+                import asyncio
+                await asyncio.sleep(2)
+
+                # Reset view for another import
+                self._show_import_view()
+                self.multiline_input.value = ""
+
         except Exception as e:
             logger.error(f"Failed to add URLs: {e}")
-            self.status_label.text = _("Error adding URLs. Please try again.")
+            self._show_error_view(str(e))
 
     async def _import_from_clipboard(self):
         """Import URLs from clipboard - perfect for mobile copy-paste workflow"""
@@ -357,4 +405,106 @@ class URLAddView(BaseView):
                 seen.add(url)
                 unique_urls.append(url)
 
-        return unique_urls 
+        return unique_urls
+
+    def _show_import_view(self):
+        """Show the import form (default view)"""
+        # Clear and recreate the content
+        self.content_container.clear()
+        self._create_content()
+
+    def _show_activity_view(self, message: str):
+        """Show activity/progress view that fills the entire content area"""
+        # Clear the entire content container
+        self.content_container.clear()
+
+        # Create activity view
+        activity_container = toga.Box(
+            style=Pack(direction=COLUMN, flex=1, align_items='center', padding=50)
+        )
+
+        # Activity indicator (native Toga spinner)
+        activity_indicator = toga.ActivityIndicator(
+            running=True,
+            style=Pack(margin=20, width=50, height=50)
+        )
+        activity_container.add(activity_indicator)
+
+        # Message label
+        activity_message = toga.Label(
+            message,
+            style=Pack(margin=20, font_size=16, text_align='center')
+        )
+        activity_container.add(activity_message)
+
+        # Add to content container
+        self.content_container.add(activity_container)
+
+        # Store references for later updates
+        self.activity_indicator = activity_indicator
+        self.activity_message = activity_message
+
+    def _show_success_view(self, message: str = None):
+        """Show success view"""
+        # Clear the entire content container
+        self.content_container.clear()
+
+        # Create success view
+        success_container = toga.Box(
+            style=Pack(direction=COLUMN, flex=1, align_items='center', padding=50)
+        )
+
+        success_title = toga.Label(
+            _("Success"),
+            style=Pack(margin=10, font_size=24, text_align='center', font_weight='bold')
+        )
+        success_container.add(success_title)
+
+        success_text = message or _("Import completed successfully!")
+        success_message = toga.Label(
+            success_text,
+            style=Pack(margin=10, font_size=16, text_align='center')
+        )
+        success_container.add(success_message)
+
+        # Add to content container
+        self.content_container.add(success_container)
+
+    def _show_error_view(self, error_message: str):
+        """Show error view"""
+        # Hide activity view and stop spinner
+        if hasattr(self, 'activity_container'):
+            self.activity_container.style.visibility = 'hidden'
+            self.activity_indicator.stop()
+
+        # Create error view if it doesn't exist
+        if not hasattr(self, 'error_container'):
+            self.error_container = toga.Box(
+                style=Pack(direction=COLUMN, margin=10, flex=1, align_items='center')
+            )
+
+            self.error_title = toga.Label(
+                _("Import Failed"),
+                style=Pack(margin=10, font_size=24, text_align='center', font_weight='bold')
+            )
+            self.error_container.add(self.error_title)
+
+            self.error_message = toga.Label(
+                "",
+                style=Pack(margin=10, font_size=16, text_align='center')
+            )
+            self.error_container.add(self.error_message)
+
+            self.error_button = toga.Button(
+                _("Try Again"),
+                on_press=lambda widget: self._show_import_view(),
+                style=Pack(margin=10)
+            )
+            self.error_container.add(self.error_button)
+
+            self.content_container.add(self.error_container)
+
+        # Update message and show
+        self.error_message.text = _("Error: %(error)s") % {'error': error_message}
+        self.error_container.style.visibility = 'visible'
+        self.status_label.text = _("Import failed") 

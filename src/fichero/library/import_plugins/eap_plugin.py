@@ -121,6 +121,11 @@ class EAPImportPlugin(ImportPlugin):
                 items = await self._fetch_iiif_manifest(url, timeout)
             # Check if this is a collection or project page (hierarchical import)
             elif '/collection/' in url or '/project/' in url:
+                # Ensure collection URLs have /search at the end for proper parsing
+                if '/collection/' in url and not url.endswith('/search'):
+                    url = url.rstrip('/') + '/search'
+                    logger.info(f"Normalized collection URL to: {url}")
+
                 self._report_progress(10, 100, "Discovering collection hierarchy")
                 items = await self._fetch_hierarchical_collection(url, max_items, timeout)
             else:

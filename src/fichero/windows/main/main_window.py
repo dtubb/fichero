@@ -470,7 +470,11 @@ class MainWindow:
                 for i, item in enumerate(collection_items):
                     item_file_path = item.get('file_path') or item.get('path')
                     if item_file_path:
-                        source_files.append(Path(item_file_path))
+                        # Don't convert URLs to Path objects - they should stay as strings
+                        if isinstance(item_file_path, str) and item_file_path.startswith(('http://', 'https://')):
+                            source_files.append(item_file_path)  # Keep as string
+                        else:
+                            source_files.append(Path(item_file_path))  # Convert to Path
                         # Track which index matches our current file
                         if str(item_file_path) == str(file_path):
                             source_index = i
@@ -488,16 +492,28 @@ class MainWindow:
 
                 # Pass output_root_path directly to OutputView - it will handle loading steps
                 # Also pass original file_path for context
+                # Don't convert URLs to Path objects - keep as strings
+                if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                    file_path_arg = file_path  # Keep URL as string
+                else:
+                    file_path_arg = Path(file_path)  # Convert local path to Path object
+
                 self.cached_output_view.load_output(
-                    file_path=Path(file_path),
+                    file_path=file_path_arg,
                     source_files=source_files,
                     source_index=source_index,
                     output_root_path=output_root
                 )
             else:
                 # Load original file (no processing outputs)
+                # Don't convert URLs to Path objects - keep as strings
+                if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                    file_path_arg = file_path  # Keep URL as string
+                else:
+                    file_path_arg = Path(file_path)  # Convert local path to Path object
+
                 self.cached_output_view.load_output(
-                    file_path=Path(file_path),
+                    file_path=file_path_arg,
                     source_files=source_files,
                     source_index=source_index
                 )

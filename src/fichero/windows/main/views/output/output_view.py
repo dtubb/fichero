@@ -681,15 +681,23 @@ class OutputView(BaseView, ViewCommandMixin):
                 logger.info(f"Loading output from file: {file_path}")
                 self.current_file_path = file_path
 
-                # Try to detect Director output structure
-                output_root = self._find_output_root(file_path)
+                # Check if file_path is a URL (string)
+                is_url = isinstance(file_path, str) and file_path.startswith(('http://', 'https://'))
 
-                if output_root:
-                    self._load_from_output_root(output_root, file_path)
-                else:
-                    # Not a Director output - show original file as single step
-                    logger.info("Not a Director output, showing original file as single step")
+                if is_url:
+                    # URL - skip Director output detection, show directly
+                    logger.info("URL detected, showing as single step")
                     self._show_original_as_single_step(file_path)
+                else:
+                    # Local file - try to detect Director output structure
+                    output_root = self._find_output_root(file_path)
+
+                    if output_root:
+                        self._load_from_output_root(output_root, file_path)
+                    else:
+                        # Not a Director output - show original file as single step
+                        logger.info("Not a Director output, showing original file as single step")
+                        self._show_original_as_single_step(file_path)
             else:
                 logger.error("No file_path or output_root_path provided")
                 self._show_error_message("No file to display")
@@ -1053,6 +1061,10 @@ class OutputView(BaseView, ViewCommandMixin):
 
         In desktop mode, panes are constrained by the parent container width.
         They should not expand horizontally beyond the right pane's allocated space.
+
+        Args:
+            file_path: Path object for local files or string for URLs
+            step_name: Name of the processing step
         """
         pane = toga.Box(
             style=Pack(
@@ -1062,9 +1074,18 @@ class OutputView(BaseView, ViewCommandMixin):
                 # No width set - constrained by parent (right_pane from MainWindow)
             )
         )
-        
+
         # Header with truncated filename to prevent horizontal scrolling
-        filename = file_path.name
+        # Handle both Path objects and URL strings
+        if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+            # URL - extract filename from URL
+            from urllib.parse import urlparse
+            parsed = urlparse(file_path)
+            filename = parsed.path.split('/')[-1] or "Remote Image"
+        else:
+            # Local file
+            filename = file_path.name
+
         # Truncate filename if too long
         max_length = 50
         if len(filename) > max_length:
@@ -1086,7 +1107,20 @@ class OutputView(BaseView, ViewCommandMixin):
         return pane
 
     def _create_file_viewer(self, file_path: Path):
-        """Create appropriate viewer widget based on file type - always in-app, no external viewers"""
+        """Create appropriate viewer widget based on file type - always in-app, no external viewers
+
+        Supports both local files (Path objects) and URLs (strings).
+        """
+        # Check if this is a URL string
+        is_url = isinstance(file_path, str) and file_path.startswith(('http://', 'https://'))
+
+        if is_url:
+            # URL - assume it's an image and create image viewer
+            logger.info(f"Creating viewer for URL: {file_path[:100]}...")
+            viewer = self._create_webview_image_viewer(file_path)
+            return viewer
+
+        # Local file - determine type by extension
         suffix = file_path.suffix.lower()
 
         # Try WebView first for most formats (HTML wrapper approach)
@@ -1123,22 +1157,56 @@ class OutputView(BaseView, ViewCommandMixin):
             return toga.Label(f"Error loading file: {e}", style=Pack(margin=20))
 
     def _create_webview_image_viewer(self, file_path: Path):
-        """Create WebView-based image viewer - controls via toolbar buttons"""
+        """Create WebView-based image viewer - controls via toolbar buttons
+
+        Supports both local files and HTTP/HTTPS URLs.
+        """
         import base64
 
         try:
-            # Read image and encode as base64
-            with open(file_path, 'rb') as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
+            # Check if file_path is a URL (string starting with http:// or https://)
+            is_url = isinstance(file_path, str) and file_path.startswith(('http://', 'https://'))
 
-            # Determine MIME type
-            mime_types = {
-                '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-                '.png': 'image/png', '.gif': 'image/gif',
-                '.bmp': 'image/bmp', '.webp': 'image/webp',
-                '.tiff': 'image/tiff', '.tif': 'image/tiff'
-            }
-            mime_type = mime_types.get(file_path.suffix.lower(), 'image/jpeg')
+            if is_url:
+                # For URLs, use the URL directly in the img src (no base64 encoding needed)
+                image_data = None
+                image_url = file_path
+                logger.info(f"Creating image viewer for URL: {image_url[:100]}...")
+            else:
+                # For local files, read and encode as base64
+                with open(file_path, 'rb') as f:
+                    image_data = base64.b64encode(f.read()).decode('utf-8')
+                image_url = None
+
+            # Determine MIME type and image source
+            if is_url:
+                # For URLs, detect MIME from URL extension or default to jpeg
+                url_lower = image_url.lower()
+                if '.png' in url_lower:
+                    mime_type = 'image/png'
+                elif '.gif' in url_lower:
+                    mime_type = 'image/gif'
+                elif '.webp' in url_lower:
+                    mime_type = 'image/webp'
+                elif '.tiff' in url_lower or '.tif' in url_lower:
+                    mime_type = 'image/tiff'
+                else:
+                    mime_type = 'image/jpeg'
+
+                # Use URL directly as src
+                img_src = image_url
+                img_alt = "Remote Image"
+            else:
+                # For local files, use base64 data URI
+                mime_types = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                    '.png': 'image/png', '.gif': 'image/gif',
+                    '.bmp': 'image/bmp', '.webp': 'image/webp',
+                    '.tiff': 'image/tiff', '.tif': 'image/tiff'
+                }
+                mime_type = mime_types.get(file_path.suffix.lower(), 'image/jpeg')
+                img_src = f"data:{mime_type};base64,{image_data}"
+                img_alt = file_path.name
 
             # Create simple HTML viewer - toolbar will provide controls
             # Use container-based sizing (100%, not viewport units) to respect parent constraints
@@ -1212,12 +1280,22 @@ class OutputView(BaseView, ViewCommandMixin):
                         pointer-events: none;
                         z-index: 10;
                     }}
+                    #loadingSpinner {{
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        color: white;
+                        font-size: 18px;
+                        display: none;
+                    }}
                 </style>
             </head>
             <body>
                 <div id="imageContainer">
                     <div id="imageWrapper">
-                        <img id="image" src="data:{mime_type};base64,{image_data}" alt="{file_path.name}">
+                        <div id="loadingSpinner">Loading image...</div>
+                        <img id="image" src="{img_src}" alt="{img_alt}" crossorigin="anonymous">
                         <div id="selectionBox"></div>
                     </div>
                 </div>
@@ -1241,12 +1319,26 @@ class OutputView(BaseView, ViewCommandMixin):
                     const minimapCanvas = document.getElementById('minimapCanvas');
                     const minimapViewport = document.getElementById('minimapViewport');
                     const selectionBox = document.getElementById('selectionBox');
+                    const loadingSpinner = document.getElementById('loadingSpinner');
                     const ctx = minimapCanvas.getContext('2d');
+
+                    // Show loading spinner for remote images
+                    const isRemoteImage = img.src.startsWith('http://') || img.src.startsWith('https://');
+                    if (isRemoteImage) {{
+                        loadingSpinner.style.display = 'block';
+                    }}
 
                     // Load image fitted to window by default
                     img.onload = function() {{
+                        loadingSpinner.style.display = 'none';
                         fitToWindow();
                         drawMinimap();
+                    }};
+
+                    // Handle image load errors (e.g., CORS, network issues)
+                    img.onerror = function() {{
+                        loadingSpinner.textContent = 'Failed to load image. Check network connection.';
+                        console.error('Failed to load image:', img.src);
                     }};
 
                     function updateImageSize() {{

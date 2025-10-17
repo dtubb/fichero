@@ -366,10 +366,6 @@ class NavigationController:
         """Navigate to add URL modal view"""
         return self._navigate_to_modal(NavigationContext.ADD, "url")
 
-    def navigate_to_add_website(self) -> bool:
-        """Navigate to add website modal view"""
-        return self._navigate_to_modal(NavigationContext.ADD, "website")
-
     def navigate_to_add_file(self) -> bool:
         """Navigate to add file modal view"""
         # For desktop platforms with native dialogs, call directly
@@ -432,8 +428,6 @@ class NavigationController:
                 view = self._create_processing_view()
             elif modal_type == "url":
                 view = self._create_add_url_view()
-            elif modal_type == "website":
-                view = self._create_add_website_view()
             elif modal_type == "file":
                 view = self._create_add_file_view()
             elif modal_type == "folder":
@@ -834,7 +828,15 @@ class NavigationController:
         """Create add camera modal view"""
         try:
             from fichero.windows.add.views.camera_view import CameraAddView
-            return CameraAddView(self.app)
+
+            # Create callback to handle camera photo additions
+            def on_content_added(content_info):
+                logger.info(f"Camera photo added callback: {content_info}")
+                # Create async task to handle camera photo addition
+                import asyncio
+                asyncio.create_task(self._handle_camera_content_added(content_info))
+
+            return CameraAddView(self.app, on_content_added=on_content_added)
         except Exception as e:
             logger.error(f"Failed to create add camera view: {e}")
             return None
@@ -843,18 +845,17 @@ class NavigationController:
         """Create add URL modal view"""
         try:
             from fichero.windows.add.views.url_view import URLAddView
-            return URLAddView(self.app)
+
+            # Create callback to handle URL additions - returns the async task
+            def on_content_added(content_info):
+                logger.info(f"URL content added callback: {content_info}")
+                # Return the async task so the view can await it
+                import asyncio
+                return asyncio.create_task(self._handle_url_content_added(content_info))
+
+            return URLAddView(self.app, on_content_added=on_content_added)
         except Exception as e:
             logger.error(f"Failed to create add URL view: {e}")
-            return None
-
-    def _create_add_website_view(self):
-        """Create add website modal view"""
-        try:
-            from fichero.windows.add.views.website_view import WebsiteAddView
-            return WebsiteAddView(self.app)
-        except Exception as e:
-            logger.error(f"Failed to create add website view: {e}")
             return None
 
     def _create_rename_collection_view(self, collection_id: str, collection_name: str):
@@ -1028,80 +1029,167 @@ class NavigationController:
             logger.error(f"Failed to handle desktop folder dialog: {e}")
 
     async def _handle_desktop_content_added(self, content_info):
-        """Handle content added via desktop dialogs - reuses existing backend logic"""
+        """Handle content added via desktop dialogs - delegates to library service"""
         try:
             logger.info(f"Desktop dialog content added: {content_info}")
 
-            # Connect to library backend to actually add the content
-            if content_info and hasattr(self.app, 'library_manager') and self.app.library_manager:
-                option_id = content_info.get('option_id')
+            if not hasattr(self.app, 'library_service') or not self.app.library_service:
+                logger.error("Library service not available")
+                return
 
-                if option_id == 'file' and 'files' in content_info:
-                    # Create a new collection for the selected files
-                    files = content_info['files']
-                    if files:
-                        first_file = files[0]
-                        # Create a collection name based on the first file's directory
-                        collection_name = f"Files from {first_file.parent.name}"
+            option_id = content_info.get('option_id')
 
-                        # Create collection using library backend
-                        collection_id = await self.app.library_manager.add_collection(
-                            name=collection_name,
-                            collection_type="local",
-                            source_path=str(first_file.parent)
+            if option_id == 'file' and 'files' in content_info:
+                # Delegate file import to library service (shared code path with CLI)
+                files = content_info['files']
+                if files:
+                    try:
+                        result = await self.app.library_service.import_files_for_ui(
+                            files=files,
+                            collection_name=None  # Auto-generate name
                         )
 
-                        if collection_id:
-                            # Add each file to the collection
-                            for file_path in files:
-                                await self.app.library_manager.add_item_to_collection(
-                                    collection_id=collection_id,
-                                    item_type="file",
-                                    source=str(file_path),
-                                    name=file_path.name,
-                                    operation="link"
-                                )
-                            logger.info(f"Successfully added {len(files)} files to new collection: {collection_name}")
+                        if result['success']:
+                            logger.info(f"Successfully imported {result['files_imported']} files to collection: {result['collection_name']}")
+                        else:
+                            logger.error(f"File import failed: {result['error_message']}")
+                    except Exception as e:
+                        logger.error(f"Failed to import files: {e}")
+                        import traceback
+                        traceback.print_exc()
 
-                elif option_id == 'folder' and 'folders' in content_info:
-                    # Create a new collection for each selected folder (store reference only, don't enumerate files)
-                    folders = content_info['folders']
-                    for folder_path in folders:
-                        collection_name = f"Folder: {folder_path.name}"
-
-                        # Create collection using library backend (use 'external' to link without copying)
-                        collection_id = await self.app.library_manager.add_collection(
-                            name=collection_name,
-                            collection_type="external",
-                            source_path=str(folder_path)
+            elif option_id == 'folder' and 'folders' in content_info:
+                # Delegate folder import to library service (shared code path with CLI)
+                folders = content_info['folders']
+                for folder_path in folders:
+                    try:
+                        result = await self.app.library_service.import_folder_for_ui(
+                            folder_path=folder_path,
+                            collection_name=None,  # Auto-generate name
+                            operation="link"  # Reference only, don't copy
                         )
 
-                        if collection_id:
-                            # Add the folder itself as a single item (files discovered during processing)
-                            # This matches CLI behavior: don't read filesystem until processing
-                            item_id = await self.app.library_manager.add_item_to_collection(
-                                collection_id=collection_id,
-                                item_type="folder",
-                                source=str(folder_path),
-                                name=folder_path.name,
-                                operation="link"
-                            )
+                        if result['success']:
+                            logger.info(f"Successfully imported folder: {result['collection_name']}")
+                        else:
+                            logger.error(f"Folder import failed: {result['error_message']}")
+                    except Exception as e:
+                        logger.error(f"Failed to import folder {folder_path}: {e}")
+                        import traceback
+                        traceback.print_exc()
 
-                            if item_id:
-                                logger.info(
-                                    f"Successfully created collection from folder: {collection_name} "
-                                    f"(Folder stored as reference, files will be discovered during processing)"
-                                )
-                            else:
-                                logger.warning(f"Failed to add folder item to collection: {collection_name}")
+            # Refresh library view to show the new collections
+            if hasattr(self.app, 'library_service'):
+                await self.app.library_service.refresh_collections()
+                logger.info("Refreshed library view after imports")
 
-                            # Refresh library view to show the new collection
-                            if hasattr(self.app, 'library_service'):
-                                await self.app.library_service.refresh_collections()
-                                logger.info("Refreshed library view after folder import")
+            # Navigate back to library to show the new collections
+            self.navigate_to_library()
 
         except Exception as e:
             logger.error(f"Failed to handle desktop content added: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _handle_camera_content_added(self, content_info):
+        """Handle camera photos added via camera view - delegates to library service"""
+        try:
+            logger.info(f"Camera photo added: {content_info}")
+
+            # Extract photo path from content_info
+            photo_path = content_info.get('photo_path')
+            if not photo_path:
+                logger.warning("No photo path provided in content_info")
+                return
+
+            if not hasattr(self.app, 'library_service') or not self.app.library_service:
+                logger.error("Library service not available")
+                return
+
+            # Get current collection if we're in one (optional - camera creates its own collection)
+            collection_id = None
+            if self.current_state.context == NavigationContext.COLLECTION:
+                collection_id = self.current_state.collection_id
+
+            try:
+                # Delegate to library service
+                result = await self.app.library_service.add_camera_photo_for_ui(
+                    photo_path=photo_path,
+                    collection_id=collection_id  # None = create/use "Camera Photos" collection
+                )
+
+                if result['success']:
+                    logger.info(f"Successfully added camera photo to collection: {result['collection_name']}")
+                else:
+                    logger.error(f"Camera photo import failed: {result['error_message']}")
+            except Exception as e:
+                logger.error(f"Failed to import camera photo: {e}")
+                import traceback
+                traceback.print_exc()
+
+            # Refresh library view to show the new photo
+            if hasattr(self.app, 'library_service'):
+                await self.app.library_service.refresh_collections()
+                logger.info("Refreshed library view after camera photo import")
+
+            # Navigate back to library to show the updated collection
+            self.navigate_to_library()
+
+        except Exception as e:
+            logger.error(f"Failed to handle camera content added: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _handle_url_content_added(self, content_info):
+        """Handle URLs added via URL add view - delegates to library service"""
+        try:
+            logger.info(f"URL content added: {content_info}")
+
+            # Extract URLs from content_info
+            urls = content_info.get('urls', [])
+            if not urls:
+                logger.warning("No URLs provided in content_info")
+                return
+
+            if not hasattr(self.app, 'library_service') or not self.app.library_service:
+                logger.error("Library service not available")
+                return
+
+            # Process each URL via library service
+            for url in urls:
+                try:
+                    # Delegate to library service (shared code path with CLI)
+                    result = await self.app.library_service.import_url_for_ui(
+                        url=url,
+                        collection_name=None,  # Auto-generate name
+                        description=None,  # Auto-generate description
+                        timeout=600,
+                        max_items=1000,
+                        download_mode="link"  # Default to link mode for EAP
+                    )
+
+                    if result['success']:
+                        logger.info(f"Successfully imported {result['files_imported']} items from {url}")
+                    else:
+                        logger.error(f"Import failed: {result['error_message']}")
+
+                except Exception as e:
+                    logger.error(f"Failed to import URL {url}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # Refresh library view to show the new collections
+            if hasattr(self.app, 'library_service'):
+                await self.app.library_service.refresh_collections()
+                logger.info("Refreshed library view after URL imports")
+
+            # Navigate back to library to show the new collections
+            self.navigate_to_library()
+
+        except Exception as e:
+            logger.error(f"Failed to handle URL content added: {e}")
+            import traceback
+            traceback.print_exc()
 
     # ===== SIMPLE NAVIGATION HELPERS =====
 
@@ -1123,7 +1211,7 @@ class NavigationController:
                             # Check if we're in a specific add view or the main add dialog
                             modal_type = current_state.metadata.get('modal_type', '')
 
-                            if modal_type in ['website', 'url', 'file', 'folder', 'camera']:
+                            if modal_type in ['url', 'file', 'folder', 'camera']:
                                 # We're in a specific add view - navigate back to library directly
                                 logger.info(f"ADD {modal_type} back navigation - returning to library")
                                 navigation_controller.navigate_to_library()
