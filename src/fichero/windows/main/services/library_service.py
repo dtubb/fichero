@@ -259,19 +259,10 @@ class LibraryService:
             # Convert to Toga DetailedList format
             toga_items = []
             for item in items:
-                # Determine icon based on item type
-                if hasattr(item, 'source_path') and item.source_path:
-                    file_path = Path(item.source_path)
-                    if file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.gif']:
-                        icon = "🖼️"
-                    elif file_path.suffix.lower() in ['.txt', '.md']:
-                        icon = "📄" 
-                    elif file_path.suffix.lower() in ['.pdf']:
-                        icon = "📕"
-                    else:
-                        icon = "📎"
-                else:
-                    icon = "📄"
+                # IMPORTANT: Set icon=None for ALL files to allow async thumbnail generation
+                # The async thumbnail loader in collection_view.py will generate proper thumbnails
+                # Only folders get icons immediately (handled separately)
+                icon = None
                 
                 # Create subtitle with size info if available
                 subtitle_parts = [item.type or "File"]
@@ -289,17 +280,24 @@ class LibraryService:
                     except Exception:
                         pass
                 
+                # Determine file path: prefer local_path (downloaded files) over source_path (URL/external)
+                file_path = None
+                if hasattr(item, 'local_path') and item.local_path:
+                    file_path = item.local_path
+                elif hasattr(item, 'source_path') and item.source_path:
+                    file_path = item.source_path
+
                 item_data = {
                     # Toga DetailedList attributes
                     'title': item.name,
                     'subtitle': " • ".join(subtitle_parts),
                     'icon': icon,
-                    
+
                     # Additional data for navigation/preview
                     'id': item.id,
                     'name': item.name,
                     'type': item.type,
-                    'file_path': getattr(item, 'source_path', None),
+                    'file_path': file_path,
                     'description': item.metadata.get('description', ""),
                     'created_at': item.created_at.isoformat() if item.created_at else None
                 }
@@ -343,8 +341,9 @@ class LibraryService:
                 return self._get_filesystem_structure(Path(collection.source_path), current_path, collection_id)
             else:
                 # Local/URL/Hybrid collections: Get items from library database
-                logger.debug(f"Getting items from library database for collection type: {collection.type}")
-                return self.get_collection_items_sync(collection_id)
+                # Use hierarchical structure based on parent_id relationships
+                logger.debug(f"Getting hierarchical items from library database for collection type: {collection.type}")
+                return self._get_database_hierarchical_structure(collection_id, current_path)
                 
         except Exception as e:
             logger.error(f"Failed to get collection structure sync: {e}")
@@ -545,6 +544,120 @@ class LibraryService:
             logger.error(f"Failed to get filesystem structure: {e}")
             return []
     
+    def _get_database_hierarchical_structure(self, collection_id: str, current_path: str = "") -> List[Dict[str, Any]]:
+        """Get hierarchical structure from database using parent_id relationships
+
+        Args:
+            collection_id: The collection ID
+            current_path: Current path within collection (empty for root)
+
+        Returns:
+            List of folders and files at the current level in Toga DetailedList format
+        """
+        try:
+            # Get ALL items from database
+            all_items = self.library_manager.storage.get_collection_items(collection_id)
+
+            # Build a map of folder paths to item IDs for navigation
+            folder_map = {}
+            for item in all_items:
+                if item.type == "folder":
+                    # Store folder items by their relative path from metadata
+                    rel_path = item.metadata.get('relative_path', item.name)
+                    folder_map[rel_path] = item.id
+
+            # Determine the parent_id for the current level
+            target_parent_id = None
+            if current_path:
+                # We're in a subfolder - find the folder item for current_path
+                target_parent_id = folder_map.get(current_path)
+                if not target_parent_id:
+                    logger.warning(f"Could not find folder item for path: {current_path}")
+                    # Fallback: try to find by name
+                    folder_name = current_path.split('/')[-1] if '/' in current_path else current_path
+                    for item in all_items:
+                        if item.type == "folder" and item.name == folder_name:
+                            target_parent_id = item.id
+                            logger.info(f"Found folder by name fallback: {folder_name} -> {target_parent_id}")
+                            break
+
+            # Filter items that belong at this level
+            # Items belong here if their parent_id matches our target
+            current_level_items = []
+            for item in all_items:
+                # Check if this item's parent matches what we're looking for
+                if item.parent_id == target_parent_id:
+                    current_level_items.append(item)
+
+            logger.info(f"Found {len(current_level_items)} items at level '{current_path}' (parent_id={target_parent_id})")
+
+            # Convert to Toga DetailedList format
+            toga_items = []
+
+            # Load folder icon for folders
+            folder_icon = None
+            try:
+                import toga
+                folder_icon_path = self.library_manager.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                if folder_icon_path.exists():
+                    folder_icon = toga.Image(str(folder_icon_path))
+            except Exception as e:
+                logger.debug(f"Could not load folder icon: {e}")
+
+            for item in current_level_items:
+                # Folders get icon, files get None (for async thumbnail generation)
+                icon = folder_icon if item.type == "folder" else None
+
+                # Build subtitle
+                subtitle_parts = [item.type or "File"]
+                if hasattr(item, 'source_path') and item.source_path:
+                    try:
+                        file_path = Path(item.source_path)
+                        if file_path.exists():
+                            size = file_path.stat().st_size
+                            if size > 1024 * 1024:
+                                subtitle_parts.append(f"{size / (1024*1024):.1f} MB")
+                            elif size > 1024:
+                                subtitle_parts.append(f"{size / 1024:.1f} KB")
+                    except Exception:
+                        pass
+
+                # Determine file path
+                file_path = None
+                if hasattr(item, 'local_path') and item.local_path:
+                    file_path = item.local_path
+                elif hasattr(item, 'source_path') and item.source_path:
+                    file_path = item.source_path
+
+                # Build Toga DetailedList item
+                item_data = {
+                    'id': item.id,
+                    'title': item.name,
+                    'subtitle': " • ".join(subtitle_parts),
+                    'icon': icon,
+                    'name': item.name,
+                    'type': item.type,
+                    'is_folder': item.type == "folder",
+                    'path': item.metadata.get('relative_path', item.name) if item.type == "folder" else None,
+                    'file_path': file_path if item.type != "folder" else '',
+                    'description': item.metadata.get('description', ''),
+                    'created_at': item.created_at.isoformat() if item.created_at else None
+                }
+
+                toga_items.append(item_data)
+
+            # Sort: folders first, then files, alphabetically
+            toga_items.sort(key=lambda x: (not x['is_folder'], x['title'].lower()))
+
+            logger.debug(f"Returned {len(toga_items)} hierarchical items for path '{current_path}'")
+            return toga_items
+
+        except Exception as e:
+            logger.error(f"Failed to get database hierarchical structure: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
     def _get_item_subtitle(self, path: Path, file_type: str) -> str:
         """Generate subtitle for an item"""
         try:
@@ -567,7 +680,7 @@ class LibraryService:
                         size_str = f"{size / (1024 * 1024):.1f} MB"
                     else:
                         size_str = f"{size / (1024 * 1024 * 1024):.1f} GB"
-                    
+
                     return f"{file_type.title()} • {size_str}"
                 except OSError:
                     return f"{file_type.title()}"

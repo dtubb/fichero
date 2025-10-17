@@ -422,21 +422,75 @@ class LibraryManager:
 
     # ===== ITEM MANAGEMENT =====
     
-    async def add_item_to_collection(self, 
+    async def add_item_to_collection(self,
                                    collection_id: str,
                                    item_type: Literal["file", "folder", "url", "camera", "audio"],
                                    source: str,
                                    name: str,
                                    operation: Literal["link", "copy", "move"] = "link",
                                    metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        """Add an item to a collection"""
+        """Add an item to a collection - automatically extracts ZIP files"""
         try:
+            # Smart ZIP detection and extraction
+            if item_type == "file" and source.lower().endswith('.zip'):
+                logger.info(f"📦 ZIP file detected: {name} - extracting and importing contents")
+
+                # Use ZIP import plugin to extract and import
+                try:
+                    from fichero.library.import_plugins.registry import PluginRegistry
+                    from fichero.library.import_plugins.zip_plugin import ZipImportPlugin
+
+                    # Create registry and register ZIP plugin
+                    registry = PluginRegistry()
+                    zip_plugin = ZipImportPlugin(self)
+                    registry.register(zip_plugin)
+
+                    # Get plugin from registry
+                    zip_plugin = registry.get_plugin_by_name("ZIP Import")
+
+                    if zip_plugin:
+                        # Create collection name from ZIP file
+                        zip_collection_name = Path(source).stem
+
+                        # Import the ZIP file (extract and import contents)
+                        result = await zip_plugin.download_and_import(
+                            url=source,  # Local file path
+                            collection_name=zip_collection_name,
+                            collection_description=f"Imported from {name}"
+                        )
+
+                        if result.success:
+                            logger.info(f"✅ ZIP import successful: {result.files_imported} files imported")
+
+                            # Clear cache to show new collection
+                            self._clear_cache()
+
+                            # Emit event to notify views
+                            emit_navigation_event("collection_added", {
+                                "collection_id": result.collection_id,
+                                "collection_name": zip_collection_name,
+                                "collection_type": "local"
+                            })
+
+                            # Return the collection ID from ZIP import result
+                            return result.collection_id
+                        else:
+                            logger.error(f"❌ ZIP import failed: {result.error_message}")
+                            # Fall through to normal file handling if ZIP import fails
+                    else:
+                        logger.warning("ZIP import plugin not available - treating as regular file")
+
+                except Exception as zip_error:
+                    logger.error(f"Failed to import ZIP file: {zip_error}")
+                    # Fall through to normal file handling if ZIP import fails
+
+            # Normal file/folder handling (non-ZIP or ZIP import fallback)
             # Validate collection exists
             collection = await self.get_collection(collection_id)
             if not collection:
                 logger.error(f"Collection not found: {collection_id}")
                 return None
-            
+
             # Create item
             item = CollectionItem(
                 collection_id=collection_id,
@@ -444,7 +498,7 @@ class LibraryManager:
                 name=name,
                 metadata=metadata or {}
             )
-            
+
             # Handle different operations
             if operation == "link":
                 # Just reference the source
@@ -460,7 +514,7 @@ class LibraryManager:
                 local_path = await self._save_captured_content(collection, name, item_type)
                 item.local_path = str(local_path)
                 item.storage_type = "local"
-            
+
             # Save to storage
             if self.storage.add_collection_item(item):
                 logger.info(f"Item added to collection: {name}")
@@ -468,7 +522,7 @@ class LibraryManager:
             else:
                 logger.error("Failed to save item to storage")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Failed to add item to collection: {e}")
             return None
@@ -481,7 +535,10 @@ class LibraryManager:
         recursive: bool = True
     ) -> Dict[str, Any]:
         """
-        Add all files in a folder as individual items to collection
+        Add all files and folders as hierarchical items to collection
+
+        This method preserves folder structure by creating folder items and
+        linking files to their parent folders via parent_id.
 
         Args:
             collection_id: Collection to add items to
@@ -512,102 +569,133 @@ class LibraryManager:
                 "item_ids": []
             }
 
-            # Track thumbnail generation tasks to await completion (prevents race condition)
+            # Map relative paths to folder item IDs for parent_id linking
+            folder_item_map: Dict[str, str] = {}
+
+            # Track thumbnail generation tasks
             thumbnail_tasks = []
 
-            # Get all files (recursively or not)
-            if recursive:
-                files = list(folder.rglob('*'))
-            else:
-                files = list(folder.glob('*'))
-
-            # Filter to only files (not directories)
-            files = [f for f in files if f.is_file()]
-
-            logger.info(f"Found {len(files)} files in folder: {folder_path}")
-
-            # Process each file
-            for file_path in files:
+            # Helper to process directory recursively with hierarchy
+            async def process_directory(dir_path: Path, parent_id: Optional[str] = None):
+                """Recursively process a directory, creating folder and file items"""
                 try:
-                    # Calculate file hash for deduplication
-                    file_hash = self.icon_generator.calculate_file_hash(file_path)
+                    # Get directory contents
+                    for entry in sorted(dir_path.iterdir()):
+                        # Skip hidden files/folders
+                        if entry.name.startswith('.'):
+                            continue
 
-                    # Check if file already exists in this collection
-                    existing_items = self.storage.get_collection_items(collection_id)
-                    file_exists = any(
-                        item.metadata.get('file_hash') == file_hash
-                        for item in existing_items
-                    )
-
-                    if file_exists:
-                        logger.debug(f"File already in collection (hash: {file_hash[:8]}...): {file_path.name}")
-                        stats["skipped"] += 1
-                        continue
-
-                    # Create metadata with file hash
-                    metadata = {
-                        "file_hash": file_hash,
-                        "original_path": str(file_path),
-                        "relative_path": str(file_path.relative_to(folder)) if file_path.is_relative_to(folder) else None
-                    }
-
-                    # Create item
-                    item = CollectionItem(
-                        collection_id=collection_id,
-                        type="file",
-                        name=file_path.name,
-                        metadata=metadata
-                    )
-
-                    # Handle different operations
-                    if operation == "link":
-                        # Just reference the source
-                        item.source_path = str(file_path)
-                        item.storage_type = "external"
-                    elif operation in ["copy", "move"]:
-                        # Copy or move to library
-                        local_path = await self._add_item_to_library(collection, str(file_path), file_path.name, operation)
-                        item.local_path = str(local_path)
-                        item.storage_type = "local"
-
-                    # Save to storage
-                    if self.storage.add_collection_item(item):
-                        logger.debug(f"Added file to collection: {file_path.name}")
-                        stats["added"] += 1
-                        stats["item_ids"].append(item.id)
-
-                        # Generate thumbnail asynchronously (will use deduplication automatically)
-                        try:
-                            import asyncio
-                            # Create task and add to list (will await later to prevent race condition)
-                            task = asyncio.create_task(
-                                asyncio.to_thread(
-                                    self.icon_generator.get_item_icon,
-                                    str(file_path),
-                                    "file",
-                                    self.icon_generator.thumbnail_size
+                        if entry.is_dir():
+                            if recursive:
+                                # Create folder item
+                                folder_item = CollectionItem(
+                                    collection_id=collection_id,
+                                    type="folder",
+                                    name=entry.name,
+                                    parent_id=parent_id,
+                                    source_path=str(entry),
+                                    storage_type="external",
+                                    metadata={
+                                        "relative_path": str(entry.relative_to(folder)) if entry.is_relative_to(folder) else None
+                                    }
                                 )
+
+                                # Save folder item
+                                if self.storage.add_collection_item(folder_item):
+                                    logger.debug(f"📁 Created folder item: {entry.name}")
+                                    stats["added"] += 1
+                                    stats["item_ids"].append(folder_item.id)
+
+                                    # Map relative path to folder ID
+                                    rel_path = str(entry.relative_to(folder)) if entry.is_relative_to(folder) else entry.name
+                                    folder_item_map[rel_path] = folder_item.id
+
+                                    # Recursively process subfolder
+                                    await process_directory(entry, parent_id=folder_item.id)
+                                else:
+                                    logger.error(f"Failed to save folder item: {entry.name}")
+                                    stats["errors"] += 1
+
+                        elif entry.is_file():
+                            # Calculate file hash for deduplication
+                            file_hash = self.icon_generator.calculate_file_hash(entry)
+
+                            # Check if file already exists
+                            existing_items = self.storage.get_collection_items(collection_id)
+                            file_exists = any(
+                                item.metadata.get('file_hash') == file_hash
+                                for item in existing_items
                             )
-                            thumbnail_tasks.append(task)
-                        except Exception as thumb_error:
-                            logger.warning(f"Failed to generate thumbnail for {file_path.name}: {thumb_error}")
 
-                    else:
-                        logger.error(f"Failed to save item: {file_path.name}")
-                        stats["errors"] += 1
+                            if file_exists:
+                                logger.debug(f"File already in collection (hash: {file_hash[:8]}...): {entry.name}")
+                                stats["skipped"] += 1
+                                continue
 
-                except Exception as file_error:
-                    logger.error(f"Failed to process file {file_path}: {file_error}")
+                            # Create file item metadata
+                            metadata = {
+                                "file_hash": file_hash,
+                                "original_path": str(entry),
+                                "relative_path": str(entry.relative_to(folder)) if entry.is_relative_to(folder) else None
+                            }
+
+                            # Create file item with parent_id link
+                            file_item = CollectionItem(
+                                collection_id=collection_id,
+                                type="file",
+                                name=entry.name,
+                                parent_id=parent_id,  # Link to parent folder
+                                metadata=metadata
+                            )
+
+                            # Handle different operations
+                            if operation == "link":
+                                file_item.source_path = str(entry)
+                                file_item.storage_type = "external"
+                            elif operation in ["copy", "move"]:
+                                local_path = await self._add_item_to_library(collection, str(entry), entry.name, operation)
+                                file_item.local_path = str(local_path)
+                                file_item.storage_type = "local"
+
+                            # Save file item
+                            if self.storage.add_collection_item(file_item):
+                                logger.debug(f"📄 Added file: {entry.name} (parent: {parent_id or 'root'})")
+                                stats["added"] += 1
+                                stats["item_ids"].append(file_item.id)
+
+                                # Generate thumbnail asynchronously
+                                try:
+                                    task = asyncio.create_task(
+                                        asyncio.to_thread(
+                                            self.icon_generator.get_item_icon,
+                                            str(entry),
+                                            "file",
+                                            self.icon_generator.thumbnail_size
+                                        )
+                                    )
+                                    thumbnail_tasks.append(task)
+                                except Exception as thumb_error:
+                                    logger.warning(f"Failed to generate thumbnail for {entry.name}: {thumb_error}")
+                            else:
+                                logger.error(f"Failed to save file item: {entry.name}")
+                                stats["errors"] += 1
+
+                except Exception as e:
+                    logger.error(f"Error processing directory {dir_path}: {e}")
                     stats["errors"] += 1
 
-            # Wait for all thumbnail generation tasks to complete (ensures deduplication works 100%)
+            # Start processing from root folder
+            logger.info(f"📦 Starting hierarchical import from: {folder_path}")
+            await process_directory(folder, parent_id=None)
+
+            # Wait for all thumbnail generation tasks
             if thumbnail_tasks:
-                logger.info(f"Waiting for {len(thumbnail_tasks)} thumbnail generation tasks to complete...")
+                logger.info(f"Waiting for {len(thumbnail_tasks)} thumbnail tasks...")
                 await asyncio.gather(*thumbnail_tasks, return_exceptions=True)
-                logger.info(f"All thumbnail generation tasks completed")
+                logger.info(f"All thumbnails generated")
 
             logger.info(
-                f"Folder import complete - Added: {stats['added']}, "
+                f"✅ Hierarchical import complete - Added: {stats['added']}, "
                 f"Skipped: {stats['skipped']}, Errors: {stats['errors']}"
             )
 
@@ -623,6 +711,8 @@ class LibraryManager:
 
         except Exception as e:
             logger.error(f"Failed to add folder items to collection: {e}")
+            import traceback
+            traceback.print_exc()
             return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
 
     async def _add_item_to_library(self, collection: Collection, source: str, name: str, operation: str) -> Path:

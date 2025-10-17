@@ -68,7 +68,7 @@ class LibraryStorage:
                 except sqlite3.OperationalError:
                     logger.info("Adding sort_order column to existing collections table")
                     cursor.execute("ALTER TABLE collections ADD COLUMN sort_order INTEGER DEFAULT 0")
-                
+
                 # Collection items table
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS collection_items (
@@ -80,12 +80,21 @@ class LibraryStorage:
                         storage_type TEXT NOT NULL,
                         name TEXT NOT NULL,
                         status TEXT DEFAULT 'pending',
+                        parent_id TEXT,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL,
                         metadata TEXT,
-                        FOREIGN KEY (collection_id) REFERENCES collections(id)
+                        FOREIGN KEY (collection_id) REFERENCES collections(id),
+                        FOREIGN KEY (parent_id) REFERENCES collection_items(id)
                     )
                 """)
+
+                # Migration: Add parent_id column if it doesn't exist (for existing databases)
+                try:
+                    cursor.execute("SELECT parent_id FROM collection_items LIMIT 1")
+                except sqlite3.OperationalError:
+                    logger.info("Adding parent_id column to existing collection_items table")
+                    cursor.execute("ALTER TABLE collection_items ADD COLUMN parent_id TEXT")
                 
                 # Processing history table
                 cursor.execute("""
@@ -382,9 +391,9 @@ class LibraryStorage:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    INSERT INTO collection_items 
-                    (id, collection_id, type, source_path, local_path, storage_type, name, status, created_at, updated_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO collection_items
+                    (id, collection_id, type, source_path, local_path, storage_type, name, status, parent_id, created_at, updated_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     item.id,
                     item.collection_id,
@@ -394,6 +403,7 @@ class LibraryStorage:
                     item.storage_type,
                     item.name,
                     item.status,
+                    item.parent_id,
                     item.created_at.isoformat(),
                     item.updated_at.isoformat(),
                     self._serialize_metadata(item.metadata)
@@ -416,7 +426,7 @@ class LibraryStorage:
                 cursor.execute("""
                     UPDATE collection_items
                     SET type = ?, source_path = ?, local_path = ?, storage_type = ?,
-                        name = ?, status = ?, updated_at = ?, metadata = ?
+                        name = ?, status = ?, parent_id = ?, updated_at = ?, metadata = ?
                     WHERE id = ?
                 """, (
                     item.type,
@@ -425,6 +435,7 @@ class LibraryStorage:
                     item.storage_type,
                     item.name,
                     item.status,
+                    item.parent_id,
                     datetime.now().isoformat(),
                     self._serialize_metadata(item.metadata),
                     item.id
@@ -445,10 +456,10 @@ class LibraryStorage:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, created_at, updated_at, metadata
+                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, parent_id, created_at, updated_at, metadata
                     FROM collection_items WHERE collection_id = ? ORDER BY created_at DESC
                 """, (collection_id,))
-                
+
                 items = []
                 for row in cursor.fetchall():
                     item = CollectionItem(
@@ -460,9 +471,10 @@ class LibraryStorage:
                         storage_type=row[5],
                         name=row[6],
                         status=row[7],
-                        created_at=datetime.fromisoformat(row[8]),
-                        updated_at=datetime.fromisoformat(row[9]),
-                        metadata=self._deserialize_metadata(row[10])
+                        parent_id=row[8],
+                        created_at=datetime.fromisoformat(row[9]),
+                        updated_at=datetime.fromisoformat(row[10]),
+                        metadata=self._deserialize_metadata(row[11])
                     )
                     items.append(item)
                 
@@ -479,7 +491,7 @@ class LibraryStorage:
                 cursor = conn.cursor()
 
                 cursor.execute("""
-                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, created_at, updated_at, metadata
+                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, parent_id, created_at, updated_at, metadata
                     FROM collection_items WHERE id = ?
                 """, (item_id,))
 
@@ -494,9 +506,10 @@ class LibraryStorage:
                         storage_type=row[5],
                         name=row[6],
                         status=row[7],
-                        created_at=datetime.fromisoformat(row[8]),
-                        updated_at=datetime.fromisoformat(row[9]),
-                        metadata=self._deserialize_metadata(row[10])
+                        parent_id=row[8],
+                        created_at=datetime.fromisoformat(row[9]),
+                        updated_at=datetime.fromisoformat(row[10]),
+                        metadata=self._deserialize_metadata(row[11])
                     )
                     return item
                 return None

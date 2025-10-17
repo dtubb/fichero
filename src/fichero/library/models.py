@@ -71,6 +71,7 @@ class CollectionItem:
     storage_type: Literal["external", "local", "url"] = "external"
     name: str = ""
     status: Literal["pending", "processing", "completed", "error"] = "pending"
+    parent_id: Optional[str] = None  # For hierarchical folder structure
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -86,6 +87,7 @@ class CollectionItem:
             "storage_type": self.storage_type,
             "name": self.name,
             "status": self.status,
+            "parent_id": self.parent_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "metadata": self.metadata
