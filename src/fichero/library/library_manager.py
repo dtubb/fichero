@@ -428,8 +428,19 @@ class LibraryManager:
                                    source: str,
                                    name: str,
                                    operation: Literal["link", "copy", "move"] = "link",
-                                   metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        """Add an item to a collection - automatically extracts ZIP files"""
+                                   metadata: Optional[Dict[str, Any]] = None,
+                                   parent_id: Optional[str] = None) -> Optional[str]:
+        """Add an item to a collection - automatically extracts ZIP files
+
+        Args:
+            collection_id: ID of the collection to add item to
+            item_type: Type of item (file, folder, url, camera, audio)
+            source: Source path or URL
+            name: Display name for the item
+            operation: How to add (link, copy, move)
+            metadata: Optional metadata dictionary
+            parent_id: Optional parent folder item ID for hierarchical organization
+        """
         try:
             # Smart ZIP detection and extraction
             if item_type == "file" and source.lower().endswith('.zip'):
@@ -496,6 +507,7 @@ class LibraryManager:
                 collection_id=collection_id,
                 type=item_type,
                 name=name,
+                parent_id=parent_id,  # Support hierarchical organization
                 metadata=metadata or {}
             )
 
