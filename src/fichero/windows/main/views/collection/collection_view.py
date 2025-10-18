@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 
 from fichero.shared.views.base_view import BaseView
+from fichero.shared.commands import FicheroCommand, ViewCommandMixin
 from fichero.library.library_manager import LibraryManager
 from fichero.shared.toolbars import TopToolbar, BottomToolbar
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
@@ -20,7 +21,7 @@ from fichero.shared.toolbars import TopToolbar, BottomToolbar
 logger = logging.getLogger(__name__)
 
 
-class CollectionView(BaseView):
+class CollectionView(BaseView, ViewCommandMixin):
     """Collection view using the new BaseView system"""
     
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False):
@@ -47,8 +48,16 @@ class CollectionView(BaseView):
         # Navigation loop protection
         self._updating_from_navigation_callback = False
 
+        # Set view_id BEFORE initializing ViewCommandMixin
+        self.view_id = "collection"
+
         # Call parent initializer AFTER initializing our attributes
         super().__init__(app, is_mobile)
+        ViewCommandMixin.__init__(self)
+
+        # Define and register commands
+        self.define_commands()
+        self.register_commands()
 
         # Edit mode state
         self.is_edit_mode: bool = False
@@ -58,9 +67,10 @@ class CollectionView(BaseView):
 
         # Create toolbars after BaseView is initialized
         self._create_toolbars()
-        
-        # Register navigation callbacks for the top toolbar
-        self.setup_toolbar_callbacks(self.top_toolbar)
+
+        # Register navigation callbacks for the top toolbar (mobile only)
+        if self.top_toolbar:
+            self.setup_toolbar_callbacks(self.top_toolbar)
 
         # Register for NavigationController state changes
         self._register_navigation_controller_callbacks()
@@ -71,7 +81,7 @@ class CollectionView(BaseView):
         # Set up scroll container integration
         self._setup_scroll_integration()
 
-        # Connect bottom toolbar preview callback
+        # Connect bottom toolbar preview callback (mobile only)
         if self.bottom_toolbar and hasattr(self.bottom_toolbar, 'register_callbacks'):
             self.bottom_toolbar.register_callbacks(
                 on_preview_file=self._on_preview_file_from_toolbar
@@ -87,6 +97,42 @@ class CollectionView(BaseView):
         logger.debug("Event subscriptions registered for collection view (including progress updates)")
 
         logger.info("Refactored collection view created successfully")
+
+    def define_commands(self):
+        """Define all commands for CollectionView"""
+        try:
+            # Create custom menu groups (following OutputView/LibraryView pattern)
+            tools_group = toga.Group("Tools", order=50)  # After View (30), before Window (90)
+
+            # Note: _() is available globally via gettext.install() in app.py
+            self.commands = {
+                # ===== TOOLS MENU - PROCESS COMMAND =====
+                'process': FicheroCommand(
+                    id='collection.process',
+                    label=_("Process"),
+                    action=self._on_process_requested,
+                    shortcut=toga.Key.MOD_1 + toga.Key.ENTER,  # Cmd+Enter
+                    icon='resources/icons/toolbar/brain@10x.png',  # Brain icon for AI processing
+                    description=_("Process items with Fichero Director"),
+                    group=tools_group,  # Tools menu on desktop
+                    section=1,  # Section 1 = separator after Inspector (section=-1), before OutputView (section=0)
+                    order=0,  # First item in this section
+                    show_in_menu=True,  # Appear in Tools menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar (matching Inspector command)
+                    show_in_top_toolbar=False,  # Not in mobile top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal'
+                ),
+            }
+
+            logger.info(f"✅ Defined {len(self.commands)} commands for CollectionView")
+
+        except Exception as e:
+            logger.error(f"Failed to define CollectionView commands: {e}")
+            self.commands = {}
 
     def show(self):
         """Called when view becomes active - light refresh without recreating content"""
@@ -452,20 +498,20 @@ class CollectionView(BaseView):
             # widget.selection contains the selected Row object
             if hasattr(widget, 'selection') and widget.selection is not None:
                 selected_row = widget.selection
-                
+
                 # Debug: Log all available attributes on the Row object
                 logger.debug(f"Row object type: {type(selected_row)}")
                 logger.debug(f"Row object attributes: {dir(selected_row)}")
                 logger.debug(f"Row object __dict__: {getattr(selected_row, '__dict__', 'No __dict__')}")
-                
+
                 # Try different ways to access the data
                 # Method 1: Direct attribute access
                 title_direct = getattr(selected_row, 'title', None)
                 type_direct = getattr(selected_row, 'type', None)
                 is_folder_direct = getattr(selected_row, 'is_folder', None)
-                
+
                 logger.debug(f"Direct access - title: {title_direct}, type: {type_direct}, is_folder: {is_folder_direct}")
-                
+
                 # The Row object has all the attributes we provided in the data
                 # Access them directly as Row attributes
                 item_data = {
@@ -477,15 +523,21 @@ class CollectionView(BaseView):
                     'path': getattr(selected_row, 'path', ''),
                     'file_path': getattr(selected_row, 'file_path', '')
                 }
-                
+
                 logger.info(f"Item selected: {item_data['title']}")
                 logger.debug(f"Full item_data extracted: {item_data}")
-                
+
+                # Update inspector with item metadata
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    metadata = self.get_selection_metadata()
+                    self.app.inspector_window.update_metadata(metadata)
+                    logger.debug("Inspector updated with item metadata")
+
                 # Handle item navigation
                 self._handle_item_navigation(item_data)
             else:
                 logger.debug("No selection in widget")
-                
+
         except Exception as e:
             logger.error(f"Failed to handle item selection: {e}")
             import traceback
@@ -721,7 +773,7 @@ class CollectionView(BaseView):
     def _create_toolbars(self):
         """Create top and bottom toolbars for collection view"""
         try:
-            # Create top toolbar without coordinator (no edit mode for collection views)
+            # Create toolbars for both mobile and desktop (like OutputView)
             # Collection is child view - enable automatic mobile back navigation to Library
             self.top_toolbar = TopToolbar(
                 app=self.app,
@@ -730,61 +782,35 @@ class CollectionView(BaseView):
                 is_mobile=self.is_mobile
             )
 
-            # Add collection title via composition for desktop
-            if not self.is_mobile:
-                self.top_toolbar.add_centered_title_only(
-                    title_text=self.collection_name or "Collection",
-                    on_title_click=None
-                )
-
-            # Collection views should have no edit buttons - only back navigation
-
-            # Create bottom toolbar without coordinator (no edit mode for collection views)
             self.bottom_toolbar = BottomToolbar(
                 app=self.app,
                 is_mobile=self.is_mobile
             )
 
-            # Add collection-specific buttons using composition
-            self._add_collection_toolbar_buttons()
+            # Toolbars will be populated automatically by set_toolbars() from command definitions
+            self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
+            logger.info(f"Toolbars created and set for collection view (mobile={self.is_mobile})")
 
-            # Set toolbars on the view (mobile navigation will be connected automatically)
-            self.set_top_toolbar(self.top_toolbar)
-            self.set_bottom_toolbar(self.bottom_toolbar)
-
-            logger.info("Collection view toolbars created successfully")
         except Exception as e:
             logger.error(f"Failed to create collection toolbars: {e}")
 
     def _add_collection_toolbar_buttons(self):
         """Add collection-specific toolbar buttons"""
         try:
-            # Add Process button for Director integration
-            if self.bottom_toolbar:
-                self.bottom_toolbar.add_normal_mode_button(
-                    text="⚙️",
-                    label=_("Process"),
-                    on_press=self._on_process_requested,
-                    position="center",
-                    key="process",
-                    tooltip="Process items with Fichero Director"
-                )
-                logger.info("Collection toolbar buttons configured with Process button")
+            # Process button is now declared as a FicheroCommand in define_commands()
+            # It will be automatically added to toolbars via the command registration system
+            logger.debug("Collection toolbar buttons configured via command system")
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
 
     async def _on_process_requested(self, widget):
         """Handle Process button click"""
         try:
-            logger.info("Process button clicked")
-
-            # Debug: Check director integration
-            logger.info(f"App has director_integration: {hasattr(self.app, 'director_integration')}")
-            if hasattr(self.app, 'director_integration'):
-                logger.info(f"director_integration is: {self.app.director_integration}")
+            logger.info(f"Process button clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
 
             # Check if we have a collection
             if not self.collection_id:
+                logger.error(f"NO COLLECTION ID! collection_id = {self.collection_id}")
                 await self.app.main_window.dialog(
                     toga.InfoDialog(_("No Collection"), _("no_collection_selected"))
                 )
@@ -1811,4 +1837,63 @@ class CollectionView(BaseView):
                 logger.warning(f"❌ Item {item_id} processing failed: {status}")
 
         except Exception as e:
-            logger.error(f"Failed to handle processing completion: {e}") 
+            logger.error(f"Failed to handle processing completion: {e}")
+
+    def get_selection_metadata(self) -> str:
+        """Get metadata for the currently selected item"""
+        try:
+            # Get the currently selected item from the DetailedList
+            if not hasattr(self, 'items_list') or not self.items_list or not self.items_list.selection:
+                return "No item selected"
+
+            # Get the selected row from DetailedList
+            selected_row = self.items_list.selection
+
+            # Extract item data from row attributes
+            item_data = {
+                'id': getattr(selected_row, 'id', ''),
+                'title': getattr(selected_row, 'title', 'Unknown'),
+                'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
+                'type': getattr(selected_row, 'type', 'unknown'),
+                'is_folder': getattr(selected_row, 'is_folder', False),
+                'path': getattr(selected_row, 'path', ''),
+                'file_path': getattr(selected_row, 'file_path', ''),
+                'subtitle': getattr(selected_row, 'subtitle', ''),
+                'description': getattr(selected_row, 'description', '')
+            }
+
+            # Format metadata as human-readable text
+            lines = [
+                "=== ITEM METADATA ===",
+                "",
+                f"Name: {item_data['name']}",
+                f"Type: {'Folder' if item_data['is_folder'] else 'File'}",
+            ]
+
+            if item_data['id']:
+                lines.append(f"ID: {item_data['id']}")
+
+            if item_data['path']:
+                lines.append(f"Path: {item_data['path']}")
+
+            if item_data['file_path'] and item_data['file_path'] != item_data['path']:
+                lines.append(f"File Path: {item_data['file_path']}")
+
+            if item_data['subtitle']:
+                lines.append(f"\nDetails: {item_data['subtitle']}")
+
+            if item_data['description']:
+                lines.append(f"\nDescription: {item_data['description']}")
+
+            # Add collection context
+            if hasattr(self, 'collection_name') and self.collection_name:
+                lines.append(f"\nCollection: {self.collection_name}")
+
+            if hasattr(self, 'current_path') and self.current_path:
+                lines.append(f"Current Path: {self.current_path}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Failed to get selection metadata: {e}")
+            return f"Error loading metadata: {e}"

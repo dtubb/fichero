@@ -37,6 +37,12 @@ class MainWindow:
         self.current_view: Optional = None
         self.current_view_key: Optional[str] = None
 
+        # Track views in each pane for inspector window
+        self.left_pane_view: Optional = None   # LibraryView
+        self.center_pane_view: Optional = None # CollectionView
+        self.right_pane_view: Optional = None  # OutputView
+        self.focused_pane: str = 'center'      # Which pane currently has focus
+
         # Desktop layout containers
         self.left_pane: Optional[toga.Box] = None
         self.center_pane: Optional[toga.Box] = None
@@ -65,6 +71,9 @@ class MainWindow:
         # Pre-create OutputView to register its Edit menu commands at startup
         # (Even though the view won't be shown until needed, its commands need to be available)
         self._precreate_output_view()
+
+        # Note: CollectionView commands (Process, etc.) are registered when first collection is opened
+        # This prevents the placeholder view issue where commands route to wrong instance
 
         # Set up initial view
         self._show_initial_view()
@@ -231,6 +240,7 @@ class MainWindow:
                 logger.info("✅ OutputView pre-created - Edit menu commands registered")
         except Exception as e:
             logger.error(f"Failed to pre-create OutputView: {e}")
+
 
     def _show_initial_view(self):
         """Show the initial library view"""
@@ -804,6 +814,17 @@ class MainWindow:
             if pane == "center":  # Track center pane as current view
                 self.current_view = view
                 self.current_view_key = view_key
+
+            # Track view in each pane for inspector window
+            if pane == "left":
+                self.left_pane_view = view
+                self.focused_pane = 'left'
+            elif pane == "center":
+                self.center_pane_view = view
+                self.focused_pane = 'center'
+            elif pane == "right":
+                self.right_pane_view = view
+                self.focused_pane = 'right'
 
             # Show the view
             if hasattr(view, 'show'):
