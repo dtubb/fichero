@@ -51,7 +51,7 @@ class CoreCommands:
         backend: str = typer.Option("python", "--backend", "-b", help="Backend: python or celery/redis"),
         cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers"),
         io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers"),
-
+        dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Test mode - show what would be processed without actually processing"),
         verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output")
     ):
         """Process folders with specified plan and workflow"""
@@ -115,14 +115,23 @@ class CoreCommands:
             self.console.print(f"📋 Plan: {plan_name}", style="cyan")
             self.console.print(f"🔄 Workflow: {workflow}", style="cyan")
             self.console.print(f"⚙️ Backend: {backend}", style="cyan")
-            
+
             if cpu_workers:
                 self.console.print(f"🔧 CPU Workers: {cpu_workers}", style="cyan")
             if io_workers:
                 self.console.print(f"🔧 I/O Workers: {io_workers}", style="cyan")
-            
+
+            if dry_run:
+                self.console.print(f"🧪 Mode: DRY RUN (no actual processing)", style="bold yellow")
+
             self.console.print()
-            
+
+            # Dry-run mode: scan and show what would be processed
+            if dry_run:
+                self._show_dry_run_preview(input_folder, plan_name, workflow)
+                self.console.print("\n✅ Dry-run complete - no files were modified", style="bold green")
+                return
+
             # Submit tasks
             task_ids = self.director.process_with_auto_detection(
                 input_path=input_folder,
@@ -192,17 +201,229 @@ class CoreCommands:
         except Exception as e:
             error_handler.handle_general_exception(e, "processing", verbose)
 
+    def process_list(self,
+        list_file: Path = typer.Argument(..., help="Text file containing paths to process (one per line)"),
+        plan: Optional[str] = typer.Option(None, "--plan", "-p", help="Plan name or path to .yml file - uses default if not specified"),
+        output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
+        workflow: str = typer.Option(None, "--workflow", "-w", help="Workflow to use"),
+        backend: str = typer.Option("python", "--backend", "-b", help="Backend: python or celery/redis"),
+        cpu_workers: int = typer.Option(None, "--cpu-workers", "-c", help="Number of CPU workers"),
+        io_workers: int = typer.Option(None, "--io-workers", "-i", help="Number of I/O workers"),
+        dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Test mode - show what would be processed without actually processing"),
+        verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output")
+    ):
+        """Process files and folders from a list file (supports both files AND folders)"""
+        error_handler = create_cli_error_handler(self.console)
+
+        try:
+            if verbose:
+                self._enable_verbose_logging()
+
+            if not self.director:
+                self.console.print("❌ Director not available", style="red")
+                raise typer.Exit(1)
+
+            # Validate list file exists
+            if not list_file.exists():
+                self.console.print(f"❌ List file does not exist: {list_file}", style="red")
+                raise typer.Exit(1)
+
+            # Read paths from list file
+            self.console.print(f"📄 Reading paths from: {list_file}", style="cyan")
+
+            with open(list_file, 'r') as f:
+                raw_lines = f.readlines()
+
+            # Parse paths, skip empty lines and comments
+            paths = []
+            for line in raw_lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    path = Path(line)
+                    if path.exists():
+                        paths.append(path)
+                    else:
+                        self.console.print(f"⚠️ Path does not exist (skipping): {path}", style="yellow")
+
+            if not paths:
+                self.console.print("❌ No valid paths found in list file", style="red")
+                raise typer.Exit(1)
+
+            # Categorize paths into files and folders
+            files = [p for p in paths if p.is_file()]
+            folders = [p for p in paths if p.is_dir()]
+
+            self.console.print(f"📋 Found {len(paths)} valid paths:", style="bold green")
+            self.console.print(f"  • {len(files)} individual files", style="cyan")
+            self.console.print(f"  • {len(folders)} folders", style="cyan")
+            self.console.print()
+
+            # Configure backend if specified
+            if backend != "python":
+                self.console.print(f"🔧 Configuring backend: {backend}", style="cyan")
+                self.director.configure_settings(
+                    console=self.console,
+                    backend=backend,
+                    cpu_workers=cpu_workers,
+                    io_workers=io_workers
+                )
+
+            # Get default settings
+            from fichero.config.core.settings import get_app_settings
+            app_settings = get_app_settings(self.director.app if hasattr(self.director, 'app') else None)
+
+            # Determine plan name
+            if plan is None:
+                plan_name = app_settings.get_setting('defaults.plan', 'Default')
+            else:
+                plan_path = Path(plan)
+                if plan_path.exists() and plan_path.suffix == '.yml':
+                    plan_name = plan_path.stem
+                else:
+                    plan_name = plan
+
+            # Determine workflow name
+            if workflow is None:
+                workflow = app_settings.get_setting('defaults.workflow', '00) default')
+
+            # Set output directory (use first path's parent if not specified)
+            if output is None:
+                output = paths[0].parent / "output"
+
+            output.mkdir(parents=True, exist_ok=True)
+
+            # Show processing info
+            self.console.print(f"📁 Output: {output}", style="cyan")
+            self.console.print(f"📋 Plan: {plan_name}", style="cyan")
+            self.console.print(f"🔄 Workflow: {workflow}", style="cyan")
+            self.console.print(f"⚙️ Backend: {backend}", style="cyan")
+
+            if cpu_workers:
+                self.console.print(f"🔧 CPU Workers: {cpu_workers}", style="cyan")
+            if io_workers:
+                self.console.print(f"🔧 I/O Workers: {io_workers}", style="cyan")
+
+            if dry_run:
+                self.console.print(f"🧪 Mode: DRY RUN (no actual processing)", style="bold yellow")
+
+            self.console.print()
+
+            # Dry-run mode: show what would be processed
+            if dry_run:
+                self._show_list_dry_run_preview(files, folders, plan_name, workflow)
+                self.console.print("\n✅ Dry-run complete - no files were modified", style="bold green")
+                return
+
+            # Process each path
+            all_task_ids = []
+
+            # Process individual files
+            if files:
+                self.console.print(f"📄 Processing {len(files)} individual files...", style="bold blue")
+                for file_path in files:
+                    self.console.print(f"  • {file_path.name}", style="dim")
+                    # For individual files, we'll use the Director's file processing
+                    # Note: This may need adjustment based on Director API
+                    try:
+                        task_ids = self.director.process_with_auto_detection(
+                            input_path=file_path.parent,
+                            output_path=output,
+                            plan_name=plan_name,
+                            workflow_name=workflow
+                        )
+                        if task_ids:
+                            all_task_ids.extend(task_ids)
+                    except Exception as e:
+                        self.console.print(f"    ⚠️ Failed to process {file_path.name}: {e}", style="yellow")
+                self.console.print()
+
+            # Process folders
+            if folders:
+                self.console.print(f"📁 Processing {len(folders)} folders...", style="bold blue")
+                for folder_path in folders:
+                    self.console.print(f"  • {folder_path.name}/", style="dim")
+                    try:
+                        task_ids = self.director.process_with_auto_detection(
+                            input_path=folder_path,
+                            output_path=output,
+                            plan_name=plan_name,
+                            workflow_name=workflow
+                        )
+                        if task_ids:
+                            all_task_ids.extend(task_ids)
+                    except Exception as e:
+                        self.console.print(f"    ⚠️ Failed to process {folder_path.name}: {e}", style="yellow")
+                self.console.print()
+
+            if not all_task_ids:
+                self.console.print("❌ No tasks were submitted", style="red")
+                success = False
+            else:
+                # Show table display
+                from fichero.director.monitoring.displays.cli_display import CLITaskDisplay
+
+                task_monitor = self.director.get_task_monitor()
+                cli_display = CLITaskDisplay(self.console, task_monitor)
+
+                # Small delay to allow tasks to be registered
+                time.sleep(0.1)
+
+                self.console.print(f"🚀 Processing {len(all_task_ids)} task{'s' if len(all_task_ids) != 1 else ''}...", style="bold blue")
+                self.console.print()
+
+                # Show table and wait for completion
+                try:
+                    cli_display.show_tasks(filter_current_only=True)
+                    success = self._check_all_tasks_completion(all_task_ids)
+                except KeyboardInterrupt:
+                    self.console.print("\n👋 Task monitoring stopped", style="yellow")
+                    success = self._check_all_tasks_completion(all_task_ids)
+                except Exception as e:
+                    logger.warning(f"Table display failed: {e}")
+                    success = self._monitor_tasks_simple(all_task_ids)
+
+                self.console.print()
+
+            # Simple success/failure output
+            if success:
+                failed_count = 0
+                total_count = len(all_task_ids)
+
+                for task_id in all_task_ids:
+                    try:
+                        if hasattr(self.director.backend, 'get_task_status'):
+                            status = self.director.backend.get_task_status(task_id)
+                            if hasattr(status, 'value'):
+                                status = status.value
+                            if status == 'failed':
+                                failed_count += 1
+                    except Exception:
+                        pass
+
+                if failed_count > 0:
+                    self.console.print(f"⚠️ Processing completed with {failed_count} failed tasks", style="bold yellow")
+                else:
+                    self.console.print("✅ Processing completed successfully!", style="bold green")
+            else:
+                self.console.print("❌ Processing failed or had errors", style="red")
+                raise typer.Exit(1)
+
+        except KeyboardInterrupt:
+            error_handler.handle_keyboard_interrupt()
+        except Exception as e:
+            error_handler.handle_general_exception(e, "list processing", verbose)
+
     def plans(self):
         """List available processing plans with workflows and steps"""
         error_handler = create_cli_error_handler(self.console)
-        
+
         try:
             if not self.director:
                 self.console.print("❌ Director not available", style="red")
                 return
-            
+
             self.director.display_available_plans(self.console)
-            
+
         except Exception as e:
             error_handler.handle_general_exception(e, "plan listing", verbose=True)
 
@@ -421,4 +642,73 @@ class CoreCommands:
             except Exception:
                 # Task might be completed and cleaned up - assume it's done
                 pass
-        return True 
+        return True
+
+    def _show_dry_run_preview(self, input_path: Path, plan_name: str, workflow_name: str):
+        """Show what would be processed in dry-run mode"""
+        from fichero.tools.utils.files import get_image_files
+
+        self.console.print("🔍 Scanning for files to process...\n", style="cyan")
+
+        # Scan for image files recursively
+        image_files = get_image_files(input_path)
+
+        if not image_files:
+            self.console.print("❌ No image files found", style="red")
+            return
+
+        # Group by directory
+        by_dir = {}
+        for img_path in image_files:
+            dir_path = img_path.parent
+            if dir_path not in by_dir:
+                by_dir[dir_path] = []
+            by_dir[dir_path].append(img_path)
+
+        # Display summary
+        self.console.print(f"📊 Found {len(image_files)} image files in {len(by_dir)} directories:\n", style="bold green")
+
+        for dir_path, files in sorted(by_dir.items()):
+            rel_path = dir_path.relative_to(input_path) if dir_path != input_path else Path(".")
+            self.console.print(f"  📁 {rel_path}/ ({len(files)} files)", style="cyan")
+            if len(files) <= 5:
+                for f in files:
+                    self.console.print(f"     • {f.name}", style="dim")
+            else:
+                for f in files[:3]:
+                    self.console.print(f"     • {f.name}", style="dim")
+                self.console.print(f"     • ... and {len(files) - 3} more", style="dim")
+            self.console.print()
+
+        self.console.print(f"\n📋 Would process with:", style="bold")
+        self.console.print(f"  • Plan: {plan_name}", style="cyan")
+        self.console.print(f"  • Workflow: {workflow_name}", style="cyan")
+
+    def _show_list_dry_run_preview(self, files: list, folders: list, plan_name: str, workflow_name: str):
+        """Show what would be processed from a list in dry-run mode"""
+        from fichero.tools.utils.files import get_image_files
+
+        self.console.print("🔍 Analyzing paths from list...\n", style="cyan")
+
+        # Show individual files
+        if files:
+            self.console.print(f"📄 Individual files ({len(files)}):", style="bold cyan")
+            for file_path in files:
+                self.console.print(f"  • {file_path}", style="dim")
+            self.console.print()
+
+        # Show folders and scan for images
+        if folders:
+            self.console.print(f"📁 Folders ({len(folders)}):", style="bold cyan")
+            total_images = 0
+            for folder_path in folders:
+                image_files = get_image_files(folder_path)
+                total_images += len(image_files)
+                self.console.print(f"  • {folder_path}/ ({len(image_files)} images)", style="dim")
+            self.console.print()
+            self.console.print(f"📊 Total images in folders: {total_images}", style="bold green")
+            self.console.print()
+
+        self.console.print(f"📋 Would process with:", style="bold")
+        self.console.print(f"  • Plan: {plan_name}", style="cyan")
+        self.console.print(f"  • Workflow: {workflow_name}", style="cyan") 

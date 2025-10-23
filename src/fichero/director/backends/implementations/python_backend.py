@@ -101,6 +101,7 @@ class PythonProcessingBackend(ProcessingBackend):
         self.task_executor_types: Dict[str, str] = {}  # Track which executor type each task uses
         self.task_executors: Dict[str, any] = {}  # Track workflow executors for cancellation
         self.task_document_ids: Dict[str, str] = {}  # Track document_id for each task
+        self.task_display_names: Dict[str, str] = {}  # Track display_name for each task (for Activity Monitor)
         self._lock = threading.Lock()
         
         self._initialized = False
@@ -204,10 +205,14 @@ class PythonProcessingBackend(ProcessingBackend):
             for task in tasks:
                 # Set initial status
                 self.active_tasks[task.task_id] = ProcessingStatus.PENDING
-                
+
                 # Store document_id for later use in completion notifications
                 if task.document_id:
                     self.task_document_ids[task.task_id] = task.document_id
+
+                # Store display_name for Activity Monitor display
+                if task.display_name:
+                    self.task_display_names[task.task_id] = task.display_name
                 
                 # Determine which executor to use based on workflow characteristics
                 executor, executor_type = self._get_executor_for_task(task)
@@ -230,7 +235,7 @@ class PythonProcessingBackend(ProcessingBackend):
                 progress_data = {
                     "status": "submitted",
                     "folder": str(task.folder_path),
-                    "folder_name": task.folder_path.name,  # Add folder_name for task monitor
+                    "folder_name": task.display_name or task.folder_path.name,  # Use display_name if available, else folder name
                     "workflow": task.workflow_name,
                     "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                     "executor_type": executor_type,
@@ -355,23 +360,24 @@ class PythonProcessingBackend(ProcessingBackend):
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
                         
-                        # Get stored document_id if available
+                        # Get stored document_id and display_name if available
                         document_id = self.task_document_ids.get(task_id)
-                        
+                        display_name = self.task_display_names.get(task_id)
+
                         # Notify completion for ThreadPool tasks (they don't have callbacks)
                         if result.success:
                             self.active_tasks[task_id] = ProcessingStatus.COMPLETED
                             worker_id = f"{worker_type}-completed"
-                            
+
                             logger.info(f"Detected completed {worker_type} task: {task_id}")
-                            
+
                             # Notify completion
                             completion_data = {
                                 "event_type": "workflow_complete",  # ADDED: Trigger TaskMonitor.complete_task()
                                 "success": True,
                                 "status": "completed",
                                 "folder": str(result.folder_path),
-                                "folder_name": result.folder_path.name,  # Add folder_name for task monitor
+                                "folder_name": display_name or result.folder_path.name,  # Use display_name if available, else folder name
                                 "plan": "Unknown",  # We don't have access to plan_config here
                                 "worker": worker_id,
                                 "execution_time": result.execution_time,
@@ -383,11 +389,13 @@ class PythonProcessingBackend(ProcessingBackend):
                                 completion_data["document_id"] = document_id
                             
                             self._notify_progress(task_id, completion_data)
-                            
-                            # Clean up document_id tracking
+
+                            # Clean up document_id and display_name tracking
                             if task_id in self.task_document_ids:
                                 del self.task_document_ids[task_id]
-                            
+                            if task_id in self.task_display_names:
+                                del self.task_display_names[task_id]
+
                             return ProcessingStatus.COMPLETED
                         else:
                             self.active_tasks[task_id] = ProcessingStatus.FAILED
@@ -402,7 +410,7 @@ class PythonProcessingBackend(ProcessingBackend):
                                 "error": result.error_message,
                                 "status": "failed",
                                 "folder": str(result.folder_path),
-                                "folder_name": result.folder_path.name,  # Add folder_name for task monitor
+                                "folder_name": display_name or result.folder_path.name,  # Use display_name if available, else folder name
                                 "plan": "Unknown",
                                 "worker": worker_id,
                                 "executor_type": executor_type
@@ -413,11 +421,13 @@ class PythonProcessingBackend(ProcessingBackend):
                                 failure_data["document_id"] = document_id
                             
                             self._notify_progress(task_id, failure_data)
-                            
-                            # Clean up document_id tracking
+
+                            # Clean up document_id and display_name tracking
                             if task_id in self.task_document_ids:
                                 del self.task_document_ids[task_id]
-                            
+                            if task_id in self.task_display_names:
+                                del self.task_display_names[task_id]
+
                             return ProcessingStatus.FAILED
                     except Exception as e:
                         # Create error result
@@ -455,11 +465,13 @@ class PythonProcessingBackend(ProcessingBackend):
                             error_data["document_id"] = document_id
                         
                         self._notify_progress(task_id, error_data)
-                        
-                        # Clean up document_id tracking
+
+                        # Clean up document_id and display_name tracking
                         if task_id in self.task_document_ids:
                             del self.task_document_ids[task_id]
-                        
+                        if task_id in self.task_display_names:
+                            del self.task_display_names[task_id]
+
                         return ProcessingStatus.FAILED
             
             return self.active_tasks.get(task_id, ProcessingStatus.PENDING)
@@ -499,6 +511,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_executors[task_id]  # Clean up task executor tracking
                             if task_id in self.task_document_ids:
                                 del self.task_document_ids[task_id]  # Clean up document_id tracking
+                            if task_id in self.task_display_names:
+                                del self.task_display_names[task_id]  # Clean up display_name tracking
                             logger.info(f"Successfully cancelled future for task: {task_id}")
                             return True
                         else:
@@ -519,6 +533,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                     del self.task_executors[task_id]  # Clean up task executor tracking
                                 if task_id in self.task_document_ids:
                                     del self.task_document_ids[task_id]  # Clean up document_id tracking
+                                if task_id in self.task_display_names:
+                                    del self.task_display_names[task_id]  # Clean up display_name tracking
                                 return True
                     except Exception as e:
                         logger.error(f"Error cancelling future for task {task_id}: {e}")
@@ -531,6 +547,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_executors[task_id]  # Clean up task executor tracking
                         if task_id in self.task_document_ids:
                             del self.task_document_ids[task_id]  # Clean up document_id tracking
+                        if task_id in self.task_display_names:
+                            del self.task_display_names[task_id]  # Clean up display_name tracking
                         return False
                 else:
                     logger.info(f"No future found for task: {task_id}")
@@ -610,7 +628,9 @@ class PythonProcessingBackend(ProcessingBackend):
             getattr(self, 'task_futures', {}).clear()
             getattr(self, 'task_executor_types', {}).clear()  # Clear executor types tracking
             getattr(self, 'task_executors', {}).clear()  # Clear task executors tracking
-            
+            getattr(self, 'task_document_ids', {}).clear()  # Clear document_id tracking
+            getattr(self, 'task_display_names', {}).clear()  # Clear display_name tracking
+
             logger.info("Forced cleanup completed")
         except Exception as e:
             logger.error(f"Error during forced cleanup: {e}")
@@ -750,7 +770,7 @@ class PythonProcessingBackend(ProcessingBackend):
                         "success": True,
                         "status": "completed",
                         "folder": str(task.folder_path),
-                        "folder_name": task.folder_path.name,  # Add folder_name for task monitor
+                        "folder_name": task.display_name or task.folder_path.name,  # Use display_name if available, else folder name
                         "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                         "worker": worker_id,
                         "execution_time": result.execution_time,
@@ -766,7 +786,7 @@ class PythonProcessingBackend(ProcessingBackend):
                         "error": result.error_message,
                         "status": "failed",
                         "folder": str(task.folder_path),
-                        "folder_name": task.folder_path.name,  # Add folder_name for task monitor
+                        "folder_name": task.display_name or task.folder_path.name,  # Use display_name if available, else folder name
                         "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                         "worker": worker_id,
                         "document_id": task.document_id
@@ -808,7 +828,7 @@ class PythonProcessingBackend(ProcessingBackend):
                 "error": error_msg,
                 "status": "failed",
                 "folder": str(task.folder_path),
-                "folder_name": task.folder_path.name,
+                "folder_name": task.display_name or task.folder_path.name,  # Use display_name if available, else folder name
                 "plan": task.plan_config.get('name', 'Unknown') if task.plan_config else 'Unknown',
                 "worker": worker_id,
                 "document_id": task.document_id

@@ -238,8 +238,9 @@ class CommandManager:
             # Add to app commands (automatically appears in native menus)
             self.app.commands.add(toga_cmd)
 
-            # Store mapping
+            # Store mapping and set reference on FicheroCommand for enable/disable sync
             self._toga_commands[command.id] = toga_cmd
+            command._toga_command = toga_cmd
 
         except Exception as e:
             logger.error(f"Failed to create toga command for {command.id}: {e}")
@@ -476,8 +477,9 @@ class CommandManager:
                     )
                     toolbar_items.append(toolbar_cmd)
 
-                    # Store for future reuse
+                    # Store for future reuse and set reference on FicheroCommand for enable/disable sync
                     self._toga_commands[command.id] = toolbar_cmd
+                    command._toga_command = toolbar_cmd
                     logger.debug(f"Created new toolbar-only toga.Command: {command.id}")
 
             # Add toolbar items (additive approach)

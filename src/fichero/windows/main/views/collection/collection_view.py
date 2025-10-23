@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 class CollectionView(BaseView, ViewCommandMixin):
     """Collection view using the new BaseView system"""
     
-    def __init__(self, app, collection_name: str = "", is_mobile: bool = False):
+    def __init__(self, app, collection_name: str = "", is_mobile: bool = False, collection_id: Optional[str] = None):
         """Initialize refactored collection view"""
-        logger.debug(f"CollectionView.__init__ called with app={app}, collection_name='{collection_name}', is_mobile={is_mobile}")
+        logger.debug(f"CollectionView.__init__ called with app={app}, collection_name='{collection_name}', is_mobile={is_mobile}, collection_id={collection_id}")
 
         # Initialize attributes BEFORE calling super().__init__ to prevent AttributeError
         # during _create_content() which gets called by BaseView's constructor
@@ -35,7 +35,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         self.collection_name = collection_name
         self.collections: List[Dict[str, Any]] = []
         self.current_collection: Optional[Dict[str, Any]] = None
-        self.collection_id: Optional[str] = None
+        self.collection_id: Optional[str] = collection_id  # Set from parameter
         self.collection_items: List[Dict[str, Any]] = []
 
         # Preview callback for showing files in right pane
@@ -96,6 +96,11 @@ class CollectionView(BaseView, ViewCommandMixin):
         subscribe_to_navigation("processing_completed", self._on_processing_completed)
         logger.debug("Event subscriptions registered for collection view (including progress updates)")
 
+        # Load collection items if collection_id was provided during initialization
+        if self.collection_id:
+            logger.debug(f"Loading items for collection {self.collection_id} provided during initialization")
+            self._load_collection_items()
+
         logger.info("Refactored collection view created successfully")
 
     def define_commands(self):
@@ -106,19 +111,41 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             # Note: _() is available globally via gettext.install() in app.py
             self.commands = {
-                # ===== TOOLS MENU - PROCESS COMMAND =====
-                'process': FicheroCommand(
-                    id='collection.process',
-                    label=_("Process"),
-                    action=self._on_process_requested,
+                # ===== TOOLS MENU - PROCESS SELECTED COMMAND =====
+                'process_selected': FicheroCommand(
+                    id='collection.process_selected',
+                    label=_("Process Selected"),
+                    action=self._on_process_selected_requested,
                     shortcut=toga.Key.MOD_1 + toga.Key.ENTER,  # Cmd+Enter
-                    icon='resources/icons/toolbar/brain@10x.png',  # Brain icon for AI processing
-                    description=_("Process items with Fichero Director"),
+                    icon='resources/icons/toolbar/sparkle@10x.png',  # Single sparkle for selected item
+                    description=_("Process selected item with Fichero Director"),
                     group=tools_group,  # Tools menu on desktop
                     section=1,  # Section 1 = separator after Inspector (section=-1), before OutputView (section=0)
                     order=0,  # First item in this section
                     show_in_menu=True,  # Appear in Tools menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar (matching Inspector command)
+                    show_in_toolbar=True,  # Show in desktop toolbar
+                    show_in_top_toolbar=False,  # Not in mobile top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
+                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=False,
+                    context='normal',
+                    enabled=False  # Will be enabled when item is selected
+                ),
+
+                # ===== TOOLS MENU - PROCESS ALL COMMAND =====
+                'process_all': FicheroCommand(
+                    id='collection.process_all',
+                    label=_("Process All"),
+                    action=self._on_process_all_requested,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + toga.Key.ENTER,  # Cmd+Shift+Enter
+                    icon='resources/icons/toolbar/sparkles@10x.png',  # Multiple sparkles for all items
+                    description=_("Process all items in current folder with Fichero Director"),
+                    group=tools_group,  # Tools menu on desktop
+                    section=1,  # Same section as Process Selected
+                    order=1,  # Second item in this section (after Process Selected)
+                    show_in_menu=True,  # Appear in Tools menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar
                     show_in_top_toolbar=False,  # Not in mobile top toolbar
                     show_in_bottom_toolbar=True,  # Mobile bottom toolbar
                     toolbar_position='center',  # Center on mobile bottom toolbar
@@ -527,16 +554,31 @@ class CollectionView(BaseView, ViewCommandMixin):
                 logger.info(f"Item selected: {item_data['title']}")
                 logger.debug(f"Full item_data extracted: {item_data}")
 
+                # Enable "Process Selected" command now that an item is selected
+                logger.info(f"🔍 DEBUG: hasattr(self, 'commands') = {hasattr(self, 'commands')}")
+                if hasattr(self, 'commands'):
+                    logger.info(f"🔍 DEBUG: self.commands.keys() = {list(self.commands.keys())}")
+                    logger.info(f"🔍 DEBUG: 'process_selected' in self.commands = {'process_selected' in self.commands}")
+
+                if hasattr(self, 'commands') and 'process_selected' in self.commands:
+                    self.commands['process_selected'].enable()
+                    logger.info("✅ Enabled 'Process Selected' command (item selected)")
+
                 # Update inspector with item metadata
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
                     metadata = self.get_selection_metadata()
-                    self.app.inspector_window.update_metadata(metadata)
+                    self.app.inspector_window.update_metadata(metadata, selection_type="ITEM")
                     logger.debug("Inspector updated with item metadata")
 
-                # Handle item navigation
+                # Navigate to show preview
                 self._handle_item_navigation(item_data)
             else:
                 logger.debug("No selection in widget")
+
+                # Disable "Process Selected" command when no selection
+                if hasattr(self, 'commands') and 'process_selected' in self.commands:
+                    self.commands['process_selected'].disable()
+                    logger.debug("❌ Disabled 'Process Selected' command (no selection)")
 
         except Exception as e:
             logger.error(f"Failed to handle item selection: {e}")
@@ -701,7 +743,7 @@ class CollectionView(BaseView, ViewCommandMixin):
     async def _load_item_outputs(self, item_data: Dict[str, Any], file_path: str):
         """Load processing outputs for an item into the OutputView via navigation event
 
-        Always emits a preview event, with output_path if processing outputs exist
+        Always emits a preview event, with filtered output data if processing outputs exist
         """
         try:
             from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
@@ -716,51 +758,39 @@ class CollectionView(BaseView, ViewCommandMixin):
                     item_index = i
                     break
 
-            # Try to find processing outputs
-            output_path = None
+            # Get file-specific filtered output data via LibraryManager
             item_id = item_data.get('id')
-            logger.info(f"📊 Checking for outputs - item_id: {item_id}, file_path: {file_path}")
+            logger.info(f"📊 Getting filtered outputs - item_id: {item_id}, file_path: {file_path}")
 
+            output_data = None
             if item_id:
-                # Get processing results using storage layer directly (synchronous)
-                # This avoids async event loop conflicts
-                history = self.app.library_manager.storage.get_processing_history(item_id)
-                logger.info(f"📊 Query result - history count: {len(history) if history else 0}")
+                # Call the new library-level filtering API
+                output_data = await self.app.library_manager.get_item_output_data(item_id)
 
-                if history:
-                    # Filter for successful results with output paths
-                    successful = [r for r in history if r.status == "success" and r.output_paths]
-
-                    if successful:
-                        # Get most recent successful result
-                        processing_result = successful[0]
-                        candidate_path = Path(processing_result.output_paths[0])
-
-                        if candidate_path.exists():
-                            output_path = candidate_path
-                            logger.info(f"📊 Found processing output: {output_path}")
-                        else:
-                            logger.warning(f"Processing output path does not exist: {candidate_path}")
-                    else:
-                        logger.debug(f"No successful processing outputs for item: {item_id}")
+                if output_data and output_data.get('has_outputs'):
+                    logger.info(f"📊 Found {len(output_data['processing_steps'])} filtered processing steps for item")
+                elif output_data:
+                    logger.info(f"📊 No processing outputs found for item (not yet processed)")
                 else:
-                    logger.debug(f"No processing history found for item: {item_id}")
+                    logger.warning(f"📊 Failed to get output data for item {item_id}")
             else:
                 logger.debug("No item ID available - cannot query for outputs")
 
-            # Emit preview event - with or without output_path
+            # Emit preview event - with or without filtered output data
             event_data = {
                 'file_path': str(file_path),
                 'file_metadata': item_data,
                 'collection_items': collection_items,
-                'item_index': item_index
+                'item_index': item_index,
+                'item_id': item_id  # Pass item_id for file-specific filtering
             }
 
-            if output_path:
-                event_data['output_path'] = str(output_path)
-                logger.info(f"📊 Emitting preview event WITH output path: {output_path}")
+            if output_data and output_data.get('has_outputs'):
+                # Pass the filtered output data structure to OutputView
+                event_data['output_data'] = output_data
+                logger.info(f"📊 Emitting preview event WITH filtered output data ({len(output_data['processing_steps'])} steps)")
             else:
-                logger.info(f"📊 Emitting preview event WITHOUT output path (original file only)")
+                logger.info(f"📊 Emitting preview event WITHOUT output data (original file only)")
 
             emit_navigation_event('show_preview', event_data)
             logger.info(f"✅ Emitted preview event for file: {file_path}")
@@ -803,51 +833,81 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
 
-    async def _on_process_requested(self, widget):
-        """Handle Process button click"""
+    async def _on_process_selected_requested(self, widget):
+        """Handle Process Selected button click - process only selected item"""
         try:
-            logger.info(f"Process button clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
+            logger.info(f"Process Selected clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
 
             # Check if we have a collection
             if not self.collection_id:
                 logger.error(f"NO COLLECTION ID! collection_id = {self.collection_id}")
-                await self.app.main_window.dialog(
-                    toga.InfoDialog(_("No Collection"), _("no_collection_selected"))
-                )
+                # Skip dialog - just log error and return (dialogs cause NSTableView crash)
                 return
 
-            # Get currently selected item (if any)
+            # Get currently selected item (REQUIRED for this command)
             selected_item_id = None
+            selected_item_name = None
             if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
                 try:
-                    # Get the selected item's ID from the row data
+                    # Get the selected item's ID and name from the row data
                     selected_row = self.items_list.selection
                     if hasattr(selected_row, 'item_id'):
                         selected_item_id = selected_row.item_id
                     elif hasattr(selected_row, 'id'):
                         selected_item_id = selected_row.id
+
+                    # Get the display name from the row
+                    if hasattr(selected_row, 'title'):
+                        selected_item_name = selected_row.title
+                    elif hasattr(selected_row, 'name'):
+                        selected_item_name = selected_row.name
+
+                    logger.info(f"Selected item: id={selected_item_id}, name={selected_item_name}")
                 except Exception as e:
                     logger.debug(f"Could not get selected item: {e}")
 
-            # Show processing dialog
-            await self._show_process_dialog(selected_item_id)
+            # If no selection, just log and return (skip dialog to avoid crash)
+            if not selected_item_id:
+                logger.warning("No item selected - cannot process")
+                return
+
+            # Show processing dialog with selected item
+            await self._show_process_dialog(selected_item_id, selected_item_name)
 
         except Exception as e:
-            logger.error(f"Error handling process request: {e}")
-            await self.app.main_window.error_dialog(
-                title=_("Processing Error"),
-                message=_("processing_error_message").format(error=str(e))
-            )
+            logger.error(f"Error handling process selected request: {e}")
+            # Skip error dialog - just log (dialogs cause NSTableView crash)
+            import traceback
+            traceback.print_exc()
 
-    async def _show_process_dialog(self, selected_item_id: Optional[str] = None):
+    async def _on_process_all_requested(self, widget):
+        """Handle Process All button click - process all items in current folder"""
+        try:
+            logger.info(f"Process All clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
+
+            # Check if we have a collection
+            if not self.collection_id:
+                logger.error(f"NO COLLECTION ID! collection_id = {self.collection_id}")
+                # Skip dialog - just log error and return (dialogs cause NSTableView crash)
+                return
+
+            # Show processing dialog with NO selected item (process all)
+            await self._show_process_dialog(selected_item_id=None)
+
+        except Exception as e:
+            logger.error(f"Error handling process all request: {e}")
+            # Skip error dialog - just log (dialogs cause NSTableView crash)
+            import traceback
+            traceback.print_exc()
+
+    async def _show_process_dialog(self, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
         """Show simple confirmation and process directly"""
         try:
             # Get collection first
             collection = await self.app.library_manager.get_collection(self.collection_id)
             if not collection:
-                await self.app.main_window.dialog(
-                    toga.ErrorDialog(_("Collection Not Found"), _("collection_not_found_message"))
-                )
+                logger.error("Collection not found")
+                # Skip dialog - just return (dialogs cause NSTableView crash)
                 return
 
             # Check if we have items in the database
@@ -856,79 +916,99 @@ class CollectionView(BaseView, ViewCommandMixin):
             # Determine processing approach based on what we have
             if all_items:
                 # We have items in database - use DirectorIntegrationService
-                await self._process_via_items(collection, all_items, selected_item_id)
+                await self._process_via_items(collection, all_items, selected_item_id, selected_item_name)
             else:
-                # No items in database - process folder directly
-                await self._process_via_folder(collection)
+                # No items in database
+                if selected_item_id:
+                    # "Process Selected" was clicked but no items in database - show error
+                    logger.error("Cannot process selected item: Collection has no items in database. Please index the collection first.")
+                    logger.error("Use a 'Scan' or 'Reindex' command to populate the collection with files from the filesystem.")
+                    return
+                else:
+                    # "Process All" was clicked - process folder directly
+                    await self._process_via_folder(collection)
 
         except Exception as e:
             logger.error(f"Error in process dialog: {e}")
-            await self.app.main_window.dialog(
-                toga.ErrorDialog(_("Processing Error"), _("processing_error_message").format(error=str(e)))
-            )
+            # Skip error dialog - just log (dialogs cause NSTableView crash)
+            import traceback
+            traceback.print_exc()
 
-    async def _process_via_items(self, collection, all_items, selected_item_id: Optional[str] = None):
+    async def _process_via_items(self, collection, all_items, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
         """Process using DirectorIntegrationService (items from database)"""
         # Determine scope
         if selected_item_id:
-            item = await self.app.library_manager.get_item(selected_item_id)
-            scope_text = f"Selected: {item.name}" if item else "All items"
-            item_ids = [selected_item_id] if item else [item.id for item in all_items]
+            # Use the provided item name from the selection, or fallback to querying
+            if selected_item_name:
+                scope_text = f"Selected: {selected_item_name}"
+            else:
+                item = await self.app.library_manager.get_item(selected_item_id)
+                scope_text = f"Selected: {item.name}" if item else "All items"
+            item_ids = [selected_item_id]
         else:
             scope_text = f"All {len(all_items)} items"
             item_ids = [item.id for item in all_items]
 
         # Get item names for confirmation dialog
         item_names = []
-        for item_id in item_ids[:5]:  # Show first 5 items
-            item = await self.app.library_manager.get_item(item_id)
-            if item:
-                # Show item name and truncate if too long
-                name = item.name[:50] + "..." if len(item.name) > 50 else item.name
+        for idx, item_id in enumerate(item_ids[:5]):  # Show first 5 items
+            # For the first item (if it's the selected item), use the provided name
+            if idx == 0 and selected_item_id == item_id and selected_item_name:
+                name = selected_item_name[:50] + "..." if len(selected_item_name) > 50 else selected_item_name
                 item_names.append(f"  • {name}")
+            else:
+                # Query the library manager for other items
+                item = await self.app.library_manager.get_item(item_id)
+                if item:
+                    # Show item name and truncate if too long
+                    name = item.name[:50] + "..." if len(item.name) > 50 else item.name
+                    item_names.append(f"  • {name}")
 
         item_list = "\n".join(item_names)
         if len(item_ids) > 5:
             item_list += f"\n  ... and {len(item_ids) - 5} more"
 
-        # Detailed confirmation dialog
-        proceed = await self.app.main_window.dialog(
-            toga.ConfirmDialog(
-                "Process Items",
-                f"Collection: {collection.name}\n\n"
-                f"Items to process ({len(item_ids)}):\n{item_list}\n\n"
-                f"Plan: Default\n"
-                f"Workflow: Catalogue\n\n"
-                f"Processing will run in the background.\n\n"
-                f"Continue?"
-            )
-        )
-
-        if not proceed:
-            return
+        # Skip confirmation dialog - just proceed directly (dialogs cause NSTableView crash)
+        logger.info(f"Processing {len(item_ids)} items directly (no confirmation dialog to avoid crash)")
+        logger.info(f"Collection: {collection.name}")
+        logger.info(f"Items:\n{item_list}")
+        logger.info(f"Plan: Default, Workflow: Catalogue")
 
         # Check director integration service
         if not hasattr(self.app, 'director_integration'):
-            await self.app.main_window.dialog(
-                toga.ErrorDialog(_("Service Not Available"), _("service_not_available_message"))
-            )
+            logger.error("DirectorIntegrationService not available")
+            # Skip dialog - just return (dialogs cause NSTableView crash)
             return
 
         logger.info(f"Processing {len(item_ids)} items via DirectorIntegrationService")
+        logger.info(f"Item IDs to process: {item_ids}")
+        logger.info(f"Collection ID: {self.collection_id}")
 
         # Process items
         # Use first workflow from the plan (typically "Catalogue")
-        task_ids = await self.app.director_integration.process_items(
-            collection_id=self.collection_id,
-            item_ids=item_ids,
-            plan_name="Default",
-            workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
-        )
+        try:
+            logger.info("Calling director_integration.process_items()...")
+            task_ids = await self.app.director_integration.process_items(
+                collection_id=self.collection_id,
+                item_ids=item_ids,
+                plan_name="Default",
+                workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
+            )
+            logger.info(f"✅ process_items() returned: {task_ids}")
+        except Exception as process_error:
+            logger.error(f"❌ CRASH in process_items(): {process_error}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise  # Re-raise to show error dialog
 
         logger.info(f"✅ Submitted {len(task_ids)} task(s) to Director: {task_ids}")
 
-        # Force Activity Monitor to refresh if visible
-        if hasattr(self.app, 'activity_monitor_window') and self.app.activity_monitor_window:
+        # Open Activity Window to show processing progress
+        if hasattr(self.app, 'show_activity_monitor'):
+            self.app.show_activity_monitor()
+            logger.info("🪟 Opened Activity Window to show processing progress")
+        elif hasattr(self.app, 'activity_monitor_window') and self.app.activity_monitor_window:
+            # Fallback: Force Activity Monitor to refresh if already visible
             if self.app.activity_monitor_window.is_visible:
                 logger.info("Forcing Activity Monitor refresh after task submission")
                 try:
@@ -938,46 +1018,46 @@ class CollectionView(BaseView, ViewCommandMixin):
                 except Exception as e:
                     logger.error(f"Failed to refresh Activity Monitor: {e}")
 
-        # Show success
-        await self.app.main_window.dialog(
-            toga.InfoDialog(
-                "Processing Started",
-                f"Submitted {len(task_ids)} task(s) to Director.\n\n"
-                f"Task IDs: {', '.join(str(tid)[:8] + '...' for tid in task_ids)}\n\n"
-                f"Processing will run in the background.\n"
-                f"Open Activity Monitor to track progress."
-            )
-        )
+        # Log success (skip dialog to avoid NSTableView crash)
+        logger.info(f"✅ Processing started successfully!")
+        logger.info(f"Submitted {len(task_ids)} task(s) to Director")
+        logger.info(f"Task IDs: {', '.join(str(tid)[:8] + '...' for tid in task_ids)}")
+        logger.info(f"Processing will run in the background. Check Activity Monitor for progress.")
 
     async def _process_via_folder(self, collection):
         """Process using Director directly (folder on disk, no database items)"""
-        # Simple confirmation dialog
-        proceed = await self.app.main_window.dialog(
-            toga.ConfirmDialog(
-                "Process Folder",
-                f"Collection: {collection.name}\n\nThis collection folder will be processed with auto-detection.\n\nThis will use the Default plan with default workflow.\n\nContinue?"
-            )
-        )
-
-        if not proceed:
-            return
+        # Skip confirmation dialog - just proceed directly (dialogs cause NSTableView crash)
+        logger.info(f"Processing folder directly (no confirmation dialog to avoid crash)")
+        logger.info(f"Collection: {collection.name}")
+        logger.info(f"Plan: Default, Workflow: Catalogue")
 
         # Get the collection folder path
         collection_path = collection.local_path or collection.source_path
         if not collection_path:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog(_("No Path"), _("no_path_message"))
-            )
+            logger.error("No path available for collection")
+            # Skip dialog - just return (dialogs cause NSTableView crash)
             return
 
         from pathlib import Path
         if not Path(collection_path).exists():
-            await self.app.main_window.dialog(
-                toga.ErrorDialog(_("Path Not Found"), _("path_not_found_message").format(path=collection_path))
-            )
+            logger.error(f"Path not found: {collection_path}")
+            # Skip dialog - just return (dialogs cause NSTableView crash)
             return
 
         logger.info(f"Processing collection folder: {collection_path}")
+
+        # Generate output path - align with DirectorIntegrationService logic
+        # ALWAYS use library's output folder, never the source content folder
+        if collection.local_path:
+            # Collection has a library location - use local_path/outputs
+            output_base = Path(collection.local_path) / "outputs"
+            logger.info(f"Using collection's library path for outputs: {output_base}")
+        else:
+            # No library location - use app data library default
+            output_base = Path(self.app.paths.data) / "library" / "outputs"
+            logger.info(f"Using library default output path: {output_base}")
+
+        output_base.mkdir(parents=True, exist_ok=True)
 
         # Create progress callback for real-time updates
         def progress_callback(event_type: str, task_info):
@@ -993,7 +1073,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         try:
             task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
                 input_path=Path(collection_path),
-                output_path=Path(self.app.paths.data) / "processed" / collection.name,
+                output_path=output_base,
                 plan_name="Default",
                 workflow_name="Catalogue",  # Changed from "default" to match actual workflow in plan
                 progress_callback=progress_callback
@@ -1003,18 +1083,21 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.info("Director doesn't support progress_callback, processing without progress updates")
             task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
                 input_path=Path(collection_path),
-                output_path=Path(self.app.paths.data) / "processed" / collection.name,
+                output_path=output_base,
                 plan_name="Default",
                 workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
             )
 
-        # Show success
-        await self.app.main_window.dialog(
-            toga.InfoDialog(
-                "Processing Started",
-                f"Submitted {len(task_ids)} task(s) to Director.\n\nProcessing will run in the background."
-            )
-        )
+        # Open Activity Window to show processing progress
+        if hasattr(self.app, 'show_activity_monitor'):
+            self.app.show_activity_monitor()
+            logger.info("🪟 Opened Activity Window to show processing progress")
+
+        # Log success (skip dialog to avoid NSTableView crash)
+        logger.info(f"✅ Processing started successfully!")
+        logger.info(f"Submitted {len(task_ids)} task(s) to Director")
+        logger.info(f"Output location: {output_base}")
+        logger.info(f"Processing will run in the background")
 
     def _register_navigation_controller_callbacks(self):
         """Register callbacks with NavigationController for state changes"""
@@ -1891,6 +1974,70 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             if hasattr(self, 'current_path') and self.current_path:
                 lines.append(f"Current Path: {self.current_path}")
+
+            # Query library for processing steps data (async operation)
+            if item_data['id'] and hasattr(self.app, 'library_manager'):
+                lines.append("\n=== LIBRARY OUTPUT DATA ===\n")
+                lines.append("Querying library_manager.get_item_output_data()...")
+
+                # Run async call synchronously using threading to avoid blocking main UI
+                import asyncio
+                import threading
+
+                output_data = None
+                error = None
+
+                def run_async_query():
+                    """Run async query in a new event loop in a separate thread"""
+                    nonlocal output_data, error
+                    try:
+                        # Create new event loop for this thread
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            output_data = loop.run_until_complete(
+                                self.app.library_manager.get_item_output_data(item_data['id'])
+                            )
+                        finally:
+                            loop.close()
+                    except Exception as e:
+                        error = e
+
+                # Run query in thread and wait for result (with timeout)
+                thread = threading.Thread(target=run_async_query, daemon=True)
+                thread.start()
+                thread.join(timeout=3.0)  # Wait up to 3 seconds
+
+                if error:
+                    lines.append(f"\n⚠️  Error querying output data: {error}")
+                    import traceback
+                    lines.append(f"Traceback: {traceback.format_exc()}")
+                elif not thread.is_alive() and output_data is not None:
+                    # Query completed successfully
+                    if output_data:
+                        lines.append(f"\n✅ Query completed successfully")
+                        lines.append(f"Has Outputs: {output_data.get('has_outputs', False)}")
+                        lines.append(f"Workflow: {output_data.get('workflow', 'N/A')}")
+                        lines.append(f"Processing Date: {output_data.get('processing_date', 'N/A')}")
+                        lines.append(f"Output Root: {output_data.get('output_root', 'N/A')}")
+
+                        processing_steps = output_data.get('processing_steps', [])
+                        lines.append(f"\nProcessing Steps: {len(processing_steps)}")
+
+                        for i, step in enumerate(processing_steps, 1):
+                            step_name = step.step_name if hasattr(step, 'step_name') else str(step)
+                            file_path = step.file_path if hasattr(step, 'file_path') else 'N/A'
+                            lines.append(f"  {i}. {step_name}")
+                            lines.append(f"     Path: {file_path}")
+                    else:
+                        lines.append("\n❌ No output data returned from library")
+                        lines.append("(Item may not have been processed yet)")
+                elif thread.is_alive():
+                    lines.append("\n⏱️  Query timed out (>3s)")
+                    lines.append("Try refreshing the inspector")
+                else:
+                    lines.append("\n❌ No output data returned from library")
+                    lines.append("(Item may not have been processed yet)")
 
             return "\n".join(lines)
 

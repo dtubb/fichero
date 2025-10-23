@@ -22,24 +22,25 @@ from .outputs_commands import OutputsCommands
 
 class LibraryCommands(BaseLibraryCommands):
     """Enhanced library commands with processing navigation"""
-    
+
     def __init__(self, app_initializer):
         """Initialize enhanced library commands"""
         super().__init__(app_initializer)
         self.app = typer.Typer(name="library", help="Enhanced library management with processing navigation")
-        
-        # Initialize command modules
-        self.collection_commands = CollectionCommands(app_initializer)
-        self.processing_commands = ProcessingCommands(app_initializer)
-        self.import_export_commands = ImportExportCommands(app_initializer)
-        self.item_commands = ItemCommands(app_initializer)
-        self.stats_commands = StatsCommands(app_initializer)
-        self.bulk_import_commands = BulkImportCommands(app_initializer)
-        self.lookup_commands = LookupCommands(app_initializer)
-        self.batch_commands = BatchCommands(app_initializer)
-        self.cache_commands = CacheCommands(app_initializer)
-        self.outputs_commands = OutputsCommands(app_initializer)
-        
+
+        # Initialize command modules - PASS SELF to share the base instance
+        # This prevents creating multiple LibraryManagers and Directors
+        self.collection_commands = CollectionCommands(app_initializer, base_commands=self)
+        self.processing_commands = ProcessingCommands(app_initializer, base_commands=self)
+        self.import_export_commands = ImportExportCommands(app_initializer, base_commands=self)
+        self.item_commands = ItemCommands(app_initializer, base_commands=self)
+        self.stats_commands = StatsCommands(app_initializer, base_commands=self)
+        self.bulk_import_commands = BulkImportCommands(app_initializer, base_commands=self)
+        self.lookup_commands = LookupCommands(app_initializer, base_commands=self)
+        self.batch_commands = BatchCommands(app_initializer, base_commands=self)
+        self.cache_commands = CacheCommands(app_initializer, base_commands=self)
+        self.outputs_commands = OutputsCommands(app_initializer, base_commands=self)
+
         # Register all commands
         self._register_commands()
     

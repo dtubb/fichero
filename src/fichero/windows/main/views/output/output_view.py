@@ -5,6 +5,7 @@ Displays processing outputs with flexible dual-pane comparison and navigation.
 """
 
 import logging
+import asyncio
 from typing import Optional, List
 from pathlib import Path
 
@@ -15,8 +16,7 @@ from toga.constants import COLUMN, ROW
 from fichero.shared.views.base_view import BaseView
 from fichero.shared.commands.view_mixin import ViewCommandMixin
 from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
-from fichero.library.outputs_manager import OutputsManager, OutputSession, ToolOutput
-from fichero.library.outputs.editor_registry import EditorRegistry
+from fichero.library.outputs_manager import ToolOutput  # For creating tool output objects
 
 logger = logging.getLogger(__name__)
 
@@ -24,28 +24,32 @@ logger = logging.getLogger(__name__)
 class OutputView(BaseView, ViewCommandMixin):
     """Output view for main window center pane"""
 
-    def __init__(self, app, is_mobile: bool = False):
-        """Initialize output view"""
+    def __init__(self, app, is_mobile: bool = False, library_manager=None):
+        """Initialize output view
+
+        Args:
+            app: Application instance
+            is_mobile: Whether running in mobile mode
+            library_manager: LibraryManager instance for file-specific filtering
+        """
         logger.info("🔧 OutputView.__init__ starting")
 
-        # Initialize outputs system
-        self.outputs_manager = OutputsManager()
-        self.editor_registry = EditorRegistry()
+        # Library integration (PREFERRED: for item_id-based loading with file-specific filtering)
+        self.current_item_id: Optional[str] = None
+        self.library_manager = library_manager  # LibraryManager for file-specific filtering
 
         # Output state
-        self.output_session: Optional[OutputSession] = None
         self.processing_steps: List[ToolOutput] = []
         self.current_step_index: int = 0
         self.current_file_index: int = 0
         self.current_file_path: Optional[Path] = None
 
-        # Library integration (for item_id-based loading)
-        self.current_item_id: Optional[str] = None
-        self.library_manager = None  # Will be set when loading from library
-
         # Source file list (for file navigation across different input files)
-        self.source_files: List[Path] = []
+        self.source_files: List[Path] = []  # LEGACY: Will be replaced by source_item_ids
         self.current_source_index: int = 0
+
+        # Item ID list (PREFERRED: for library-based file navigation)
+        self.source_item_ids: List[str] = []  # List of library item IDs for navigation
 
         # Dual pane state (desktop only)
         self.left_step_index: int = 0
@@ -651,55 +655,58 @@ class OutputView(BaseView, ViewCommandMixin):
             await self.current_webview.evaluate_javascript("zoomToSelection();")
 
     def load_output(self, file_path: Path = None, source_files: List[Path] = None, source_index: int = 0,
-                   output_root_path: Path = None, item_id: str = None):
+                   item_id: str = None, source_item_ids: List[str] = None):
         """Load output from Director-processed file or original file
 
         Args:
-            file_path: Path to the file to display (legacy mode)
-            source_files: List of source files for file navigation (up/down between files)
-            source_index: Current index in source_files
-            output_root_path: Direct path to Director output folder (preferred)
-            item_id: Library item ID to load processing results from (future enhancement)
+            file_path: Path to the file to display (fallback mode - shows file without processing steps)
+            source_files: List of source files for file navigation (LEGACY - use source_item_ids instead)
+            source_index: Current index in source_files/source_item_ids
+            item_id: Library item ID to load file-specific processing results from (PREFERRED)
+            source_item_ids: List of library item IDs for file navigation (PREFERRED over source_files)
         """
         try:
             # Store item_id for future library queries
             self.current_item_id = item_id
 
-            # Store source file list for file navigation
-            if source_files or not hasattr(self, 'source_files') or not self.source_files:
-                self.source_files = source_files or []
+            # PREFERRED: Store source item IDs for library-based navigation
+            if source_item_ids:
+                self.source_item_ids = source_item_ids
                 self.current_source_index = source_index
-                logger.info(f"Loaded {len(self.source_files)} source files, current index: {source_index}")
+                logger.info(f"📚 Loaded {len(self.source_item_ids)} source item IDs for library-based navigation, current index: {source_index}")
+                # Also store source_files for backwards compatibility with legacy code paths
+                self.source_files = source_files or []
+            # LEGACY: Store source file list for file navigation
+            elif source_files or not hasattr(self, 'source_files') or not self.source_files:
+                self.source_files = source_files or []
+                self.source_item_ids = []  # Clear item IDs if using legacy path
+                self.current_source_index = source_index
+                logger.info(f"Loaded {len(self.source_files)} source files (legacy mode), current index: {source_index}")
             else:
                 logger.info(f"Keeping existing {len(self.source_files)} source files, updating index to: {source_index}")
 
-            # Prioritize explicit output_root_path over file-based discovery
-            if output_root_path:
-                logger.info(f"📊 Loading from Director output root: {output_root_path}")
-                self._load_from_output_root(output_root_path, file_path)
+            # PREFERRED: Use library_manager for file-specific filtering when available
+            if item_id:
+                # If we have an item_id, library_manager is REQUIRED
+                if not self.library_manager:
+                    error_msg = f"❌ CONFIGURATION ERROR: item_id provided but no library_manager available"
+                    logger.error(error_msg)
+                    self._show_error_message("Configuration error: No library manager available")
+                    return
+
+                logger.info(f"📊 Loading file-specific output data from LibraryManager for item_id: {item_id}")
+                # Schedule async load using asyncio
+                asyncio.create_task(self._load_from_library(item_id))
+                self._update_file_navigation_buttons()
+                return
+
+            # FALLBACK: Show file without processing steps
             elif file_path:
-                logger.info(f"Loading output from file: {file_path}")
+                logger.info(f"Loading file without processing steps: {file_path}")
                 self.current_file_path = file_path
-
-                # Check if file_path is a URL (string)
-                is_url = isinstance(file_path, str) and file_path.startswith(('http://', 'https://'))
-
-                if is_url:
-                    # URL - skip Director output detection, show directly
-                    logger.info("URL detected, showing as single step")
-                    self._show_original_as_single_step(file_path)
-                else:
-                    # Local file - try to detect Director output structure
-                    output_root = self._find_output_root(file_path)
-
-                    if output_root:
-                        self._load_from_output_root(output_root, file_path)
-                    else:
-                        # Not a Director output - show original file as single step
-                        logger.info("Not a Director output, showing original file as single step")
-                        self._show_original_as_single_step(file_path)
+                self._show_original_as_single_step(file_path)
             else:
-                logger.error("No file_path or output_root_path provided")
+                logger.error("No file_path or item_id provided")
                 self._show_error_message("No file to display")
                 return
 
@@ -711,124 +718,120 @@ class OutputView(BaseView, ViewCommandMixin):
             import traceback
             logger.error(traceback.format_exc())
             self._show_error_message(f"Failed to load output: {e}")
-    
-    def _load_from_output_root(self, output_root: Path, original_file_path: Path = None):
-        """Load processing steps from Director output root folder
+
+    def _convert_processing_step_to_tool_output(self, step) -> ToolOutput:
+        """Convert LibraryManager's ProcessingStep to OutputView's ToolOutput
+
+        This conversion layer allows OutputView to use LibraryManager's pre-filtered
+        data while maintaining compatibility with its existing display code.
 
         Args:
-            output_root: Path to Director output folder root
-            original_file_path: Optional original file path to highlight current step
+            step: ProcessingStep from DirectorOutputParser with fields:
+                  - step_number: int
+                  - step_name: str
+                  - file_path: Path
+                  - file_type: str ("image", "text", "document")
+                  - description: str
+
+        Returns:
+            ToolOutput compatible with OutputView display system
+        """
+        from fichero.library.outputs_manager import ToolOutput
+
+        # Create ToolOutput from ProcessingStep
+        # ToolOutput requires: tool_name, output_folder, manifest_path
+        tool_output = ToolOutput(
+            tool_name=step.step_name,
+            output_folder=step.file_path.parent,
+            # Create a mock manifest path (ProcessingStep doesn't have manifest)
+            # This is OK because we'll manually set _files below
+            manifest_path=step.file_path.parent / f"{step.step_name.lower().replace(' ', '_')}.jsonl"
+        )
+
+        # Manually set the files to just this specific file
+        # This ensures file-specific filtering - each ToolOutput only shows ONE file
+        tool_output._files = [step.file_path]
+
+        return tool_output
+
+    async def _load_from_library(self, item_id: str):
+        """Load file-specific processing steps from LibraryManager
+
+        This is the PREFERRED method for loading outputs when working with
+        library items. It ensures proper file-specific filtering and never
+        mixes results from different files in batch processing.
+
+        Args:
+            item_id: Library item ID to load processing results for
         """
         try:
-            logger.info(f"📊 Loading outputs from: {output_root}")
+            # Get file-specific output data from LibraryManager (async call)
+            output_data = await self.library_manager.get_item_output_data(item_id)
 
-            # Load Director outputs
-            self.output_session = self.outputs_manager.load_output_folder(output_root)
-            all_steps = self.outputs_manager.list_tools(self.output_session)
+            # If no output data or no processing steps, try to show the source file/URL
+            if not output_data or not output_data.get('processing_steps', []):
+                logger.info(f"No processing results for item_id: {item_id}, showing source file/URL")
 
-            # Filter out build_documents_manifest step
-            self.processing_steps = [step for step in all_steps if step.tool_name != "build_documents_manifest"]
-
-            # Add "Original" step at the beginning with the source file
-            if original_file_path and original_file_path.exists():
-                from fichero.library.outputs_manager import ToolOutput
-                original_step = ToolOutput(
-                    tool_name="Original",
-                    output_folder=original_file_path.parent,
-                    manifest_path=original_file_path.parent / "original.jsonl"
-                )
-                # Manually set the files to just the original file
-                original_step._files = [original_file_path]
-                self.processing_steps.insert(0, original_step)
-
-            if self.processing_steps:
-                logger.info(f"📊 Found {len(self.processing_steps)} processing steps (including Original)")
-
-                # Update step selector dropdown
-                self._update_step_selector()
-
-                # If we have an original file path, try to find matching step
-                if original_file_path:
-                    self.current_file_path = original_file_path
-                    self._find_current_step(original_file_path)
+                # Get source path from output_data if available, otherwise query library directly
+                source_path = None
+                if output_data and output_data.get('source_path'):
+                    source_path = output_data.get('source_path')
                 else:
-                    # Default to first step with files
-                    first_step_with_files = next((i for i, step in enumerate(self.processing_steps) if step.files), None)
-                    if first_step_with_files is not None:
-                        self.current_step_index = first_step_with_files
-                        self.left_step_index = first_step_with_files
-                        self.right_step_index = first_step_with_files
-                        # Set current_file_path to first file in first step
-                        self.current_file_path = Path(self.processing_steps[first_step_with_files].files[0])
-                    else:
-                        # No steps have files
-                        logger.warning("No processing steps contain output files")
-                        self.current_step_index = 0
-                        self.left_step_index = 0
-                        self.right_step_index = 0
+                    # Query library directly for source file/URL
+                    item = await self.library_manager.get_item(item_id)
+                    if item:
+                        # Check if it's a URL (external source) or local file path
+                        # item is a CollectionItem object - use attribute access (not .get())
+                        # CollectionItem has: storage_type ("url"|"local"|"external"), source_path, type
+                        if item.storage_type == "url" and item.source_path:
+                            source_path = item.source_path  # URL string (don't convert to Path)
+                        elif item.source_path:
+                            from pathlib import Path
+                            source_path = Path(item.source_path)  # Local file path
 
-                self._update_navigation()
-                self._show_output_content()
-                logger.info(f"✅ Successfully loaded {len(self.processing_steps)} processing steps")
-            else:
-                # Director output folder exists but no steps
-                logger.info("No processing steps found in output folder")
-                if original_file_path:
-                    self._show_original_as_single_step(original_file_path)
+                # Display the source file/URL if available
+                if source_path:
+                    # source_path can be either a Path object (local file) or string (URL)
+                    self._show_original_as_single_step(source_path)
+                    return
                 else:
-                    self._show_error_message("No processing steps found in output folder")
+                    # No source found at all
+                    self._show_error_message("No source file or URL found for this item")
+                    return
+
+            # Extract processing steps (already file-specific filtered by LibraryManager)
+            processing_steps = output_data.get('processing_steps', [])
+
+            # Convert ProcessingStep objects to ToolOutput objects
+            logger.info(f"Converting {len(processing_steps)} ProcessingSteps to ToolOutputs")
+            self.processing_steps = []
+            for step in processing_steps:
+                tool_output = self._convert_processing_step_to_tool_output(step)
+                self.processing_steps.append(tool_output)
+
+            # Set current file path from first step
+            if self.processing_steps and self.processing_steps[0].files:
+                self.current_file_path = Path(self.processing_steps[0].files[0])
+
+            # Set up navigation indices
+            self.current_step_index = 0
+            self.left_step_index = 0
+            self.right_step_index = 0
+            self.current_file_index = 0
+
+            # Update UI
+            self._update_step_selector()
+            self._update_navigation()
+            self._show_output_content()
+
+            logger.info(f"✅ Successfully loaded {len(self.processing_steps)} file-specific processing steps from library")
 
         except Exception as e:
-            logger.error(f"Error loading from output root: {e}")
+            logger.error(f"Error loading from library: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            if original_file_path:
-                logger.info("Falling back to showing original file")
-                self._show_original_as_single_step(original_file_path)
-            else:
-                self._show_error_message(f"Failed to load outputs: {e}")
+            self._show_error_message(f"Failed to load from library: {e}")
 
-    def _find_output_root(self, file_path: Path) -> Optional[Path]:
-        """Find Director output root folder"""
-        try:
-            current = file_path.parent
-
-            # Walk up to find folder with 'assets' folder containing 'manifests'
-            # Note: Director creates 'assets' and 'logs' but NOT 'documents'
-            for _ in range(5):
-                if (current / 'assets').exists():
-                    if (current / 'assets' / 'manifests').exists():
-                        logger.debug(f"Found Director output root: {current}")
-                        return current
-
-                if current.parent == current:
-                    break
-
-                current = current.parent
-
-            return None
-
-        except Exception as e:
-            logger.debug(f"Error finding output root: {e}")
-            return None
-    
-    def _find_current_step(self, file_path: Path):
-        """Find which step the file belongs to"""
-        try:
-            for i, step in enumerate(self.processing_steps):
-                for step_file in step.files:
-                    if Path(step_file).resolve() == file_path.resolve():
-                        self.current_step_index = i
-                        self.left_step_index = max(0, i - 1)  # Default: prev step on left
-                        self.right_step_index = i  # Current step on right
-                        return
-            
-            self.current_step_index = 0
-        
-        except Exception as e:
-            logger.error(f"Error finding current step: {e}")
-            self.current_step_index = 0
-    
     def _update_navigation(self):
         """Update navigation buttons state"""
         try:
@@ -855,41 +858,83 @@ class OutputView(BaseView, ViewCommandMixin):
             logger.error(f"Error updating navigation: {e}")
     
     async def _on_prev_file(self, widget):
-        """Navigate to previous source file (keeping same step)"""
+        """Navigate to previous source file (keeping same step) using library-based navigation"""
         try:
             logger.info(f"🔼 Previous File button pressed!")
 
             # Save current viewer state before navigating
             await self._save_viewer_state()
 
-            # Navigate to previous source file
-            if self.source_files and self.current_source_index > 0:
+            # PREFERRED: Library-based navigation with item IDs
+            if self.source_item_ids and self.current_source_index > 0:
+                self.current_source_index -= 1
+                next_item_id = self.source_item_ids[self.current_source_index]
+
+                # Check if next_item_id is None (item has no ID) - FAIL LOUDLY
+                if next_item_id is None:
+                    logger.error(f"❌ NAVIGATION FAILED: Item at index {self.current_source_index} has no library ID - cannot navigate")
+                    self.current_source_index += 1  # Restore index
+                    self._show_error_message(f"Navigation failed: Item has no library ID")
+                    return
+
+                # Reload output using library manager for proper file-specific filtering
+                logger.info(f"📚 Library-based navigation: Loading item_id {next_item_id} (index {self.current_source_index})")
+                self.load_output(
+                    item_id=next_item_id,
+                    source_item_ids=self.source_item_ids,
+                    source_files=self.source_files,  # Pass for backwards compatibility
+                    source_index=self.current_source_index
+                )
+
+            # LEGACY: File-based navigation (bypasses library - not recommended)
+            elif self.source_files and self.current_source_index > 0:
                 self.current_source_index -= 1
                 next_file = self.source_files[self.current_source_index]
 
+                logger.warning(f"⚠️ LEGACY file-based navigation: {next_file.name} (no library integration)")
                 # Reload output for the new file, keeping the same step
                 self.load_output(next_file, self.source_files, self.current_source_index)
-                logger.info(f"Navigated to previous source file: {next_file.name}")
 
         except Exception as e:
             logger.error(f"Error navigating to previous file: {e}")
 
     async def _on_next_file(self, widget):
-        """Navigate to next source file (keeping same step)"""
+        """Navigate to next source file (keeping same step) using library-based navigation"""
         try:
             logger.info(f"🔽 Next File button pressed!")
 
             # Save current viewer state before navigating
             await self._save_viewer_state()
 
-            # Navigate to next source file
-            if self.source_files and self.current_source_index < len(self.source_files) - 1:
+            # PREFERRED: Library-based navigation with item IDs
+            if self.source_item_ids and self.current_source_index < len(self.source_item_ids) - 1:
+                self.current_source_index += 1
+                next_item_id = self.source_item_ids[self.current_source_index]
+
+                # Check if next_item_id is None (item has no ID) - FAIL LOUDLY
+                if next_item_id is None:
+                    logger.error(f"❌ NAVIGATION FAILED: Item at index {self.current_source_index} has no library ID - cannot navigate")
+                    self.current_source_index -= 1  # Restore index
+                    self._show_error_message(f"Navigation failed: Item has no library ID")
+                    return
+
+                # Reload output using library manager for proper file-specific filtering
+                logger.info(f"📚 Library-based navigation: Loading item_id {next_item_id} (index {self.current_source_index})")
+                self.load_output(
+                    item_id=next_item_id,
+                    source_item_ids=self.source_item_ids,
+                    source_files=self.source_files,  # Pass for backwards compatibility
+                    source_index=self.current_source_index
+                )
+
+            # LEGACY: File-based navigation (bypasses library - not recommended)
+            elif self.source_files and self.current_source_index < len(self.source_files) - 1:
                 self.current_source_index += 1
                 next_file = self.source_files[self.current_source_index]
 
+                logger.warning(f"⚠️ LEGACY file-based navigation: {next_file.name} (no library integration)")
                 # Reload output for the new file, keeping the same step
                 self.load_output(next_file, self.source_files, self.current_source_index)
-                logger.info(f"Navigated to next source file: {next_file.name}")
 
         except Exception as e:
             logger.error(f"Error navigating to next file: {e}")
@@ -2065,5 +2110,45 @@ class OutputView(BaseView, ViewCommandMixin):
                 self._update_navigation()
                 self._show_output_content()
 
+                # Update inspector with step metadata
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    metadata = self._get_step_metadata(step_index)
+                    self.app.inspector_window.update_metadata(metadata, selection_type="STEP")
+                    logger.debug("Inspector updated with step metadata")
+
         except Exception as e:
             logger.error(f"Failed to handle step selection: {e}")
+
+    def _get_step_metadata(self, step_index: int) -> str:
+        """Get metadata for a selected step"""
+        try:
+            if not self.processing_steps or step_index >= len(self.processing_steps):
+                return "No step data available"
+
+            step = self.processing_steps[step_index]
+
+            metadata = f"=== STEP METADATA ===\n"
+            metadata += f"Tool Name: {step.tool_name}\n"
+            metadata += f"Step Number: {step_index + 1}\n"
+            metadata += f"Status: {step.status}\n"
+            metadata += f"\n"
+
+            metadata += f"=== FILES ===\n"
+            metadata += f"File Count: {len(step.files)}\n"
+            if step.files:
+                metadata += f"First File: {Path(step.files[0]).name}\n"
+            metadata += f"\n"
+
+            metadata += f"=== TIMING ===\n"
+            if step.start_time:
+                metadata += f"Start Time: {step.start_time}\n"
+            if step.end_time:
+                metadata += f"End Time: {step.end_time}\n"
+            if step.duration:
+                metadata += f"Duration: {step.duration:.2f}s\n"
+
+            return metadata
+
+        except Exception as e:
+            logger.error(f"Failed to get step metadata: {e}")
+            return f"Error getting step metadata: {e}"

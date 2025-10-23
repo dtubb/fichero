@@ -46,6 +46,7 @@ commands:
       output_folder: "assets/prepared"
       output_format: "jpg"
       compression_quality: 85
+      add_documents_prefix: false
     outputs:
       - "assets/prepared"
       - "assets/prepared/prepare_images_manifest.jsonl"

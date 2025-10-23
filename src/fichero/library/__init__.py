@@ -18,14 +18,13 @@ __all__ = [
     'LibraryStorage',
     'CollectionImporter',
     'CollectionExporter'
-] 
+]
 # Add new processing navigation classes
 from fichero.library.processing_navigator import ProcessingNavigator, ProcessingStep, ProcessingOutput
-from fichero.library.director_bridge import LibraryDirectorBridge
+# Note: LibraryDirectorBridge uses lazy import to avoid circular dependency with Director
 
 __all__.extend([
     'ProcessingNavigator',
-    'ProcessingStep', 
-    'ProcessingOutput',
-    'LibraryDirectorBridge'
+    'ProcessingStep',
+    'ProcessingOutput'
 ])

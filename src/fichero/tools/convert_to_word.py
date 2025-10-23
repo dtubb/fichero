@@ -395,7 +395,9 @@ def process_document(file_path: str, output_folder: Path, spread_manager: Spread
             '.png': process_fn,
             '.jpg': process_fn,
             '.jpeg': process_fn,
-            '.jxl': process_fn  # Add JXL support
+            '.jxl': process_fn,  # Add JXL support
+            '.tif': process_fn,  # Add TIFF support
+            '.tiff': process_fn  # Add TIFF support
         }
     )
 

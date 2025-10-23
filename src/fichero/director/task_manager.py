@@ -91,6 +91,9 @@ class TaskManager:
                 documents_folder = None  # Will default to output_folder/documents in FolderTask
                 logger.debug(f"TaskManager.submit_task: Path format - folder={prepared_folder}, document_id={document_id}")
 
+            # Extract display_name from document_context if provided (for single file processing)
+            display_name = document_context.get('display_name') if document_context else None
+
             # Create task with both folders
             task = create_folder_task(
                 folder_path=output_folder,
@@ -99,7 +102,8 @@ class TaskManager:
                 plan_config=plan_config,
                 workflow_name=workflow_name,
                 variables=variables or {},
-                document_id=document_id
+                document_id=document_id,
+                display_name=display_name
             )
             tasks.append(task)
             logger.info(f"Created task for output folder: {output_folder} (documents: {documents_folder or 'default'})")

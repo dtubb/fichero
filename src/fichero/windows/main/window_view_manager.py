@@ -634,7 +634,7 @@ class WindowViewManager:
                     # Create a new collection for each selected folder
                     folders = content_info['folders']
                     for folder_path in folders:
-                        collection_name = f"Folder: {folder_path.name}"
+                        collection_name = folder_path.name
 
                         # Create collection using library backend
                         collection_id = await self.app.library_manager.add_collection(

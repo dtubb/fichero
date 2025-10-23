@@ -60,6 +60,7 @@ commands:
       output_folder: "assets/crops"
       model_path: "yolov8s-fichero.pt"
       output_format: "{crop_format}"
+      add_documents_prefix: false
     outputs:
       - "assets/crops"
       - "assets/crops/crop_manifest.jsonl"

@@ -382,5 +382,515 @@ class TestDirectorOutputParser(unittest.TestCase):
         self.assertTrue(all(o.prepared_file for o in outputs))
 
 
+class TestSingleSelectionProcessing(unittest.TestCase):
+    """Test single file and single folder selection processing"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        # Create mock app
+        self.mock_app = Mock()
+        self.mock_app.paths = Mock()
+
+        # Create temp directory for testing
+        self.temp_dir = tempfile.mkdtemp()
+        self.mock_app.paths.data = self.temp_dir
+
+        # Create mock library manager
+        self.mock_library_manager = Mock()
+        self.mock_library_manager.storage = Mock()
+
+        # Create mock director
+        self.mock_director = Mock()
+        self.mock_director.processing_coordinator = Mock()
+        self.mock_director.get_task_result = Mock()
+        self.mock_director.get_task_status = Mock()
+        self.mock_director.cancel_task = Mock()
+
+        # Create mock task monitor
+        self.mock_task_monitor = Mock()
+        self.mock_task_monitor.register_callback = Mock()
+        self.mock_director.task_monitor = self.mock_task_monitor
+
+        # Create service
+        self.service = DirectorIntegrationService(
+            app=self.mock_app,
+            library_manager=self.mock_library_manager,
+            director=self.mock_director
+        )
+
+    def tearDown(self):
+        """Clean up test fixtures"""
+        # Remove temp directory
+        if Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir)
+
+    def test_single_file_selection_creates_temp_directory(self):
+        """
+        Test that processing a single file creates a temporary directory with symlink
+
+        When user selects a single file, we should:
+        1. Create a temporary directory
+        2. Create a symlink to that file in the temp directory
+        3. Process only that temp directory (containing just one file)
+        4. Track the temp directory for cleanup
+        """
+        # Create test file
+        test_file = Path(self.temp_dir) / "test.jpg"
+        test_file.write_text("test content")
+
+        # Create mock collection
+        from fichero.library.models import Collection
+        mock_collection = Collection(
+            id="col1",
+            name="Test Collection",
+            type="external"
+        )
+
+        # Create mock item
+        item = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="file",
+            source_path=str(test_file),
+            local_path=str(test_file),
+            name="test.jpg"
+        )
+
+        # Mock library manager methods
+        async def mock_get_item(item_id):
+            return item if item_id == "item1" else None
+
+        async def mock_get_collection(collection_id):
+            return mock_collection if collection_id == "col1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.get_collection = AsyncMock(side_effect=mock_get_collection)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director submission - capture the input folder
+        submitted_folder = None
+        def mock_process_folders(folders, plan_name, workflow_name, output_path):
+            nonlocal submitted_folder
+            submitted_folder = folders[0] if folders else None
+            return "task_single_file"
+
+        self.mock_director.processing_coordinator.process_folders = Mock(
+            side_effect=mock_process_folders
+        )
+
+        # Run single file processing
+        async def run_test():
+            task_ids = await self.service.process_items(
+                collection_id="col1",
+                item_ids=["item1"],  # Single file
+                plan_name="Default",
+                workflow_name="default"
+            )
+            return task_ids
+
+        task_ids = asyncio.run(run_test())
+
+        # Verify task was submitted
+        self.assertEqual(len(task_ids), 1)
+        self.assertEqual(task_ids[0], "task_single_file")
+
+        # Verify temp directory was created
+        self.assertIsNotNone(submitted_folder)
+        self.assertTrue(Path(submitted_folder).exists())
+        self.assertTrue(str(submitted_folder).startswith('/tmp') or str(submitted_folder).startswith('/var'))
+
+        # Verify symlink was created
+        symlink_file = Path(submitted_folder) / "test.jpg"
+        self.assertTrue(symlink_file.exists())
+        self.assertTrue(symlink_file.is_symlink() or symlink_file.is_file())
+
+        # Verify only one file in temp directory
+        files_in_temp = list(Path(submitted_folder).glob("*"))
+        self.assertEqual(len(files_in_temp), 1)
+
+        # Verify task tracking includes temp_dir for cleanup
+        self.assertIn("task_single_file", self.service.active_tasks)
+        task_info = self.service.active_tasks["task_single_file"]
+        self.assertEqual(task_info['type'], 'file')
+        self.assertIn('temp_dir', task_info)
+        self.assertEqual(task_info['temp_dir'], str(submitted_folder))
+
+    def test_single_folder_selection_no_auto_detection(self):
+        """
+        Test that processing a single folder uses direct processing (no auto-detection)
+
+        When user selects a single folder, we should:
+        1. Process that folder directly using process_folders()
+        2. NOT use process_with_auto_detection() which would find all subfolders
+        """
+        # Create test folder with subfolders
+        test_folder = Path(self.temp_dir) / "main_folder"
+        test_folder.mkdir()
+        subfolder1 = test_folder / "subfolder1"
+        subfolder1.mkdir()
+        subfolder2 = test_folder / "subfolder2"
+        subfolder2.mkdir()
+
+        # Create mock collection
+        from fichero.library.models import Collection
+        mock_collection = Collection(
+            id="col1",
+            name="Test Collection",
+            type="external"
+        )
+
+        # Create mock item
+        item = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="folder",
+            source_path=str(test_folder),
+            local_path=str(test_folder),
+            name="main_folder"
+        )
+
+        # Mock library manager methods
+        async def mock_get_item(item_id):
+            return item if item_id == "item1" else None
+
+        async def mock_get_collection(collection_id):
+            return mock_collection if collection_id == "col1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.get_collection = AsyncMock(side_effect=mock_get_collection)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director submission
+        self.mock_director.processing_coordinator.process_folders = Mock(return_value="task_single_folder")
+        self.mock_director.processing_coordinator.process_with_auto_detection = Mock(return_value=["task_auto"])
+
+        # Run single folder processing
+        async def run_test():
+            task_ids = await self.service.process_items(
+                collection_id="col1",
+                item_ids=["item1"],  # Single folder
+                plan_name="Default",
+                workflow_name="default"
+            )
+            return task_ids
+
+        task_ids = asyncio.run(run_test())
+
+        # Verify process_folders was called (NOT process_with_auto_detection)
+        self.mock_director.processing_coordinator.process_folders.assert_called_once()
+        self.mock_director.processing_coordinator.process_with_auto_detection.assert_not_called()
+
+        # Verify the exact folder passed
+        call_args = self.mock_director.processing_coordinator.process_folders.call_args
+        folders_arg = call_args.kwargs['folders']
+        self.assertEqual(len(folders_arg), 1)
+        self.assertEqual(str(folders_arg[0]), str(test_folder))
+
+        # Verify task was tracked
+        self.assertIn("task_single_folder", self.service.active_tasks)
+        task_info = self.service.active_tasks["task_single_folder"]
+        self.assertEqual(task_info['type'], 'folder')
+        self.assertEqual(task_info['input_path'], str(test_folder))
+
+    def test_multiple_files_use_batch_processing(self):
+        """
+        Test that processing multiple files uses batch processing
+
+        When user selects multiple files, we should:
+        1. Create a batch folder
+        2. Copy all files to the batch folder
+        3. Process the batch folder
+        """
+        # Create test files
+        test_file1 = Path(self.temp_dir) / "test1.jpg"
+        test_file2 = Path(self.temp_dir) / "test2.jpg"
+        test_file1.write_text("test1")
+        test_file2.write_text("test2")
+
+        # Create mock collection
+        from fichero.library.models import Collection
+        mock_collection = Collection(
+            id="col1",
+            name="Test Collection",
+            type="external"
+        )
+
+        # Create mock items
+        item1 = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="file",
+            source_path=str(test_file1),
+            local_path=str(test_file1),
+            name="test1.jpg"
+        )
+        item2 = CollectionItem(
+            id="item2",
+            collection_id="col1",
+            type="file",
+            source_path=str(test_file2),
+            local_path=str(test_file2),
+            name="test2.jpg"
+        )
+
+        # Mock library manager methods
+        async def mock_get_item(item_id):
+            if item_id == "item1":
+                return item1
+            elif item_id == "item2":
+                return item2
+            return None
+
+        async def mock_get_collection(collection_id):
+            return mock_collection if collection_id == "col1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.get_collection = AsyncMock(side_effect=mock_get_collection)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director submission
+        self.mock_director.processing_coordinator.process_folders = Mock(return_value="task_batch")
+
+        # Run multiple file processing
+        async def run_test():
+            task_ids = await self.service.process_items(
+                collection_id="col1",
+                item_ids=["item1", "item2"],  # Multiple files
+                plan_name="Default",
+                workflow_name="default"
+            )
+            return task_ids
+
+        task_ids = asyncio.run(run_test())
+
+        # Verify batch processing was used
+        self.mock_director.processing_coordinator.process_folders.assert_called_once()
+
+        # Verify batch folder was created with both files
+        call_args = self.mock_director.processing_coordinator.process_folders.call_args
+        folders_arg = call_args.kwargs['folders']
+        self.assertEqual(len(folders_arg), 1)
+
+        batch_folder = folders_arg[0]
+        files_in_batch = list(batch_folder.glob("*.jpg"))
+        self.assertEqual(len(files_in_batch), 2)
+
+    def test_multiple_folders_use_auto_detection(self):
+        """
+        Test that processing multiple folders uses auto-detection
+
+        When user selects multiple folders or uses "Process All", we should:
+        1. Use process_with_auto_detection() for each folder
+        2. This allows detecting subfolders within each folder
+        """
+        # Create test folders
+        test_folder1 = Path(self.temp_dir) / "folder1"
+        test_folder2 = Path(self.temp_dir) / "folder2"
+        test_folder1.mkdir()
+        test_folder2.mkdir()
+
+        # Create mock collection
+        from fichero.library.models import Collection
+        mock_collection = Collection(
+            id="col1",
+            name="Test Collection",
+            type="external"
+        )
+
+        # Create mock items
+        item1 = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="folder",
+            source_path=str(test_folder1),
+            local_path=str(test_folder1),
+            name="folder1"
+        )
+        item2 = CollectionItem(
+            id="item2",
+            collection_id="col1",
+            type="folder",
+            source_path=str(test_folder2),
+            local_path=str(test_folder2),
+            name="folder2"
+        )
+
+        # Mock library manager methods
+        async def mock_get_item(item_id):
+            if item_id == "item1":
+                return item1
+            elif item_id == "item2":
+                return item2
+            return None
+
+        async def mock_get_collection(collection_id):
+            return mock_collection if collection_id == "col1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.get_collection = AsyncMock(side_effect=mock_get_collection)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director submission - auto-detection returns multiple tasks
+        self.mock_director.processing_coordinator.process_with_auto_detection = Mock(
+            side_effect=[["task_folder1_sub1"], ["task_folder2_sub1"]]
+        )
+
+        # Run multiple folder processing
+        async def run_test():
+            task_ids = await self.service.process_items(
+                collection_id="col1",
+                item_ids=["item1", "item2"],  # Multiple folders
+                plan_name="Default",
+                workflow_name="default"
+            )
+            return task_ids
+
+        task_ids = asyncio.run(run_test())
+
+        # Verify auto-detection was called for both folders
+        self.assertEqual(self.mock_director.processing_coordinator.process_with_auto_detection.call_count, 2)
+
+        # Verify tasks from both folders were returned
+        self.assertIn("task_folder1_sub1", task_ids)
+        self.assertIn("task_folder2_sub1", task_ids)
+
+    def test_temp_directory_cleanup_on_completion(self):
+        """
+        Test that temporary directories are cleaned up after processing completes
+
+        When a single file task completes, we should:
+        1. Finalize the item with results
+        2. Clean up the temporary directory that was created
+        """
+        # Create test file
+        test_file = Path(self.temp_dir) / "test.jpg"
+        test_file.write_text("test content")
+
+        # Create temp directory and symlink (simulating what _process_single_file does)
+        temp_dir = Path(tempfile.mkdtemp(prefix="fichero_single_file_"))
+        import os
+        temp_file_link = temp_dir / "test.jpg"
+        os.symlink(test_file, temp_file_link)
+
+        # Create mock item
+        item = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="file",
+            name="test.jpg"
+        )
+
+        # Add active task with temp_dir tracked
+        output_path = Path(self.temp_dir) / "output"
+        output_path.mkdir()
+
+        self.service.active_tasks["task_123"] = {
+            'item_id': 'item1',
+            'type': 'file',
+            'input_path': str(test_file),
+            'output_path': str(output_path),
+            'temp_dir': str(temp_dir),  # This should be cleaned up
+            'started_at': datetime.now()
+        }
+
+        # Mock library manager
+        async def mock_get_item(item_id):
+            return item if item_id == "item1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director result
+        mock_result = ProcessingResult(
+            item_id="item1",
+            status="success",
+            output_paths=[str(output_path)]
+        )
+        self.mock_director.get_task_result = Mock(return_value=mock_result)
+
+        # Verify temp directory exists before finalization
+        self.assertTrue(temp_dir.exists())
+
+        # Finalize the task
+        async def run_test():
+            await self.service._finalize_single_item("task_123", mock_result)
+
+        asyncio.run(run_test())
+
+        # Verify temp directory was cleaned up
+        self.assertFalse(temp_dir.exists(), "Temp directory should be cleaned up after processing")
+
+        # Verify task was removed from active tasks
+        self.assertNotIn("task_123", self.service.active_tasks)
+
+    def test_temp_directory_cleanup_handles_missing_dir(self):
+        """
+        Test that cleanup gracefully handles already-deleted temp directories
+        """
+        # Create mock item
+        item = CollectionItem(
+            id="item1",
+            collection_id="col1",
+            type="file",
+            name="test.jpg"
+        )
+
+        # Add active task with non-existent temp_dir
+        output_path = Path(self.temp_dir) / "output"
+        output_path.mkdir()
+
+        self.service.active_tasks["task_123"] = {
+            'item_id': 'item1',
+            'type': 'file',
+            'input_path': "/nonexistent/test.jpg",
+            'output_path': str(output_path),
+            'temp_dir': "/tmp/nonexistent_temp_dir",  # Doesn't exist
+            'started_at': datetime.now()
+        }
+
+        # Mock library manager
+        async def mock_get_item(item_id):
+            return item if item_id == "item1" else None
+
+        async def mock_update_item(item):
+            return item
+
+        self.mock_library_manager.get_item = AsyncMock(side_effect=mock_get_item)
+        self.mock_library_manager.update_item = AsyncMock(side_effect=mock_update_item)
+
+        # Mock director result
+        mock_result = ProcessingResult(
+            item_id="item1",
+            status="success",
+            output_paths=[str(output_path)]
+        )
+        self.mock_director.get_task_result = Mock(return_value=mock_result)
+
+        # Finalize the task - should not raise exception
+        async def run_test():
+            await self.service._finalize_single_item("task_123", mock_result)
+
+        # Should complete without raising exception
+        asyncio.run(run_test())
+
+        # Verify task was removed despite cleanup issue
+        self.assertNotIn("task_123", self.service.active_tasks)
+
+
 if __name__ == '__main__':
     unittest.main()

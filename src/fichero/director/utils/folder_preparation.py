@@ -138,10 +138,10 @@ def prepare_folder(input_folder: Path, output_folder: Path, processing_mode: str
 
     if processing_mode == "in_place":
         # In-place mode: No file copying, process from source location
-        # Set documents_folder to parent directory where actual files reside
+        # Set documents_folder to the actual input folder being processed
         # The workflow executor will pass add_documents_prefix=False to prevent
         # BatchProcessor from adding /documents/ to file paths
-        documents_folder = input_folder.parent
+        documents_folder = input_folder
 
         logger.info(f"✓ In-place mode: documents_folder = {documents_folder}")
     else:

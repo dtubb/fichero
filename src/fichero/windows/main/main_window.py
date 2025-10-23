@@ -236,7 +236,9 @@ class MainWindow:
         try:
             if self.cached_output_view is None:
                 logger.debug("Pre-creating OutputView to register Edit menu commands")
-                self.cached_output_view = OutputView(self.app, self.is_mobile)
+                # Pass library_manager for file-specific filtering
+                library_manager = getattr(self.app, 'library_manager', None)
+                self.cached_output_view = OutputView(self.app, self.is_mobile, library_manager=library_manager)
                 logger.info("✅ OutputView pre-created - Edit menu commands registered")
         except Exception as e:
             logger.error(f"Failed to pre-create OutputView: {e}")
@@ -298,8 +300,7 @@ class MainWindow:
                 return collection_view
             else:
                 logger.debug(f"Creating new CollectionView instance for {collection_name}")
-                collection_view = CollectionView(self.app, collection_name, self.is_mobile)
-                collection_view.set_collection_id(collection_id)
+                collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
                 collection_view.register_preview_callback(self._on_file_preview_requested)
 
                 # Cache the view for future use
@@ -309,8 +310,7 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to get or create collection view: {e}")
             # Fallback: create new instance (but don't cache it to avoid corrupt cache)
-            collection_view = CollectionView(self.app, collection_name, self.is_mobile)
-            collection_view.set_collection_id(collection_id)
+            collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
             collection_view.register_preview_callback(self._on_file_preview_requested)
             return collection_view
 
@@ -443,22 +443,28 @@ class MainWindow:
             logger.error(f"Failed to handle show collection event: {e}")
 
     def _on_show_preview(self, event):
-        """Handle show preview event - now shows OutputView with optional Director outputs"""
+        """Handle show preview event - now shows OutputView with optional pre-filtered outputs"""
         try:
             data = event.data
             file_path = data.get('file_path')
-            output_path = data.get('output_path')  # NEW: Optional Director output folder path
+            output_path = data.get('output_path')  # LEGACY: Optional Director output folder path
+            output_data = data.get('output_data')  # NEW: Pre-filtered output data from LibraryManager
+            item_id = data.get('item_id')  # Item ID for file-specific filtering
             file_metadata = data.get('file_metadata', {})
             collection_items = data.get('collection_items', [])
             item_index = data.get('item_index', 0)
 
             logger.info(f"Event: Show output for {file_path}")
-            if output_path:
-                logger.info(f"📊 With processing outputs from: {output_path}")
+            if output_data:
+                logger.info(f"📊 With pre-filtered output data ({len(output_data.get('processing_steps', []))} steps)")
+            elif output_path:
+                logger.info(f"📊 With legacy output_path: {output_path}")
 
             # Create or reuse OutputView
             if not self.cached_output_view:
-                self.cached_output_view = OutputView(self.app, self.is_mobile)
+                # Pass library_manager for file-specific filtering
+                library_manager = getattr(self.app, 'library_manager', None)
+                self.cached_output_view = OutputView(self.app, self.is_mobile, library_manager=library_manager)
                 logger.debug("Created new OutputView")
 
             # Get collection items from current center view if not provided
@@ -472,60 +478,63 @@ class MainWindow:
                 else:
                     logger.warning(f"📋 No collection_items found on center view")
 
-            # Convert collection items to source file paths
+            # Convert collection items to source file paths AND item IDs
             source_files = []
+            source_item_ids = []  # NEW: Extract item IDs for library-based navigation
             source_index = 0
 
             if collection_items:
                 for i, item in enumerate(collection_items):
                     item_file_path = item.get('file_path') or item.get('path')
+                    item_id_str = item.get('id')  # Extract item ID
+
                     if item_file_path:
                         # Don't convert URLs to Path objects - they should stay as strings
                         if isinstance(item_file_path, str) and item_file_path.startswith(('http://', 'https://')):
                             source_files.append(item_file_path)  # Keep as string
                         else:
                             source_files.append(Path(item_file_path))  # Convert to Path
+
+                        # Store item ID with None placeholder to maintain index alignment
+                        # CRITICAL: source_item_ids must have same length as source_files!
+                        source_item_ids.append(item_id_str if item_id_str else None)
+
                         # Track which index matches our current file
                         if str(item_file_path) == str(file_path):
                             source_index = i
 
-                logger.info(f"📋 Extracted {len(source_files)} source files, current index={source_index}")
-
-            # Note: output_path should already be provided by collection_view when available
-            # collection_view queries the library and passes output_path in the event data
+                logger.info(f"📋 Extracted {len(source_files)} source files + {len(source_item_ids)} item IDs, current index={source_index}")
 
             # Determine what to load into OutputView
-            if output_path:
-                # Load from Director output folder - pass output_root_path directly
-                output_root = Path(output_path)
-                logger.info(f"📊 Loading from Director output folder: {output_root}")
+            # Priority: output_data (pre-filtered) > output_path (legacy) > original file only
 
-                # Pass output_root_path directly to OutputView - it will handle loading steps
-                # Also pass original file_path for context
-                # Don't convert URLs to Path objects - keep as strings
-                if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
-                    file_path_arg = file_path  # Keep URL as string
-                else:
-                    file_path_arg = Path(file_path)  # Convert local path to Path object
+            # Don't convert URLs to Path objects - keep as strings
+            if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                file_path_arg = file_path  # Keep URL as string
+            else:
+                file_path_arg = Path(file_path)  # Convert local path to Path object
+
+            if output_data and output_data.get('has_outputs'):
+                # NEW: Use pre-filtered output data from LibraryManager
+                logger.info(f"📊 Loading from pre-filtered output data ({len(output_data['processing_steps'])} steps)")
 
                 self.cached_output_view.load_output(
                     file_path=file_path_arg,
                     source_files=source_files,
                     source_index=source_index,
-                    output_root_path=output_root
+                    item_id=item_id,  # Pass item_id for file-specific filtering
+                    source_item_ids=source_item_ids  # Pass item IDs for library-based navigation
                 )
             else:
                 # Load original file (no processing outputs)
-                # Don't convert URLs to Path objects - keep as strings
-                if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
-                    file_path_arg = file_path  # Keep URL as string
-                else:
-                    file_path_arg = Path(file_path)  # Convert local path to Path object
+                logger.info(f"📊 Loading original file only (no processing outputs)")
 
                 self.cached_output_view.load_output(
                     file_path=file_path_arg,
                     source_files=source_files,
-                    source_index=source_index
+                    source_index=source_index,
+                    item_id=item_id,  # Pass item_id for file-specific filtering
+                    source_item_ids=source_item_ids  # NEW: Pass item IDs for library-based navigation
                 )
 
             # Update native toolbar on desktop (OutputView has persistent toolbar with editing commands)

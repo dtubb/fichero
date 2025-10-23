@@ -274,10 +274,6 @@ class WorkflowExecutor:
             # Text processing tools (fuzzy_clean, recombine_segments) and post-transcription steps don't need this
             if any(keyword in function_path.lower() for keyword in ['crop', 'split', 'rotate', 'enhance', 'remove_background', 'segment', 'transcribe']):
                 expanded_args['parallel_workers'] = parallel_workers
-
-            # Add add_documents_prefix flag if available in variables (for in-place processing)
-            if 'add_documents_prefix' in variables:
-                expanded_args['add_documents_prefix'] = variables['add_documents_prefix']
             
             # Log step start
             workflow_logger.log_step_start(step_name, function_path, expanded_args)

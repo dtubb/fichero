@@ -268,6 +268,14 @@ class FicheroApp(toga.App):
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
 
+            # Initialize Inspector window (desktop only)
+            if is_desktop:
+                from fichero.windows.inspector import InspectorWindow
+                self.inspector_window = InspectorWindow(self)
+                logger.info("Inspector window initialized")
+            else:
+                self.inspector_window = None
+
             # Note: Native toolbar is built by MainWindow._update_toolbar_for_*_view()
             # when each view is shown. Don't build it here - MainWindow handles timing.
 
@@ -308,6 +316,47 @@ class FicheroApp(toga.App):
             return False
         except Exception as e:
             logger.error(f"Failed to close activity monitor: {e}")
+            return False
+
+    # Inspector Window Management
+    def show_inspector(self):
+        """Show the inspector window (desktop only)"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                self.inspector_window.show()
+                logger.info("Inspector window shown")
+                return True
+            else:
+                logger.warning("Inspector window not available (mobile platform or not initialized)")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show inspector: {e}")
+            return False
+
+    def hide_inspector(self):
+        """Hide the inspector window"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                self.inspector_window.hide()
+                logger.info("Inspector window hidden")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to hide inspector: {e}")
+            return False
+
+    def toggle_inspector(self):
+        """Toggle inspector window visibility"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                if self.inspector_window.is_visible:
+                    self.hide_inspector()
+                else:
+                    self.show_inspector()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to toggle inspector: {e}")
             return False
 
     def show_settings(self):

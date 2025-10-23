@@ -17,7 +17,20 @@ from .base import BaseLibraryCommands
 
 class StatsCommands(BaseLibraryCommands):
     """Library statistics and utility operations"""
-    
+
+    def __init__(self, app_initializer=None, base_commands=None):
+        """Initialize stats commands - optionally share base instance"""
+        if base_commands:
+            # Use shared base instance (library_manager, director, etc.)
+            self.library_manager = base_commands.library_manager
+            self.director = base_commands.director
+            self.bridge = base_commands.bridge
+            self.console = base_commands.console
+            self.app_initializer = app_initializer
+        else:
+            # Create own instances (standalone mode)
+            super().__init__(app_initializer)
+
     def register_commands(self, app):
         """Register stats and utility commands"""
         

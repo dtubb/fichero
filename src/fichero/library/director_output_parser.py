@@ -211,10 +211,16 @@ class DirectorOutputParser:
         steps = []
 
         # Extract base filename for matching manifest entries
-        if not file_output.original_file:
+        # Try to get from any available file (original, prepared, transcription, etc.)
+        base_file = (file_output.original_file or
+                    file_output.prepared_file or
+                    file_output.transcription_file or
+                    file_output.word_doc)
+
+        if not base_file:
             return steps
 
-        base_name = file_output.original_file.stem
+        base_name = base_file.stem
 
         # Define step order based on manifest presence and typical workflow
         # This is generic and works with any plan

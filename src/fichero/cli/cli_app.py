@@ -90,6 +90,7 @@ class CLIApp:
             
             # Register core commands
             self.app.command()(core_commands.process)
+            self.app.command(name="process-list")(core_commands.process_list)
             self.app.command()(core_commands.plans)
             self.app.command()(core_commands.configure)
             self.app.command()(core_commands.info)

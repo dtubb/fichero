@@ -225,10 +225,28 @@ class LibraryView(BaseView, ViewCommandMixin):
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', 'Unknown Collection')
 
+                # Format subtitle with storage stats
+                item_count = collection.get('item_count', 0)
+                storage_stats = collection.get('storage_stats', {})
+                local_count = storage_stats.get('local', 0)
+                external_count = storage_stats.get('external', 0)
+                url_count = storage_stats.get('url', 0)
+
+                # Build subtitle with emojis for storage types
+                subtitle_parts = [f"{item_count} items"]
+                if local_count > 0:
+                    subtitle_parts.append(f"📁 {local_count}")
+                if external_count > 0:
+                    subtitle_parts.append(f"🔗 {external_count}")
+                if url_count > 0:
+                    subtitle_parts.append(f"🌐 {url_count}")
+
+                subtitle = " • ".join(subtitle_parts)
+
                 formatted_item = {
                     'id': collection_id,
                     'title': collection_name,
-                    'subtitle': f"{collection.get('item_count', 0)} items • {collection.get('source_type', 'local')}",
+                    'subtitle': subtitle,
                     'icon': folder_icon,  # toga.Image or None
                     'collection_data': collection  # Store full data for callbacks
                 }
@@ -365,8 +383,10 @@ class LibraryView(BaseView, ViewCommandMixin):
     
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
+        logger.info(f"🎯 _on_collection_selected CALLED! widget={widget}, has selection={hasattr(widget, 'selection')}")
         try:
             if widget.selection and hasattr(widget.selection, 'collection_data'):
+                logger.info("✅ Widget has selection with collection_data")
                 collection = widget.selection.collection_data
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', '')
@@ -375,6 +395,17 @@ class LibraryView(BaseView, ViewCommandMixin):
 
                 # Always navigate - use fixed swipe actions for editing
                 self.selected_collection = collection
+
+                # Update inspector with collection metadata
+                logger.info(f"📋 Collection selected, checking inspector: has_attr={hasattr(self.app, 'inspector_window')}, exists={getattr(self.app, 'inspector_window', None) is not None}")
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    logger.info("📋 Getting collection metadata for inspector...")
+                    metadata = self.get_selection_metadata()
+                    logger.info(f"📋 Calling inspector.update_metadata with {len(metadata)} chars")
+                    self.app.inspector_window.update_metadata(metadata, selection_type="COLLECTION")
+                    logger.info("📋 Inspector updated with collection metadata")
+                else:
+                    logger.warning("📋 Inspector window not available!")
 
                 # Navigate to collection if callback is registered
                 if self.on_collection_selected:
@@ -1174,6 +1205,9 @@ class LibraryView(BaseView, ViewCommandMixin):
     def define_commands(self):
         """Define all commands for LibraryView"""
         try:
+            # Create custom menu groups (following OutputView pattern)
+            tools_group = toga.Group("Tools", order=50)  # After View (30), before Window (90)
+
             # Note: _() is available globally via gettext.install() in app.py
             self.commands = {
                 # ===== FILE MENU - NEW COLLECTION =====
@@ -1264,6 +1298,43 @@ class LibraryView(BaseView, ViewCommandMixin):
                     context='normal'  # Always visible on desktop
                 ),
 
+                # ===== FILE MENU - IMPORT SUBMENU LINK ITEMS (MENU ONLY) =====
+                # These appear in Import submenu AFTER a separator
+                # They do NOT appear in toolbars
+                'link_file': FicheroCommand(
+                    id=f'{self.view_id}.link_file',
+                    label=_("Link File…"),
+                    action=self._on_link_file,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Link to file (reference only, no copy)"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
+                    section=2,  # New section - creates separator above
+                    order=0,  # First item in link section
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
+                'link_folder': FicheroCommand(
+                    id=f'{self.view_id}.link_folder',
+                    label=_("Link Folder…"),
+                    action=self._on_link_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Link to folder (reference only, no copy)"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
+                    section=2,  # Same section as link commands
+                    order=1,  # Second item in link section
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
                 # ===== WINDOW NAVIGATION COMMANDS =====
                 # Desktop: Application/Window menus | Mobile: Bottom toolbar
                 'settings': FicheroCommand(
@@ -1333,6 +1404,25 @@ class LibraryView(BaseView, ViewCommandMixin):
                     context='normal'
                 ),
 
+                'inspector': FicheroCommand(
+                    id=f'{self.view_id}.inspector',
+                    label=_("Show Inspector…"),
+                    action=self._on_toggle_inspector,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 'i',  # Cmd+Shift+I
+                    icon='resources/icons/toolbar/info.circle@10x.png',  # Info circle icon
+                    description=_("Toggle inspector window"),
+                    group=tools_group,  # Tools menu on desktop (custom group)
+                    section=-1,  # BEFORE all other Tools menu items (separator after)
+                    order=0,  # First item in section
+                    show_in_menu=True,  # Appear in Tools menu on desktop
+                    show_in_toolbar=True,  # Show in desktop toolbar (top left)
+                    show_in_top_toolbar=True,  # Show in mobile top toolbar (top right after Edit)
+                    show_in_bottom_toolbar=False,  # Not in bottom toolbar
+                    mobile_only=False,  # Available on both platforms
+                    desktop_only=True,  # Desktop only feature
+                    context='normal'
+                ),
+
                 'plans': FicheroCommand(
                     id=f'{self.view_id}.plans',
                     label=_("Plans…"),
@@ -1388,33 +1478,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                 ),
 
                 # ===== EDIT MODE IMPORT COMMANDS =====
-                # These commands appear in edit mode on both mobile bottom toolbar and desktop bottom toolbar
-                'export': FicheroCommand(
-                    id=f'{self.view_id}.export',
-                    label=_("Export"),
-                    action=self._on_export_collection,
-                    icon='resources/icons/toolbar/download.png',
-                    description=_("Export selected collection"),
-                    show_in_menu=False,
-                    show_in_bottom_toolbar=True,
-                    toolbar_position='center',
-                    mobile_only=False,  # Available on both mobile and desktop
-                    context='edit'
-                ),
-
-                'bulk_import': FicheroCommand(
-                    id=f'{self.view_id}.bulk_import',
-                    label=_("Bulk Import"),
-                    action=self._on_import_bulk,
-                    icon='resources/icons/toolbar/document.png',
-                    description=_("Bulk import items"),
-                    show_in_menu=False,
-                    show_in_bottom_toolbar=True,
-                    toolbar_position='center',
-                    mobile_only=False,  # Available on both mobile and desktop
-                    context='edit'
-                ),
-
+                # These commands appear in edit mode toolbar
                 'edit_import_urls': FicheroCommand(
                     id=f'{self.view_id}.edit_import_urls',
                     label=_("Import URLs"),
@@ -1425,6 +1489,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                     show_in_bottom_toolbar=True,
                     toolbar_position='center',
                     mobile_only=False,  # Available on both mobile and desktop
+                    desktop_only=False,
                     context='edit'
                 ),
 
@@ -1437,7 +1502,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                     show_in_menu=False,
                     show_in_bottom_toolbar=True,
                     toolbar_position='center',
-                    mobile_only=False,  # Available on both mobile and desktop
+                    mobile_only=False,
+                    desktop_only=True,  # Desktop only - native file picker
                     context='edit'
                 ),
 
@@ -1450,7 +1516,22 @@ class LibraryView(BaseView, ViewCommandMixin):
                     show_in_menu=False,
                     show_in_bottom_toolbar=True,
                     toolbar_position='center',
-                    mobile_only=False,  # Available on both mobile and desktop
+                    mobile_only=False,
+                    desktop_only=True,  # Desktop only - native folder picker
+                    context='edit'
+                ),
+
+                'edit_camera': FicheroCommand(
+                    id=f'{self.view_id}.edit_camera',
+                    label=_("Camera"),
+                    action=self._on_open_camera,
+                    icon='resources/icons/toolbar/camera.png',
+                    description=_("Take photo with camera"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=True,  # Mobile only - camera access
+                    desktop_only=False,
                     context='edit'
                 ),
             }
@@ -1723,6 +1804,11 @@ class LibraryView(BaseView, ViewCommandMixin):
         logger.info("Opening activity monitor window")
         self.app.view_integration.navigation_controller.navigate_to_activity_monitor()
 
+    def _on_toggle_inspector(self, widget=None):
+        """Handle inspector window toggle"""
+        logger.info("Toggling inspector window")
+        self.app.toggle_inspector()
+
     def _on_open_prompts_window(self, widget=None):
         """Handle prompts window navigation"""
         logger.info("Opening prompts window")
@@ -1877,6 +1963,63 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to open folder import: {e}")
 
+    def _on_link_file(self, widget=None):
+        """Handle link file - opens native dialog and links (not copies) selected files"""
+        try:
+            logger.info("Link file requested")
+            # Store that this is a link operation for the callback BEFORE navigation
+            self._pending_operation = 'link'
+
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Navigate to file add view - callback will check _pending_operation
+                    nav_controller.navigate_to_add_file()
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open link file: {e}")
+
+    def _on_link_folder(self, widget=None):
+        """Handle link folder - opens native dialog and links (not copies) selected folder"""
+        try:
+            logger.info("Link folder requested")
+            # Store that this is a link operation for the callback BEFORE navigation
+            self._pending_operation = 'link'
+
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    # Navigate to folder add view - callback will check _pending_operation
+                    nav_controller.navigate_to_add_folder()
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open link folder: {e}")
+
+    def _on_open_camera(self, widget=None):
+        """Handle camera - navigate to Camera add view"""
+        try:
+            logger.info("Camera requested")
+            # Use NavigationController to navigate to camera view (mobile only)
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    nav_controller.navigate_to_add_camera()
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open camera: {e}")
+
     def _on_urls_added(self, data: dict):
         """Callback when URLs are added from URL view
 
@@ -1958,15 +2101,23 @@ class LibraryView(BaseView, ViewCommandMixin):
     async def _create_collection_from_files(self, files: List):
         """Create a new collection and add files to it"""
         try:
+            # Check if this is a link operation
+            operation = getattr(self, '_pending_operation', 'copy')
+            # Clear the pending operation
+            if hasattr(self, '_pending_operation'):
+                delattr(self, '_pending_operation')
+
             # Generate collection name
             from datetime import datetime
-            collection_name = f"Files {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            op_label = "Linked " if operation == 'link' else ""
+            collection_name = f"{op_label}Files {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
             # Create collection
+            collection_type = "external" if operation == 'link' else "local"
             collection_id = await self.library_service.add_collection_for_ui(
                 name=collection_name,
-                collection_type="local",
-                description=f"File collection with {len(files)} items"
+                collection_type=collection_type,
+                description=f"File collection with {len(files)} items ({'linked' if operation == 'link' else 'copied'})"
             )
 
             if collection_id:
@@ -1980,7 +2131,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                         item_type="file",
                         source=str(file_path),
                         name=name,
-                        operation="link"  # Link by default, can be copy/move
+                        operation=operation  # Use determined operation (copy or link)
                     )
 
                 # Refresh collections display
@@ -2038,15 +2189,23 @@ class LibraryView(BaseView, ViewCommandMixin):
     async def _create_collection_from_folders(self, folders: List):
         """Create a new collection and add folders to it"""
         try:
+            # Check if this is a link operation
+            operation = getattr(self, '_pending_operation', 'copy')
+            # Clear the pending operation
+            if hasattr(self, '_pending_operation'):
+                delattr(self, '_pending_operation')
+
             # Generate collection name
             from datetime import datetime
-            collection_name = f"Folders {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            op_label = "Linked " if operation == 'link' else ""
+            collection_name = f"{op_label}Folders {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
             # Create collection
+            collection_type = "external" if operation == 'link' else "local"
             collection_id = await self.library_service.add_collection_for_ui(
                 name=collection_name,
-                collection_type="local",
-                description=f"Folder collection with {len(folders)} items"
+                collection_type=collection_type,
+                description=f"Folder collection with {len(folders)} items ({'linked' if operation == 'link' else 'copied'})"
             )
 
             if collection_id:
@@ -2060,7 +2219,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                         item_type="folder",
                         source=str(folder_path),
                         name=name,
-                        operation="link"  # Link by default
+                        operation=operation  # Use determined operation (copy or link)
                     )
 
                 # Refresh collections display
@@ -2181,3 +2340,70 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to handle collection_updated event: {e}")
 
 
+    def get_selection_metadata(self) -> str:
+        """Get metadata for the currently selected collection"""
+        try:
+            if not self.selected_collection:
+                return "No collection selected"
+
+            # Format collection metadata as human-readable text
+            collection = self.selected_collection
+            lines = [
+                "=== COLLECTION METADATA ===",
+                "",
+                f"Name: {collection.get('name', 'Unknown')}",
+                f"ID: {collection.get('id', 'N/A')}",
+                "",
+            ]
+
+            # Add storage statistics
+            storage_stats = collection.get('storage_stats', {})
+            local_count = storage_stats.get('local', 0)
+            external_count = storage_stats.get('external', 0)
+            url_count = storage_stats.get('url', 0)
+            total_items = collection.get('item_count', 0)
+
+            lines.append("=== CONTENTS ===")
+            lines.append(f"Total Items: {total_items}")
+            if local_count > 0:
+                lines.append(f"  📁 Copied: {local_count}")
+            if external_count > 0:
+                lines.append(f"  🔗 Linked: {external_count}")
+            if url_count > 0:
+                lines.append(f"  🌐 URLs: {url_count}")
+            lines.append("")
+
+            # Add storage location info
+            lines.append("=== STORAGE ===")
+            collection_type = collection.get('type', 'Unknown')
+            if collection_type == 'local':
+                lines.append("Location: Library Folder")
+            elif collection_type == 'external':
+                lines.append("Location: External Path")
+            elif collection_type == 'url':
+                lines.append("Location: URL Collection")
+            else:
+                lines.append(f"Location: {collection_type}")
+
+            if collection.get('source_path'):
+                lines.append(f"Source: {collection.get('source_path')}")
+            if collection.get('local_path'):
+                lines.append(f"Workspace: {collection.get('local_path')}")
+            lines.append("")
+
+            # Add timestamps
+            lines.append("=== DATES ===")
+            lines.append(f"Created: {collection.get('created_at', 'N/A')}")
+            lines.append(f"Updated: {collection.get('updated_at', 'N/A')}")
+
+            # Add description if available
+            if collection.get('description'):
+                lines.append("")
+                lines.append("=== DESCRIPTION ===")
+                lines.append(collection.get('description'))
+
+            return "\n".join(lines)
+            
+        except Exception as e:
+            logger.error(f"Failed to get selection metadata: {e}")
+            return f"Error loading metadata: {e}"

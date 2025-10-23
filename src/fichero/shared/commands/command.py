@@ -130,6 +130,9 @@ class FicheroCommand:
         self.toolbar_position = toolbar_position
         self.context = context
 
+        # Reference to toga.Command (set by CommandManager when registered)
+        self._toga_command: Optional[Any] = None  # toga.Command or None
+
         logger.debug(f"Command created: {id} ({label}) [menu={show_in_menu}, section={section}, order={order}, parent={parent}, top_toolbar={show_in_top_toolbar}, bottom_toolbar={show_in_bottom_toolbar}, context={context}]")
 
     def execute(self, *args, **kwargs) -> Any:
@@ -171,14 +174,26 @@ class FicheroCommand:
             raise
 
     def enable(self):
-        """Enable this command."""
+        """Enable this command and sync with Toga Command if registered."""
         self.enabled = True
-        logger.debug(f"Command enabled: {self.id}")
+
+        # Also enable the toga.Command if one exists
+        if self._toga_command is not None:
+            self._toga_command.enabled = True
+            logger.debug(f"Command enabled (synced with Toga): {self.id}")
+        else:
+            logger.debug(f"Command enabled: {self.id}")
 
     def disable(self):
-        """Disable this command."""
+        """Disable this command and sync with Toga Command if registered."""
         self.enabled = False
-        logger.debug(f"Command disabled: {self.id}")
+
+        # Also disable the toga.Command if one exists
+        if self._toga_command is not None:
+            self._toga_command.enabled = False
+            logger.debug(f"Command disabled (synced with Toga): {self.id}")
+        else:
+            logger.debug(f"Command disabled: {self.id}")
 
     def __repr__(self) -> str:
         """String representation of the command."""

@@ -17,17 +17,31 @@ from .base import BaseLibraryCommands
 
 class ImportExportCommands(BaseLibraryCommands):
     """Import and export collection commands"""
-    
+
+    def __init__(self, app_initializer=None, base_commands=None):
+        """Initialize import/export commands - optionally share base instance"""
+        if base_commands:
+            # Use shared base instance (library_manager, director, etc.)
+            self.library_manager = base_commands.library_manager
+            self.director = base_commands.director
+            self.bridge = base_commands.bridge
+            self.console = base_commands.console
+            self.app_initializer = app_initializer
+        else:
+            # Create own instances (standalone mode)
+            super().__init__(app_initializer)
+
     def register_commands(self, app):
         """Register import/export commands"""
 
         @app.command(name="import", help="Import a collection from a path")
         def import_collection(
             path: Path = typer.Argument(..., help="Path to import collection from"),
-            name: Optional[str] = typer.Option(None, "--name", "-n", help="Name for the imported collection")
+            name: Optional[str] = typer.Option(None, "--name", "-n", help="Name for the imported collection"),
+            operation: str = typer.Option("copy", "--operation", "-o", help="Operation: 'copy' (default) or 'link'")
         ):
             """Import a collection from a path"""
-            asyncio.run(self._import_collection(path, name))
+            asyncio.run(self._import_collection(path, name, operation))
 
         @app.command(name="export", help="Export a collection to a path")
         def export_collection(
@@ -65,24 +79,29 @@ class ImportExportCommands(BaseLibraryCommands):
             """List all available import plugins"""
             asyncio.run(self._list_plugins())
     
-    async def _import_collection(self, path: Path, name: Optional[str]):
-        """Import a collection from zip file"""
+    async def _import_collection(self, path: Path, name: Optional[str], operation: str = "copy"):
+        """Import a collection from zip file or directory"""
         try:
             # Check if path exists
             if not path.exists():
                 self.console.print(f"[red]❌ Path does not exist: {path}[/red]")
                 return
-            
+
+            # Validate operation
+            if operation not in ["copy", "link"]:
+                self.console.print(f"[red]❌ Invalid operation: {operation}. Must be 'copy' or 'link'[/red]")
+                return
+
             # Determine collection name
             collection_name = name or path.stem
-            
+
             # Check if it's a zip file
             if path.suffix.lower() == '.zip':
-                # Import from zip file
+                # Import from zip file (always copies to library)
                 await self._import_from_zip(path, collection_name)
             else:
-                # Import from directory (existing functionality)
-                await self._import_from_directory(path, collection_name)
+                # Import from directory with specified operation
+                await self._import_from_directory(path, collection_name, operation)
                 
         except Exception as e:
             self.console.print(f"[red]❌ Failed to import collection: {e}[/red]")
@@ -213,15 +232,18 @@ class ImportExportCommands(BaseLibraryCommands):
                 except Exception as e:
                     self.console.print(f"[yellow]⚠️  Failed to clean up temp directory: {e}[/yellow]")
 
-    async def _import_from_directory(self, dir_path: Path, collection_name: str):
+    async def _import_from_directory(self, dir_path: Path, collection_name: str, operation: str = "copy"):
         """Import collection from directory with hierarchical structure"""
         try:
             # Add collection to library
+            # Use 'local' type for copy operation, 'external' for link operation
+            collection_type = "local" if operation == "copy" else "external"
+
             collection_id = await self.library_manager.add_collection(
                 name=collection_name,
-                collection_type="local",
+                collection_type=collection_type,
                 source_path=str(dir_path),
-                description=f"Imported from directory"
+                description=f"Imported from directory ({'copy' if operation == 'copy' else 'link'})"
             )
 
             if not collection_id:
@@ -229,11 +251,12 @@ class ImportExportCommands(BaseLibraryCommands):
                 return
 
             # Import all files preserving folder structure
-            self.console.print(f"[blue]Importing files with hierarchical structure...[/blue]")
+            operation_verb = "Copying" if operation == "copy" else "Linking"
+            self.console.print(f"[blue]{operation_verb} files with hierarchical structure...[/blue]")
             stats = await self.library_manager.add_folder_items_to_collection(
                 collection_id=collection_id,
                 folder_path=str(dir_path),
-                operation="link",  # Link to original files
+                operation=operation,
                 recursive=True  # Preserve folder structure
             )
 

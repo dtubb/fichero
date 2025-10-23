@@ -64,15 +64,23 @@ class LibraryService:
             # Convert to UI format
             ui_collections = []
             for collection in collections:
-                # Get item count
+                # Get items and calculate storage stats
                 items = await self.library_manager.get_collection_items(collection.id)
                 item_count = len(items)
+
+                # Calculate storage distribution
+                storage_stats = {'local': 0, 'external': 0, 'url': 0}
+                for item in items:
+                    storage_type = getattr(item, 'storage_type', 'local')
+                    if storage_type in storage_stats:
+                        storage_stats[storage_type] += 1
 
                 collection_data = {
                     'id': collection.id,
                     'name': collection.name,
                     'type': collection.type,
                     'item_count': item_count,
+                    'storage_stats': storage_stats,  # Add storage distribution
                     'description': collection.metadata.get('description', ''),
                     'created_at': collection.created_at,
                     'updated_at': collection.updated_at,
@@ -96,15 +104,21 @@ class LibraryService:
         """Get collection items formatted for UI display"""
         try:
             items = await self.library_manager.get_collection_items(collection_id)
-            
+
             # Convert to UI format
             ui_items = []
             for item in items:
+                # Format subtitle with file type, storage type, and location
+                subtitle = self._format_item_subtitle(item)
+
                 item_data = {
                     'id': item.id,
                     'name': item.name,
+                    'title': item.name,  # For DetailedList display
+                    'subtitle': subtitle,  # Formatted metadata
                     'type': item.type,
                     'status': item.status,
+                    'storage_type': getattr(item, 'storage_type', 'local'),
                     'source_path': item.source_path,
                     'local_path': item.local_path,
                     'created_at': item.created_at,
@@ -112,13 +126,76 @@ class LibraryService:
                     'metadata': item.metadata
                 }
                 ui_items.append(item_data)
-            
+
             logger.debug(f"Retrieved {len(ui_items)} items for collection {collection_id}")
             return ui_items
-            
+
         except Exception as e:
             logger.error(f"Failed to get collection items for UI: {e}")
             return []
+
+    def _format_item_subtitle(self, item) -> str:
+        """Format item subtitle with file type, storage type, and location"""
+        parts = []
+
+        # Get file extension if it's a file
+        if item.type == "file":
+            # Try to get extension from source_path or local_path
+            from pathlib import Path
+            file_path = item.source_path or item.local_path
+            if file_path:
+                ext = Path(file_path).suffix.upper().lstrip('.')
+                if ext:
+                    parts.append(ext)
+
+        # Get storage type with emoji
+        storage_type = getattr(item, 'storage_type', 'local')
+        if storage_type == 'local':
+            parts.append("📁 Copied")
+        elif storage_type == 'external':
+            parts.append("🔗 Linked")
+        elif storage_type == 'url':
+            parts.append("🌐 URL")
+
+        # Get location (abbreviated path or URL)
+        if storage_type == 'url' and item.source_path:
+            # Show domain for URLs
+            from urllib.parse import urlparse
+            try:
+                domain = urlparse(item.source_path).netloc
+                if domain:
+                    parts.append(domain)
+            except:
+                pass
+        elif storage_type == 'external' and item.source_path:
+            # Show abbreviated path for linked files
+            from pathlib import Path
+            try:
+                path = Path(item.source_path)
+                # Show parent folder name
+                if path.parent.name:
+                    parts.append(f"in {path.parent.name}")
+            except:
+                pass
+        elif storage_type == 'local' and item.local_path:
+            # For copied files, could show size instead of path
+            from pathlib import Path
+            try:
+                path = Path(item.local_path)
+                if path.exists():
+                    size = path.stat().st_size
+                    if size < 1024:
+                        parts.append(f"{size} B")
+                    elif size < 1024 * 1024:
+                        parts.append(f"{size / 1024:.1f} KB")
+                    elif size < 1024 * 1024 * 1024:
+                        parts.append(f"{size / (1024 * 1024):.1f} MB")
+                    else:
+                        parts.append(f"{size / (1024 * 1024 * 1024):.1f} GB")
+            except:
+                pass
+
+        return " • ".join(parts) if parts else ""
     
     async def add_collection_for_ui(self, 
                                   name: str,
@@ -272,9 +349,16 @@ class LibraryService:
     async def import_files_for_ui(
         self,
         files: list,
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        operation: str = "copy"
     ) -> Dict[str, Any]:
-        """Import files into a new collection - for UI"""
+        """Import files into a new collection - for UI
+
+        Args:
+            files: List of file paths to import
+            collection_name: Optional name for collection
+            operation: 'copy' (default) or 'link'
+        """
         try:
             if not files:
                 return {
@@ -293,14 +377,18 @@ class LibraryService:
 
             # Generate collection name if not provided
             if not collection_name:
+                from datetime import datetime
                 first_file = file_paths[0]
-                collection_name = f"Files from {first_file.parent.name}"
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+                collection_name = f"Files from {first_file.parent.name} {timestamp}"
 
-            # Create collection using library manager
+            # Create collection using library manager (without source_path to avoid copying parent folder)
+            # Use 'local' for copy, 'external' for link
+            collection_type = "local" if operation == "copy" else "external"
             collection_id = await self.library_manager.add_collection(
                 name=collection_name,
-                collection_type="local",
-                source_path=str(file_paths[0].parent)
+                collection_type=collection_type,
+                source_path=None  # Don't set source - we'll copy/link individual files
             )
 
             if not collection_id:
@@ -328,7 +416,7 @@ class LibraryService:
                         item_type="file",
                         source=str(file_path),
                         name=file_path.name,
-                        operation="link"
+                        operation=operation  # Use specified operation (copy or link)
                     )
                     if item_id:
                         files_imported += 1
@@ -370,24 +458,24 @@ class LibraryService:
         self,
         folder_path: Path,
         collection_name: Optional[str] = None,
-        operation: str = "link"
+        operation: str = "copy"
     ) -> Dict[str, Any]:
         """Import folder as a collection - for UI
 
         Args:
             folder_path: Path to folder to import
             collection_name: Optional collection name (auto-generated if None)
-            operation: 'link' (reference) or 'copy' (copy files to library)
+            operation: 'link' (reference) or 'copy' (copy files to library - default)
         """
         try:
-            # Generate collection name if not provided
+            # Generate collection name if not provided (no "Folder:" prefix)
             if not collection_name:
-                collection_name = f"Folder: {folder_path.name}"
+                collection_name = folder_path.name
 
             # Create collection using library manager
+            # Use 'local' type for copy operation (default)
             # Use 'external' type for link operation (reference only)
-            # Use 'local' type for copy operation
-            collection_type = "external" if operation == "link" else "local"
+            collection_type = "local" if operation == "copy" else "external"
 
             collection_id = await self.library_manager.add_collection(
                 name=collection_name,
@@ -408,43 +496,29 @@ class LibraryService:
                     'metadata': {}
                 }
 
-            # Add the folder itself as a single item
-            # Files will be discovered during browsing or processing
-            item_id = await self.library_manager.add_item_to_collection(
+            # Import all files preserving folder structure (not the folder itself)
+            # This matches CLI behavior
+            stats = await self.library_manager.add_folder_items_to_collection(
                 collection_id=collection_id,
-                item_type="folder",
-                source=str(folder_path),
-                name=folder_path.name,
-                operation=operation
+                folder_path=str(folder_path),
+                operation=operation,
+                recursive=True  # Preserve folder structure
             )
 
-            if item_id:
-                logger.info(
-                    f"Successfully created collection from folder: {collection_name} "
-                    f"(Files will be discovered during processing)"
-                )
-                return {
-                    'success': True,
-                    'collection_id': collection_id,
-                    'collection_name': collection_name,
-                    'files_imported': 1,  # The folder item itself
-                    'files_skipped': 0,
-                    'errors': 0,
-                    'error_message': None,
-                    'metadata': {'operation': operation}
-                }
-            else:
-                logger.warning(f"Failed to add folder item to collection: {collection_name}")
-                return {
-                    'success': False,
-                    'collection_id': collection_id,
-                    'collection_name': collection_name,
-                    'files_imported': 0,
-                    'files_skipped': 0,
-                    'errors': 1,
-                    'error_message': "Failed to add folder item",
-                    'metadata': {}
-                }
+            logger.info(
+                f"Successfully created collection from folder: {collection_name} "
+                f"(Imported {stats.get('added', 0)} items)"
+            )
+            return {
+                'success': True,
+                'collection_id': collection_id,
+                'collection_name': collection_name,
+                'files_imported': stats.get('added', 0),
+                'files_skipped': stats.get('skipped', 0),
+                'errors': stats.get('errors', 0),
+                'error_message': None,
+                'metadata': {'operation': operation}
+            }
 
         except Exception as e:
             logger.error(f"Failed to import folder {folder_path}: {e}")
@@ -697,19 +771,12 @@ class LibraryService:
                 logger.warning(f"Collection {collection_id} not found")
                 return []
 
-            # IMPORTANT: Different behavior based on collection type
-            # - External collections: Browse source_path directly (files in original location)
-            # - Local/URL collections: Get items from library database
-            if collection.type == "external" and collection.source_path:
-                # External collection: Browse filesystem directly (files not in library)
-                # Pass collection_id so we can look up library item IDs for processed files
-                logger.debug(f"Browsing external collection filesystem: {collection.source_path}")
-                return self._get_filesystem_structure(Path(collection.source_path), current_path, collection_id)
-            else:
-                # Local/URL/Hybrid collections: Get items from library database
-                # Use hierarchical structure based on parent_id relationships
-                logger.debug(f"Getting hierarchical items from library database for collection type: {collection.type}")
-                return self._get_database_hierarchical_structure(collection_id, current_path)
+            # CRITICAL DESIGN: ALL collection types use database-only browsing
+            # Collection view NEVER browses filesystem directly - everything comes from library database
+            # For external collections, use a "Scan" or "Reindex" command to populate database with files
+            # This keeps the collection view clean and prevents processing output folders from appearing
+            logger.debug(f"Getting hierarchical items from library database for collection type: {collection.type}")
+            return self._get_database_hierarchical_structure(collection_id, current_path)
                 
         except Exception as e:
             logger.error(f"Failed to get collection structure sync: {e}")
@@ -857,6 +924,12 @@ class LibraryService:
                 try:
                     # Skip hidden files (starting with .)
                     if entry.name.startswith('.') and entry.name not in ['..']:
+                        continue
+
+                    # CRITICAL: Skip processing output folders to prevent them from appearing in collection view
+                    # These folders should never be shown as part of source content
+                    if entry.is_dir() and entry.name in ['assets', 'logs', 'outputs']:
+                        logger.debug(f"Skipping processing output folder: {entry.name}")
                         continue
 
                     # Get file type

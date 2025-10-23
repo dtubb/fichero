@@ -268,15 +268,55 @@ class DirectorIntegrationService:
 
         task_ids = []
 
-        # Process all files together in a single batch
+        # Process files
+        # IMPORTANT: If only ONE file is being processed (single selection), process just that file
+        # Otherwise, batch multiple files together for efficiency
         if file_items:
-            batch_task_ids = await self._process_file_batch(
-                file_items, output_base_path, plan_name, workflow_name,
-                collection_name, collection_id
-            )
-            task_ids.extend(batch_task_ids)
+            single_file_selection = len(file_items) == 1 and len(item_ids) == 1
 
-        # Process folders individually (they may have subfolders)
+            if single_file_selection:
+                # Single selected file - process only that file
+                item_id, item, input_path = file_items[0]
+                logger.info(f"Processing single selected file: {input_path}")
+
+                # Generate output path for single file
+                item_output_path = self._generate_output_structure(
+                    collection_name=collection_name,
+                    collection_id=collection_id,
+                    item_name=item.name,
+                    workflow_name=workflow_name,
+                    plan_name=plan_name,
+                    base_path=output_base_path
+                )
+                item_output_path.mkdir(parents=True, exist_ok=True)
+
+                # Process single file
+                task_id = await self._process_single_file(
+                    item_id, input_path, item_output_path, plan_name, workflow_name
+                )
+                if task_id:
+                    task_ids.append(task_id)
+
+                    # Update item metadata
+                    item.metadata['director_status'] = 'pending'
+                    item.metadata['director_workflow'] = workflow_name
+                    item.metadata['director_output_path'] = str(item_output_path)
+                    await self.library_manager.update_item(item)
+            else:
+                # Multiple files - process as batch
+                logger.info(f"Processing {len(file_items)} files as batch")
+                batch_task_ids = await self._process_file_batch(
+                    file_items, output_base_path, plan_name, workflow_name,
+                    collection_name, collection_id
+                )
+                task_ids.extend(batch_task_ids)
+
+        # Process folders
+        # IMPORTANT: If only ONE folder is being processed (single selection), don't use auto-detection
+        # Auto-detection would find all subfolders and process them separately
+        # When user selects a single folder, they want THAT FOLDER processed as a unit
+        single_folder_selection = len(folder_items) == 1 and len(item_ids) == 1
+
         for item_id, item, input_path in folder_items:
             # Generate hierarchical output structure
             item_output_path = self._generate_output_structure(
@@ -290,9 +330,19 @@ class DirectorIntegrationService:
             item_output_path.mkdir(parents=True, exist_ok=True)
 
             try:
-                submitted_task_ids = await self._process_folder_structure(
-                    item_id, input_path, item_output_path, plan_name, workflow_name
-                )
+                if single_folder_selection:
+                    # Single selected folder - process directly without auto-detection
+                    logger.info(f"Processing single selected folder (no auto-detection): {input_path}")
+                    submitted_task_ids = await self._process_single_folder(
+                        item_id, input_path, item_output_path, plan_name, workflow_name
+                    )
+                else:
+                    # Multiple folders or "Process All" - use auto-detection
+                    logger.info(f"Processing folder with auto-detection: {input_path}")
+                    submitted_task_ids = await self._process_folder_structure(
+                        item_id, input_path, item_output_path, plan_name, workflow_name
+                    )
+
                 task_ids.extend(submitted_task_ids)
 
                 # Update item metadata
@@ -392,6 +442,8 @@ class DirectorIntegrationService:
             'item_map': batch_item_map,
             'type': 'batch',
             'output_path': str(batch_output_path),
+            'plan_name': plan_name,
+            'workflow': workflow_name,
             'started_at': datetime.now()
         }
 
@@ -416,10 +468,14 @@ class DirectorIntegrationService:
         """
         Process a single file using Director
 
+        Creates a staging folder in the library's output directory containing only
+        the specified file (via symlink), then processes it from there. All outputs
+        stay in the library folder for reliable tracking.
+
         Args:
             item_id: Collection item ID
             input_path: Path to the file
-            output_path: Output directory
+            output_path: Output directory (in library)
             plan_name: Plan name
             workflow_name: Workflow name
 
@@ -428,13 +484,94 @@ class DirectorIntegrationService:
         """
         logger.info(f"Processing single file: {input_path}")
 
-        # NO COPYING - Process file from its original location
-        # Director will process the parent folder containing the file
-        source_folder = input_path.parent
+        # Create staging folder WITHIN the library's output directory
+        # This ensures all processing happens in library-controlled space
+        import os
 
-        # Submit to Director using process_folders
+        staging_dir = output_path / "_staging"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Create symlink to the file in staging directory
+            staging_file_link = staging_dir / input_path.name
+
+            # Remove existing symlink if present (from previous runs)
+            if staging_file_link.exists() or staging_file_link.is_symlink():
+                staging_file_link.unlink()
+
+            os.symlink(input_path, staging_file_link)
+            logger.info(f"Created staging folder in library: {staging_dir}")
+
+            # Submit to Director using the staging folder
+            # Pass actual filename as display_name so Activity Monitor shows it instead of staging folder name
+            task_id = self.director.processing_coordinator.process_folders(
+                folders=[staging_dir],
+                plan_name=plan_name,
+                workflow_name=workflow_name,
+                output_path=output_path,
+                document_context={'display_name': input_path.name}  # Show actual filename, not staging folder
+            )
+
+            # Track this task (NO temp dir - everything stays in library)
+            self.active_tasks[task_id] = {
+                'item_id': item_id,
+                'type': 'file',
+                'input_path': str(input_path),
+                'output_path': str(output_path),
+                'staging_dir': str(staging_dir),  # Track for cleanup
+                'plan_name': plan_name,
+                'workflow': workflow_name,
+                'started_at': datetime.now()
+            }
+
+            logger.info(f"✅ Submitted single file task {task_id} for {input_path.name}")
+            logger.info(f"   Library output path: {output_path}")
+            return task_id
+
+        except Exception as e:
+            logger.error(f"Failed to process single file {input_path}: {e}")
+            raise
+
+    async def _process_single_folder(self, item_id: str, input_path: Path,
+                                     output_path: Path, plan_name: str,
+                                     workflow_name: str) -> List[str]:
+        """
+        Process a single folder directly (no auto-detection)
+
+        Used when user explicitly selects a single folder to process.
+        Processes the folder as a unit, without detecting subfolders.
+
+        Args:
+            item_id: Collection item ID
+            input_path: Path to the folder
+            output_path: Output directory
+            plan_name: Plan name
+            workflow_name: Workflow name
+
+        Returns:
+            List with single task ID
+        """
+        logger.info(f"Processing single folder (no auto-detection): {input_path}")
+
+        # Library already created the right output path - use it directly
+        # For in-place mode: documents_folder = source location, output_folder = library path
+        # For copy mode: would need to copy files first (not implemented yet)
+
+        # In-place processing: source files stay where they are
+        documents_folder = input_path
+
+        # Create required subdirectories in the library output path
+        (output_path / "assets").mkdir(parents=True, exist_ok=True)
+        (output_path / "logs").mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Library processing - output: {output_path}, documents: {documents_folder}")
+
+        # Process the folder using process_folders with properly formatted dict
         task_id = self.director.processing_coordinator.process_folders(
-            folders=[source_folder],
+            folders=[{
+                'output_folder': output_path,
+                'documents_folder': documents_folder
+            }],
             plan_name=plan_name,
             workflow_name=workflow_name,
             output_path=output_path
@@ -443,19 +580,25 @@ class DirectorIntegrationService:
         # Track this task
         self.active_tasks[task_id] = {
             'item_id': item_id,
-            'type': 'file',
+            'type': 'folder',
             'input_path': str(input_path),
             'output_path': str(output_path),
+            'plan_name': plan_name,
+            'workflow': workflow_name,
             'started_at': datetime.now()
         }
 
-        return task_id
+        logger.info(f"✅ Submitted single folder task {task_id} for {input_path}")
+        return [task_id]
 
     async def _process_folder_structure(self, item_id: str, input_path: Path,
                                        output_path: Path, plan_name: str,
                                        workflow_name: str) -> List[str]:
         """
         Process a folder with auto-detection (folder-of-folders)
+
+        Used when processing multiple folders or "Process All".
+        Auto-detection finds subfolders and processes them separately.
 
         Args:
             item_id: Collection item ID
@@ -467,7 +610,7 @@ class DirectorIntegrationService:
         Returns:
             List of task IDs (one per subfolder detected)
         """
-        logger.info(f"Processing folder structure: {input_path}")
+        logger.info(f"Processing folder structure with auto-detection: {input_path}")
 
         # Use Director's auto-detection
         task_ids = self.director.processing_coordinator.process_with_auto_detection(
@@ -487,6 +630,8 @@ class DirectorIntegrationService:
                     'type': 'folder',
                     'input_path': str(input_path),
                     'output_path': str(output_path),
+                    'plan_name': plan_name,
+                    'workflow': workflow_name,
                     'started_at': datetime.now()
                 }
                 logger.info(f"📊 Tracked task {task_id} in active_tasks for item {item_id}")
@@ -542,15 +687,26 @@ class DirectorIntegrationService:
 
         # Check if task completed
         if event_type == 'task_completed':
+            # Check if already finalizing (prevents duplicate finalization)
+            if task_id not in self.active_tasks:
+                logger.info(f"📊 Task {task_id} already being finalized, skipping duplicate")
+                return
+
+            # Remove from active tasks IMMEDIATELY to prevent duplicate finalization
+            task_info_copy = self.active_tasks.pop(task_id, None)
+            if not task_info_copy:
+                logger.warning(f"Task {task_id} not in active_tasks during completion")
+                return
+
             logger.info(f"📊 Task {task_id} COMPLETED - starting finalization")
             # Schedule finalization in a background thread to avoid event loop conflicts
             # This is safe because _finalize_processing creates its own event loop
             def finalize_in_thread():
                 try:
                     logger.info(f"📊 Finalization thread started for {task_id}")
-                    # Create a new event loop for this thread
                     # Call synchronous finalization directly (no event loop needed)
-                    self._finalize_processing(task_id)
+                    # Pass task_info copy since we removed it from active_tasks
+                    self._finalize_processing_with_info(task_id, task_info_copy)
                     logger.info(f"📊 Finalization completed for {task_id}")
                 except Exception as e:
                     logger.error(f"❌ Failed to finalize processing for {task_id}: {e}")
@@ -564,7 +720,10 @@ class DirectorIntegrationService:
 
     def _update_item_progress(self, item_id: str, task_id: str, progress_data: Dict):
         """
-        Update a single item's progress
+        Update a single item's progress (THREAD-SAFE)
+
+        This is called from TaskMonitor callbacks which run in background threads.
+        GUI updates MUST be dispatched to the main thread to avoid crashes.
 
         Args:
             item_id: Item ID
@@ -579,29 +738,39 @@ class DirectorIntegrationService:
                 item.metadata['director_progress'] = progress_data.get('progress', 0)
                 item.metadata['director_status'] = progress_data.get('status', 'running')
 
-                # Update in storage
+                # Update in storage (thread-safe database operation)
                 self.library_manager.storage.update_item(item)
 
-                # Emit event for UI refresh
-                emit_navigation_event('collection_item_updated', {
-                    'item_id': item_id,
-                    'progress': progress_data.get('progress', 0)
-                })
+                # CRITICAL: Dispatch GUI update to main thread
+                # emit_navigation_event triggers GUI updates (NSTableView) which MUST happen on main thread
+                # Using call_soon_threadsafe ensures thread safety
+                if hasattr(self.app, 'loop') and self.app.loop:
+                    self.app.loop.call_soon_threadsafe(
+                        emit_navigation_event,
+                        'collection_item_updated',
+                        {
+                            'item_id': item_id,
+                            'progress': progress_data.get('progress', 0)
+                        }
+                    )
+                else:
+                    # Fallback: skip GUI update if loop not available
+                    logger.debug(f"Skipping GUI update (no event loop): item {item_id}")
         except Exception as e:
             logger.error(f"Error updating item {item_id} progress: {e}")
 
-    def _finalize_processing(self, task_id: str):
+    def _finalize_processing_with_info(self, task_id: str, task_info: Dict):
         """
         Finalize processing when task completes (synchronous version)
 
         Args:
             task_id: Task ID that completed
+            task_info: Task information (passed as parameter since task is removed from active_tasks)
         """
         logger.info(f"📊 _finalize_processing STARTED for task {task_id}")
 
-        task_info = self.active_tasks.get(task_id)
         if not task_info:
-            logger.warning(f"Cannot finalize unknown task: {task_id}")
+            logger.warning(f"Cannot finalize task {task_id}: no task_info provided")
             return
 
         logger.info(f"📊 Task info retrieved: {task_info}")
@@ -645,9 +814,7 @@ class DirectorIntegrationService:
                     except Exception as update_error:
                         logger.error(f"Error updating item {item_id} after finalization error: {update_error}")
 
-        finally:
-            # Remove from active tasks
-            self.active_tasks.pop(task_id, None)
+        # Note: Task was already removed from active_tasks before finalization started
 
     def _finalize_single_item(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
         """Finalize a single item task (synchronous version)"""
@@ -662,9 +829,12 @@ class DirectorIntegrationService:
             logger.error(f"Item {item_id} not found during finalization")
             return
 
-        logger.info(f"📊 Item retrieved, creating ProcessingResult")
+        logger.info(f"📊 Item retrieved, creating comprehensive ProcessingResult")
 
-        # Create ProcessingResult record
+        # Build comprehensive artifact tracking metadata
+        artifacts_metadata = self._build_artifacts_metadata(output_path, parsed_outputs, task_info, result)
+
+        # Create ProcessingResult record with comprehensive tracking
         processing_result = ProcessingResult(
             item_id=item_id,
             workflow=task_info.get('workflow', 'unknown'),
@@ -673,15 +843,7 @@ class DirectorIntegrationService:
             completed_at=datetime.now(),
             output_paths=[str(output_path)],
             logs_path=str(output_path / "logs") if (output_path / "logs").exists() else None,
-            metadata={
-                'task_id': task_id,
-                'parsed_outputs': {
-                    'input_files': len(parsed_outputs.get('input_files', [])),
-                    'prepared_files': len(parsed_outputs.get('prepared_files', [])),
-                    'transcriptions': len(parsed_outputs.get('transcriptions', [])),
-                    'word_docs': len(parsed_outputs.get('word_docs', []))
-                }
-            },
+            metadata=artifacts_metadata,
             processing_time=(datetime.now() - task_info['started_at']).total_seconds()
         )
 
@@ -701,25 +863,252 @@ class DirectorIntegrationService:
         self.library_manager.storage.update_item(item)
         logger.info(f"📊 Item updated")
 
-        # Emit completion event
-        emit_navigation_event('processing_completed', {
-            'item_id': item_id,
-            'task_id': task_id,
-            'status': 'success' if result and result.success else 'failed'
-        })
-        logger.info(f"📊 Completion event emitted")
+        # Clean up staging directory if this was a single file task
+        # Staging dir is inside library, so cleanup is safe
+        staging_dir = task_info.get('staging_dir')
+        if staging_dir:
+            try:
+                import shutil
+                staging_path = Path(staging_dir)
+                if staging_path.exists():
+                    shutil.rmtree(staging_path)
+                    logger.info(f"🗑️  Cleaned up staging directory: {staging_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up staging directory {staging_dir}: {e}")
 
-    async def _finalize_batch(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
-        """Finalize a batch task with multiple items"""
+        # CRITICAL: Dispatch GUI update to main thread
+        # emit_navigation_event triggers GUI updates which MUST happen on main thread
+        if hasattr(self.app, 'loop') and self.app.loop:
+            self.app.loop.call_soon_threadsafe(
+                emit_navigation_event,
+                'processing_completed',
+                {
+                    'item_id': item_id,
+                    'task_id': task_id,
+                    'status': 'success' if result and result.success else 'failed'
+                }
+            )
+            logger.info(f"📊 Completion event dispatched to main thread")
+        else:
+            logger.debug(f"Skipping completion event (no event loop): item {item_id}")
+
+    def _build_artifacts_metadata(self, output_path: Path, parsed_outputs: Dict,
+                                   task_info: Dict, result) -> Dict[str, Any]:
+        """
+        Build comprehensive artifact tracking metadata for UI display
+
+        Systematically tracks:
+        - Plan and workflow used
+        - All processing steps executed
+        - Logs for each step
+        - Success/failure status per step
+        - All manifest files
+        - Output files per step
+
+        Args:
+            output_path: Path to processing output directory
+            parsed_outputs: Parsed outputs from DirectorOutputParser
+            task_info: Task information dictionary
+            result: Processing result from Director
+
+        Returns:
+            Dict with comprehensive artifact metadata
+        """
+        logger.info("📦 Building comprehensive artifacts metadata")
+
+        metadata = {
+            'task_id': task_info.get('task_id'),
+            'plan_name': task_info.get('plan_name', 'unknown'),
+            'workflow_name': task_info.get('workflow', 'unknown'),
+            'input_path': task_info.get('input_path'),
+            'steps': [],
+            'manifests': {},
+            'logs': {},
+            'summary': {
+                'total_steps': 0,
+                'successful_steps': 0,
+                'failed_steps': 0,
+                'skipped_steps': 0
+            }
+        }
+
+        # Track all manifests systematically
+        assets_dir = output_path / "assets"
+        if assets_dir.exists():
+            # 1. Documents manifest
+            manifests_dir = assets_dir / "manifests"
+            if manifests_dir.exists():
+                docs_manifest = manifests_dir / "documents_manifest.jsonl"
+                if docs_manifest.exists():
+                    metadata['manifests']['documents'] = str(docs_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'build_documents_manifest', docs_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+            # 2. Prepared images step
+            prepared_dir = assets_dir / "prepared"
+            if prepared_dir.exists():
+                prep_manifest = prepared_dir / "prepare_images_manifest.jsonl"
+                if prep_manifest.exists():
+                    metadata['manifests']['prepare_images'] = str(prep_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'prepare_images', prep_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+            # 3. Transcription step
+            transcriptions_dir = assets_dir / "transcriptions"
+            if transcriptions_dir.exists():
+                trans_manifest = transcriptions_dir / "transcriptions_manifest.jsonl"
+                if trans_manifest.exists():
+                    metadata['manifests']['transcriptions'] = str(trans_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'transcribe', trans_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+            # 4. Word conversion step
+            word_dir = assets_dir / "word"
+            if word_dir.exists():
+                word_manifest = word_dir / "convert_to_word_manifest.jsonl"
+                if word_manifest.exists():
+                    metadata['manifests']['convert_to_word'] = str(word_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'convert_to_word', word_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+            # 5. LLM catalogue step
+            llm_dir = assets_dir / "llm_catalogue"
+            if llm_dir.exists():
+                llm_manifest = llm_dir / "llm_process_manifest.jsonl"
+                if llm_manifest.exists():
+                    metadata['manifests']['llm_catalogue'] = str(llm_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'catalogue_folder', llm_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+        # Track logs
+        logs_dir = output_path / "logs"
+        if logs_dir.exists():
+            for log_file in logs_dir.glob("*.log"):
+                metadata['logs'][log_file.stem] = str(log_file)
+
+        # Calculate summary
+        metadata['summary']['total_steps'] = len(metadata['steps'])
+        for step in metadata['steps']:
+            if step['status'] == 'success':
+                metadata['summary']['successful_steps'] += 1
+            elif step['status'] == 'failed':
+                metadata['summary']['failed_steps'] += 1
+            elif step['status'] == 'skipped':
+                metadata['summary']['skipped_steps'] += 1
+
+        # Add file counts from parsed outputs
+        metadata['file_counts'] = {
+            'input_files': len(parsed_outputs.get('input_files', [])),
+            'prepared_files': len(parsed_outputs.get('prepared_files', [])),
+            'transcriptions': len(parsed_outputs.get('transcriptions', [])),
+            'word_docs': len(parsed_outputs.get('word_docs', []))
+        }
+
+        logger.info(f"📦 Built metadata: {metadata['summary']['total_steps']} steps tracked")
+        return metadata
+
+    def _parse_manifest_for_step(self, step_name: str, manifest_path: Path,
+                                  output_path: Path) -> Optional[Dict[str, Any]]:
+        """
+        Parse a manifest file to extract step execution details
+
+        Args:
+            step_name: Name of the processing step
+            manifest_path: Path to manifest.jsonl file
+            output_path: Base output path
+
+        Returns:
+            Dict with step details or None if parsing fails
+        """
+        import json
+
+        try:
+            step_data = {
+                'step_name': step_name,
+                'manifest_path': str(manifest_path),
+                'status': 'unknown',
+                'processed_files': 0,
+                'successful_files': 0,
+                'failed_files': 0,
+                'skipped_files': 0,
+                'outputs': [],
+                'errors': []
+            }
+
+            with open(manifest_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        entry = json.loads(line)
+                        step_data['processed_files'] += 1
+
+                        # Check status
+                        if entry.get('success'):
+                            if entry.get('skipped'):
+                                step_data['skipped_files'] += 1
+                            else:
+                                step_data['successful_files'] += 1
+                        else:
+                            step_data['failed_files'] += 1
+                            if 'error' in entry:
+                                step_data['errors'].append({
+                                    'file': entry.get('source', 'unknown'),
+                                    'error': entry['error']
+                                })
+
+                        # Track outputs
+                        if 'outputs' in entry and entry['outputs']:
+                            step_data['outputs'].extend(entry['outputs'])
+
+                    except json.JSONDecodeError:
+                        continue
+
+            # Determine overall step status
+            if step_data['failed_files'] > 0:
+                step_data['status'] = 'partial' if step_data['successful_files'] > 0 else 'failed'
+            elif step_data['skipped_files'] == step_data['processed_files']:
+                step_data['status'] = 'skipped'
+            elif step_data['successful_files'] > 0:
+                step_data['status'] = 'success'
+
+            return step_data
+
+        except Exception as e:
+            logger.warning(f"Failed to parse manifest {manifest_path}: {e}")
+            return None
+
+    def _finalize_batch(self, task_id: str, task_info: Dict, result, parsed_outputs: Dict):
+        """Finalize a batch task with multiple items (synchronous version)"""
         item_ids = task_info['item_ids']
         item_map = task_info.get('item_map', {})
         output_path = Path(task_info['output_path'])
+
+        logger.info(f"📊 Finalizing batch with {len(item_ids)} items")
 
         # Get all file outputs from the batch
         all_file_outputs = self.output_parser.get_all_file_outputs(output_path)
 
         for item_id in item_ids:
-            item = await self.library_manager.get_item(item_id)
+            # Get item (use storage directly for sync access)
+            item = self.library_manager.storage.get_item(item_id)
             if not item:
                 logger.warning(f"Item {item_id} not found during batch finalization")
                 continue
@@ -753,8 +1142,9 @@ class DirectorIntegrationService:
                 processing_time=(datetime.now() - task_info['started_at']).total_seconds()
             )
 
-            # Save processing result
-            await self.library_manager.add_processing_result(processing_result)
+            # Save processing result (use storage directly for sync access)
+            self.library_manager.storage.add_processing_result(processing_result)
+            logger.debug(f"📊 Saved ProcessingResult for batch item {item_id}")
 
             # Update item metadata
             item.metadata['director_status'] = 'success' if result and result.success else 'failed'
@@ -763,14 +1153,26 @@ class DirectorIntegrationService:
             if result and not result.success:
                 item.metadata['director_error'] = str(result.error_message)
 
-            await self.library_manager.update_item(item)
+            # Update in storage (use storage directly for sync access)
+            self.library_manager.storage.update_item(item)
+            logger.debug(f"📊 Updated batch item {item_id}")
 
-            # Emit completion event for each item
-            emit_navigation_event('processing_completed', {
-                'item_id': item_id,
-                'task_id': task_id,
-                'status': 'success' if result and result.success else 'failed'
-            })
+            # CRITICAL: Dispatch GUI update to main thread
+            # emit_navigation_event triggers GUI updates which MUST happen on main thread
+            if hasattr(self.app, 'loop') and self.app.loop:
+                self.app.loop.call_soon_threadsafe(
+                    emit_navigation_event,
+                    'processing_completed',
+                    {
+                        'item_id': item_id,
+                        'task_id': task_id,
+                        'status': 'success' if result and result.success else 'failed'
+                    }
+                )
+            else:
+                logger.debug(f"Skipping completion event (no event loop): item {item_id}")
+
+        logger.info(f"📊 Batch finalization complete for {len(item_ids)} items")
 
     def get_processing_status(self, item_id: str) -> Optional[Dict]:
         """

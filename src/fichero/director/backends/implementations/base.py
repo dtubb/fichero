@@ -34,6 +34,7 @@ class FolderTask:
     documents_folder: Path = None  # Source folder with documents (for in-place processing)
     variables: Dict = None
     document_id: str = None  # For GUI: which document window owns this
+    display_name: str = None  # Custom display name for Activity Monitor (overrides folder_path.name)
 
     def __post_init__(self):
         if self.variables is None:
@@ -196,7 +197,8 @@ class ProcessingBackend(ABC):
 
 def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict,
                       workflow_name: str = "default", variables: Dict = None,
-                      document_id: str = None, documents_folder: Path = None) -> FolderTask:
+                      document_id: str = None, documents_folder: Path = None,
+                      display_name: str = None) -> FolderTask:
     """Helper to create a folder task"""
     return FolderTask(
         task_id=str(uuid.uuid4()),
@@ -206,5 +208,6 @@ def create_folder_task(folder_path: Path, output_path: Path, plan_config: Dict,
         output_path=output_path,
         documents_folder=documents_folder,
         variables=variables or {},
-        document_id=document_id
+        document_id=document_id,
+        display_name=display_name
     ) 

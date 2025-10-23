@@ -186,7 +186,7 @@ class LibraryManager:
                 raise FileNotFoundError(f"Source path does not exist: {source_path}")
 
             # Create library collection directory using self.library_path
-            library_collection_path = self.library_path / "collections" / collection.name
+            library_collection_path = self.library_path / "collections" / str(collection.id)
             library_collection_path.mkdir(parents=True, exist_ok=True)
 
             if source.is_file():
@@ -735,7 +735,7 @@ class LibraryManager:
                 raise FileNotFoundError(f"Source does not exist: {source}")
 
             # Create library item directory using self.library_path
-            library_item_path = self.library_path / "collections" / collection.name / "items"
+            library_item_path = self.library_path / "collections" / str(collection.id) / "items"
             library_item_path.mkdir(parents=True, exist_ok=True)
             
             # Generate unique filename
@@ -763,7 +763,7 @@ class LibraryManager:
         """Save captured content (camera/audio) to library"""
         try:
             # Create captured content directory using self.library_path
-            captured_path = self.library_path / "collections" / collection.name / "captured"
+            captured_path = self.library_path / "collections" / str(collection.id) / "captured"
             captured_path.mkdir(parents=True, exist_ok=True)
             
             # Generate filename for captured content
@@ -921,6 +921,110 @@ class LibraryManager:
             import traceback
             traceback.print_exc()
             return []
+
+    async def get_item_output_data(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get file-specific filtered output data for an item
+
+        This is the main method that GUIs should use to get pre-filtered outputs.
+        It returns everything needed to display outputs for a specific file, with
+        all filtering already applied at the library level.
+
+        When an item was processed as part of a batch/folder, this method:
+        1. Reads the container's JSONL manifests
+        2. Filters entries by the item's filename
+        3. Extracts only the outputs for this specific file
+
+        Args:
+            item_id: Library item ID
+
+        Returns:
+            Dict with:
+                'item': CollectionItem - The item
+                'filename': str - The item's filename
+                'source_path': Path - Path to source file
+                'output_root': Path - Container output path (for reference)
+                'processing_steps': List[ProcessingStep] - Filtered steps for this file ONLY
+                'has_outputs': bool - Whether any outputs were found
+                'workflow': str - Workflow name (if available)
+                'processing_date': str - Processing date (if available)
+            Or None if item not found or has no processing results
+        """
+        try:
+            # Get the item
+            item = await self.get_item(item_id)
+            if not item:
+                logger.error(f"Item not found: {item_id}")
+                return None
+
+            # Get the latest processing result
+            latest_result = await self.get_latest_processing_result(item_id)
+            if not latest_result or not latest_result.output_paths:
+                logger.debug(f"No processing results for item {item_id}")
+                return {
+                    'item': item,
+                    'filename': item.name,
+                    'source_path': None,
+                    'output_root': None,
+                    'processing_steps': [],
+                    'has_outputs': False,
+                    'workflow': None,
+                    'processing_date': None
+                }
+
+            # Get source file path
+            source_path = None
+            if item.source_path:
+                source_path = Path(item.source_path)
+            elif item.local_path:
+                source_path = Path(item.local_path)
+
+            # Get file-specific processing steps (JSONL filtering happens here!)
+            # Use filename even if source doesn't exist - outputs may still be available
+            processing_steps = []
+            if source_path:
+                # Use the filename from the path (even if file doesn't exist anymore)
+                processing_steps = await self.get_file_processing_steps(source_path, latest_result)
+            else:
+                # No source path at all - use item name as fallback
+                # Create a fake path just to get the filename for filtering
+                fallback_path = Path(item.name)
+                processing_steps = await self.get_file_processing_steps(fallback_path, latest_result)
+
+            # Extract workflow metadata from output path
+            output_root = Path(latest_result.output_paths[0])
+            workflow = None
+            processing_date = None
+
+            # Try to extract from path structure:
+            # .../outputs/<collection_name>/<date>/<workflow>/<file>/_staging
+            path_parts = str(output_root).split('/')
+            if 'outputs' in path_parts:
+                outputs_idx = path_parts.index('outputs')
+                if len(path_parts) > outputs_idx + 3:
+                    processing_date = path_parts[outputs_idx + 2]
+                    workflow = path_parts[outputs_idx + 3]
+
+            # Fallback to processing result metadata
+            if not workflow and latest_result.workflow:
+                workflow = latest_result.workflow
+
+            return {
+                'item': item,
+                'filename': item.name,
+                'source_path': source_path,
+                'output_root': output_root,
+                'processing_steps': processing_steps,
+                'has_outputs': len(processing_steps) > 0,
+                'workflow': workflow,
+                'processing_date': processing_date
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get item output data: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     # ===== IMPORT/EXPORT =====
     

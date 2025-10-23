@@ -893,7 +893,9 @@ class NavigationController:
         """Create output modal view"""
         try:
             from fichero.windows.main.views.output.output_view import OutputView
-            return OutputView(self.app, self.is_mobile)
+            # Pass library_manager for file-specific filtering
+            library_manager = getattr(self.app, 'library_manager', None)
+            return OutputView(self.app, self.is_mobile, library_manager=library_manager)
         except Exception as e:
             logger.error(f"Failed to create output view: {e}")
             return None
@@ -967,9 +969,13 @@ class NavigationController:
 
             logger.info("Opening desktop file dialog directly")
 
-            # Supported file types
-            file_types = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff',
-                         'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'aac', 'm4a', 'zip', 'rar', '7z']
+            # Supported file types (include case variations for JPG/JPEG/TIF/TIFF)
+            file_types = ['pdf', 'doc', 'docx', 'txt', 'rtf',
+                         'jpg', 'JPG', 'jpeg', 'JPEG', 'JPGS',
+                         'png', 'PNG', 'gif', 'GIF', 'bmp', 'BMP',
+                         'tif', 'TIF', 'tiff', 'TIFF',
+                         'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'aac', 'm4a',
+                         'zip', 'rar', '7z']
 
             # Open file dialog
             dialog = toga.OpenFileDialog(
@@ -1044,9 +1050,17 @@ class NavigationController:
                 files = content_info['files']
                 if files:
                     try:
+                        # Check if there's a pending operation (from Link File command)
+                        operation = "copy"  # Default
+                        if hasattr(self.app, 'library_view') and hasattr(self.app.library_view, '_pending_operation'):
+                            operation = self.app.library_view._pending_operation
+                            delattr(self.app.library_view, '_pending_operation')
+                            logger.info(f"Using pending operation: {operation}")
+
                         result = await self.app.library_service.import_files_for_ui(
                             files=files,
-                            collection_name=None  # Auto-generate name
+                            collection_name=None,  # Auto-generate name
+                            operation=operation
                         )
 
                         if result['success']:
@@ -1061,12 +1075,20 @@ class NavigationController:
             elif option_id == 'folder' and 'folders' in content_info:
                 # Delegate folder import to library service (shared code path with CLI)
                 folders = content_info['folders']
+
+                # Check if there's a pending operation (from Link Folder command)
+                operation = "copy"  # Default
+                if hasattr(self.app, 'library_view') and hasattr(self.app.library_view, '_pending_operation'):
+                    operation = self.app.library_view._pending_operation
+                    delattr(self.app.library_view, '_pending_operation')
+                    logger.info(f"Using pending operation: {operation}")
+
                 for folder_path in folders:
                     try:
                         result = await self.app.library_service.import_folder_for_ui(
                             folder_path=folder_path,
                             collection_name=None,  # Auto-generate name
-                            operation="link"  # Reference only, don't copy
+                            operation=operation  # Use specified operation (copy or link)
                         )
 
                         if result['success']:
