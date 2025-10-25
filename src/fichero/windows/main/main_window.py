@@ -55,9 +55,6 @@ class MainWindow:
         self.cached_library_view: Optional[LibraryView] = None
         self.cached_output_view: Optional[OutputView] = None
 
-        # Collection view cache - key by collection_id to prevent duplicates
-        self.cached_collection_views: Dict[str, CollectionView] = {}
-
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
 
@@ -719,22 +716,6 @@ class MainWindow:
     def _cleanup_all_cached_views(self):
         """Clean up all cached views to prevent memory leaks and orphaned callbacks"""
         try:
-            # Clean up cached collection views
-            for collection_id, collection_view in self.cached_collection_views.items():
-                try:
-                    if hasattr(collection_view, 'cleanup_callbacks'):
-                        collection_view.cleanup_callbacks()
-
-                    if hasattr(collection_view, 'top_toolbar') and hasattr(collection_view.top_toolbar, 'cleanup_callbacks'):
-                        collection_view.top_toolbar.cleanup_callbacks()
-
-                    if hasattr(collection_view, 'bottom_toolbar') and hasattr(collection_view.bottom_toolbar, 'cleanup_callbacks'):
-                        collection_view.bottom_toolbar.cleanup_callbacks()
-
-                    logger.debug(f"Cleaned up cached CollectionView for {collection_id}")
-                except Exception as e:
-                    logger.error(f"Failed to cleanup cached collection view {collection_id}: {e}")
-
             # Clean up cached library view
             if self.cached_library_view:
                 try:

@@ -1690,7 +1690,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="",  # Let NavigationController provide dynamic collection name
-                auto_mobile_nav=True,
+                auto_mobile_nav=self.is_mobile,  # Only show back button on mobile
                 is_mobile=self.is_mobile
             )
 
