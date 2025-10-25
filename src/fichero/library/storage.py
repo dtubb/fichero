@@ -160,12 +160,8 @@ class LibraryStorage:
             with sqlite3.connect(self.db_path) as conn:
                 # Configure connection
                 conn.execute("PRAGMA foreign_keys=ON")
-                conn.isolation_level = None  # Enable autocommit mode
                 cursor = conn.cursor()
-                
-                # Start transaction
-                cursor.execute("BEGIN IMMEDIATE")
-                
+
                 cursor.execute("""
                     INSERT INTO collections
                     (id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata)
@@ -181,11 +177,11 @@ class LibraryStorage:
                     collection.sort_order,
                     self._serialize_metadata(collection.metadata)
                 ))
-                
+
                 conn.commit()
-                logger.debug(f"Collection added to storage: {collection.name}")
+                logger.info(f"✅ Collection saved to database: {collection.name} (ID: {collection.id})")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Failed to add collection: {e}")
             return False
@@ -223,9 +219,20 @@ class LibraryStorage:
     def get_collection(self, collection_id: str) -> Optional[Collection]:
         """Get a collection by ID"""
         try:
+            logger.debug(f"🔍 Looking up collection in database: {collection_id}")
+            logger.debug(f"📂 Database path: {self.db_path}")
+
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
+                # First, list all collections to see what's in the database
+                cursor.execute("SELECT id, name, type FROM collections")
+                all_collections = cursor.fetchall()
+                logger.debug(f"📋 Total collections in database: {len(all_collections)}")
+                for coll_row in all_collections:
+                    logger.debug(f"  - {coll_row[0]}: {coll_row[1]} ({coll_row[2]})")
+
+                # Now try to find the specific collection
                 cursor.execute("""
                     SELECT id, name, type, source_path, local_path, created_at, updated_at, sort_order, metadata
                     FROM collections WHERE id = ?
@@ -233,6 +240,7 @@ class LibraryStorage:
 
                 row = cursor.fetchone()
                 if row:
+                    logger.info(f"✅ Found collection in database: {row[1]} (ID: {row[0]}, Type: {row[2]})")
                     collection = Collection(
                         id=row[0],
                         name=row[1],
@@ -246,8 +254,9 @@ class LibraryStorage:
                     )
                     return collection
                 else:
+                    logger.warning(f"❌ Collection not found in database: {collection_id}")
                     return None
-                
+
         except Exception as e:
             logger.error(f"Failed to get collection: {e}")
             return None
@@ -383,6 +392,43 @@ class LibraryStorage:
         except Exception as e:
             logger.error(f"Storage: Failed to delete collection {collection_id}: {e}")
             return False
+
+    def delete_collection_item(self, item_id: str) -> bool:
+        """Delete a collection item and its related data"""
+        try:
+            logger.debug(f"Storage: Starting deletion of item {item_id}")
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Check if item exists first
+                cursor.execute("SELECT id, name, type FROM collection_items WHERE id = ?", (item_id,))
+                item_data = cursor.fetchone()
+                if not item_data:
+                    logger.error(f"Storage: Item {item_id} not found in database")
+                    return False
+
+                logger.debug(f"Storage: Found item to delete: {item_data[1]} (ID: {item_data[0]}, Type: {item_data[2]})")
+
+                # Delete related processing history
+                logger.debug(f"Storage: Deleting processing_history for item {item_id}")
+                cursor.execute("DELETE FROM processing_history WHERE item_id = ?", (item_id,))
+
+                # Delete the item
+                logger.debug(f"Storage: Deleting collection_item record {item_id}")
+                cursor.execute("DELETE FROM collection_items WHERE id = ?", (item_id,))
+
+                # Check if anything was actually deleted
+                if cursor.rowcount == 0:
+                    logger.warning(f"Storage: No item record was deleted for ID {item_id}")
+                    return False
+
+                conn.commit()
+                logger.info(f"Storage: Successfully deleted item {item_data[1]} (ID: {item_id})")
+                return True
+
+        except Exception as e:
+            logger.error(f"Storage: Failed to delete item {item_id}: {e}")
+            return False
     
     def add_collection_item(self, item: CollectionItem) -> bool:
         """Add an item to a collection"""
@@ -450,14 +496,20 @@ class LibraryStorage:
             return False
 
     def get_collection_items(self, collection_id: str) -> List[CollectionItem]:
-        """Get all items in a collection"""
+        """Get all items in a collection
+
+        Sorting logic:
+        - If items have manifest_position in metadata, sort by that (ASC) - preserves IIIF manifest order
+        - Otherwise sort by created_at (ASC) - order added to collection
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
+                # Note: SQLite doesn't support JSON extraction natively, so we'll sort in Python
                 cursor.execute("""
                     SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, parent_id, created_at, updated_at, metadata
-                    FROM collection_items WHERE collection_id = ? ORDER BY created_at DESC
+                    FROM collection_items WHERE collection_id = ?
                 """, (collection_id,))
 
                 items = []
@@ -477,7 +529,21 @@ class LibraryStorage:
                         metadata=self._deserialize_metadata(row[11])
                     )
                     items.append(item)
-                
+
+                # Smart sorting: use manifest_position if available, otherwise created_at
+                def sort_key(item):
+                    manifest_pos = item.metadata.get('manifest_position')
+                    if manifest_pos is not None:
+                        # Has manifest position - use it (with type prefix for folders first)
+                        type_order = 0 if item.type == 'folder' else 1
+                        return (type_order, manifest_pos, item.created_at)
+                    else:
+                        # No manifest position - sort by type then creation time
+                        type_order = 0 if item.type == 'folder' else 1
+                        return (type_order, 999999, item.created_at)
+
+                items.sort(key=sort_key)
+
                 return items
 
         except Exception as e:

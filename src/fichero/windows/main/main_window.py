@@ -287,29 +287,16 @@ class MainWindow:
             return library_view
 
     def _get_or_create_collection_view(self, collection_id: str, collection_name: str) -> CollectionView:
-        """Get cached collection view or create new one if needed"""
+        """Create a fresh collection view (no caching to avoid command handler conflicts)"""
         try:
-            # Check if we have a cached view for this collection_id
-            if collection_id in self.cached_collection_views:
-                logger.debug(f"Reusing cached CollectionView instance for {collection_name}")
-                collection_view = self.cached_collection_views[collection_id]
-
-                # Refresh the view when reusing it (but don't recreate content completely)
-                if hasattr(collection_view, 'show'):
-                    collection_view.show()
-                return collection_view
-            else:
-                logger.debug(f"Creating new CollectionView instance for {collection_name}")
-                collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
-                collection_view.register_preview_callback(self._on_file_preview_requested)
-
-                # Cache the view for future use
-                self.cached_collection_views[collection_id] = collection_view
-                return collection_view
+            logger.debug(f"Creating fresh CollectionView instance for {collection_name}")
+            collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
+            collection_view.register_preview_callback(self._on_file_preview_requested)
+            return collection_view
 
         except Exception as e:
-            logger.error(f"Failed to get or create collection view: {e}")
-            # Fallback: create new instance (but don't cache it to avoid corrupt cache)
+            logger.error(f"Failed to create collection view: {e}")
+            # Fallback: create new instance
             collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
             collection_view.register_preview_callback(self._on_file_preview_requested)
             return collection_view
@@ -401,6 +388,12 @@ class MainWindow:
             else:
                 self._show_view_desktop("library", library_view, "left")
 
+                # If there are no collections, clear the center pane
+                if hasattr(library_view, 'collections') and len(library_view.collections) == 0:
+                    logger.info("📭 No collections - clearing center pane")
+                    if hasattr(self, 'center_pane') and self.center_pane:
+                        self.center_pane.clear()
+
         except Exception as e:
             logger.error(f"Failed to handle show library event: {e}")
 
@@ -420,24 +413,27 @@ class MainWindow:
             if (current_view and
                 hasattr(current_view, 'collection_id') and
                 current_view.collection_id == collection_id):
-                # This is the same collection - just refresh its show() method
+                # This is the same collection - refresh and ensure it's shown
                 logger.info(f"Refreshing existing active collection view for {collection_name}")
-                if hasattr(current_view, 'show'):
-                    current_view.show()
-                return
-
-            # Get or create collection view from cache
-            collection_view = self._get_or_create_collection_view(collection_id, collection_name)
+                collection_view = current_view
+            else:
+                # Get or create collection view from cache
+                collection_view = self._get_or_create_collection_view(collection_id, collection_name)
 
             # Update native toolbar on desktop (CollectionView has persistent toolbar with commands)
             if not self.is_mobile:
                 self._update_toolbar_for_collection_view(context='normal')
 
-            # Show in appropriate pane
+            # Always show in appropriate pane (even if refreshing same view)
+            # This ensures the view is visible after deselection cleared the center pane
             if self.is_mobile:
                 self._show_view_mobile(view_key, collection_view)
             else:
                 self._show_view_desktop(view_key, collection_view, "center")
+
+            # Call show() method to trigger any view-specific refresh logic
+            if hasattr(collection_view, 'show'):
+                collection_view.show()
 
         except Exception as e:
             logger.error(f"Failed to handle show collection event: {e}")
@@ -823,6 +819,11 @@ class MainWindow:
             if pane == "center":  # Track center pane as current view
                 self.current_view = view
                 self.current_view_key = view_key
+                # Log current view with collection ID if applicable
+                if hasattr(view, 'collection_id'):
+                    logger.info(f"📍 Current view updated: CollectionView for collection_id={view.collection_id}")
+                else:
+                    logger.info(f"📍 Current view updated: {type(view).__name__}")
 
             # Track view in each pane for inspector window
             if pane == "left":
@@ -849,6 +850,7 @@ class MainWindow:
     def _on_collection_selected(self, collection_id: str, collection_name: str = ""):
         """Handle collection selection - delegate to NavigationController"""
         try:
+            logger.info(f"🎯 main_window._on_collection_selected: collection_id={collection_id}, collection_name={collection_name}")
             if self.navigation_controller:
                 self.navigation_controller.navigate_to_collection(collection_id, collection_name)
             else:

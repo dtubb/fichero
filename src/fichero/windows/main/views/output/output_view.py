@@ -782,12 +782,26 @@ class OutputView(BaseView, ViewCommandMixin):
                     if item:
                         # Check if it's a URL (external source) or local file path
                         # item is a CollectionItem object - use attribute access (not .get())
-                        # CollectionItem has: storage_type ("url"|"local"|"external"), source_path, type
-                        if item.storage_type == "url" and item.source_path:
-                            source_path = item.source_path  # URL string (don't convert to Path)
-                        elif item.source_path:
+                        # CollectionItem has: storage_type ("url"|"local"|"external"), source_path, local_path, type
+                        # - storage_type="local": file stored in library, use local_path
+                        # - storage_type="external": could be URL or external file, use source_path
+                        if item.storage_type == "local" and item.local_path:
+                            # Local storage - file is in library directory
                             from pathlib import Path
-                            source_path = Path(item.source_path)  # Local file path
+                            source_path = Path(item.local_path)
+                            logger.info(f"Source is local file (library): {source_path}")
+                        elif item.source_path:
+                            # External storage - could be URL or external file path
+                            # Check if source_path is a URL by checking the string format
+                            if isinstance(item.source_path, str) and item.source_path.startswith(('http://', 'https://')):
+                                source_path = item.source_path  # URL string (don't convert to Path)
+                                logger.info(f"Source is external URL: {source_path[:100]}...")
+                            else:
+                                from pathlib import Path
+                                source_path = Path(item.source_path)  # External file path
+                                logger.info(f"Source is external file: {source_path}")
+                        else:
+                            logger.warning(f"Item {item_id} has no source_path or local_path")
 
                 # Display the source file/URL if available
                 if source_path:
@@ -1101,14 +1115,14 @@ class OutputView(BaseView, ViewCommandMixin):
             # No files in this step, show message
             self._show_error_message(f"No output files in step: {current_step.tool_name}")
     
-    def _create_pane_box(self, file_path: Path, step_name: str):
+    def _create_pane_box(self, file_path, step_name: str):
         """Create a pane box for displaying content
 
         In desktop mode, panes are constrained by the parent container width.
         They should not expand horizontally beyond the right pane's allocated space.
 
         Args:
-            file_path: Path object for local files or string for URLs
+            file_path: Path object for local files or string URL for remote files
             step_name: Name of the processing step
         """
         pane = toga.Box(
@@ -1151,10 +1165,11 @@ class OutputView(BaseView, ViewCommandMixin):
         pane.add(content)
         return pane
 
-    def _create_file_viewer(self, file_path: Path):
+    def _create_file_viewer(self, file_path):
         """Create appropriate viewer widget based on file type - always in-app, no external viewers
 
-        Supports both local files (Path objects) and URLs (strings).
+        Args:
+            file_path: Path object for local files or string URL for remote files
         """
         # Check if this is a URL string
         is_url = isinstance(file_path, str) and file_path.startswith(('http://', 'https://'))
@@ -1201,10 +1216,11 @@ class OutputView(BaseView, ViewCommandMixin):
             # Ultimate fallback - show error message
             return toga.Label(f"Error loading file: {e}", style=Pack(margin=20))
 
-    def _create_webview_image_viewer(self, file_path: Path):
+    def _create_webview_image_viewer(self, file_path):
         """Create WebView-based image viewer - controls via toolbar buttons
 
-        Supports both local files and HTTP/HTTPS URLs.
+        Args:
+            file_path: Path object for local files or string URL for remote files
         """
         import base64
 
@@ -1219,6 +1235,12 @@ class OutputView(BaseView, ViewCommandMixin):
                 logger.info(f"Creating image viewer for URL: {image_url[:100]}...")
             else:
                 # For local files, read and encode as base64
+                # file_path should be a Path object here
+                if isinstance(file_path, str):
+                    # If it's a string but not a URL, it might be a file path string - convert to Path
+                    from pathlib import Path
+                    file_path = Path(file_path)
+
                 with open(file_path, 'rb') as f:
                     image_data = base64.b64encode(f.read()).decode('utf-8')
                 image_url = None
@@ -1933,8 +1955,12 @@ class OutputView(BaseView, ViewCommandMixin):
         except Exception as e:
             return toga.Label(f"Error loading document: {e}", style=Pack(margin=20))
 
-    def _show_original_as_single_step(self, file_path: Path):
-        """Show original file as a single step (no processing steps available)"""
+    def _show_original_as_single_step(self, file_path):
+        """Show original file as a single step (no processing steps available)
+
+        Args:
+            file_path: Path object for local files or string for URLs
+        """
         self.content_area.clear()
 
         # Create a pseudo-step for the original file
@@ -1947,7 +1973,7 @@ class OutputView(BaseView, ViewCommandMixin):
         self.left_step_index = 0
         self.right_step_index = 0
 
-        # Display the file
+        # Display the file (can be Path or URL string)
         box = self._create_pane_box(file_path, "Original")
         self.content_area.add(box)
 

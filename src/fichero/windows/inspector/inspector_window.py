@@ -32,6 +32,7 @@ class InspectorWindow:
         self.general_container: Optional[toga.Box] = None
         self.storage_container: Optional[toga.Box] = None
         self.details_container: Optional[toga.Box] = None
+        self.iiif_container: Optional[toga.Box] = None  # New IIIF tab
 
         logger.info("InspectorWindow initialized")
 
@@ -79,55 +80,98 @@ class InspectorWindow:
         except Exception as e:
             logger.error(f"Failed to refresh inspector: {e}")
 
-    def update_metadata(self, metadata: str, selection_type: str = None):
+    def update_metadata(self, metadata, selection_type: str = None):
         """Update the metadata and refresh display if visible
 
         Args:
-            metadata: The metadata string (will be parsed if from old format)
-            selection_type: Type of selection (e.g., "COLLECTION", "ITEM")
+            metadata: The metadata (dict or string - dict is preferred)
+            selection_type: Type of selection (e.g., "COLLECTION", "ITEM", "FOLDER")
         """
         try:
             logger.info(f"🔍 Inspector.update_metadata called: type={selection_type}, is_visible={self.is_visible}")
-            logger.debug(f"Metadata text: {metadata[:200]}...")  # First 200 chars
 
             self.current_selection_type = selection_type
 
-            # For now, parse the text metadata into dict
-            # TODO: Views should pass structured data instead of text
-            self.current_metadata = self._parse_metadata_text(metadata)
-            logger.info(f"Parsed metadata sections: {list(self.current_metadata.keys())}")
+            # Accept either dict (new preferred format) or string (legacy format)
+            if isinstance(metadata, dict):
+                logger.info(f"✅ Received metadata as dict with {len(metadata)} top-level keys: {list(metadata.keys())}")
+                self.current_metadata = metadata
+            else:
+                # Legacy: parse text metadata into dict
+                logger.debug(f"📝 Received metadata as text, parsing... (first 200 chars): {str(metadata)[:200]}")
+                self.current_metadata = self._parse_metadata_text(str(metadata))
+                logger.info(f"Parsed metadata sections: {list(self.current_metadata.keys())}")
 
-            # If inspector is visible, update the display immediately
-            if self.is_visible and self.option_container:
-                logger.info("Inspector is visible, rebuilding tabs...")
+            # If inspector window exists and has a container, update the display
+            # Check window existence rather than is_visible flag (which can get out of sync)
+            if self.window and self.option_container:
+                logger.info("Inspector window exists, rebuilding tabs...")
                 self._rebuild_tabs()
                 logger.info(f"Tabs rebuilt. Current tab count: {len(self.option_container.content)}")
             else:
-                logger.info(f"Inspector not visible or no container (visible={self.is_visible}, container={self.option_container is not None})")
+                logger.info(f"Inspector not visible or no container (window={self.window is not None}, container={self.option_container is not None})")
         except Exception as e:
             logger.error(f"Failed to update metadata: {e}", exc_info=True)
 
     def _parse_metadata_text(self, text: str) -> Dict[str, Any]:
         """Parse the text metadata into a dictionary
 
-        This is a temporary solution until views pass structured data
+        This is a temporary solution until views pass structured data.
+        Handles multi-line values and nested metadata.
         """
         metadata = {}
         current_section = None
+        current_key = None
+        accumulated_value = []
 
         for line in text.split('\n'):
-            line = line.strip()
-            if not line:
+            stripped = line.strip()
+
+            if not stripped:
                 continue
 
-            # Section headers
-            if line.startswith('===') and line.endswith('==='):
-                current_section = line.strip('= ').lower().replace(' ', '_')
+            # Section headers (=== SECTION NAME ===)
+            if stripped.startswith('===') and stripped.endswith('==='):
+                # Save any accumulated value before starting new section
+                if current_section and current_key and accumulated_value:
+                    metadata[current_section][current_key] = '\n'.join(accumulated_value)
+                    accumulated_value = []
+                    current_key = None
+
+                current_section = stripped.strip('= ').lower().replace(' ', '_')
                 metadata[current_section] = {}
-            # Key-value pairs
-            elif ':' in line and current_section:
-                key, value = line.split(':', 1)
-                metadata[current_section][key.strip()] = value.strip()
+
+            # Key-value pairs or sub-items
+            elif ':' in stripped and current_section:
+                # Save previous key's accumulated value
+                if current_key and accumulated_value:
+                    metadata[current_section][current_key] = '\n'.join(accumulated_value)
+                    accumulated_value = []
+
+                key, value = stripped.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+
+                # Check if this is a sub-header (like "Canvas Metadata:" or "Manifest Metadata:")
+                if not value and (key.endswith('Metadata') or key.endswith('metadata')):
+                    # This is a sub-header, store as key with empty value for now
+                    current_key = key
+                    metadata[current_section][key] = ''
+                else:
+                    # Regular key-value
+                    current_key = key
+                    if value:
+                        metadata[current_section][key] = value
+                    else:
+                        accumulated_value = []
+
+            # Indented lines (sub-items under a key like Canvas Metadata)
+            elif stripped and current_section and current_key:
+                accumulated_value.append(stripped)
+
+        # Save any final accumulated value
+        if current_section and current_key and accumulated_value:
+            metadata[current_section][current_key] = '\n'.join(accumulated_value)
 
         return metadata
 
@@ -136,7 +180,7 @@ class InspectorWindow:
 
         Tabs are fixed and never deleted/recreated - we just update their content
         """
-        if not self.general_container or not self.storage_container or not self.details_container:
+        if not self.general_container or not self.storage_container or not self.details_container or not self.iiif_container:
             logger.warning("Tab containers not initialized")
             return
 
@@ -144,10 +188,13 @@ class InspectorWindow:
         self.general_container.clear()
         self.storage_container.clear()
         self.details_container.clear()
+        self.iiif_container.clear()
 
         # Update content based on selection type
         if self.current_selection_type == "COLLECTION":
             self._update_collection_content()
+        elif self.current_selection_type == "FOLDER":
+            self._update_folder_content()
         elif self.current_selection_type == "ITEM":
             self._update_item_content()
         elif self.current_selection_type == "STEP":
@@ -229,56 +276,385 @@ class InspectorWindow:
 
         self._add_rows_to_container(self.details_container, details_rows)
 
-    def _update_item_content(self):
-        """Update tab content for item selection - show EVERYTHING"""
-        # Parse all available metadata from the text format
-        # The metadata comes as a text dump, so we'll display it all
-
-        # General tab - basic item info
-        general_rows = []
-        if 'item_metadata' in self.current_metadata or 'file_metadata' in self.current_metadata:
-            # Try to extract what we can
-            for section_name, section_data in self.current_metadata.items():
-                if isinstance(section_data, dict):
-                    for key, value in section_data.items():
-                        general_rows.append((f"{key}:", str(value)))
+    def _update_folder_content(self):
+        """Update tab content for folder selection - show folder metadata"""
+        # When metadata is sent as dict (new format), use it directly
+        # When sent as text (legacy), it's in 'folder_metadata' section
+        if 'folder_metadata' in self.current_metadata:
+            # Legacy text format
+            folder_data = self.current_metadata.get('folder_metadata', {})
         else:
-            # Fallback: show raw metadata
-            general_rows.append(("Info:", "Item selected"))
+            # New dict format - use current_metadata directly
+            folder_data = self.current_metadata
 
-        if general_rows:
-            self._add_rows_to_container(self.general_container, general_rows)
-        else:
-            self._add_text_to_container(self.general_container, "Item information")
+        logger.info(f"📂 _update_folder_content: folder_data has {len(folder_data)} fields: {list(folder_data.keys())}")
 
-        # Storage tab - paths and location
+        # General tab - folder info
+        general_rows = [
+            ("Folder name:", folder_data.get('name', folder_data.get('Name', folder_data.get('Folder', 'Unknown')))),
+        ]
+
+        if 'id' in folder_data or 'ID' in folder_data:
+            folder_id = folder_data.get('id') or folder_data.get('ID')
+            general_rows.append(("Folder ID:", folder_id))
+
+        if 'type' in folder_data or 'Type' in folder_data:
+            folder_type = folder_data.get('type') or folder_data.get('Type')
+            general_rows.append(("Type:", folder_type))
+
+        # Add IIIF-related general info here
+        if 'page_range' in folder_data or 'Page Range' in folder_data:
+            page_range = folder_data.get('page_range') or folder_data.get('Page Range')
+            general_rows.append(("Page Range:", page_range))
+
+        if 'archive_id' in folder_data or 'Archive ID' in folder_data or 'Archive Id' in folder_data:
+            archive_id = folder_data.get('archive_id') or folder_data.get('Archive ID') or folder_data.get('Archive Id')
+            if archive_id:
+                general_rows.append(("Archive ID:", archive_id))
+
+        general_rows.append(("", ""))
+
+        # Dates if available
+        if 'Created' in folder_data:
+            general_rows.append(("Created:", folder_data['Created']))
+        if 'Modified' in folder_data:
+            general_rows.append(("Modified:", folder_data['Modified']))
+
+        self._add_rows_to_container(self.general_container, general_rows)
+
+        # Storage tab - paths
         storage_rows = []
-        for section_name, section_data in self.current_metadata.items():
-            if isinstance(section_data, dict) and ('path' in str(section_data).lower() or 'location' in str(section_data).lower()):
-                for key, value in section_data.items():
-                    if 'path' in key.lower() or 'location' in key.lower():
-                        storage_rows.append((f"{key}:", str(value)))
+
+        if 'Path' in folder_data:
+            storage_rows.append(("Path:", folder_data['Path']))
+
+        if 'Source' in folder_data:
+            storage_rows.append(("Source:", folder_data['Source']))
+
+        if 'Parent ID' in folder_data:
+            storage_rows.append(("", ""))
+            storage_rows.append(("Parent ID:", folder_data['Parent ID']))
 
         if storage_rows:
             self._add_rows_to_container(self.storage_container, storage_rows)
         else:
-            self._add_text_to_container(self.storage_container, "Storage info")
+            self._add_text_to_container(self.storage_container, "No storage information")
 
-        # Details tab - everything else
-        details_text = ""
-        for section_name, section_data in self.current_metadata.items():
-            details_text += f"=== {section_name.upper()} ===\n"
-            if isinstance(section_data, dict):
-                for key, value in section_data.items():
-                    details_text += f"{key}: {value}\n"
-            else:
-                details_text += f"{section_data}\n"
-            details_text += "\n"
+        # Details tab - contents and other metadata
+        contents_metadata = self.current_metadata.get('contents', {})
+        details_rows = []
 
-        if details_text:
-            self._add_text_to_container(self.details_container, details_text.strip())
+        if 'Total Items' in contents_metadata:
+            total = contents_metadata['Total Items']
+            details_rows.append(("Total items:", total))
+
+            if total != '0':
+                details_rows.append(("", ""))
+                # Show item breakdown
+                for key, value in contents_metadata.items():
+                    if key != 'Total Items':
+                        # Remove emoji prefixes for cleaner display
+                        clean_key = key.replace('📁 ', '').replace('🔗 ', '').replace('🌐 ', '')
+                        details_rows.append((f"{clean_key}:", value))
+
+        # Add any other folder metadata not already shown
+        # Exclude fields shown in General tab and IIIF-specific fields
+        excluded_keys = [
+            # General tab fields
+            'name', 'Name', 'Folder', 'id', 'ID', 'type', 'Type', 'page_range', 'Page Range',
+            'archive_id', 'Archive ID', 'Archive Id', 'Created', 'Modified',
+            # Storage tab fields
+            'Path', 'Source', 'Parent ID',
+            # IIIF tab fields (will be shown in IIIF tab)
+            'manifest_url', 'manifest_label', 'manifest_id', 'manifest_metadata', 'iiif_metadata',
+            'logo', 'thumbnail', 'description', 'attribution', 'license',
+            'canvas_id', 'canvas_label', 'canvas_width', 'canvas_height', 'canvas_metadata',
+            'image_url', 'page_url', 'collection_label', 'manifest_position', 'relative_path'
+        ]
+
+        for key, value in folder_data.items():
+            if key not in excluded_keys:
+                # Format snake_case as Title Case for display
+                if '_' in key:
+                    display_key = ' '.join(word.capitalize() for word in key.split('_'))
+                else:
+                    display_key = key
+                details_rows.append((f"{display_key}:", str(value)))
+
+        if details_rows:
+            self._add_rows_to_container(self.details_container, details_rows)
+        else:
+            self._add_text_to_container(self.details_container, "Empty folder")
+
+        # IIIF tab - show if folder has IIIF metadata
+        self._update_iiif_content()
+
+    def _update_item_content(self):
+        """Update tab content for item selection - show EVERYTHING"""
+        # NEW: Metadata comes as dict directly from library_service (same as folders)
+        item_data = self.current_metadata
+
+        logger.info(f"📄 _update_item_content: item_data has {len(item_data)} fields: {list(item_data.keys())}")
+
+        # General tab - basic item info
+        general_rows = [
+            ("Name:", item_data.get('name', item_data.get('title', 'Unknown'))),
+        ]
+
+        if 'type' in item_data:
+            general_rows.append(("Type:", item_data['type']))
+        if 'id' in item_data:
+            general_rows.append(("ID:", item_data['id']))
+
+        # Add IIIF-related general info
+        if 'archive_id' in item_data and item_data['archive_id']:
+            general_rows.append(("Archive ID:", item_data['archive_id']))
+        if 'collection_label' in item_data and item_data['collection_label']:
+            general_rows.append(("Collection:", item_data['collection_label']))
+
+        self._add_rows_to_container(self.general_container, general_rows)
+
+        # Storage tab - paths and location
+        storage_rows = []
+        if 'file_path' in item_data or 'path' in item_data or 'source_path' in item_data:
+            if 'file_path' in item_data:
+                storage_rows.append(("File Path:", item_data['file_path']))
+            if 'path' in item_data:
+                storage_rows.append(("Path:", item_data['path']))
+            if 'source_path' in item_data:
+                storage_rows.append(("Source Path:", item_data['source_path']))
+            if 'storage_type' in item_data:
+                storage_rows.append(("Storage Type:", item_data['storage_type']))
+
+        if storage_rows:
+            self._add_rows_to_container(self.storage_container, storage_rows)
+        else:
+            self._add_text_to_container(self.storage_container, "No storage information")
+
+        # Details tab - show other metadata (size, dates, etc.)
+        details_rows = []
+
+        # Skip IIIF fields and basic fields already shown
+        skip_fields = ['id', 'name', 'title', 'type', 'file_path', 'path', 'source_path', 'storage_type',
+                       'manifest_url', 'manifest_label', 'manifest_id', 'archive_id', 'canvas_id', 'image_url',
+                       'description', 'attribution', 'license', 'logo', 'thumbnail', 'iiif_metadata',
+                       'manifest_metadata', 'collection_label', 'canvas_metadata', 'canvas_label',
+                       'canvas_width', 'canvas_height', 'page_range']
+
+        for key, value in item_data.items():
+            if key not in skip_fields and value:
+                # Format key nicely
+                nice_key = key.replace('_', ' ').title()
+                details_rows.append((f"{nice_key}:", str(value)))
+
+        if details_rows:
+            self._add_rows_to_container(self.details_container, details_rows)
         else:
             self._add_text_to_container(self.details_container, "No additional details")
+
+        # IIIF tab - show IIIF-specific metadata if available (shared with folders)
+        self._update_iiif_content()
+
+    def _update_iiif_content(self):
+        """Update IIIF tab content - show structured IIIF metadata"""
+        logger.info(f"🔍 _update_iiif_content: current_metadata has {len(self.current_metadata)} keys: {list(self.current_metadata.keys())}")
+
+        # Detect format: TEXT (has sections like 'iiif_metadata', 'item_metadata') vs DICT (has direct fields)
+        # TEXT format: keys are section names like 'item_metadata', 'iiif_metadata', 'folder_metadata'
+        # DICT format: keys are actual metadata fields like 'manifest_url', 'archive_id', etc.
+
+        text_format_sections = ['item_metadata', 'folder_metadata', 'collection_metadata', 'contents', 'storage', 'dates']
+        has_text_sections = any(k in self.current_metadata for k in text_format_sections)
+
+        if has_text_sections:
+            # LEGACY TEXT FORMAT: Look for iiif_metadata or additional_metadata sections
+            logger.info(f"📝 Using LEGACY text format (has sections), looking for IIIF sections...")
+            iiif_metadata = None
+            additional_metadata = None
+
+            for section_name, section_data in self.current_metadata.items():
+                if 'iiif' in section_name.lower():
+                    iiif_metadata = section_data
+                    logger.info(f"✅ Found IIIF section '{section_name}'")
+                elif 'additional' in section_name.lower():
+                    additional_metadata = section_data
+                    logger.info(f"✅ Found Additional section '{section_name}'")
+
+            # Combine both sections if they exist
+            combined_metadata = {}
+            if iiif_metadata and isinstance(iiif_metadata, dict):
+                combined_metadata.update(iiif_metadata)
+            if additional_metadata and isinstance(additional_metadata, dict):
+                combined_metadata.update(additional_metadata)
+        else:
+            # NEW DICT FORMAT: Use current_metadata directly (snake_case keys from database)
+            logger.info(f"✅ Using NEW dict format with direct fields (no sections)")
+            combined_metadata = self.current_metadata
+
+        logger.info(f"📊 Combined IIIF metadata has {len(combined_metadata)} fields: {list(combined_metadata.keys())[:10]}")
+
+        if not combined_metadata:
+            logger.warning("⚠️ No IIIF metadata found to display")
+            self._add_text_to_container(self.iiif_container, "No IIIF metadata")
+            return
+
+        # Build structured rows for IIIF metadata
+        iiif_rows = []
+
+        # Manifest information (check both snake_case and Title Case)
+        if 'manifest_label' in combined_metadata or 'Manifest Label' in combined_metadata:
+            label = combined_metadata.get('manifest_label') or combined_metadata.get('Manifest Label')
+            if label:
+                iiif_rows.append(("Manifest Label:", label))
+        if 'manifest_url' in combined_metadata or 'Manifest URL' in combined_metadata or 'Manifest Url' in combined_metadata:
+            url = combined_metadata.get('manifest_url') or combined_metadata.get('Manifest URL') or combined_metadata.get('Manifest Url')
+            if url:
+                iiif_rows.append(("Manifest URL:", url))
+        if 'manifest_id' in combined_metadata or 'Manifest Id' in combined_metadata or 'Manifest ID' in combined_metadata:
+            mid = combined_metadata.get('manifest_id') or combined_metadata.get('Manifest Id') or combined_metadata.get('Manifest ID')
+            if mid:
+                iiif_rows.append(("Manifest ID:", mid))
+
+        # Page/folder specific info (snake_case and Title Case)
+        if 'page_range' in combined_metadata or 'Page Range' in combined_metadata:
+            page_range = combined_metadata.get('page_range') or combined_metadata.get('Page Range')
+            if page_range:
+                iiif_rows.append(("Page Range:", page_range))
+        if 'archive_id' in combined_metadata or 'Archive Id' in combined_metadata or 'Archive ID' in combined_metadata:
+            archive_id = combined_metadata.get('archive_id') or combined_metadata.get('Archive Id') or combined_metadata.get('Archive ID')
+            if archive_id:
+                iiif_rows.append(("Archive ID:", archive_id))
+
+        # Image information
+        if 'Image URL' in combined_metadata or 'Image Url' in combined_metadata:
+            image_url = combined_metadata.get('Image URL') or combined_metadata.get('Image Url')
+            iiif_rows.append(("Image URL:", image_url))
+        if 'Canvas' in combined_metadata or 'Canvas Id' in combined_metadata or 'Canvas ID' in combined_metadata:
+            canvas = combined_metadata.get('Canvas') or combined_metadata.get('Canvas Id') or combined_metadata.get('Canvas ID')
+            iiif_rows.append(("Canvas:", canvas))
+        if 'Dimensions' in combined_metadata:
+            iiif_rows.append(("Dimensions:", combined_metadata['Dimensions']))
+
+        # Collection info
+        if 'Collection' in combined_metadata:
+            iiif_rows.append(("Collection:", combined_metadata['Collection']))
+
+        # Description and attribution
+        if 'Description' in combined_metadata:
+            iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("Description:", combined_metadata['Description']))
+        if 'Attribution' in combined_metadata:
+            if not iiif_rows or iiif_rows[-1] != ("", ""):
+                iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("Attribution:", combined_metadata['Attribution']))
+        if 'License' in combined_metadata:
+            iiif_rows.append(("License:", combined_metadata['License']))
+
+        # Logo and thumbnail (check both snake_case and Title Case)
+        if 'logo' in combined_metadata or 'Logo' in combined_metadata:
+            logo = combined_metadata.get('logo') or combined_metadata.get('Logo')
+            if logo:
+                iiif_rows.append(("", ""))  # Spacer
+                iiif_rows.append(("Logo:", logo))
+        if 'thumbnail' in combined_metadata or 'Thumbnail' in combined_metadata:
+            thumbnail = combined_metadata.get('thumbnail') or combined_metadata.get('Thumbnail')
+            if thumbnail:
+                iiif_rows.append(("Thumbnail:", thumbnail))
+
+        # Additional IIIF fields from database (snake_case)
+        if 'canvas_id' in combined_metadata:
+            iiif_rows.append(("Canvas ID:", combined_metadata['canvas_id']))
+        if 'canvas_label' in combined_metadata:
+            iiif_rows.append(("Canvas Label:", combined_metadata['canvas_label']))
+        if 'canvas_width' in combined_metadata and 'canvas_height' in combined_metadata:
+            dims = f"{combined_metadata['canvas_width']} x {combined_metadata['canvas_height']}"
+            iiif_rows.append(("Canvas Dimensions:", dims))
+        if 'image_url' in combined_metadata:
+            iiif_rows.append(("Image URL:", combined_metadata['image_url']))
+        if 'page_url' in combined_metadata:
+            iiif_rows.append(("Page URL:", combined_metadata['page_url']))
+        if 'collection_label' in combined_metadata:
+            iiif_rows.append(("Collection Label:", combined_metadata['collection_label']))
+
+        # Canvas Metadata section
+        if 'Canvas Metadata' in combined_metadata:
+            iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("Canvas Metadata:", ""))
+            canvas_meta_text = combined_metadata['Canvas Metadata']
+            if canvas_meta_text:
+                iiif_rows.append(("", canvas_meta_text))
+
+        # IIIF metadata array (snake_case from database) - MOST IMPORTANT!
+        # Check both iiif_metadata (used by folders) and manifest_metadata (used by items)
+        metadata_array = None
+        if 'iiif_metadata' in combined_metadata and isinstance(combined_metadata['iiif_metadata'], list):
+            metadata_array = combined_metadata['iiif_metadata']
+        elif 'manifest_metadata' in combined_metadata and isinstance(combined_metadata['manifest_metadata'], list):
+            metadata_array = combined_metadata['manifest_metadata']
+
+        if metadata_array:
+            iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("IIIF Metadata:", ""))
+            for meta in metadata_array:
+                if isinstance(meta, dict):
+                    label = meta.get('label', '')
+                    value = meta.get('value', '')
+                    if label and value:
+                        iiif_rows.append((f"  {label}:", value))
+
+        # Manifest Metadata or IIIF Metadata section (Title Case from legacy text format)
+        elif 'Manifest Metadata' in combined_metadata:
+            iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("Manifest Metadata:", ""))
+            manifest_meta_text = combined_metadata['Manifest Metadata']
+            if manifest_meta_text:
+                iiif_rows.append(("", manifest_meta_text))
+        elif 'Iiif Metadata' in combined_metadata or 'Iiif_Metadata' in combined_metadata:
+            iiif_rows.append(("", ""))  # Spacer
+            iiif_rows.append(("IIIF Metadata:", ""))
+            iiif_meta_text = combined_metadata.get('Iiif Metadata') or combined_metadata.get('Iiif_Metadata')
+            if iiif_meta_text:
+                iiif_rows.append(("", str(iiif_meta_text)))
+
+        # Add all remaining IIIF-related fields not explicitly handled
+        # Exclude basic item/folder fields that aren't IIIF-specific
+        handled_keys = [
+            # snake_case (from database)
+            'manifest_label', 'manifest_url', 'manifest_id', 'page_range', 'archive_id',
+            'iiif_metadata', 'manifest_metadata', 'logo', 'thumbnail', 'description', 'attribution', 'license',
+            'canvas_id', 'canvas_label', 'canvas_width', 'canvas_height', 'canvas_metadata',
+            'image_url', 'page_url', 'collection_label', 'manifest_position',
+            # Title Case (from legacy text format)
+            'Manifest Label', 'Manifest URL', 'Manifest Url', 'Manifest', 'Manifest Id', 'Manifest ID',
+            'Page Range', 'Archive Id', 'Archive ID', 'Image URL', 'Image Url', 'Canvas', 'Canvas Id',
+            'Canvas ID', 'Dimensions', 'Collection', 'Description', 'Attribution', 'License', 'Logo',
+            'Thumbnail', 'Canvas Metadata', 'Manifest Metadata', 'Iiif Metadata', 'Iiif_Metadata'
+        ]
+
+        # Exclude basic non-IIIF fields
+        basic_fields = ['id', 'name', 'title', 'type', 'is_folder', 'path', 'file_path', 'source',
+                       'relative_path', 'storage_type', 'source_path', 'local_path']
+
+        for key, value in combined_metadata.items():
+            if key not in handled_keys and key not in basic_fields:
+                # Only add if it looks IIIF-related (contains iiif, manifest, canvas, etc.)
+                key_lower = key.lower()
+                if any(term in key_lower for term in ['iiif', 'manifest', 'canvas', 'image', 'collection']):
+                    # Format snake_case as Title Case for display
+                    if '_' in key:
+                        display_key = ' '.join(word.capitalize() for word in key.split('_'))
+                    else:
+                        display_key = key
+                    iiif_rows.append((f"{display_key}:", str(value)))
+
+        logger.info(f"🎨 Built {len(iiif_rows)} IIIF rows to display")
+        if iiif_rows:
+            logger.info(f"   First few rows: {iiif_rows[:3]}")
+            self._add_rows_to_container(self.iiif_container, iiif_rows)
+            logger.info(f"✅ Added {len(iiif_rows)} rows to IIIF container")
+        else:
+            logger.warning("⚠️ No IIIF rows built, showing 'No IIIF metadata' message")
+            self._add_text_to_container(self.iiif_container, "No IIIF metadata")
 
     def _update_step_content(self):
         """Update tab content for workflow step selection"""
@@ -320,6 +696,7 @@ class InspectorWindow:
         self._add_text_to_container(self.general_container, "No selection")
         self._add_text_to_container(self.storage_container, "No selection")
         self._add_text_to_container(self.details_container, "No selection")
+        self._add_text_to_container(self.iiif_container, "No IIIF metadata")
 
     def _add_rows_to_container(self, container, rows):
         """Add Preview-style rows to a container
@@ -366,7 +743,7 @@ class InspectorWindow:
                             flex=1,
                             height=text_height,
                             font_size=8,
-                            padding=2,
+                            margin=2,
                             background_color=TRANSPARENT  # Transparent background
                         )
                     )
@@ -389,7 +766,7 @@ class InspectorWindow:
         """Add simple text to a container"""
         label = toga.Label(
             text,
-            style=Pack(padding=20, text_align='center', font_size=8)
+            style=Pack(margin=20, text_align='center', font_size=8)
         )
         container.add(label)
 
@@ -399,7 +776,7 @@ class InspectorWindow:
         Args:
             rows: List of (label, value) tuples
         """
-        container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        container = toga.Box(style=Pack(direction=COLUMN, margin=10))
 
         for label, value in rows:
             if not label and not value:
@@ -450,7 +827,7 @@ class InspectorWindow:
         )
 
         box = toga.Box(
-            style=Pack(direction=COLUMN, flex=1, padding=10),
+            style=Pack(direction=COLUMN, flex=1, margin=10),
             children=[text_widget]
         )
 
@@ -462,18 +839,21 @@ class InspectorWindow:
             # Create OptionContainer for tabs (it has its own native background)
             # Add small margins on all sides
             self.option_container = toga.OptionContainer(
-                style=Pack(flex=1, padding=10)
+                style=Pack(flex=1, margin=10)
             )
 
             # Create fixed containers for each tab - use TRANSPARENT background
             self.general_container = toga.Box(
-                style=Pack(direction=COLUMN, padding=10, background_color=TRANSPARENT)
+                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
             )
             self.storage_container = toga.Box(
-                style=Pack(direction=COLUMN, padding=10, background_color=TRANSPARENT)
+                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
             )
             self.details_container = toga.Box(
-                style=Pack(direction=COLUMN, padding=10, background_color=TRANSPARENT)
+                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+            )
+            self.iiif_container = toga.Box(
+                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
             )
 
             # Wrap each in a ScrollContainer with TRANSPARENT background
@@ -492,11 +872,17 @@ class InspectorWindow:
                 style=Pack(flex=1, background_color=TRANSPARENT),
                 horizontal=False  # Disable horizontal scroll
             )
+            iiif_scroll = toga.ScrollContainer(
+                content=self.iiif_container,
+                style=Pack(flex=1, background_color=TRANSPARENT),
+                horizontal=False  # Disable horizontal scroll
+            )
 
             # Add fixed tabs (these never change)
             self.option_container.content.append("General", general_scroll)
             self.option_container.content.append("Storage", storage_scroll)
             self.option_container.content.append("Details", details_scroll)
+            self.option_container.content.append("IIIF", iiif_scroll)
 
             # Initial state - no selection
             self._update_no_selection_content()

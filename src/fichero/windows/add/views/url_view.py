@@ -251,16 +251,18 @@ class URLAddView(BaseView):
                 if task:
                     await task
                     logger.info(f"Import completed for URL: {url}")
+                else:
+                    # If no task returned, just wait a bit for the import to start
+                    import asyncio
+                    await asyncio.sleep(0.5)
 
-                # Show success briefly
-                self._show_success_view(_("Import completed successfully!"))
+                # Import complete - stop spinner and close window
+                if hasattr(self, 'activity_indicator') and self.activity_indicator:
+                    self.activity_indicator.stop()
 
-                import asyncio
-                await asyncio.sleep(2)
-
-                # Reset view for another import
-                self._show_import_view()
-                self.url_input.value = ""
+                # Close the window immediately (no success message needed)
+                if hasattr(self, 'window') and self.window:
+                    self.window.close()
 
         except Exception as e:
             logger.error(f"Failed to add URL: {e}")

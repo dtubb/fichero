@@ -94,9 +94,10 @@ class LibraryManager:
         self._demo_setup_pending: bool = False
 
         logger.info(f"Library manager initialized successfully with database: {db_path}")
-        
-        # Auto-populate demo collections on first run
-        self._demo_setup_pending = True  # Will be handled in get_all_collections
+
+        # DISABLED: Auto-populate demo collections on first run
+        # self._demo_setup_pending = True  # Will be handled in get_all_collections
+        self._demo_setup_pending = False  # Demo collections disabled by user request
     
     # ===== COLLECTION MANAGEMENT =====
     
@@ -112,13 +113,11 @@ class LibraryManager:
             if not name.strip():
                 logger.error("Collection name cannot be empty")
                 return None
-            
-            # Check for duplicate names
-            existing = await self.get_collection_by_name(name)
-            if existing:
-                logger.error(f"Collection with name '{name}' already exists")
-                return None
-            
+
+            # Note: We allow duplicate names - collections are identified by UUID
+            # The UI layer can auto-increment names for convenience, but users
+            # can manually create collections with the same name if desired
+
             # Create collection
             # Store description in metadata since Collection model doesn't have description field
             if metadata is None:
@@ -261,20 +260,59 @@ class LibraryManager:
             return []
     
     async def update_collection(self, collection_id: str, **updates) -> bool:
-        """Update collection properties"""
+        """Update collection properties
+
+        For external collections, if the name is being changed, this will also rename
+        the folder at the external location.
+        """
         try:
             collection = await self.get_collection(collection_id)
             if not collection:
                 logger.error(f"Collection not found: {collection_id}")
                 return False
-            
+
+            old_name = collection.name
+
+            # Check if we're renaming an external collection
+            is_renaming = 'name' in updates and updates['name'] != old_name
+            is_external = collection.type == "external"
+
+            if is_renaming and is_external and collection.source_path:
+                # Rename the external folder first
+                from pathlib import Path
+                import shutil
+
+                old_path = Path(collection.source_path)
+                if not old_path.exists():
+                    logger.warning(f"External collection folder not found: {old_path}")
+                    # Continue anyway - update database even if folder is missing
+                else:
+                    # New path is in same parent directory with new name
+                    new_path = old_path.parent / updates['name']
+
+                    if new_path.exists():
+                        logger.error(f"Cannot rename: folder already exists: {new_path}")
+                        return False
+
+                    try:
+                        # Rename the folder on disk
+                        shutil.move(str(old_path), str(new_path))
+                        logger.info(f"Renamed external folder: {old_path} -> {new_path}")
+
+                        # Update source_path to new location
+                        collection.source_path = str(new_path)
+
+                    except Exception as e:
+                        logger.error(f"Failed to rename external folder: {e}")
+                        return False
+
             # Apply updates
             for key, value in updates.items():
                 if hasattr(collection, key):
                     setattr(collection, key, value)
-            
+
             collection.updated_at = datetime.now()
-            
+
             # Save to storage
             if self.storage.update_collection(collection):
                 self._clear_cache()
@@ -283,7 +321,7 @@ class LibraryManager:
             else:
                 logger.error("Failed to save collection updates")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Failed to update collection: {e}")
             return False
@@ -398,11 +436,8 @@ class LibraryManager:
                 logger.error(f"Collection not found: {collection_id}")
                 return False
 
-            # Check for duplicate name
-            existing = await self.get_collection_by_name(new_name)
-            if existing and existing.id != collection_id:
-                logger.error(f"Collection with name '{new_name}' already exists")
-                return False
+            # Note: We allow duplicate names - collections are identified by UUID
+            # Users can rename to any name they want, including existing names
 
             # Update name
             collection.name = new_name.strip()
@@ -496,13 +531,36 @@ class LibraryManager:
                     # Fall through to normal file handling if ZIP import fails
 
             # Normal file/folder handling (non-ZIP or ZIP import fallback)
+
+            # Special handling for LOCAL filesystem folders - recursively add all contents
+            # Skip for virtual folders (URL imports with empty source or metadata-only folders)
+            if item_type == "folder" and source and Path(source).exists():
+                logger.info(f"📁 Local folder detected: {name} - recursively importing contents with operation={operation}")
+                result = await self.add_folder_items_to_collection(
+                    collection_id=collection_id,
+                    folder_path=source,
+                    operation=operation,
+                    recursive=True
+                )
+
+                # Return the first item ID if any items were added
+                if result["added"] > 0 and result["item_ids"]:
+                    logger.info(f"✅ Folder import successful: {result['added']} items added")
+                    return result["item_ids"][0]  # Return first item ID for compatibility
+                else:
+                    logger.error(f"❌ Folder import failed or empty: {result.get('errors', 0)} errors")
+                    return None
+            elif item_type == "folder" and not source:
+                # Virtual folder (from URL import) - create as metadata-only folder
+                logger.info(f"📁 Virtual folder detected: {name} - creating metadata-only folder")
+
             # Validate collection exists
             collection = await self.get_collection(collection_id)
             if not collection:
                 logger.error(f"Collection not found: {collection_id}")
                 return None
 
-            # Create item
+            # Create item (for files, URLs, etc.)
             item = CollectionItem(
                 collection_id=collection_id,
                 type=item_type,
@@ -573,12 +631,21 @@ class LibraryManager:
                 logger.error(f"Collection not found: {collection_id}")
                 return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
 
+            # Emit start event
+            emit_navigation_event("folder_import_started", {
+                "collection_id": collection_id,
+                "collection_name": collection.name,
+                "folder_path": folder_path,
+                "folder_name": folder.name
+            })
+
             # Stats tracking
             stats = {
                 "added": 0,
                 "skipped": 0,
                 "errors": 0,
-                "item_ids": []
+                "item_ids": [],
+                "total_processed": 0  # Track for progress updates
             }
 
             # Map relative paths to folder item IDs for parent_id linking
@@ -662,10 +729,15 @@ class LibraryManager:
 
                             # Handle different operations
                             if operation == "link":
+                                logger.debug(f"🔗 Linking file: {entry.name} with source_path={entry}")
                                 file_item.source_path = str(entry)
                                 file_item.storage_type = "external"
                             elif operation in ["copy", "move"]:
-                                local_path = await self._add_item_to_library(collection, str(entry), entry.name, operation)
+                                # Use relative path to preserve folder structure
+                                # Include the root folder name in the path
+                                rel_from_folder = entry.relative_to(folder) if entry.is_relative_to(folder) else Path(entry.name)
+                                relative_path = str(Path(folder.name) / rel_from_folder)
+                                local_path = await self._add_item_to_library(collection, str(entry), relative_path, operation)
                                 file_item.local_path = str(local_path)
                                 file_item.storage_type = "local"
 
@@ -674,6 +746,18 @@ class LibraryManager:
                                 logger.debug(f"📄 Added file: {entry.name} (parent: {parent_id or 'root'})")
                                 stats["added"] += 1
                                 stats["item_ids"].append(file_item.id)
+                                stats["total_processed"] += 1
+
+                                # Emit progress event every 10 files
+                                if stats["total_processed"] % 10 == 0:
+                                    emit_navigation_event("folder_import_progress", {
+                                        "collection_id": collection_id,
+                                        "collection_name": collection.name,
+                                        "folder_name": folder.name,
+                                        "added": stats["added"],
+                                        "skipped": stats["skipped"],
+                                        "total_processed": stats["total_processed"]
+                                    })
 
                                 # Generate thumbnail asynchronously
                                 try:
@@ -696,9 +780,33 @@ class LibraryManager:
                     logger.error(f"Error processing directory {dir_path}: {e}")
                     stats["errors"] += 1
 
-            # Start processing from root folder
+            # Create folder item for the root folder being imported
+            root_folder_item = CollectionItem(
+                collection_id=collection_id,
+                type="folder",
+                name=folder.name,
+                parent_id=None,  # Top level in collection
+                source_path=str(folder),
+                storage_type="external",
+                metadata={
+                    "relative_path": folder.name
+                }
+            )
+
+            # Save root folder item
+            root_folder_id = None
+            if self.storage.add_collection_item(root_folder_item):
+                logger.info(f"📁 Created root folder item: {folder.name}")
+                stats["added"] += 1
+                stats["item_ids"].append(root_folder_item.id)
+                root_folder_id = root_folder_item.id
+            else:
+                logger.error(f"Failed to create root folder item: {folder.name}")
+                stats["errors"] += 1
+
+            # Start processing from root folder (contents go inside the root folder item)
             logger.info(f"📦 Starting hierarchical import from: {folder_path}")
-            await process_directory(folder, parent_id=None)
+            await process_directory(folder, parent_id=root_folder_id)
 
             # Wait for all thumbnail generation tasks
             if thumbnail_tasks:
@@ -710,6 +818,16 @@ class LibraryManager:
                 f"✅ Hierarchical import complete - Added: {stats['added']}, "
                 f"Skipped: {stats['skipped']}, Errors: {stats['errors']}"
             )
+
+            # Emit completion event
+            emit_navigation_event("folder_import_completed", {
+                "collection_id": collection_id,
+                "collection_name": collection.name,
+                "folder_name": folder.name,
+                "added": stats['added'],
+                "skipped": stats['skipped'],
+                "errors": stats['errors']
+            })
 
             # Emit event if items were added
             if stats['added'] > 0:
@@ -728,19 +846,29 @@ class LibraryManager:
             return {"added": 0, "skipped": 0, "errors": 1, "item_ids": []}
 
     async def _add_item_to_library(self, collection: Collection, source: str, name: str, operation: str) -> Path:
-        """Add item to library directory"""
+        """Add item to collection workspace (library or external location)"""
         try:
             source_path = Path(source)
             if not source_path.exists():
                 raise FileNotFoundError(f"Source does not exist: {source}")
 
-            # Create library item directory using self.library_path
-            library_item_path = self.library_path / "collections" / str(collection.id) / "items"
-            library_item_path.mkdir(parents=True, exist_ok=True)
-            
-            # Generate unique filename
-            target_path = library_item_path / name
-            
+            # Determine target directory based on collection type
+            if collection.type == "external" and collection.source_path:
+                # For external collections, store in the external location
+                collection_root = Path(collection.source_path)
+                target_dir = collection_root / "items"
+            else:
+                # For local collections, store in library directory
+                target_dir = self.library_path / "collections" / str(collection.id) / "items"
+
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate target filename
+            target_path = target_dir / name
+
+            # Create parent directories if they don't exist (for nested folder structure)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
             if operation == "copy":
                 if source_path.is_file():
                     shutil.copy2(source_path, target_path)
@@ -813,9 +941,65 @@ class LibraryManager:
             # For now, just log the update
             logger.debug(f"Item status updated: {item_id} -> {status}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update item status: {e}")
+            return False
+
+    async def delete_collection_item(self, item_id: str) -> bool:
+        """Delete a collection item and optionally its local files
+
+        Args:
+            item_id: ID of the item to delete
+
+        Returns:
+            True if deletion succeeded, False otherwise
+        """
+        try:
+            # Get item details before deletion
+            item = await self.get_item(item_id)
+            if not item:
+                logger.error(f"Item not found: {item_id}")
+                return False
+
+            item_name = item.name
+            logger.info(f"Starting deletion of item: {item_name} (ID: {item_id})")
+
+            # Delete local files if this is a locally stored item
+            if item.storage_type == 'local' and item.local_path:
+                local_path = Path(item.local_path)
+                if local_path.exists():
+                    try:
+                        if local_path.is_file():
+                            local_path.unlink()
+                            logger.debug(f"Deleted local file: {local_path}")
+                        elif local_path.is_dir():
+                            shutil.rmtree(local_path)
+                            logger.debug(f"Deleted local directory: {local_path}")
+                    except Exception as file_error:
+                        logger.warning(f"Could not delete local files for item {item_name}: {file_error}")
+                        # Continue with database deletion even if file removal fails
+
+            # Delete from storage (this also deletes processing_history via storage.delete_collection_item)
+            if self.storage.delete_collection_item(item_id):
+                logger.info(f"Successfully deleted item: {item_name} (ID: {item_id})")
+
+                # Emit event to notify views
+                emit_navigation_event("collection_items_changed", {
+                    "collection_id": item.collection_id,
+                    "deleted_item_id": item_id,
+                    "item_name": item_name
+                })
+
+                return True
+            else:
+                logger.error(f"Failed to delete item from storage: {item_id}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to delete collection item {item_id}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     # ===== PROCESSING INTEGRATION =====

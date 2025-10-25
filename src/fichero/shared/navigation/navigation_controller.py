@@ -1177,13 +1177,38 @@ class NavigationController:
                 logger.error("Library service not available")
                 return
 
+            # Determine which collection to add to:
+            # - If we're viewing a collection, add to that collection
+            # - If we're in library view with no selection, create new collection
+            collection_id = None
+            if hasattr(self.app, 'main_window') and self.app.main_window:
+                main_window = self.app.main_window
+                # Check if collection_view exists and has a collection selected
+                if hasattr(main_window, 'collection_view') and main_window.collection_view:
+                    collection_view = main_window.collection_view
+                    if hasattr(collection_view, 'collection_id') and collection_view.collection_id:
+                        collection_id = collection_view.collection_id
+                        logger.info(f"Adding URL to current collection: {collection_id}")
+                # Check if library_view exists and has a collection selected
+                elif hasattr(main_window, 'library_view') and main_window.library_view:
+                    library_view = main_window.library_view
+                    if hasattr(library_view, 'get_selected_collection'):
+                        selected = library_view.get_selected_collection()
+                        if selected:
+                            collection_id = selected.get('id')
+                            logger.info(f"Adding URL to selected collection from library: {collection_id}")
+
+            if not collection_id:
+                logger.info("No collection selected - will create new collection for URL")
+
             # Process each URL via library service
             for url in urls:
                 try:
                     # Delegate to library service (shared code path with CLI)
                     result = await self.app.library_service.import_url_for_ui(
                         url=url,
-                        collection_name=None,  # Auto-generate name
+                        collection_id=collection_id,  # Use current collection or None to create new
+                        collection_name=None,  # Auto-generate name if creating new
                         description=None,  # Auto-generate description
                         timeout=600,
                         max_items=1000,

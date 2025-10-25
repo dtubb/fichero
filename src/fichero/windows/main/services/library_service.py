@@ -277,6 +277,13 @@ class LibraryService:
                                           operation: str = "link") -> Optional[str]:
         """Add an item to a collection from UI"""
         try:
+            logger.info(f"🎯 add_item_to_collection_for_ui called:")
+            logger.info(f"   collection_id: {collection_id}")
+            logger.info(f"   item_type: {item_type}")
+            logger.info(f"   source: {source}")
+            logger.info(f"   name: {name}")
+            logger.info(f"   operation: {operation}")
+
             item_id = await self.library_manager.add_item_to_collection(
                 collection_id=collection_id,
                 item_type=item_type,
@@ -998,28 +1005,33 @@ class LibraryService:
             # Get ALL items from database
             all_items = self.library_manager.storage.get_collection_items(collection_id)
 
-            # Build a map of folder paths to item IDs for navigation
-            folder_map = {}
-            for item in all_items:
-                if item.type == "folder":
-                    # Store folder items by their relative path from metadata
-                    rel_path = item.metadata.get('relative_path', item.name)
-                    folder_map[rel_path] = item.id
-
-            # Determine the parent_id for the current level
+            # Navigate using parent_id directly
+            # current_path is a slash-separated path, we need to walk it to find the target folder
             target_parent_id = None
+
             if current_path:
-                # We're in a subfolder - find the folder item for current_path
-                target_parent_id = folder_map.get(current_path)
-                if not target_parent_id:
-                    logger.warning(f"Could not find folder item for path: {current_path}")
-                    # Fallback: try to find by name
-                    folder_name = current_path.split('/')[-1] if '/' in current_path else current_path
+                # Split path into parts (e.g., "folder1/folder2/folder3" -> ["folder1", "folder2", "folder3"])
+                path_parts = current_path.split('/')
+
+                # Walk down the path by matching folder names at each level
+                current_parent_id = None  # Start at root (parent_id = None)
+
+                for part in path_parts:
+                    # Find folder with this name at current level
+                    found = False
                     for item in all_items:
-                        if item.type == "folder" and item.name == folder_name:
-                            target_parent_id = item.id
-                            logger.info(f"Found folder by name fallback: {folder_name} -> {target_parent_id}")
+                        if item.type == "folder" and item.name == part and item.parent_id == current_parent_id:
+                            current_parent_id = item.id
+                            found = True
+                            logger.debug(f"Found folder '{part}' with id {item.id}")
                             break
+
+                    if not found:
+                        logger.error(f"Could not find folder '{part}' at level (parent_id={current_parent_id})")
+                        return []
+
+                # After walking the path, current_parent_id is the folder we want to show contents of
+                target_parent_id = current_parent_id
 
             # Filter items that belong at this level
             # Items belong here if their parent_id matches our target
@@ -1049,7 +1061,13 @@ class LibraryService:
                 icon = folder_icon if item.type == "folder" else None
 
                 # Build subtitle
-                subtitle_parts = [item.type or "File"]
+                # For folders: don't show "folder" type, will show item count if available
+                # For files: show file type
+                subtitle_parts = [] if item.type == "folder" else [item.type or "File"]
+
+                # TODO: Add item count for folders from database
+                # For now, folders just show size info if filesystem folder
+
                 if hasattr(item, 'source_path') and item.source_path:
                     try:
                         file_path = Path(item.source_path)
@@ -1069,13 +1087,24 @@ class LibraryService:
                 elif hasattr(item, 'source_path') and item.source_path:
                     file_path = item.source_path
 
-                # Build Toga DetailedList item
+                # Build display title (handle empty names)
+                display_name = item.name if item.name else "(unnamed)"
+                if item.type == "folder" and not item.name:
+                    # For folders with no name, try to get a better label
+                    if item.metadata.get('manifest_label'):
+                        display_name = item.metadata['manifest_label']
+                    elif item.parent_id is None:
+                        display_name = "(root folder)"
+                    else:
+                        display_name = "(unnamed folder)"
+
+                # Build Toga DetailedList item - start with basic UI fields
                 item_data = {
                     'id': item.id,
-                    'title': item.name,
+                    'title': display_name,
                     'subtitle': " • ".join(subtitle_parts),
                     'icon': icon,
-                    'name': item.name,
+                    'name': item.name,  # Keep original name for navigation
                     'type': item.type,
                     'is_folder': item.type == "folder",
                     'path': item.metadata.get('relative_path', item.name) if item.type == "folder" else None,
@@ -1083,6 +1112,17 @@ class LibraryService:
                     'description': item.metadata.get('description', ''),
                     'created_at': item.created_at.isoformat() if item.created_at else None
                 }
+
+                # Include ALL metadata fields (not just specific ones)
+                # This makes all metadata available to inspector without hardcoding field names
+                if item.metadata:
+                    for key, value in item.metadata.items():
+                        # Don't overwrite the basic fields we already set above
+                        if key not in item_data:
+                            item_data[key] = value
+
+                # Add self-reference for swipe action callbacks (like library view's collection_data)
+                item_data['item_data'] = item_data
 
                 toga_items.append(item_data)
 
@@ -1105,9 +1145,9 @@ class LibraryService:
                 # Count items in directory
                 try:
                     item_count = len(list(path.iterdir()))
-                    return f"Folder • {item_count} items"
+                    return f"{item_count} items"
                 except PermissionError:
-                    return "Folder • Access denied"
+                    return "Access denied"
             else:
                 # File size and type
                 try:
@@ -1317,3 +1357,28 @@ class LibraryService:
         except Exception as e:
             logger.error(f"Failed to get plans sync: {e}")
             return []
+
+    async def delete_collection_item(self, item_id: str) -> bool:
+        """Delete a collection item from UI
+
+        Args:
+            item_id: ID of the item to delete
+
+        Returns:
+            True if deletion succeeded, False otherwise
+        """
+        try:
+            success = await self.library_manager.delete_collection_item(item_id)
+
+            if success:
+                logger.info(f"Successfully deleted item: {item_id}")
+            else:
+                logger.error(f"Failed to delete item: {item_id}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Failed to delete collection item {item_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

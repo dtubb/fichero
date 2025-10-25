@@ -26,7 +26,11 @@ class CollectionView(BaseView, ViewCommandMixin):
     
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False, collection_id: Optional[str] = None):
         """Initialize refactored collection view"""
-        logger.debug(f"CollectionView.__init__ called with app={app}, collection_name='{collection_name}', is_mobile={is_mobile}, collection_id={collection_id}")
+        logger.info(f"🆕 CollectionView.__init__ called with:")
+        logger.info(f"   collection_name='{collection_name}'")
+        logger.info(f"   collection_id={collection_id}")
+        logger.info(f"   is_mobile={is_mobile}")
+        logger.info(f"   instance_id={id(self)}")
 
         # Initialize attributes BEFORE calling super().__init__ to prevent AttributeError
         # during _create_content() which gets called by BaseView's constructor
@@ -36,6 +40,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         self.collections: List[Dict[str, Any]] = []
         self.current_collection: Optional[Dict[str, Any]] = None
         self.collection_id: Optional[str] = collection_id  # Set from parameter
+        logger.debug(f"🔑 Stored collection_id in instance: {self.collection_id}")
         self.collection_items: List[Dict[str, Any]] = []
 
         # Preview callback for showing files in right pane
@@ -49,7 +54,8 @@ class CollectionView(BaseView, ViewCommandMixin):
         self._updating_from_navigation_callback = False
 
         # Set view_id BEFORE initializing ViewCommandMixin
-        self.view_id = "collection"
+        # Use collection_id to make this instance unique (prevents command handler conflicts)
+        self.view_id = f"collection_{collection_id}" if collection_id else "collection"
 
         # Call parent initializer AFTER initializing our attributes
         super().__init__(app, is_mobile)
@@ -89,12 +95,20 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.debug("Connected bottom toolbar preview callback")
 
         # Subscribe to library state events for automatic synchronization
-        from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
-        subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
-        subscribe_to_navigation("collection_items_changed", self._on_collection_items_changed_event)
-        subscribe_to_navigation("collection_item_updated", self._on_item_progress_updated)
-        subscribe_to_navigation("processing_completed", self._on_processing_completed)
-        logger.debug("Event subscriptions registered for collection view (including progress updates)")
+        # Only subscribe if not already subscribed (prevent duplicates on same instance)
+        if not hasattr(self, '_events_subscribed'):
+            from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
+            subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
+            subscribe_to_navigation("collection_items_changed", self._on_collection_items_changed_event)
+            subscribe_to_navigation("collection_item_updated", self._on_item_progress_updated)
+            subscribe_to_navigation("processing_completed", self._on_processing_completed)
+            subscribe_to_navigation("folder_import_started", self._on_folder_import_started)
+            subscribe_to_navigation("folder_import_progress", self._on_folder_import_progress)
+            subscribe_to_navigation("folder_import_completed", self._on_folder_import_completed)
+            self._events_subscribed = True
+            logger.info(f"✅ Event subscriptions registered for CollectionView instance {id(self)} (collection_id: {collection_id})")
+        else:
+            logger.debug(f"⏭️ Event subscriptions already registered for this instance {id(self)} - skipping")
 
         # Load collection items if collection_id was provided during initialization
         if self.collection_id:
@@ -152,6 +166,104 @@ class CollectionView(BaseView, ViewCommandMixin):
                     mobile_only=False,  # Available on both platforms
                     desktop_only=False,
                     context='normal'
+                ),
+
+                # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
+                # These commands add items to the current collection
+                # These commands are nested under the Import submenu in menus
+                # But also appear as individual toolbar buttons on desktop
+                'import_file': FicheroCommand(
+                    id='collection.import_file',
+                    label=_("File…"),
+                    action=self._on_import_file,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Add files to current collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent='collection.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=0,  # First item in Import submenu
+                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
+                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
+                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
+                    desktop_only=False,  # Available on both platforms
+                    mobile_only=False,
+                    context='normal'  # Always visible
+                ),
+
+                'import_folder': FicheroCommand(
+                    id='collection.import_folder',
+                    label=_("Folder…"),
+                    action=self._on_import_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Add folder to current collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent='collection.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=1,  # Second item in Import submenu
+                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
+                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
+                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
+                    desktop_only=False,  # Available on both platforms
+                    mobile_only=False,
+                    context='normal'  # Always visible
+                ),
+
+                'import_url': FicheroCommand(
+                    id='collection.import_url',
+                    label=_("URL…"),
+                    action=self._on_import_url,
+                    icon='resources/icons/toolbar/link.png',
+                    description=_("Add URL to current collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent='collection.import',  # Nested under Import submenu in menu
+                    section=1,  # Same section as parent Import command
+                    order=2,  # Third item in Import submenu
+                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
+                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
+                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
+                    desktop_only=False,  # Available on both platforms
+                    mobile_only=False,
+                    context='normal'  # Always visible
+                ),
+
+                # ===== FILE MENU - IMPORT SUBMENU LINK ITEMS (MENU ONLY) =====
+                # These appear in Import submenu AFTER a separator
+                # They do NOT appear in toolbars
+                'link_file': FicheroCommand(
+                    id='collection.link_file',
+                    label=_("Link File…"),
+                    action=self._on_link_file,
+                    icon='resources/icons/toolbar/document.png',
+                    description=_("Link to file (reference only, no copy)"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent='collection.import',  # Nested under Import submenu in menu
+                    section=2,  # New section - creates separator above
+                    order=0,  # First item in link section
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
+                ),
+
+                'link_folder': FicheroCommand(
+                    id='collection.link_folder',
+                    label=_("Link Folder…"),
+                    action=self._on_link_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Link to folder (reference only, no copy)"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    parent='collection.import',  # Nested under Import submenu in menu
+                    section=2,  # Same section as link commands
+                    order=1,  # Second item in link section
+                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
+                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop, not mobile
+                    context='normal'  # Always visible on desktop
                 ),
             }
 
@@ -228,7 +340,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             
         except Exception as e:
             logger.error(f"Failed to create collection content: {e}")
-    
+
     def setup_toolbar_callbacks(self, toolbar):
         """Setup navigation callbacks with the collection toolbar using NavigationController only"""
         if hasattr(toolbar, 'register_navigation_callbacks'):
@@ -311,7 +423,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle add folder: {e}")
 
-    async def _select_and_add_folder(self):
+    async def _select_and_add_folder(self, operation: str = "link"):
         """Show folder selection dialog and add selected folder to collection"""
         try:
             # Get main window
@@ -322,15 +434,18 @@ class CollectionView(BaseView, ViewCommandMixin):
             window = self.app.main_window_wrapper.window
 
             # Show folder selection dialog
-            selected_path = await window.select_folder_dialog(
-                title=_("Select Folder to Add"),
-                initial_directory=None
+            import toga
+            selected_path = await window.dialog(
+                toga.SelectFolderDialog(
+                    title=_("Select Folder to Add"),
+                    initial_directory=None
+                )
             )
 
             if selected_path:
-                logger.info(f"Folder selected: {selected_path}")
+                logger.info(f"Folder selected: {selected_path}, operation={operation}")
                 # Add folder to current collection
-                await self._add_folder_to_collection(str(selected_path))
+                await self._add_folder_to_collection(str(selected_path), operation=operation)
             else:
                 logger.info("Folder selection cancelled")
 
@@ -338,26 +453,13 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to select and add folder: {e}")
 
     def _on_add_file(self):
-        """Handle add file action from toolbar"""
+        """Handle add file action from toolbar - opens native dialog"""
         try:
             logger.info("Add file requested from toolbar")
-            # Use navigation controller to show file add view
-            from fichero.windows.add.views.file_view import FileAddView
 
-            file_view = FileAddView(
-                app=self.app,
-                on_content_added=self._on_file_added
-            )
-
-            # Navigate to file view
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    nav_controller.push_view(file_view, "Add File")
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            # Use native file dialog (same as link_file but defaults to link operation)
+            import asyncio
+            asyncio.create_task(self._select_and_import_files_async(operation="link"))
 
         except Exception as e:
             logger.error(f"Failed to handle add file: {e}")
@@ -388,8 +490,435 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle file added: {e}")
 
-    async def _add_folder_to_collection(self, folder_path: str):
-        """Add a folder to the current collection"""
+    # ===== IMPORT COMMAND HANDLERS =====
+    # These handlers add items to the current collection
+
+    def _on_import_file(self, widget=None):
+        """Handle import file command - opens native dialog and copies files to collection"""
+        try:
+            logger.info(f"🎯 Import file requested (copy) - instance_id={id(self)}, collection_id={self.collection_id}, collection_name={getattr(self, 'collection_name', 'UNKNOWN')}")
+
+            # Open native file dialog and import files
+            import asyncio
+            asyncio.create_task(self._select_and_import_files_async(operation="copy"))
+
+        except Exception as e:
+            logger.error(f"Failed to handle import file: {e}")
+
+    def _on_import_file_callback(self, data: dict, operation: str = "copy"):
+        """Callback when file is imported"""
+        try:
+            file_path = data.get('path', '')
+            logger.info(f"File import callback received: {file_path}, operation={operation}")
+
+            # Add file to current collection
+            import asyncio
+            asyncio.create_task(self._add_file_to_collection(file_path, operation=operation))
+
+        except Exception as e:
+            logger.error(f"Failed to handle file import callback: {e}")
+
+    def _on_import_folder(self, widget=None):
+        """Handle import folder command - copies folder to collection"""
+        try:
+            logger.info("Import folder requested (copy)")
+            import asyncio
+            asyncio.create_task(self._select_and_add_folder(operation="copy"))
+
+        except Exception as e:
+            logger.error(f"Failed to handle import folder: {e}")
+
+    def _on_import_url(self, widget=None):
+        """Handle import URL command - adds URL to collection"""
+        try:
+            logger.info("Import URL requested")
+            from fichero.windows.add.views.url_view import URLAddView
+            import toga
+
+            # Capture current collection_id now (before async callback)
+            # If no collection is selected, pass None to create a new one
+            current_collection_id = self.collection_id if hasattr(self, 'collection_id') else None
+
+            # Create callback that uses captured collection_id
+            def on_url_added_with_context(data):
+                return self._on_url_added_with_collection(data, current_collection_id)
+
+            url_view = URLAddView(
+                app=self.app,
+                on_content_added=on_url_added_with_context
+            )
+
+            # On desktop: create new window, on mobile: push view
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                if self.app.main_window_wrapper.is_mobile:
+                    # Mobile: use navigation controller to push view
+                    if hasattr(self.app, 'view_integration'):
+                        nav_controller = self.app.view_integration.get_navigation_controller()
+                        if nav_controller:
+                            # TODO: Implement mobile push view
+                            logger.warning("Mobile push view not yet implemented")
+                    else:
+                        logger.error("view_integration not available")
+                else:
+                    # Desktop: create new window
+                    add_window = toga.Window(
+                        title="Import URL",
+                        size=(600, 400),
+                        resizable=True
+                    )
+                    add_window.content = url_view.container
+                    # Pass window reference to view so it can close itself
+                    url_view.window = add_window
+                    add_window.show()
+                    logger.info("URL add window shown")
+            else:
+                logger.error("main_window_wrapper not available")
+
+        except Exception as e:
+            logger.error(f"Failed to handle import URL: {e}")
+
+    def _on_url_added_with_collection(self, data: dict, collection_id: str):
+        """Callback when URL is added - with captured collection_id"""
+        try:
+            # URL is passed in 'urls' array from url_view
+            urls = data.get('urls', [])
+            if not urls:
+                logger.error("No URLs provided in callback data")
+                return
+
+            url = urls[0]  # Get first URL
+            logger.info(f"URL added callback received: {url}")
+
+            # Add URL to specified collection (captured at window creation time)
+            import asyncio
+            return asyncio.create_task(self._add_url_to_collection(url, collection_id))
+
+        except Exception as e:
+            logger.error(f"Failed to handle URL added: {e}")
+
+    async def _add_url_to_collection(self, url: str, collection_id: str = None):
+        """Import content from URL to the specified collection - downloads and parses content
+
+        If collection_id is None, creates a new collection for the import.
+        """
+        try:
+            # If collection_id provided, validate it still exists
+            if collection_id:
+                logger.info(f"🌐 Importing URL to collection {collection_id}: {url}")
+
+                # Validate collection exists (it may have been deleted)
+                collection = self.app.library_manager.storage.get_collection(collection_id)
+                if not collection:
+                    logger.warning(f"⚠️ Collection {collection_id} not found (may have been deleted)")
+                    logger.info("Creating new collection for import instead")
+                    collection_id = None  # Fall through to create new collection
+
+            # If no collection_id or validation failed, create a new collection
+            if not collection_id:
+                logger.info(f"🌐 No collection selected - will create new collection for URL: {url}")
+
+                # Extract a collection name from the URL
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                hostname = parsed.netloc.replace('www.', '')
+                path_parts = [p for p in parsed.path.split('/') if p]
+
+                # Try to make a meaningful name
+                if 'eap.bl.uk' in hostname and path_parts:
+                    collection_name = f"EAP Import - {path_parts[-1]}"
+                else:
+                    collection_name = f"Import from {hostname}"
+
+                # Create new collection
+                collection_id = await self.app.library_manager.add_collection(
+                    name=collection_name,
+                    collection_type="url",
+                    source_path=url,
+                    description=f"Imported from {url}"
+                )
+
+                if not collection_id:
+                    logger.error("Failed to create new collection")
+                    return
+
+                logger.info(f"✅ Created new collection: {collection_name} (ID: {collection_id})")
+
+                # Get the newly created collection
+                collection = self.app.library_manager.storage.get_collection(collection_id)
+
+            # Final validation (should never fail at this point)
+            if not collection:
+                logger.error(f"Collection validation failed: {collection_id}")
+                return
+
+            # Use the plugin system to fetch items from URL
+            from fichero.library.import_plugins.registry import PluginRegistry
+            from fichero.library.import_plugins.eap_plugin import EAPImportPlugin
+            from fichero.library.import_plugins.box_plugin import BoxImportPlugin
+            from fichero.library.import_plugins.zip_plugin import ZipImportPlugin
+
+            # Create plugin registry and register plugins
+            registry = PluginRegistry()
+            registry.register(EAPImportPlugin(self.app.library_manager))
+            registry.register(BoxImportPlugin(self.app.library_manager))
+            registry.register(ZipImportPlugin(self.app.library_manager))
+
+            # Find plugin that can handle this URL
+            plugin = registry.find_plugin_for_url(url)
+            if not plugin:
+                error_msg = f"No plugin found to handle URL: {url}"
+                logger.error(error_msg)
+                return
+
+            logger.info(f"Using plugin: {plugin.get_plugin_info()['name']}")
+
+            # Use plugin to fetch items (but don't create new collection)
+            # We'll manually add items to the current collection
+            import tempfile
+            import shutil
+            from pathlib import Path
+
+            temp_dir = None
+            try:
+                # For plugins that download files, we need a temp directory
+                temp_dir = Path(tempfile.mkdtemp(prefix='fichero_url_import_'))
+
+                # Call plugin's internal methods to get items without creating collection
+                # Most plugins have a method to fetch items that we can use
+                items = []
+
+                if hasattr(plugin, '_fetch_iiif_manifest') and ('/manifest' in url or '/archive-file/' in url):
+                    # EAP plugin with IIIF manifest
+                    if '/archive-file/' in url and '/manifest' not in url:
+                        # Extract manifest URL from page first
+                        manifest_url = await plugin._extract_manifest_url_from_page(url, 600)
+                        if manifest_url:
+                            items = await plugin._fetch_iiif_manifest(manifest_url, 600)
+                    else:
+                        items = await plugin._fetch_iiif_manifest(url, 600)
+                elif hasattr(plugin, '_fetch_hierarchical_collection'):
+                    # EAP plugin with collection/project
+                    items = await plugin._fetch_hierarchical_collection(url, 1000, 600)
+                else:
+                    # Fallback: let plugin create collection then move items
+                    logger.warning("Using fallback: plugin will create temporary collection")
+                    result = await plugin.download_and_import(
+                        url=url,
+                        collection_name=f"Temp_{collection.name}",
+                        collection_description=f"Imported from {url}",
+                        max_items=1000,
+                        download_mode="link",
+                        timeout=600
+                    )
+
+                    if result.success and result.collection_id:
+                        # Get items from temporary collection
+                        temp_items = await self.app.library_manager.get_collection_items(result.collection_id)
+                        # Convert to simple dict format
+                        items = [{'title': item.name, 'url': item.source_path, 'type': 'url'} for item in temp_items]
+                        # Delete temporary collection
+                        await self.app.library_manager.delete_collection(result.collection_id)
+
+                # Now add items to current collection
+                if not items:
+                    logger.warning("No items found from URL")
+                    return
+
+                logger.info(f"Adding {len(items)} items to collection {collection.name}")
+
+                # Separate folders and files for hierarchical import
+                folders = [item for item in items if item.get('type') == 'folder' or item.get('is_folder')]
+                files = [item for item in items if item.get('type') != 'folder' and not item.get('is_folder')]
+
+                # Track folder_name → item_id mapping and folder_name → full_path
+                folder_id_map = {}
+                folder_path_map = {}  # folder_name → full relative path
+                added_count = 0
+
+                # Create a root folder for this manifest import (named after manifest)
+                # Extract manifest name from URL or use first folder's name
+                manifest_name = None
+                root_folder_metadata = {
+                    'type': 'manifest_root',
+                    'source_url': url,
+                    'import_date': str(__import__('datetime').datetime.now())
+                }
+
+                if folders and len(folders) > 0:
+                    # Use the collection_label from the first folder's metadata if available
+                    first_folder = folders[0]
+                    first_folder_meta = first_folder.get('metadata', {})
+                    manifest_name = first_folder_meta.get('manifest_label') or first_folder_meta.get('collection_label') or first_folder.get('title')
+
+                    # Extract ALL manifest-level metadata from first folder to root folder
+                    # Folders now have flat metadata structure (like items), so just merge directly
+                    logger.info(f"📋 First folder has {len(first_folder_meta)} metadata fields: {list(first_folder_meta.keys())}")
+                    for key, value in first_folder_meta.items():
+                        # Skip folder-specific fields that shouldn't be on root
+                        if key not in root_folder_metadata and key not in ['relative_path', 'type', 'page_range']:
+                            root_folder_metadata[key] = value
+
+                    logger.info(f"📋 Root folder will have {len(root_folder_metadata)} metadata fields (after copying from first folder)")
+
+                if not manifest_name:
+                    # Fallback: extract from URL
+                    from urllib.parse import urlparse
+                    parsed = urlparse(url)
+                    path_parts = [p for p in parsed.path.split('/') if p]
+                    manifest_name = path_parts[-1] if path_parts else "Import"
+
+                # Create root folder for this manifest
+                logger.info(f"Creating root folder for manifest: {manifest_name} with {len(root_folder_metadata)} metadata fields")
+
+                root_folder_id = await self.app.library_manager.add_item_to_collection(
+                    collection_id=collection_id,
+                    item_type="folder",
+                    source="",
+                    name=manifest_name,
+                    operation="link",
+                    metadata=root_folder_metadata,
+                    parent_id=None  # At collection root
+                )
+
+                if not root_folder_id:
+                    logger.error(f"Failed to create root folder for manifest: {manifest_name}")
+                    return
+
+                logger.info(f"Created root folder: {manifest_name} (ID: {root_folder_id})")
+
+                # First pass: Create folder items with full metadata (as children of root folder)
+                for folder in folders:
+                    folder_name = folder['title']
+                    # For root folders, relative_path is just the folder name
+                    # For nested folders, this would include parent path (e.g., "parent/child")
+                    relative_path = folder.get('relative_path', folder_name)
+
+                    # Get all metadata from the folder
+                    folder_metadata = folder.get('metadata', {})
+
+                    # Add standard fields
+                    folder_metadata.update({
+                        'relative_path': relative_path,
+                        'archive_id': folder.get('archive_id'),
+                        'manifest_url': folder.get('manifest_url'),
+                        'manifest_id': folder.get('manifest_id'),
+                        'type': 'folder',
+                        'description': folder.get('description', ''),
+                        'attribution': folder.get('attribution', '')
+                    })
+
+                    # Add IIIF-specific metadata if present
+                    if 'manifest_label' in folder_metadata:
+                        logger.info(f"Creating IIIF manifest folder: {folder_name}")
+
+                    folder_id = await self.app.library_manager.add_item_to_collection(
+                        collection_id=collection_id,
+                        item_type="folder",
+                        source="",
+                        name=folder_name,
+                        operation="link",
+                        metadata=folder_metadata,
+                        parent_id=root_folder_id  # Nested under manifest root folder
+                    )
+
+                    if folder_id:
+                        folder_id_map[folder_name] = folder_id
+                        folder_path_map[folder_name] = relative_path  # Store path for child folders
+                        added_count += 1
+                        logger.info(f"Created folder: {folder_name} at path '{relative_path}' with {len(folder_metadata)} metadata fields")
+
+                # Second pass: Add files with parent_id references
+                for item in files:
+                    # Determine parent_id
+                    # If item has parent_folder specified, use that
+                    # Otherwise, use root_folder_id (manifest root)
+                    parent_id = root_folder_id  # Default to root folder
+                    if 'parent_folder' in item and item['parent_folder']:
+                        # Item specifies a sub-folder
+                        parent_id = folder_id_map.get(item['parent_folder'], root_folder_id)
+
+                    # Get URL (prefer image_url over page url)
+                    item_url = item.get('image_url') or item.get('url')
+                    if not item_url:
+                        logger.warning(f"No URL for item: {item.get('title')}")
+                        continue
+
+                    # Create comprehensive metadata with all available fields
+                    metadata = {
+                        'title': item['title'],
+                        'image_url': item.get('image_url'),
+                        'page_url': item.get('url'),
+                        'type': item.get('type', 'url'),
+                        'source': 'URL Import',
+                        # IIIF-specific metadata
+                        'canvas_id': item.get('canvas_id'),
+                        'canvas_label': item.get('canvas_label'),
+                        'canvas_width': item.get('canvas_width'),
+                        'canvas_height': item.get('canvas_height'),
+                        'canvas_metadata': item.get('canvas_metadata', []),
+                        'collection_label': item.get('collection_label'),
+                        'manifest_url': item.get('manifest_url'),
+                        'manifest_metadata': item.get('manifest_metadata', []),
+                        'manifest_position': item.get('manifest_position'),  # Preserve ordering
+                        'attribution': item.get('attribution', ''),
+                        'license': item.get('license', ''),
+                        # EAP-specific metadata
+                        'archive_id': item.get('archive_id')
+                    }
+
+                    # Add item to specified collection
+                    item_id = await self.app.library_manager.add_item_to_collection(
+                        collection_id=collection_id,
+                        item_type="url",
+                        source=item_url,
+                        name=item['title'],
+                        operation="link",
+                        metadata=metadata,
+                        parent_id=parent_id
+                    )
+
+                    if item_id:
+                        added_count += 1
+
+                logger.info(f"✅ Successfully added {added_count} items to collection {collection.name}")
+
+                # Refresh collection display
+                self._load_collection_items()
+
+            finally:
+                # Clean up temp directory
+                if temp_dir and temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+
+        except Exception as e:
+            logger.error(f"Failed to import URL to collection: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _on_link_file(self, widget=None):
+        """Handle link file command - opens native dialog and links to files without copying"""
+        try:
+            logger.info("Link file requested (link operation)")
+
+            # Open native file dialog and link files
+            import asyncio
+            asyncio.create_task(self._select_and_import_files_async(operation="link"))
+
+        except Exception as e:
+            logger.error(f"Failed to handle link file: {e}")
+
+    def _on_link_folder(self, widget=None):
+        """Handle link folder command - links to folder without copying"""
+        try:
+            logger.info("Link folder requested (reference only)")
+            import asyncio
+            asyncio.create_task(self._select_and_add_folder(operation="link"))
+
+        except Exception as e:
+            logger.error(f"Failed to handle link folder: {e}")
+
+    async def _add_folder_to_collection(self, folder_path: str, operation: str = "link"):
+        """Add a folder to the current collection - blocking operation"""
         try:
             if not self.collection_id:
                 logger.error("No collection ID available")
@@ -399,34 +928,32 @@ class CollectionView(BaseView, ViewCommandMixin):
             from pathlib import Path
             folder_name = Path(folder_path).name
 
-            # Add to collection via library service
+            logger.info(f"📥 Importing folder '{folder_name}' to collection_id={self.collection_id} (CollectionView instance {id(self)})")
+
+            # Add to collection via library service (this will block until complete)
             item_id = await self.app.library_service.add_item_to_collection_for_ui(
                 collection_id=self.collection_id,
                 item_type="folder",
                 source=folder_path,
                 name=folder_name,
-                operation="link"  # Link to folder, don't copy
+                operation=operation  # Use provided operation (copy or link)
             )
 
             if item_id:
                 # Refresh collection display
-                await self._load_collection_items()
+                self._load_collection_items()
                 logger.info(f"Added folder '{folder_name}' to collection")
-
-                # Pop back to collection view
-                if hasattr(self.app, 'view_integration'):
-                    nav_controller = self.app.view_integration.get_navigation_controller()
-                    if nav_controller:
-                        nav_controller.pop_view()
             else:
                 logger.error("Failed to add folder to collection")
 
         except Exception as e:
             logger.error(f"Failed to add folder to collection: {e}")
 
-    async def _add_file_to_collection(self, file_path: str):
-        """Add a file to the current collection"""
+    async def _add_file_to_collection(self, file_path: str, operation: str = "link"):
+        """Add a file to the current collection - blocking operation"""
         try:
+            logger.info(f"🔍 _add_file_to_collection called - instance_id={id(self)}, self.collection_id={self.collection_id}, collection_name={getattr(self, 'collection_name', 'UNKNOWN')}")
+
             if not self.collection_id:
                 logger.error("No collection ID available")
                 return
@@ -435,31 +962,61 @@ class CollectionView(BaseView, ViewCommandMixin):
             from pathlib import Path
             file_name = Path(file_path).name
 
-            # Add to collection via library service
+            # Add to collection via library service (this will block until complete)
             item_id = await self.app.library_service.add_item_to_collection_for_ui(
                 collection_id=self.collection_id,
                 item_type="file",
                 source=file_path,
                 name=file_name,
-                operation="link"  # Link to file, don't copy
+                operation=operation  # Use provided operation (copy or link)
             )
 
             if item_id:
                 # Refresh collection display
-                await self._load_collection_items()
+                self._load_collection_items()
                 logger.info(f"Added file '{file_name}' to collection")
-
-                # Pop back to collection view
-                if hasattr(self.app, 'view_integration'):
-                    nav_controller = self.app.view_integration.get_navigation_controller()
-                    if nav_controller:
-                        nav_controller.pop_view()
             else:
                 logger.error("Failed to add file to collection")
 
         except Exception as e:
             logger.error(f"Failed to add file to collection: {e}")
-    
+
+    async def _select_and_import_files_async(self, operation: str = "link"):
+        """Show file selection dialog and import/link selected files to collection"""
+        try:
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show file selection dialog (can select multiple files)
+            # Support all common image formats plus documents
+            import toga
+            selected_paths = await window.dialog(
+                toga.OpenFileDialog(
+                    title=_("Select Files to Add"),
+                    initial_directory=None,
+                    multiple_select=True,
+                    file_types=['tif', 'tiff', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'jxl',
+                               'pdf', 'heic', 'heif', 'raw', 'cr2', 'nef', 'arw', 'dng']
+                )
+            )
+
+            if selected_paths:
+                logger.info(f"{len(selected_paths)} file(s) selected, operation={operation}")
+                # Add files to collection
+                for file_path in selected_paths:
+                    await self._add_file_to_collection(str(file_path), operation=operation)
+
+                logger.info(f"✅ Files added to collection successfully")
+            else:
+                logger.info("File selection cancelled")
+
+        except Exception as e:
+            logger.error(f"Failed to select and import files: {e}")
+
     def _update_toolbar_navigation(self):
         """Update toolbar navigation state"""
         try:
@@ -487,13 +1044,14 @@ class CollectionView(BaseView, ViewCommandMixin):
             
             # LibraryService now returns Toga-compatible format directly
             # Create the detailed list with the Toga-compatible data
+            # Swipe actions: Delete (left/primary) and Rename (right/secondary) like library view
             self.items_list = toga.DetailedList(
                 data=items,  # Direct use of Toga-compatible format
                 on_select=self._on_item_selected,
-                primary_action="Open",
-                on_primary_action=self._on_open_item,
-                secondary_action="Info", 
-                on_secondary_action=self._on_item_info,
+                primary_action="Delete",  # Left swipe = Delete
+                on_primary_action=self._on_swipe_delete_item,
+                secondary_action="Rename",  # Right swipe = Rename
+                on_secondary_action=self._on_swipe_rename_item,
                 style=Pack(
                     flex=1,
                     margin=0  # Full width - no margins
@@ -551,26 +1109,21 @@ class CollectionView(BaseView, ViewCommandMixin):
                     'file_path': getattr(selected_row, 'file_path', '')
                 }
 
-                logger.info(f"Item selected: {item_data['title']}")
+                logger.info(f"📌 Item selected: {item_data['title']} (id: {item_data['id']})")
                 logger.debug(f"Full item_data extracted: {item_data}")
-
-                # Enable "Process Selected" command now that an item is selected
-                logger.info(f"🔍 DEBUG: hasattr(self, 'commands') = {hasattr(self, 'commands')}")
-                if hasattr(self, 'commands'):
-                    logger.info(f"🔍 DEBUG: self.commands.keys() = {list(self.commands.keys())}")
-                    logger.info(f"🔍 DEBUG: 'process_selected' in self.commands = {'process_selected' in self.commands}")
 
                 if hasattr(self, 'commands') and 'process_selected' in self.commands:
                     self.commands['process_selected'].enable()
                     logger.info("✅ Enabled 'Process Selected' command (item selected)")
 
-                # Update inspector with item metadata
+                # Update inspector with item metadata asynchronously (non-blocking)
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
-                    metadata = self.get_selection_metadata()
-                    self.app.inspector_window.update_metadata(metadata, selection_type="ITEM")
-                    logger.debug("Inspector updated with item metadata")
+                    import asyncio
+                    asyncio.create_task(self._update_inspector_async(item_data))
 
-                # Navigate to show preview
+                # Navigate on click (standard behavior)
+                # Note: Shift-click to select without navigating would require modifier key detection
+                # which Toga's DetailedList doesn't currently expose
                 self._handle_item_navigation(item_data)
             else:
                 logger.debug("No selection in widget")
@@ -579,6 +1132,11 @@ class CollectionView(BaseView, ViewCommandMixin):
                 if hasattr(self, 'commands') and 'process_selected' in self.commands:
                     self.commands['process_selected'].disable()
                     logger.debug("❌ Disabled 'Process Selected' command (no selection)")
+
+                # Update inspector to show parent folder or collection metadata
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    import asyncio
+                    asyncio.create_task(self._update_inspector_with_parent_async())
 
         except Exception as e:
             logger.error(f"Failed to handle item selection: {e}")
@@ -640,22 +1198,89 @@ class CollectionView(BaseView, ViewCommandMixin):
                 item_name = row.title
                 item_subtitle = getattr(row, 'subtitle', '')
                 item_description = getattr(row, 'description', '')
-                
+
                 logger.info(f"Info requested for item: {item_name}")
-                
+
                 # Show item information
                 info_text = f"Name: {item_name}\n"
                 if item_subtitle:
                     info_text += f"Details: {item_subtitle}\n"
                 if item_description:
                     info_text += f"Description: {item_description}\n"
-                
+
                 # TODO: Show info dialog
                 logger.info(f"Item info: {info_text}")
-                
+
         except Exception as e:
             logger.error(f"Failed to handle item info: {e}")
-    
+
+    def _on_swipe_delete_item(self, widget, row):
+        """Handle delete item swipe action (secondary action)"""
+        try:
+            if row and hasattr(row, 'item_data'):
+                item_data = row.item_data
+                item_id = item_data.get('id', '')
+                item_name = item_data.get('name', row.title)
+
+                logger.info(f"Swipe delete for item: {item_name}")
+
+                # Delete item from collection
+                import asyncio
+                asyncio.create_task(self._perform_delete_item(item_id, item_name))
+            else:
+                logger.warning("No item data found in swipe delete")
+        except Exception as e:
+            logger.error(f"Failed to handle swipe delete item: {e}")
+
+    def _on_swipe_rename_item(self, widget, row):
+        """Handle rename item swipe action"""
+        try:
+            if row and hasattr(row, 'item_data'):
+                item_data = row.item_data
+                item_id = item_data.get('id', '')
+                item_name = item_data.get('name', row.title)
+
+                logger.info(f"Swipe rename for item: {item_name}")
+
+                # Use NavigationController to navigate to rename view
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        # TODO: Implement navigate_to_rename_item in NavigationController
+                        success = nav_controller.navigate_to_rename_item(item_id, item_name)
+                        if success:
+                            logger.info(f"Successfully navigated to rename view for: {item_name}")
+                        else:
+                            logger.error(f"Failed to navigate to rename view for: {item_name}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            else:
+                logger.warning("No item data found in swipe rename")
+        except Exception as e:
+            logger.error(f"Failed to handle swipe rename item: {e}")
+
+    async def _perform_delete_item(self, item_id: str, item_name: str):
+        """Perform actual item deletion"""
+        try:
+            logger.info(f"Deleting item: {item_name} (ID: {item_id})")
+
+            # Delete via library service
+            success = await self.library_service.delete_collection_item(item_id)
+
+            if success:
+                logger.info(f"✅ Successfully deleted item: {item_name}")
+                # Refresh the collection view
+                self._load_collection_items()
+            else:
+                logger.error(f"❌ Failed to delete item: {item_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to delete item: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _open_file(self, file_path: str):
         """Open a file using the system default application"""
         try:
@@ -680,7 +1305,265 @@ class CollectionView(BaseView, ViewCommandMixin):
             
         except Exception as e:
             logger.error(f"Failed to open file {file_path}: {e}")
-    
+
+    async def _update_inspector_async(self, item_data: Dict[str, Any]):
+        """Update inspector with item metadata asynchronously (non-blocking)"""
+        try:
+            if not (hasattr(self.app, 'inspector_window') and self.app.inspector_window):
+                return
+
+            # Get full item metadata from database (item_data only has basic fields from Row)
+            item_id = item_data.get('id')
+            if item_id:
+                item = await self.app.library_manager.get_item(item_id)
+                if item and item.metadata:
+                    # Merge basic fields with database metadata
+                    full_metadata = {
+                        'id': item_id,
+                        'name': item_data.get('name', item_data.get('title', 'Unknown')),
+                        'type': item_data.get('type', 'unknown'),
+                        'is_folder': item_data.get('is_folder', False),
+                    }
+                    # Add ALL metadata from database
+                    full_metadata.update(item.metadata)
+
+                    logger.info(f"📦 Sending item metadata as dict with {len(full_metadata)} fields (including database metadata)")
+                    self.app.inspector_window.update_metadata(full_metadata, selection_type="ITEM")
+                else:
+                    # No database metadata, use what we have
+                    logger.info(f"📦 Sending item metadata as dict with {len(item_data)} fields (no database metadata)")
+                    self.app.inspector_window.update_metadata(item_data, selection_type="ITEM")
+            else:
+                # No item ID, just send what we have
+                logger.info(f"📦 Sending item metadata as dict with {len(item_data)} fields (no item ID)")
+                self.app.inspector_window.update_metadata(item_data, selection_type="ITEM")
+
+            logger.debug("Inspector updated with item metadata dict (async)")
+
+        except Exception as e:
+            logger.error(f"Failed to update inspector asynchronously: {e}")
+
+    async def _update_inspector_with_parent_async(self):
+        """Update inspector with parent folder or collection metadata when no item selected"""
+        try:
+            if not (hasattr(self.app, 'inspector_window') and self.app.inspector_window):
+                return
+
+            # If we're in a folder, show folder metadata
+            # If we're at root, show collection metadata
+            if self.current_path:
+                # We're in a subfolder - show folder metadata
+                metadata = self._get_current_folder_metadata()
+                self.app.inspector_window.update_metadata(metadata, selection_type="FOLDER")
+                logger.debug("Inspector updated with folder metadata (async)")
+            else:
+                # We're at collection root - show collection metadata
+                metadata = self._get_collection_metadata()
+                self.app.inspector_window.update_metadata(metadata, selection_type="COLLECTION")
+                logger.debug("Inspector updated with collection metadata (async)")
+
+        except Exception as e:
+            logger.error(f"Failed to update inspector with parent metadata: {e}")
+
+    def _get_current_folder_metadata(self) -> str:
+        """Get metadata for the current folder we're viewing"""
+        try:
+            # Build metadata for current folder based on path
+            folder_name = self.current_path.split('/')[-1] if '/' in self.current_path else self.current_path
+
+            lines = [
+                "=== FOLDER METADATA ===",
+                "",
+                f"Name: {folder_name}",
+                f"Path: {self.current_path}",
+                f"Collection: {self.collection_name}",
+            ]
+
+            # Try to find the folder item in the database to get its full metadata
+            folder_item = None
+            if self.collection_id:
+                all_items = self.app.library_manager.storage.get_collection_items(self.collection_id)
+                logger.debug(f"Looking for folder '{folder_name}' among {len(all_items)} items")
+
+                # Find folder by building the path from parent_id chain (more reliable than name matching)
+                # First, find all folders
+                folders = [item for item in all_items if item.type == "folder"]
+
+                # Build full paths for all folders to find the right one
+                for item in folders:
+                    # Build path from parent chain
+                    path_parts = []
+                    current = item
+                    visited = set()
+
+                    while current:
+                        if current.id in visited:
+                            break
+                        visited.add(current.id)
+                        path_parts.insert(0, current.name)
+
+                        # Find parent
+                        if current.parent_id:
+                            parent = next((i for i in all_items if i.id == current.parent_id), None)
+                            current = parent
+                        else:
+                            break
+
+                    item_path = '/'.join(path_parts) if path_parts else ''
+
+                    if item_path == self.current_path:
+                        folder_item = item
+                        logger.debug(f"Found folder item: {item.id} with {len(item.metadata)} metadata fields")
+                        break
+
+                if not folder_item:
+                    logger.warning(f"Could not find folder item for path '{self.current_path}'")
+
+            # Add folder ID if found
+            if folder_item:
+                lines.append(f"ID: {folder_item.id}")
+
+            lines.append("")
+            lines.append("=== CONTENTS ===")
+            lines.append("")
+            lines.append(f"Total Items: {len(self.collection_items)}")
+
+            # If we found the folder in database, include ALL its metadata (like we do for items)
+            if folder_item and folder_item.metadata:
+                folder_data = folder_item.metadata
+
+                # IIIF metadata section (check for any IIIF-related fields)
+                iiif_fields = ['manifest_url', 'manifest_label', 'manifest_id', 'canvas_id', 'image_url',
+                              'attribution', 'license', 'description', 'logo', 'thumbnail', 'page_range',
+                              'archive_id', 'collection_label', 'iiif_metadata', 'manifest_metadata']
+
+                if any(k in folder_data for k in iiif_fields):
+                    lines.append("")
+                    lines.append("=== IIIF METADATA ===")
+                    lines.append("")
+
+                    # Manifest information
+                    if 'manifest_label' in folder_data:
+                        lines.append(f"Manifest Label: {folder_data['manifest_label']}")
+                    if 'manifest_id' in folder_data:
+                        lines.append(f"Manifest ID: {folder_data['manifest_id']}")
+                    if 'manifest_url' in folder_data:
+                        lines.append(f"Manifest URL: {folder_data['manifest_url']}")
+                    if 'page_range' in folder_data:
+                        lines.append(f"Page Range: {folder_data['page_range']}")
+                    if 'archive_id' in folder_data:
+                        lines.append(f"Archive ID: {folder_data['archive_id']}")
+
+                    # Collection/content information
+                    if 'collection_label' in folder_data:
+                        lines.append(f"Collection Label: {folder_data['collection_label']}")
+
+                    # Image/canvas information (for folders containing images)
+                    if 'canvas_id' in folder_data:
+                        lines.append(f"Canvas ID: {folder_data['canvas_id']}")
+                    if 'image_url' in folder_data:
+                        lines.append(f"Image URL: {folder_data['image_url']}")
+
+                    # Description and attribution
+                    if 'description' in folder_data and folder_data['description']:
+                        lines.append(f"\nDescription: {folder_data['description']}")
+                    if 'attribution' in folder_data and folder_data['attribution']:
+                        lines.append(f"\nAttribution: {folder_data['attribution']}")
+                    if 'license' in folder_data and folder_data['license']:
+                        lines.append(f"License: {folder_data['license']}")
+
+                    # Logo and thumbnail
+                    if 'logo' in folder_data and folder_data['logo']:
+                        lines.append(f"Logo: {folder_data['logo']}")
+                    if 'thumbnail' in folder_data and folder_data['thumbnail']:
+                        lines.append(f"Thumbnail: {folder_data['thumbnail']}")
+
+                    # IIIF metadata array (structured metadata from manifest)
+                    if 'iiif_metadata' in folder_data and isinstance(folder_data['iiif_metadata'], list):
+                        if folder_data['iiif_metadata']:
+                            lines.append("")
+                            lines.append("IIIF Metadata:")
+                            for meta in folder_data['iiif_metadata']:
+                                if isinstance(meta, dict):
+                                    label = meta.get('label', '')
+                                    value = meta.get('value', '')
+                                    if label and value:
+                                        lines.append(f"  {label}: {value}")
+
+                    # Manifest metadata array
+                    if 'manifest_metadata' in folder_data and isinstance(folder_data['manifest_metadata'], list):
+                        if folder_data['manifest_metadata']:
+                            lines.append("")
+                            lines.append("Manifest Metadata:")
+                            for meta in folder_data['manifest_metadata']:
+                                if isinstance(meta, dict):
+                                    label = meta.get('label', '')
+                                    value = meta.get('value', '')
+                                    if label and value:
+                                        lines.append(f"  {label}: {value}")
+
+                # Add any other metadata not covered above
+                handled_fields = ['relative_path', 'type'] + iiif_fields
+                other_metadata = {k: v for k, v in folder_data.items()
+                                 if k not in handled_fields and v}  # Only include non-empty values
+
+                if other_metadata:
+                    lines.append("")
+                    lines.append("=== ADDITIONAL METADATA ===")
+                    lines.append("")
+                    for key, value in other_metadata.items():
+                        # Format the key nicely (convert snake_case to Title Case)
+                        nice_key = key.replace('_', ' ').title()
+                        # Handle list/dict values
+                        if isinstance(value, (list, dict)):
+                            lines.append(f"{nice_key}: {str(value)}")
+                        else:
+                            lines.append(f"{nice_key}: {value}")
+
+            return '\n'.join(lines)
+        except Exception as e:
+            logger.error(f"Failed to get folder metadata: {e}")
+            import traceback
+            traceback.print_exc()
+            return "Error loading folder metadata"
+
+    def _get_collection_metadata(self) -> str:
+        """Get metadata for the collection we're viewing"""
+        try:
+            # Get collection details from library manager
+            if self.collection_id:
+                collection = self.app.library_manager.storage.get_collection(self.collection_id)
+                if collection:
+                    lines = [
+                        "=== COLLECTION METADATA ===",
+                        "",
+                        f"Name: {collection.name}",
+                        f"Type: {collection.type}",
+                        f"ID: {collection.id}",
+                        "",
+                        "=== CONTENTS ===",
+                        "",
+                        f"Items: {len(self.collection_items)} items at root level"
+                    ]
+
+                    if collection.source_path:
+                        lines.append(f"\n=== STORAGE ===")
+                        lines.append(f"\nSource Path: {collection.source_path}")
+
+                    if collection.created_at:
+                        lines.append(f"\n=== DATES ===")
+                        lines.append(f"\nCreated: {collection.created_at}")
+
+                    if collection.updated_at:
+                        lines.append(f"Updated: {collection.updated_at}")
+
+                    return '\n'.join(lines)
+
+            return f"Collection: {self.collection_name}\n\nItems: {len(self.collection_items)}"
+        except Exception as e:
+            logger.error(f"Failed to get collection metadata: {e}")
+            return "Error loading collection metadata"
+
     def _handle_item_navigation(self, item_data: Dict[str, Any]):
         """Handle navigation to an item or folder (sync version)"""
         try:
@@ -702,18 +1585,17 @@ class CollectionView(BaseView, ViewCommandMixin):
                             navigation_controller.navigate_back()
                 else:
                     # Regular folder navigation
-                    folder_path = item_data.get('path', item_data.get('name', ''))
-                    logger.info(f"FOLDER NAVIGATION: Navigating to folder path: '{folder_path}'")
-                    
-                    # Check if this is an absolute path or relative path
-                    if folder_path and self.current_path and folder_path.startswith(self.current_path):
-                        # It's an absolute path, extract the relative part
-                        relative_path = folder_path[len(self.current_path):].lstrip('/')
-                        logger.info(f"FOLDER NAVIGATION: Converted absolute path '{folder_path}' to relative '{relative_path}'")
-                        self.navigate_to_folder(relative_path)
-                    else:
-                        # It's already a relative path or we're at root
-                        self.navigate_to_folder(folder_path)
+                    # Use folder ID for navigation (names can be empty/duplicate)
+                    folder_id = item_data.get('id', '')
+                    folder_name = item_data.get('name', '(unnamed)')
+                    logger.info(f"FOLDER NAVIGATION: Navigating to folder: '{folder_name}' (ID: {folder_id})")
+
+                    # Navigate using the folder ID
+                    self.navigate_to_folder_by_id(folder_id)
+
+                    # Update inspector to show folder metadata after navigation
+                    if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                        asyncio.create_task(self._update_inspector_with_folder_async(folder_id, folder_name))
             else:
                 # Handle file - check if we have a file path
                 file_path = item_data.get('file_path')
@@ -1102,6 +1984,11 @@ class CollectionView(BaseView, ViewCommandMixin):
     def _register_navigation_controller_callbacks(self):
         """Register callbacks with NavigationController for state changes"""
         try:
+            # Skip if already registered to prevent duplicates
+            if hasattr(self, '_nav_callback_ref'):
+                logger.debug("Collection view already registered - skipping duplicate registration")
+                return
+
             navigation_controller = self._get_navigation_controller()
             if navigation_controller:
                 # Store callback reference for later cleanup
@@ -1161,6 +2048,11 @@ class CollectionView(BaseView, ViewCommandMixin):
 
                             # Reload items for new path - use silent version to avoid navigation events
                             self._load_collection_items_silent()
+
+                            # Update inspector with parent/collection metadata (no item selected after path change)
+                            if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                                import asyncio
+                                asyncio.create_task(self._update_inspector_with_parent_async())
 
                             logger.info(f"✅ UI updated for path: '{self.current_path}'")
                         else:
@@ -1520,9 +2412,13 @@ class CollectionView(BaseView, ViewCommandMixin):
     def _load_collection_items(self):
         """Load items for the current collection and path"""
         try:
+            logger.debug(f"📋 _load_collection_items called for instance {id(self)}")
+            logger.debug(f"   collection_id: {getattr(self, 'collection_id', 'NOT SET')}")
+            logger.debug(f"   library_service: {getattr(self, 'library_service', 'NOT SET')}")
+
             if self.library_service and hasattr(self, 'collection_id') and self.collection_id:
                 # Use hierarchical structure method for folder navigation
-                logger.info(f"Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
+                logger.info(f"📥 Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
                 self.collection_items = self.library_service.get_collection_structure_sync(
                     self.collection_id,
                     self.current_path
@@ -1733,9 +2629,203 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to navigate to folder: {e}")
-    
-    
-    
+
+    def navigate_to_folder_by_id(self, folder_id: str):
+        """Navigate to a folder using its ID (builds path by walking parent_id chain)"""
+        try:
+            # Get all items to build the path
+            all_items = self.app.library_manager.storage.get_collection_items(self.collection_id)
+
+            # Build a map of item IDs to items
+            id_to_item = {item.id: item for item in all_items}
+
+            # Walk up the parent chain to build the full path
+            path_parts = []
+            current_id = folder_id
+
+            while current_id:
+                if current_id not in id_to_item:
+                    logger.error(f"❌ Folder ID {current_id} not found in collection")
+                    return
+
+                item = id_to_item[current_id]
+                if item.type != "folder":
+                    logger.error(f"❌ Item {current_id} is not a folder (type: {item.type})")
+                    return
+
+                # Insert folder name at the beginning of path
+                path_parts.insert(0, item.name)
+                current_id = item.parent_id
+
+            # Build the full path
+            new_path = '/'.join(path_parts) if path_parts else ''
+
+            logger.info(f"🔙 Built path from ID {folder_id}: '{new_path}'")
+
+            # Use NavigationController for path navigation
+            navigation_controller = self._get_navigation_controller()
+            if not navigation_controller:
+                logger.error("❌ NavigationController not available")
+                return
+
+            # Ensure NavigationController has correct collection context
+            if navigation_controller.current_state.collection_id != self.collection_id:
+                logger.warning(f"NavigationController collection context mismatch: expected {self.collection_id}, got {navigation_controller.current_state.collection_id}")
+                # Re-set collection context
+                navigation_controller.navigate_to_collection(self.collection_id, self.collection_name)
+
+            # Navigate to path within current collection
+            success = navigation_controller.navigate_to_path(new_path)
+            if not success:
+                logger.error(f"❌ Failed to navigate to path: '{new_path}'")
+            else:
+                logger.info(f"✅ Navigated to folder ID {folder_id}, path: '{new_path}'")
+
+        except Exception as e:
+            logger.error(f"Failed to navigate to folder by ID: {e}")
+
+    async def _update_inspector_with_folder_async(self, folder_id: str, folder_name: str):
+        """Update inspector with folder metadata when navigating to a folder"""
+        try:
+            if not (hasattr(self.app, 'inspector_window') and self.app.inspector_window):
+                return
+
+            # Get folder metadata from database
+            item = await self.app.library_manager.get_item(folder_id)
+            if not item:
+                logger.warning(f"Could not find folder {folder_id} for inspector update")
+                return
+
+            # Send metadata as dictionary (direct pass-through from database)
+            logger.info(f"📦 Sending folder metadata as dict with {len(item.metadata) if item.metadata else 0} fields")
+
+            # Build metadata dict with all fields
+            metadata_dict = {
+                'name': folder_name or '(unnamed folder)',
+                'type': 'Folder',
+                'id': folder_id,
+            }
+
+            # Add ALL metadata from database
+            if item.metadata:
+                metadata_dict.update(item.metadata)
+
+            logger.info(f"📦 Total metadata dict has {len(metadata_dict)} fields: {list(metadata_dict.keys())}")
+
+            # Send dict directly to inspector (no text parsing needed!)
+            self.app.inspector_window.update_metadata(metadata_dict, selection_type="FOLDER")
+            logger.debug(f"Inspector updated with folder metadata dict for {folder_name}")
+            return
+
+            # OLD TEXT-BASED CODE BELOW (keeping for reference, but skipped by return above)
+            lines = [
+                "=== FOLDER METADATA ===",
+                "",
+                f"Name: {folder_name or '(unnamed folder)'}",
+                f"Type: Folder",
+                f"ID: {folder_id}",
+            ]
+
+            # Include ALL metadata (just like in _get_current_folder_metadata)
+            if item.metadata:
+                folder_data = item.metadata
+
+                # IIIF metadata section (check for any IIIF-related fields)
+                iiif_fields = ['manifest_url', 'manifest_label', 'manifest_id', 'canvas_id', 'image_url',
+                              'attribution', 'license', 'description', 'logo', 'thumbnail', 'page_range',
+                              'archive_id', 'collection_label', 'iiif_metadata', 'manifest_metadata']
+
+                if any(k in folder_data for k in iiif_fields):
+                    lines.append("")
+                    lines.append("=== IIIF METADATA ===")
+                    lines.append("")
+
+                    # Manifest information
+                    if 'manifest_label' in folder_data:
+                        lines.append(f"Manifest Label: {folder_data['manifest_label']}")
+                    if 'manifest_id' in folder_data:
+                        lines.append(f"Manifest ID: {folder_data['manifest_id']}")
+                    if 'manifest_url' in folder_data:
+                        lines.append(f"Manifest URL: {folder_data['manifest_url']}")
+                    if 'page_range' in folder_data:
+                        lines.append(f"Page Range: {folder_data['page_range']}")
+                    if 'archive_id' in folder_data:
+                        lines.append(f"Archive ID: {folder_data['archive_id']}")
+
+                    # Collection/content information
+                    if 'collection_label' in folder_data:
+                        lines.append(f"Collection Label: {folder_data['collection_label']}")
+
+                    # Image/canvas information (for folders containing images)
+                    if 'canvas_id' in folder_data:
+                        lines.append(f"Canvas ID: {folder_data['canvas_id']}")
+                    if 'image_url' in folder_data:
+                        lines.append(f"Image URL: {folder_data['image_url']}")
+
+                    # Description and attribution
+                    if 'description' in folder_data and folder_data['description']:
+                        lines.append(f"\nDescription: {folder_data['description']}")
+                    if 'attribution' in folder_data and folder_data['attribution']:
+                        lines.append(f"\nAttribution: {folder_data['attribution']}")
+                    if 'license' in folder_data and folder_data['license']:
+                        lines.append(f"License: {folder_data['license']}")
+
+                    # Logo and thumbnail
+                    if 'logo' in folder_data and folder_data['logo']:
+                        lines.append(f"Logo: {folder_data['logo']}")
+                    if 'thumbnail' in folder_data and folder_data['thumbnail']:
+                        lines.append(f"Thumbnail: {folder_data['thumbnail']}")
+
+                    # IIIF metadata array (structured metadata from manifest)
+                    if 'iiif_metadata' in folder_data and isinstance(folder_data['iiif_metadata'], list):
+                        if folder_data['iiif_metadata']:
+                            lines.append("")
+                            lines.append("IIIF Metadata:")
+                            for meta in folder_data['iiif_metadata']:
+                                if isinstance(meta, dict):
+                                    label = meta.get('label', '')
+                                    value = meta.get('value', '')
+                                    if label and value:
+                                        lines.append(f"  {label}: {value}")
+
+                    # Manifest metadata array
+                    if 'manifest_metadata' in folder_data and isinstance(folder_data['manifest_metadata'], list):
+                        if folder_data['manifest_metadata']:
+                            lines.append("")
+                            lines.append("Manifest Metadata:")
+                            for meta in folder_data['manifest_metadata']:
+                                if isinstance(meta, dict):
+                                    label = meta.get('label', '')
+                                    value = meta.get('value', '')
+                                    if label and value:
+                                        lines.append(f"  {label}: {value}")
+
+                # Add any other metadata not covered above
+                handled_fields = ['relative_path', 'type'] + iiif_fields
+                other_metadata = {k: v for k, v in folder_data.items()
+                                 if k not in handled_fields and v}  # Only include non-empty values
+
+                if other_metadata:
+                    lines.append("")
+                    lines.append("=== ADDITIONAL METADATA ===")
+                    lines.append("")
+                    for key, value in other_metadata.items():
+                        # Format the key nicely (convert snake_case to Title Case)
+                        nice_key = key.replace('_', ' ').title()
+                        # Handle list/dict values
+                        if isinstance(value, (list, dict)):
+                            lines.append(f"{nice_key}: {str(value)}")
+                        else:
+                            lines.append(f"{nice_key}: {value}")
+
+            metadata_text = '\n'.join(lines)
+            self.app.inspector_window.update_metadata(metadata_text, selection_type="FOLDER")
+            logger.debug(f"Inspector updated with folder metadata for {folder_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to update inspector with folder metadata: {e}")
+
+
 
     def refresh(self):
         """Refresh the collection view"""
@@ -1818,6 +2908,31 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to handle collection_items_changed event: {e}")
+
+    def _on_folder_import_started(self, event):
+        """Handle folder_import_started event - just log it"""
+        try:
+            folder_name = event.data.get("folder_name", "folder")
+            logger.info(f"📁 Import started: {folder_name}")
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_started event: {e}")
+
+    def _on_folder_import_progress(self, event):
+        """Handle folder_import_progress event - just log it"""
+        try:
+            total_processed = event.data.get("total_processed", 0)
+            logger.debug(f"📁 Import progress: {total_processed} files processed")
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_progress event: {e}")
+
+    def _on_folder_import_completed(self, event):
+        """Handle folder_import_completed event - just log it"""
+        try:
+            added = event.data.get("added", 0)
+            folder_name = event.data.get("folder_name", "folder")
+            logger.info(f"✅ Import completed: {added} items from {folder_name}")
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_completed event: {e}")
 
     def _on_item_progress_updated(self, event):
         """Handle collection_item_updated event - update progress display for item"""
@@ -1932,41 +3047,95 @@ class CollectionView(BaseView, ViewCommandMixin):
             # Get the selected row from DetailedList
             selected_row = self.items_list.selection
 
-            # Extract item data from row attributes
-            item_data = {
-                'id': getattr(selected_row, 'id', ''),
-                'title': getattr(selected_row, 'title', 'Unknown'),
-                'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
-                'type': getattr(selected_row, 'type', 'unknown'),
-                'is_folder': getattr(selected_row, 'is_folder', False),
-                'path': getattr(selected_row, 'path', ''),
-                'file_path': getattr(selected_row, 'file_path', ''),
-                'subtitle': getattr(selected_row, 'subtitle', ''),
-                'description': getattr(selected_row, 'description', '')
-            }
+            # Try to get full item_data (includes all metadata)
+            if hasattr(selected_row, 'item_data'):
+                item_data = selected_row.item_data
+            else:
+                # Fallback: extract basic attributes
+                item_data = {
+                    'id': getattr(selected_row, 'id', ''),
+                    'title': getattr(selected_row, 'title', 'Unknown'),
+                    'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
+                    'type': getattr(selected_row, 'type', 'unknown'),
+                    'is_folder': getattr(selected_row, 'is_folder', False),
+                    'path': getattr(selected_row, 'path', ''),
+                    'file_path': getattr(selected_row, 'file_path', ''),
+                    'subtitle': getattr(selected_row, 'subtitle', ''),
+                    'description': getattr(selected_row, 'description', '')
+                }
 
             # Format metadata as human-readable text
             lines = [
                 "=== ITEM METADATA ===",
                 "",
-                f"Name: {item_data['name']}",
-                f"Type: {'Folder' if item_data['is_folder'] else 'File'}",
+                f"Name: {item_data.get('name', item_data.get('title', 'Unknown'))}",
+                f"Type: {'Folder' if item_data.get('is_folder') else item_data.get('type', 'File')}",
             ]
 
-            if item_data['id']:
+            if item_data.get('id'):
                 lines.append(f"ID: {item_data['id']}")
 
-            if item_data['path']:
+            # Basic paths
+            if item_data.get('path'):
                 lines.append(f"Path: {item_data['path']}")
 
-            if item_data['file_path'] and item_data['file_path'] != item_data['path']:
+            if item_data.get('file_path') and item_data['file_path'] != item_data.get('path'):
                 lines.append(f"File Path: {item_data['file_path']}")
 
-            if item_data['subtitle']:
+            if item_data.get('subtitle'):
                 lines.append(f"\nDetails: {item_data['subtitle']}")
 
-            if item_data['description']:
+            if item_data.get('description'):
                 lines.append(f"\nDescription: {item_data['description']}")
+
+            # IIIF/URL metadata section
+            if item_data.get('image_url') or item_data.get('manifest_url'):
+                lines.append("")
+                lines.append("=== IIIF METADATA ===")
+                lines.append("")
+
+                if item_data.get('image_url'):
+                    lines.append(f"Image URL: {item_data['image_url']}")
+
+                if item_data.get('canvas_label'):
+                    lines.append(f"Canvas: {item_data['canvas_label']}")
+
+                if item_data.get('canvas_width') and item_data.get('canvas_height'):
+                    lines.append(f"Dimensions: {item_data['canvas_width']} × {item_data['canvas_height']}")
+
+                if item_data.get('manifest_url'):
+                    lines.append(f"Manifest: {item_data['manifest_url']}")
+
+                if item_data.get('collection_label'):
+                    lines.append(f"Collection: {item_data['collection_label']}")
+
+                if item_data.get('attribution'):
+                    lines.append(f"\nAttribution: {item_data['attribution']}")
+
+                if item_data.get('license'):
+                    lines.append(f"License: {item_data['license']}")
+
+                # Canvas metadata (if present)
+                if item_data.get('canvas_metadata') and isinstance(item_data['canvas_metadata'], list):
+                    if item_data['canvas_metadata']:
+                        lines.append("")
+                        lines.append("Canvas Metadata:")
+                        for meta in item_data['canvas_metadata']:
+                            if isinstance(meta, dict):
+                                label = meta.get('label', '')
+                                value = meta.get('value', '')
+                                lines.append(f"  {label}: {value}")
+
+                # Manifest metadata (if present)
+                if item_data.get('manifest_metadata') and isinstance(item_data['manifest_metadata'], list):
+                    if item_data['manifest_metadata']:
+                        lines.append("")
+                        lines.append("Manifest Metadata:")
+                        for meta in item_data['manifest_metadata']:
+                            if isinstance(meta, dict):
+                                label = meta.get('label', '')
+                                value = meta.get('value', '')
+                                lines.append(f"  {label}: {value}")
 
             # Add collection context
             if hasattr(self, 'collection_name') and self.collection_name:

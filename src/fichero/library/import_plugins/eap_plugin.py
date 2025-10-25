@@ -115,10 +115,21 @@ class EAPImportPlugin(ImportPlugin):
                 temp_download_dir = Path(tempfile.mkdtemp(prefix='fichero_eap_import_'))
                 logger.info(f"Created temp download directory: {temp_download_dir}")
 
-            # Check if this is a IIIF manifest URL
-            if 'manifest' in url or '/archive-file/' in url:
+            # Check if this is a IIIF manifest URL or archive-file page
+            if 'manifest' in url:
+                # Direct manifest URL
                 self._report_progress(10, 100, "Fetching IIIF manifest")
                 items = await self._fetch_iiif_manifest(url, timeout)
+            elif '/archive-file/' in url:
+                # Archive-file page URL - need to extract manifest URL
+                self._report_progress(10, 100, "Extracting manifest URL from page")
+                manifest_url = await self._extract_manifest_url_from_page(url, timeout)
+                if manifest_url:
+                    logger.info(f"Found manifest URL: {manifest_url}")
+                    self._report_progress(20, 100, "Fetching IIIF manifest")
+                    items = await self._fetch_iiif_manifest(manifest_url, timeout)
+                else:
+                    raise Exception(f"Could not find IIIF manifest URL on page: {url}")
             # Check if this is a collection or project page (hierarchical import)
             elif '/collection/' in url or '/project/' in url:
                 # Ensure collection URLs have /search at the end for proper parsing
@@ -235,6 +246,81 @@ class EAPImportPlugin(ImportPlugin):
         except Exception as e:
             logger.error(f"Failed to resolve DOI redirect: {e}")
             raise Exception(f"Could not resolve DOI URL: {e}")
+
+    async def _extract_manifest_url_from_page(
+        self,
+        page_url: str,
+        timeout: int
+    ) -> Optional[str]:
+        """
+        Extract IIIF manifest URL from an archive-file page
+
+        Looks for the IIIF logo link that points to the manifest.
+
+        Args:
+            page_url: Archive-file page URL (e.g., https://eap.bl.uk/archive-file/EAP640-1-1-1)
+            timeout: Timeout in seconds
+
+        Returns:
+            Manifest URL if found, None otherwise
+        """
+        try:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            }
+
+            async with aiohttp.ClientSession(headers=headers, timeout=timeout_obj) as session:
+                # Fetch the page
+                async with session.get(page_url) as response:
+                    response.raise_for_status()
+                    html = await response.text()
+
+                # Parse HTML
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # Look for IIIF manifest link
+                # The IIIF logo is inside an <a> tag with href pointing to the manifest
+                # Pattern: <a href="https://eap.bl.uk/archive-file/EAP640-1-1-1/manifest?manifest=..." class="draggable-manifest-link__content">
+                manifest_link = soup.find('a', class_=re.compile(r'draggable-manifest-link|iiif-manifest'))
+
+                if manifest_link and manifest_link.get('href'):
+                    manifest_url = manifest_link['href']
+
+                    # Make URL absolute if it's relative
+                    if not manifest_url.startswith('http'):
+                        manifest_url = urljoin(page_url, manifest_url)
+
+                    logger.info(f"Found manifest URL: {manifest_url}")
+                    return manifest_url
+
+                # Fallback: Look for any link containing "/manifest"
+                manifest_links = soup.find_all('a', href=re.compile(r'/manifest'))
+                if manifest_links:
+                    manifest_url = manifest_links[0]['href']
+
+                    # Make URL absolute
+                    if not manifest_url.startswith('http'):
+                        manifest_url = urljoin(page_url, manifest_url)
+
+                    logger.info(f"Found manifest URL (fallback): {manifest_url}")
+                    return manifest_url
+
+                # Last resort: Construct manifest URL from page URL
+                # If page is https://eap.bl.uk/archive-file/EAP640-1-1-1
+                # Then manifest is https://eap.bl.uk/archive-file/EAP640-1-1-1/manifest
+                if '/archive-file/' in page_url:
+                    base_url = page_url.rstrip('/')
+                    manifest_url = f"{base_url}/manifest"
+                    logger.info(f"Constructed manifest URL from page URL: {manifest_url}")
+                    return manifest_url
+
+                logger.warning(f"No manifest URL found on page: {page_url}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to extract manifest URL from page: {e}")
+            return None
 
     async def _fetch_hierarchical_collection(
         self,
@@ -489,10 +575,50 @@ class EAPImportPlugin(ImportPlugin):
                 if self.is_cancelled:
                     return items
 
-                # Extract collection metadata
-                collection_label = manifest.get('label', 'EAP Collection')
+                # Extract collection metadata from manifest
+                raw_label = manifest.get('label', 'EAP Collection')
+
+                # Handle label - could be string or object
+                if isinstance(raw_label, dict):
+                    # IIIF v3 style: {"en": ["Label"]} or {"@value": "Label"}
+                    collection_label = raw_label.get('en', [raw_label.get('@value', 'EAP Collection')])[0] if isinstance(raw_label.get('en'), list) else raw_label.get('en', raw_label.get('@value', 'EAP Collection'))
+                else:
+                    collection_label = str(raw_label) if raw_label else 'EAP Collection'
+
+                # If label is just a number or very short, try to get a better name from metadata
+                if collection_label.isdigit() or len(collection_label) < 3:
+                    # Look for title or description in metadata
+                    for meta in manifest.get('metadata', []):
+                        if isinstance(meta, dict):
+                            label_key = meta.get('label', '').lower()
+                            if 'title' in label_key or 'reference' in label_key:
+                                value = meta.get('value', '')
+                                if value and len(str(value)) > 3:
+                                    collection_label = str(value)
+                                    break
+
                 collection_id = manifest.get('@id', manifest_url)
-                metadata = manifest.get('metadata', [])
+                manifest_metadata = manifest.get('metadata', [])
+
+                # Extract additional manifest-level metadata
+                description = manifest.get('description', '')
+                attribution = manifest.get('attribution', '')
+                license_url = manifest.get('license', '')
+                logo = manifest.get('logo', '')
+                thumbnail = manifest.get('thumbnail', '')
+
+                # Build comprehensive metadata dictionary
+                folder_metadata = {
+                    'manifest_label': collection_label,
+                    'manifest_id': collection_id,
+                    'manifest_url': manifest_url,
+                    'description': description,
+                    'attribution': attribution,
+                    'license': license_url,
+                    'logo': logo,
+                    'thumbnail': thumbnail,
+                    'iiif_metadata': manifest_metadata,  # Original IIIF metadata array
+                }
 
                 logger.info(f"Processing IIIF manifest: {collection_label}")
 
@@ -504,13 +630,88 @@ class EAPImportPlugin(ImportPlugin):
                 canvases = sequences[0].get('canvases', [])
                 logger.info(f"Found {len(canvases)} canvases in manifest")
 
+                # Check for structures/ranges for hierarchical organization
+                structures = manifest.get('structures', [])
+                ranges = manifest.get('ranges', [])
+
+                # Build folder structure from ranges if available
+                folder_structure = {}
+                canvas_to_folder = {}  # Map canvas ID to folder path
+
+                if structures or ranges:
+                    logger.info(f"Found {len(structures)} structures and {len(ranges)} ranges - building hierarchy")
+                    # TODO: Parse structures/ranges to build folder hierarchy
+                    # For now, just note that structure exists
+                else:
+                    # No structure - check if we should auto-group by page numbers
+                    # Group canvases into folders of ~100 items each for large collections
+                    if len(canvases) > 100:
+                        logger.info(f"Large collection ({len(canvases)} canvases) - will auto-group into folders")
+                        folder_structure = self._auto_group_canvases(canvases, collection_label)
+                        for idx, canvas in enumerate(canvases):
+                            folder_num = (idx // 100) + 1
+                            folder_name = f"{collection_label} - Part {folder_num}"
+                            canvas_to_folder[canvas.get('@id')] = folder_name
+
+                # Only create sub-folders if we have a large collection (>100 items)
+                # Don't create a redundant root folder - the collection itself serves that purpose
+                if folder_structure:
+                    logger.info(f"Creating {len(folder_structure)} sub-folders for large collection")
+                    for folder_name, folder_info in folder_structure.items():
+                        # Build folder metadata dict with ALL manifest fields at top level (like items)
+                        sub_folder_metadata = {
+                            'manifest_url': manifest_url,
+                            'page_range': folder_info.get('page_range', ''),
+                        }
+                        # Merge ALL manifest-level metadata fields directly into folder metadata
+                        for key, value in folder_metadata.items():
+                            if key not in sub_folder_metadata:
+                                sub_folder_metadata[key] = value
+
+                        sub_folder = {
+                            'title': folder_name,
+                            'type': 'folder',
+                            'is_folder': True,
+                            'parent_folder': None,  # At collection root level
+                            'relative_path': folder_name,
+                            'metadata': sub_folder_metadata  # Flat metadata structure like items
+                        }
+                        items.append(sub_folder)
+
                 for idx, canvas in enumerate(canvases):
                     if self.is_cancelled:
                         break
 
                     try:
+                        # Track manifest position for proper ordering (idx is 0-based)
+                        manifest_position = idx
+
                         # Extract canvas label/title
-                        canvas_label = canvas.get('label', f'Image_{idx+1}')
+                        raw_canvas_label = canvas.get('label', f'Image_{idx+1}')
+
+                        # Handle label - could be string, number, or object
+                        if isinstance(raw_canvas_label, dict):
+                            # IIIF v3 style
+                            canvas_label = raw_canvas_label.get('en', [raw_canvas_label.get('@value', f'Image_{idx+1}')])[0] if isinstance(raw_canvas_label.get('en'), list) else raw_canvas_label.get('en', raw_canvas_label.get('@value', f'Image_{idx+1}'))
+                        else:
+                            canvas_label = str(raw_canvas_label) if raw_canvas_label else f'Image_{idx+1}'
+
+                        # If label is empty, just a number, or very short, try to build a better name
+                        if not canvas_label or canvas_label.isdigit() or len(canvas_label) < 2:
+                            # Try to find a meaningful name from canvas metadata
+                            canvas_meta = canvas.get('metadata', [])
+                            for meta in canvas_meta:
+                                if isinstance(meta, dict):
+                                    meta_label = meta.get('label', '').lower()
+                                    if 'folio' in meta_label or 'page' in meta_label or 'reference' in meta_label:
+                                        value = meta.get('value', '')
+                                        if value:
+                                            canvas_label = f"{collection_label}_{value}"
+                                            break
+
+                            # Still no good name? Use collection + index
+                            if not canvas_label or canvas_label.isdigit() or len(canvas_label) < 2:
+                                canvas_label = f"{collection_label}_p{idx+1:04d}"
 
                         # Extract images from canvas
                         canvas_images = canvas.get('images', [])
@@ -519,14 +720,32 @@ class EAPImportPlugin(ImportPlugin):
                             image_url = resource.get('@id')
 
                             if image_url:
+                                # Extract canvas-level metadata
+                                canvas_width = canvas.get('width')
+                                canvas_height = canvas.get('height')
+                                canvas_metadata = canvas.get('metadata', [])
+
+                                # Determine parent folder - use sub-folder name if we're grouping, otherwise None (at collection root)
+                                canvas_id = canvas.get('@id')
+                                parent_folder = canvas_to_folder.get(canvas_id)  # None if not grouped
+
                                 items.append({
                                     'title': f"{canvas_label}_{img_idx+1}" if img_idx > 0 else canvas_label,
                                     'url': image_url,
                                     'image_url': image_url,
                                     'type': 'iiif_image',
-                                    'canvas_id': canvas.get('@id'),
+                                    'parent_folder': parent_folder,  # Link to parent folder (possibly sub-folder)
+                                    'manifest_position': manifest_position,  # Original order in manifest
+                                    'canvas_id': canvas_id,
+                                    'canvas_label': canvas_label,
+                                    'canvas_width': canvas_width,
+                                    'canvas_height': canvas_height,
+                                    'canvas_metadata': canvas_metadata,
                                     'collection_label': collection_label,
-                                    'metadata': metadata
+                                    'manifest_url': manifest_url,
+                                    'manifest_metadata': manifest_metadata,
+                                    'attribution': attribution,
+                                    'license': license_url
                                 })
 
                                 logger.debug(f"Found IIIF image: {canvas_label} -> {image_url}")
@@ -545,6 +764,35 @@ class EAPImportPlugin(ImportPlugin):
         except Exception as e:
             logger.error(f"Failed to fetch IIIF manifest: {e}")
             raise
+
+    def _auto_group_canvases(self, canvases: list, collection_label: str, items_per_folder: int = 100) -> dict:
+        """Auto-group canvases into folders for large collections
+
+        Args:
+            canvases: List of canvas objects from manifest
+            collection_label: Base label for the collection
+            items_per_folder: Number of items to put in each folder
+
+        Returns:
+            Dictionary of folder_name -> {page_range, start_idx, end_idx}
+        """
+        total = len(canvases)
+        folder_structure = {}
+
+        for i in range(0, total, items_per_folder):
+            folder_num = (i // items_per_folder) + 1
+            start_page = i + 1
+            end_page = min(i + items_per_folder, total)
+
+            folder_name = f"{collection_label} - Part {folder_num}"
+            folder_structure[folder_name] = {
+                'page_range': f"Pages {start_page}-{end_page}",
+                'start_idx': i,
+                'end_idx': end_page
+            }
+
+        logger.info(f"Created {len(folder_structure)} auto-grouped folders for {total} canvases")
+        return folder_structure
 
     async def _parse_search_results(
         self,
@@ -887,13 +1135,18 @@ class EAPImportPlugin(ImportPlugin):
                     folder_name = folder['title']
                     relative_path = folder.get('relative_path', folder_name)
 
-                    # Create folder item in collection
+                    # Create folder item in collection with ALL metadata (flat structure like items)
                     folder_metadata = {
                         'relative_path': relative_path,
-                        'archive_id': folder.get('archive_id'),
-                        'manifest_url': folder.get('manifest_url'),
                         'type': 'folder'
                     }
+
+                    # Add ALL metadata from the folder's metadata field (now flat, like items)
+                    if 'metadata' in folder and isinstance(folder['metadata'], dict):
+                        # Merge all metadata fields directly (no nesting)
+                        for key, value in folder['metadata'].items():
+                            if key not in folder_metadata:
+                                folder_metadata[key] = value
 
                     folder_id = await self.library_manager.add_item_to_collection(
                         collection_id=collection_id,
@@ -951,7 +1204,8 @@ class EAPImportPlugin(ImportPlugin):
                         'source': 'British Library EAP',
                         'canvas_id': item.get('canvas_id'),
                         'collection_label': item.get('collection_label'),
-                        'archive_id': item.get('archive_id')
+                        'archive_id': item.get('archive_id'),
+                        'manifest_position': item.get('manifest_position')  # Preserve manifest order
                     }
 
                     # Add URL item to collection with parent_id

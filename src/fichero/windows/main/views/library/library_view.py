@@ -43,6 +43,9 @@ class LibraryView(BaseView, ViewCommandMixin):
         self.current_sort_mode = "name"  # Default sort by name
         self.sort_ascending = True  # True = A-Z, False = Z-A
 
+        # Cache folder icon to prevent repeated loads
+        self._folder_icon_cache = None
+
         print("🔧 Calling super().__init__...")
         super().__init__(app, is_mobile)
         ViewCommandMixin.__init__(self)
@@ -137,7 +140,13 @@ class LibraryView(BaseView, ViewCommandMixin):
         subscribe_to_navigation("collection_added", self._on_collection_added_event)
         subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
         subscribe_to_navigation("collection_updated", self._on_collection_updated_event)
+        subscribe_to_navigation("folder_import_started", self._on_folder_import_started_event)
+        subscribe_to_navigation("folder_import_progress", self._on_folder_import_progress_event)
+        subscribe_to_navigation("folder_import_completed", self._on_folder_import_completed_event)
         print("✅ Event subscriptions registered")
+
+        # Track imports in progress
+        self.importing_collections = {}  # collection_id -> {folder_name, count}
 
         print("✅ LibraryView initialization complete")
         logger.info("Library view created successfully")
@@ -208,18 +217,22 @@ class LibraryView(BaseView, ViewCommandMixin):
             # Format collections for Toga DetailedList (simple, no visual selection indicators)
             collection_data = []
 
-            # Load folder icon once for all collections
+            # Load folder icon once for all collections (use cache)
             folder_icon = None
-            try:
-                import toga
-                folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
-                if folder_icon_path.exists():
-                    folder_icon = toga.Image(str(folder_icon_path))
-                    logger.info(f"✅ Loaded collection folder icon")
-                else:
-                    logger.warning(f"❌ Folder icon not found at: {folder_icon_path}")
-            except Exception as e:
-                logger.error(f"Failed to load folder icon: {e}", exc_info=True)
+            if self._folder_icon_cache is not None:
+                folder_icon = self._folder_icon_cache
+            else:
+                try:
+                    import toga
+                    folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                    if folder_icon_path.exists():
+                        folder_icon = toga.Image(str(folder_icon_path))
+                        self._folder_icon_cache = folder_icon  # Cache for future use
+                        logger.info(f"✅ Loaded collection folder icon (cached)")
+                    else:
+                        logger.warning(f"❌ Folder icon not found at: {folder_icon_path}")
+                except Exception as e:
+                    logger.error(f"Failed to load folder icon: {e}", exc_info=True)
 
             for collection in self.collections:
                 collection_id = collection.get('id', '')
@@ -227,21 +240,8 @@ class LibraryView(BaseView, ViewCommandMixin):
 
                 # Format subtitle with storage stats
                 item_count = collection.get('item_count', 0)
-                storage_stats = collection.get('storage_stats', {})
-                local_count = storage_stats.get('local', 0)
-                external_count = storage_stats.get('external', 0)
-                url_count = storage_stats.get('url', 0)
-
-                # Build subtitle with emojis for storage types
-                subtitle_parts = [f"{item_count} items"]
-                if local_count > 0:
-                    subtitle_parts.append(f"📁 {local_count}")
-                if external_count > 0:
-                    subtitle_parts.append(f"🔗 {external_count}")
-                if url_count > 0:
-                    subtitle_parts.append(f"🌐 {url_count}")
-
-                subtitle = " • ".join(subtitle_parts)
+                # Simple item count - no storage type breakdown
+                subtitle = f"{item_count} items"
 
                 formatted_item = {
                     'id': collection_id,
@@ -391,9 +391,9 @@ class LibraryView(BaseView, ViewCommandMixin):
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', '')
 
-                logger.info(f"Collection selected: {collection_name}")
+                logger.info(f"Collection selected: {collection_name} (ID: {collection_id})")
 
-                # Always navigate - use fixed swipe actions for editing
+                # Store selected collection
                 self.selected_collection = collection
 
                 # Update inspector with collection metadata
@@ -407,9 +407,17 @@ class LibraryView(BaseView, ViewCommandMixin):
                 else:
                     logger.warning("📋 Inspector window not available!")
 
-                # Navigate to collection if callback is registered
+                # Navigate to collection via callback (called only once)
                 if self.on_collection_selected:
+                    logger.info(f"🔄 Calling navigation callback for {collection_name}")
                     self.on_collection_selected(collection_id, collection_name)
+            else:
+                # No selection or selection cleared - clear the center pane
+                logger.info("❌ No collection selected - clearing center pane")
+                if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                    if hasattr(self.app.main_window_wrapper, 'center_pane') and self.app.main_window_wrapper.center_pane:
+                        self.app.main_window_wrapper.center_pane.clear()
+                        logger.info("📭 Center pane cleared")
 
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
@@ -571,10 +579,10 @@ class LibraryView(BaseView, ViewCommandMixin):
                 self.on_add_collection()
 
     def _on_new_collection(self, widget=None):
-        """Handle new collection command (Cmd+N) - creates empty collection"""
-        logger.debug("New collection requested")
+        """Handle new collection command (Cmd+N) - creates empty local collection"""
+        logger.debug("New local collection requested")
         try:
-            # Create a new empty collection using library system
+            # Create a new empty collection in library folder with default name
             self._add_collection_with_library()
         except Exception as e:
             logger.error(f"Failed to create new collection: {e}")
@@ -583,6 +591,89 @@ class LibraryView(BaseView, ViewCommandMixin):
                 self._show_message("Error", f"Failed to create new collection: {str(e)}")
             except:
                 logger.error("Could not show error dialog")
+
+    def _on_new_collection_from_folder(self, widget=None):
+        """Handle new collection from folder command - creates external collection at chosen location"""
+        logger.debug("New external collection requested")
+        try:
+            # Show save dialog to choose location and name
+            import asyncio
+            asyncio.create_task(self._create_external_collection())
+        except Exception as e:
+            logger.error(f"Failed to create external collection: {e}")
+            try:
+                self._show_message("Error", f"Failed to create external collection: {str(e)}")
+            except:
+                logger.error("Could not show error dialog")
+
+    async def _create_external_collection(self):
+        """Show save dialog and create external collection at chosen location"""
+        try:
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show folder selection dialog (user picks location)
+            # Note: Toga doesn't have a "save as" dialog, so we use folder picker
+            # User will need to type the folder name in the OS dialog
+            import toga
+            selected_path = await window.dialog(
+                toga.SelectFolderDialog(
+                    title=_("Choose Location and Name for New Collection"),
+                    initial_directory=None
+                )
+            )
+
+            if selected_path:
+                from pathlib import Path
+                collection_path = Path(selected_path)
+                collection_name = collection_path.name
+
+                logger.info(f"📝 Creating external collection: {collection_name} at {collection_path}")
+
+                # Create collection using the library service
+                if self.library_service:
+                    logger.debug(f"🔧 Calling library_service.add_collection_for_ui with:")
+                    logger.debug(f"   name={collection_name}")
+                    logger.debug(f"   collection_type=external")
+                    logger.debug(f"   source_path={collection_path}")
+
+                    # Add collection via library service
+                    collection_id = await self.library_service.add_collection_for_ui(
+                        name=collection_name,
+                        collection_type="external",
+                        source_path=str(collection_path),
+                        description=""
+                    )
+
+                    if collection_id:
+                        logger.info(f"✅ External collection '{collection_name}' created with ID: {collection_id}")
+                        logger.debug(f"🔄 Refreshing collections view...")
+
+                        # Refresh the collections view
+                        await self.refresh_collections()
+
+                        logger.debug(f"📂 Opening newly created collection: {collection_id}")
+
+                        # Automatically open the newly created collection
+                        if self.on_collection_selected:
+                            logger.debug(f"🎯 Calling on_collection_selected({collection_id}, {collection_name})")
+                            self.on_collection_selected(collection_id, collection_name)
+                    else:
+                        logger.error("Failed to create external collection")
+                        self._show_message("Error", "Failed to create collection. Please try again.")
+                else:
+                    logger.error("Library service not available")
+                    self._show_message("Error", "Library system not available.")
+            else:
+                logger.info("Collection creation cancelled")
+
+        except Exception as e:
+            logger.error(f"Failed to create external collection: {e}")
+            self._show_message("Error", f"Failed to create collection: {str(e)}")
 
     def _on_edit_collection(self, widget=None):
         """Handle edit collection action"""
@@ -726,62 +817,82 @@ class LibraryView(BaseView, ViewCommandMixin):
             if hasattr(self, 'on_export_collection') and self.on_export_collection:
                 self.on_export_collection()
     
-    def _add_collection_with_library(self):
-        """Add collection using the library system"""
+    async def _get_unique_collection_name(self, base_name: str = "Untitled Collection") -> str:
+        """Get a unique collection name by adding numbers if needed (macOS style)"""
         try:
-            # Create a new collection with a simple name
-            collection_name = f"Collection {len(self.collections) + 1}"
-            
-            # Create collection using the library system
+            # Get all existing collections
+            collections = await self.library_service.get_collections_for_ui()
+            existing_names = {c['name'] for c in collections}
+
+            # If base name is available, use it
+            if base_name not in existing_names:
+                return base_name
+
+            # Otherwise, find the next available number
+            counter = 2
+            while f"{base_name} {counter}" in existing_names:
+                counter += 1
+
+            return f"{base_name} {counter}"
+
+        except Exception as e:
+            logger.error(f"Failed to generate unique name: {e}")
+            # Fallback to base name
+            return base_name
+
+    def _add_collection_with_library(self):
+        """Add local collection using the library system - creates 'Untitled Collection'"""
+        try:
+            # Create collection using the library service
             if self.library_service:
-                # Create a new collection model
-                from fichero.library.models import Collection
-                
-                new_collection = Collection(
-                    name=collection_name,
-                    type="local",
-                    metadata={"description": "New collection created via UI"}
-                )
-                
-                # Add to library storage
-                success = self.library_service.storage.add_collection(new_collection)
-                if success:
-                    logger.info(f"Collection '{collection_name}' added via library system")
-                    
-                    # Add to local collections list for UI
-                    collection_data = {
-                        'id': new_collection.id,
-                        'name': new_collection.name,
-                        'type': new_collection.type,
-                        'description': new_collection.metadata.get('description', ''),
-                        'item_count': 0,
-                        'active': True,
-                        'created_at': new_collection.created_at,
-                        'updated_at': new_collection.updated_at,
-                        'source_path': new_collection.source_path,
-                        'local_path': new_collection.local_path
-                    }
-                    self.collections.append(collection_data)
-                    
-                    # Sort collections by name
-                    self.collections.sort(key=lambda x: x['name'])
-                    
-                    # Update the UI
-                    self._refresh_collections_display()
-                    
-                    # Show success message
-                    self._show_message("Success", f"Collection '{collection_name}' has been created.")
-                    
-                else:
-                    logger.error("Failed to add collection via library system")
-                    self._show_message("Error", "Failed to create collection. Please try again.")
-                    
+                import asyncio
+                asyncio.create_task(self._create_local_collection_with_unique_name())
             else:
-                logger.error("Library manager not available")
+                logger.error("Library service not available")
                 self._show_message("Error", "Library system not available. Please restart the application.")
-                
+
         except Exception as e:
             logger.error(f"Library system integration failed: {e}")
+            self._show_message("Error", f"Failed to create collection: {str(e)}")
+
+    async def _create_local_collection_with_unique_name(self):
+        """Create local collection with auto-incremented name if needed"""
+        try:
+            # Get unique name
+            collection_name = await self._get_unique_collection_name("Untitled Collection")
+
+            # Create collection
+            await self._create_local_collection(collection_name)
+
+        except Exception as e:
+            logger.error(f"Failed to create local collection with unique name: {e}")
+            self._show_message("Error", f"Failed to create collection: {str(e)}")
+
+    async def _create_local_collection(self, collection_name: str):
+        """Create local collection via library service"""
+        try:
+            # Add collection via library service
+            collection_id = await self.library_service.add_collection_for_ui(
+                name=collection_name,
+                collection_type="local",
+                source_path=None,
+                description=""
+            )
+
+            if collection_id:
+                logger.info(f"Local collection '{collection_name}' created with ID: {collection_id}")
+                # Refresh the collections view
+                await self.refresh_collections()
+
+                # Automatically open the newly created collection
+                if self.on_collection_selected:
+                    self.on_collection_selected(collection_id, collection_name)
+            else:
+                logger.error("Failed to create local collection")
+                self._show_message("Error", "Failed to create collection. Please try again.")
+
+        except Exception as e:
+            logger.error(f"Failed to create local collection: {e}")
             self._show_message("Error", f"Failed to create collection: {str(e)}")
     
     def _import_collection_with_library(self):
@@ -1157,14 +1268,12 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to clear collections from management: {e}")
     
-    def refresh_collections(self):
+    async def refresh_collections(self):
         """Refresh the collections display"""
         try:
-            # Simply reload collections from database - this is the most reliable approach
-            import asyncio
-            asyncio.create_task(self._load_collections_async())
-
-            logger.debug("Collections display refresh initiated")
+            # Reload collections from database and wait for completion
+            await self._load_collections_async()
+            logger.debug("Collections display refreshed")
 
         except Exception as e:
             logger.error(f"Failed to refresh collections: {e}")
@@ -1213,16 +1322,32 @@ class LibraryView(BaseView, ViewCommandMixin):
                 # ===== FILE MENU - NEW COLLECTION =====
                 'new_collection': FicheroCommand(
                     id=f'{self.view_id}.new_collection',
-                    label=_("New Collection…"),
+                    label=_("New Collection"),
                     action=self._on_new_collection,
                     shortcut=toga.Key.MOD_1 + 'n',  # Cmd+N (standard Mac shortcut for New)
                     icon='resources/icons/toolbar/folder@10x.png',  # Folder icon for new collection
-                    description=_("Create a new empty collection"),
+                    description=_("Create a new collection in library folder"),
                     group=toga.Group.FILE,  # File menu on desktop
                     section=0,  # First section of File menu
                     order=0,  # First item in section
                     show_in_menu=True,  # Appear in File menu on desktop
                     show_in_toolbar=True,  # Show in desktop toolbar
+                    show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
+                    desktop_only=True,  # Only show on desktop
+                    context='normal'  # Always visible on desktop
+                ),
+
+                'new_collection_from_folder': FicheroCommand(
+                    id=f'{self.view_id}.new_collection_from_folder',
+                    label=_("New External Collection…"),
+                    action=self._on_new_collection_from_folder,
+                    icon='resources/icons/toolbar/folder@10x.png',
+                    description=_("Create a new collection at external location"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    section=0,  # Same section as New Collection
+                    order=1,  # Second item in section (after New Collection)
+                    show_in_menu=True,  # Appear in File menu on desktop
+                    show_in_toolbar=False,  # NOT in toolbar (menu only)
                     show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
                     desktop_only=True,  # Only show on desktop
                     context='normal'  # Always visible on desktop
@@ -1244,96 +1369,9 @@ class LibraryView(BaseView, ViewCommandMixin):
                     context='normal'  # Always visible on desktop
                 ),
 
-                # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
-                # These commands are nested under the Import submenu in menus
-                # But also appear as individual toolbar buttons on desktop
-                'import_file': FicheroCommand(
-                    id=f'{self.view_id}.import_file',
-                    label=_("File…"),
-                    action=self._on_import_files,
-                    icon='resources/icons/toolbar/document.png',
-                    description=_("Import files from disk"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
-                    section=1,  # Same section as parent Import command
-                    order=0,  # First item in Import submenu
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
-                    show_in_top_toolbar=True,  # FIXED: Show in desktop top toolbar ✅
-                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop, not mobile
-                    context='normal'  # Always visible on desktop
-                ),
-
-                'import_folder': FicheroCommand(
-                    id=f'{self.view_id}.import_folder',
-                    label=_("Folder…"),
-                    action=self._on_import_folder,
-                    icon='resources/icons/toolbar/folder@10x.png',
-                    description=_("Import folder from disk"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
-                    section=1,  # Same section as parent Import command
-                    order=1,  # Second item in Import submenu
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar as individual button
-                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop, not mobile
-                    context='normal'  # Always visible on desktop
-                ),
-
-                'import_url': FicheroCommand(
-                    id=f'{self.view_id}.import_url',
-                    label=_("URL…"),
-                    action=self._on_import_urls,
-                    icon='resources/icons/toolbar/link.png',
-                    description=_("Import from URL"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
-                    section=1,  # Same section as parent Import command
-                    order=2,  # Third item in Import submenu
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar as individual button
-                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop, not mobile
-                    context='normal'  # Always visible on desktop
-                ),
-
-                # ===== FILE MENU - IMPORT SUBMENU LINK ITEMS (MENU ONLY) =====
-                # These appear in Import submenu AFTER a separator
-                # They do NOT appear in toolbars
-                'link_file': FicheroCommand(
-                    id=f'{self.view_id}.link_file',
-                    label=_("Link File…"),
-                    action=self._on_link_file,
-                    icon='resources/icons/toolbar/document.png',
-                    description=_("Link to file (reference only, no copy)"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
-                    section=2,  # New section - creates separator above
-                    order=0,  # First item in link section
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
-                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
-                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop, not mobile
-                    context='normal'  # Always visible on desktop
-                ),
-
-                'link_folder': FicheroCommand(
-                    id=f'{self.view_id}.link_folder',
-                    label=_("Link Folder…"),
-                    action=self._on_link_folder,
-                    icon='resources/icons/toolbar/folder@10x.png',
-                    description=_("Link to folder (reference only, no copy)"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    parent=f'{self.view_id}.import',  # Nested under Import submenu in menu
-                    section=2,  # Same section as link commands
-                    order=1,  # Second item in link section
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
-                    show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
-                    show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop, not mobile
-                    context='normal'  # Always visible on desktop
-                ),
+                # NOTE: Import commands (File, Folder, URL, Link File, Link Folder)
+                # have been MOVED to Collection View as of STEP 4.
+                # They now add items to the current collection instead of creating new collections.
 
                 # ===== WINDOW NAVIGATION COMMANDS =====
                 # Desktop: Application/Window menus | Mobile: Bottom toolbar
@@ -1902,21 +1940,159 @@ class LibraryView(BaseView, ViewCommandMixin):
             self.app.main_window.error_dialog(_("Export Error"), str(e))
 
     def _on_import_urls(self, widget=None):
-        """Handle URL import - navigate to URL add view"""
+        """Handle URL import - opens URL add view with selected collection context"""
         try:
-            logger.info("Import URLs requested")
-            # Use NavigationController to navigate to URL add view
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    nav_controller.navigate_to_add_url()
-                else:
-                    logger.error("NavigationController not available")
+            logger.info("Import URLs requested from library view")
+
+            # Check if a collection is selected
+            if not self.selected_collection:
+                logger.warning("No collection selected - cannot import URL")
+                return
+
+            collection_id = self.selected_collection.get('id')
+            logger.info(f"Importing URL to selected collection: {collection_id}")
+
+            # Import URLAddView and create window (same pattern as collection_view)
+            from fichero.windows.add.views.url_view import URLAddView
+            import toga
+
+            # Create callback that uses the selected collection_id
+            def on_url_added_with_context(data):
+                return self._on_url_added_with_collection(data, collection_id)
+
+            url_view = URLAddView(
+                app=self.app,
+                on_content_added=on_url_added_with_context
+            )
+
+            # Desktop: create new window
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                add_window = toga.Window(
+                    title="Import URL",
+                    size=(600, 400),
+                    resizable=True
+                )
+                add_window.content = url_view.container
+                url_view.window = add_window
+                add_window.show()
+                logger.info("URL add window shown")
             else:
-                logger.error("view_integration not available")
+                logger.error("main_window_wrapper not available")
 
         except Exception as e:
             logger.error(f"Failed to open URL import: {e}")
+
+    def _on_url_added_with_collection(self, data: dict, collection_id: str):
+        """Callback when URL is added - uses specified collection_id"""
+        try:
+            url = data.get('url', '')
+            logger.info(f"URL added callback received: {url}, collection_id={collection_id}")
+
+            # Add URL to the specified collection using library service
+            import asyncio
+            asyncio.create_task(self._add_url_to_collection_async(url, collection_id))
+
+        except Exception as e:
+            logger.error(f"Failed to handle URL add callback: {e}")
+
+    async def _add_url_to_collection_async(self, url: str, collection_id: str):
+        """Add URL to collection asynchronously"""
+        try:
+            logger.info(f"Adding URL '{url}' to collection {collection_id}")
+
+            # Use library service to import URL
+            await self.app.library_service.import_urls_for_ui(
+                collection_id=collection_id,
+                urls=[url]
+            )
+
+            # Refresh the library view to show updated collection
+            self._load_collections()
+            logger.info(f"✅ URL added to collection successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to add URL to collection: {e}")
+
+    async def _select_and_add_files_async(self, collection_id: str, operation: str = "link"):
+        """Show file selection dialog and add selected files to collection"""
+        try:
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show file selection dialog (can select multiple files)
+            # Support all common image formats plus documents
+            import toga
+            selected_paths = await window.dialog(
+                toga.OpenFileDialog(
+                    title=_("Select Files to Add"),
+                    initial_directory=None,
+                    multiple_select=True,
+                    file_types=['tif', 'tiff', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'jxl',
+                               'pdf', 'heic', 'heif', 'raw', 'cr2', 'nef', 'arw', 'dng']
+                )
+            )
+
+            if selected_paths:
+                logger.info(f"{len(selected_paths)} file(s) selected, operation={operation}")
+                # Add files to collection using library service
+                for file_path in selected_paths:
+                    await self.app.library_service.add_item_to_collection_for_ui(
+                        collection_id=collection_id,
+                        item_type="file",
+                        source=str(file_path),
+                        operation=operation
+                    )
+
+                # Refresh the library view
+                self._load_collections()
+                logger.info(f"✅ Files added to collection successfully")
+            else:
+                logger.info("File selection cancelled")
+
+        except Exception as e:
+            logger.error(f"Failed to select and add files: {e}")
+
+    async def _select_and_add_folder_async(self, collection_id: str, operation: str = "link"):
+        """Show folder selection dialog and add selected folder to collection"""
+        try:
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show folder selection dialog
+            import toga
+            selected_path = await window.dialog(
+                toga.SelectFolderDialog(
+                    title=_("Select Folder to Add"),
+                    initial_directory=None
+                )
+            )
+
+            if selected_path:
+                logger.info(f"Folder selected: {selected_path}, operation={operation}")
+                # Add folder to collection using library service
+                await self.app.library_service.add_item_to_collection_for_ui(
+                    collection_id=collection_id,
+                    item_type="folder",
+                    source=str(selected_path),
+                    operation=operation
+                )
+
+                # Refresh the library view
+                self._load_collections()
+                logger.info(f"✅ Folder added to collection successfully")
+            else:
+                logger.info("Folder selection cancelled")
+
+        except Exception as e:
+            logger.error(f"Failed to select and add folder: {e}")
 
     def _on_import_bulk(self, widget=None):
         """Handle bulk import - not yet implemented in NavigationController"""
@@ -1930,35 +2106,41 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to open bulk import: {e}")
 
     def _on_import_files(self, widget=None):
-        """Handle file import - navigate to File add view"""
+        """Handle file import - opens native dialog and copies files to collection"""
         try:
-            logger.info("Import files requested")
-            # Use NavigationController to navigate to file add view (opens native dialog on desktop)
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    nav_controller.navigate_to_add_file()
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            logger.info("Import files requested (copy operation)")
+
+            # Check if a collection is selected
+            if not self.selected_collection:
+                logger.warning("No collection selected - cannot import files")
+                return
+
+            collection_id = self.selected_collection.get('id')
+            logger.info(f"Importing files to selected collection: {collection_id}")
+
+            # Open native file dialog and add files
+            import asyncio
+            asyncio.create_task(self._select_and_add_files_async(collection_id, operation="copy"))
 
         except Exception as e:
             logger.error(f"Failed to open file import: {e}")
 
     def _on_import_folder(self, widget=None):
-        """Handle folder import - navigate to Folder add view"""
+        """Handle folder import - opens native dialog and copies folder to collection"""
         try:
-            logger.info("Import folder requested")
-            # Use NavigationController to navigate to folder add view (opens native dialog on desktop)
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    nav_controller.navigate_to_add_folder()
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            logger.info("Import folder requested (copy operation)")
+
+            # Check if a collection is selected
+            if not self.selected_collection:
+                logger.warning("No collection selected - cannot import folder")
+                return
+
+            collection_id = self.selected_collection.get('id')
+            logger.info(f"Importing folder to selected collection: {collection_id}")
+
+            # Open native folder dialog and add folder
+            import asyncio
+            asyncio.create_task(self._select_and_add_folder_async(collection_id, operation="copy"))
 
         except Exception as e:
             logger.error(f"Failed to open folder import: {e}")
@@ -1966,19 +2148,19 @@ class LibraryView(BaseView, ViewCommandMixin):
     def _on_link_file(self, widget=None):
         """Handle link file - opens native dialog and links (not copies) selected files"""
         try:
-            logger.info("Link file requested")
-            # Store that this is a link operation for the callback BEFORE navigation
-            self._pending_operation = 'link'
+            logger.info("Link file requested (link operation)")
 
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    # Navigate to file add view - callback will check _pending_operation
-                    nav_controller.navigate_to_add_file()
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            # Check if a collection is selected
+            if not self.selected_collection:
+                logger.warning("No collection selected - cannot link files")
+                return
+
+            collection_id = self.selected_collection.get('id')
+            logger.info(f"Linking files to selected collection: {collection_id}")
+
+            # Open native file dialog and link files
+            import asyncio
+            asyncio.create_task(self._select_and_add_files_async(collection_id, operation="link"))
 
         except Exception as e:
             logger.error(f"Failed to open link file: {e}")
@@ -1986,19 +2168,19 @@ class LibraryView(BaseView, ViewCommandMixin):
     def _on_link_folder(self, widget=None):
         """Handle link folder - opens native dialog and links (not copies) selected folder"""
         try:
-            logger.info("Link folder requested")
-            # Store that this is a link operation for the callback BEFORE navigation
-            self._pending_operation = 'link'
+            logger.info("Link folder requested (link operation)")
 
-            if hasattr(self.app, 'view_integration'):
-                nav_controller = self.app.view_integration.get_navigation_controller()
-                if nav_controller:
-                    # Navigate to folder add view - callback will check _pending_operation
-                    nav_controller.navigate_to_add_folder()
-                else:
-                    logger.error("NavigationController not available")
-            else:
-                logger.error("view_integration not available")
+            # Check if a collection is selected
+            if not self.selected_collection:
+                logger.warning("No collection selected - cannot link folder")
+                return
+
+            collection_id = self.selected_collection.get('id')
+            logger.info(f"Linking folder to selected collection: {collection_id}")
+
+            # Open native folder dialog and link folder
+            import asyncio
+            asyncio.create_task(self._select_and_add_folder_async(collection_id, operation="link"))
 
         except Exception as e:
             logger.error(f"Failed to open link folder: {e}")
@@ -2339,6 +2521,79 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle collection_updated event: {e}")
 
+    def _on_folder_import_started_event(self, event):
+        """Handle folder import started - update collection subtitle"""
+        try:
+            collection_id = event.data.get("collection_id")
+            folder_name = event.data.get("folder_name", "folder")
+
+            # Track this import
+            self.importing_collections[collection_id] = {
+                "folder_name": folder_name,
+                "count": 0
+            }
+
+            # Update the collection's subtitle in the DetailedList
+            self._update_collection_subtitle(collection_id, f"Importing {folder_name}...")
+
+            logger.info(f"📁 Started importing {folder_name} to collection {collection_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_started event: {e}")
+
+    def _on_folder_import_progress_event(self, event):
+        """Handle folder import progress - update count in subtitle"""
+        try:
+            collection_id = event.data.get("collection_id")
+            total_processed = event.data.get("total_processed", 0)
+
+            if collection_id in self.importing_collections:
+                self.importing_collections[collection_id]["count"] = total_processed
+                folder_name = self.importing_collections[collection_id]["folder_name"]
+
+                # Update subtitle with count
+                self._update_collection_subtitle(collection_id, f"Importing {folder_name}... ({total_processed} files)")
+
+                logger.debug(f"📁 Import progress: {total_processed} files")
+
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_progress event: {e}")
+
+    def _on_folder_import_completed_event(self, event):
+        """Handle folder import completed - clear importing status"""
+        try:
+            collection_id = event.data.get("collection_id")
+            added = event.data.get("added", 0)
+
+            # Remove from importing collections
+            if collection_id in self.importing_collections:
+                del self.importing_collections[collection_id]
+
+            # Subtitle will be updated when collection_items_changed event fires
+            logger.info(f"✅ Import completed: {added} files added")
+
+        except Exception as e:
+            logger.error(f"Failed to handle folder_import_completed event: {e}")
+
+    def _update_collection_subtitle(self, collection_id: str, subtitle: str):
+        """Update the subtitle for a collection in the DetailedList"""
+        try:
+            # DISABLED: Updating subtitles during import causes hundreds of full refreshes
+            # and freezes the app. Toga's DetailedList doesn't support partial updates.
+            # The subtitle will be correct when the user refreshes or navigates back.
+
+            # Find the collection in our list and update the data (but don't refresh UI)
+            for collection in self.collections:
+                if collection.get("id") == collection_id:
+                    # Update the subtitle in memory only
+                    collection["subtitle"] = subtitle
+                    logger.debug(f"Updated subtitle for collection {collection_id}: {subtitle}")
+                    break
+
+            # DO NOT call self._create_content() here - it causes app freeze during large imports
+
+        except Exception as e:
+            logger.error(f"Failed to update collection subtitle: {e}")
 
     def get_selection_metadata(self) -> str:
         """Get metadata for the currently selected collection"""

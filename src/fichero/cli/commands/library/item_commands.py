@@ -169,13 +169,42 @@ class ItemCommands(BaseLibraryCommands):
     async def _remove_item(self, item_id: str):
         """Remove an item from collection"""
         try:
-            # Note: This would need to be implemented in LibraryManager
-            # For now, just show that it's not implemented
-            self.console.print(f"[yellow]⚠️ Remove item functionality not yet implemented[/yellow]")
-            self.console.print(f"[blue]Item ID: {item_id}[/blue]")
-            
+            # Get item details before deletion for confirmation
+            item = await self.library_manager.get_item(item_id)
+            if not item:
+                self.console.print(f"[red]❌ Item not found: {item_id}[/red]")
+                return
+
+            item_name = item.name
+            item_type = item.type
+            storage_type = item.storage_type
+
+            # Show what will be deleted
+            self.console.print(f"[yellow]⚠️  About to delete item:[/yellow]")
+            self.console.print(f"   Name: {item_name}")
+            self.console.print(f"   Type: {item_type}")
+            self.console.print(f"   Storage: {storage_type}")
+            if storage_type == 'local' and item.local_path:
+                self.console.print(f"   [red]Local files will be deleted: {item.local_path}[/red]")
+
+            # Confirm deletion
+            confirm = typer.confirm("Are you sure you want to delete this item?")
+            if not confirm:
+                self.console.print("[yellow]Deletion cancelled[/yellow]")
+                return
+
+            # Delete item
+            success = await self.library_manager.delete_collection_item(item_id)
+
+            if success:
+                self.console.print(f"[green]✅ Successfully deleted item: {item_name}[/green]")
+            else:
+                self.console.print(f"[red]❌ Failed to delete item: {item_name}[/red]")
+
         except Exception as e:
             self.console.print(f"[red]Failed to remove item: {e}[/red]")
+            import traceback
+            traceback.print_exc()
     
     async def _update_item(self, item_id: str, status: Optional[str], metadata: Optional[str]):
         """Update item status or metadata"""

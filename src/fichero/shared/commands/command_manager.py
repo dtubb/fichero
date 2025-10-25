@@ -280,8 +280,19 @@ class CommandManager:
             if label_key not in self._command_handlers_by_label:
                 self._command_handlers_by_label[label_key] = []
 
-            # Add this command as a handler for this label
-            self._command_handlers_by_label[label_key].append(command)
+            # Remove any existing handlers for the same view_id to prevent stale handlers
+            # Extract view_id from command.id (format: "view_id.command_name")
+            view_id = command.id.split('.')[0] if '.' in command.id else None
+            if view_id:
+                # Remove old handlers from the same view
+                self._command_handlers_by_label[label_key] = [
+                    h for h in self._command_handlers_by_label[label_key]
+                    if not h.id.startswith(f"{view_id}.")
+                ]
+                logger.debug(f"Removed old handlers for view '{view_id}' from label '{command.label}'")
+
+            # Add this command as a handler for this label (insert at beginning for priority)
+            self._command_handlers_by_label[label_key].insert(0, command)
 
             # Check if we already have a menu item with this label
             has_existing_menu_item = any(
