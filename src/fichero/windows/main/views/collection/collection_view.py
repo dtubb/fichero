@@ -54,8 +54,8 @@ class CollectionView(BaseView, ViewCommandMixin):
         self._updating_from_navigation_callback = False
 
         # Set view_id BEFORE initializing ViewCommandMixin
-        # Use collection_id to make this instance unique (prevents command handler conflicts)
-        self.view_id = f"collection_{collection_id}" if collection_id else "collection"
+        # Always use "collection" since we cache a single reusable instance
+        self.view_id = "collection"
 
         # Call parent initializer AFTER initializing our attributes
         super().__init__(app, is_mobile)
@@ -99,6 +99,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         if not hasattr(self, '_events_subscribed'):
             from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
             subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
+            subscribe_to_navigation("collection_updated", self._on_collection_updated_event)
             subscribe_to_navigation("collection_items_changed", self._on_collection_items_changed_event)
             subscribe_to_navigation("collection_item_updated", self._on_item_progress_updated)
             subscribe_to_navigation("processing_completed", self._on_processing_completed)
@@ -117,6 +118,44 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         logger.info("Refactored collection view created successfully")
 
+    def _get_current_collection_id(self) -> Optional[str]:
+        """
+        Get the CURRENT collection ID from NavigationController, not from instance state.
+        This makes command handlers stateless.
+        """
+        try:
+            # Get navigation controller from app
+            if not hasattr(self.app, 'view_integration') or not self.app.view_integration:
+                logger.warning("No view_integration found in app")
+                return None
+
+            nav_controller = self.app.view_integration.get_navigation_controller()
+            if not nav_controller:
+                logger.warning("NavigationController not available")
+                return None
+
+            # First try to use the view's own collection_id (more reliable)
+            if hasattr(self, 'collection_id') and self.collection_id:
+                logger.debug(f"📍 Using view's collection_id: {self.collection_id}")
+                return self.collection_id
+
+            # Fall back to NavigationController if instance variable not set
+            current_state = nav_controller.get_current_state()
+
+            # Check if we're in a collection context
+            from fichero.shared.navigation.navigation_state import NavigationContext
+            if current_state.context != NavigationContext.COLLECTION:
+                logger.warning(f"Not in collection context (current: {current_state.context})")
+                return None
+
+            collection_id = current_state.collection_id
+            logger.debug(f"📍 Current collection_id from NavigationController: {collection_id}")
+            return collection_id
+
+        except Exception as e:
+            logger.error(f"Failed to get current collection ID: {e}")
+            return None
+
     def define_commands(self):
         """Define all commands for CollectionView"""
         try:
@@ -125,47 +164,26 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             # Note: _() is available globally via gettext.install() in app.py
             self.commands = {
-                # ===== TOOLS MENU - PROCESS SELECTED COMMAND =====
-                'process_selected': FicheroCommand(
-                    id='collection.process_selected',
-                    label=_("Process Selected"),
-                    action=self._on_process_selected_requested,
+                # ===== TOOLS MENU - SMART PROCESS COMMAND =====
+                'process': FicheroCommand(
+                    id='collection.process',
+                    label=_("Process"),
+                    action=self._on_process_requested,
                     shortcut=toga.Key.MOD_1 + toga.Key.ENTER,  # Cmd+Enter
-                    icon='resources/icons/toolbar/sparkle@10x.png',  # Single sparkle for selected item
-                    description=_("Process selected item with Fichero Director"),
+                    icon='resources/icons/toolbar/sparkle@10x.png',
+                    description=_("Process selected item or all items"),
                     group=tools_group,  # Tools menu on desktop
-                    section=1,  # Section 1 = separator after Inspector (section=-1), before OutputView (section=0)
+                    section=1,  # Section 1 = separator after Inspector
                     order=0,  # First item in this section
                     show_in_menu=True,  # Appear in Tools menu on desktop
                     show_in_toolbar=True,  # Show in desktop toolbar
                     show_in_top_toolbar=False,  # Not in mobile top toolbar
                     show_in_bottom_toolbar=True,  # Mobile bottom toolbar
-                    toolbar_position='center',  # Center on mobile bottom toolbar
+                    toolbar_position='right',  # Right side on mobile bottom toolbar
                     mobile_only=False,  # Available on both platforms
                     desktop_only=False,
                     context='normal',
-                    enabled=False  # Will be enabled when item is selected
-                ),
-
-                # ===== TOOLS MENU - PROCESS ALL COMMAND =====
-                'process_all': FicheroCommand(
-                    id='collection.process_all',
-                    label=_("Process All"),
-                    action=self._on_process_all_requested,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + toga.Key.ENTER,  # Cmd+Shift+Enter
-                    icon='resources/icons/toolbar/sparkles@10x.png',  # Multiple sparkles for all items
-                    description=_("Process all items in current folder with Fichero Director"),
-                    group=tools_group,  # Tools menu on desktop
-                    section=1,  # Same section as Process Selected
-                    order=1,  # Second item in this section (after Process Selected)
-                    show_in_menu=True,  # Appear in Tools menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar
-                    show_in_top_toolbar=False,  # Not in mobile top toolbar
-                    show_in_bottom_toolbar=True,  # Mobile bottom toolbar
-                    toolbar_position='center',  # Center on mobile bottom toolbar
-                    mobile_only=False,  # Available on both platforms
-                    desktop_only=False,
-                    context='normal'
+                    enabled=True  # Always enabled - smart selection detection
                 ),
 
                 # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
@@ -185,8 +203,8 @@ class CollectionView(BaseView, ViewCommandMixin):
                     show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
                     show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
                     show_in_top_toolbar=False,  # NOT in view's custom top toolbar
-                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
-                    desktop_only=False,  # Available on both platforms
+                    show_in_bottom_toolbar=False,  # NOT on mobile (desktop only)
+                    desktop_only=True,  # Desktop only - mobile uses URL and Camera
                     mobile_only=False,
                     context='normal'  # Always visible
                 ),
@@ -204,8 +222,8 @@ class CollectionView(BaseView, ViewCommandMixin):
                     show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
                     show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
                     show_in_top_toolbar=False,  # NOT in view's custom top toolbar
-                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
-                    desktop_only=False,  # Available on both platforms
+                    show_in_bottom_toolbar=False,  # NOT on mobile (desktop only)
+                    desktop_only=True,  # Desktop only - mobile uses URL and Camera
                     mobile_only=False,
                     context='normal'  # Always visible
                 ),
@@ -219,14 +237,33 @@ class CollectionView(BaseView, ViewCommandMixin):
                     group=toga.Group.FILE,  # File menu on desktop
                     parent='collection.import',  # Nested under Import submenu in menu
                     section=1,  # Same section as parent Import command
-                    order=2,  # Third item in Import submenu
+                    order=10,  # Menu order + toolbar order
                     show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
                     show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
                     show_in_top_toolbar=False,  # NOT in view's custom top toolbar
-                    show_in_bottom_toolbar=True,  # Mobile: show in Edit toolbar
+                    show_in_bottom_toolbar=True,  # Mobile: show in bottom toolbar
+                    toolbar_position='left',  # Position on left side of bottom toolbar
                     desktop_only=False,  # Available on both platforms
                     mobile_only=False,
                     context='normal'  # Always visible
+                ),
+
+                # Camera button for normal mode (mobile bottom toolbar)
+                'import_camera': FicheroCommand(
+                    id='collection.import_camera',
+                    label=_("Camera"),
+                    action=self._on_open_camera,
+                    icon='resources/icons/toolbar/camera.png',
+                    description=_("Take photo with camera"),
+                    show_in_menu=False,  # Not in menus
+                    show_in_toolbar=False,  # Not in desktop toolbar
+                    show_in_top_toolbar=False,  # NOT in top toolbar
+                    show_in_bottom_toolbar=True,  # Mobile: show in bottom toolbar
+                    toolbar_position='left',  # Position on left side of bottom toolbar
+                    mobile_only=True,  # Mobile only - camera access
+                    desktop_only=False,
+                    context='normal',  # Always visible (normal mode)
+                    order=11  # Right after URL button
                 ),
 
                 # ===== FILE MENU - IMPORT SUBMENU LINK ITEMS (MENU ONLY) =====
@@ -265,6 +302,56 @@ class CollectionView(BaseView, ViewCommandMixin):
                     desktop_only=True,  # Only show on desktop, not mobile
                     context='normal'  # Always visible on desktop
                 ),
+
+                # ===== EDIT MODE COMMANDS =====
+                # Import URL button for edit mode (mobile bottom toolbar)
+                'edit_import_url': FicheroCommand(
+                    id='collection.edit_import_url',
+                    label=_("Add URL"),
+                    action=self._on_import_url,
+                    icon='resources/icons/toolbar/link.png',
+                    description=_("Import from URL"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=True,  # Mobile only - mobile edit mode
+                    desktop_only=False,
+                    context='edit'
+                ),
+
+                # Camera button for edit mode (mobile bottom toolbar)
+                'edit_camera': FicheroCommand(
+                    id='collection.edit_camera',
+                    label=_("Camera"),
+                    action=self._on_open_camera,
+                    icon='resources/icons/toolbar/camera.png',
+                    description=_("Take photo with camera"),
+                    show_in_menu=False,
+                    show_in_bottom_toolbar=True,
+                    toolbar_position='center',
+                    mobile_only=True,  # Mobile only - camera access
+                    desktop_only=False,
+                    context='edit'
+                ),
+
+                # ===== MOBILE TOP TOOLBAR - INSPECTOR BUTTON =====
+                'show_inspector': FicheroCommand(
+                    id='collection.show_inspector',
+                    label=_("Info"),
+                    action=self._on_show_inspector,
+                    icon='resources/icons/toolbar/info.circle@10x.png',
+                    description=_("Show inspector for selected item"),
+                    show_in_menu=False,  # Not in menus
+                    show_in_toolbar=False,  # Not in desktop toolbar
+                    show_in_top_toolbar=True,  # Mobile top toolbar
+                    toolbar_position='right',  # Right side of toolbar
+                    show_in_bottom_toolbar=False,  # Not in bottom toolbar
+                    mobile_only=True,  # Only on mobile
+                    desktop_only=False,
+                    context='normal',
+                    order=99,  # Last on right side (rightmost)
+                    enabled=False  # Will be enabled when item is selected
+                ),
             }
 
             logger.info(f"✅ Defined {len(self.commands)} commands for CollectionView")
@@ -299,45 +386,37 @@ class CollectionView(BaseView, ViewCommandMixin):
                 self.content_container.clear()
             
             # Add current folder header (shows what folder we're currently viewing)
-            # Show on both mobile and desktop, always show current location
-            content_title = self._get_content_title()
-            if content_title:
-                folder_header = toga.Label(
-                    content_title,
-                    style=Pack(
-                        margin=(15, 20, 10, 20),
-                        # Use default font size (no font_size specified)
-                        font_weight="bold",
-                        color=self.text_color
+            # Only show when we have a collection selected
+            if hasattr(self, 'collection_id') and self.collection_id:
+                content_title = self._get_content_title()
+                if content_title:
+                    self.folder_header = toga.Label(
+                        content_title,
+                        style=Pack(
+                            margin=(15, 20, 10, 20),
+                            # Use default font size (no font_size specified)
+                            font_weight="bold",
+                            color=self.text_color
+                        )
                     )
-                )
-                self.content_container.add(folder_header)
+                    self.content_container.add(self.folder_header)
             
-            # Show collection items if we have them, otherwise show placeholder
-            if hasattr(self, 'collection_items') and self.collection_items:
-                logger.debug(f"Displaying {len(self.collection_items)} collection items")
-                self._create_collection_items_list(self.collection_items)
+            # Always show DetailedList (even if empty) - Mac style
+            # On Mac, empty folders just show an empty list, not a placeholder message
+            items_to_display = self.collection_items if hasattr(self, 'collection_items') else []
+
+            if hasattr(self, 'collection_id') and self.collection_id:
+                # We have a collection - show its items (or empty list)
+                logger.debug(f"Displaying {len(items_to_display)} collection items")
+                self._create_collection_items_list(items_to_display)
             else:
-                # Show placeholder message
-                if hasattr(self, 'collection_id') and self.collection_id:
-                    placeholder = toga.Label(
-                        f"This folder is empty.\n\nUse the toolbar to add files and folders.",
-                        style=Pack(
-                            margin=(10, 20),
-                            color=self.text_color
-                        )
-                    )
-                else:
-                    placeholder = toga.Label(
-                        "Select a collection from the left pane to view its items",
-                        style=Pack(
-                            margin=(10, 20),
-                            color=self.text_color
-                        )
-                    )
-                if self.content_container:
-                    self.content_container.add(placeholder)
-            
+                # No collection selected - just show empty pane (no placeholder text)
+                # The back button and toolbar remain available for navigation
+                logger.debug("No collection selected - showing empty pane")
+
+            # Update toolbar navigation state (show/hide back button based on path)
+            self._update_toolbar_navigation()
+
         except Exception as e:
             logger.error(f"Failed to create collection content: {e}")
 
@@ -380,10 +459,26 @@ class CollectionView(BaseView, ViewCommandMixin):
         """Handle hierarchical back navigation using NavigationController"""
         try:
             logger.info("Collection toolbar: Back navigation requested via NavigationController")
+
+            # Clear output view when navigating back (going to folder/collection root)
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                main_window = self.app.main_window_wrapper
+                if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                    logger.info("📤 Clearing output view (back button clicked)")
+                    main_window.cached_output_view.load_output()
+
             if hasattr(self.app, 'view_integration') and self.app.view_integration:
                 navigation_controller = self.app.view_integration.get_navigation_controller()
                 if navigation_controller:
                     navigation_controller.navigate_back()
+
+                    # Reset selection after navigating back (prevents index-based selection carry-over)
+                    if hasattr(self, 'items_list') and self.items_list:
+                        try:
+                            self.items_list.selection = None
+                            logger.debug("🔄 Reset selection after toolbar back navigation")
+                        except AttributeError:
+                            logger.debug("Could not clear selection (read-only property)")
 
         except Exception as e:
             logger.error(f"Failed to navigate back via NavigationController: {e}")
@@ -535,9 +630,11 @@ class CollectionView(BaseView, ViewCommandMixin):
             from fichero.windows.add.views.url_view import URLAddView
             import toga
 
-            # Capture current collection_id now (before async callback)
-            # If no collection is selected, pass None to create a new one
-            current_collection_id = self.collection_id if hasattr(self, 'collection_id') else None
+            # Get CURRENT collection from NavigationController (not instance state)
+            current_collection_id = self._get_current_collection_id()
+            if not current_collection_id:
+                logger.error("Cannot import URL: no collection is active")
+                return
 
             # Create callback that uses captured collection_id
             def on_url_added_with_context(data):
@@ -551,12 +648,14 @@ class CollectionView(BaseView, ViewCommandMixin):
             # On desktop: create new window, on mobile: push view
             if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                 if self.app.main_window_wrapper.is_mobile:
-                    # Mobile: use navigation controller to push view
+                    # Mobile: use navigation controller to navigate to URL add view
                     if hasattr(self.app, 'view_integration'):
                         nav_controller = self.app.view_integration.get_navigation_controller()
                         if nav_controller:
-                            # TODO: Implement mobile push view
-                            logger.warning("Mobile push view not yet implemented")
+                            nav_controller.navigate_to_add_url()
+                            logger.info("Navigated to URL add view")
+                        else:
+                            logger.error("NavigationController not available")
                     else:
                         logger.error("view_integration not available")
                 else:
@@ -576,6 +675,23 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to handle import URL: {e}")
+
+    def _on_open_camera(self, widget=None):
+        """Handle camera - navigate to Camera add view"""
+        try:
+            logger.info("Camera requested")
+            # Use NavigationController to navigate to camera view (mobile only)
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    nav_controller.navigate_to_add_camera()
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("view_integration not available")
+
+        except Exception as e:
+            logger.error(f"Failed to open camera: {e}")
 
     def _on_url_added_with_collection(self, data: dict, collection_id: str):
         """Callback when URL is added - with captured collection_id"""
@@ -917,22 +1033,151 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle link folder: {e}")
 
+    # ===== MOBILE TOP TOOLBAR HANDLERS =====
+
+    def _on_show_inspector(self, widget=None):
+        """Handle show inspector command - shows item, folder, or collection inspector"""
+        try:
+            logger.info("Show inspector requested")
+
+            # Check if an item is selected
+            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
+                # Item selected - show item inspector
+                selected_row = self.items_list.selection
+                item_id = getattr(selected_row, 'id', None)
+
+                if item_id:
+                    logger.info(f"Showing inspector for selected item: {item_id}")
+                    asyncio.create_task(self._show_inspector_with_full_data(item_id))
+                    return
+
+            # No item selected - show collection or folder inspector
+            collection_id = self._get_current_collection_id()
+            if collection_id:
+                logger.info(f"No item selected, showing inspector for collection: {collection_id}")
+                asyncio.create_task(self._show_collection_inspector(collection_id))
+            else:
+                logger.warning("No collection ID available for inspector")
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector: {e}")
+
+    async def _show_inspector_with_full_data(self, item_id: str):
+        """Fetch full item data and show inspector"""
+        try:
+            # Fetch full item from library
+            item_data = None
+            if self.library_service and hasattr(self.library_service, 'library_manager'):
+                item = await self.library_service.library_manager.get_item(item_id)
+                if item:
+                    # Pass dictionary directly - inspector supports it
+                    item_data = item.to_dict()
+                    logger.info(f"Fetched full item from database: {len(item_data)} fields")
+                else:
+                    logger.warning(f"Item not found in database: {item_id}")
+            else:
+                logger.warning("Library service not available")
+
+            # Fallback to minimal data if fetch failed
+            if not item_data:
+                item_data = {'name': 'Unknown', 'id': item_id}
+
+            # Mobile: Use NavigationController to navigate to inspector
+            if self.is_mobile:
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        # Pass dictionary directly
+                        nav_controller.navigate_to_inspector(item_id=item_id, item_data=item_data)
+                        logger.info(f"Navigated to inspector for item: {item_id}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            # Desktop: Show inspector window directly
+            else:
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    # Update inspector with dictionary
+                    self.app.inspector_window.update_metadata(item_data, selection_type='ITEM')
+                    self.app.inspector_window.show()
+                    logger.info(f"Inspector window shown for item: {item_id}")
+                else:
+                    logger.warning("Inspector window not available")
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector with full data: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _show_collection_inspector(self, collection_id: str):
+        """Fetch full collection data and show inspector"""
+        try:
+            # Fetch full collection from library
+            collection_data = None
+            if self.library_service and hasattr(self.library_service, 'library_manager'):
+                collection = await self.library_service.library_manager.get_collection(collection_id)
+                if collection:
+                    # Pass dictionary directly - inspector supports it
+                    collection_data = collection.to_dict()
+                    logger.info(f"Fetched full collection from database: {len(collection_data)} fields")
+                else:
+                    logger.warning(f"Collection not found in database: {collection_id}")
+            else:
+                logger.warning("Library service not available")
+
+            # Fallback to minimal data if fetch failed
+            if not collection_data:
+                collection_data = {'name': 'Unknown', 'id': collection_id}
+
+            # Mobile: Use NavigationController to navigate to inspector
+            if self.is_mobile:
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        # Pass dictionary directly with COLLECTION selection type
+                        nav_controller.navigate_to_inspector(
+                            item_id=collection_id,
+                            item_data=collection_data,
+                            selection_type='COLLECTION'
+                        )
+                        logger.info(f"Navigated to inspector for collection: {collection_id}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            # Desktop: Show inspector window directly
+            else:
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    # Update inspector with dictionary
+                    self.app.inspector_window.update_metadata(collection_data, selection_type='COLLECTION')
+                    self.app.inspector_window.show()
+                    logger.info(f"Inspector window shown for collection: {collection_id}")
+                else:
+                    logger.warning("Inspector window not available")
+
+        except Exception as e:
+            logger.error(f"Failed to show collection inspector: {e}")
+            import traceback
+            traceback.print_exc()
+
     async def _add_folder_to_collection(self, folder_path: str, operation: str = "link"):
         """Add a folder to the current collection - blocking operation"""
         try:
-            if not self.collection_id:
-                logger.error("No collection ID available")
+            # Get CURRENT collection from NavigationController (not instance state)
+            collection_id = self._get_current_collection_id()
+            if not collection_id:
+                logger.error("No collection ID available from NavigationController")
                 return
 
             # Get folder name
             from pathlib import Path
             folder_name = Path(folder_path).name
 
-            logger.info(f"📥 Importing folder '{folder_name}' to collection_id={self.collection_id} (CollectionView instance {id(self)})")
+            logger.info(f"📥 Importing folder '{folder_name}' to collection_id={collection_id} (CollectionView instance {id(self)})")
 
             # Add to collection via library service (this will block until complete)
             item_id = await self.app.library_service.add_item_to_collection_for_ui(
-                collection_id=self.collection_id,
+                collection_id=collection_id,
                 item_type="folder",
                 source=folder_path,
                 name=folder_name,
@@ -952,10 +1197,12 @@ class CollectionView(BaseView, ViewCommandMixin):
     async def _add_file_to_collection(self, file_path: str, operation: str = "link"):
         """Add a file to the current collection - blocking operation"""
         try:
-            logger.info(f"🔍 _add_file_to_collection called - instance_id={id(self)}, self.collection_id={self.collection_id}, collection_name={getattr(self, 'collection_name', 'UNKNOWN')}")
+            # Get CURRENT collection from NavigationController (not instance state)
+            collection_id = self._get_current_collection_id()
+            logger.info(f"🔍 _add_file_to_collection called - instance_id={id(self)}, collection_id={collection_id}, collection_name={getattr(self, 'collection_name', 'UNKNOWN')}")
 
-            if not self.collection_id:
-                logger.error("No collection ID available")
+            if not collection_id:
+                logger.error("No collection ID available from NavigationController")
                 return
 
             # Get file name
@@ -964,7 +1211,7 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             # Add to collection via library service (this will block until complete)
             item_id = await self.app.library_service.add_item_to_collection_for_ui(
-                collection_id=self.collection_id,
+                collection_id=collection_id,
                 item_type="file",
                 source=file_path,
                 name=file_name,
@@ -1026,12 +1273,8 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to update toolbar navigation: {e}")
     
     def _create_collection_items_list(self, items: List[Dict[str, Any]]):
-        """Create a detailed list view for collection items"""
+        """Create a detailed list view for collection items (even if empty - Mac style)"""
         try:
-            if not items:
-                logger.debug("No items to display in collection")
-                return
-            
             # Always clear any existing DetailedList to reset selection state
             if hasattr(self, 'items_list') and self.items_list:
                 try:
@@ -1060,19 +1303,85 @@ class CollectionView(BaseView, ViewCommandMixin):
             
             if self.content_container:
                 self.content_container.add(self.items_list)
-                
-            logger.debug(f"Created DetailedList with {len(items)} items in native Toga format")
+
+            if not items:
+                logger.debug("Created empty DetailedList (Mac-style - back button remains functional)")
+            else:
+                logger.debug(f"Created DetailedList with {len(items)} items in native Toga format")
 
         except Exception as e:
             logger.error(f"Failed to create collection items list: {e}")
 
-    def _update_items_list(self):
-        """Update the DetailedList with current collection_items data"""
+    def _update_items_list(self, force_recreate=False):
+        """Update the DetailedList with current collection_items data
+
+        Args:
+            force_recreate: If True, recreate the DetailedList widget instead of just updating data.
+                          This ensures selection is truly cleared (Toga preserves selection on data update).
+        """
         try:
             if hasattr(self, 'items_list') and self.items_list:
-                # Update the data property to refresh the list
-                self.items_list.data = self.collection_items
-                logger.debug(f"Updated DetailedList with {len(self.collection_items)} items")
+                if force_recreate:
+                    # Recreate the DetailedList widget to ensure selection is cleared
+                    # Get the parent container
+                    parent_container = self.items_list.parent if hasattr(self.items_list, 'parent') else None
+
+                    if parent_container and hasattr(parent_container, 'remove'):
+                        # Remove old list
+                        parent_container.remove(self.items_list)
+
+                        # Create new list with fresh data (no selection)
+                        self.items_list = toga.DetailedList(
+                            data=self.collection_items,
+                            on_select=self._on_item_selected,
+                            primary_action="Delete",
+                            on_primary_action=self._on_swipe_delete_item,
+                            secondary_action="Rename",
+                            on_secondary_action=self._on_swipe_rename_item,
+                            style=Pack(flex=1, margin=0)
+                        )
+
+                        # Add new list back to parent
+                        parent_container.add(self.items_list)
+                        logger.debug(f"Recreated DetailedList with {len(self.collection_items)} items (no selection)")
+
+                        # Clear output view since selection was cleared by recreation
+                        if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                            if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
+                                logger.info("📤 Clearing output view (DetailedList recreated, selection cleared)")
+                                self.app.main_window_wrapper.cached_output_view.load_output()
+                    else:
+                        # Fallback to data update if we can't access parent
+                        logger.warning("Cannot recreate DetailedList - parent not accessible, falling back to data update")
+                        self.items_list.data = self.collection_items
+                        try:
+                            self.items_list.selection = None
+                        except AttributeError:
+                            logger.debug("Could not clear selection (read-only property)")
+
+                        # Clear output view since selection was cleared
+                        if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                            if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
+                                logger.info("📤 Clearing output view (selection cleared in fallback)")
+                                self.app.main_window_wrapper.cached_output_view.load_output()
+                else:
+                    # Just update the data property to refresh the list
+                    self.items_list.data = self.collection_items
+
+                    # Reset selection to nothing when updating contents
+                    # Note: Toga may still preserve selection index internally
+                    try:
+                        self.items_list.selection = None
+                    except AttributeError:
+                        logger.debug("Could not clear selection (read-only property)")
+
+                    logger.debug(f"Updated DetailedList with {len(self.collection_items)} items (selection reset)")
+
+                    # Don't clear output here - this is just a data refresh
+                    # Output clearing is handled in _handle_item_navigation and _on_item_selected
+
+            # Update the title label to reflect current folder/collection
+            self._update_title()
         except Exception as e:
             logger.error(f"Failed to update items list: {e}")
 
@@ -1112,9 +1421,12 @@ class CollectionView(BaseView, ViewCommandMixin):
                 logger.info(f"📌 Item selected: {item_data['title']} (id: {item_data['id']})")
                 logger.debug(f"Full item_data extracted: {item_data}")
 
-                if hasattr(self, 'commands') and 'process_selected' in self.commands:
-                    self.commands['process_selected'].enable()
-                    logger.info("✅ Enabled 'Process Selected' command (item selected)")
+                # Enable inspector button on mobile when item is selected
+                if hasattr(self, 'commands') and 'show_inspector' in self.commands:
+                    self.commands['show_inspector'].enable()
+                    logger.debug("✅ Enabled 'Show Inspector' button (item selected)")
+
+                # Note: Process button stays enabled always (smart detection)
 
                 # Update inspector with item metadata asynchronously (non-blocking)
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
@@ -1128,10 +1440,18 @@ class CollectionView(BaseView, ViewCommandMixin):
             else:
                 logger.debug("No selection in widget")
 
-                # Disable "Process Selected" command when no selection
-                if hasattr(self, 'commands') and 'process_selected' in self.commands:
-                    self.commands['process_selected'].disable()
-                    logger.debug("❌ Disabled 'Process Selected' command (no selection)")
+                # Disable inspector button on mobile when no selection
+                if hasattr(self, 'commands') and 'show_inspector' in self.commands:
+                    self.commands['show_inspector'].disable()
+                    logger.debug("❌ Disabled 'Show Inspector' button (no selection)")
+
+                # Note: Process button stays enabled always (processes all when no selection)
+
+                # Clear output view when selection is cleared (no item selected)
+                if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                    if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
+                        logger.info("📤 Clearing output view (selection cleared)")
+                        self.app.main_window_wrapper.cached_output_view.load_output()
 
                 # Update inspector to show parent folder or collection metadata
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
@@ -1357,27 +1677,37 @@ class CollectionView(BaseView, ViewCommandMixin):
                 self.app.inspector_window.update_metadata(metadata, selection_type="FOLDER")
                 logger.debug("Inspector updated with folder metadata (async)")
             else:
-                # We're at collection root - show collection metadata
-                metadata = self._get_collection_metadata()
-                self.app.inspector_window.update_metadata(metadata, selection_type="COLLECTION")
-                logger.debug("Inspector updated with collection metadata (async)")
+                # We're at collection root - fetch collection from database and send as dict
+                collection_id = self._get_current_collection_id()
+                if collection_id and self.library_service and hasattr(self.library_service, 'library_manager'):
+                    collection = await self.library_service.library_manager.get_collection(collection_id)
+                    if collection:
+                        # Pass dictionary directly - inspector supports it
+                        collection_data = collection.to_dict()
+                        self.app.inspector_window.update_metadata(collection_data, selection_type="COLLECTION")
+                        logger.debug(f"Inspector updated with collection dict ({len(collection_data)} fields)")
+                    else:
+                        logger.warning(f"Collection not found in database: {collection_id}")
+                else:
+                    logger.warning("Cannot fetch collection - no collection ID or library service")
 
         except Exception as e:
             logger.error(f"Failed to update inspector with parent metadata: {e}")
 
-    def _get_current_folder_metadata(self) -> str:
-        """Get metadata for the current folder we're viewing"""
+    def _get_current_folder_metadata(self) -> Dict[str, Any]:
+        """Get metadata for the current folder we're viewing as a dict"""
         try:
-            # Build metadata for current folder based on path
+            # Build metadata dict for current folder based on path
             folder_name = self.current_path.split('/')[-1] if '/' in self.current_path else self.current_path
 
-            lines = [
-                "=== FOLDER METADATA ===",
-                "",
-                f"Name: {folder_name}",
-                f"Path: {self.current_path}",
-                f"Collection: {self.collection_name}",
-            ]
+            # Start with basic folder info
+            metadata_dict = {
+                'name': folder_name,
+                'path': self.current_path,
+                'collection_name': self.collection_name,
+                'type': 'folder',
+                'is_folder': True,
+            }
 
             # Try to find the folder item in the database to get its full metadata
             folder_item = None
@@ -1419,150 +1749,25 @@ class CollectionView(BaseView, ViewCommandMixin):
                 if not folder_item:
                     logger.warning(f"Could not find folder item for path '{self.current_path}'")
 
-            # Add folder ID if found
+            # Add folder ID and metadata if found
             if folder_item:
-                lines.append(f"ID: {folder_item.id}")
+                metadata_dict['id'] = folder_item.id
 
-            lines.append("")
-            lines.append("=== CONTENTS ===")
-            lines.append("")
-            lines.append(f"Total Items: {len(self.collection_items)}")
+                # Add ALL metadata from database
+                if folder_item.metadata:
+                    metadata_dict.update(folder_item.metadata)
 
-            # If we found the folder in database, include ALL its metadata (like we do for items)
-            if folder_item and folder_item.metadata:
-                folder_data = folder_item.metadata
+            # Add content count
+            metadata_dict['total_items'] = len(self.collection_items)
 
-                # IIIF metadata section (check for any IIIF-related fields)
-                iiif_fields = ['manifest_url', 'manifest_label', 'manifest_id', 'canvas_id', 'image_url',
-                              'attribution', 'license', 'description', 'logo', 'thumbnail', 'page_range',
-                              'archive_id', 'collection_label', 'iiif_metadata', 'manifest_metadata']
+            logger.info(f"📦 Built folder metadata dict with {len(metadata_dict)} fields: {list(metadata_dict.keys())}")
+            return metadata_dict
 
-                if any(k in folder_data for k in iiif_fields):
-                    lines.append("")
-                    lines.append("=== IIIF METADATA ===")
-                    lines.append("")
-
-                    # Manifest information
-                    if 'manifest_label' in folder_data:
-                        lines.append(f"Manifest Label: {folder_data['manifest_label']}")
-                    if 'manifest_id' in folder_data:
-                        lines.append(f"Manifest ID: {folder_data['manifest_id']}")
-                    if 'manifest_url' in folder_data:
-                        lines.append(f"Manifest URL: {folder_data['manifest_url']}")
-                    if 'page_range' in folder_data:
-                        lines.append(f"Page Range: {folder_data['page_range']}")
-                    if 'archive_id' in folder_data:
-                        lines.append(f"Archive ID: {folder_data['archive_id']}")
-
-                    # Collection/content information
-                    if 'collection_label' in folder_data:
-                        lines.append(f"Collection Label: {folder_data['collection_label']}")
-
-                    # Image/canvas information (for folders containing images)
-                    if 'canvas_id' in folder_data:
-                        lines.append(f"Canvas ID: {folder_data['canvas_id']}")
-                    if 'image_url' in folder_data:
-                        lines.append(f"Image URL: {folder_data['image_url']}")
-
-                    # Description and attribution
-                    if 'description' in folder_data and folder_data['description']:
-                        lines.append(f"\nDescription: {folder_data['description']}")
-                    if 'attribution' in folder_data and folder_data['attribution']:
-                        lines.append(f"\nAttribution: {folder_data['attribution']}")
-                    if 'license' in folder_data and folder_data['license']:
-                        lines.append(f"License: {folder_data['license']}")
-
-                    # Logo and thumbnail
-                    if 'logo' in folder_data and folder_data['logo']:
-                        lines.append(f"Logo: {folder_data['logo']}")
-                    if 'thumbnail' in folder_data and folder_data['thumbnail']:
-                        lines.append(f"Thumbnail: {folder_data['thumbnail']}")
-
-                    # IIIF metadata array (structured metadata from manifest)
-                    if 'iiif_metadata' in folder_data and isinstance(folder_data['iiif_metadata'], list):
-                        if folder_data['iiif_metadata']:
-                            lines.append("")
-                            lines.append("IIIF Metadata:")
-                            for meta in folder_data['iiif_metadata']:
-                                if isinstance(meta, dict):
-                                    label = meta.get('label', '')
-                                    value = meta.get('value', '')
-                                    if label and value:
-                                        lines.append(f"  {label}: {value}")
-
-                    # Manifest metadata array
-                    if 'manifest_metadata' in folder_data and isinstance(folder_data['manifest_metadata'], list):
-                        if folder_data['manifest_metadata']:
-                            lines.append("")
-                            lines.append("Manifest Metadata:")
-                            for meta in folder_data['manifest_metadata']:
-                                if isinstance(meta, dict):
-                                    label = meta.get('label', '')
-                                    value = meta.get('value', '')
-                                    if label and value:
-                                        lines.append(f"  {label}: {value}")
-
-                # Add any other metadata not covered above
-                handled_fields = ['relative_path', 'type'] + iiif_fields
-                other_metadata = {k: v for k, v in folder_data.items()
-                                 if k not in handled_fields and v}  # Only include non-empty values
-
-                if other_metadata:
-                    lines.append("")
-                    lines.append("=== ADDITIONAL METADATA ===")
-                    lines.append("")
-                    for key, value in other_metadata.items():
-                        # Format the key nicely (convert snake_case to Title Case)
-                        nice_key = key.replace('_', ' ').title()
-                        # Handle list/dict values
-                        if isinstance(value, (list, dict)):
-                            lines.append(f"{nice_key}: {str(value)}")
-                        else:
-                            lines.append(f"{nice_key}: {value}")
-
-            return '\n'.join(lines)
         except Exception as e:
             logger.error(f"Failed to get folder metadata: {e}")
             import traceback
             traceback.print_exc()
-            return "Error loading folder metadata"
-
-    def _get_collection_metadata(self) -> str:
-        """Get metadata for the collection we're viewing"""
-        try:
-            # Get collection details from library manager
-            if self.collection_id:
-                collection = self.app.library_manager.storage.get_collection(self.collection_id)
-                if collection:
-                    lines = [
-                        "=== COLLECTION METADATA ===",
-                        "",
-                        f"Name: {collection.name}",
-                        f"Type: {collection.type}",
-                        f"ID: {collection.id}",
-                        "",
-                        "=== CONTENTS ===",
-                        "",
-                        f"Items: {len(self.collection_items)} items at root level"
-                    ]
-
-                    if collection.source_path:
-                        lines.append(f"\n=== STORAGE ===")
-                        lines.append(f"\nSource Path: {collection.source_path}")
-
-                    if collection.created_at:
-                        lines.append(f"\n=== DATES ===")
-                        lines.append(f"\nCreated: {collection.created_at}")
-
-                    if collection.updated_at:
-                        lines.append(f"Updated: {collection.updated_at}")
-
-                    return '\n'.join(lines)
-
-            return f"Collection: {self.collection_name}\n\nItems: {len(self.collection_items)}"
-        except Exception as e:
-            logger.error(f"Failed to get collection metadata: {e}")
-            return "Error loading collection metadata"
+            return {'error': 'Error loading folder metadata'}
 
     def _handle_item_navigation(self, item_data: Dict[str, Any]):
         """Handle navigation to an item or folder (sync version)"""
@@ -1579,10 +1784,26 @@ class CollectionView(BaseView, ViewCommandMixin):
                 if item_type == 'back':
                     # Handle ".." back navigation via NavigationController
                     logger.info("FOLDER NAVIGATION: Going back via '..' item using NavigationController")
+
+                    # Clear output view when navigating back (going to folder/collection root)
+                    if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                        main_window = self.app.main_window_wrapper
+                        if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                            logger.info("📤 Clearing output view (navigating back)")
+                            main_window.cached_output_view.load_output()
+
                     if hasattr(self.app, 'view_integration') and self.app.view_integration:
                         navigation_controller = self.app.view_integration.get_navigation_controller()
                         if navigation_controller:
                             navigation_controller.navigate_back()
+
+                    # Reset selection after navigating back (prevents index-based selection carry-over)
+                    if hasattr(self, 'items_list') and self.items_list:
+                        try:
+                            self.items_list.selection = None
+                            logger.debug("🔄 Reset selection after back navigation")
+                        except AttributeError:
+                            logger.debug("Could not clear selection (read-only property)")
                 else:
                     # Regular folder navigation
                     # Use folder ID for navigation (names can be empty/duplicate)
@@ -1592,6 +1813,24 @@ class CollectionView(BaseView, ViewCommandMixin):
 
                     # Navigate using the folder ID
                     self.navigate_to_folder_by_id(folder_id)
+
+                    # Reset selection after navigating (prevents index-based selection carry-over)
+                    if hasattr(self, 'items_list') and self.items_list:
+                        try:
+                            self.items_list.selection = None
+                            logger.debug("🔄 Reset selection after folder navigation")
+                        except AttributeError:
+                            logger.debug("Could not clear selection (read-only property)")
+
+                    # Clear output view since we're navigating to a folder (not a file)
+                    # On desktop: hide right pane or clear its content
+                    # On mobile: not relevant since output view is a separate screen
+                    if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                        main_window = self.app.main_window_wrapper
+                        if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                            # Clear the output view content
+                            logger.info("📤 Clearing output view (navigating to folder, not file)")
+                            main_window.cached_output_view.load_output()
 
                     # Update inspector to show folder metadata after navigation
                     if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
@@ -1690,7 +1929,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             self.top_toolbar = TopToolbar(
                 app=self.app,
                 title="",  # Let NavigationController provide dynamic collection name
-                auto_mobile_nav=self.is_mobile,  # Only show back button on mobile
+                auto_mobile_nav=True,  # Show back button for hierarchical navigation
                 is_mobile=self.is_mobile
             )
 
@@ -1715,90 +1954,62 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
 
-    async def _on_process_selected_requested(self, widget):
-        """Handle Process Selected button click - process only selected item"""
-        try:
-            logger.info(f"Process Selected clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
+    async def _on_process_requested(self, widget):
+        """Smart Process handler - process selected item or all items
 
-            # Check if we have a collection
+        Like inspector: if item selected → process it; nothing selected → process all
+        """
+        try:
+            # Use view's collection_id directly (consistent with inspector pattern)
             if not self.collection_id:
-                logger.error(f"NO COLLECTION ID! collection_id = {self.collection_id}")
-                # Skip dialog - just log error and return (dialogs cause NSTableView crash)
+                logger.error("No collection ID available")
                 return
 
-            # Get currently selected item (REQUIRED for this command)
+            logger.info(f"Process clicked - collection_id={self.collection_id}")
+
+            # Check for selected item
             selected_item_id = None
             selected_item_name = None
+
             if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
                 try:
-                    # Get the selected item's ID and name from the row data
                     selected_row = self.items_list.selection
-                    if hasattr(selected_row, 'item_id'):
-                        selected_item_id = selected_row.item_id
-                    elif hasattr(selected_row, 'id'):
-                        selected_item_id = selected_row.id
+                    selected_item_id = getattr(selected_row, 'item_id', None) or getattr(selected_row, 'id', None)
+                    selected_item_name = getattr(selected_row, 'title', None) or getattr(selected_row, 'name', None)
 
-                    # Get the display name from the row
-                    if hasattr(selected_row, 'title'):
-                        selected_item_name = selected_row.title
-                    elif hasattr(selected_row, 'name'):
-                        selected_item_name = selected_row.name
-
-                    logger.info(f"Selected item: id={selected_item_id}, name={selected_item_name}")
+                    if selected_item_id:
+                        logger.info(f"Processing selected item: {selected_item_name} (id={selected_item_id})")
                 except Exception as e:
                     logger.debug(f"Could not get selected item: {e}")
 
-            # If no selection, just log and return (skip dialog to avoid crash)
             if not selected_item_id:
-                logger.warning("No item selected - cannot process")
-                return
+                logger.info("No item selected - will process all items in current view")
 
-            # Show processing dialog with selected item
-            await self._show_process_dialog(selected_item_id, selected_item_name)
+            # Show processing dialog (handles both single item and all items)
+            await self._show_process_dialog(self.collection_id, selected_item_id, selected_item_name)
 
         except Exception as e:
-            logger.error(f"Error handling process selected request: {e}")
-            # Skip error dialog - just log (dialogs cause NSTableView crash)
+            logger.error(f"Error handling process request: {e}")
             import traceback
             traceback.print_exc()
 
-    async def _on_process_all_requested(self, widget):
-        """Handle Process All button click - process all items in current folder"""
-        try:
-            logger.info(f"Process All clicked - collection_id={self.collection_id}, collection_name={self.collection_name}")
-
-            # Check if we have a collection
-            if not self.collection_id:
-                logger.error(f"NO COLLECTION ID! collection_id = {self.collection_id}")
-                # Skip dialog - just log error and return (dialogs cause NSTableView crash)
-                return
-
-            # Show processing dialog with NO selected item (process all)
-            await self._show_process_dialog(selected_item_id=None)
-
-        except Exception as e:
-            logger.error(f"Error handling process all request: {e}")
-            # Skip error dialog - just log (dialogs cause NSTableView crash)
-            import traceback
-            traceback.print_exc()
-
-    async def _show_process_dialog(self, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
+    async def _show_process_dialog(self, collection_id: str, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
         """Show simple confirmation and process directly"""
         try:
             # Get collection first
-            collection = await self.app.library_manager.get_collection(self.collection_id)
+            collection = await self.app.library_manager.get_collection(collection_id)
             if not collection:
                 logger.error("Collection not found")
                 # Skip dialog - just return (dialogs cause NSTableView crash)
                 return
 
             # Check if we have items in the database
-            all_items = await self.app.library_manager.get_collection_items(self.collection_id)
+            all_items = await self.app.library_manager.get_collection_items(collection_id)
 
             # Determine processing approach based on what we have
             if all_items:
                 # We have items in database - use DirectorIntegrationService
-                await self._process_via_items(collection, all_items, selected_item_id, selected_item_name)
+                await self._process_via_items(collection_id, collection, all_items, selected_item_id, selected_item_name)
             else:
                 # No items in database
                 if selected_item_id:
@@ -1808,7 +2019,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     return
                 else:
                     # "Process All" was clicked - process folder directly
-                    await self._process_via_folder(collection)
+                    await self._process_via_folder(collection_id, collection)
 
         except Exception as e:
             logger.error(f"Error in process dialog: {e}")
@@ -1816,7 +2027,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             import traceback
             traceback.print_exc()
 
-    async def _process_via_items(self, collection, all_items, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
+    async def _process_via_items(self, collection_id: str, collection, all_items, selected_item_id: Optional[str] = None, selected_item_name: Optional[str] = None):
         """Process using DirectorIntegrationService (items from database)"""
         # Determine scope
         if selected_item_id:
@@ -1828,8 +2039,88 @@ class CollectionView(BaseView, ViewCommandMixin):
                 scope_text = f"Selected: {item.name}" if item else "All items"
             item_ids = [selected_item_id]
         else:
-            scope_text = f"All {len(all_items)} items"
-            item_ids = [item.id for item in all_items]
+            # No selection - check if we're in a subfolder
+            if self.current_path:
+                # In a subfolder - process the folder itself, not individual files
+                # Find the folder item for the current path
+                folder_item = None
+                for item in all_items:
+                    if item.type == 'folder':
+                        # Build path from parent hierarchy
+                        path_parts = []
+                        current_item = item
+                        while current_item:
+                            path_parts.insert(0, current_item.name)
+                            if current_item.parent_id:
+                                # Find parent in all_items
+                                parent_item = next((i for i in all_items if i.id == current_item.parent_id), None)
+                                current_item = parent_item
+                            else:
+                                break
+
+                        item_path = '/'.join(path_parts) if path_parts else ''
+
+                        if item_path == self.current_path:
+                            folder_item = item
+                            logger.debug(f"Found folder item for '{self.current_path}': {item.id}")
+                            break
+
+                if folder_item:
+                    # Process the folder as a single item
+                    item_ids = [folder_item.id]
+                    scope_text = f"Folder: {folder_item.name}"
+                    logger.info(f"Processing folder '{folder_item.name}' (path: '{self.current_path}')")
+                else:
+                    logger.warning(f"Could not find folder item for path '{self.current_path}', falling back to visible files")
+                    # Fallback: collect visible files
+                    visible_items = []
+                    if hasattr(self, 'items_list') and self.items_list and hasattr(self.items_list, 'data'):
+                        try:
+                            for row in self.items_list.data:
+                                item_id = getattr(row, 'item_id', None) or getattr(row, 'id', None)
+                                if item_id:
+                                    item_type = getattr(row, 'type', 'file')
+                                    if item_type == 'file':
+                                        visible_items.append(item_id)
+                        except Exception as e:
+                            logger.warning(f"Could not get visible items from table: {e}")
+
+                    if visible_items:
+                        item_ids = visible_items
+                        folder_context = f" in '{self.current_path}'"
+                        scope_text = f"{len(item_ids)} visible files{folder_context}"
+                        logger.info(f"Processing {len(item_ids)} visible files in current folder{folder_context}")
+                    else:
+                        # Last resort: all items
+                        item_ids = [item.id for item in all_items]
+                        scope_text = f"All {len(all_items)} items"
+                        logger.info(f"No visible items found, processing all {len(all_items)} items")
+            else:
+                # At collection root - collect visible files
+                visible_items = []
+                if hasattr(self, 'items_list') and self.items_list and hasattr(self.items_list, 'data'):
+                    try:
+                        for row in self.items_list.data:
+                            # Extract item ID from the row
+                            item_id = getattr(row, 'item_id', None) or getattr(row, 'id', None)
+                            if item_id:
+                                # Only include file items, not folder items
+                                item_type = getattr(row, 'type', 'file')
+                                if item_type == 'file':
+                                    visible_items.append(item_id)
+                    except Exception as e:
+                        logger.warning(f"Could not get visible items from table: {e}")
+
+                # If we got visible items, use those; otherwise fall back to all items
+                if visible_items:
+                    item_ids = visible_items
+                    scope_text = f"{len(item_ids)} visible files (at collection root, as catalogue)"
+                    logger.info(f"Processing {len(item_ids)} visible files at collection root as catalogue unit")
+                else:
+                    # Fallback to all items (original behavior)
+                    item_ids = [item.id for item in all_items]
+                    scope_text = f"All {len(all_items)} items"
+                    logger.info(f"No visible items found in table, processing all {len(all_items)} items")
 
         # Get item names for confirmation dialog
         item_names = []
@@ -1864,14 +2155,14 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         logger.info(f"Processing {len(item_ids)} items via DirectorIntegrationService")
         logger.info(f"Item IDs to process: {item_ids}")
-        logger.info(f"Collection ID: {self.collection_id}")
+        logger.info(f"Collection ID: {collection_id}")
 
         # Process items
         # Use first workflow from the plan (typically "Catalogue")
         try:
             logger.info("Calling director_integration.process_items()...")
             task_ids = await self.app.director_integration.process_items(
-                collection_id=self.collection_id,
+                collection_id=collection_id,
                 item_ids=item_ids,
                 plan_name="Default",
                 workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
@@ -1906,7 +2197,7 @@ class CollectionView(BaseView, ViewCommandMixin):
         logger.info(f"Task IDs: {', '.join(str(tid)[:8] + '...' for tid in task_ids)}")
         logger.info(f"Processing will run in the background. Check Activity Monitor for progress.")
 
-    async def _process_via_folder(self, collection):
+    async def _process_via_folder(self, collection_id: str, collection):
         """Process using Director directly (folder on disk, no database items)"""
         # Skip confirmation dialog - just proceed directly (dialogs cause NSTableView crash)
         logger.info(f"Processing folder directly (no confirmation dialog to avoid crash)")
@@ -2001,16 +2292,32 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to register NavigationController callbacks: {e}")
 
     def cleanup_callbacks(self):
-        """Unregister NavigationController callbacks to prevent duplicate events"""
+        """Unregister ALL callbacks to prevent duplicate events and memory leaks"""
         try:
+            # Unregister NavigationController state_changed callback
             if hasattr(self, '_nav_callback_ref'):
                 navigation_controller = self._get_navigation_controller()
                 if navigation_controller:
                     navigation_controller.remove_callback('state_changed', self._nav_callback_ref)
                     logger.debug("Collection view unregistered NavigationController callback")
                     delattr(self, '_nav_callback_ref')
+
+            # Unsubscribe from navigation event bus events (only if we subscribed)
+            if hasattr(self, '_events_subscribed') and self._events_subscribed:
+                from fichero.shared.navigation.navigation_event_bus import unsubscribe_from_navigation
+                unsubscribe_from_navigation("collection_deleted", self._on_collection_deleted_event)
+                unsubscribe_from_navigation("collection_updated", self._on_collection_updated_event)
+                unsubscribe_from_navigation("collection_items_changed", self._on_collection_items_changed_event)
+                unsubscribe_from_navigation("collection_item_updated", self._on_item_progress_updated)
+                unsubscribe_from_navigation("processing_completed", self._on_processing_completed)
+                unsubscribe_from_navigation("folder_import_started", self._on_folder_import_started)
+                unsubscribe_from_navigation("folder_import_progress", self._on_folder_import_progress)
+                unsubscribe_from_navigation("folder_import_completed", self._on_folder_import_completed)
+                delattr(self, '_events_subscribed')
+                logger.debug("Collection view unsubscribed from navigation event bus")
+
         except Exception as e:
-            logger.error(f"Failed to cleanup NavigationController callbacks: {e}")
+            logger.error(f"Failed to cleanup CollectionView callbacks: {e}")
 
     def _on_navigation_state_changed(self, navigation_state):
         """Handle NavigationController state changes - update UI accordingly"""
@@ -2027,38 +2334,44 @@ class CollectionView(BaseView, ViewCommandMixin):
 
                 logger.info(f"🔄 Navigation state changed: {navigation_state.context.value}")
 
-                # Only update UI if we're in a collection context and it's our collection
+                # Only update UI if we're in a collection context
                 if navigation_state.context == NavigationContext.COLLECTION:
-                    if navigation_state.collection_id == self.collection_id:
-                        # Check if this is actually a new path to prevent unnecessary reloads
-                        new_path = navigation_state.current_path or ""
+                    # Check if this is our collection OR if collection changed
+                    new_collection_id = navigation_state.collection_id
+                    new_path = navigation_state.current_path or ""
 
-                        if new_path != self.current_path:
+                    collection_changed = (new_collection_id != self.collection_id)
+                    path_changed = (new_path != self.current_path)
+
+                    if collection_changed or path_changed:
+                        if collection_changed:
+                            logger.info(f"🔄 Collection changed from '{self.collection_id}' to '{new_collection_id}' - updating UI")
+                        if path_changed:
                             logger.info(f"🔄 Path changed from '{self.current_path}' to '{new_path}' - updating UI")
 
-                            # Update our local state to match NavigationController
-                            self.current_path = new_path
+                        # Update our local state to match NavigationController
+                        self.collection_id = new_collection_id
+                        self.collection_name = navigation_state.collection_name or new_collection_id
+                        self.current_path = new_path
 
-                            # Update UI elements
-                            self._update_breadcrumbs()
+                        # Update UI elements
+                        self._update_breadcrumbs()
 
-                            # Update toolbar navigation state
-                            if hasattr(self.top_toolbar, 'set_current_path'):
-                                self.top_toolbar.set_current_path(self.current_path)
+                        # Update toolbar navigation state (show/hide back button based on path)
+                        if hasattr(self, 'top_toolbar') and self.top_toolbar:
+                            self.top_toolbar.update_navigation_state(self.current_path)
 
-                            # Reload items for new path - use silent version to avoid navigation events
-                            self._load_collection_items_silent()
+                        # Reload items for new collection/path - use silent version to avoid navigation events
+                        self._load_collection_items_silent()
 
-                            # Update inspector with parent/collection metadata (no item selected after path change)
-                            if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
-                                import asyncio
-                                asyncio.create_task(self._update_inspector_with_parent_async())
+                        # Update inspector with parent/collection metadata (no item selected after path change)
+                        if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                            import asyncio
+                            asyncio.create_task(self._update_inspector_with_parent_async())
 
-                            logger.info(f"✅ UI updated for path: '{self.current_path}'")
-                        else:
-                            logger.debug(f"🔄 Path unchanged ('{self.current_path}') - skipping reload to prevent event storm")
+                        logger.info(f"✅ UI updated for collection: '{new_collection_id}', path: '{self.current_path}'")
                     else:
-                        logger.debug(f"State change for different collection: {navigation_state.collection_id}")
+                        logger.debug(f"🔄 Collection and path unchanged - skipping reload")
                 else:
                     logger.debug(f"State change for different context: {navigation_state.context.value}")
             finally:
@@ -2433,8 +2746,11 @@ class CollectionView(BaseView, ViewCommandMixin):
                 # Update breadcrumbs
                 self._update_breadcrumbs()
 
-                # Refresh the display with items
+                # Always recreate content on navigation changes to update title
+                # The title label needs to reflect the current collection name or folder path
+                logger.debug("Using _create_content for navigation changes (updates title)")
                 self._create_content()
+
                 logger.debug(f"Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
 
                 # Start async thumbnail generation in background
@@ -2461,8 +2777,17 @@ class CollectionView(BaseView, ViewCommandMixin):
                 # Debug: Log what we got back
                 logger.debug(f"SILENT: Received {len(self.collection_items)} items from hierarchical structure")
 
-                # Refresh the display with items - NO breadcrumb updates to prevent events
-                self._create_content()
+                # Check if we have an existing items list to update
+                if hasattr(self, 'items_list') and self.items_list and self.collection_items:
+                    # Recreate the DetailedList to clear selection completely
+                    # Toga preserves selection index when just updating data
+                    logger.debug("SILENT: Using _update_items_list with force_recreate to clear selection")
+                    self._update_items_list(force_recreate=True)
+                else:
+                    # No existing list or no items - recreate content
+                    logger.debug("SILENT: Using _create_content for full rebuild")
+                    self._create_content()
+
                 logger.debug(f"SILENT: Loaded {len(self.collection_items)} items for collection {self.collection_id} at path '{self.current_path}'")
             else:
                 logger.warning("SILENT: Library service not initialized or no collection ID set")
@@ -2587,6 +2912,8 @@ class CollectionView(BaseView, ViewCommandMixin):
                         # Toga DetailedList automatically refreshes when data changes
                         if hasattr(self, 'items_list') and self.items_list:
                             self.items_list.data = self.collection_items
+                            # Note: Don't reset selection here during thumbnail generation
+                            # We only reset when navigating/changing folders
                     else:
                         logger.warning(f"❌ No icon returned for: {path.name}")
 
@@ -2858,7 +3185,17 @@ class CollectionView(BaseView, ViewCommandMixin):
         else:
             # At collection root - show collection name
             return self.collection_name or "Collection"
-    
+
+    def _update_title(self):
+        """Update the collection/folder title label"""
+        try:
+            if hasattr(self, 'folder_header') and self.folder_header:
+                new_title = self._get_content_title()
+                self.folder_header.text = new_title
+                logger.debug(f"Updated collection title label to: {new_title}")
+        except Exception as e:
+            logger.error(f"Failed to update title: {e}")
+
     def _on_collection_selected(self, widget, item):
         """Handle collection selection (placeholder)"""
         try:
@@ -2890,6 +3227,27 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to handle collection_deleted event: {e}")
+
+    def _on_collection_updated_event(self, event):
+        """Handle collection_updated event - refresh collection name if this collection was updated"""
+        try:
+            updated_id = event.data.get("collection_id")
+            new_name = event.data.get("collection_name")
+            old_name = event.data.get("old_name", "Unknown")
+            logger.info(f"📡 Event received: collection_updated - {old_name} -> {new_name}")
+
+            # Check if this is the collection we're viewing
+            if self.collection_id == updated_id:
+                logger.info(f"Currently viewing updated collection - refreshing name from '{old_name}' to '{new_name}'")
+
+                # Update the collection name
+                self.set_collection_name(new_name)
+
+                # Recreate content to update the title label
+                self._create_content()
+
+        except Exception as e:
+            logger.error(f"Failed to handle collection_updated event: {e}")
 
     def _on_collection_items_changed_event(self, event):
         """Handle collection_items_changed event - reload items if this collection changed"""
