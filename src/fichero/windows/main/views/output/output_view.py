@@ -329,6 +329,25 @@ class OutputView(BaseView, ViewCommandMixin):
                     desktop_only=False,
                     context='normal'
                 ),
+
+                # ===== MOBILE TOP TOOLBAR - INSPECTOR BUTTON =====
+                'show_inspector': FicheroCommand(
+                    id=f'{self.view_id}.show_inspector',
+                    label=_("Info"),
+                    action=self._on_show_inspector,
+                    icon='resources/icons/toolbar/info.circle@10x.png',
+                    description=_("Show inspector for current image"),
+                    show_in_menu=False,  # Not in menus
+                    show_in_toolbar=False,  # Not in desktop toolbar
+                    show_in_top_toolbar=True,  # Mobile top toolbar
+                    toolbar_position='right',  # Right side of toolbar
+                    show_in_bottom_toolbar=False,  # Not in bottom toolbar
+                    mobile_only=True,  # Only on mobile
+                    desktop_only=False,
+                    context='normal',
+                    order=99,  # Last on right side (rightmost)
+                    enabled=True  # Always enabled when an image is shown
+                ),
             }
             logger.info(f"✅ Defined {len(self.commands)} commands for OutputView")
 
@@ -618,6 +637,69 @@ class OutputView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Error resetting image: {e}")
 
+    def _on_show_inspector(self, widget=None):
+        """Handle show inspector command - opens inspector window with current image"""
+        try:
+            logger.info("Show inspector requested")
+
+            # Get current item ID
+            if not self.current_item_id:
+                logger.warning("No current item to show in inspector")
+                return
+
+            # Fetch full item metadata from library (same for desktop and mobile)
+            asyncio.create_task(self._show_inspector_with_full_data(self.current_item_id))
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector: {e}")
+
+    async def _show_inspector_with_full_data(self, item_id: str):
+        """Fetch full item data and show inspector (unified for desktop and mobile)"""
+        try:
+            # Fetch full item from library
+            item_data = None
+            if self.library_manager:
+                item = await self.library_manager.get_item(item_id)
+                if item:
+                    # Pass dictionary directly - inspector supports it
+                    item_data = item.to_dict()
+                    logger.info(f"Fetched full item from database: {len(item_data)} fields")
+                else:
+                    logger.warning(f"Item not found in database: {item_id}")
+            else:
+                logger.warning("Library manager not available")
+
+            # Fallback to minimal data if fetch failed
+            if not item_data:
+                item_data = {'name': 'Unknown', 'id': item_id}
+
+            # Mobile: Use NavigationController to navigate to inspector
+            if self.is_mobile:
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        # Pass dictionary directly
+                        nav_controller.navigate_to_inspector(item_id=item_id, item_data=item_data)
+                        logger.info(f"Navigated to inspector for item: {item_id}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            # Desktop: Show inspector window directly
+            else:
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    # Update inspector with dictionary
+                    self.app.inspector_window.update_metadata(item_data, selection_type='ITEM')
+                    self.app.inspector_window.show()
+                    logger.info(f"Inspector window shown for item: {item_id}")
+                else:
+                    logger.warning("Inspector window not available")
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector with full data: {e}")
+            import traceback
+            traceback.print_exc()
+
     # Zoom command handlers
     async def _on_zoom_in(self, widget=None):
         """Zoom in"""
@@ -706,8 +788,9 @@ class OutputView(BaseView, ViewCommandMixin):
                 self.current_file_path = file_path
                 self._show_original_as_single_step(file_path)
             else:
-                logger.error("No file_path or item_id provided")
-                self._show_error_message("No file to display")
+                # Clear the view (no file to display - used when navigating to folders)
+                logger.info("Clearing output view (no file or item_id provided)")
+                self._clear_view()
                 return
 
             # Update file navigation buttons based on collection context
@@ -847,7 +930,7 @@ class OutputView(BaseView, ViewCommandMixin):
             self._show_error_message(f"Failed to load from library: {e}")
 
     def _update_navigation(self):
-        """Update navigation buttons state"""
+        """Update navigation buttons state and dropdown selection"""
         try:
             if not self.processing_steps:
                 return
@@ -867,6 +950,16 @@ class OutputView(BaseView, ViewCommandMixin):
 
             self.bottom_prev_file_btn.style.display = "pack" if has_prev_file else "none"
             self.bottom_next_file_btn.style.display = "pack" if has_next_file else "none"
+
+            # IMPORTANT: Sync step dropdown with current step index
+            # This ensures dropdown stays in sync when using Prev/Next buttons
+            if hasattr(self, 'step_selector') and self.step_selector and self.step_selector.enabled:
+                step_names = self.step_selector.items
+                if 0 <= self.current_step_index < len(step_names):
+                    expected_value = step_names[self.current_step_index]
+                    if self.step_selector.value != expected_value:
+                        self.step_selector.value = expected_value
+                        logger.debug(f"Synced dropdown to step {self.current_step_index + 1}")
 
         except Exception as e:
             logger.error(f"Error updating navigation: {e}")
@@ -2025,10 +2118,42 @@ class OutputView(BaseView, ViewCommandMixin):
         
         self.content_area.add(message)
     
+    def _clear_view(self):
+        """Clear the output view (used when navigating to folders)
+
+        This removes all web views and content from the output pane.
+        """
+        try:
+            # Explicitly clear webview reference (helps with garbage collection)
+            if hasattr(self, 'current_webview'):
+                self.current_webview = None
+                logger.debug("🗑️ Cleared current_webview reference")
+
+            if hasattr(self, 'content_area') and self.content_area:
+                # Clear content_area - this removes all web views and other widgets
+                self.content_area.clear()
+                logger.info("📤 Output view cleared: removed all content including web views")
+
+            # Reset state
+            self.processing_steps = []
+            self.current_step_index = 0
+            self.current_file_index = 0
+            self.current_file_path = None
+            self.current_item_id = None
+            self.source_files = []
+            self.source_item_ids = []
+
+            # Update navigation buttons to disabled state
+            if hasattr(self, '_update_file_navigation_buttons'):
+                self._update_file_navigation_buttons()
+
+        except Exception as e:
+            logger.error(f"Failed to clear view: {e}")
+
     def _show_error_message(self, error: str):
         """Show error message"""
         self.content_area.clear()
-        
+
         error_box = toga.Box(
             style=Pack(
                 direction=COLUMN,
@@ -2036,7 +2161,7 @@ class OutputView(BaseView, ViewCommandMixin):
                 flex=1
             )
         )
-        
+
         icon = toga.Label(
             "⚠️",
             style=Pack(
@@ -2046,7 +2171,7 @@ class OutputView(BaseView, ViewCommandMixin):
             )
         )
         error_box.add(icon)
-        
+
         text = toga.Label(
             error,
             style=Pack(
@@ -2112,16 +2237,18 @@ class OutputView(BaseView, ViewCommandMixin):
             # Extract step index from selection (format: "1. step_name")
             selection_text = str(widget.value)
             if '. ' not in selection_text:
+                logger.warning(f"Invalid step selection format: '{selection_text}'")
                 return
 
             step_num_str = selection_text.split('.')[0]
             try:
                 step_index = int(step_num_str) - 1
             except ValueError:
+                logger.error(f"Failed to parse step number from '{selection_text}'")
                 return
 
             if 0 <= step_index < len(self.processing_steps):
-                logger.info(f"Step selected from dropdown: {step_index} ({self.processing_steps[step_index].tool_name})")
+                logger.info(f"Step selected from dropdown: {step_index + 1} ({self.processing_steps[step_index].tool_name})")
 
                 # Update current step index
                 self.current_step_index = step_index
