@@ -60,8 +60,8 @@ class PlanManager:
             # First, separate Default from others
             default_plan = None
             other_plans = []
-            
-            for display_name, filename_stem in unique_plans.items():
+
+            for filename_stem, display_name in unique_plans.items():
                 if filename_stem.lower() == "default":
                     default_plan = (display_name, filename_stem)
                 else:
