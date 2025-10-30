@@ -151,7 +151,8 @@ def rotate_batch(
         base_folder=source_folder,
         processor_fn=lambda f, o: process_document(f, o, output_format),  # Fallback for sequential
         output_format=output_format,
-        parallel_workers=parallel_workers
+        parallel_workers=parallel_workers,
+        add_documents_prefix=kwargs.get('add_documents_prefix', False)
     )
     return processor.process()
 

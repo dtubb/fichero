@@ -762,7 +762,8 @@ def split_batch(
     output_folder: Path,
     output_format: str = "jpg",
     disable_splitting: bool = False,
-    parallel_workers: int = 1
+    parallel_workers: int = 1,
+    **kwargs
 ) -> dict:
     """
     Split cropped book pages into individual pages - importable function
@@ -788,7 +789,8 @@ def split_batch(
         base_folder=source_folder,
         processor_fn=lambda f, o: process_document(f, o, output_format, disable_splitting),  # Fallback for sequential
         output_format=output_format,
-        parallel_workers=parallel_workers
+        parallel_workers=parallel_workers,
+        add_documents_prefix=kwargs.get('add_documents_prefix', False)
     )
     return processor.process()
 
