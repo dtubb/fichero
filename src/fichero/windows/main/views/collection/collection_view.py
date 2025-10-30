@@ -2153,7 +2153,10 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.warning(f"No default plan found in settings, using fallback: {plan_name}")
 
         # Get default workflow for the plan
-        workflow_name = "Catalogue"  # TODO: Get from plan or settings
+        workflow_name = PlanManager.get_default_workflow(plan_name, self.app)
+        if not workflow_name:
+            workflow_name = "Catalogue"  # Fallback if no workflow found
+            logger.warning(f"No default workflow found for plan {plan_name}, using fallback: {workflow_name}")
         logger.info(f"Plan: {plan_name}, Workflow: {workflow_name}")
 
         # Check director integration service
