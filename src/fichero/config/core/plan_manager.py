@@ -308,12 +308,13 @@ class PlanManager:
     def get_default_plan(app=None) -> Optional[str]:
         """
         Get the default plan from settings, fallback to shared data, then first available
-        
+
         Args:
             app: Application instance to get paths
-            
+
         Returns:
-            Default plan name or None if no plans available
+            Default plan filename (stem) or None if no plans available
+            Note: Converts display names (titles) to filenames automatically
         """
         try:
             # Try to get from app settings first (primary source)
@@ -327,6 +328,11 @@ class PlanManager:
                     valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
                     if settings_default in valid_plans:
                         logger.debug(f"Using default plan from settings: {settings_default}")
+                        # Convert display name to filename if needed
+                        filename_stem = PlanManager.get_plan_filename_from_display_name(settings_default, app)
+                        if filename_stem:
+                            logger.debug(f"Converted plan display name '{settings_default}' to filename '{filename_stem}'")
+                            return filename_stem
                         return settings_default
                     else:
                         logger.warning(f"Settings default plan '{settings_default}' no longer exists")
@@ -344,6 +350,11 @@ class PlanManager:
                     valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
                     if saved_default in valid_plans:
                         logger.debug(f"Using default plan from shared data: {saved_default}")
+                        # Convert display name to filename if needed
+                        filename_stem = PlanManager.get_plan_filename_from_display_name(saved_default, app)
+                        if filename_stem:
+                            logger.debug(f"Converted plan display name '{saved_default}' to filename '{filename_stem}'")
+                            return filename_stem
                         return saved_default
                     else:
                         logger.warning(f"Saved default plan '{saved_default}' no longer exists")
@@ -353,10 +364,16 @@ class PlanManager:
             # Fallback to first available plan (already sorted with Default first)
             plans = PlanManager.get_available_plans(app)
             valid_plans = [plan for plan in plans if plan not in ["No plans found", "Error loading plans"]]
-            
+
             if valid_plans:
-                logger.debug(f"Using first available plan: {valid_plans[0]}")
-                return valid_plans[0]
+                first_plan = valid_plans[0]
+                logger.debug(f"Using first available plan: {first_plan}")
+                # Convert display name to filename if needed
+                filename_stem = PlanManager.get_plan_filename_from_display_name(first_plan, app)
+                if filename_stem:
+                    logger.debug(f"Converted plan display name '{first_plan}' to filename '{filename_stem}'")
+                    return filename_stem
+                return first_plan
             else:
                 return None
                 
