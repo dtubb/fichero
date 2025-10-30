@@ -317,6 +317,15 @@ class LibraryManager:
             if self.storage.update_collection(collection):
                 self._clear_cache()
                 logger.info(f"Collection updated: {collection.name}")
+
+                # Emit event to notify views that collection metadata has changed
+                emit_navigation_event("collection_updated", {
+                    "collection_id": collection_id,
+                    "collection_name": collection.name,
+                    "old_name": old_name,
+                    "updates": updates
+                })
+
                 return True
             else:
                 logger.error("Failed to save collection updates")
@@ -446,6 +455,15 @@ class LibraryManager:
             if self.storage.update_collection(collection):
                 self._clear_cache()
                 logger.info(f"Collection renamed to: {new_name}")
+
+                # Emit event to notify views that collection name has changed
+                emit_navigation_event("collection_updated", {
+                    "collection_id": collection_id,
+                    "collection_name": new_name,
+                    "old_name": collection.name if hasattr(collection, 'name') else new_name,
+                    "updates": {"name": new_name}
+                })
+
                 return True
             else:
                 logger.error(f"Failed to update collection in storage")
@@ -1108,16 +1126,21 @@ class LibraryManager:
 
     async def get_item_output_data(self, item_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get file-specific filtered output data for an item
+        Get output data for an item (file or folder)
 
-        This is the main method that GUIs should use to get pre-filtered outputs.
-        It returns everything needed to display outputs for a specific file, with
-        all filtering already applied at the library level.
+        This is the main method that GUIs should use to get outputs.
+        It returns everything needed to display outputs, with appropriate
+        filtering based on item type.
 
-        When an item was processed as part of a batch/folder, this method:
+        For FILE items (when processed as part of a batch/folder):
         1. Reads the container's JSONL manifests
         2. Filters entries by the item's filename
         3. Extracts only the outputs for this specific file
+
+        For FOLDER items:
+        1. Reads ALL processing outputs from the folder
+        2. Returns unfiltered processing steps (all files in the folder)
+        3. Shows aggregated folder-level outputs
 
         Args:
             item_id: Library item ID
@@ -1163,17 +1186,33 @@ class LibraryManager:
             elif item.local_path:
                 source_path = Path(item.local_path)
 
-            # Get file-specific processing steps (JSONL filtering happens here!)
-            # Use filename even if source doesn't exist - outputs may still be available
+            # Get processing steps - behavior depends on item type
             processing_steps = []
-            if source_path:
-                # Use the filename from the path (even if file doesn't exist anymore)
-                processing_steps = await self.get_file_processing_steps(source_path, latest_result)
+
+            # Check if this is a folder item (use is_folder attribute or type field)
+            is_folder = getattr(item, 'is_folder', False) or getattr(item, 'type', 'file') == 'folder'
+
+            if is_folder:
+                # For folders, get ALL processing steps without filename filtering
+                logger.info(f"Loading folder-level outputs (unfiltered) for folder: {item.name}")
+                # Use output parser directly to get all steps from the processing result
+                from fichero.library.director_output_parser import DirectorOutputParser
+                parser = DirectorOutputParser()
+                for output_path in latest_result.output_paths:
+                    output_path = Path(output_path)
+                    steps = parser.parse_output_folder(output_path)
+                    processing_steps.extend(steps)
+                logger.info(f"Found {len(processing_steps)} total processing steps for folder")
             else:
-                # No source path at all - use item name as fallback
-                # Create a fake path just to get the filename for filtering
-                fallback_path = Path(item.name)
-                processing_steps = await self.get_file_processing_steps(fallback_path, latest_result)
+                # For files, filter by filename (original behavior)
+                if source_path:
+                    # Use the filename from the path (even if file doesn't exist anymore)
+                    processing_steps = await self.get_file_processing_steps(source_path, latest_result)
+                else:
+                    # No source path at all - use item name as fallback
+                    # Create a fake path just to get the filename for filtering
+                    fallback_path = Path(item.name)
+                    processing_steps = await self.get_file_processing_steps(fallback_path, latest_result)
 
             # Extract workflow metadata from output path
             output_root = Path(latest_result.output_paths[0])
@@ -2105,5 +2144,185 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"Failed to import collection: {e}")
             return None
+
+    # ========== Output Tracking Query Methods ==========
+
+    async def get_item_outputs(self, item_id: str, output_type: str = None) -> List['ProcessingOutput']:
+        """
+        Get all processing outputs for an item
+
+        Args:
+            item_id: Item ID
+            output_type: Optional filter by output type (e.g., "transcription", "word_doc")
+
+        Returns:
+            List of ProcessingOutput objects
+        """
+        return self.storage.get_outputs_by_item(item_id, output_type)
+
+    async def get_collection_outputs(self, collection_id: str, output_type: str = None) -> List['ProcessingOutput']:
+        """
+        Get all processing outputs for a collection
+
+        Args:
+            collection_id: Collection ID
+            output_type: Optional filter by output type
+
+        Returns:
+            List of ProcessingOutput objects
+        """
+        return self.storage.get_outputs_by_collection(collection_id, output_type)
+
+    async def search_collection_metadata(self, collection_id: str, query: str,
+                                        metadata_type: str = None) -> List['ExtractedMetadata']:
+        """
+        Search metadata within a collection
+
+        Args:
+            collection_id: Collection ID
+            query: Search query string
+            metadata_type: Optional filter by metadata type (e.g., "transcription", "catalogue_field")
+
+        Returns:
+            List of ExtractedMetadata objects matching the query
+        """
+        return self.storage.search_metadata(collection_id, query, metadata_type=metadata_type)
+
+    async def get_item_transcriptions(self, item_id: str) -> List[str]:
+        """
+        Get all transcription texts for an item
+
+        Convenience method that returns just the text content.
+
+        Args:
+            item_id: Item ID
+
+        Returns:
+            List of transcription text strings
+        """
+        outputs = self.storage.get_outputs_by_item(item_id, output_type='transcription')
+        transcriptions = []
+
+        for output in outputs:
+            # Get metadata for this output
+            metadata_list = self.storage.get_extracted_metadata(output.id)
+            for metadata in metadata_list:
+                if metadata.metadata_type == 'transcription' and metadata.key == 'text':
+                    transcriptions.append(metadata.value)
+
+        return transcriptions
+
+    async def get_item_catalogue_data(self, item_id: str) -> Dict[str, List[str]]:
+        """
+        Get catalogue data for an item organized by field
+
+        Args:
+            item_id: Item ID
+
+        Returns:
+            Dictionary mapping field names to lists of values
+            e.g., {'title': ['Document Title'], 'date': ['1931'], 'location': ['Istmina']}
+        """
+        outputs = self.storage.get_outputs_by_item(item_id, output_type='catalogue')
+        catalogue_data = {}
+
+        for output in outputs:
+            # Get metadata for this output
+            metadata_list = self.storage.get_extracted_metadata(output.id)
+            for metadata in metadata_list:
+                if metadata.metadata_type == 'catalogue_field':
+                    if metadata.key not in catalogue_data:
+                        catalogue_data[metadata.key] = []
+                    catalogue_data[metadata.key].append(metadata.value)
+
+        return catalogue_data
+
+    async def get_output_file_path(self, output_id: str, collection_id: str) -> Optional[Path]:
+        """
+        Get the full filesystem path for a processing output
+
+        Args:
+            output_id: ProcessingOutput ID
+            collection_id: Collection ID
+
+        Returns:
+            Full Path to the output file, or None if not found
+        """
+        from pathlib import Path
+
+        # Get the output record
+        outputs = self.storage.get_processing_outputs('')  # We need a method to get by ID
+        # For now, search through collection outputs
+        all_outputs = self.storage.get_outputs_by_collection(collection_id)
+
+        output = None
+        for o in all_outputs:
+            if o.id == output_id:
+                output = o
+                break
+
+        if not output:
+            return None
+
+        # Get collection to find base path
+        collection = await self.get_collection(collection_id)
+        if not collection:
+            return None
+
+        # Construct full path
+        if collection.local_path:
+            base_path = Path(collection.local_path)
+        else:
+            # Fallback: construct from library base
+            base_path = self.library_path / collection_id
+
+        full_path = base_path / output.output_path
+
+        return full_path if full_path.exists() else None
+
+    def delete_processing_result(self, result_id: str) -> bool:
+        """
+        Delete a processing result from database and filesystem
+
+        Args:
+            result_id: ID of the ProcessingResult to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        try:
+            # Get the processing result first
+            result = self.storage.get_processing_result(result_id)
+            if not result:
+                logger.warning(f"Processing result {result_id} not found")
+                return False
+
+            # Delete output files from filesystem
+            import shutil
+            for output_path in result.output_paths:
+                try:
+                    path = Path(output_path)
+                    if path.exists():
+                        if path.is_dir():
+                            shutil.rmtree(path)
+                            logger.info(f"Deleted workflow output directory: {path}")
+                        else:
+                            path.unlink()
+                            logger.info(f"Deleted workflow output file: {path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete output path {output_path}: {e}")
+
+            # Delete from database (this also deletes related processing_outputs and extracted_metadata)
+            success = self.storage.delete_processing_result(result_id)
+            if success:
+                logger.info(f"Deleted processing result {result_id} from database")
+            else:
+                logger.error(f"Failed to delete processing result {result_id} from database")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error deleting processing result {result_id}: {e}")
+            return False
 
  

@@ -1823,15 +1823,14 @@ class CollectionView(BaseView, ViewCommandMixin):
                         except AttributeError:
                             logger.debug("Could not clear selection (read-only property)")
 
-                    # Clear output view since we're navigating to a folder (not a file)
-                    # On desktop: hide right pane or clear its content
-                    # On mobile: not relevant since output view is a separate screen
+                    # Load folder-level outputs from library manager
                     if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                         main_window = self.app.main_window_wrapper
                         if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
-                            # Clear the output view content
-                            logger.info("📤 Clearing output view (navigating to folder, not file)")
-                            main_window.cached_output_view.load_output()
+                            # Load folder outputs by passing folder item_id to output view
+                            # The output view will use library manager to get processing steps
+                            logger.info(f"📊 Loading folder-level outputs for folder: {folder_id}")
+                            main_window.cached_output_view.load_output(item_id=folder_id)
 
                     # Update inspector to show folder metadata after navigation
                     if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
