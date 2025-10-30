@@ -16,6 +16,7 @@ from fichero.shared.views.base_view import BaseView
 from fichero.shared.commands import FicheroCommand, ViewCommandMixin
 from fichero.library.library_manager import LibraryManager
 from fichero.shared.toolbars import TopToolbar, BottomToolbar
+from fichero.config.core.plan_manager import PlanManager
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 
 logger = logging.getLogger(__name__)
@@ -2145,7 +2146,16 @@ class CollectionView(BaseView, ViewCommandMixin):
         logger.info(f"Processing {len(item_ids)} items directly (no confirmation dialog to avoid crash)")
         logger.info(f"Collection: {collection.name}")
         logger.info(f"Items:\n{item_list}")
-        logger.info(f"Plan: Default, Workflow: Catalogue")
+
+        # Get default plan and workflow from settings
+        plan_name = PlanManager.get_default_plan(self.app)
+        if not plan_name:
+            plan_name = "Default"  # Fallback if no default set
+            logger.warning(f"No default plan found in settings, using fallback: {plan_name}")
+
+        # Get default workflow for the plan
+        workflow_name = "Catalogue"  # TODO: Get from plan or settings
+        logger.info(f"Plan: {plan_name}, Workflow: {workflow_name}")
 
         # Check director integration service
         if not hasattr(self.app, 'director_integration'):
@@ -2157,15 +2167,14 @@ class CollectionView(BaseView, ViewCommandMixin):
         logger.info(f"Item IDs to process: {item_ids}")
         logger.info(f"Collection ID: {collection_id}")
 
-        # Process items
-        # Use first workflow from the plan (typically "Catalogue")
+        # Process items with default plan from settings
         try:
             logger.info("Calling director_integration.process_items()...")
             task_ids = await self.app.director_integration.process_items(
                 collection_id=collection_id,
                 item_ids=item_ids,
-                plan_name="Default",
-                workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
+                plan_name=plan_name,
+                workflow_name=workflow_name
             )
             logger.info(f"✅ process_items() returned: {task_ids}")
         except Exception as process_error:
@@ -2202,7 +2211,15 @@ class CollectionView(BaseView, ViewCommandMixin):
         # Skip confirmation dialog - just proceed directly (dialogs cause NSTableView crash)
         logger.info(f"Processing folder directly (no confirmation dialog to avoid crash)")
         logger.info(f"Collection: {collection.name}")
-        logger.info(f"Plan: Default, Workflow: Catalogue")
+
+        # Get default plan and workflow from settings
+        plan_name = PlanManager.get_default_plan(self.app)
+        if not plan_name:
+            plan_name = "Default"  # Fallback if no default set
+            logger.warning(f"No default plan found in settings, using fallback: {plan_name}")
+
+        workflow_name = "Catalogue"  # TODO: Get from plan or settings
+        logger.info(f"Plan: {plan_name}, Workflow: {workflow_name}")
 
         # Get the collection folder path
         collection_path = collection.local_path or collection.source_path
@@ -2247,8 +2264,8 @@ class CollectionView(BaseView, ViewCommandMixin):
             task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
                 input_path=Path(collection_path),
                 output_path=output_base,
-                plan_name="Default",
-                workflow_name="Catalogue",  # Changed from "default" to match actual workflow in plan
+                plan_name=plan_name,
+                workflow_name=workflow_name,
                 progress_callback=progress_callback
             )
         except TypeError:
@@ -2257,8 +2274,8 @@ class CollectionView(BaseView, ViewCommandMixin):
             task_ids = self.app.director.processing_coordinator.process_with_auto_detection(
                 input_path=Path(collection_path),
                 output_path=output_base,
-                plan_name="Default",
-                workflow_name="Catalogue"  # Changed from "default" to match actual workflow in plan
+                plan_name=plan_name,
+                workflow_name=workflow_name
             )
 
         # Open Activity Window to show processing progress
