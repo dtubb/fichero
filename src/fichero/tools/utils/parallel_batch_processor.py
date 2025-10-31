@@ -57,22 +57,32 @@ def create_parallel_batch_processor(tool_name: str, base_batch_processor_class, 
             for doc in batch:
                 path = Path(doc["path"])
                 
-                # Use base folder directly with documents/ prefix (same as original)
+                # Use base folder directly with documents/ prefix for _staging
+                # For external collections, use direct path without adding documents/
                 if self.base_folder:
-                    if "documents" not in str(self.base_folder).lower():
+                    base_str = str(self.base_folder)
+                    # Only add documents/ if processing from _staging (internal collection)
+                    if "_staging" in base_str and "documents" not in base_str.lower():
                         full_path = self.base_folder / "documents" / path
                     else:
+                        # External collection or already in documents/ - use direct path
                         full_path = self.base_folder / path
                 else:
                     full_path = path
                 
-                # Create output path (same logic as original BatchProcessor)
+                # Create output path - only add documents/ for _staging workflows
                 parts = path.parts
                 if 'documents' in parts:
                     rel_path = Path(*parts[parts.index('documents') + 1:])
                 else:
                     rel_path = path
-                out_path = self.output_folder / "documents" / rel_path
+
+                # Only add documents/ subdirectory if source is from _staging (internal workflow)
+                if "_staging" in base_str and "documents" not in base_str.lower():
+                    out_path = self.output_folder / "documents" / rel_path
+                else:
+                    # External collection or processing from assets - no documents/ subdirectory
+                    out_path = self.output_folder / rel_path
                 
                 file_tasks.append((full_path, out_path))
             

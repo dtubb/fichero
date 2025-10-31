@@ -363,11 +363,15 @@ def transcribe_batch(
             for doc in batch:
                 path = Path(doc["path"])
                 
-                # Use base folder directly with documents/ prefix like other scripts
+                # Use base folder directly with documents/ prefix for _staging
+                # For external collections, use direct path without adding documents/
                 if self.base_folder:
-                    if "documents" not in str(self.base_folder).lower():
+                    base_str = str(self.base_folder)
+                    # Only add documents/ if processing from _staging (internal collection)
+                    if "_staging" in base_str and "documents" not in base_str.lower():
                         full_path = self.base_folder / "documents" / path
                     else:
+                        # External collection or already in documents/ - use direct path
                         full_path = self.base_folder / path
                 else:
                     full_path = path
