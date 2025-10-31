@@ -59,7 +59,7 @@ def create_parallel_batch_processor(tool_name: str, base_batch_processor_class, 
                 
                 # Use base folder directly with documents/ prefix (same as original)
                 if self.base_folder:
-                    if "documents" not in str(self.base_folder):
+                    if "documents" not in str(self.base_folder).lower():
                         full_path = self.base_folder / "documents" / path
                     else:
                         full_path = self.base_folder / path
@@ -81,13 +81,38 @@ def create_parallel_batch_processor(tool_name: str, base_batch_processor_class, 
                 return
             
             logger.info(f"[{self.tool_name}] 🧵 Using ThreadPoolExecutor with {workers} workers")
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                # Submit all tasks
-                future_to_path = {
-                    executor.submit(process_image_fn, full_path, out_path, self.output_format): full_path
-                    for full_path, out_path in file_tasks
-                }
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                    # Submit all tasks
+                    future_to_path = {}
+                    for full_path, out_path in file_tasks:
+                        try:
+                            future = executor.submit(process_image_fn, full_path, out_path, self.output_format)
+                            future_to_path[future] = full_path
+                        except RuntimeError as e:
+                            if "shutdown" in str(e):
+                                logger.warning(f"[{self.tool_name}] ⚠️ Executor shutting down, processing {full_path.name} sequentially")
+                                # Process this file sequentially as fallback
+                                try:
+                                    result = process_image_fn(full_path, out_path, self.output_format)
+                                    if isinstance(result, dict):
+                                        self.output_proc.save_entry(result)
+                                        if result.get("error"):
+                                            stats["failed"] += 1
+                                        else:
+                                            stats["processed"] += 1
+                                except Exception as seq_e:
+                                    logger.error(f"[{self.tool_name}] ❌ Sequential fallback failed for {full_path.name}: {seq_e}")
+                                    error_result = {
+                                        "error": str(seq_e),
+                                        "outputs": [],
+                                        "source": str(full_path)
+                                    }
+                                    self.output_proc.save_entry(error_result)
+                                    stats["failed"] += 1
+                            else:
+                                raise
                 
                 # Collect results as they complete
                 for future in concurrent.futures.as_completed(future_to_path):
@@ -115,7 +140,34 @@ def create_parallel_batch_processor(tool_name: str, base_batch_processor_class, 
                         }
                         self.output_proc.save_entry(error_result)
                         stats["failed"] += 1
-            
+
+            except RuntimeError as e:
+                if "shutdown" in str(e):
+                    logger.warning(f"[{self.tool_name}] ⚠️ Executor error during processing: {e}")
+                    logger.info(f"[{self.tool_name}] Falling back to sequential processing for remaining tasks...")
+                    # Process any remaining tasks sequentially
+                    for full_path, out_path in file_tasks:
+                        try:
+                            result = process_image_fn(full_path, out_path, self.output_format)
+                            if isinstance(result, dict):
+                                self.output_proc.save_entry(result)
+                                if result.get("error"):
+                                    stats["failed"] += 1
+                                else:
+                                    stats["processed"] += 1
+                                logger.info(f"[{self.tool_name}] ✅ Completed processing: {full_path.name}")
+                        except Exception as seq_e:
+                            logger.error(f"[{self.tool_name}] ❌ Failed processing {full_path.name}: {seq_e}")
+                            error_result = {
+                                "error": str(seq_e),
+                                "outputs": [],
+                                "source": str(full_path)
+                            }
+                            self.output_proc.save_entry(error_result)
+                            stats["failed"] += 1
+                else:
+                    raise
+
             batch_time = time.time() - batch_start
             logger.info(f"[{self.tool_name}] Batch of {len(file_tasks)} images processed in {batch_time:.1f}s")
     

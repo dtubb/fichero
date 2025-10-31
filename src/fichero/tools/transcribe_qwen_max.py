@@ -27,17 +27,26 @@ except ImportError:
 tool_logger = get_tool_logger('transcribe_qwen_max')
 
 # Base 64 encoding format
-def encode_image(image: Image.Image) -> str:
-    """Encode image to base64 for API"""
-    # Resize image if needed - more aggressive resizing for API
-    max_size = 1024  # Reduced from 1500 to 1024 for faster API processing
+def encode_image(image: Image.Image, max_size: int = 1024) -> str:
+    """Encode image to base64 for API with configurable max size
+
+    Args:
+        image: PIL Image to encode
+        max_size: Maximum dimension (width or height) in pixels.
+                  Progressive values: 1024 (default) -> 768 -> 512 -> 256
+
+    Returns:
+        Base64 encoded JPEG string, or empty string for invalid images
+    """
     width, height = image.size
     aspect_ratio = max(width, height) / float(min(width, height))
-    
+
     # Skip extremely wide/tall images
     if aspect_ratio > 200:
+        tool_logger.warning(f"Skipping image with extreme aspect ratio: {aspect_ratio:.1f}")
         return ""
-        
+
+    # Resize image if needed
     if width > max_size or height > max_size:
         if width > height:
             new_width = max_size
@@ -46,11 +55,15 @@ def encode_image(image: Image.Image) -> str:
             new_height = max_size
             new_width = int((max_size / height) * width)
         image = image.resize((new_width, new_height), Image.LANCZOS)
-    
-    # Encode resized image with more compression
+        tool_logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height} (max_size={max_size})")
+
+    # Encode resized image with compression
     buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=80)  # Reduced quality for better compression
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+    image.save(buffered, format="JPEG", quality=80)
+    encoded = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    size_kb = len(encoded) / 1024
+    tool_logger.info(f"Encoded image size: {size_kb:.1f} KB (max_size={max_size})")
+    return encoded
 
 def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
     """Process a single image file synchronously"""
@@ -94,83 +107,130 @@ def process_image_sync(file_path: Path, out_path: Path, api_key: str) -> dict:
                 "source": str(SegmentHandler.get_relative_path(file_path))
             }
         
-        # Encode image for API
-        base64_image = encode_image(image)
-        
-        # Initialize synchronous OpenAI client with doubled timeout
+        # Progressive size reduction strategy for timeouts
+        # Try sizes: 1024 -> 768 -> 512 -> 256
+        size_attempts = [1024, 768, 512, 256]
+
+        # Initialize synchronous OpenAI client with timeout
         client = OpenAI(
             api_key=api_key,
             base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            timeout=120.0  # Doubled from 60 to 120 seconds
+            timeout=180.0  # 3 minute timeout
         )
-        
+
+        completion = None
+
         try:
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
             tool_logger.info(f"[{timestamp}] Sending to Qwen API: {file_path.name}")
-            
-            # Retry logic for API calls
-            max_retries = 3
-            retry_delay = 1.0
-            
-            for attempt in range(max_retries):
-                try:
-                    tool_logger.info(f"🌐 Calling Qwen API (attempt {attempt + 1}/{max_retries}) for: {file_path.name}")
-                    
-                    # Synchronous API call with doubled timeout
-                    completion = client.chat.completions.create(
-                        model="qwen-vl-max",
-                        messages=[{
-                            "role": "user",
-                            "content": [
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                                {"type": "text", "text": "Extract all text line by line. Do not number lines. SKIP UNREADABLE TEXT. PUT IN SQUARE BRACKETS [GUESSES AND UNCERTAIN] TEXT. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, GIBBERISH, OR TEXT IN LANGUAGE YOU DO NOT RECOGNIZE. RETURN EMPTY IF NOT TEXT."}
-                            ]
-                        }],
-                        timeout=120  # Doubled from 60 to 120 seconds
-                    )
-                    tool_logger.info(f"✅ API call succeeded for: {file_path.name}")
-                    break
-                    
-                except Exception as api_error:
-                    # Check for 401 API key errors - these should stop everything
-                    error_str = str(api_error).lower()
-                    is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
-                    
-                    if is_auth_error:
-                        tool_logger.error(f"🔑 FATAL: Invalid API key error: {api_error}")
-                        # Save error to file and raise to stop batch processing
-                        with open(out_path, 'w', encoding='utf-8') as f:
-                            f.write(f"[ERROR] Invalid API key: {api_error}")
-                        raise ValueError(f"Invalid API key - processing stopped: {api_error}")
-                    
-                    if attempt < max_retries - 1:
-                        tool_logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
-                        tool_logger.info(f"Retrying in {retry_delay:.1f} seconds...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                    else:
-                        # Final attempt failed - check if this is a connection error that should stop everything
+
+            # Try progressively smaller sizes on timeout
+            for size_index, max_size in enumerate(size_attempts):
+                # Encode image at current size
+                base64_image = encode_image(image, max_size=max_size)
+
+                if not base64_image:
+                    tool_logger.warning(f"Failed to encode image at size {max_size}, skipping to next size")
+                    continue
+
+                # Retry logic for API calls at this size
+                max_retries = 2  # 2 retries per size
+                retry_delay = 1.0
+
+                size_succeeded = False
+
+                for attempt in range(max_retries):
+                    try:
+                        size_msg = f" (size={max_size}px)" if size_index > 0 else ""
+                        tool_logger.info(f"🌐 Calling Qwen API{size_msg} (attempt {attempt + 1}/{max_retries}) for: {file_path.name}")
+
+                        # Synchronous API call
+                        completion = client.chat.completions.create(
+                            model="qwen3-vl-235b-a22b-instruct",
+                            messages=[{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                                    {"type": "text", "text": "Extract all text line by line. Do not number lines. SKIP UNREADABLE TEXT. PUT IN SQUARE BRACKETS [GUESSES AND UNCERTAIN] TEXT. RETURN ONLY PLAIN TEXT. RETURN NOTHING IF NOT TEXT. SAY NOTHING ELSE. DO NOT PROCESS REVERSED TEXT, MIRRORED TEXT, OR GIBBERISH. RETURN EMPTY IF NO TEXT. SAY NOTHING ELSE."}
+                                ]
+                            }],
+                            timeout=180  # 3 minute timeout per attempt
+                        )
+                        tool_logger.info(f"✅ API call succeeded for: {file_path.name}")
+                        size_succeeded = True
+                        break
+
+                    except Exception as api_error:
                         error_str = str(api_error).lower()
-                        is_connection_error = "connection error" in error_str
-                        
-                        if is_connection_error:
-                            tool_logger.error(f"🌐 FATAL: Connection error after {max_retries} attempts: {api_error}")
+
+                        # Check for 401 API key errors - these should stop everything
+                        is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
+
+                        if is_auth_error:
+                            tool_logger.error(f"🔑 FATAL: Invalid API key error: {api_error}")
                             # Save error to file and raise to stop batch processing
                             with open(out_path, 'w', encoding='utf-8') as f:
-                                f.write(f"[ERROR] API call failed after {max_retries} attempts: {api_error}")
-                            raise ValueError(f"Connection error after {max_retries} attempts - processing stopped: {api_error}")
-                        
-                        # Other errors - continue with other files (don't raise)
-                        tool_logger.error(f"❌ API call failed after {max_retries} attempts: {api_error}")
-                        tool_logger.warning(f"⚠️ Continuing with other files...")
-                        # Save error to transcription file
-                        with open(out_path, 'w', encoding='utf-8') as f:
-                            f.write(f"[ERROR] API call failed after {max_retries} attempts: {api_error}")
-                        return {
-                            "error": f"API call failed after {max_retries} attempts: {api_error}",
-                            "outputs": [str(SegmentHandler.get_relative_path(out_path))],
-                            "source": str(SegmentHandler.get_relative_path(file_path))
-                        }
+                                f.write(f"[ERROR] Invalid API key: {api_error}")
+                            raise ValueError(f"Invalid API key - processing stopped: {api_error}")
+
+                        # Check for timeout errors - try smaller size
+                        is_timeout = "timeout" in error_str or "timed out" in error_str
+
+                        if is_timeout and size_index < len(size_attempts) - 1:
+                            # This is a timeout and we have smaller sizes to try
+                            next_size = size_attempts[size_index + 1]
+                            tool_logger.warning(f"⏱️ Timeout at size {max_size}px, will try smaller size {next_size}px")
+                            break  # Break retry loop, continue to next size
+
+                        if attempt < max_retries - 1:
+                            tool_logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
+                            tool_logger.info(f"Retrying in {retry_delay:.1f} seconds...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                        else:
+                            # Final attempt at this size failed
+                            error_str = str(api_error).lower()
+                            is_connection_error = "connection error" in error_str
+
+                            if is_connection_error:
+                                tool_logger.error(f"🌐 FATAL: Connection error after {max_retries} attempts: {api_error}")
+                                # Save error to file and raise to stop batch processing
+                                with open(out_path, 'w', encoding='utf-8') as f:
+                                    f.write(f"[ERROR] API call failed after {max_retries} attempts: {api_error}")
+                                raise ValueError(f"Connection error after {max_retries} attempts - processing stopped: {api_error}")
+
+                            # If this is the last size attempt, fail completely
+                            if size_index >= len(size_attempts) - 1:
+                                tool_logger.error(f"❌ API call failed after trying all sizes: {api_error}")
+                                tool_logger.warning(f"⚠️ Continuing with other files...")
+                                # Save error to transcription file
+                                with open(out_path, 'w', encoding='utf-8') as f:
+                                    f.write(f"[ERROR] API call failed after trying all sizes: {api_error}")
+                                return {
+                                    "error": f"API call failed after trying all sizes: {api_error}",
+                                    "outputs": [str(SegmentHandler.get_relative_path(out_path))],
+                                    "source": str(SegmentHandler.get_relative_path(file_path))
+                                }
+                            else:
+                                # Try next smaller size
+                                tool_logger.warning(f"⚠️ Failed at size {max_size}px, trying smaller size")
+                                break
+
+                # If this size succeeded, stop trying smaller sizes
+                if size_succeeded and completion:
+                    break
+
+            # Check if we got a completion
+            if not completion:
+                error_msg = "Failed to get response after trying all image sizes"
+                tool_logger.error(f"❌ {error_msg}")
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    f.write(f"[ERROR] {error_msg}")
+                return {
+                    "error": error_msg,
+                    "outputs": [str(SegmentHandler.get_relative_path(out_path))],
+                    "source": str(SegmentHandler.get_relative_path(file_path))
+                }
         
             timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
             tool_logger.info(f"[{timestamp}] Received response from Qwen API for: {file_path.name}")
@@ -305,7 +365,7 @@ def transcribe_batch(
                 
                 # Use base folder directly with documents/ prefix like other scripts
                 if self.base_folder:
-                    if "documents" not in str(self.base_folder):
+                    if "documents" not in str(self.base_folder).lower():
                         full_path = self.base_folder / "documents" / path
                     else:
                         full_path = self.base_folder / path
@@ -329,61 +389,83 @@ def transcribe_batch(
             # Process using ThreadPoolExecutor with synchronous functions - start with 5 workers
             max_workers = min(5, len(file_tasks))  # Start with 5 workers as requested
             tool_logger.info(f"🧵 Using ThreadPoolExecutor with {max_workers} workers")
-            
+
             results = []
             api_key_error_detected = False
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all tasks
-                future_to_path = {
-                    executor.submit(process_image_sync, full_path, out_path, api_key): full_path
-                    for full_path, out_path, api_key in file_tasks
-                }
-                
-                # Collect results as they complete
-                for future in concurrent.futures.as_completed(future_to_path):
-                    file_path = future_to_path[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                        tool_logger.info(f"✅ Completed processing: {file_path.name}")
-                    except Exception as e:
-                        # Check if this is a fatal error that should stop everything
-                        error_str = str(e).lower()
-                        is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
-                        is_connection_error = "connection error" in error_str
-                        
-                        if is_auth_error:
-                            tool_logger.error(f"🔑 FATAL: Invalid API key error detected, stopping ALL processing immediately: {e}")
-                            api_key_error_detected = True
-                            
-                            # Cancel all remaining futures
-                            for pending_future in future_to_path:
-                                if not pending_future.done():
-                                    pending_future.cancel()
-                                    tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
-                            
-                            # Raise immediately to stop everything
-                            raise ValueError(f"Invalid API key - all processing stopped: {e}")
-                        
-                        elif is_connection_error:
-                            tool_logger.error(f"🌐 FATAL: Connection error detected, stopping ALL processing immediately: {e}")
-                            
-                            # Cancel all remaining futures
-                            for pending_future in future_to_path:
-                                if not pending_future.done():
-                                    pending_future.cancel()
-                                    tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
-                            
-                            # Raise immediately to stop everything
-                            raise ValueError(f"Connection error - all processing stopped: {e}")
-                        
-                        tool_logger.error(f"❌ Failed processing {file_path.name}: {e}")
-                        results.append({
-                            "error": str(e),
-                            "outputs": [],
-                            "source": str(file_path)
-                        })
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Submit all tasks
+                    future_to_path = {
+                        executor.submit(process_image_sync, full_path, out_path, api_key): full_path
+                        for full_path, out_path, api_key in file_tasks
+                    }
+
+                    # Collect results as they complete
+                    for future in concurrent.futures.as_completed(future_to_path):
+                        file_path = future_to_path[future]
+                        try:
+                            result = future.result()
+                            results.append(result)
+                            tool_logger.info(f"✅ Completed processing: {file_path.name}")
+                        except Exception as e:
+                            # Check if this is a fatal error that should stop everything
+                            error_str = str(e).lower()
+                            is_auth_error = "401" in error_str or "unauthorized" in error_str or "invalid_api_key" in error_str
+                            is_connection_error = "connection error" in error_str
+
+                            if is_auth_error:
+                                tool_logger.error(f"🔑 FATAL: Invalid API key error detected, stopping ALL processing immediately: {e}")
+                                api_key_error_detected = True
+
+                                # Cancel all remaining futures
+                                for pending_future in future_to_path:
+                                    if not pending_future.done():
+                                        pending_future.cancel()
+                                        tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
+
+                                # Raise immediately to stop everything
+                                raise ValueError(f"Invalid API key - all processing stopped: {e}")
+
+                            elif is_connection_error:
+                                tool_logger.error(f"🌐 FATAL: Connection error detected, stopping ALL processing immediately: {e}")
+
+                                # Cancel all remaining futures
+                                for pending_future in future_to_path:
+                                    if not pending_future.done():
+                                        pending_future.cancel()
+                                        tool_logger.info(f"🚫 Cancelled remaining task: {future_to_path[pending_future].name}")
+
+                                # Raise immediately to stop everything
+                                raise ValueError(f"Connection error - all processing stopped: {e}")
+
+                            tool_logger.error(f"❌ Failed processing {file_path.name}: {e}")
+                            results.append({
+                                "error": str(e),
+                                "outputs": [],
+                                "source": str(file_path)
+                            })
+            except RuntimeError as e:
+                # Fall back to sequential processing if executor can't be created (e.g., during shutdown)
+                if "cannot schedule new futures after interpreter shutdown" in str(e):
+                    tool_logger.warning(f"⚠️ ThreadPoolExecutor unavailable (interpreter shutting down), falling back to sequential processing")
+                    # Process sequentially
+                    for full_path, out_path, api_key in file_tasks:
+                        try:
+                            result = process_image_sync(full_path, out_path, api_key)
+                            results.append(result)
+                            tool_logger.info(f"✅ Completed processing: {full_path.name}")
+                        except Exception as file_error:
+                            tool_logger.error(f"❌ Failed processing {full_path.name}: {file_error}")
+                            results.append({
+                                "error": str(file_error),
+                                "outputs": [],
+                                "source": str(full_path)
+                            })
+                    tool_logger.info(f"✅ Sequential processing complete, got {len(results)} results")
+                    return results
+                else:
+                    raise
             
             tool_logger.info(f"✅ Parallel processing complete, got {len(results)} results")
             return results
