@@ -36,22 +36,30 @@ class URLImporter:
     async def import_from_url(
         self,
         url: str,
+        collection_id: Optional[str] = None,
         collection_name: Optional[str] = None,
         description: Optional[str] = None,
         timeout: int = 600,
         max_items: int = 1000,
-        download_mode: Optional[str] = None
+        download_mode: Optional[str] = None,
+        collection_type: str = "local",
+        source_path: Optional[str] = None,
+        use_tiled_download: bool = False
     ) -> dict:
         """
         Import content from URL using plugin system
 
         Args:
             url: URL to import from
+            collection_id: Optional ID of existing collection to add items to (not yet implemented - will create new collection)
             collection_name: Optional collection name (auto-generated if None)
             description: Optional collection description
             timeout: Download timeout in seconds
             max_items: Maximum items to import
             download_mode: Download mode for EAP plugin ('link' or 'download')
+            collection_type: Collection type ('local' or 'external')
+            source_path: Source path for external collections
+            use_tiled_download: Enable IIIF tiled download for full-resolution images (EAP plugin only)
 
         Returns:
             dict with keys:
@@ -64,6 +72,10 @@ class URLImporter:
                 - error_message: str or None
                 - metadata: dict
         """
+        # TODO: Implement collection_id support to add items to existing collection
+        # For now, we always create a new collection regardless of collection_id
+        if collection_id:
+            logger.warning(f"collection_id parameter not yet supported - will create new collection instead")
         try:
             # Import plugin system
             from fichero.library.import_plugins import PluginRegistry
@@ -109,12 +121,17 @@ class URLImporter:
             # Build kwargs based on plugin
             kwargs = {
                 'timeout': timeout,
-                'max_items': max_items
+                'max_items': max_items,
+                'collection_type': collection_type,
+                'source_path': source_path
             }
 
             # Add EAP-specific options
-            if download_mode and "EAP" in plugin_info['name']:
-                kwargs['download_mode'] = download_mode
+            if "EAP" in plugin_info['name']:
+                if download_mode:
+                    kwargs['download_mode'] = download_mode
+                if use_tiled_download:
+                    kwargs['use_tiled_download'] = use_tiled_download
 
             # Perform import
             result = await plugin.download_and_import(

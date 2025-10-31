@@ -396,16 +396,21 @@ class LibraryView(BaseView, ViewCommandMixin):
                 # Store selected collection
                 self.selected_collection = collection
 
-                # Update inspector with collection metadata
+                # Update inspector with collection metadata (as dict)
                 logger.info(f"📋 Collection selected, checking inspector: has_attr={hasattr(self.app, 'inspector_window')}, exists={getattr(self.app, 'inspector_window', None) is not None}")
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
-                    logger.info("📋 Getting collection metadata for inspector...")
-                    metadata = self.get_selection_metadata()
-                    logger.info(f"📋 Calling inspector.update_metadata with {len(metadata)} chars")
-                    self.app.inspector_window.update_metadata(metadata, selection_type="COLLECTION")
+                    logger.info("📋 Updating inspector with collection dict...")
+                    # Use collection dict directly (already contains all needed fields)
+                    logger.info(f"📋 Calling inspector.update_metadata with {len(collection)} fields")
+                    self.app.inspector_window.update_metadata(collection, selection_type="COLLECTION")
                     logger.info("📋 Inspector updated with collection metadata")
                 else:
                     logger.warning("📋 Inspector window not available!")
+
+                # Enable inspector button on mobile when collection is selected
+                if hasattr(self, 'commands') and 'show_inspector' in self.commands:
+                    self.commands['show_inspector'].enable()
+                    logger.debug("✅ Enabled 'Show Inspector' button (collection selected)")
 
                 # Navigate to collection via callback (called only once)
                 if self.on_collection_selected:
@@ -418,6 +423,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                     if hasattr(self.app.main_window_wrapper, 'center_pane') and self.app.main_window_wrapper.center_pane:
                         self.app.main_window_wrapper.center_pane.clear()
                         logger.info("📭 Center pane cleared")
+
+                # Disable inspector button on mobile when no selection
+                if hasattr(self, 'commands') and 'show_inspector' in self.commands:
+                    self.commands['show_inspector'].disable()
+                    logger.debug("❌ Disabled 'Show Inspector' button (no selection)")
 
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
@@ -1515,62 +1525,39 @@ class LibraryView(BaseView, ViewCommandMixin):
                     context='normal'
                 ),
 
-                # ===== EDIT MODE IMPORT COMMANDS =====
-                # These commands appear in edit mode toolbar
-                'edit_import_urls': FicheroCommand(
-                    id=f'{self.view_id}.edit_import_urls',
-                    label=_("Import URLs"),
-                    action=self._on_import_urls,
-                    icon='resources/icons/toolbar/link.png',
-                    description=_("Import from URLs"),
-                    show_in_menu=False,
-                    show_in_bottom_toolbar=True,
-                    toolbar_position='center',
-                    mobile_only=False,  # Available on both mobile and desktop
-                    desktop_only=False,
-                    context='edit'
-                ),
-
-                'edit_import_files': FicheroCommand(
-                    id=f'{self.view_id}.edit_import_files',
-                    label=_("Import Files"),
-                    action=self._on_import_files,
-                    icon='resources/icons/toolbar/document.png',
-                    description=_("Import files"),
-                    show_in_menu=False,
-                    show_in_bottom_toolbar=True,
-                    toolbar_position='center',
-                    mobile_only=False,
-                    desktop_only=True,  # Desktop only - native file picker
-                    context='edit'
-                ),
-
-                'edit_import_folder': FicheroCommand(
-                    id=f'{self.view_id}.edit_import_folder',
-                    label=_("Import Folder"),
-                    action=self._on_import_folder,
+                # ===== EDIT MODE COMMANDS =====
+                # Add Collection button for edit mode (mobile bottom toolbar)
+                'edit_add_collection': FicheroCommand(
+                    id=f'{self.view_id}.edit_add_collection',
+                    label=_("Add\nCollection"),
+                    action=self._on_new_collection,
                     icon='resources/icons/toolbar/folder@10x.png',
-                    description=_("Import folder"),
+                    description=_("Create a new collection"),
                     show_in_menu=False,
                     show_in_bottom_toolbar=True,
                     toolbar_position='center',
-                    mobile_only=False,
-                    desktop_only=True,  # Desktop only - native folder picker
+                    mobile_only=True,  # Mobile only - mobile edit mode
+                    desktop_only=False,
                     context='edit'
                 ),
 
-                'edit_camera': FicheroCommand(
-                    id=f'{self.view_id}.edit_camera',
-                    label=_("Camera"),
-                    action=self._on_open_camera,
-                    icon='resources/icons/toolbar/camera.png',
-                    description=_("Take photo with camera"),
-                    show_in_menu=False,
-                    show_in_bottom_toolbar=True,
-                    toolbar_position='center',
-                    mobile_only=True,  # Mobile only - camera access
+                # ===== MOBILE TOP TOOLBAR - INSPECTOR BUTTON =====
+                'show_inspector': FicheroCommand(
+                    id=f'{self.view_id}.show_inspector',
+                    label=_("Info"),
+                    action=self._on_show_inspector,
+                    icon='resources/icons/toolbar/info.circle@10x.png',
+                    description=_("Show inspector for selected collection"),
+                    show_in_menu=False,  # Not in menus
+                    show_in_toolbar=False,  # Not in desktop toolbar
+                    show_in_top_toolbar=True,  # Mobile top toolbar
+                    toolbar_position='right',  # Right side of toolbar
+                    show_in_bottom_toolbar=False,  # Not in bottom toolbar
+                    mobile_only=True,  # Only on mobile
                     desktop_only=False,
-                    context='edit'
+                    context='normal',
+                    order=99,  # Last on right side (rightmost)
+                    enabled=False  # Will be enabled when collection is selected
                 ),
             }
 
@@ -2202,6 +2189,82 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to open camera: {e}")
 
+    # ===== MOBILE TOP TOOLBAR HANDLERS =====
+
+    def _on_show_inspector(self, widget=None):
+        """Handle show inspector command - opens inspector window with selected collection"""
+        try:
+            logger.info("Show inspector requested")
+
+            # Get currently selected collection
+            if not hasattr(self, 'collections_list') or not self.collections_list or not self.collections_list.selection:
+                logger.warning("No collection selected for inspector")
+                return
+
+            selected_row = self.collections_list.selection
+            collection_id = getattr(selected_row, 'id', None)
+
+            if not collection_id:
+                logger.warning("Selected collection has no ID")
+                return
+
+            # Fetch full collection metadata from library service (same for desktop and mobile)
+            asyncio.create_task(self._show_inspector_with_full_data(collection_id))
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector: {e}")
+
+    async def _show_inspector_with_full_data(self, collection_id: str):
+        """Fetch full collection data and show inspector (unified for desktop and mobile)"""
+        try:
+            # Fetch full collection from library
+            collection_data = None
+            if self.library_service and hasattr(self.library_service, 'library_manager'):
+                collection = await self.library_service.library_manager.get_collection(collection_id)
+                if collection:
+                    # Pass dictionary directly - inspector supports it
+                    collection_data = collection.to_dict()
+                    logger.info(f"Fetched full collection from database: {len(collection_data)} fields")
+                else:
+                    logger.warning(f"Collection not found in database: {collection_id}")
+            else:
+                logger.warning("Library service not available")
+
+            # Fallback to minimal data if fetch failed
+            if not collection_data:
+                collection_data = {'name': 'Unknown', 'id': collection_id}
+
+            # Mobile: Use NavigationController to navigate to inspector
+            if self.is_mobile:
+                if hasattr(self.app, 'view_integration'):
+                    nav_controller = self.app.view_integration.get_navigation_controller()
+                    if nav_controller:
+                        # Pass dictionary directly with COLLECTION selection type
+                        nav_controller.navigate_to_inspector(
+                            item_id=collection_id,
+                            item_data=collection_data,
+                            selection_type='COLLECTION'
+                        )
+                        logger.info(f"Navigated to inspector for collection: {collection_id}")
+                    else:
+                        logger.error("NavigationController not available")
+                else:
+                    logger.error("view_integration not available")
+            # Desktop: Show inspector window directly
+            else:
+                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                    # Update inspector with dictionary
+                    self.app.inspector_window.update_metadata(collection_data, selection_type='COLLECTION')
+                    self.app.inspector_window.show()
+                    logger.info(f"Inspector window shown for collection: {collection_id}")
+                else:
+                    logger.warning("Inspector window not available")
+
+        except Exception as e:
+            logger.error(f"Failed to show inspector with full data: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _on_urls_added(self, data: dict):
         """Callback when URLs are added from URL view
 
@@ -2594,71 +2657,3 @@ class LibraryView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to update collection subtitle: {e}")
-
-    def get_selection_metadata(self) -> str:
-        """Get metadata for the currently selected collection"""
-        try:
-            if not self.selected_collection:
-                return "No collection selected"
-
-            # Format collection metadata as human-readable text
-            collection = self.selected_collection
-            lines = [
-                "=== COLLECTION METADATA ===",
-                "",
-                f"Name: {collection.get('name', 'Unknown')}",
-                f"ID: {collection.get('id', 'N/A')}",
-                "",
-            ]
-
-            # Add storage statistics
-            storage_stats = collection.get('storage_stats', {})
-            local_count = storage_stats.get('local', 0)
-            external_count = storage_stats.get('external', 0)
-            url_count = storage_stats.get('url', 0)
-            total_items = collection.get('item_count', 0)
-
-            lines.append("=== CONTENTS ===")
-            lines.append(f"Total Items: {total_items}")
-            if local_count > 0:
-                lines.append(f"  📁 Copied: {local_count}")
-            if external_count > 0:
-                lines.append(f"  🔗 Linked: {external_count}")
-            if url_count > 0:
-                lines.append(f"  🌐 URLs: {url_count}")
-            lines.append("")
-
-            # Add storage location info
-            lines.append("=== STORAGE ===")
-            collection_type = collection.get('type', 'Unknown')
-            if collection_type == 'local':
-                lines.append("Location: Library Folder")
-            elif collection_type == 'external':
-                lines.append("Location: External Path")
-            elif collection_type == 'url':
-                lines.append("Location: URL Collection")
-            else:
-                lines.append(f"Location: {collection_type}")
-
-            if collection.get('source_path'):
-                lines.append(f"Source: {collection.get('source_path')}")
-            if collection.get('local_path'):
-                lines.append(f"Workspace: {collection.get('local_path')}")
-            lines.append("")
-
-            # Add timestamps
-            lines.append("=== DATES ===")
-            lines.append(f"Created: {collection.get('created_at', 'N/A')}")
-            lines.append(f"Updated: {collection.get('updated_at', 'N/A')}")
-
-            # Add description if available
-            if collection.get('description'):
-                lines.append("")
-                lines.append("=== DESCRIPTION ===")
-                lines.append(collection.get('description'))
-
-            return "\n".join(lines)
-            
-        except Exception as e:
-            logger.error(f"Failed to get selection metadata: {e}")
-            return f"Error loading metadata: {e}"

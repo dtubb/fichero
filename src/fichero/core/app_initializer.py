@@ -153,28 +153,32 @@ class FicheroAppInitializer:
         """Set up comprehensive logging for GUI"""
         import sys
         import os
-        
+
+        # Check for log level override via environment variable
+        log_level_name = os.environ.get('FICHERO_LOG_LEVEL', 'INFO').upper()
+        log_level = getattr(logging, log_level_name, logging.INFO)
+
         # Detect if running as bundled GUI app (avoid system logging)
         is_bundled_app = getattr(sys, 'frozen', False) or hasattr(sys, '_MEIPASS')
         is_gui_app = not sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else True
-        
+
         if is_bundled_app or is_gui_app:
             # For GUI apps: log to file only (avoid system logging that triggers briefcase log stream)
-            self._setup_file_logging()
+            self._setup_file_logging(log_level)
         else:
             # For development: use standard logging
             logging.basicConfig(
-                level=logging.INFO,
+                level=log_level,
                 format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             )
-        
-        logger.info("📝 GUI logging configured (file-based for bundled apps)")
+
+        logger.info(f"📝 GUI logging configured at {log_level_name} level (file-based for bundled apps)")
     
-    def _setup_file_logging(self):
+    def _setup_file_logging(self, log_level=logging.INFO):
         """Set up file-based logging for GUI apps (avoids system logging)"""
         import tempfile
         from pathlib import Path
-        
+
         # Create logs directory in user data location
         if self.app_context:
             # Use app's data directory
@@ -182,17 +186,17 @@ class FicheroAppInitializer:
         else:
             # Fallback to temp directory
             logs_dir = Path(tempfile.gettempdir()) / "fichero_logs"
-        
+
         logs_dir.mkdir(exist_ok=True)
-        
+
         # Create timestamped log file
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = logs_dir / f"fichero_{timestamp}.log"
-        
+
         # Configure file-based logging
         logging.basicConfig(
-            level=logging.INFO,
+            level=log_level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.FileHandler(log_file),
@@ -200,11 +204,11 @@ class FicheroAppInitializer:
                 logging.StreamHandler()
             ]
         )
-        
-        # Set console handler to show info messages for debugging
+
+        # Set console handler to match file log level
         console_handler = logging.getLogger().handlers[-1]
-        console_handler.setLevel(logging.INFO)  # Temporarily show info messages
-        
+        console_handler.setLevel(log_level)
+
         logger.info(f"📁 File logging configured: {log_file}")
     
     def _setup_basic_logging(self, verbose=False):

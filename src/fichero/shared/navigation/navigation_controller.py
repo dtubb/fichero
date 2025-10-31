@@ -226,17 +226,27 @@ class NavigationController:
                 return True
 
             # Special handling for hierarchical navigation within collections
-            if (self.current_state.context == NavigationContext.COLLECTION and
-                self.current_state.current_path):
+            if self.current_state.context == NavigationContext.COLLECTION:
+                if self.current_state.current_path:
+                    # We're inside a subfolder - go up one level
+                    parent_path = self._get_parent_path(self.current_state.current_path)
+                    if parent_path is not None:  # None means we're at root
+                        logger.info(f"Hierarchical back navigation: '{self.current_state.current_path}' → '{parent_path}'")
 
-                # Check if we can go back one folder level within the same collection
-                parent_path = self._get_parent_path(self.current_state.current_path)
-                if parent_path is not None:  # None means we're at root, use history navigation
-                    logger.info(f"Hierarchical back navigation: '{self.current_state.current_path}' → '{parent_path}'")
-
-                    # Update path without adding to history (we're going backwards)
-                    self.current_state.current_path = parent_path
+                        # Update path without adding to history (we're going backwards)
+                        self.current_state.current_path = parent_path
+                        self._emit_state_changed()
+                        self._navigating_back = False
+                        return True
+                else:
+                    # We're at collection root - go back to library
+                    logger.info(f"At collection root - navigating back to library")
+                    library_state = NavigationState(
+                        context=NavigationContext.LIBRARY
+                    )
+                    self.current_state = library_state
                     self._emit_state_changed()
+                    logger.info(f"✅ Navigated back to library from collection root")
                     self._navigating_back = False
                     return True
 
@@ -362,6 +372,22 @@ class NavigationController:
         """Navigate to output modal view"""
         return self._navigate_to_modal(NavigationContext.PREVIEW, "output")
 
+    def navigate_to_inspector(self, item_id: str = None, item_data: dict = None, selection_type: str = 'ITEM') -> bool:
+        """Navigate to inspector modal view with item information
+
+        Args:
+            item_id: ID of the item/collection to inspect
+            item_data: Dictionary of metadata to display
+            selection_type: Type of selection ('ITEM', 'COLLECTION', 'FOLDER')
+        """
+        params = {}
+        if item_id:
+            params['item_id'] = item_id
+        if item_data:
+            params['item_data'] = item_data
+        params['selection_type'] = selection_type
+        return self._navigate_to_modal(NavigationContext.INSPECTOR, "inspector", params)
+
     def navigate_to_add_url(self) -> bool:
         """Navigate to add URL modal view"""
         return self._navigate_to_modal(NavigationContext.ADD, "url")
@@ -440,6 +466,8 @@ class NavigationController:
                         params.get("collection_id"),
                         params.get("collection_name")
                     )
+            elif modal_type == "inspector":
+                view = self._create_inspector_view(params)
             elif modal_type == "output":
                 view = self._create_output_view()
 
@@ -898,6 +926,42 @@ class NavigationController:
             return OutputView(self.app, self.is_mobile, library_manager=library_manager)
         except Exception as e:
             logger.error(f"Failed to create output view: {e}")
+            return None
+
+    def _create_inspector_view(self, params: dict = None):
+        """Create inspector modal view - uses InspectorMobileView on mobile"""
+        try:
+            if not self.is_mobile:
+                # Desktop: Use existing inspector window
+                inspector_window = getattr(self.app, 'inspector_window', None)
+                if not inspector_window:
+                    from fichero.windows.inspector.inspector_window import InspectorWindow
+                    inspector_window = InspectorWindow(self.app)
+                    self.app.inspector_window = inspector_window
+
+                # Update inspector with item data if provided
+                if params:
+                    item_data = params.get('item_data', {})
+                    selection_type = params.get('selection_type', 'ITEM')
+                    if item_data:
+                        inspector_window.update_metadata(item_data, selection_type)
+
+                # Show window directly on desktop
+                inspector_window.show()
+                return None  # Desktop doesn't need modal view, uses window directly
+            else:
+                # Mobile: Create InspectorMobileView (follows pattern of activity monitor, etc.)
+                from fichero.windows.inspector.mobile_view import InspectorMobileView
+
+                item_data = params.get('item_data', {}) if params else {}
+                selection_type = params.get('selection_type', 'ITEM') if params else 'ITEM'
+
+                return InspectorMobileView(self.app, item_data=item_data, selection_type=selection_type)
+
+        except Exception as e:
+            logger.error(f"Failed to create inspector view: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     # ===== MODAL OVERLAY MANAGEMENT =====

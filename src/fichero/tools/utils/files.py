@@ -44,32 +44,49 @@ def get_skip_files() -> List[str]:
 
 def get_relative_path(file_path: Union[str, Path], base_folder: Path = None) -> Path:
     """
-    Get relative path from documents/ onwards.
+    Get relative path from documents/ or _staging/ onwards.
     Always returns a relative path, removing any absolute path components.
     Handles special characters in paths consistently.
     """
     file_path = Path(file_path)
-    
+
     # If base_folder is provided, make path relative to it
     if base_folder:
         try:
             return file_path.relative_to(base_folder)
         except ValueError:
             pass
-    
+
     # Try to get path relative to cwd
     try:
         rel_path = file_path.relative_to(Path.cwd())
     except ValueError:
         rel_path = file_path
-        
-    # Handle documents prefix by working with Path objects
+
+    # Handle common base folders by working with Path objects
+    # Look for: documents/, _staging/, or just return the filename if it's in one of these
     parts = rel_path.parts
-    if 'documents' in parts:
-        # Find the index of 'documents' and get everything after it
-        doc_index = parts.index('documents')
-        if doc_index < len(parts) - 1:
-            return Path(*parts[doc_index + 1:])
+
+    # Check for known folder markers (documents, _staging, assets, processing folders)
+    # Find the DEEPEST/LAST marker to strip the most path context
+    folder_markers = ['documents', '_staging', 'assets', 'crops', 'split', 'rotated', 'enhanced', 'background_removed']
+    deepest_marker_index = -1
+    for marker in folder_markers:
+        if marker in parts:
+            # Find the index of the marker
+            marker_index = parts.index(marker)
+            # Keep track of the deepest (rightmost) marker
+            if marker_index > deepest_marker_index:
+                deepest_marker_index = marker_index
+
+    # If we found a marker, return everything after the deepest one
+    if deepest_marker_index >= 0 and deepest_marker_index < len(parts) - 1:
+        return Path(*parts[deepest_marker_index + 1:])
+
+    # If still absolute, just return the filename (last resort)
+    if rel_path.is_absolute():
+        return Path(rel_path.name)
+
     return rel_path
 
 def reconstruct_input_path(base_folder: Path, source_path: str) -> Path:

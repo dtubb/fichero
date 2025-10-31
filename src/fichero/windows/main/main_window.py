@@ -54,6 +54,7 @@ class MainWindow:
         # Cached views to maintain state
         self.cached_library_view: Optional[LibraryView] = None
         self.cached_output_view: Optional[OutputView] = None
+        self.cached_collection_view: Optional[CollectionView] = None  # Cache single reusable instance
 
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
@@ -69,8 +70,10 @@ class MainWindow:
         # (Even though the view won't be shown until needed, its commands need to be available)
         self._precreate_output_view()
 
-        # Note: CollectionView commands (Process, etc.) are registered when first collection is opened
-        # This prevents the placeholder view issue where commands route to wrong instance
+        # Pre-create CollectionView on desktop to register its commands (import, process, etc.)
+        # On desktop, all command menus should be available even before opening a collection
+        if not self.is_mobile:
+            self._precreate_collection_view()
 
         # Set up initial view
         self._show_initial_view()
@@ -240,6 +243,26 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to pre-create OutputView: {e}")
 
+    def _precreate_collection_view(self):
+        """
+        Pre-create CollectionView at startup to register its commands (desktop only).
+        This ensures import/process commands are available in menus from app launch.
+        """
+        try:
+            if self.cached_collection_view is None:
+                logger.debug("Pre-creating CollectionView to register collection commands")
+                # Create with empty collection - will be populated when user selects a collection
+                self.cached_collection_view = CollectionView(self.app, "", self.is_mobile, collection_id=None)
+                self.cached_collection_view.register_preview_callback(self._on_file_preview_requested)
+                logger.info("✅ CollectionView pre-created - Import/Process commands registered")
+
+                # Update native toolbar so collection commands appear at startup
+                # (Note: This updates the toolbar even though library view is shown)
+                # On Mac, all commands from all views should be accessible at all times
+                self._update_toolbar_for_collection_view(context='normal')
+                logger.info("✅ Native toolbar updated with collection commands at startup")
+        except Exception as e:
+            logger.error(f"Failed to pre-create CollectionView: {e}")
 
     def _show_initial_view(self):
         """Show the initial library view"""
@@ -284,15 +307,26 @@ class MainWindow:
             return library_view
 
     def _get_or_create_collection_view(self, collection_id: str, collection_name: str) -> CollectionView:
-        """Create a fresh collection view (no caching to avoid command handler conflicts)"""
+        """
+        Get cached CollectionView or create once.
+        Simple approach: ONE view, NavigationController events update its data.
+        """
         try:
-            logger.debug(f"Creating fresh CollectionView instance for {collection_name}")
-            collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
-            collection_view.register_preview_callback(self._on_file_preview_requested)
-            return collection_view
+            if self.cached_collection_view is None:
+                logger.debug(f"Creating CollectionView instance")
+                collection_view = CollectionView(self.app, "", self.is_mobile, collection_id=None)
+                collection_view.register_preview_callback(self._on_file_preview_requested)
+                self.cached_collection_view = collection_view
+                logger.info("✅ CollectionView created and cached")
+
+            # Don't update here - let NavigationController event handler update it
+            # This prevents double-loading and keeps state management centralized
+            logger.debug(f"Returning cached CollectionView (will be updated by navigation event)")
+
+            return self.cached_collection_view
 
         except Exception as e:
-            logger.error(f"Failed to create collection view: {e}")
+            logger.error(f"Failed to get/create collection view: {e}")
             # Fallback: create new instance
             collection_view = CollectionView(self.app, collection_name, self.is_mobile, collection_id=collection_id)
             collection_view.register_preview_callback(self._on_file_preview_requested)
@@ -358,6 +392,11 @@ class MainWindow:
         try:
             logger.info(f"Event: Show library - {event}")
 
+            # Clear output view when navigating to library (no file selected)
+            if hasattr(self, 'cached_output_view') and self.cached_output_view:
+                logger.info("📤 Clearing output view (navigating to library)")
+                self.cached_output_view.load_output()
+
             # Get or create library view (reuses cached instance to maintain state)
             library_view = self._get_or_create_library_view()
 
@@ -417,9 +456,8 @@ class MainWindow:
                 # Get or create collection view from cache
                 collection_view = self._get_or_create_collection_view(collection_id, collection_name)
 
-            # Update native toolbar on desktop (CollectionView has persistent toolbar with commands)
-            if not self.is_mobile:
-                self._update_toolbar_for_collection_view(context='normal')
+            # Note: Toolbar is already populated at startup (see _precreate_collection_view)
+            # No need to update it again when showing a collection
 
             # Always show in appropriate pane (even if refreshing same view)
             # This ensures the view is visible after deselection cleared the center pane
@@ -785,9 +823,8 @@ class MainWindow:
                 logger.error(f"Pane '{pane}' not available")
                 return
 
-            # Clean up callbacks if replacing center pane (where current_view is tracked)
-            if pane == "center":
-                self._cleanup_current_view_callbacks()
+            # Note: No cleanup needed - we cache and reuse views (library, collection, output)
+            # They subscribe to events once in __init__ and stay subscribed
 
             # Clear target pane
             target_pane.clear()

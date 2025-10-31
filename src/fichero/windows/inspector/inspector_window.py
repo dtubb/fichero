@@ -33,6 +33,7 @@ class InspectorWindow:
         self.storage_container: Optional[toga.Box] = None
         self.details_container: Optional[toga.Box] = None
         self.iiif_container: Optional[toga.Box] = None  # New IIIF tab
+        self.workflows_container: Optional[toga.Box] = None  # New Workflows tab
 
         logger.info("InspectorWindow initialized")
 
@@ -102,14 +103,14 @@ class InspectorWindow:
                 self.current_metadata = self._parse_metadata_text(str(metadata))
                 logger.info(f"Parsed metadata sections: {list(self.current_metadata.keys())}")
 
-            # If inspector window exists and has a container, update the display
-            # Check window existence rather than is_visible flag (which can get out of sync)
-            if self.window and self.option_container:
-                logger.info("Inspector window exists, rebuilding tabs...")
+            # If inspector has a container (for mobile or desktop), update the display
+            # Works for both desktop window and mobile modal view
+            if self.option_container:
+                logger.info("Inspector container exists, rebuilding tabs...")
                 self._rebuild_tabs()
                 logger.info(f"Tabs rebuilt. Current tab count: {len(self.option_container.content)}")
             else:
-                logger.info(f"Inspector not visible or no container (window={self.window is not None}, container={self.option_container is not None})")
+                logger.info(f"Inspector container not created yet (window={self.window is not None}, container={self.option_container is not None})")
         except Exception as e:
             logger.error(f"Failed to update metadata: {e}", exc_info=True)
 
@@ -180,7 +181,7 @@ class InspectorWindow:
 
         Tabs are fixed and never deleted/recreated - we just update their content
         """
-        if not self.general_container or not self.storage_container or not self.details_container or not self.iiif_container:
+        if not self.general_container or not self.storage_container or not self.details_container or not self.iiif_container or not self.workflows_container:
             logger.warning("Tab containers not initialized")
             return
 
@@ -189,6 +190,7 @@ class InspectorWindow:
         self.storage_container.clear()
         self.details_container.clear()
         self.iiif_container.clear()
+        self.workflows_container.clear()
 
         # Update content based on selection type
         if self.current_selection_type == "COLLECTION":
@@ -203,20 +205,41 @@ class InspectorWindow:
             self._update_no_selection_content()
 
     def _update_collection_content(self):
-        """Update tab content for collection selection - show EVERYTHING"""
+        """Update tab content for collection selection - supports both text and dict formats"""
+        # Check if using text format (nested sections) or dict format (flat keys)
+        has_text_sections = 'collection_metadata' in self.current_metadata or 'storage' in self.current_metadata or 'dates' in self.current_metadata
+
+        if has_text_sections:
+            # Legacy text format with nested sections
+            name = self.current_metadata.get('collection_metadata', {}).get('Name', 'Unknown')
+            coll_id = self.current_metadata.get('collection_metadata', {}).get('ID', 'N/A')
+            coll_type = self.current_metadata.get('storage', {}).get('Location', 'Unknown')
+            created = self.current_metadata.get('dates', {}).get('Created', 'N/A')
+            modified = self.current_metadata.get('dates', {}).get('Modified', 'N/A')
+            description = self.current_metadata.get('description', {}).get('DESCRIPTION', '')
+        else:
+            # New dict format with flat keys (from Collection.to_dict())
+            name = self.current_metadata.get('name', 'Unknown')
+            coll_id = self.current_metadata.get('id', 'N/A')
+            coll_type = self.current_metadata.get('type', 'Unknown')
+            created = self.current_metadata.get('created_at', 'N/A')
+            modified = self.current_metadata.get('updated_at', 'N/A')
+            description = self.current_metadata.get('metadata', {}).get('description', '')
+
         # General tab - basic info
         general_rows = [
-            ("Collection name:", self.current_metadata.get('collection_metadata', {}).get('Name', 'Unknown')),
-            ("Collection ID:", self.current_metadata.get('collection_metadata', {}).get('ID', 'N/A')),
+            ("🔍 Inspector ID:", f"{id(self)}"),  # Debug: show instance ID
             ("", ""),
-            ("Collection type:", self.current_metadata.get('storage', {}).get('Location', 'Unknown')),
+            ("Collection name:", name),
+            ("Collection ID:", coll_id),
             ("", ""),
-            ("Created:", self.current_metadata.get('dates', {}).get('Created', 'N/A')),
-            ("Modified:", self.current_metadata.get('dates', {}).get('Modified', 'N/A')),
+            ("Collection type:", coll_type),
+            ("", ""),
+            ("Created:", created),
+            ("Modified:", modified),
         ]
 
         # Add description in General if available
-        description = self.current_metadata.get('description', {}).get('DESCRIPTION', '')
         if description and description != 'Unknown':
             general_rows.append(("", ""))
             general_rows.append(("Description:", description))
@@ -224,57 +247,67 @@ class InspectorWindow:
         self._add_rows_to_container(self.general_container, general_rows)
 
         # Storage tab - ALL storage/path information
-        storage_metadata = self.current_metadata.get('storage', {})
+        if has_text_sections:
+            # Legacy text format
+            storage_metadata = self.current_metadata.get('storage', {})
+            storage_type = storage_metadata.get('Location', 'Unknown')
+            source_path = storage_metadata.get('Source', '')
+            local_path = storage_metadata.get('Workspace', '')
+        else:
+            # New dict format
+            storage_type = coll_type  # Already got this above
+            source_path = self.current_metadata.get('source_path', '')
+            local_path = self.current_metadata.get('local_path', '')
 
         storage_rows = [
-            ("Storage type:", storage_metadata.get('Location', 'Unknown')),
+            ("Storage type:", storage_type),
             ("", ""),
         ]
 
         # Show ALL paths
-        if 'Source' in storage_metadata and storage_metadata.get('Source'):
-            storage_rows.append(("Source path:", storage_metadata.get('Source', '')))
-
-        if 'Workspace' in storage_metadata and storage_metadata.get('Workspace'):
-            storage_rows.append(("Workspace path:", storage_metadata.get('Workspace', '')))
-
-        # Show any other metadata we might have
-        contents_metadata = self.current_metadata.get('contents', {})
-        total_items = contents_metadata.get('Total Items', '0')
-
-        if total_items != '0':
-            storage_rows.append(("", ""))
-            storage_rows.append(("Total items:", total_items))
+        if source_path:
+            storage_rows.append(("Source path:", source_path))
+        if local_path:
+            storage_rows.append(("Workspace path:", local_path))
 
         self._add_rows_to_container(self.storage_container, storage_rows)
 
         # Details tab - item breakdown and processing info
-        contents_metadata = self.current_metadata.get('contents', {})
-        details_rows = []
+        # Note: Collection.to_dict() doesn't include item counts - those come from the UI layer
+        # For now, only show this section if we have text format data
+        if has_text_sections:
+            contents_metadata = self.current_metadata.get('contents', {})
+            details_rows = []
 
-        # Item breakdown (no emojis)
-        total = contents_metadata.get('Total Items', '0')
-        if total != '0':
-            details_rows.append(("Total items:", total))
-            details_rows.append(("", ""))
+            # Item breakdown (no emojis)
+            total = contents_metadata.get('Total Items', '0')
+            if total != '0':
+                details_rows.append(("Total items:", total))
+                details_rows.append(("", ""))
 
-            # Extract emoji keys and show without emoji
-            if '📁 Copied' in contents_metadata:
-                details_rows.append(("Copied:", contents_metadata.get('📁 Copied', '0')))
-            if '🔗 Linked' in contents_metadata:
-                details_rows.append(("Linked:", contents_metadata.get('🔗 Linked', '0')))
-            if '🌐 URLs' in contents_metadata:
-                details_rows.append(("URLs:", contents_metadata.get('🌐 URLs', '0')))
+                # Extract emoji keys and show without emoji
+                if '📁 Copied' in contents_metadata:
+                    details_rows.append(("Copied:", contents_metadata.get('📁 Copied', '0')))
+                if '🔗 Linked' in contents_metadata:
+                    details_rows.append(("Linked:", contents_metadata.get('🔗 Linked', '0')))
+                if '🌐 URLs' in contents_metadata:
+                    details_rows.append(("URLs:", contents_metadata.get('🌐 URLs', '0')))
+            else:
+                details_rows.append(("Items:", "No items"))
+
+            # TODO: Add processing information when available
+            # details_rows.append(("", ""))
+            # details_rows.append(("Processing status:", "..."))
+            # details_rows.append(("Completed:", "..."))
+            # details_rows.append(("Pending:", "..."))
+
+            self._add_rows_to_container(self.details_container, details_rows)
         else:
-            details_rows.append(("Items:", "No items"))
+            # New dict format - no item counts in Collection.to_dict()
+            self._add_text_to_container(self.details_container, "Collection statistics not available")
 
-        # TODO: Add processing information when available
-        # details_rows.append(("", ""))
-        # details_rows.append(("Processing status:", "..."))
-        # details_rows.append(("Completed:", "..."))
-        # details_rows.append(("Pending:", "..."))
-
-        self._add_rows_to_container(self.details_container, details_rows)
+        # Update Workflows tab - show processing status
+        self._update_workflows_content()
 
     def _update_folder_content(self):
         """Update tab content for folder selection - show folder metadata"""
@@ -288,6 +321,10 @@ class InspectorWindow:
             folder_data = self.current_metadata
 
         logger.info(f"📂 _update_folder_content: folder_data has {len(folder_data)} fields: {list(folder_data.keys())}")
+
+        # Log director fields if present
+        if 'director_status' in folder_data:
+            logger.info(f"   Director status: {folder_data.get('director_status')}, workflow: {folder_data.get('director_workflow')}, output: {folder_data.get('director_output_path')}")
 
         # General tab - folder info
         general_rows = [
@@ -389,6 +426,9 @@ class InspectorWindow:
         # IIIF tab - show if folder has IIIF metadata
         self._update_iiif_content()
 
+        # Workflows tab - show processing status if available
+        self._update_workflows_content()
+
     def _update_item_content(self):
         """Update tab content for item selection - show EVERYTHING"""
         # NEW: Metadata comes as dict directly from library_service (same as folders)
@@ -398,6 +438,8 @@ class InspectorWindow:
 
         # General tab - basic item info
         general_rows = [
+            ("🔍 Inspector ID:", f"{id(self)}"),  # Debug: show instance ID
+            ("", ""),
             ("Name:", item_data.get('name', item_data.get('title', 'Unknown'))),
         ]
 
@@ -439,7 +481,7 @@ class InspectorWindow:
                        'manifest_url', 'manifest_label', 'manifest_id', 'archive_id', 'canvas_id', 'image_url',
                        'description', 'attribution', 'license', 'logo', 'thumbnail', 'iiif_metadata',
                        'manifest_metadata', 'collection_label', 'canvas_metadata', 'canvas_label',
-                       'canvas_width', 'canvas_height', 'page_range']
+                       'canvas_width', 'canvas_height', 'page_range', 'metadata']  # Skip raw metadata dict
 
         for key, value in item_data.items():
             if key not in skip_fields and value:
@@ -454,6 +496,9 @@ class InspectorWindow:
 
         # IIIF tab - show IIIF-specific metadata if available (shared with folders)
         self._update_iiif_content()
+
+        # Workflows tab - show processing status if available
+        self._update_workflows_content()
 
     def _update_iiif_content(self):
         """Update IIIF tab content - show structured IIIF metadata"""
@@ -489,7 +534,12 @@ class InspectorWindow:
         else:
             # NEW DICT FORMAT: Use current_metadata directly (snake_case keys from database)
             logger.info(f"✅ Using NEW dict format with direct fields (no sections)")
-            combined_metadata = self.current_metadata
+            combined_metadata = self.current_metadata.copy()
+
+            # If there's a nested 'metadata' dict, merge its fields into combined_metadata
+            if 'metadata' in self.current_metadata and isinstance(self.current_metadata['metadata'], dict):
+                logger.info(f"📦 Found nested metadata dict with {len(self.current_metadata['metadata'])} fields, merging...")
+                combined_metadata.update(self.current_metadata['metadata'])
 
         logger.info(f"📊 Combined IIIF metadata has {len(combined_metadata)} fields: {list(combined_metadata.keys())[:10]}")
 
@@ -697,6 +747,141 @@ class InspectorWindow:
         self._add_text_to_container(self.storage_container, "No selection")
         self._add_text_to_container(self.details_container, "No selection")
         self._add_text_to_container(self.iiif_container, "No IIIF metadata")
+        self._add_text_to_container(self.workflows_container, "No workflows")
+
+    def _update_workflows_content(self):
+        """Update Workflows tab - show processing workflows for collections, items, and folders"""
+        try:
+            # For ITEMS and FOLDERS: Query processing history from library database
+            if self.current_selection_type in ("ITEM", "FOLDER"):
+                item_id = self.current_metadata.get('id')
+
+                if not item_id:
+                    self._add_text_to_container(self.workflows_container, "No item ID available")
+                    return
+
+                # Get processing history from library database
+                if not hasattr(self.app, 'library_manager') or not self.app.library_manager:
+                    self._add_text_to_container(self.workflows_container, "Library manager not available")
+                    return
+
+                # Check for running workflow (from item metadata)
+                director_status = self.current_metadata.get('director_status')
+                director_progress = self.current_metadata.get('director_progress', 0)
+                director_workflow = self.current_metadata.get('director_workflow')
+
+                if director_status and director_status in ('pending', 'running'):
+                    # Show running status at the top
+                    self._add_running_workflow_status(
+                        self.workflows_container,
+                        director_workflow or "Processing",
+                        director_status,
+                        director_progress
+                    )
+                    # Add divider after running status
+                    self._add_workflow_divider(self.workflows_container)
+
+                try:
+                    # Query database for ALL workflow runs for this item
+                    processing_history = self.app.library_manager.storage.get_processing_history(item_id)
+
+                    if not processing_history and director_status not in ('pending', 'running'):
+                        self._add_text_to_container(self.workflows_container, "No workflow processing for this item")
+                        return
+
+                    # Display all workflow runs (already sorted newest first by the query)
+                    for i, result in enumerate(processing_history):
+                        if i > 0:
+                            # Add divider between runs
+                            self._add_workflow_divider(self.workflows_container)
+
+                        # Display this workflow run
+                        self._add_workflow_result(self.workflows_container, result)
+
+                except Exception as e:
+                    logger.error(f"Failed to get processing history: {e}")
+                    self._add_text_to_container(self.workflows_container, f"Error loading workflow history: {str(e)}")
+
+                return
+
+            # For COLLECTIONS: Show collection-level workflow status
+            if self.current_selection_type != "COLLECTION":
+                self._add_text_to_container(self.workflows_container, "No workflows")
+                return
+
+            # Get collection path from metadata
+            # For internal collections, local_path is NULL - compute from collection ID
+            local_path = self.current_metadata.get('local_path')
+            collection_id = self.current_metadata.get('id')
+
+            # Import required modules
+            from pathlib import Path
+            import asyncio
+
+            # Get the app's bridge to access workflow status
+            if not hasattr(self.app, 'library_integration_bridge') or not self.app.library_integration_bridge:
+                self._add_text_to_container(self.workflows_container, "Director integration not available")
+                return
+
+            # Compute collection path
+            if local_path:
+                collection_path = Path(local_path)
+            elif collection_id:
+                # Internal collection - compute from library path
+                if hasattr(self.app, 'library_manager') and self.app.library_manager:
+                    collection_path = self.app.library_manager.library_path / "collections" / collection_id
+                else:
+                    self._add_text_to_container(self.workflows_container, "Library manager not available")
+                    return
+            else:
+                self._add_text_to_container(self.workflows_container, "Collection path not available")
+                return
+
+            if not collection_path.exists():
+                self._add_text_to_container(self.workflows_container, f"Collection path not found: {collection_path}")
+                return
+
+            # Get processing status from bridge (async call)
+            try:
+                loop = asyncio.get_event_loop()
+                status = loop.run_until_complete(
+                    self.app.library_integration_bridge.get_collection_processing_status(collection_path)
+                )
+            except RuntimeError:
+                # No event loop - create one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                status = loop.run_until_complete(
+                    self.app.library_integration_bridge.get_collection_processing_status(collection_path)
+                )
+
+            if not status or 'steps_status' not in status:
+                self._add_text_to_container(self.workflows_container, "No workflow status available")
+                return
+
+            # Build rows for workflow status
+            workflow_rows = [
+                ("Total files:", str(status.get('total_files', 0))),
+                ("Available steps:", str(len(status.get('available_steps', [])))),
+                ("", ""),  # Spacer
+            ]
+
+            # Add each step's status
+            for step_name, step_status in status['steps_status'].items():
+                status_text = step_status['status']
+                if status_text == 'completed':
+                    status_text = "Completed"
+                elif status_text == 'pending':
+                    status_text = "Pending"
+
+                file_count = step_status['file_count']
+                workflow_rows.append((f"{step_name}:", f"{status_text} ({file_count} files)"))
+
+            self._add_rows_to_container(self.workflows_container, workflow_rows)
+
+        except Exception as e:
+            logger.error(f"Failed to update workflows content: {e}")
+            self._add_text_to_container(self.workflows_container, f"Error loading workflows: {str(e)}")
 
     def _add_rows_to_container(self, container, rows):
         """Add Preview-style rows to a container
@@ -712,7 +897,7 @@ class InspectorWindow:
                 value_str = str(value)
 
                 # Create horizontal row for label + value
-                row = toga.Box(style=Pack(direction=ROW, padding_bottom=3, alignment='top'))
+                row = toga.Box(style=Pack(direction=ROW, margin_bottom=3, alignment='top'))
 
                 # Label (right-aligned, fixed width)
                 label_widget = toga.Label(
@@ -720,7 +905,7 @@ class InspectorWindow:
                     style=Pack(
                         width=110,
                         text_align='right',
-                        padding_right=8,
+                        margin_right=8,
                         font_size=8
                     )
                 )
@@ -770,6 +955,227 @@ class InspectorWindow:
         )
         container.add(label)
 
+    def _add_running_workflow_status(self, container, workflow_name: str, status: str, progress: float):
+        """
+        Add running workflow status display at the top of Workflows tab
+
+        Args:
+            container: The container to add to
+            workflow_name: Name of the workflow being run
+            status: Status (pending/running)
+            progress: Progress percentage (0-100)
+        """
+        # Status header with spinning indicator
+        status_text = f"⏳ {workflow_name} - {status.capitalize()}"
+        if progress > 0:
+            status_text += f" ({progress:.0f}%)"
+
+        header = toga.Label(
+            status_text,
+            style=Pack(
+                font_size=10,
+                font_weight='bold',
+                margin_bottom=5
+            )
+        )
+        container.add(header)
+
+        # Progress bar (simple text representation)
+        if progress > 0:
+            bar_width = 40
+            filled = int((progress / 100) * bar_width)
+            empty = bar_width - filled
+            progress_bar = '[' + '█' * filled + '░' * empty + ']'
+
+            progress_label = toga.Label(
+                progress_bar,
+                style=Pack(
+                    font_family='monospace',
+                    font_size=8,
+                    margin_bottom=5
+                )
+            )
+            container.add(progress_label)
+
+    def _add_workflow_divider(self, container):
+        """Add a divider between workflow runs"""
+        divider = toga.Box(
+            style=Pack(
+                height=1,
+                background_color='#CCCCCC',
+                margin_top=10,
+                margin_bottom=10
+            )
+        )
+        container.add(divider)
+
+    def _add_workflow_result(self, container, result):
+        """Add a ProcessingResult entry with Show in Finder button
+
+        Args:
+            container: The container to add to
+            result: ProcessingResult object from database with fields:
+                - workflow: str
+                - status: str (success/failed/partial)
+                - started_at: datetime
+                - completed_at: datetime
+                - output_paths: List[str]
+                - processing_time: float (optional)
+                - metadata: dict (optional)
+        """
+        from pathlib import Path
+        import subprocess
+
+        # Format timestamp
+        if result.completed_at:
+            timestamp = result.completed_at.strftime("%Y-%m-%d %H:%M")
+        elif result.started_at:
+            timestamp = result.started_at.strftime("%Y-%m-%d %H:%M") + " (in progress)"
+        else:
+            timestamp = "Unknown time"
+
+        # Status emoji
+        status_emoji = {
+            "success": "✅",
+            "failed": "❌",
+            "partial": "⚠️"
+        }.get(result.status, "❓")
+
+        # Workflow name, status, and timestamp
+        header = toga.Label(
+            f"{status_emoji} {result.workflow} - {timestamp}",
+            style=Pack(
+                font_size=9,
+                font_weight='bold',
+                margin_bottom=5
+            )
+        )
+        container.add(header)
+
+        # Processing time if available
+        if result.processing_time:
+            time_label = toga.Label(
+                f"Processing time: {result.processing_time:.1f}s",
+                style=Pack(
+                    font_size=8,
+                    margin_bottom=3
+                )
+            )
+            container.add(time_label)
+
+        # Add "Show in Finder" button for each output path
+        if result.output_paths:
+            for output_path in result.output_paths:
+                def make_open_handler(path):
+                    """Create a handler for this specific path"""
+                    def open_in_finder(widget):
+                        """Open the output path in Finder"""
+                        try:
+                            p = Path(path)
+                            if p.exists():
+                                subprocess.run(['open', str(p)], check=True)
+                                logger.info(f"Opened in Finder: {p}")
+                            else:
+                                logger.warning(f"Output path does not exist: {p}")
+                        except Exception as e:
+                            logger.error(f"Failed to open in Finder: {e}")
+                    return open_in_finder
+
+                # Show truncated path
+                path_display = str(output_path)
+                if len(path_display) > 60:
+                    path_display = "..." + path_display[-57:]
+
+                path_label = toga.Label(
+                    path_display,
+                    style=Pack(
+                        font_size=8,
+                        margin_bottom=2
+                    )
+                )
+                container.add(path_label)
+
+                button = toga.Button(
+                    "Show in Finder",
+                    on_press=make_open_handler(output_path),
+                    style=Pack(
+                        width=120,
+                        font_size=8,
+                        margin_bottom=8
+                    )
+                )
+                container.add(button)
+        else:
+            # No outputs available
+            no_output_label = toga.Label(
+                "No output files",
+                style=Pack(
+                    font_size=8,
+                    margin_bottom=5
+                )
+            )
+            container.add(no_output_label)
+
+        # Add delete button for this workflow result
+        def delete_workflow(widget):
+            """Delete this workflow result from library (DB + filesystem)"""
+            try:
+                # Ask library to delete this processing result
+                success = self.app.library_manager.delete_processing_result(result.id)
+                if success:
+                    logger.info(f"Deleted workflow result {result.id}")
+                    # Clear and refresh the entire workflows container
+                    self.workflows_container.clear()
+                    self._update_workflows_content()
+                else:
+                    logger.error(f"Failed to delete workflow result {result.id}")
+            except Exception as e:
+                logger.error(f"Error deleting workflow: {e}")
+
+        delete_button = toga.Button(
+            "Delete Workflow",
+            on_press=delete_workflow,
+            style=Pack(
+                width=120,
+                font_size=8,
+                margin_bottom=10
+            )
+        )
+        container.add(delete_button)
+
+    def _add_output_path_button(self, container, output_path: str):
+        """Add just a button to open output path in Finder
+
+        Args:
+            container: The container to add to
+            output_path: Path to open
+        """
+        from pathlib import Path
+        import subprocess
+
+        def open_in_finder(widget):
+            """Open the output path in Finder"""
+            try:
+                path = Path(output_path)
+                if path.exists():
+                    subprocess.run(['open', str(path)], check=True)
+                    logger.info(f"Opened in Finder: {path}")
+                else:
+                    logger.warning(f"Output path does not exist: {path}")
+            except Exception as e:
+                logger.error(f"Failed to open in Finder: {e}")
+
+        button = toga.Button(
+            "Show in Finder",
+            on_press=open_in_finder,
+            style=Pack(
+                width=120,
+                font_size=8,
+                margin_top=5
+            )
+        )
+        container.add(button)
+
     def _create_info_rows(self, rows):
         """Create a Preview-style two-column layout for info rows
 
@@ -783,7 +1189,7 @@ class InspectorWindow:
                 # Spacer
                 container.add(toga.Box(style=Pack(height=10)))
             else:
-                row = toga.Box(style=Pack(direction=ROW, padding_bottom=5))
+                row = toga.Box(style=Pack(direction=ROW, margin_bottom=5))
 
                 # Label (right-aligned)
                 label_widget = toga.Label(
@@ -791,7 +1197,7 @@ class InspectorWindow:
                     style=Pack(
                         width=140,
                         text_align='right',
-                        padding_right=10,
+                        margin_right=10,
                         font_size=9
                     )
                 )
@@ -833,59 +1239,86 @@ class InspectorWindow:
 
         return box
 
+    def create_content(self):
+        """Create inspector content (for use in modal views on mobile)"""
+        # Create the content structure if it doesn't exist
+        if not self.option_container:
+            self._create_content_structure()
+
+            # If metadata was already set (before container was created), rebuild tabs now
+            if self.current_metadata:
+                logger.info("Rebuilding tabs with pre-existing metadata after container creation")
+                self._rebuild_tabs()
+
+        return self.option_container
+
+    def _create_content_structure(self):
+        """Create the content structure (OptionContainer with tabs)"""
+        # Create OptionContainer for tabs (it has its own native background)
+        # Add small margins on all sides
+        self.option_container = toga.OptionContainer(
+            style=Pack(flex=1, margin=10)
+        )
+
+        # Create fixed containers for each tab - use TRANSPARENT background
+        self.general_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+        )
+        self.storage_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+        )
+        self.details_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+        )
+        self.iiif_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+        )
+        self.workflows_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
+        )
+
+        # Wrap each in a ScrollContainer with TRANSPARENT background
+        general_scroll = toga.ScrollContainer(
+            content=self.general_container,
+            style=Pack(flex=1, background_color=TRANSPARENT),
+            horizontal=False  # Disable horizontal scroll
+        )
+        storage_scroll = toga.ScrollContainer(
+            content=self.storage_container,
+            style=Pack(flex=1, background_color=TRANSPARENT),
+            horizontal=False  # Disable horizontal scroll
+        )
+        details_scroll = toga.ScrollContainer(
+            content=self.details_container,
+            style=Pack(flex=1, background_color=TRANSPARENT),
+            horizontal=False  # Disable horizontal scroll
+        )
+        iiif_scroll = toga.ScrollContainer(
+            content=self.iiif_container,
+            style=Pack(flex=1, background_color=TRANSPARENT),
+            horizontal=False  # Disable horizontal scroll
+        )
+        workflows_scroll = toga.ScrollContainer(
+            content=self.workflows_container,
+            style=Pack(flex=1, background_color=TRANSPARENT),
+            horizontal=False  # Disable horizontal scroll
+        )
+
+        # Add fixed tabs (these never change)
+        self.option_container.content.append("General", general_scroll)
+        self.option_container.content.append("Storage", storage_scroll)
+        self.option_container.content.append("Details", details_scroll)
+        self.option_container.content.append("IIIF", iiif_scroll)
+        self.option_container.content.append("Workflows", workflows_scroll)
+
+        # Initial state - no selection
+        self._update_no_selection_content()
+
     def _create_window(self):
         """Create the inspector window with fixed tabs"""
         try:
-            # Create OptionContainer for tabs (it has its own native background)
-            # Add small margins on all sides
-            self.option_container = toga.OptionContainer(
-                style=Pack(flex=1, margin=10)
-            )
-
-            # Create fixed containers for each tab - use TRANSPARENT background
-            self.general_container = toga.Box(
-                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
-            )
-            self.storage_container = toga.Box(
-                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
-            )
-            self.details_container = toga.Box(
-                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
-            )
-            self.iiif_container = toga.Box(
-                style=Pack(direction=COLUMN, margin=10, background_color=TRANSPARENT)
-            )
-
-            # Wrap each in a ScrollContainer with TRANSPARENT background
-            general_scroll = toga.ScrollContainer(
-                content=self.general_container,
-                style=Pack(flex=1, background_color=TRANSPARENT),
-                horizontal=False  # Disable horizontal scroll
-            )
-            storage_scroll = toga.ScrollContainer(
-                content=self.storage_container,
-                style=Pack(flex=1, background_color=TRANSPARENT),
-                horizontal=False  # Disable horizontal scroll
-            )
-            details_scroll = toga.ScrollContainer(
-                content=self.details_container,
-                style=Pack(flex=1, background_color=TRANSPARENT),
-                horizontal=False  # Disable horizontal scroll
-            )
-            iiif_scroll = toga.ScrollContainer(
-                content=self.iiif_container,
-                style=Pack(flex=1, background_color=TRANSPARENT),
-                horizontal=False  # Disable horizontal scroll
-            )
-
-            # Add fixed tabs (these never change)
-            self.option_container.content.append("General", general_scroll)
-            self.option_container.content.append("Storage", storage_scroll)
-            self.option_container.content.append("Details", details_scroll)
-            self.option_container.content.append("IIIF", iiif_scroll)
-
-            # Initial state - no selection
-            self._update_no_selection_content()
+            # Create the content structure first
+            self._create_content_structure()
 
             # Create main container
             container = toga.Box(

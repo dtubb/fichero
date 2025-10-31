@@ -144,10 +144,10 @@ class CommandManager:
                 # Fallback to first handler if no match
                 if not matching_handler:
                     matching_handler = handlers[0]
-                    logger.debug(f"No view-specific handler found, using fallback: {matching_handler.id}")
+                    logger.debug(f"No view-specific handler found for '{active_view_id}', using fallback: {matching_handler.id}")
 
                 # Execute the matched handler
-                logger.info(f"🎯 Menu/Shortcut triggered: {matching_handler.id} ({matching_handler.label}) [routed from active view: {active_view_id}]")
+                logger.info(f"🎯 Menu/Shortcut triggered: {matching_handler.id} ({matching_handler.label})")
                 return matching_handler.execute(widget)
 
             except Exception as e:
@@ -280,18 +280,10 @@ class CommandManager:
             if label_key not in self._command_handlers_by_label:
                 self._command_handlers_by_label[label_key] = []
 
-            # Remove any existing handlers for the same view_id to prevent stale handlers
-            # Extract view_id from command.id (format: "view_id.command_name")
-            view_id = command.id.split('.')[0] if '.' in command.id else None
-            if view_id:
-                # Remove old handlers from the same view
-                self._command_handlers_by_label[label_key] = [
-                    h for h in self._command_handlers_by_label[label_key]
-                    if not h.id.startswith(f"{view_id}.")
-                ]
-                logger.debug(f"Removed old handlers for view '{view_id}' from label '{command.label}'")
-
             # Add this command as a handler for this label (insert at beginning for priority)
+            # Note: Commands are now stateless and query NavigationController for current location,
+            # so we don't need to clean up handlers - they work correctly regardless of which
+            # collection is active
             self._command_handlers_by_label[label_key].insert(0, command)
 
             # Check if we already have a menu item with this label

@@ -438,9 +438,16 @@ class ProcessingCommands(BaseLibraryCommands):
             collection = await self.get_collection_by_id(collection_id)
             if not collection:
                 return
-            
-            collection_path = Path(collection.local_path) if collection.local_path else None
-            if not collection_path or not collection_path.exists():
+
+            # For internal collections, compute path from collection ID
+            # For external/linked collections, use local_path
+            if collection.local_path:
+                collection_path = Path(collection.local_path)
+            else:
+                # Internal collection - compute from library path
+                collection_path = self.library_manager.library_path / "collections" / collection.id
+
+            if not collection_path.exists():
                 self.console.print(f"[red]Collection path not found: {collection_path}[/red]")
                 return
             
@@ -480,12 +487,19 @@ class ProcessingCommands(BaseLibraryCommands):
             collection = await self.get_collection_by_id(collection_id)
             if not collection:
                 return
-            
-            collection_path = Path(collection.local_path) if collection.local_path else None
-            if not collection_path or not collection_path.exists():
+
+            # For internal collections, compute path from collection ID
+            # For external/linked collections, use local_path
+            if collection.local_path:
+                collection_path = Path(collection.local_path)
+            else:
+                # Internal collection - compute from library path
+                collection_path = self.library_manager.library_path / "collections" / collection.id
+
+            if not collection_path.exists():
                 self.console.print(f"[red]Collection path not found: {collection_path}[/red]")
                 return
-            
+
             # Get structure
             structure = await self.bridge.preview_collection_structure(collection_path, max_depth)
             

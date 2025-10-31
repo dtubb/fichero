@@ -69,10 +69,13 @@ class ImportExportCommands(BaseLibraryCommands):
             description: Optional[str] = typer.Option(None, "--description", "-d", help="Collection description"),
             timeout: int = typer.Option(600, "--timeout", "-t", help="Download timeout in seconds (default: 600)"),
             max_items: int = typer.Option(1000, "--max-items", help="Maximum number of items to process (default: 1000)"),
-            download_mode: Optional[str] = typer.Option(None, "--mode", help="Download mode for EAP plugin: 'link' or 'download' (default: link)")
+            download_mode: Optional[str] = typer.Option(None, "--mode", help="Download mode for EAP plugin: 'link' or 'download' (default: link)"),
+            collection_type: str = typer.Option("local", "--type", help="Collection type: 'local' (internal library) or 'external' (user-specified path)"),
+            source_path: Optional[str] = typer.Option(None, "--source", help="Source path for external collections (required if --type external)"),
+            use_tiled_download: bool = typer.Option(False, "--use-tiled-download", help="Enable IIIF tiled download for full-resolution images (EAP only, slower but higher quality)")
         ):
             """Import content from URL using auto-detected plugin with progress tracking"""
-            asyncio.run(self._import_from_url(url, name, description, timeout, max_items, download_mode))
+            asyncio.run(self._import_from_url(url, name, description, timeout, max_items, download_mode, collection_type, source_path, use_tiled_download))
 
         @app.command(name="list-import-plugins", help="List all available import plugins and their supported URLs")
         def list_import_plugins():
@@ -368,11 +371,23 @@ class ImportExportCommands(BaseLibraryCommands):
         description: Optional[str],
         timeout: int,
         max_items: int,
-        download_mode: Optional[str]
+        download_mode: Optional[str],
+        collection_type: str = "local",
+        source_path: Optional[str] = None,
+        use_tiled_download: bool = False
     ):
         """Import content from URL using shared URLImporter"""
         try:
             from fichero.library.url_importer import URLImporter
+
+            # Validate parameters
+            if collection_type not in ["local", "external"]:
+                self.console.print(f"[red]❌ Invalid collection type: {collection_type}. Must be 'local' or 'external'[/red]")
+                return
+
+            if collection_type == "external" and not source_path:
+                self.console.print(f"[red]❌ --source is required for external collections[/red]")
+                return
 
             # Create URL importer (shared with GUI)
             importer = URLImporter(self.library_manager)
@@ -400,6 +415,9 @@ class ImportExportCommands(BaseLibraryCommands):
                 self.console.print(f"[blue]📥 Starting import from URL...[/blue]")
                 self.console.print(f"[dim]URL: {url}[/dim]")
                 self.console.print(f"[dim]Collection: {name}[/dim]")
+                self.console.print(f"[dim]Type: {collection_type}[/dim]")
+                if source_path:
+                    self.console.print(f"[dim]Source: {source_path}[/dim]")
                 self.console.print(f"[dim]Press Ctrl+C to cancel[/dim]")
                 self.console.print()
 
@@ -410,7 +428,10 @@ class ImportExportCommands(BaseLibraryCommands):
                     description=description,
                     timeout=timeout,
                     max_items=max_items,
-                    download_mode=download_mode
+                    download_mode=download_mode,
+                    collection_type=collection_type,
+                    source_path=source_path,
+                    use_tiled_download=use_tiled_download
                 )
 
                 # Display results

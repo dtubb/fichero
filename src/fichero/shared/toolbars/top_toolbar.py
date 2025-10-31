@@ -138,8 +138,10 @@ class TopToolbar(BaseToolbar):
                 self._add_contextual_title()
             else:
                 # macOS navigation pattern
-                if self.auto_mobile_nav:  # Child views
-                    self._add_back_button()
+                # On Mac, don't create back button initially
+                # It will be created dynamically in update_navigation_state() when needed
+                # (i.e., when navigating into subfolders within collections)
+
                 # Add context-aware title if NavigationController says we should
                 self._add_contextual_title()
 
@@ -164,6 +166,62 @@ class TopToolbar(BaseToolbar):
     def _get_dynamic_back_text(self) -> str:
         """Get simple back button - just chevron without text"""
         return "‹"
+
+    def update_navigation_state(self, current_path: str = "") -> None:
+        """Update back button based on navigation state
+
+        Args:
+            current_path: Current path within collection (empty = root)
+
+        On Mac:
+            - At collection root (empty path): Remove back button completely
+            - In subfolder (non-empty path): Create and show back button
+
+        On Mobile:
+            - Back button always exists (created in _add_navigation_elements)
+        """
+        try:
+            logger.info(f"🔍 update_navigation_state called: is_mobile={self.is_mobile}, current_path='{current_path}'")
+
+            # On mobile, back button is always visible (handled by auto_mobile_nav)
+            if self.is_mobile:
+                logger.debug("Mobile mode - skipping (back button always visible)")
+                return
+
+            # On desktop (Mac), dynamically show/hide back button
+            if current_path:
+                # In a subfolder - create back button ONCE if it doesn't exist, then show it
+                logger.info(f"In subfolder path: '{current_path}'")
+                if not hasattr(self, 'back_button') or self.back_button is None:
+                    logger.info("Back button doesn't exist - creating it ONCE...")
+                    self._add_back_button()
+                    logger.info(f"✅ Back button created and added to left_content")
+                elif self.back_button not in self.left_content.children:
+                    logger.info("Back button exists but hidden - showing it...")
+                    self.left_content.add(self.back_button)
+                    logger.info(f"✅ Back button shown (in subfolder: '{current_path}')")
+                else:
+                    logger.debug("Back button already visible")
+            else:
+                # At collection root - hide back button (but keep the instance for reuse)
+                logger.info("At collection root")
+                if hasattr(self, 'back_button') and self.back_button is not None:
+                    try:
+                        # Remove from UI if present (but keep the reference)
+                        if self.back_button in self.left_content.children:
+                            self.left_content.remove(self.back_button)
+                            logger.info("🚫 Back button hidden (removed from left_content)")
+                        else:
+                            logger.debug("Back button already hidden")
+                    except Exception as e:
+                        logger.warning(f"Error hiding back button: {e}")
+                else:
+                    logger.debug("Back button doesn't exist yet")
+
+        except Exception as e:
+            logger.error(f"Failed to update navigation state: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _add_contextual_title(self) -> None:
         """Add context-aware title from NavigationController (mobile only)"""

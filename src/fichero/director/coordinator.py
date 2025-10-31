@@ -61,12 +61,15 @@ class ProcessingCoordinator:
         try:
             plan_config = self._load_plan_config(plan_name)
             if not plan_config:
-                logger.error(f"Plan config is None for plan: {plan_name}")
+                error_msg = f"Plan config is None for plan: {plan_name}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
             else:
                 logger.info(f"Successfully loaded plan config for: {plan_name}")
         except Exception as e:
-            logger.error(f"Failed to load plan '{plan_name}': {e}", exc_info=True)
-            plan_config = None
+            error_msg = f"Failed to load plan '{plan_name}': {e}"
+            logger.error(error_msg, exc_info=True)
+            raise ValueError(error_msg) from e
 
         # Generate variables from output_path and plan config if provided
         variables = self.variable_generator.generate_variables(plan_config, output_path, folders)

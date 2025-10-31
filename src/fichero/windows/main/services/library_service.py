@@ -308,13 +308,27 @@ class LibraryService:
     async def import_url_for_ui(
         self,
         url: str,
+        collection_id: Optional[str] = None,
         collection_name: Optional[str] = None,
         description: Optional[str] = None,
         timeout: int = 600,
         max_items: int = 1000,
         download_mode: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Import content from URL using shared URLImporter - for UI"""
+        """Import content from URL using shared URLImporter - for UI
+
+        Args:
+            url: URL to import from
+            collection_id: Optional ID of existing collection to add items to
+            collection_name: Name for new collection (if collection_id not provided)
+            description: Description for new collection
+            timeout: Timeout in seconds
+            max_items: Maximum items to import
+            download_mode: "link" or "download"
+
+        Returns:
+            Dictionary with import results
+        """
         try:
             from fichero.library.url_importer import URLImporter
 
@@ -324,6 +338,7 @@ class LibraryService:
             # Perform import
             result = await importer.import_from_url(
                 url=url,
+                collection_id=collection_id,
                 collection_name=collection_name,
                 description=description,
                 timeout=timeout,

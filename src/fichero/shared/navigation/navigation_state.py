@@ -24,6 +24,7 @@ class NavigationContext(Enum):
     PLANS = "plans"
     PROMPTS = "prompts"
     ABOUT = "about"
+    INSPECTOR = "inspector"
     ADD = "add"
     RENAME = "rename"
 

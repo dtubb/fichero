@@ -152,6 +152,122 @@ class ProcessingResult:
 
 
 @dataclass
+class ProcessingOutput:
+    """Tracks individual output files from processing steps
+
+    Enables:
+    - Finding outputs by type (transcriptions, word docs, etc.)
+    - Tracking file-level vs batch-level outputs
+    - Re-running steps when inputs change
+    - Searching metadata extracted from outputs
+    """
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    processing_result_id: str = ""  # FK to ProcessingResult
+    collection_id: str = ""  # For easier querying
+    item_id: Optional[str] = None  # None for batch-level outputs
+    step_name: str = ""  # e.g., "transcribe", "prepare_images", "catalogue_folder"
+    source_file: Optional[str] = None  # Original file path (relative) for file-level outputs
+    output_type: str = ""  # "transcription", "word_doc", "prepared_image", "json", "catalogue"
+    output_path: str = ""  # Relative path from collection folder
+    file_format: str = ""  # "txt", "docx", "jpg", "json", "md"
+    file_size: Optional[int] = None  # In bytes
+    file_modified: Optional[datetime] = None  # Last modified time (for detecting manual edits)
+    created_at: datetime = field(default_factory=datetime.now)
+    metadata_extracted: bool = False  # Whether metadata was extracted
+    is_valid: bool = True  # False if inputs have changed (needs re-run)
+
+    # For dependency tracking (re-running steps)
+    depends_on_output_ids: List[str] = field(default_factory=list)  # Input outputs this step depends on
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            "id": self.id,
+            "processing_result_id": self.processing_result_id,
+            "collection_id": self.collection_id,
+            "item_id": self.item_id,
+            "step_name": self.step_name,
+            "source_file": self.source_file,
+            "output_type": self.output_type,
+            "output_path": self.output_path,
+            "file_format": self.file_format,
+            "file_size": self.file_size,
+            "file_modified": self.file_modified.isoformat() if self.file_modified else None,
+            "created_at": self.created_at.isoformat(),
+            "metadata_extracted": self.metadata_extracted,
+            "is_valid": self.is_valid,
+            "depends_on_output_ids": self.depends_on_output_ids
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ProcessingOutput':
+        """Create from dictionary"""
+        # Handle datetime conversion
+        if 'created_at' in data and isinstance(data['created_at'], str):
+            data['created_at'] = datetime.fromisoformat(data['created_at'])
+        if 'file_modified' in data and data['file_modified']:
+            data['file_modified'] = datetime.fromisoformat(data['file_modified'])
+
+        return cls(**data)
+
+
+@dataclass
+class ExtractedMetadata:
+    """Searchable metadata extracted from processing outputs
+
+    Enables:
+    - Full-text search across transcriptions
+    - Finding mentions of entities (people, places, dates)
+    - Searching catalogue data
+    - Querying key quotes and summaries
+    """
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    processing_output_id: str = ""  # FK to ProcessingOutput
+    collection_id: str = ""  # For easier querying
+    item_id: Optional[str] = None  # For file-level metadata
+
+    # Metadata type and content
+    metadata_type: str = ""  # "transcription", "entity", "quote", "summary", "catalogue_field"
+    key: str = ""  # Field name: "text", "person_name", "place", "date", "title", "description"
+    value: str = ""  # The actual data
+
+    # For AI-extracted data
+    confidence: Optional[float] = None  # 0.0-1.0 for AI-extracted entities
+    context: Optional[str] = None  # Surrounding text for quotes/entities
+
+    # Indexing and search
+    indexed: bool = False  # For full-text search indexing
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            "id": self.id,
+            "processing_output_id": self.processing_output_id,
+            "collection_id": self.collection_id,
+            "item_id": self.item_id,
+            "metadata_type": self.metadata_type,
+            "key": self.key,
+            "value": self.value,
+            "confidence": self.confidence,
+            "context": self.context,
+            "indexed": self.indexed,
+            "created_at": self.created_at.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ExtractedMetadata':
+        """Create from dictionary"""
+        # Handle datetime conversion
+        if 'created_at' in data and isinstance(data['created_at'], str):
+            data['created_at'] = datetime.fromisoformat(data['created_at'])
+
+        return cls(**data)
+
+
+@dataclass
 class ExternalPath:
     """Represents an external path that needs monitoring"""
 

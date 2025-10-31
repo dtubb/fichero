@@ -11,11 +11,17 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 try:
-    from fichero.library.models import Collection, CollectionItem, ProcessingResult, ExternalPath, ThumbnailRecord
+    from fichero.library.models import (
+        Collection, CollectionItem, ProcessingResult, ExternalPath,
+        ThumbnailRecord, ProcessingOutput, ExtractedMetadata
+    )
 except ImportError:
     try:
         # Fallback for direct testing
-        from .models import Collection, CollectionItem, ProcessingResult, ExternalPath, ThumbnailRecord
+        from .models import (
+            Collection, CollectionItem, ProcessingResult, ExternalPath,
+            ThumbnailRecord, ProcessingOutput, ExtractedMetadata
+        )
     except ImportError:
         # Direct import for testing
         import models
@@ -24,6 +30,8 @@ except ImportError:
         ProcessingResult = models.ProcessingResult
         ExternalPath = models.ExternalPath
         ThumbnailRecord = models.ThumbnailRecord
+        ProcessingOutput = models.ProcessingOutput
+        ExtractedMetadata = models.ExtractedMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -140,12 +148,68 @@ class LibraryStorage:
                     )
                 """)
 
+                # Processing outputs table for tracking individual output files
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS processing_outputs (
+                        id TEXT PRIMARY KEY,
+                        processing_result_id TEXT NOT NULL,
+                        collection_id TEXT NOT NULL,
+                        item_id TEXT,
+                        step_name TEXT NOT NULL,
+                        source_file TEXT,
+                        output_type TEXT NOT NULL,
+                        output_path TEXT NOT NULL,
+                        file_format TEXT NOT NULL,
+                        file_size INTEGER,
+                        file_modified TEXT,
+                        created_at TEXT NOT NULL,
+                        metadata_extracted INTEGER DEFAULT 0,
+                        is_valid INTEGER DEFAULT 1,
+                        depends_on_output_ids TEXT,
+                        FOREIGN KEY (processing_result_id) REFERENCES processing_history(id),
+                        FOREIGN KEY (collection_id) REFERENCES collections(id),
+                        FOREIGN KEY (item_id) REFERENCES collection_items(id)
+                    )
+                """)
+
+                # Extracted metadata table for searchable content
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS extracted_metadata (
+                        id TEXT PRIMARY KEY,
+                        processing_output_id TEXT NOT NULL,
+                        collection_id TEXT NOT NULL,
+                        item_id TEXT,
+                        metadata_type TEXT NOT NULL,
+                        key TEXT NOT NULL,
+                        value TEXT NOT NULL,
+                        confidence REAL,
+                        context TEXT,
+                        indexed INTEGER DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (processing_output_id) REFERENCES processing_outputs(id),
+                        FOREIGN KEY (collection_id) REFERENCES collections(id),
+                        FOREIGN KEY (item_id) REFERENCES collection_items(id)
+                    )
+                """)
+
                 # Create indexes for performance
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_history_item_id ON processing_history(item_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_external_paths_collection_id ON external_paths(collection_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_thumbnails_source_hash ON thumbnails(source_file_hash, size)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_thumbnails_hash ON thumbnails(thumbnail_hash)")
+
+                # Indexes for new tables
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_result_id ON processing_outputs(processing_result_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_collection_id ON processing_outputs(collection_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_item_id ON processing_outputs(item_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_type ON processing_outputs(output_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_step ON processing_outputs(step_name)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_output_id ON extracted_metadata(processing_output_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_collection_id ON extracted_metadata(collection_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_type ON extracted_metadata(metadata_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_key ON extracted_metadata(key)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_value ON extracted_metadata(value)")
                 
                 conn.commit()
                 logger.info("Library database initialized successfully")
@@ -728,6 +792,469 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to get processing results before date: {e}")
+            return []
+
+    def get_processing_result(self, result_id: str) -> Optional[ProcessingResult]:
+        """Get a single processing result by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, item_id, workflow, prompt_config, status, started_at,
+                           completed_at, output_paths, logs_path, metadata, llm_backend, processing_time
+                    FROM processing_history
+                    WHERE id = ?
+                """, (result_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    return None
+
+                result = ProcessingResult(
+                    id=row[0],
+                    item_id=row[1],
+                    workflow=row[2],
+                    prompt_config=row[3],
+                    status=row[4],
+                    started_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                    completed_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                    output_paths=self._deserialize_list(row[7]),
+                    logs_path=row[8],
+                    metadata=self._deserialize_metadata(row[9]),
+                    llm_backend=row[10],
+                    processing_time=row[11]
+                )
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Failed to get processing result {result_id}: {e}")
+            return None
+
+    def delete_processing_result(self, result_id: str) -> bool:
+        """
+        Delete a processing result and all related data (outputs, metadata)
+
+        Args:
+            result_id: ID of the ProcessingResult to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Delete extracted metadata first (FK constraint)
+                cursor.execute("""
+                    DELETE FROM extracted_metadata
+                    WHERE processing_output_id IN (
+                        SELECT id FROM processing_outputs WHERE processing_result_id = ?
+                    )
+                """, (result_id,))
+
+                # Delete processing outputs
+                cursor.execute("DELETE FROM processing_outputs WHERE processing_result_id = ?", (result_id,))
+
+                # Delete the processing result itself
+                cursor.execute("DELETE FROM processing_history WHERE id = ?", (result_id,))
+
+                conn.commit()
+                logger.info(f"Deleted processing result {result_id} from database")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete processing result {result_id}: {e}")
+            return False
+
+    # Processing output tracking methods
+
+    def add_processing_output(self, output: ProcessingOutput) -> bool:
+        """Add a processing output record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    INSERT INTO processing_outputs
+                    (id, processing_result_id, collection_id, item_id, step_name, source_file,
+                     output_type, output_path, file_format, file_size, file_modified, created_at,
+                     metadata_extracted, is_valid, depends_on_output_ids)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    output.id,
+                    output.processing_result_id,
+                    output.collection_id,
+                    output.item_id,
+                    output.step_name,
+                    output.source_file,
+                    output.output_type,
+                    output.output_path,
+                    output.file_format,
+                    output.file_size,
+                    output.file_modified.isoformat() if output.file_modified else None,
+                    output.created_at.isoformat(),
+                    1 if output.metadata_extracted else 0,
+                    1 if output.is_valid else 0,
+                    self._serialize_list(output.depends_on_output_ids)
+                ))
+
+                conn.commit()
+                logger.debug(f"Processing output added: {output.output_type} - {output.output_path}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add processing output: {e}")
+            return False
+
+    def get_processing_outputs(self, processing_result_id: str) -> List[ProcessingOutput]:
+        """Get all outputs for a processing result"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, processing_result_id, collection_id, item_id, step_name, source_file,
+                           output_type, output_path, file_format, file_size, file_modified, created_at,
+                           metadata_extracted, is_valid, depends_on_output_ids
+                    FROM processing_outputs
+                    WHERE processing_result_id = ?
+                    ORDER BY created_at ASC
+                """, (processing_result_id,))
+
+                outputs = []
+                for row in cursor.fetchall():
+                    output = ProcessingOutput(
+                        id=row[0],
+                        processing_result_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        step_name=row[4],
+                        source_file=row[5],
+                        output_type=row[6],
+                        output_path=row[7],
+                        file_format=row[8],
+                        file_size=row[9],
+                        file_modified=datetime.fromisoformat(row[10]) if row[10] else None,
+                        created_at=datetime.fromisoformat(row[11]),
+                        metadata_extracted=bool(row[12]),
+                        is_valid=bool(row[13]),
+                        depends_on_output_ids=self._deserialize_list(row[14])
+                    )
+                    outputs.append(output)
+
+                return outputs
+
+        except Exception as e:
+            logger.error(f"Failed to get processing outputs: {e}")
+            return []
+
+    def get_outputs_by_collection(self, collection_id: str, output_type: str = None) -> List[ProcessingOutput]:
+        """Get all outputs for a collection, optionally filtered by type"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if output_type:
+                    cursor.execute("""
+                        SELECT id, processing_result_id, collection_id, item_id, step_name, source_file,
+                               output_type, output_path, file_format, file_size, file_modified, created_at,
+                               metadata_extracted, is_valid, depends_on_output_ids
+                        FROM processing_outputs
+                        WHERE collection_id = ? AND output_type = ?
+                        ORDER BY created_at DESC
+                    """, (collection_id, output_type))
+                else:
+                    cursor.execute("""
+                        SELECT id, processing_result_id, collection_id, item_id, step_name, source_file,
+                               output_type, output_path, file_format, file_size, file_modified, created_at,
+                               metadata_extracted, is_valid, depends_on_output_ids
+                        FROM processing_outputs
+                        WHERE collection_id = ?
+                        ORDER BY created_at DESC
+                    """, (collection_id,))
+
+                outputs = []
+                for row in cursor.fetchall():
+                    output = ProcessingOutput(
+                        id=row[0],
+                        processing_result_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        step_name=row[4],
+                        source_file=row[5],
+                        output_type=row[6],
+                        output_path=row[7],
+                        file_format=row[8],
+                        file_size=row[9],
+                        file_modified=datetime.fromisoformat(row[10]) if row[10] else None,
+                        created_at=datetime.fromisoformat(row[11]),
+                        metadata_extracted=bool(row[12]),
+                        is_valid=bool(row[13]),
+                        depends_on_output_ids=self._deserialize_list(row[14])
+                    )
+                    outputs.append(output)
+
+                return outputs
+
+        except Exception as e:
+            logger.error(f"Failed to get outputs by collection: {e}")
+            return []
+
+    def get_outputs_by_item(self, item_id: str, output_type: str = None) -> List[ProcessingOutput]:
+        """Get outputs for a specific item, optionally filtered by type"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if output_type:
+                    cursor.execute("""
+                        SELECT id, processing_result_id, collection_id, item_id, step_name, source_file,
+                               output_type, output_path, file_format, file_size, file_modified, created_at,
+                               metadata_extracted, is_valid, depends_on_output_ids
+                        FROM processing_outputs
+                        WHERE item_id = ? AND output_type = ?
+                        ORDER BY created_at DESC
+                    """, (item_id, output_type))
+                else:
+                    cursor.execute("""
+                        SELECT id, processing_result_id, collection_id, item_id, step_name, source_file,
+                               output_type, output_path, file_format, file_size, file_modified, created_at,
+                               metadata_extracted, is_valid, depends_on_output_ids
+                        FROM processing_outputs
+                        WHERE item_id = ?
+                        ORDER BY created_at DESC
+                    """, (item_id,))
+
+                outputs = []
+                for row in cursor.fetchall():
+                    output = ProcessingOutput(
+                        id=row[0],
+                        processing_result_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        step_name=row[4],
+                        source_file=row[5],
+                        output_type=row[6],
+                        output_path=row[7],
+                        file_format=row[8],
+                        file_size=row[9],
+                        file_modified=datetime.fromisoformat(row[10]) if row[10] else None,
+                        created_at=datetime.fromisoformat(row[11]),
+                        metadata_extracted=bool(row[12]),
+                        is_valid=bool(row[13]),
+                        depends_on_output_ids=self._deserialize_list(row[14])
+                    )
+                    outputs.append(output)
+
+                return outputs
+
+        except Exception as e:
+            logger.error(f"Failed to get outputs by item: {e}")
+            return []
+
+    def update_processing_output(self, output: ProcessingOutput) -> bool:
+        """Update a processing output record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE processing_outputs
+                    SET metadata_extracted = ?, is_valid = ?, file_modified = ?, file_size = ?
+                    WHERE id = ?
+                """, (
+                    1 if output.metadata_extracted else 0,
+                    1 if output.is_valid else 0,
+                    output.file_modified.isoformat() if output.file_modified else None,
+                    output.file_size,
+                    output.id
+                ))
+
+                conn.commit()
+                logger.debug(f"Processing output updated: {output.id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update processing output: {e}")
+            return False
+
+    # Extracted metadata methods
+
+    def add_extracted_metadata(self, metadata: ExtractedMetadata) -> bool:
+        """Add extracted metadata record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    INSERT INTO extracted_metadata
+                    (id, processing_output_id, collection_id, item_id, metadata_type, key, value,
+                     confidence, context, indexed, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    metadata.id,
+                    metadata.processing_output_id,
+                    metadata.collection_id,
+                    metadata.item_id,
+                    metadata.metadata_type,
+                    metadata.key,
+                    metadata.value,
+                    metadata.confidence,
+                    metadata.context,
+                    1 if metadata.indexed else 0,
+                    metadata.created_at.isoformat()
+                ))
+
+                conn.commit()
+                logger.debug(f"Extracted metadata added: {metadata.metadata_type} - {metadata.key}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add extracted metadata: {e}")
+            return False
+
+    def get_extracted_metadata(self, processing_output_id: str) -> List[ExtractedMetadata]:
+        """Get all extracted metadata for a processing output"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
+                           confidence, context, indexed, created_at
+                    FROM extracted_metadata
+                    WHERE processing_output_id = ?
+                    ORDER BY created_at ASC
+                """, (processing_output_id,))
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        metadata_type=row[4],
+                        key=row[5],
+                        value=row[6],
+                        confidence=row[7],
+                        context=row[8],
+                        indexed=bool(row[9]),
+                        created_at=datetime.fromisoformat(row[10])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to get extracted metadata: {e}")
+            return []
+
+    def search_metadata(self, collection_id: str, query: str,
+                       metadata_type: str = None, key: str = None) -> List[ExtractedMetadata]:
+        """Search metadata by value (case-insensitive LIKE search)
+
+        Args:
+            collection_id: Collection to search within
+            query: Search query string
+            metadata_type: Optional filter by metadata type
+            key: Optional filter by key
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Build query with optional filters
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
+                           confidence, context, indexed, created_at
+                    FROM extracted_metadata
+                    WHERE collection_id = ? AND value LIKE ?
+                """
+                params = [collection_id, f"%{query}%"]
+
+                if metadata_type:
+                    sql += " AND metadata_type = ?"
+                    params.append(metadata_type)
+
+                if key:
+                    sql += " AND key = ?"
+                    params.append(key)
+
+                sql += " ORDER BY created_at DESC"
+
+                cursor.execute(sql, params)
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        metadata_type=row[4],
+                        key=row[5],
+                        value=row[6],
+                        confidence=row[7],
+                        context=row[8],
+                        indexed=bool(row[9]),
+                        created_at=datetime.fromisoformat(row[10])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to search metadata: {e}")
+            return []
+
+    def get_metadata_by_collection(self, collection_id: str,
+                                   metadata_type: str = None) -> List[ExtractedMetadata]:
+        """Get all metadata for a collection, optionally filtered by type"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if metadata_type:
+                    cursor.execute("""
+                        SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
+                               confidence, context, indexed, created_at
+                        FROM extracted_metadata
+                        WHERE collection_id = ? AND metadata_type = ?
+                        ORDER BY created_at DESC
+                    """, (collection_id, metadata_type))
+                else:
+                    cursor.execute("""
+                        SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
+                               confidence, context, indexed, created_at
+                        FROM extracted_metadata
+                        WHERE collection_id = ?
+                        ORDER BY created_at DESC
+                    """, (collection_id,))
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        metadata_type=row[4],
+                        key=row[5],
+                        value=row[6],
+                        confidence=row[7],
+                        context=row[8],
+                        indexed=bool(row[9]),
+                        created_at=datetime.fromisoformat(row[10])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to get metadata by collection: {e}")
             return []
 
     def cleanup_processing_outputs(self, item_id: str = None,

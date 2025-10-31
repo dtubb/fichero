@@ -433,7 +433,8 @@ def convert_to_word_batch(
             process_name="convert_to_word",
             base_folder=images_folder,
             processor_fn=lambda f, o: process_document(f, o, spread_manager),
-            use_source=True  # Use "source" field from transcription manifest
+            use_source=True,  # Use "source" field from transcription manifest
+            add_documents_prefix=False  # Background_removed folder has no /documents/ subdirectory
         )
         
         results = processor.process()
