@@ -275,8 +275,10 @@ class BaseView(ABC):
 
             # Bottom toolbar: Platform-adaptive behavior
             if bottom_toolbar:
+                logger.info(f"🔧 set_toolbars: is_mobile={self.is_mobile}, force_bottom_toolbar_on_desktop={self.force_bottom_toolbar_on_desktop}")
                 if self.is_mobile or self.force_bottom_toolbar_on_desktop:
                     # Mobile OR forced desktop: Render bottom toolbar and populate from commands
+                    logger.info(f"🔧 set_toolbars: RENDERING bottom toolbar for {getattr(self, 'view_id', 'unknown')}")
                     self.set_bottom_toolbar(bottom_toolbar)
 
                     # Auto-populate from commands if view has view_id
