@@ -442,10 +442,15 @@ class BaseToolbar(ABC, ToolbarProtocol):
             # Get commands for this view
             commands = command_manager.get_toolbar_commands(view_id=view_id, context=context, toolbar_type=toolbar_type)
 
-            logger.info(f"Populating toolbar with {len(commands)} commands for view '{view_id}' (context: {context}, type: {toolbar_type})")
+            logger.info(f"🔍 Populating toolbar with {len(commands)} commands for view '{view_id}' (context: {context}, type: {toolbar_type})")
+
+            # DEBUG: Log each command being added
+            for i, cmd in enumerate(commands):
+                logger.info(f"  {i+1}. {cmd.id}: {cmd.label} (show_in_bottom_toolbar={getattr(cmd, 'show_in_bottom_toolbar', False)})")
 
             # Add each command to toolbar using platform-adaptive method
             for command in commands:
+                logger.info(f"  Adding button for command: {command.id}")
                 self.add_button_from_command(command)
 
             logger.info(f"✅ Toolbar populated with {len(commands)} commands")
