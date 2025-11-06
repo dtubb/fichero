@@ -293,8 +293,9 @@ class MainWindow:
 
             # Define View menu commands
             # Section 0 with negative orders puts them at the TOP of the View menu
+            # Section 1 will be for zoom commands (creates divider)
             # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5
-            # Order: Library, Collection, Steps (not implemented), Output, Adjust
+            # Order: Library, Collection, Step, Preview (output), Adjust
             view_commands = {
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
@@ -320,13 +321,24 @@ class MainWindow:
                     show_in_menu=True,
                     desktop_only=True
                 ),
-                # Steps/Browser would be Cmd+Option+3 here when implemented
+                'view.toggle_step': FicheroCommand(
+                    id='view.toggle_step',
+                    label=_("Step"),
+                    action=self._toggle_step_pane,
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '3',
+                    description=_("Show/hide Step pane"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=-3,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
                 'view.toggle_output': FicheroCommand(
                     id='view.toggle_output',
-                    label=_("Output"),
+                    label=_("Preview"),
                     action=self._toggle_output_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '4',
-                    description=_("Show/hide Output pane"),
+                    description=_("Show/hide Preview pane"),
                     group=toga.Group.VIEW,
                     section=0,
                     order=-2,
@@ -352,7 +364,7 @@ class MainWindow:
                 command_manager.register_command(command)
                 logger.debug(f"Registered View command: {command_id}")
 
-            logger.info("✅ View menu commands registered (4 pane toggles)")
+            logger.info("✅ View menu commands registered (5 pane toggles)")
 
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
@@ -974,6 +986,17 @@ class MainWindow:
 
         self.pane_visibility['collection'] = not self.pane_visibility['collection']
         logger.info(f"📐 Toggle Collection pane: {self.pane_visibility['collection']}")
+        self._update_pane_layout()
+
+    def _toggle_step_pane(self, widget):
+        """Toggle Step pane visibility (same as Collection pane for now)"""
+        if self.is_mobile:
+            return
+
+        # For now, Step shares the same pane as Collection
+        # This is a placeholder for future Step-specific functionality
+        self.pane_visibility['collection'] = not self.pane_visibility['collection']
+        logger.info(f"📐 Toggle Step pane: {self.pane_visibility['collection']}")
         self._update_pane_layout()
 
     def _toggle_output_pane(self, widget):

@@ -108,8 +108,9 @@ class OutputView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.warning(f"Could not register toolbar coordinator: {e}")
 
-        # Force bottom toolbar on desktop for navigation controls (BEFORE super().__init__)
-        self.force_bottom_toolbar_on_desktop = True
+        # Force top toolbar on desktop (like Preview.app's markup toolbar)
+        self.force_bottom_toolbar_on_desktop = False
+        self.toolbar_visible = True  # Track toolbar visibility for toggle
         logger.info(f"🔧 OutputView: force_bottom_toolbar_on_desktop = {self.force_bottom_toolbar_on_desktop}, is_mobile = {is_mobile}")
 
         # Set view_id for command registration (BEFORE super().__init__)
@@ -145,6 +146,7 @@ class OutputView(BaseView, ViewCommandMixin):
 
             self.commands = {
                 # ===== VIEW MENU - Zoom Commands =====
+                # Note: Section 1 creates a divider below pane visibility toggles (section 0)
                 'zoom_in': FicheroCommand(
                     id=f'{self.view_id}.zoom_in',
                     label=_("Zoom In"),
@@ -152,7 +154,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.PLUS,
                     description=_("Zoom in on image"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=0,
                     show_in_menu=True,
                     desktop_only=False,
@@ -165,7 +167,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.MINUS,
                     description=_("Zoom out on image"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=1,
                     show_in_menu=True,
                     desktop_only=False,
@@ -178,7 +180,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + '9',
                     description=_("Fit image to window"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=2,
                     show_in_menu=True,
                     desktop_only=False,
@@ -191,7 +193,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + '0',
                     description=_("Zoom to 100%"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=3,
                     show_in_menu=True,
                     desktop_only=False,
@@ -204,7 +206,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '0',
                     description=_("Fit image to window width"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=4,
                     show_in_menu=True,
                     desktop_only=False,
@@ -217,7 +219,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '9',
                     description=_("Fit image to window height"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=5,
                     show_in_menu=True,
                     desktop_only=False,
@@ -230,7 +232,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '8',
                     description=_("Zoom to selected area"),
                     group=toga.Group.VIEW,
-                    section=0,
+                    section=1,
                     order=6,
                     show_in_menu=True,
                     desktop_only=False,
@@ -306,8 +308,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=0,
                     toolbar_text=_("Rotate\nLeft"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,  # Show in OutputView's top toolbar only
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'  # Always visible, not just in edit mode
                 ),
@@ -323,8 +326,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=1,
                     toolbar_text=_("Rotate\nRight"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'  # Always visible, not just in edit mode
                 ),
@@ -340,8 +344,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=2,
                     toolbar_text=_("Crop"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'  # Always visible, not just in edit mode
                 ),
@@ -357,8 +362,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=3,
                     toolbar_text=_("Reset"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'  # Always visible, not just in edit mode
                 ),
@@ -374,8 +380,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=4,
                     toolbar_text=_("Flip\nH"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'
                 ),
@@ -391,8 +398,9 @@ class OutputView(BaseView, ViewCommandMixin):
                     order=5,
                     toolbar_text=_("Flip\nV"),
                     toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_menu=False,  # Don't show in macOS menu/toolbar
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'
                 ),
@@ -409,7 +417,8 @@ class OutputView(BaseView, ViewCommandMixin):
                     toolbar_text=_("Straight\nen"),
                     toolbar_position='left',
                     show_in_menu=True,
-                    show_in_bottom_toolbar=True,
+                    show_in_top_toolbar=True,
+                    show_in_bottom_toolbar=False,
                     desktop_only=False,
                     context='normal'
                 ),
