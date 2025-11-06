@@ -148,6 +148,7 @@ commands:
     args:
       images_folder: "assets/background_removed"           # ← From 'remove_background' step
       transcription_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"  # ← From 'transcribe_qwen_max_direct' step
+      transcription_folder: "assets/transcriptions"        # ← Explicit location for text files
       output_folder: "assets/word"
     outputs:
       - "assets/word"

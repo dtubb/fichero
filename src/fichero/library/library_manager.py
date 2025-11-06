@@ -1058,22 +1058,45 @@ class LibraryManager:
         return self.storage.get_processing_history(item_id)
 
     async def get_latest_processing_result(self, item_id: str) -> Optional[ProcessingResult]:
-        """Get the most recent successful processing result for an item"""
+        """Get the best processing result for an item
+
+        Prioritizes:
+        1. Most recent completed/successful run
+        2. Falls back to most recent partial run if no completed runs exist
+
+        This ensures users see the most complete processing output, not necessarily
+        the most recent failed attempt.
+        """
         try:
             history = await self.get_processing_history(item_id)
             if not history:
                 return None
 
-            # Filter for successful results only
-            successful = [r for r in history if r.status == "success" and r.output_paths]
-
-            if not successful:
-                return None
-
             # Sort by completed_at descending (most recent first)
-            successful.sort(key=lambda r: r.completed_at or datetime.min, reverse=True)
+            history.sort(key=lambda r: r.completed_at or datetime.min, reverse=True)
 
-            return successful[0]
+            # Build list of runs with their successful step counts
+            runs_with_steps = []
+            for result in history:
+                successful_count = 0
+                if result.metadata and 'steps' in result.metadata:
+                    successful_steps = [s for s in result.metadata['steps']
+                                      if s.get('status') in ['completed', 'success']]
+                    successful_count = len(successful_steps)
+
+                runs_with_steps.append((result, successful_count))
+
+            # Sort by number of successful steps (descending), then by timestamp (descending)
+            runs_with_steps.sort(key=lambda x: (x[1], x[0].completed_at or datetime.min), reverse=True)
+
+            if runs_with_steps:
+                best_run, step_count = runs_with_steps[0]
+                logger.info(f"Returning run with {step_count} successful steps from {best_run.completed_at}")
+                return best_run
+
+            # Fall back to most recent run (even if no steps)
+            logger.debug(f"No runs with steps found, returning most recent run")
+            return history[0]
 
         except Exception as e:
             logger.error(f"Failed to get latest processing result: {e}")
@@ -1166,8 +1189,78 @@ class LibraryManager:
 
             # Get the latest processing result
             latest_result = await self.get_latest_processing_result(item_id)
-            if not latest_result or not latest_result.output_paths:
-                logger.debug(f"No processing results for item {item_id}")
+
+            # NEW: Try to discover outputs even if output_paths is empty/None
+            # This handles cases where processing is "pending" but some steps completed
+            if not latest_result:
+                logger.debug(f"No processing result record for item {item_id}")
+                # IMPORTANT: Don't return early if item has director_output_path set in metadata
+                # This allows folders processed via Director to have their outputs discovered
+                director_output_path = item.metadata.get('director_output_path') if item.metadata else None
+                if not director_output_path:
+                    return {
+                        'item': item,
+                        'filename': item.name,
+                        'source_path': None,
+                        'output_root': None,
+                        'processing_steps': [],
+                        'has_outputs': False,
+                        'workflow': None,
+                        'processing_date': None,
+                        'director_status': 'pending'
+                    }
+                else:
+                    # Item has director_output_path in metadata - continue to discovery with empty latest_result
+                    logger.info(f"📂 No DB record but item has director_output_path in metadata: {director_output_path}")
+
+            # Even if output_paths is empty, try to discover outputs in expected location
+            output_paths_to_check = latest_result.output_paths if (latest_result and latest_result.output_paths) else []
+
+            # Check if item has director_output_path in metadata (Director-processed items)
+            if not output_paths_to_check:
+                director_output_path = item.metadata.get('director_output_path') if item.metadata else None
+                if director_output_path:
+                    output_path = Path(director_output_path)
+                    if output_path.exists():
+                        logger.info(f"📂 Using director_output_path from item metadata: {output_path}")
+                        output_paths_to_check.append(str(output_path))
+
+            # If no output_paths set, try to find them by checking expected Director output location
+            if not output_paths_to_check and hasattr(item, 'source_path') and item.source_path:
+                # Try to infer output location from collection and item
+                # Expected pattern: <library_path>/outputs/<collection_id>/<date>/<workflow>/<item_name>/
+                try:
+                    collection = await self.get_collection(item.collection_id)
+                    if collection:
+                        # Check in library outputs folder
+                        outputs_root = self.library_path / "outputs" / collection.id
+                        if outputs_root.exists():
+                            # Find most recent output folder for this item
+                            item_name_clean = Path(item.source_path).stem if item.source_path else item.name
+                            for date_folder in sorted(outputs_root.iterdir(), reverse=True):
+                                if date_folder.is_dir():
+                                    for workflow_folder in date_folder.iterdir():
+                                        if workflow_folder.is_dir():
+                                            # Look for item-specific folder or _staging
+                                            possible_folders = [
+                                                workflow_folder / item_name_clean,
+                                                workflow_folder / "_staging"
+                                            ]
+                                            for possible_folder in possible_folders:
+                                                if possible_folder.exists():
+                                                    logger.info(f"📁 Discovered output folder (not in output_paths): {possible_folder}")
+                                                    output_paths_to_check.append(str(possible_folder))
+                                                    break
+                                        if output_paths_to_check:
+                                            break
+                                if output_paths_to_check:
+                                    break
+                except Exception as e:
+                    logger.debug(f"Could not discover outputs for item {item_id}: {e}")
+
+            # If still no outputs found, return empty
+            if not output_paths_to_check:
+                logger.debug(f"No output paths (checked or discovered) for item {item_id}")
                 return {
                     'item': item,
                     'filename': item.name,
@@ -1176,7 +1269,8 @@ class LibraryManager:
                     'processing_steps': [],
                     'has_outputs': False,
                     'workflow': None,
-                    'processing_date': None
+                    'processing_date': None,
+                    'director_status': latest_result.status if latest_result else 'pending'
                 }
 
             # Get source file path
@@ -1192,30 +1286,144 @@ class LibraryManager:
             # Check if this is a folder item (use is_folder attribute or type field)
             is_folder = getattr(item, 'is_folder', False) or getattr(item, 'type', 'file') == 'folder'
 
-            if is_folder:
-                # For folders, get ALL processing steps without filename filtering
-                logger.info(f"Loading folder-level outputs (unfiltered) for folder: {item.name}")
-                # Use output parser directly to get all steps from the processing result
+            # PREFERRED: Read steps from processing_history metadata (Director records execution)
+            if latest_result and latest_result.metadata and 'steps' in latest_result.metadata:
+                logger.info(f"Loading processing steps from processing_history metadata")
+                from fichero.library.director_output_parser import ProcessingStep
+
+                # Get filename for file-level filtering
+                filename = source_path.name if source_path else item.name
+
+                # Get the output root for resolving relative paths
+                # This is the base directory where the workflow was executed
+                output_root = None
+                if latest_result.output_paths and len(latest_result.output_paths) > 0:
+                    output_root = Path(latest_result.output_paths[0])
+                elif output_paths_to_check and len(output_paths_to_check) > 0:
+                    output_root = Path(output_paths_to_check[0])
+
+                logger.debug(f"Output root for path resolution: {output_root}")
+
+                # Build ProcessingSteps from metadata['steps']
+                for step_info in latest_result.metadata['steps']:
+                    step_name = step_info.get('step_name', 'Unknown')
+                    status = step_info.get('status', 'unknown')
+                    manifest_path_str = step_info.get('manifest_path')
+
+                    # Skip non-visual steps (metadata generation)
+                    if step_name in ['build_documents_manifest', 'build_manifest']:
+                        logger.debug(f"Skipping non-visual step: {step_name}")
+                        continue
+
+                    if not manifest_path_str:
+                        # Skip steps without a manifest
+                        continue
+
+                    manifest_path = Path(manifest_path_str)
+                    if not manifest_path.exists():
+                        logger.debug(f"Manifest not found: {manifest_path}")
+                        continue
+
+                    # Read the manifest JSONL to get the actual output file paths
+                    try:
+                        import json
+                        with open(manifest_path, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if not line:
+                                    continue
+
+                                entry = json.loads(line)
+                                source_file = entry.get('source', '')
+                                output_files = entry.get('outputs', [])
+
+                                # For files: filter by filename
+                                if not is_folder:
+                                    # Check if this manifest entry is for our file (case-insensitive stem matching)
+                                    filename_stem = Path(filename).stem.lower() if filename else None
+                                    source_stem = Path(source_file).stem.lower()
+                                    if filename_stem != source_stem:
+                                        continue
+
+                                # Create ProcessingStep for each output
+                                for output_file in output_files:
+                                    # Output paths in manifests are relative to output_root/assets/
+                                    # E.g., "cropped/file.jpg" should resolve to output_root/assets/cropped/file.jpg
+                                    if output_root:
+                                        full_output_path = output_root / "assets" / output_file
+                                    else:
+                                        # Fallback: try relative to manifest directory
+                                        full_output_path = manifest_path.parent / output_file
+
+                                    logger.debug(f"Resolving output: {output_file} -> {full_output_path}")
+
+                                    if full_output_path.exists():
+                                        # Determine file type from extension
+                                        ext = full_output_path.suffix.lower()
+                                        if ext in {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp'}:
+                                            file_type = 'image'
+                                        elif ext in {'.txt', '.json'}:
+                                            file_type = 'text'
+                                        elif ext in {'.docx', '.doc'}:
+                                            file_type = 'document'
+                                        else:
+                                            file_type = 'unknown'
+
+                                        logger.debug(f"Step '{step_name}': Adding {file_type} file: {full_output_path.name}")
+                                        processing_steps.append(ProcessingStep(
+                                            step_number=len(processing_steps) + 1,
+                                            step_name=step_name,
+                                            file_path=full_output_path,
+                                            file_type=file_type,
+                                            description=f"Status: {status}"
+                                        ))
+                                    else:
+                                        logger.debug(f"Output file not found: {full_output_path}")
+
+                    except Exception as e:
+                        logger.error(f"Error reading manifest {manifest_path}: {e}")
+
+                logger.info(f"Built {len(processing_steps)} processing steps from metadata")
+
+            # FALLBACK: Use DirectorOutputParser if metadata not available
+            elif output_paths_to_check:
+                logger.info(f"No metadata['steps'] found, falling back to DirectorOutputParser")
                 from fichero.library.director_output_parser import DirectorOutputParser
                 parser = DirectorOutputParser()
-                for output_path in latest_result.output_paths:
-                    output_path = Path(output_path)
-                    steps = parser.parse_output_folder(output_path)
-                    processing_steps.extend(steps)
-                logger.info(f"Found {len(processing_steps)} total processing steps for folder")
-            else:
-                # For files, filter by filename (original behavior)
-                if source_path:
-                    # Use the filename from the path (even if file doesn't exist anymore)
-                    processing_steps = await self.get_file_processing_steps(source_path, latest_result)
+
+                if is_folder:
+                    # For folders, get ALL processing steps without filename filtering
+                    logger.info(f"Loading folder-level outputs (unfiltered) for folder: {item.name}")
+                    for output_path in output_paths_to_check:
+                        output_path = Path(output_path)
+                        # Get all file outputs for the folder
+                        file_outputs = parser.get_all_file_outputs(output_path)
+                        # Get processing steps for each file
+                        for file_output in file_outputs:
+                            steps = parser.get_processing_steps(file_output)
+                            processing_steps.extend(steps)
+                    logger.info(f"Found {len(processing_steps)} total processing steps for folder")
                 else:
-                    # No source path at all - use item name as fallback
-                    # Create a fake path just to get the filename for filtering
-                    fallback_path = Path(item.name)
-                    processing_steps = await self.get_file_processing_steps(fallback_path, latest_result)
+                    # For files, filter by filename
+                    filename = source_path.name if source_path else item.name
+                    logger.info(f"Loading file-specific outputs for: {filename}")
+
+                    # Parse all discovered output paths and filter by filename
+                    for output_path in output_paths_to_check:
+                        output_path = Path(output_path)
+                        # Get file-specific outputs using the parser's method
+                        file_outputs = parser.get_file_outputs(output_path, filename)
+
+                        # Get processing steps for this file
+                        for file_output in file_outputs:
+                            steps = parser.get_processing_steps(file_output)
+                            processing_steps.extend(steps)
+                            logger.debug(f"  Found {len(steps)} steps for {filename}")
+
+                    logger.info(f"Found {len(processing_steps)} file-specific processing steps for {filename}")
 
             # Extract workflow metadata from output path
-            output_root = Path(latest_result.output_paths[0])
+            output_root = Path(output_paths_to_check[0])
             workflow = None
             processing_date = None
 
@@ -1232,6 +1440,36 @@ class LibraryManager:
             if not workflow and latest_result.workflow:
                 workflow = latest_result.workflow
 
+            # ALWAYS add original image/file as the FIRST step (if source_path exists and is a file)
+            if source_path and source_path.exists() and source_path.is_file() and not is_folder:
+                # Determine file type from extension
+                ext = source_path.suffix.lower()
+                if ext in {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.gif', '.bmp'}:
+                    file_type = 'image'
+                elif ext in {'.txt', '.json', '.md', '.log', '.csv', '.xml'}:
+                    file_type = 'text'
+                elif ext in {'.docx', '.doc'}:
+                    file_type = 'document'
+                elif ext == '.pdf':
+                    file_type = 'document'
+                else:
+                    file_type = 'unknown'
+
+                # Create original step and prepend to processing_steps
+                original_step = ProcessingStep(
+                    step_number=0,  # Original is step 0
+                    step_name="Original",
+                    file_path=source_path,
+                    file_type=file_type,
+                    description="Original source file"
+                )
+
+                # Renumber existing steps and prepend original
+                for step in processing_steps:
+                    step.step_number += 1
+                processing_steps.insert(0, original_step)
+                logger.debug(f"Added original file as first step: {source_path.name}")
+
             return {
                 'item': item,
                 'filename': item.name,
@@ -1240,7 +1478,9 @@ class LibraryManager:
                 'processing_steps': processing_steps,
                 'has_outputs': len(processing_steps) > 0,
                 'workflow': workflow,
-                'processing_date': processing_date
+                'processing_date': processing_date,
+                'director_status': latest_result.status if latest_result else 'pending',
+                'is_folder': is_folder  # Include folder flag for UI
             }
 
         except Exception as e:

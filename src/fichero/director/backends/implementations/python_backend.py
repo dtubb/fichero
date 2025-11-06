@@ -102,6 +102,7 @@ class PythonProcessingBackend(ProcessingBackend):
         self.task_executors: Dict[str, any] = {}  # Track workflow executors for cancellation
         self.task_document_ids: Dict[str, str] = {}  # Track document_id for each task
         self.task_display_names: Dict[str, str] = {}  # Track display_name for each task (for Activity Monitor)
+        self.task_skip_processing: Dict[str, bool] = {}  # Track skip_processing for each task
         self._lock = threading.Lock()
         
         self._initialized = False
@@ -172,10 +173,14 @@ class PythonProcessingBackend(ProcessingBackend):
     def requires_external_services(self) -> bool:
         return False  # Pure Python, no Redis/Celery needed
     
-    def process_folders(self, tasks: List[FolderTask]) -> Dict[str, ProcessingResult]:
+    def process_folders(self, tasks: List[FolderTask], skip_processing: bool = False) -> Dict[str, ProcessingResult]:
         """
         Process folders asynchronously and return immediately.
         Use get_status() and get_result() to check progress.
+
+        Args:
+            tasks: List of FolderTask objects to process
+            skip_processing: If True, create empty files instead of processing (default: False)
         """
         if not tasks:
             return {}
@@ -213,7 +218,10 @@ class PythonProcessingBackend(ProcessingBackend):
                 # Store display_name for Activity Monitor display
                 if task.display_name:
                     self.task_display_names[task.task_id] = task.display_name
-                
+
+                # Store skip_processing for this task
+                self.task_skip_processing[task.task_id] = skip_processing
+
                 # Determine which executor to use based on workflow characteristics
                 executor, executor_type = self._get_executor_for_task(task)
                 
@@ -359,6 +367,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_executor_types[task_id]
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
+                        if task_id in self.task_skip_processing:
+                            del self.task_skip_processing[task_id]  # Clean up skip_processing tracking
                         
                         # Get stored document_id and display_name if available
                         document_id = self.task_document_ids.get(task_id)
@@ -395,6 +405,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_document_ids[task_id]
                             if task_id in self.task_display_names:
                                 del self.task_display_names[task_id]
+                            if task_id in self.task_skip_processing:
+                                del self.task_skip_processing[task_id]
 
                             return ProcessingStatus.COMPLETED
                         else:
@@ -427,6 +439,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_document_ids[task_id]
                             if task_id in self.task_display_names:
                                 del self.task_display_names[task_id]
+                            if task_id in self.task_skip_processing:
+                                del self.task_skip_processing[task_id]
 
                             return ProcessingStatus.FAILED
                     except Exception as e:
@@ -447,7 +461,9 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_executor_types[task_id]  # Clean up executor type tracking
                         if task_id in self.task_executors:
                             del self.task_executors[task_id]  # Clean up task executor tracking
-                        
+                        if task_id in self.task_skip_processing:
+                            del self.task_skip_processing[task_id]  # Clean up skip_processing tracking
+
                         # Get stored document_id if available
                         document_id = self.task_document_ids.get(task_id)
                         
@@ -471,6 +487,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_document_ids[task_id]
                         if task_id in self.task_display_names:
                             del self.task_display_names[task_id]
+                        if task_id in self.task_skip_processing:
+                            del self.task_skip_processing[task_id]
 
                         return ProcessingStatus.FAILED
             
@@ -513,6 +531,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                 del self.task_document_ids[task_id]  # Clean up document_id tracking
                             if task_id in self.task_display_names:
                                 del self.task_display_names[task_id]  # Clean up display_name tracking
+                            if task_id in self.task_skip_processing:
+                                del self.task_skip_processing[task_id]  # Clean up skip_processing tracking
                             logger.info(f"Successfully cancelled future for task: {task_id}")
                             return True
                         else:
@@ -535,6 +555,8 @@ class PythonProcessingBackend(ProcessingBackend):
                                     del self.task_document_ids[task_id]  # Clean up document_id tracking
                                 if task_id in self.task_display_names:
                                     del self.task_display_names[task_id]  # Clean up display_name tracking
+                                if task_id in self.task_skip_processing:
+                                    del self.task_skip_processing[task_id]  # Clean up skip_processing tracking
                                 return True
                     except Exception as e:
                         logger.error(f"Error cancelling future for task {task_id}: {e}")
@@ -549,6 +571,8 @@ class PythonProcessingBackend(ProcessingBackend):
                             del self.task_document_ids[task_id]  # Clean up document_id tracking
                         if task_id in self.task_display_names:
                             del self.task_display_names[task_id]  # Clean up display_name tracking
+                        if task_id in self.task_skip_processing:
+                            del self.task_skip_processing[task_id]  # Clean up skip_processing tracking
                         return False
                 else:
                     logger.info(f"No future found for task: {task_id}")
@@ -630,6 +654,7 @@ class PythonProcessingBackend(ProcessingBackend):
             getattr(self, 'task_executors', {}).clear()  # Clear task executors tracking
             getattr(self, 'task_document_ids', {}).clear()  # Clear document_id tracking
             getattr(self, 'task_display_names', {}).clear()  # Clear display_name tracking
+            getattr(self, 'task_skip_processing', {}).clear()  # Clear skip_processing tracking
 
             logger.info("Forced cleanup completed")
         except Exception as e:
@@ -728,7 +753,10 @@ class PythonProcessingBackend(ProcessingBackend):
             
             # Determine parallel workers based on current load
             parallel_workers = self._get_parallel_workers_for_task(task)
-            
+
+            # Retrieve skip_processing for this task
+            skip_processing = self.task_skip_processing.get(task.task_id, False)
+
             # Add documents_folder to variables for source file access
             workflow_variables = task.variables.copy()
             workflow_variables['documents_folder'] = str(task.documents_folder)
@@ -750,7 +778,8 @@ class PythonProcessingBackend(ProcessingBackend):
                 workflow_name=task.workflow_name,
                 plan_config=task.plan_config,
                 variables=workflow_variables,
-                parallel_workers=parallel_workers
+                parallel_workers=parallel_workers,
+                skip_processing=skip_processing
             )
             
             # Clean up executor reference

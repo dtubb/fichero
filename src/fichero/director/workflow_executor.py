@@ -41,9 +41,9 @@ class WorkflowExecutor:
             from fichero.tools.utils.tool_logger import clear_workflow_context  
             clear_workflow_context()
 
-    def execute_workflow(self, task_id: str, folder_path: Path, output_path: Path, 
-                        workflow_name: str, plan_config: Dict, variables: Dict, 
-                        parallel_workers: int = 1) -> ProcessingResult:
+    def execute_workflow(self, task_id: str, folder_path: Path, output_path: Path,
+                        workflow_name: str, plan_config: Dict, variables: Dict,
+                        parallel_workers: int = 1, skip_processing: bool = False) -> ProcessingResult:
         """Execute workflow steps until completion or first error"""
         start_time = time.time()
         workflow_logger = None
@@ -109,7 +109,7 @@ class WorkflowExecutor:
                         "folder_name": folder_name
                     })
                 
-                result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger, parallel_workers)
+                result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger, parallel_workers, skip_processing)
                 
                 # Stop on any error - check both success field and failed count
                 if not result.get('success', True) or result.get('failed', 0) > 0:
@@ -194,8 +194,9 @@ class WorkflowExecutor:
         """Cancel execution"""
         self._cancelled = True
     
-    def _execute_step(self, step_name: str, command_config: Dict, output_path: Path, 
-                     variables: Dict, workflow_logger: WorkflowLogger, parallel_workers: int = 1) -> Dict:
+    def _execute_step(self, step_name: str, command_config: Dict, output_path: Path,
+                     variables: Dict, workflow_logger: WorkflowLogger, parallel_workers: int = 1,
+                     skip_processing: bool = False) -> Dict:
         """Execute a single step"""
         step_start = time.time()
         
@@ -274,6 +275,10 @@ class WorkflowExecutor:
             # Text processing tools (fuzzy_clean, recombine_segments) and post-transcription steps don't need this
             if any(keyword in function_path.lower() for keyword in ['crop', 'split', 'rotate', 'enhance', 'remove_background', 'segment', 'transcribe']):
                 expanded_args['parallel_workers'] = parallel_workers
+
+            # Add skip_processing parameter for tools that support fast testing mode
+            if any(keyword in function_path.lower() for keyword in ['enhance', 'transcribe', 'segment', 'recombine', 'convert_to_word']):
+                expanded_args['skip_processing'] = skip_processing
             
             # Log step start
             workflow_logger.log_step_start(step_name, function_path, expanded_args)

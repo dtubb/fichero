@@ -32,8 +32,20 @@ vars:
   prompt: ''
 
 workflows:
-  # Full enhancement + segmentation workflow - recommended for large, complex archival documents
+  # Simple enhance + segment workflow - recommended for large archival scans
   Default:
+    - build_documents_manifest
+    - enhance
+    - segment
+    - transcribe_qwen_max_segmented
+    - recombine_segments
+    - fuzzy_clean
+    - catalogue_folder
+    - convert_to_word_segmented
+    - catalogue_to_word
+
+  # Full enhancement pipeline + segmentation - for documents needing complete processing
+  Full:
     - build_documents_manifest
     - crop
     - split
@@ -104,10 +116,11 @@ commands:
     help: "Enhance image quality with contrast and clarity improvements"
     function: "fichero.tools.enhance.enhance_batch"
     args:
-      source_folder: "assets/rotated"
-      source_manifest: "assets/rotated/rotate_manifest.jsonl"
+      source_folder: "documents"
+      source_manifest: "assets/manifests/documents_manifest.jsonl"
       output_folder: "assets/enhanced"
       output_format: "{enhance_format}"
+      add_documents_prefix: false
     outputs:
       - "assets/enhanced"
       - "assets/enhanced/enhance_manifest.jsonl"
@@ -132,8 +145,8 @@ commands:
     help: "Segment large enhanced images into smaller tiles for better transcription"
     function: "fichero.tools.segment.segment_batch"
     args:
-      source_folder: "assets/background_removed"
-      source_manifest: "assets/background_removed/background_removed_manifest.jsonl"
+      source_folder: "assets/enhanced"
+      source_manifest: "assets/enhanced/enhance_manifest.jsonl"
       output_folder: "assets/segmented"
       tile_size: "{segment_tile_size}"
       overlap: "{segment_overlap}"
@@ -154,13 +167,38 @@ commands:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"
 
+  - name: recombine_segments
+    worker_type: "io"
+    help: "Recombine transcribed segments into complete documents"
+    function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    args:
+      transcriptions_folder: "assets/transcriptions"
+      output_folder: "assets/recombined"
+      transcription_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
+      image_manifest: "assets/segmented/segment_manifest.jsonl"
+    outputs:
+      - "assets/recombined"
+      - "assets/recombined/recombine_manifest.jsonl"
+
+  - name: fuzzy_clean
+    worker_type: "io"
+    help: "Clean up repeated text from recombined transcriptions"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    args:
+      source_folder: "assets/recombined"
+      source_manifest: "assets/recombined/recombine_manifest.jsonl"
+      output_folder: "assets/cleaned"
+    outputs:
+      - "assets/cleaned"
+      - "assets/cleaned/cleaned_manifest.jsonl"
+
   - name: catalogue_folder
     worker_type: "io"
-    help: "Process transcribed documents through configurable LLM pipeline for catalogue generation"
+    help: "Process cleaned transcriptions through configurable LLM pipeline for catalogue generation"
     function: "fichero.tools.llm_process.process_documents_batch"
     args:
-      source_folder: "assets/transcriptions"
-      source_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
+      source_folder: "assets/cleaned"
+      source_manifest: "assets/cleaned/cleaned_manifest.jsonl"
       output_folder: "assets/llm_catalogue"
       prompt_config: "Catalogue.jsonl"
       folder_mode: true
@@ -169,13 +207,14 @@ commands:
 
   - name: convert_to_word_segmented
     worker_type: "io"
-    help: "Convert segmented images and transcriptions to Word documents with side-by-side layout"
+    help: "Convert enhanced images and recombined transcriptions to Word documents with side-by-side layout"
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
     depends_on:
-      - "transcribe_qwen_max_segmented"
+      - "fuzzy_clean"
     args:
-      images_folder: "assets/segmented"
-      transcription_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
+      images_folder: "assets/enhanced"
+      transcription_manifest: "assets/enhanced/enhance_manifest.jsonl"
+      transcription_folder: "assets/cleaned"
       output_folder: "assets/word"
     outputs:
       - "assets/word"

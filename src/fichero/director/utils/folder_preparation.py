@@ -107,6 +107,20 @@ def sanitize_name(name: str, preserve_extension: bool = True) -> str:
     return final_name
 
 
+def create_output_subdirectories(output_path: Path) -> None:
+    """
+    Create standard output subdirectories (assets, logs) in the given path.
+
+    This is a shared utility used by both prepare_folder() and library integration
+    to ensure consistent directory structure across all processing modes.
+
+    Args:
+        output_path: Path where subdirectories should be created
+    """
+    (output_path / "assets").mkdir(parents=True, exist_ok=True)
+    (output_path / "logs").mkdir(parents=True, exist_ok=True)
+
+
 def prepare_folder(input_folder: Path, output_folder: Path, processing_mode: str = "in_place") -> tuple[Path, Path]:
     """
     Prepare a folder for processing by creating the required structure.
@@ -132,9 +146,8 @@ def prepare_folder(input_folder: Path, output_folder: Path, processing_mode: str
     output_subfolder = output_folder / sanitized_folder_name
     output_subfolder.mkdir(parents=True, exist_ok=True)
 
-    # Create required subfolders for outputs
-    (output_subfolder / "assets").mkdir(parents=True, exist_ok=True)
-    (output_subfolder / "logs").mkdir(parents=True, exist_ok=True)
+    # Create required subfolders for outputs using shared helper
+    create_output_subdirectories(output_subfolder)
 
     if processing_mode == "in_place":
         # In-place mode: No file copying, process from source location
@@ -190,4 +203,47 @@ def prepare_folder(input_folder: Path, output_folder: Path, processing_mode: str
         documents_folder = parent_folder_in_docs
 
     logger.info(f"Folder preparation completed. Output: {output_subfolder}, Documents: {documents_folder}")
-    return output_subfolder, documents_folder 
+    return output_subfolder, documents_folder
+
+
+def prepare_single_file_staging(file_path: Path, output_folder: Path) -> tuple[Path, Path]:
+    """
+    Prepare a single file for processing by creating a staging structure.
+
+    Creates:
+        output_folder/_staging/documents/filename.ext (symlink to original file)
+
+    This ensures single file processing uses the same directory structure as folder processing.
+
+    Args:
+        file_path: Path to the single file to process
+        output_folder: Base output directory where staging will be created
+
+    Returns:
+        Tuple of (staging_dir, documents_dir)
+        - staging_dir: The _staging folder (passed as documents_folder to workflows)
+        - documents_dir: The _staging/documents folder (where the file symlink is created)
+    """
+    import os
+
+    logger.info(f"Preparing single file staging: {file_path.name} -> {output_folder}")
+
+    # Create staging folder structure
+    staging_dir = output_folder / "_staging"
+    documents_dir = staging_dir / "documents"
+    documents_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create symlink to the file in staging/documents/
+    staging_file_link = documents_dir / file_path.name
+
+    # Remove existing symlink if present (from previous runs)
+    if staging_file_link.exists() or staging_file_link.is_symlink():
+        staging_file_link.unlink()
+
+    os.symlink(file_path, staging_file_link)
+
+    logger.info(f"✓ Single file staging created:")
+    logger.info(f"  Staging: {staging_dir}")
+    logger.info(f"  File: {staging_file_link}")
+
+    return staging_dir, documents_dir 

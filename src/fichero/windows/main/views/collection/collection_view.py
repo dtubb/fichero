@@ -24,7 +24,23 @@ logger = logging.getLogger(__name__)
 
 class CollectionView(BaseView, ViewCommandMixin):
     """Collection view using the new BaseView system"""
-    
+
+    # Tool configuration: maps tool key to (plan_name, workflow_name)
+    TOOL_CONFIGS = {
+        'crop': ('Crop', 'CropTest'),
+        'rotate': ('Rotate', 'RotateTest'),
+        'split': ('Split', 'SplitTest'),
+        'enhance': ('Enhance', 'EnhanceTest'),
+        'remove_background': ('RemoveBackground', 'RemoveBackgroundTest'),
+        'prepare': ('PrepareImages', 'PrepareTest'),
+        'segment': ('Segment', 'SegmentTest'),
+        'recombine': ('RecombineSegments', 'RecombineTest'),
+        'transcribe': ('Transcribe', 'TranscribeTest'),
+        'describe': ('Describe', 'DescribeTest'),
+        'llm': ('LLMProcess', 'LLMProcessTest'),
+        'convert_word': ('ConvertToWord', 'ConvertToWordTest'),
+    }
+
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False, collection_id: Optional[str] = None):
         """Initialize refactored collection view"""
         logger.info(f"🆕 CollectionView.__init__ called with:")
@@ -61,6 +77,10 @@ class CollectionView(BaseView, ViewCommandMixin):
         # Call parent initializer AFTER initializing our attributes
         super().__init__(app, is_mobile)
         ViewCommandMixin.__init__(self)
+
+        # Generate tool handler methods dynamically from TOOL_CONFIGS
+        # This ensures all tools use the same core logic defined once in _on_quick_process
+        self._create_tool_handlers()
 
         # Define and register commands
         self.define_commands()
@@ -118,6 +138,24 @@ class CollectionView(BaseView, ViewCommandMixin):
             self._load_collection_items()
 
         logger.info("Refactored collection view created successfully")
+
+    def _create_tool_handlers(self):
+        """
+        Dynamically create tool handler methods from TOOL_CONFIGS.
+        This ensures all 12 tools share the same core logic defined once in _on_quick_process.
+        """
+        def create_handler(plan_name: str, workflow_name: str):
+            """Factory function to create a handler with proper closure"""
+            async def handler(widget):
+                await self._on_quick_process(plan_name, workflow_name)
+            return handler
+
+        # Generate and attach handler methods for each tool
+        for tool_key, (plan_name, workflow_name) in self.TOOL_CONFIGS.items():
+            method_name = f'_on_quick_process_{tool_key}'
+            handler = create_handler(plan_name, workflow_name)
+            setattr(self, method_name, handler)
+            logger.debug(f"Generated handler method: {method_name} -> {plan_name}/{workflow_name}")
 
     def _get_current_collection_id(self) -> Optional[str]:
         """
@@ -185,6 +223,227 @@ class CollectionView(BaseView, ViewCommandMixin):
                     desktop_only=False,
                     context='normal',
                     enabled=True  # Always enabled - smart selection detection
+                ),
+
+                # ===== TOOLS MENU - TOOLS SUBMENU =====
+                # Parent command for Tools submenu
+                'quick_tools': FicheroCommand(
+                    id='collection.quick_tools',
+                    label=_("Tools"),
+                    action=None,  # Submenu parent - no action
+                    icon='resources/icons/toolbar/wand.magic@10x.png',
+                    description=_("Quick processing tools for common operations"),
+                    group=tools_group,
+                    section=1,  # Same section as Process
+                    order=1,  # After Process command
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 1. Crop Images
+                'process_crop': FicheroCommand(
+                    id='collection.process_crop',
+                    label=_("Crop Images"),
+                    action=self._on_quick_process_crop,
+                    icon='resources/icons/toolbar/crop.rectangle@10x.png',
+                    description=_("Crop selected images using contour detection"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=0,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 2. Rotate Images
+                'process_rotate': FicheroCommand(
+                    id='collection.process_rotate',
+                    label=_("Rotate Images"),
+                    action=self._on_quick_process_rotate,
+                    icon='resources/icons/toolbar/arrow.clockwise@10x.png',
+                    description=_("Rotate selected images to correct orientation"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=1,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 3. Split Images
+                'process_split': FicheroCommand(
+                    id='collection.process_split',
+                    label=_("Split Images"),
+                    action=self._on_quick_process_split,
+                    icon='resources/icons/toolbar/rectangle.split.2x1@10x.png',
+                    description=_("Split double-page images into individual pages"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=2,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 4. Enhance Images
+                'process_enhance': FicheroCommand(
+                    id='collection.process_enhance',
+                    label=_("Enhance Images"),
+                    action=self._on_quick_process_enhance,
+                    icon='resources/icons/toolbar/wand.stars@10x.png',
+                    description=_("Enhance image quality with contrast and clarity improvements"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=3,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 5. Remove Background
+                'process_remove_background': FicheroCommand(
+                    id='collection.process_remove_background',
+                    label=_("Remove Background"),
+                    action=self._on_quick_process_remove_background,
+                    icon='resources/icons/toolbar/rectangle.badge.minus@10x.png',
+                    description=_("Remove background from images"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=4,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 6. Prepare Images
+                'process_prepare': FicheroCommand(
+                    id='collection.process_prepare',
+                    label=_("Prepare Images"),
+                    action=self._on_quick_process_prepare,
+                    icon='resources/icons/toolbar/gearshape@10x.png',
+                    description=_("Standardize and prepare images for processing"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=5,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 7. Segment Images (optional alternative path)
+                'process_segment': FicheroCommand(
+                    id='collection.process_segment',
+                    label=_("Segment Images"),
+                    action=self._on_quick_process_segment,
+                    icon='resources/icons/toolbar/square.grid.3x3@10x.png',
+                    description=_("Segment images into regions for detailed processing"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=6,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 8. Recombine Segments
+                'process_recombine': FicheroCommand(
+                    id='collection.process_recombine',
+                    label=_("Recombine Segments"),
+                    action=self._on_quick_process_recombine,
+                    icon='resources/icons/toolbar/arrow.triangle.merge@10x.png',
+                    description=_("Recombine segmented regions back together"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=7,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 9. Transcribe Images
+                'process_transcribe': FicheroCommand(
+                    id='collection.process_transcribe',
+                    label=_("Transcribe Images"),
+                    action=self._on_quick_process_transcribe,
+                    icon='resources/icons/toolbar/doc.text@10x.png',
+                    description=_("OCR and AI transcription of document images"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=8,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 10. Describe Images
+                'process_describe': FicheroCommand(
+                    id='collection.process_describe',
+                    label=_("Describe Images"),
+                    action=self._on_quick_process_describe,
+                    icon='resources/icons/toolbar/text.bubble@10x.png',
+                    description=_("Generate AI descriptions of document images"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=9,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 11. LLM Process (Catalogue)
+                'process_llm': FicheroCommand(
+                    id='collection.process_llm',
+                    label=_("LLM Catalogue"),
+                    action=self._on_quick_process_llm,
+                    icon='resources/icons/toolbar/brain@10x.png',
+                    description=_("Process through LLM for catalogue generation"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=10,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+
+                # 12. Convert to Word
+                'process_convert_word': FicheroCommand(
+                    id='collection.process_convert_word',
+                    label=_("Convert to Word"),
+                    action=self._on_quick_process_convert_word,
+                    icon='resources/icons/toolbar/doc.richtext@10x.png',
+                    description=_("Convert images and transcriptions to Word documents"),
+                    group=tools_group,
+                    parent='collection.quick_tools',
+                    section=1,
+                    order=11,
+                    show_in_menu=True,
+                    show_in_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
                 ),
 
                 # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
@@ -1449,15 +1708,28 @@ class CollectionView(BaseView, ViewCommandMixin):
                 # Note: Process button stays enabled always (processes all when no selection)
 
                 # Clear output view when selection is cleared (no item selected)
+                # BUT: If we're inside a folder, load the folder view instead
                 if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                     if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
-                        logger.info("📤 Clearing output view (selection cleared)")
-                        self.app.main_window_wrapper.cached_output_view.load_output()
+                        # Only clear if at collection root, not inside a folder
+                        if not self.current_path:
+                            logger.info("📤 Clearing output view (selection cleared at root)")
+                            self.app.main_window_wrapper.cached_output_view.load_output()
+                        else:
+                            # Inside a folder - load folder view like Inspector does
+                            logger.info(f"📁 Loading folder view (selection cleared inside folder: {self.current_path})")
+                            folder_id = self._get_folder_id_from_path(self.current_path)
+                            if folder_id:
+                                self.app.main_window_wrapper.cached_output_view.load_output(item_id=folder_id)
+                            else:
+                                logger.warning(f"Could not get folder ID for path: {self.current_path}")
 
                 # Update inspector to show parent folder or collection metadata
-                if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
-                    import asyncio
-                    asyncio.create_task(self._update_inspector_with_parent_async())
+                # Skip if we're inside a folder (folder inspector update handled by navigation)
+                if not self.current_path:
+                    if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                        import asyncio
+                        asyncio.create_task(self._update_inspector_with_parent_async())
 
         except Exception as e:
             logger.error(f"Failed to handle item selection: {e}")
@@ -1953,6 +2225,138 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.debug("Collection toolbar buttons configured via command system")
         except Exception as e:
             logger.error(f"Failed to add collection toolbar buttons: {e}")
+
+    async def _on_quick_process(self, plan_name: str, workflow_name: str):
+        """
+        Quick process handler for specific tools (Crop, Rotate, Split).
+
+        Args:
+            plan_name: Name of the plan file (e.g., 'Crop', 'Rotate', 'Split')
+            workflow_name: Name of the workflow within the plan (e.g., 'CropTest', 'RotateTest')
+        """
+        try:
+            # Use view's collection_id directly
+            if not self.collection_id:
+                logger.error("No collection ID available")
+                return
+
+            logger.info(f"Quick process: {plan_name}/{workflow_name} - collection_id={self.collection_id}")
+
+            # Check for selected item
+            selected_item_id = None
+            selected_item_name = None
+
+            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
+                try:
+                    selected_row = self.items_list.selection
+                    selected_item_id = getattr(selected_row, 'item_id', None) or getattr(selected_row, 'id', None)
+                    selected_item_name = getattr(selected_row, 'title', None) or getattr(selected_row, 'name', None)
+
+                    if selected_item_id:
+                        logger.info(f"Processing selected item with {plan_name}: {selected_item_name} (id={selected_item_id})")
+                except Exception as e:
+                    logger.debug(f"Could not get selected item: {e}")
+
+            if not selected_item_id:
+                logger.info(f"No item selected - will process all items with {plan_name}")
+
+            # Get collection
+            collection = await self.app.library_manager.get_collection(self.collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {self.collection_id}")
+                return
+
+            # Get all items
+            all_items = await self.app.library_manager.get_collection_items(self.collection_id)
+
+            # Determine which items to process
+            if selected_item_id:
+                item_ids = [selected_item_id]
+            else:
+                item_ids = [item.id for item in all_items]
+
+            if not item_ids:
+                logger.warning(f"No items to process with {plan_name}")
+                return
+
+            # Process using Director integration with specified plan/workflow
+            if not hasattr(self.app, 'director_integration'):
+                logger.error("DirectorIntegrationService not available")
+                return
+
+            logger.info(f"Processing {len(item_ids)} items with {plan_name}/{workflow_name}")
+
+            # === WORKFLOW CHAINING LOGIC ===
+            # Check if we should chain from previous output
+            # DISABLED FOR NOW - just use base plan directly
+            actual_plan_name = plan_name
+            if False and item_ids and hasattr(self.app, 'workflow_chainer'):
+                # Get first item to check for chaining
+                first_item = await self.app.library_manager.get_item(item_ids[0])
+
+                if first_item and self.app.workflow_chainer.should_chain(first_item):
+                    # Get last output location
+                    last_output = self.app.workflow_chainer.get_last_output(first_item)
+
+                    logger.info(f"🔗 Chaining from previous output:")
+                    logger.info(f"  Last step: {last_output['step']}")
+                    logger.info(f"  Output folder: {last_output['folder']}")
+                    logger.info(f"  Manifest: {last_output['manifest']}")
+
+                    # Build path to base plan
+                    from pathlib import Path
+                    base_plan_path = Path(self.app.paths.config) / 'plans' / f"{plan_name}.yml"
+
+                    if not base_plan_path.exists():
+                        # Try resource path
+                        base_plan_path = Path(self.app.paths.app) / 'resources' / 'config_defaults' / 'plans' / f"{plan_name}.yml"
+
+                    if base_plan_path.exists():
+                        try:
+                            # Generate chained plan
+                            chained_plan_path = self.app.workflow_chainer.create_chained_plan(
+                                base_plan_path=str(base_plan_path),
+                                workflow_name=workflow_name,
+                                source_folder=last_output['folder'],
+                                source_manifest=last_output['manifest'],
+                                output_suffix=''
+                            )
+
+                            # Use chained plan instead of base plan
+                            actual_plan_name = chained_plan_path
+                            logger.info(f"✅ Using chained plan: {chained_plan_path}")
+
+                        except Exception as chain_error:
+                            logger.warning(f"Failed to create chained plan: {chain_error}")
+                            logger.info("Falling back to base plan (starting from documents)")
+                    else:
+                        logger.warning(f"Base plan not found: {base_plan_path}")
+
+            # Process items with (possibly chained) plan and workflow
+            task_ids = await self.app.director_integration.process_items(
+                collection_id=self.collection_id,
+                item_ids=item_ids,
+                plan_name=actual_plan_name,
+                workflow_name=workflow_name
+            )
+
+            # Open Activity Monitor to show progress
+            if hasattr(self.app, 'show_activity_monitor'):
+                self.app.show_activity_monitor()
+                logger.info(f"🪟 Opened Activity Window to show {plan_name} processing progress")
+
+            logger.info(f"✅ {plan_name} processing started successfully!")
+            logger.info(f"Submitted {len(task_ids)} task(s) to Director")
+
+        except Exception as e:
+            logger.error(f"Error in quick process ({plan_name}): {e}")
+            import traceback
+            traceback.print_exc()
+
+    # NOTE: Tool handler methods (_on_quick_process_crop, _on_quick_process_rotate, etc.)
+    # are dynamically generated by _create_tool_handlers() during __init__.
+    # This ensures all 12 tools share the same core logic defined once in _on_quick_process().
+    # See TOOL_CONFIGS class variable for the plan/workflow mappings.
 
     async def _on_process_requested(self, widget):
         """Smart Process handler - process selected item or all items
@@ -3029,6 +3433,40 @@ class CollectionView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to navigate to folder by ID: {e}")
+
+    def _get_folder_id_from_path(self, path: str) -> str | None:
+        """Get folder ID from a folder path like 'Parent/Child'"""
+        try:
+            if not path:
+                return None
+
+            # Get all items in the collection
+            all_items = self.app.library_manager.storage.get_collection_items(self.collection_id)
+
+            # Split path into parts
+            path_parts = path.split('/')
+
+            # Walk through path parts to find the final folder
+            current_parent_id = None
+            for part_name in path_parts:
+                # Find item with this name and parent
+                found = None
+                for item in all_items:
+                    if item.name == part_name and item.parent_id == current_parent_id and item.type == 'folder':
+                        found = item
+                        break
+
+                if not found:
+                    logger.warning(f"Could not find folder '{part_name}' in path '{path}'")
+                    return None
+
+                current_parent_id = found.id
+
+            return current_parent_id
+
+        except Exception as e:
+            logger.error(f"Failed to get folder ID from path: {e}")
+            return None
 
     async def _update_inspector_with_folder_async(self, folder_id: str, folder_name: str):
         """Update inspector with folder metadata when navigating to a folder"""

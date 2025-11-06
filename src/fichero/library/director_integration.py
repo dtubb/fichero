@@ -149,7 +149,8 @@ class DirectorIntegrationService:
                 item_ids=item_ids,
                 plan_name=plan_name,
                 workflow_name=workflow_name,
-                output_base_path=output_base_path  # Pass through output path (None = use library storage)
+                output_base_path=output_base_path,  # Pass through output path (None = use library storage)
+                skip_processing=False  # GUI doesn't support skip mode yet
             )
 
             if task_ids:
@@ -175,7 +176,8 @@ class DirectorIntegrationService:
 
     async def process_items(self, collection_id: str, item_ids: List[str],
                           plan_name: str, workflow_name: str = "Catalogue",
-                          output_base_path: Optional[Path] = None) -> List[str]:
+                          output_base_path: Optional[Path] = None,
+                          skip_processing: bool = False) -> List[str]:
         """
         Process collection items using Director
 
@@ -188,6 +190,7 @@ class DirectorIntegrationService:
             plan_name: Name of the Director plan to use
             workflow_name: Name of workflow within the plan
             output_base_path: Base path for outputs (defaults to app.paths.data)
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             List of task IDs submitted to Director
@@ -298,7 +301,7 @@ class DirectorIntegrationService:
 
                 # Process single file
                 task_id = await self._process_single_file(
-                    item_id, input_path, item_output_path, plan_name, workflow_name, collection_id
+                    item_id, input_path, item_output_path, plan_name, workflow_name, collection_id, skip_processing
                 )
                 if task_id:
                     task_ids.append(task_id)
@@ -342,7 +345,7 @@ class DirectorIntegrationService:
                         item_output_path.mkdir(parents=True, exist_ok=True)
 
                         task_id = await self._process_single_file(
-                            item_id, input_path, item_output_path, plan_name, workflow_name, collection_id
+                            item_id, input_path, item_output_path, plan_name, workflow_name, collection_id, skip_processing
                         )
                         if task_id:
                             task_ids.append(task_id)
@@ -389,7 +392,7 @@ class DirectorIntegrationService:
                             first_item_id = group_files[0][0]
                             task_id_list = await self._process_single_folder(
                                 first_item_id, temp_dir, catalogue_output_path,
-                                plan_name, workflow_name, collection_id
+                                plan_name, workflow_name, collection_id, skip_processing
                             )
                             task_ids.extend(task_id_list)
 
@@ -433,13 +436,13 @@ class DirectorIntegrationService:
                     # Single selected folder - process directly without auto-detection
                     logger.info(f"Processing single selected folder (no auto-detection): {input_path}")
                     submitted_task_ids = await self._process_single_folder(
-                        item_id, input_path, item_output_path, plan_name, workflow_name, collection_id
+                        item_id, input_path, item_output_path, plan_name, workflow_name, collection_id, skip_processing
                     )
                 else:
                     # Multiple folders or "Process All" - use auto-detection
                     logger.info(f"Processing folder with auto-detection: {input_path}")
                     submitted_task_ids = await self._process_folder_structure(
-                        item_id, input_path, item_output_path, plan_name, workflow_name, collection_id
+                        item_id, input_path, item_output_path, plan_name, workflow_name, collection_id, skip_processing
                     )
 
                 task_ids.extend(submitted_task_ids)
@@ -577,7 +580,8 @@ class DirectorIntegrationService:
 
     async def _process_single_file(self, item_id: str, input_path: Path,
                                    output_path: Path, plan_name: str,
-                                   workflow_name: str, collection_id: str) -> Optional[str]:
+                                   workflow_name: str, collection_id: str,
+                                   skip_processing: bool = False) -> Optional[str]:
         """
         Process a single file using Director
 
@@ -591,42 +595,35 @@ class DirectorIntegrationService:
             output_path: Output directory (in library)
             plan_name: Plan name
             workflow_name: Workflow name
+            collection_id: Collection ID
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             Task ID or None if submission failed
         """
         logger.info(f"Processing single file: {input_path}")
 
-        # Create staging folder WITHIN the library's output directory
-        # This ensures all processing happens in library-controlled space
-        import os
-
-        staging_dir = output_path / "_staging"
-        staging_dir.mkdir(parents=True, exist_ok=True)
+        # Use shared folder preparation utility to create staging structure
+        from fichero.director.utils.folder_preparation import prepare_single_file_staging
 
         try:
-            # Create symlink to the file in staging directory
-            staging_file_link = staging_dir / input_path.name
-
-            # Remove existing symlink if present (from previous runs)
-            if staging_file_link.exists() or staging_file_link.is_symlink():
-                staging_file_link.unlink()
-
-            os.symlink(input_path, staging_file_link)
-            logger.info(f"Created staging folder in library: {staging_dir}")
+            # Create staging structure using shared helper
+            staging_dir, documents_dir = prepare_single_file_staging(input_path, output_path)
 
             # Submit to Director using the staging folder
             # Use dict format to explicitly separate documents_folder (input) from output_folder (output)
             # Pass actual filename as display_name so Activity Monitor shows it instead of staging folder name
+            # IMPORTANT: Pass documents_dir (staging/documents) not staging_dir (staging) because workflows expect files in documents/
             task_id = self.director.processing_coordinator.process_folders(
                 folders=[{
                     'output_folder': output_path,
-                    'documents_folder': staging_dir
+                    'documents_folder': documents_dir
                 }],
                 plan_name=plan_name,
                 workflow_name=workflow_name,
                 output_path=output_path,
-                document_context={'display_name': input_path.name}  # Show actual filename, not staging folder
+                document_context={'display_name': input_path.name},  # Show actual filename, not staging folder
+                skip_processing=skip_processing
             )
 
             # Track this task (NO temp dir - everything stays in library)
@@ -652,7 +649,8 @@ class DirectorIntegrationService:
 
     async def _process_single_folder(self, item_id: str, input_path: Path,
                                      output_path: Path, plan_name: str,
-                                     workflow_name: str, collection_id: str) -> List[str]:
+                                     workflow_name: str, collection_id: str,
+                                     skip_processing: bool = False) -> List[str]:
         """
         Process a single folder directly (no auto-detection)
 
@@ -665,6 +663,8 @@ class DirectorIntegrationService:
             output_path: Output directory
             plan_name: Plan name
             workflow_name: Workflow name
+            collection_id: Collection ID
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             List with single task ID
@@ -678,9 +678,9 @@ class DirectorIntegrationService:
         # In-place processing: source files stay where they are
         documents_folder = input_path
 
-        # Create required subdirectories in the library output path
-        (output_path / "assets").mkdir(parents=True, exist_ok=True)
-        (output_path / "logs").mkdir(parents=True, exist_ok=True)
+        # Create required subdirectories using shared helper
+        from fichero.director.utils.folder_preparation import create_output_subdirectories
+        create_output_subdirectories(output_path)
 
         logger.info(f"Library processing - output: {output_path}, documents: {documents_folder}")
 
@@ -693,7 +693,8 @@ class DirectorIntegrationService:
                 }],
                 plan_name=plan_name,
                 workflow_name=workflow_name,
-                output_path=output_path
+                output_path=output_path,
+                skip_processing=skip_processing
             )
         except Exception as e:
             error_msg = str(e)
@@ -717,7 +718,8 @@ class DirectorIntegrationService:
 
     async def _process_folder_structure(self, item_id: str, input_path: Path,
                                        output_path: Path, plan_name: str,
-                                       workflow_name: str, collection_id: str) -> List[str]:
+                                       workflow_name: str, collection_id: str,
+                                       skip_processing: bool = False) -> List[str]:
         """
         Process a folder with auto-detection (folder-of-folders)
 
@@ -730,6 +732,8 @@ class DirectorIntegrationService:
             output_path: Output directory
             plan_name: Plan name
             workflow_name: Workflow name
+            collection_id: Collection ID
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             List of task IDs (one per subfolder detected)
@@ -741,7 +745,8 @@ class DirectorIntegrationService:
             input_path=input_path,
             output_path=output_path,
             plan_name=plan_name,
-            workflow_name=workflow_name
+            workflow_name=workflow_name,
+            skip_processing=skip_processing
         )
 
         logger.info(f"📊 Auto-detection returned {len(task_ids) if task_ids else 0} task IDs: {task_ids}")
@@ -935,6 +940,7 @@ class DirectorIntegrationService:
                         if item:
                             item.metadata['director_status'] = 'failed'
                             item.metadata['director_error'] = str(e)
+                            item.status = 'error'  # Also update main status field
                             self.library_manager.storage.update_item(item)
                     except Exception as update_error:
                         logger.error(f"Error updating item {item_id} after finalization error: {update_error}")
@@ -1011,14 +1017,20 @@ class DirectorIntegrationService:
         else:
             logger.warning(f"No collection_id in task_info, skipping output ingestion and metadata extraction")
 
-        # Update item metadata
-        item.metadata['director_status'] = 'success' if result and result.success else 'failed'
+        # Update item metadata (use workflow_status from manifest parsing, not result.success)
+        item.metadata['director_status'] = workflow_status  # 'success', 'partial', or 'failed'
         item.metadata['director_task_id'] = task_id
         item.metadata['director_progress'] = 100
-        if result and not result.success:
+        if workflow_status == 'failed' and result and result.error_message:
             item.metadata['director_error'] = str(result.error_message)
 
-        logger.info(f"📊 Updating item metadata")
+        # Update main item status field (required for OutputView to display results)
+        if workflow_status in ['success', 'partial']:
+            item.status = 'completed'
+        else:
+            item.status = 'error'
+
+        logger.info(f"📊 Updating item status to '{item.status}' and metadata")
         self.library_manager.storage.update_item(item)
         logger.info(f"📊 Item updated")
 
@@ -1106,7 +1118,19 @@ class DirectorIntegrationService:
                     if step_data:
                         metadata['steps'].append(step_data)
 
-            # 2. Prepared images step
+            # 2. Crop step
+            cropped_dir = assets_dir / "cropped"
+            if cropped_dir.exists():
+                crop_manifest = cropped_dir / "crop_manifest.jsonl"
+                if crop_manifest.exists():
+                    metadata['manifests']['crop'] = str(crop_manifest)
+                    step_data = self._parse_manifest_for_step(
+                        'crop', crop_manifest, output_path
+                    )
+                    if step_data:
+                        metadata['steps'].append(step_data)
+
+            # 3. Prepared images step
             prepared_dir = assets_dir / "prepared"
             if prepared_dir.exists():
                 prep_manifest = prepared_dir / "prepare_images_manifest.jsonl"
@@ -1118,7 +1142,7 @@ class DirectorIntegrationService:
                     if step_data:
                         metadata['steps'].append(step_data)
 
-            # 3. Transcription step
+            # 4. Transcription step
             transcriptions_dir = assets_dir / "transcriptions"
             if transcriptions_dir.exists():
                 trans_manifest = transcriptions_dir / "transcriptions_manifest.jsonl"
@@ -1130,7 +1154,7 @@ class DirectorIntegrationService:
                     if step_data:
                         metadata['steps'].append(step_data)
 
-            # 4. Word conversion step
+            # 5. Word conversion step
             word_dir = assets_dir / "word"
             if word_dir.exists():
                 word_manifest = word_dir / "convert_to_word_manifest.jsonl"
@@ -1142,7 +1166,7 @@ class DirectorIntegrationService:
                     if step_data:
                         metadata['steps'].append(step_data)
 
-            # 5. LLM catalogue step
+            # 6. LLM catalogue step
             llm_dir = assets_dir / "llm_catalogue"
             if llm_dir.exists():
                 llm_manifest = llm_dir / "llm_process_manifest.jsonl"
@@ -1337,15 +1361,23 @@ class DirectorIntegrationService:
                 logger.warning(f"No collection_id in task_info, skipping output ingestion and metadata extraction for batch item")
 
             # Update item metadata
-            item.metadata['director_status'] = 'success' if result and result.success else 'failed'
+            # For batch tasks, use result.success since we don't parse per-item manifests
+            batch_status = 'success' if result and result.success else 'failed'
+            item.metadata['director_status'] = batch_status
             item.metadata['director_task_id'] = task_id
             item.metadata['director_progress'] = 100
-            if result and not result.success:
+            if batch_status == 'failed' and result and result.error_message:
                 item.metadata['director_error'] = str(result.error_message)
+
+            # Update main item status field (required for OutputView to display results)
+            if batch_status == 'success':
+                item.status = 'completed'
+            else:
+                item.status = 'error'
 
             # Update in storage (use storage directly for sync access)
             self.library_manager.storage.update_item(item)
-            logger.debug(f"📊 Updated batch item {item_id}")
+            logger.debug(f"📊 Updated batch item {item_id} status to '{item.status}'")
 
             # CRITICAL: Dispatch GUI update to main thread
             # emit_navigation_event triggers GUI updates which MUST happen on main thread

@@ -16,6 +16,7 @@ import json
 import tempfile
 import shutil
 import subprocess
+from datetime import datetime
 
 # Support both standalone CLI usage and workflow executor imports
 try:
@@ -289,23 +290,27 @@ def create_spread(doc, image_path, text, filename):
     
     return True
 
-def process_document(file_path: str, output_folder: Path, spread_manager: SpreadManager) -> dict:
+def process_document(file_path: str, output_folder: Path, spread_manager: SpreadManager, transcription_folder: Path = None) -> dict:
     """Process a single document file using process_file utility"""
     file_path = Path(file_path)
-    
+
     def process_fn(f: str, o: Path) -> dict:
         try:
             # Get relative path using SegmentHandler
             rel_path = SegmentHandler.get_relative_path(Path(f))
             tool_logger.info(f"Processing document: {f}")
             tool_logger.debug(f"Relative path: {rel_path}")
-            
+
             # Get the parent folder name for document grouping
             parent_folder = Path(f).parent.name
             tool_logger.info(f"Parent folder name: {parent_folder}")
-            
+
             # Find the corresponding text file using consistent path handling
-            text_path = output_folder.parent / "transcriptions" / "documents" / rel_path.with_suffix('.txt')
+            # If transcription_folder is provided, use it; otherwise default to transcriptions/documents
+            if transcription_folder:
+                text_path = transcription_folder / "documents" / rel_path.with_suffix('.txt')
+            else:
+                text_path = output_folder.parent / "transcriptions" / "documents" / rel_path.with_suffix('.txt')
             if not text_path.exists():
                 # Try with raw path if not found
                 text_path = Path(str(text_path).replace(';', '\\;'))
@@ -405,36 +410,134 @@ def convert_to_word_batch(
     images_folder: Path,
     transcription_manifest: Path,
     output_folder: Path,
+    transcription_folder: Path = None,
+    skip_processing: bool = False,
     **kwargs
 ) -> dict:
     """
     Convert background-removed images and transcriptions to Word documents with side-by-side layout - importable function
-    
+
     Args:
         images_folder: Input background removed images folder
         transcription_manifest: Input transcription manifest
         output_folder: Output folder for Word documents
-        
+        transcription_folder: Optional folder containing transcription text files (defaults to manifest's parent folder)
+        skip_processing: If True, create empty Word files for fast testing (default: False)
+
     Returns:
         Processing statistics dictionary
     """
     tool_logger.info(f"Converting images in {images_folder} to Word documents")
-    
+    if skip_processing:
+        tool_logger.info("⚡ SKIP MODE: Creating empty Word files for testing")
+
+        # Read manifest to get list of items to process
+        manifest_entries = []
+        if Path(transcription_manifest).exists():
+            with open(transcription_manifest, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        manifest_entries.append(json.loads(line))
+
+        # Create output folder
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Create output manifest
+        output_manifest_path = output_folder / "convert_to_word_manifest.jsonl"
+
+        # Group entries by parent folder to create one Word doc per folder
+        folder_groups = {}
+        for entry in manifest_entries:
+            # Get the source or output path
+            source = entry.get('source', entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+            if not source:
+                continue
+
+            # Extract parent folder name (e.g., "1931 Antonio Asprilla.../file.txt" -> "1931 Antonio Asprilla...")
+            parent = str(Path(source).parent)
+            if parent == '.':
+                parent = Path(source).stem  # Use filename without extension if no folder
+
+            if parent not in folder_groups:
+                folder_groups[parent] = []
+            folder_groups[parent].append(entry)
+
+        # Create empty Word documents for each folder
+        stats = {
+            'total': len(manifest_entries),
+            'success': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        with open(output_manifest_path, 'w') as manifest_file:
+            for parent_folder, entries in folder_groups.items():
+                try:
+                    # Create output path
+                    output_path = output_folder / parent_folder / f"{Path(parent_folder).name}.docx"
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Create empty document
+                    doc = Document()
+                    doc.save(str(output_path))
+
+                    # Write manifest entries for all items in this folder
+                    for entry in entries:
+                        source = entry.get('source', entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+                        manifest_entry = {
+                            "source": source,
+                            "outputs": [str(output_path.relative_to(output_folder))],
+                            "processed_at": datetime.now().isoformat(),
+                            "success": True,
+                            "details": {"skip_processing": True}
+                        }
+                        manifest_file.write(json.dumps(manifest_entry) + "\n")
+                        stats['success'] += 1
+
+                    tool_logger.info(f"Created empty Word file: {output_path}")
+
+                except Exception as e:
+                    tool_logger.error(f"Error creating empty Word file for {parent_folder}: {str(e)}")
+                    for entry in entries:
+                        source = entry.get('source', entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+                        manifest_entry = {
+                            "source": source,
+                            "outputs": [],
+                            "processed_at": datetime.now().isoformat(),
+                            "success": False,
+                            "error": str(e)
+                        }
+                        manifest_file.write(json.dumps(manifest_entry) + "\n")
+                        stats['failed'] += 1
+
+        tool_logger.success(f"⚡ Skip mode complete: {stats['success']} empty Word files created")
+        return stats
+
+    # Use provided transcription folder, or derive from manifest path
+    # E.g., if manifest is "assets/enhanced/enhance_manifest.jsonl", folder is "assets/enhanced"
+    # But for segmented workflows, we might want transcriptions from "assets/cleaned"
+    if transcription_folder is None:
+        transcription_folder = Path(transcription_manifest).parent
+    else:
+        transcription_folder = Path(transcription_folder)
+    tool_logger.info(f"Using transcription folder: {transcription_folder}")
+
     # Create temporary directory for spreads
     with tempfile.TemporaryDirectory() as temp_dir:
         spread_manager = SpreadManager(Path(temp_dir))
-        
+
         # Create processor for image files
-        # For Simple Catalogue workflow, we need to handle original documents from documents folder
-        # The transcription manifest contains original file paths in "source" field
+        # Use outputs from the images manifest (not source, which points to originals)
+        # We need to match images from images_folder with transcriptions from transcription_folder
         processor = BatchProcessor(
             input_manifest=transcription_manifest,
             output_folder=output_folder,
             process_name="convert_to_word",
             base_folder=images_folder,
-            processor_fn=lambda f, o: process_document(f, o, spread_manager),
-            use_source=True,  # Use "source" field from transcription manifest
-            add_documents_prefix=False  # Background_removed folder has no /documents/ subdirectory
+            processor_fn=lambda f, o: process_document(f, o, spread_manager, transcription_folder),
+            use_source=False,  # Use "outputs" field which contains actual processed images
+            add_documents_prefix=False  # Images folder structure preserved from source
         )
         
         results = processor.process()

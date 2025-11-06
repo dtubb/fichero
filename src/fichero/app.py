@@ -99,6 +99,13 @@ class FicheroApp(toga.App):
             self.library_service = LibraryService(self.library_manager)
             logger.info("Library service initialized at app level")
 
+            # Initialize workflow chainer for incremental processing
+            from fichero.library.workflow_chainer import WorkflowChainer
+            self.workflow_chainer = WorkflowChainer(
+                config_manager=self.settings  # Use settings as config manager
+            )
+            logger.info("Workflow chainer initialized at app level")
+
             # Initialize Director integration service
             from fichero.library.director_integration import DirectorIntegrationService
             self.director_integration = DirectorIntegrationService(

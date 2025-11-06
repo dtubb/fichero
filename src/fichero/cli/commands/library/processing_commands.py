@@ -80,10 +80,11 @@ class ProcessingCommands(BaseLibraryCommands):
             item_ids: Optional[str] = typer.Option(None, "--items", "-i", help="Comma-separated item IDs to process (default: all items)"),
             plan: str = typer.Option("Default", "--plan", "-p", help="Director plan to use"),
             workflow: str = typer.Option("Catalogue", "--workflow", "-w", help="Workflow name within the plan"),
-            output: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory path")
+            output: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory path"),
+            skip_processing: bool = typer.Option(False, "--skip-processing", help="Fast testing mode: create empty files instead of processing")
         ):
             """Process collection items through Fichero Director"""
-            asyncio.run(self._process_collection_director(collection_id, item_ids, plan, workflow, output))
+            asyncio.run(self._process_collection_director(collection_id, item_ids, plan, workflow, output, skip_processing))
         
         @app.command(name="status", help="Get processing status of a collection")
         def get_processing_status(
@@ -349,7 +350,7 @@ class ProcessingCommands(BaseLibraryCommands):
             self.console.print(f"[red]Failed to view file: {e}[/red]")
     
     async def _process_collection_director(self, collection_id: str, item_ids: Optional[str],
-                                          plan: str, workflow: str, output: Optional[str]):
+                                          plan: str, workflow: str, output: Optional[str], skip_processing: bool = False):
         """Process collection items through Fichero Director"""
         try:
             print(f"DEBUG: _process_collection_director STARTED for collection {collection_id}")
@@ -391,6 +392,8 @@ class ProcessingCommands(BaseLibraryCommands):
             self.console.print(f"Items: {len(items_to_process)}")
             self.console.print(f"Plan: {plan}")
             self.console.print(f"Workflow: {workflow}")
+            if skip_processing:
+                self.console.print(f"[yellow]Skip Processing: ENABLED (fast testing mode)[/yellow]")
 
             # Determine output path
             output_path = Path(output) if output else None
@@ -412,7 +415,8 @@ class ProcessingCommands(BaseLibraryCommands):
                 item_ids=items_to_process,
                 plan_name=plan,
                 workflow_name=workflow,
-                output_base_path=output_path
+                output_base_path=output_path,
+                skip_processing=skip_processing
             )
 
             if task_ids:

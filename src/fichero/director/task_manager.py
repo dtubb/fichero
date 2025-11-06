@@ -55,7 +55,7 @@ class TaskManager:
     
     def submit_task(self, folders, plan_config: Dict, workflow_name: str,
                    variables: Dict = None, priority: TaskPriority = TaskPriority.NORMAL,
-                   document_context: Dict = None) -> str:
+                   document_context: Dict = None, skip_processing: bool = False) -> str:
         """
         Submit a new processing task
 
@@ -66,6 +66,7 @@ class TaskManager:
             variables: Additional variables for workflow
             priority: Task priority level (not used in simple version)
             document_context: Context from document window (optional)
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             Task ID string
@@ -109,7 +110,7 @@ class TaskManager:
             logger.info(f"Created task for output folder: {output_folder} (documents: {documents_folder or 'default'})")
         
         # Submit to backend
-        results = self.backend.process_folders(tasks)
+        results = self.backend.process_folders(tasks, skip_processing=skip_processing)
         
         # Track tasks
         with self._lock:

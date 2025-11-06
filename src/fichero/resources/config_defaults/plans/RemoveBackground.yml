@@ -1,0 +1,45 @@
+title: "Remove Background"
+description: >
+  Remove background from images using OpenCV (fast, document-optimized) or AI models (high quality).
+
+vars:
+  name: "Fichero"
+  language: "es"
+  version: "0.1.0"
+  project_folder: ''
+  documents_folder: ''
+  assets_folder: ''
+  background_removed_format: "png"
+  background_removal_method: "opencv"  # "opencv" (fast) or "ai" (high quality)
+  background_removal_ai_model: ""  # "default", "u2net", "u2net_human", "silueta"
+
+workflows:
+  RemoveBackgroundTest:
+    - build_documents_manifest
+    - remove_background
+
+commands:
+  - name: build_documents_manifest
+    worker_type: "io"
+    help: "Generate the documents manifest listing"
+    function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    args:
+      source_folder: "documents"
+      output_manifest: "assets/manifests/documents_manifest.jsonl"
+    outputs:
+      - "assets/manifests/documents_manifest.jsonl"
+
+  - name: remove_background
+    worker_type: "cpu"
+    help: "Remove background from images"
+    function: "fichero.tools.remove_background.remove_background_batch"
+    args:
+      source_folder: "documents"
+      source_manifest: "assets/manifests/documents_manifest.jsonl"
+      output_folder: "assets/background_removed"
+      output_format: "{background_removed_format}"
+      method: "{background_removal_method}"
+      ai_model: "{background_removal_ai_model}"
+    outputs:
+      - "assets/background_removed"
+      - "assets/background_removed/background_removed_manifest.jsonl"

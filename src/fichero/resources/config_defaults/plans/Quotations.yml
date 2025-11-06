@@ -55,7 +55,7 @@ commands:
     help: "Transcribe prepared documents using Qwen VL Max model"
     function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
     args:
-      source_folder: "assets/prepared"
+      source_folder: "assets/prepared/documents"
       source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
       output_folder: "assets/transcriptions"
     outputs:

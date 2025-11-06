@@ -18,6 +18,7 @@ from .lookup_commands import LookupCommands
 from .batch_commands import BatchCommands
 from .cache_commands import CacheCommands
 from .outputs_commands import OutputsCommands
+from .step_commands import StepCommands
 
 
 class LibraryCommands(BaseLibraryCommands):
@@ -40,6 +41,7 @@ class LibraryCommands(BaseLibraryCommands):
         self.batch_commands = BatchCommands(app_initializer, base_commands=self)
         self.cache_commands = CacheCommands(app_initializer, base_commands=self)
         self.outputs_commands = OutputsCommands(app_initializer, base_commands=self)
+        self.step_commands = StepCommands(app_initializer, base_commands=self)
 
         # Register all commands
         self._register_commands()
@@ -76,3 +78,6 @@ class LibraryCommands(BaseLibraryCommands):
 
         # Outputs management commands
         self.outputs_commands.register_commands(self.app)
+
+        # Step viewing and editing commands
+        self.step_commands.register_commands(self.app)

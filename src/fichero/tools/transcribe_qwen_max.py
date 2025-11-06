@@ -308,12 +308,94 @@ def transcribe_batch(
     output_folder: Path,
     testing: bool = False,
     api_key_cli: str = None,
+    skip_processing: bool = False,
     **kwargs
 ) -> dict:
-    """Batch transcription using Qwen VL Max model with parallel processing"""
+    """Batch transcription using Qwen VL Max model with parallel processing
+
+    Args:
+        source_folder: Source folder containing images
+        source_manifest: Manifest file
+        output_folder: Output folder for transcriptions
+        testing: Run on small subset of data
+        api_key_cli: Qwen API key (falls back to env var)
+        skip_processing: If True, create empty text files for fast testing (default: False)
+
+    Returns:
+        Processing statistics dictionary
+    """
+    if skip_processing:
+        tool_logger.info("⚡ SKIP MODE: Creating empty text files for testing")
+        import json
+
+        # Read manifest
+        manifest_entries = []
+        if Path(source_manifest).exists():
+            with open(source_manifest, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        manifest_entries.append(json.loads(line))
+
+        # Create output folder
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Create output manifest
+        output_manifest_path = output_folder / "transcriptions_manifest.jsonl"
+
+        stats = {
+            'total': len(manifest_entries),
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        with open(output_manifest_path, 'w') as manifest_file:
+            for entry in manifest_entries:
+                try:
+                    # Get source path
+                    source = entry.get('source') or (entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+                    if not source:
+                        continue
+
+                    # Create output path preserving structure
+                    source_path = Path(source)
+                    output_path = output_folder / "documents" / source_path.parent / f"{source_path.stem}.txt"
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Create empty text file
+                    output_path.write_text("")
+
+                    # Write manifest entry
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [str(output_path.relative_to(output_folder))],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": True,
+                        "details": {"skip_processing": True, "text_length": 0}
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['processed'] += 1
+
+                except Exception as e:
+                    tool_logger.error(f"Error creating empty text file for {source}: {str(e)}")
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": False,
+                        "error": str(e)
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['failed'] += 1
+
+        tool_logger.success(f"⚡ Skip mode complete: {stats['processed']} empty text files created")
+        return stats
+
+    # Normal processing path
     tool_logger.info(f"[green]Transcribing images in {source_folder}")
     tool_logger.info(f"[cyan]Using model qwen-vl-max")
-    
+
     load_dotenv()
     
     # Get API key once

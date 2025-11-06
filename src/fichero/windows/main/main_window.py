@@ -16,7 +16,7 @@ from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigati
 from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
-from fichero.windows.main.views.output.output_view import OutputView
+from fichero.windows.main.views.output import OutputView
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,21 @@ class MainWindow:
         self.cached_output_view: Optional[OutputView] = None
         self.cached_collection_view: Optional[CollectionView] = None  # Cache single reusable instance
 
+        # Pane visibility state (desktop only)
+        self.pane_visibility = {
+            'library': True,     # left_pane
+            'collection': True,  # center_pane (Browser/Steps)
+            'output': True,      # right_pane's output section
+            'inspector': False   # right_pane's inspector section
+        }
+
+        # Pane pixel widths (when visible, desktop only)
+        self.pane_widths = {
+            'library': 250,
+            'collection': 300,
+            'inspector': 350  # Inspector width within right_pane
+        }
+
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
 
@@ -74,6 +89,10 @@ class MainWindow:
         # On desktop, all command menus should be available even before opening a collection
         if not self.is_mobile:
             self._precreate_collection_view()
+
+        # Register View menu commands for pane visibility toggles (desktop only)
+        if not self.is_mobile:
+            self._register_view_commands()
 
         # Set up initial view
         self._show_initial_view()
@@ -263,6 +282,76 @@ class MainWindow:
                 logger.info("✅ Native toolbar updated with collection commands at startup")
         except Exception as e:
             logger.error(f"Failed to pre-create CollectionView: {e}")
+
+    def _register_view_commands(self):
+        """Register View menu commands for pane visibility toggles (desktop only)"""
+        try:
+            from fichero.shared.commands import CommandManager, FicheroCommand
+            from gettext import gettext as _
+
+            command_manager = CommandManager.get_instance(self.app)
+
+            # Define View menu commands
+            view_commands = {
+                'view.toggle_library': FicheroCommand(
+                    id='view.toggle_library',
+                    label=_("Library"),
+                    action=self._toggle_library_pane,
+                    shortcut=toga.Key.MOD_1 + 'l',
+                    description=_("Show/hide Library pane"),
+                    group='View',
+                    section=0,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.toggle_collection': FicheroCommand(
+                    id='view.toggle_collection',
+                    label=_("Collection"),
+                    action=self._toggle_collection_pane,
+                    shortcut=toga.Key.MOD_1 + 'k',
+                    description=_("Show/hide Collection pane"),
+                    group='View',
+                    section=0,
+                    order=2,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.toggle_output': FicheroCommand(
+                    id='view.toggle_output',
+                    label=_("Output"),
+                    action=self._toggle_output_pane,
+                    shortcut=toga.Key.MOD_1 + 'o',
+                    description=_("Show/hide Output pane"),
+                    group='View',
+                    section=0,
+                    order=3,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.toggle_inspector': FicheroCommand(
+                    id='view.toggle_inspector',
+                    label=_("Adjust"),
+                    action=self._toggle_inspector_pane,
+                    shortcut=toga.Key.MOD_1 + 'i',
+                    description=_("Show/hide Adjust pane"),
+                    group='View',
+                    section=0,
+                    order=4,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+            }
+
+            # Register all View commands
+            for command_id, command in view_commands.items():
+                command_manager.register_command(command)
+                logger.debug(f"Registered View command: {command_id}")
+
+            logger.info("✅ View menu commands registered (5 pane toggles)")
+
+        except Exception as e:
+            logger.error(f"Failed to register View commands: {e}")
 
     def _show_initial_view(self):
         """Show the initial library view"""
@@ -862,6 +951,94 @@ class MainWindow:
 
         except Exception as e:
             logger.error(f"Failed to show desktop view {view_key} in {pane}: {e}")
+
+    # ===== VIEW VISIBILITY TOGGLES (Desktop only) =====
+
+    def _toggle_library_pane(self, widget):
+        """Toggle Library pane visibility"""
+        if self.is_mobile:
+            return
+
+        self.pane_visibility['library'] = not self.pane_visibility['library']
+        logger.info(f"📐 Toggle Library pane: {self.pane_visibility['library']}")
+        self._update_pane_layout()
+
+    def _toggle_collection_pane(self, widget):
+        """Toggle Collection/Browser pane visibility"""
+        if self.is_mobile:
+            return
+
+        self.pane_visibility['collection'] = not self.pane_visibility['collection']
+        logger.info(f"📐 Toggle Collection pane: {self.pane_visibility['collection']}")
+        self._update_pane_layout()
+
+    def _toggle_output_pane(self, widget):
+        """Toggle Output pane visibility"""
+        if self.is_mobile:
+            return
+
+        self.pane_visibility['output'] = not self.pane_visibility['output']
+        logger.info(f"📐 Toggle Output pane: {self.pane_visibility['output']}")
+        self._update_pane_layout()
+
+    def _toggle_inspector_pane(self, widget):
+        """Toggle Inspector/Adjust pane visibility (within Output pane)"""
+        if self.is_mobile:
+            return
+
+        self.pane_visibility['inspector'] = not self.pane_visibility['inspector']
+        logger.info(f"📐 Toggle Inspector/Adjust pane: {self.pane_visibility['inspector']}")
+
+        # Delegate to OutputView's inspector toggle
+        if self.cached_output_view:
+            # OutputView already has _toggle_inspector() method
+            self.cached_output_view._toggle_inspector()
+        else:
+            logger.warning("Cannot toggle inspector: OutputView not created yet")
+
+    def _update_pane_layout(self):
+        """Update pane layout based on visibility state"""
+        if self.is_mobile:
+            return
+
+        try:
+            # Left pane (Library)
+            if self.left_pane:
+                if self.pane_visibility['library']:
+                    # Show with pixel width
+                    self.left_pane.style.update(width=self.pane_widths['library'], flex=0)
+                    logger.debug(f"Library pane visible: {self.pane_widths['library']}px")
+                else:
+                    # Hide (set width to 0)
+                    self.left_pane.style.update(width=0, flex=0)
+                    logger.debug("Library pane hidden")
+
+            # Center pane (Collection/Browser)
+            if self.center_pane:
+                if self.pane_visibility['collection']:
+                    # Show with pixel width
+                    self.center_pane.style.update(width=self.pane_widths['collection'], flex=0)
+                    logger.debug(f"Collection pane visible: {self.pane_widths['collection']}px")
+                else:
+                    # Hide (set width to 0)
+                    self.center_pane.style.update(width=0, flex=0)
+                    logger.debug("Collection pane hidden")
+
+            # Right pane (Output) - always flex=1 to fill remaining space
+            if self.right_pane:
+                if self.pane_visibility['output']:
+                    # Show - flex=1 fills remaining space
+                    self.right_pane.style.update(flex=1)
+                    logger.debug("Output pane visible (flex=1)")
+                else:
+                    # Hide (set width to 0, flex to 0)
+                    self.right_pane.style.update(width=0, flex=0)
+                    logger.debug("Output pane hidden")
+
+            logger.info(f"📐 Pane layout updated: {self.pane_visibility}")
+
+        except Exception as e:
+            logger.error(f"Failed to update pane layout: {e}")
 
     # ===== LEGACY CALLBACKS (for views that haven't been updated yet) =====
 

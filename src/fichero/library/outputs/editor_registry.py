@@ -39,6 +39,11 @@ class EditorRegistry:
         self._tool_map['catalogue_folder'] = json_editor
         self._tool_map['llm_process'] = json_editor
 
+        # New tools - JSON outputs
+        self._tool_map['describe_images'] = json_editor
+        self._tool_map['extract_library_metadata'] = json_editor
+        self._tool_map['analyze_document_groups'] = json_editor
+
         # Image editor for prepared images
         image_editor = ImageEditor()
         self.register_editor(image_editor)
@@ -46,6 +51,9 @@ class EditorRegistry:
         self._tool_map['crop'] = image_editor
         self._tool_map['rotate'] = image_editor
         self._tool_map['enhance'] = image_editor
+
+        # New tools - SVG outputs (using ImageEditor for now, can create SVGEditor later)
+        self._tool_map['convert_to_svg'] = image_editor
 
     def register_editor(self, editor: BaseToolEditor):
         """

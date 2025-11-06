@@ -42,7 +42,8 @@ class ProcessingCoordinator:
     def process_folders(self, folders, plan_name: str,
                        workflow_name: str = "default",
                        output_path: Path = None,
-                       document_context: Dict = None) -> str:
+                       document_context: Dict = None,
+                       skip_processing: bool = False) -> str:
         """
         Convenience method to process folders using a plan name
 
@@ -52,6 +53,7 @@ class ProcessingCoordinator:
             workflow_name: Name of workflow within the plan
             output_path: Base output directory
             document_context: Context from document window (optional)
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns:
             Task ID string
@@ -80,22 +82,25 @@ class ProcessingCoordinator:
             plan_config=plan_config,
             workflow_name=workflow_name,
             variables=variables,
-            document_context=document_context
+            document_context=document_context,
+            skip_processing=skip_processing
         )
     
-    def process_with_auto_detection(self, input_path: Path, output_path: Path, 
+    def process_with_auto_detection(self, input_path: Path, output_path: Path,
                                    plan_name: str, workflow_name: str = "default",
-                                   document_context: Dict = None) -> List[str]:
+                                   document_context: Dict = None,
+                                   skip_processing: bool = False) -> List[str]:
         """
         Auto-detect subfolders and process each as separate task using proper two-phase approach
-        
+
         Args:
             input_path: Input folder path to check for subfolders
             output_path: Base output directory
             plan_name: Name of the plan to use
             workflow_name: Name of workflow within the plan
             document_context: Context from document window (optional)
-        
+            skip_processing: If True, create empty files instead of processing (default: False)
+
         Returns:
             List of task IDs for each folder being processed
         """
@@ -118,11 +123,12 @@ class ProcessingCoordinator:
         # Phase 2: Submit tasks for parallel processing
         logger.info("Phase 2: Submitting tasks for parallel processing...")
         task_ids = folder_processor.submit_processing_tasks(
-            prepared_folders, 
-            plan_name, 
-            workflow_name, 
-            document_context
+            prepared_folders,
+            plan_name,
+            workflow_name,
+            document_context,
+            skip_processing
         )
         logger.info(f"Phase 2 complete: {len(task_ids)} tasks submitted")
-        
+
         return task_ids

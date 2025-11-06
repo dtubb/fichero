@@ -69,7 +69,7 @@ def get_relative_path(file_path: Union[str, Path], base_folder: Path = None) -> 
 
     # Check for known folder markers (documents, _staging, assets, processing folders)
     # Find the DEEPEST/LAST marker to strip the most path context
-    folder_markers = ['documents', '_staging', 'assets', 'crops', 'split', 'rotated', 'enhanced', 'background_removed']
+    folder_markers = ['documents', '_staging', 'assets', 'crops', 'split', 'rotated', 'enhanced', 'background_removed', 'segmented']
     deepest_marker_index = -1
     for marker in folder_markers:
         if marker in parts:

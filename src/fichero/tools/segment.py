@@ -834,8 +834,17 @@ def process_image(file_path: Path, out_path: Path) -> dict:
         
         # Follow the same pattern as crop.py, enhance.py, remove_background.py
         # Create segments folder under the output path
+        # Use file_path to determine actual directory structure (handles cases where input is in subdirs)
         segments_folder_name = f"{file_path.stem}_segments"
-        segments_dir = out_path.parent / segments_folder_name
+        # Get the actual parent directory from file_path to preserve directory structure
+        rel_input_path = SegmentHandler.get_relative_path(file_path)
+        if "/" in str(rel_input_path):
+            # Input is in a subdirectory, preserve that structure
+            parent_dir = Path(rel_input_path).parent
+            segments_dir = out_path.parent.parent / parent_dir / segments_folder_name
+        else:
+            # Input is flat, use out_path.parent directly
+            segments_dir = out_path.parent / segments_folder_name
         segments_dir.mkdir(parents=True, exist_ok=True)
         tool_logger.info(f"Created segments directory: {segments_dir}")
         
@@ -905,19 +914,109 @@ def segment_batch(
     source_manifest: Path,
     output_folder: Path,
     parallel_workers: int = 1,
+    skip_processing: bool = False,
     **kwargs
 ) -> dict:
     """
     Segment images into text regions - importable function
-    
+
     Args:
         source_folder: Source folder containing images
         source_manifest: Manifest file
         output_folder: Output folder for segmented images
-        
+        parallel_workers: Number of parallel workers
+        skip_processing: If True, create empty segment files for fast testing (default: False)
+
     Returns:
         Processing statistics dictionary
     """
+    if skip_processing:
+        tool_logger.info("⚡ SKIP MODE: Creating empty segment files for testing")
+        from datetime import datetime
+        import json
+        from PIL import Image
+
+        # Read manifest
+        manifest_entries = []
+        if Path(source_manifest).exists():
+            with open(source_manifest, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        manifest_entries.append(json.loads(line))
+
+        # Create output folder
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Create output manifest
+        output_manifest_path = output_folder / "segment_manifest.jsonl"
+
+        stats = {
+            'total': len(manifest_entries),
+            'success': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        with open(output_manifest_path, 'w') as manifest_file:
+            for entry in manifest_entries:
+                try:
+                    # Get source path
+                    source = entry.get('source') or (entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+                    if not source:
+                        continue
+
+                    # Create segments directory preserving structure
+                    source_path = Path(source)
+                    segments_folder_name = f"{source_path.stem}_segments"
+                    segments_dir = output_folder / "documents" / source_path.parent / segments_folder_name
+                    segments_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Create a single empty segment
+                    segment_name = f"{source_path.stem}_segment_001.jpg"
+                    segment_path = segments_dir / segment_name
+
+                    # Create empty 1x1 image
+                    img = Image.new('RGB', (1, 1), color='white')
+                    img.save(str(segment_path))
+
+                    # Get relative path for manifest
+                    segment_rel_path = segment_path.relative_to(output_folder / "documents")
+
+                    # Write manifest entry
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [str(segment_rel_path)],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": True,
+                        "details": {
+                            "skip_processing": True,
+                            "num_segments": 1,
+                            "segments": [{
+                                "index": 0,
+                                "file_path": str(segment_rel_path)
+                            }]
+                        }
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['success'] += 1
+
+                except Exception as e:
+                    tool_logger.error(f"Error creating empty segment for {source}: {str(e)}")
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": False,
+                        "error": str(e)
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['failed'] += 1
+
+        tool_logger.success(f"⚡ Skip mode complete: {stats['success']} empty segments created")
+        return stats
+
+    # Normal processing path
     # Create parallel-enabled batch processor using shared utility
     # Segment doesn't use output_format (always saves as JPG), so ignore the third parameter
     def process_for_parallel(file_path, out_path, output_format):

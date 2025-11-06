@@ -243,7 +243,8 @@ class FolderProcessor:
     
     def submit_processing_tasks(self, prepared_folders: List[Dict[str, Path]], plan_name: str,
                               workflow_name: str = "default",
-                              document_context: Dict = None) -> List[str]:
+                              document_context: Dict = None,
+                              skip_processing: bool = False) -> List[str]:
         """
         Submit processing tasks for prepared folders.
         Each folder becomes a separate task for parallel processing.
@@ -253,6 +254,7 @@ class FolderProcessor:
             plan_name: Name of the processing plan
             workflow_name: Name of workflow within the plan
             document_context: Additional document metadata
+            skip_processing: If True, create empty files instead of processing (default: False)
 
         Returns list of task IDs.
         """
@@ -267,7 +269,8 @@ class FolderProcessor:
                 folders=[{'output_folder': output_folder, 'documents_folder': documents_folder}],
                 plan_name=plan_name,
                 workflow_name=workflow_name,
-                document_context=document_context or {}
+                document_context=document_context or {},
+                skip_processing=skip_processing
             )
             task_ids.append(task_id)
 

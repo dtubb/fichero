@@ -174,20 +174,91 @@ def recombine_segments_batch(
     output_folder: Path,
     transcription_manifest: Path,
     image_manifest: Path,
+    skip_processing: bool = False,
     **kwargs
 ) -> dict:
     """
     Recombine the transcribed segments from Qwen into single markdown files - importable function
-    
+
     Args:
         transcriptions_folder: Path to the transcribed segments folder
         output_folder: Output folder for recombined files
         transcription_manifest: Path to the transcriptions manifest file
         image_manifest: Path to the background removal manifest file
-        
+        skip_processing: If True, create empty text files for fast testing (default: False)
+
     Returns:
         Processing statistics dictionary
     """
+    if skip_processing:
+        tool_logger.info("⚡ SKIP MODE: Creating empty recombined text files for testing")
+        from datetime import datetime
+
+        # Create output directories
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+        (output_folder / "documents").mkdir(parents=True, exist_ok=True)
+
+        # Group segments by parent to determine which output files to create
+        segments_mapping = group_segments_by_parent(transcription_manifest)
+        parent_images = list(segments_mapping.keys())
+
+        # Load background mapping for manifest
+        bg_mapping = load_bg_removal_manifest(image_manifest) if Path(image_manifest).exists() else {}
+
+        stats = {
+            'total': len(parent_images),
+            'processed': 0,
+            'failed': 0
+        }
+
+        # Create manifest
+        manifest_path = output_folder / "recombine_manifest.jsonl"
+
+        with open(manifest_path, 'w') as manifest_file:
+            for parent_path_str in parent_images:
+                try:
+                    # Create output path for this parent document
+                    parent_path = Path(parent_path_str)
+                    output_path = output_folder / "documents" / parent_path.parent / parent_path.name
+                    output_path = output_path.with_suffix('.txt')
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Create empty text file
+                    output_path.write_text("")
+
+                    # Get relative paths
+                    rel_path = SegmentHandler.get_relative_path(parent_path)
+                    output_rel_path = SegmentHandler.get_relative_path(output_path)
+
+                    # Write manifest entry
+                    manifest_entry = {
+                        "source": str(rel_path.with_suffix('.txt')),
+                        "bg_removed": bg_mapping.get(str(rel_path)),
+                        "outputs": [str(output_rel_path)],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": True,
+                        "details": {"skip_processing": True}
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['processed'] += 1
+
+                except Exception as e:
+                    tool_logger.error(f"Error creating empty file for {parent_path_str}: {str(e)}")
+                    manifest_entry = {
+                        "source": parent_path_str,
+                        "outputs": [],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": False,
+                        "error": str(e)
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['failed'] += 1
+
+        tool_logger.success(f"⚡ Skip mode complete: {stats['processed']} empty text files created")
+        return stats
+
+    # Normal processing path
     # Create output directories
     ensure_dirs(output_folder)
     ensure_dirs(output_folder / "documents")

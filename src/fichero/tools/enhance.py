@@ -261,17 +261,98 @@ def enhance_batch(
     output_folder: Path,
     output_format: str = "jpg",
     parallel_workers: int = 1,
+    skip_processing: bool = False,
     **kwargs
 ) -> dict:
     """
     Enhance image quality of document pages - importable function
-    
+
+    Args:
+        source_folder: Source folder containing documents
+        source_manifest: Manifest file
+        output_folder: Output folder for enhanced images
+        output_format: Output format (jpg, png, jxl)
+        parallel_workers: Number of parallel workers
+        skip_processing: If True, create empty image files for fast testing (default: False)
+
     Returns:
         Processing statistics dictionary
     """
+    if skip_processing:
+        tool_logger.info("⚡ SKIP MODE: Creating empty image files for testing")
+        from datetime import datetime
+        import json
+        from PIL import Image
+
+        # Read manifest
+        manifest_entries = []
+        if Path(source_manifest).exists():
+            with open(source_manifest, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        manifest_entries.append(json.loads(line))
+
+        # Create output folder
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Create output manifest
+        output_manifest_path = output_folder / "enhance_manifest.jsonl"
+
+        stats = {
+            'total': len(manifest_entries),
+            'success': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        with open(output_manifest_path, 'w') as manifest_file:
+            for entry in manifest_entries:
+                try:
+                    # Get source path
+                    source = entry.get('source') or (entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+                    if not source:
+                        continue
+
+                    # Create output path preserving structure
+                    source_path = Path(source)
+                    output_path = output_folder / source_path.parent / f"{source_path.stem}.{output_format}"
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Create empty 1x1 image
+                    img = Image.new('RGB', (1, 1), color='white')
+                    img.save(str(output_path))
+
+                    # Write manifest entry
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [str(output_path.relative_to(output_folder))],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": True,
+                        "details": {"skip_processing": True}
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['success'] += 1
+
+                except Exception as e:
+                    tool_logger.error(f"Error creating empty image for {source}: {str(e)}")
+                    manifest_entry = {
+                        "source": source,
+                        "outputs": [],
+                        "processed_at": datetime.now().isoformat(),
+                        "success": False,
+                        "error": str(e)
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    stats['failed'] += 1
+
+        tool_logger.success(f"⚡ Skip mode complete: {stats['success']} empty images created")
+        return stats
+
+    # Normal processing path
     # Create parallel-enabled batch processor using shared utility
     ParallelEnhanceProcessor = create_parallel_batch_processor("enhance", BatchProcessor, process_image)
-    
+
     processor = ParallelEnhanceProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,

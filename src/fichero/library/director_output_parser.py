@@ -33,6 +33,22 @@ class ProcessingStep:
     file_type: str  # "image", "text", "document"
     description: str
 
+    @property
+    def files(self) -> List[Path]:
+        """Compatibility property - returns file_path as a single-item list
+
+        This makes ProcessingStep compatible with output_view which expects .files list
+        """
+        return [self.file_path] if self.file_path else []
+
+    @property
+    def tool_name(self) -> str:
+        """Compatibility property - returns step_name as tool_name
+
+        This makes ProcessingStep compatible with ToolOutput interface
+        """
+        return self.step_name
+
 
 @dataclass
 class FileOutput:
@@ -99,25 +115,38 @@ class DirectorOutputParser:
         if not assets_dir.exists():
             return result
 
+        # Parse manifests first (we need them to discover files if folder structure is non-standard)
+        manifests_dir = assets_dir / "manifests"
+        if manifests_dir.exists():
+            result["manifests"] = self._parse_manifests(manifests_dir)
+
         # Prepared images
         prepared_dir = assets_dir / "prepared"
         if prepared_dir.exists():
             result["prepared_files"] = self._list_image_files(prepared_dir)
 
-        # Transcriptions
+        # Transcriptions (support both .json and .txt files)
         transcriptions_dir = assets_dir / "transcriptions"
         if transcriptions_dir.exists():
-            result["transcriptions"] = self._list_json_files(transcriptions_dir)
+            result["transcriptions"] = self._list_transcription_files(transcriptions_dir)
 
         # Word documents
         word_dir = assets_dir / "word"
         if word_dir.exists():
             result["word_docs"] = list(word_dir.glob("*.docx"))
 
-        # Parse manifests
-        manifests_dir = assets_dir / "manifests"
-        if manifests_dir.exists():
-            result["manifests"] = self._parse_manifests(manifests_dir)
+        # If no input_files were found from documents folder, try to discover them from prepared manifest
+        # This handles cases where Director output doesn't have a root-level documents folder
+        if not result["input_files"] and result["manifests"].get("prepared"):
+            self.logger.debug("No documents folder found, trying to discover input files from prepared manifest")
+            for entry in result["manifests"]["prepared"]:
+                source_path = entry.get("source", "")
+                if source_path:
+                    # The source path is relative to prepared_dir
+                    full_source_path = prepared_dir / source_path
+                    if full_source_path.exists():
+                        result["input_files"].append(full_source_path)
+                        self.logger.debug(f"  Discovered input file from manifest: {full_source_path.name}")
 
         return result
 
@@ -291,17 +320,25 @@ class DirectorOutputParser:
         return steps
 
     def _list_image_files(self, directory: Path) -> List[Path]:
-        """List all image files in a directory"""
+        """List all image files in a directory recursively"""
         extensions = {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp'}
         files = []
         for ext in extensions:
-            files.extend(directory.glob(f"*{ext}"))
-            files.extend(directory.glob(f"*{ext.upper()}"))
+            files.extend(directory.glob(f"**/*{ext}"))
+            files.extend(directory.glob(f"**/*{ext.upper()}"))
         return sorted(files)
 
     def _list_json_files(self, directory: Path) -> List[Path]:
         """List all JSON files in a directory"""
         return sorted(directory.glob("*.json"))
+
+    def _list_transcription_files(self, directory: Path) -> List[Path]:
+        """List all transcription files (both .json and .txt) in a directory recursively"""
+        files = []
+        # Search recursively for both .json and .txt files
+        files.extend(directory.glob("**/*.json"))
+        files.extend(directory.glob("**/*.txt"))
+        return sorted(files)
 
     def _parse_manifests(self, manifests_dir: Path) -> Dict:
         """Parse all manifest.jsonl files"""

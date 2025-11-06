@@ -135,11 +135,36 @@ class LLMProcessScript:
                         try:
                             with open(file_path, 'r', encoding='utf-8') as f:
                                 content = f.read()
-                            files_data.append({
+
+                            # Build base file data
+                            file_data = {
                                 'path': file_path,
                                 'content': content,
                                 'page_num': idx + 1
-                            })
+                            }
+
+                            # Enrich with metadata if available
+                            if hasattr(self, 'metadata_lookup') and self.metadata_lookup:
+                                # Try to match by filename (with or without extension)
+                                file_name = file_path.stem  # Get filename without extension
+                                # Look for metadata by various keys
+                                for key in [file_path.name, f"{file_name}.jpg", f"{file_name}.png", f"{file_name}.tif", f"{file_name}.tiff"]:
+                                    if key in self.metadata_lookup:
+                                        file_data['metadata'] = self.metadata_lookup[key]
+                                        tool_logger.debug(f"Added metadata for {file_path.name}")
+                                        break
+
+                            # Enrich with visual description if available
+                            if hasattr(self, 'visual_descriptions_lookup') and self.visual_descriptions_lookup:
+                                # Try to match by filename (with or without extension)
+                                file_name = file_path.stem
+                                for key in [file_path.name, f"{file_name}.jpg", f"{file_name}.png", f"{file_name}.tif", f"{file_name}.tiff"]:
+                                    if key in self.visual_descriptions_lookup:
+                                        file_data['visual_description'] = self.visual_descriptions_lookup[key]
+                                        tool_logger.debug(f"Added visual description for {file_path.name}")
+                                        break
+
+                            files_data.append(file_data)
                         except Exception as e:
                             tool_logger.error(f"Error reading {file_path}: {e}")
                             continue
@@ -268,18 +293,22 @@ def process_documents_batch(
     output_folder: Path,
     prompt_config: Path = None,
     folder_mode: bool = True,
+    metadata_manifest: Path = None,
+    visual_descriptions_manifest: Path = None,
     **kwargs
 ) -> dict:
     """
     Process transcribed documents through configurable LLM pipeline for catalogue generation - importable function
-    
+
     Args:
         source_folder: Input folder containing transcribed documents
         source_manifest: Input manifest file
         output_folder: Output folder for LLM results
         prompt_config: JSONL file containing prompt configuration
         folder_mode: Process all files in a folder together as one document
-        
+        metadata_manifest: Optional path to library metadata manifest
+        visual_descriptions_manifest: Optional path to visual descriptions manifest
+
     Returns:
         Processing statistics dictionary
     """
@@ -355,7 +384,39 @@ def process_documents_batch(
         # Initialize LLM backend from config
         tool_logger.info("Initializing LLM backend...")
         llm = get_llm_backend(config)
-        
+
+        # Load metadata and visual descriptions if available
+        metadata_lookup = {}
+        visual_descriptions_lookup = {}
+
+        if metadata_manifest and Path(metadata_manifest).exists():
+            tool_logger.info(f"Loading library metadata from: {metadata_manifest}")
+            try:
+                metadata_entries = list(srsly.read_jsonl(metadata_manifest))
+                # Build lookup by source filename
+                for entry in metadata_entries:
+                    source_file = entry.get('source', '')
+                    if source_file:
+                        # Store full metadata entry
+                        metadata_lookup[source_file] = entry.get('metadata', {})
+                tool_logger.success(f"Loaded metadata for {len(metadata_lookup)} files")
+            except Exception as e:
+                tool_logger.warning(f"Failed to load metadata manifest: {e}")
+
+        if visual_descriptions_manifest and Path(visual_descriptions_manifest).exists():
+            tool_logger.info(f"Loading visual descriptions from: {visual_descriptions_manifest}")
+            try:
+                description_entries = list(srsly.read_jsonl(visual_descriptions_manifest))
+                # Build lookup by source filename
+                for entry in description_entries:
+                    source_file = entry.get('source', '')
+                    if source_file:
+                        # Store full description data
+                        visual_descriptions_lookup[source_file] = entry.get('description', {})
+                tool_logger.success(f"Loaded visual descriptions for {len(visual_descriptions_lookup)} files")
+            except Exception as e:
+                tool_logger.warning(f"Failed to load visual descriptions manifest: {e}")
+
         # Initialize LLM processor
         processor = LLMProcessScript(
             input_folder=source_folder,
@@ -368,7 +429,13 @@ def process_documents_batch(
             folder_mode=folder_mode,
             batch_size=10
         )
-        
+
+        # Pass metadata and visual descriptions to processor
+        if metadata_lookup or visual_descriptions_lookup:
+            processor.metadata_lookup = metadata_lookup
+            processor.visual_descriptions_lookup = visual_descriptions_lookup
+            tool_logger.info(f"Enriched processor with metadata ({len(metadata_lookup)} files) and visual descriptions ({len(visual_descriptions_lookup)} files)")
+
         processor.process_documents()
         
         # Return basic stats
