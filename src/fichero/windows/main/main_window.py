@@ -293,12 +293,13 @@ class MainWindow:
 
             # Define View menu commands
             # Section 2 separates pane toggles from zoom commands (section 0)
+            # Using Preview-style shortcuts: Cmd+Option+5,6,7,8
             view_commands = {
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
                     label=_("Library"),
                     action=self._toggle_library_pane,
-                    shortcut=toga.Key.MOD_1 + 'l',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
                     description=_("Show/hide Library pane"),
                     group=toga.Group.VIEW,
                     section=2,
@@ -310,7 +311,7 @@ class MainWindow:
                     id='view.toggle_collection',
                     label=_("Collection"),
                     action=self._toggle_collection_pane,
-                    shortcut=toga.Key.MOD_1 + 'k',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '6',
                     description=_("Show/hide Collection pane"),
                     group=toga.Group.VIEW,
                     section=2,
@@ -322,7 +323,7 @@ class MainWindow:
                     id='view.toggle_output',
                     label=_("Output"),
                     action=self._toggle_output_pane,
-                    shortcut=toga.Key.MOD_1 + 'o',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '7',
                     description=_("Show/hide Output pane"),
                     group=toga.Group.VIEW,
                     section=2,
@@ -334,7 +335,7 @@ class MainWindow:
                     id='view.toggle_inspector',
                     label=_("Adjust"),
                     action=self._toggle_inspector_pane,
-                    shortcut=toga.Key.MOD_1 + 'i',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '8',
                     description=_("Show/hide Adjust pane"),
                     group=toga.Group.VIEW,
                     section=2,
