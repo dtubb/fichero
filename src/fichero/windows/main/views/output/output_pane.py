@@ -379,10 +379,54 @@ class OutputPane:
     def activate_crop(self):
         """Activate crop tool by calling JavaScript function"""
         try:
+            if not self._webview:
+                self.logger.warning("Cannot activate crop: WebView not initialized")
+                return
+
+            # Check if there's content loaded
+            if not hasattr(self, '_current_url') or not self._current_url:
+                self.logger.warning("Cannot activate crop: No content loaded in WebView")
+                return
+
+            # Call JavaScript to activate crop tool
             self._webview.evaluate_javascript("activateTool('crop');")
-            self.logger.debug("Crop tool activated")
+            self.logger.info("✅ Crop tool activated via JavaScript")
         except Exception as e:
-            self.logger.error(f"Error activating crop: {e}")
+            self.logger.error(f"Error activating crop: {e}", exc_info=True)
+
+    def flip_horizontal(self):
+        """Flip image horizontally by calling JavaScript function"""
+        try:
+            self._webview.evaluate_javascript("flipImage('horizontal');")
+            self.logger.info("✅ Flipped horizontally")
+        except Exception as e:
+            self.logger.error(f"Error flipping horizontally: {e}")
+
+    def flip_vertical(self):
+        """Flip image vertically by calling JavaScript function"""
+        try:
+            self._webview.evaluate_javascript("flipImage('vertical');")
+            self.logger.info("✅ Flipped vertically")
+        except Exception as e:
+            self.logger.error(f"Error flipping vertically: {e}")
+
+    def activate_straighten(self):
+        """Activate straighten tool (fine rotation adjustment)"""
+        try:
+            if not self._webview:
+                self.logger.warning("Cannot activate straighten: WebView not initialized")
+                return
+
+            # Check if there's content loaded
+            if not hasattr(self, '_current_url') or not self._current_url:
+                self.logger.warning("Cannot activate straighten: No content loaded in WebView")
+                return
+
+            # Call JavaScript to activate straighten tool
+            self._webview.evaluate_javascript("activateTool('straighten');")
+            self.logger.info("✅ Straighten tool activated via JavaScript")
+        except Exception as e:
+            self.logger.error(f"Error activating straighten: {e}", exc_info=True)
 
     # ==================== STATE MANAGEMENT ====================
 

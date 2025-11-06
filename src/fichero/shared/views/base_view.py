@@ -55,7 +55,9 @@ class BaseView(ABC):
 
         # Bottom toolbar configuration
         # Set to True in subclass to force bottom toolbar on desktop (useful for complex navigation)
-        self.force_bottom_toolbar_on_desktop: bool = False
+        # Only set if not already set by subclass (to preserve subclass override)
+        if not hasattr(self, 'force_bottom_toolbar_on_desktop'):
+            self.force_bottom_toolbar_on_desktop: bool = False
 
         # Icon colors for line art icons only
         self.icon_primary = ICON_PRIMARY      # For active states, buttons, etc.

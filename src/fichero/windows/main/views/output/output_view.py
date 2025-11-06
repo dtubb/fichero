@@ -362,6 +362,57 @@ class OutputView(BaseView, ViewCommandMixin):
                     desktop_only=False,
                     context='normal'  # Always visible, not just in edit mode
                 ),
+                'flip_horizontal': FicheroCommand(
+                    id=f'{self.view_id}.flip_horizontal',
+                    label=_("Flip Horizontal"),
+                    action=self._on_flip_horizontal,
+                    shortcut=toga.Key.MOD_1 + 'h',
+                    icon='resources/icons/toolbar/arrow.left.and.right@10x.png',
+                    description=_("Flip image horizontally"),
+                    group=tools_group,
+                    section=0,
+                    order=4,
+                    toolbar_text=_("Flip\nH"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'flip_vertical': FicheroCommand(
+                    id=f'{self.view_id}.flip_vertical',
+                    label=_("Flip Vertical"),
+                    action=self._on_flip_vertical,
+                    shortcut=toga.Key.MOD_1 + 'v',
+                    icon='resources/icons/toolbar/arrow.up.and.down@10x.png',
+                    description=_("Flip image vertically"),
+                    group=tools_group,
+                    section=0,
+                    order=5,
+                    toolbar_text=_("Flip\nV"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
+                'straighten': FicheroCommand(
+                    id=f'{self.view_id}.straighten',
+                    label=_("Straighten"),
+                    action=self._on_straighten,
+                    shortcut=toga.Key.MOD_1 + 's',
+                    icon='resources/icons/toolbar/level@10x.png',
+                    description=_("Straighten image (fine rotation adjustment)"),
+                    group=tools_group,
+                    section=0,
+                    order=6,
+                    toolbar_text=_("Straight\nen"),
+                    toolbar_position='left',
+                    show_in_menu=True,
+                    show_in_bottom_toolbar=True,
+                    desktop_only=False,
+                    context='normal'
+                ),
 
                 # ===== MOBILE TOOLBAR - Inspector Button =====
                 'show_inspector': FicheroCommand(
@@ -506,13 +557,9 @@ class OutputView(BaseView, ViewCommandMixin):
             label=_("Next\nFile")
         )
 
-        # CENTER SECTION: Step selector dropdown
-        self.step_selector = toga.Selection(
-            items=[_("No steps loaded")],
-            on_change=self._on_step_selected,
-            style=Pack(flex=1, margin=(5, 10))
-        )
-        self.bottom_toolbar.center_content.add(self.step_selector)
+        # CENTER SECTION: Empty (removed step selector - not needed)
+        # Step selector was here but removed per user request
+        self.step_selector = None  # Removed - no longer used
 
         # RIGHT SECTION: Step navigation buttons (left/right chevrons)
         self.prev_step_btn = self.bottom_toolbar.add_normal_mode_button(
@@ -732,7 +779,8 @@ class OutputView(BaseView, ViewCommandMixin):
         """Update step selector dropdown with current steps"""
         # _() is available globally via gettext.install() in app.py
 
-        if not hasattr(self, 'step_selector'):
+        # Step selector was removed from bottom toolbar - skip update
+        if not hasattr(self, 'step_selector') or self.step_selector is None:
             return
 
         # Get steps from manager
@@ -883,6 +931,24 @@ class OutputView(BaseView, ViewCommandMixin):
             # Reset rotation and zoom
             pane.reset_rotation()
             pane.zoom_100()
+
+    def _on_flip_horizontal(self, widget):
+        """Flip image horizontally"""
+        pane = self.layout_manager.get_primary_pane()
+        if pane:
+            pane.flip_horizontal()
+
+    def _on_flip_vertical(self, widget):
+        """Flip image vertically"""
+        pane = self.layout_manager.get_primary_pane()
+        if pane:
+            pane.flip_vertical()
+
+    def _on_straighten(self, widget):
+        """Activate straighten tool (fine rotation adjustment)"""
+        pane = self.layout_manager.get_primary_pane()
+        if pane:
+            pane.activate_straighten()
 
     def _on_toggle_inspector(self, widget):
         """Toggle inspector panel visibility (command handler)"""
