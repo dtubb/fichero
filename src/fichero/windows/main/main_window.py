@@ -292,9 +292,10 @@ class MainWindow:
             command_manager = CommandManager.get_instance(self.app)
 
             # Define View menu commands
-            # Section 0 with negative orders puts them at the TOP of the View menu
-            # Section 1 will be for zoom commands (creates divider)
-            # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5
+            # Section 0: Pane visibility toggles at the TOP of the View menu
+            # Section 1: Zoom commands (creates divider)
+            # Section 2: Toolbar toggles (creates another divider)
+            # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5 for panes
             # Order: Library, Collection, Step, Preview (output), Adjust
             view_commands = {
                 'view.toggle_library': FicheroCommand(
@@ -357,6 +358,18 @@ class MainWindow:
                     show_in_menu=True,
                     desktop_only=True
                 ),
+                'view.toggle_markup_toolbar': FicheroCommand(
+                    id='view.toggle_markup_toolbar',
+                    label=_("Show Markup Toolbar"),
+                    action=self._toggle_markup_toolbar,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 't',
+                    description=_("Show/hide markup toolbar in Preview pane"),
+                    group=toga.Group.VIEW,
+                    section=2,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
             }
 
             # Register all View commands
@@ -364,7 +377,7 @@ class MainWindow:
                 command_manager.register_command(command)
                 logger.debug(f"Registered View command: {command_id}")
 
-            logger.info("✅ View menu commands registered (5 pane toggles)")
+            logger.info("✅ View menu commands registered (5 pane toggles + toolbar toggle)")
 
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
@@ -1022,6 +1035,18 @@ class MainWindow:
             self.cached_output_view._toggle_inspector()
         else:
             logger.warning("Cannot toggle inspector: OutputView not created yet")
+
+    def _toggle_markup_toolbar(self, widget):
+        """Toggle markup toolbar visibility in Preview pane"""
+        if self.is_mobile:
+            return
+
+        # Delegate to OutputView's toolbar toggle
+        if self.cached_output_view:
+            self.cached_output_view.toggle_toolbar()
+            logger.info(f"🔧 Toggle Markup Toolbar")
+        else:
+            logger.warning("Cannot toggle toolbar: OutputView not created yet")
 
     def _update_pane_layout(self):
         """Update pane layout based on visibility state"""

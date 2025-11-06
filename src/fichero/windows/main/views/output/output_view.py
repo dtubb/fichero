@@ -1185,6 +1185,30 @@ class OutputView(BaseView, ViewCommandMixin):
         else:
             self._show_inspector()
 
+    def toggle_toolbar(self):
+        """Toggle markup toolbar visibility"""
+        if not hasattr(self, 'top_toolbar') or not self.top_toolbar:
+            logger.warning("Cannot toggle toolbar: toolbar not created yet")
+            return
+
+        # Toggle visibility state
+        self.toolbar_visible = not self.toolbar_visible
+
+        if self.toolbar_visible:
+            # Show toolbar
+            self.top_toolbar.container.style.visibility = 'visible'
+            self.top_toolbar.container.style.height = None  # Auto height
+            logger.info("🔧 Markup toolbar shown")
+        else:
+            # Hide toolbar
+            self.top_toolbar.container.style.visibility = 'hidden'
+            self.top_toolbar.container.style.height = 0
+            logger.info("🔧 Markup toolbar hidden")
+
+        # Force refresh
+        if hasattr(self.top_toolbar.container, 'refresh'):
+            self.top_toolbar.container.refresh()
+
     def _update_inspector(self):
         """Update inspector with current step data (PHASE 4)"""
         if self.inspector_visible:
