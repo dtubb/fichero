@@ -292,6 +292,7 @@ class MainWindow:
             command_manager = CommandManager.get_instance(self.app)
 
             # Define View menu commands
+            # Section 2 separates pane toggles from zoom commands (section 0)
             view_commands = {
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
@@ -299,9 +300,9 @@ class MainWindow:
                     action=self._toggle_library_pane,
                     shortcut=toga.Key.MOD_1 + 'l',
                     description=_("Show/hide Library pane"),
-                    group='View',
-                    section=0,
-                    order=1,
+                    group=toga.Group.VIEW,
+                    section=2,
+                    order=0,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -311,9 +312,9 @@ class MainWindow:
                     action=self._toggle_collection_pane,
                     shortcut=toga.Key.MOD_1 + 'k',
                     description=_("Show/hide Collection pane"),
-                    group='View',
-                    section=0,
-                    order=2,
+                    group=toga.Group.VIEW,
+                    section=2,
+                    order=1,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -323,9 +324,9 @@ class MainWindow:
                     action=self._toggle_output_pane,
                     shortcut=toga.Key.MOD_1 + 'o',
                     description=_("Show/hide Output pane"),
-                    group='View',
-                    section=0,
-                    order=3,
+                    group=toga.Group.VIEW,
+                    section=2,
+                    order=2,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -335,9 +336,9 @@ class MainWindow:
                     action=self._toggle_inspector_pane,
                     shortcut=toga.Key.MOD_1 + 'i',
                     description=_("Show/hide Adjust pane"),
-                    group='View',
-                    section=0,
-                    order=4,
+                    group=toga.Group.VIEW,
+                    section=2,
+                    order=3,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -348,7 +349,7 @@ class MainWindow:
                 command_manager.register_command(command)
                 logger.debug(f"Registered View command: {command_id}")
 
-            logger.info("✅ View menu commands registered (5 pane toggles)")
+            logger.info("✅ View menu commands registered (4 pane toggles)")
 
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
