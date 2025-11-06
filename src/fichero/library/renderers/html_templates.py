@@ -73,7 +73,7 @@ def get_interactive_image_viewer(
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            background: #2c2c2c;
+            background: #3833A8;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
@@ -582,7 +582,7 @@ def get_interactive_crop_viewer(
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            background: #2c2c2c;
+            background: #3833A8;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
@@ -1075,7 +1075,7 @@ def get_simple_content_viewer(content: str, title: Optional[str] = None) -> str:
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            background: #3833A8;
             padding: 20px;
         }}
         .content {{
