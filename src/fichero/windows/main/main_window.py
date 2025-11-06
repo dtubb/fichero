@@ -292,18 +292,19 @@ class MainWindow:
             command_manager = CommandManager.get_instance(self.app)
 
             # Define View menu commands
-            # Section 2 separates pane toggles from zoom commands (section 0)
-            # Using Preview-style shortcuts: Cmd+Option+5,6,7,8
+            # Section 0 with negative orders puts them at the TOP of the View menu
+            # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5
+            # Order: Library, Collection, Steps (not implemented), Output, Adjust
             view_commands = {
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
                     label=_("Library"),
                     action=self._toggle_library_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '1',
                     description=_("Show/hide Library pane"),
                     group=toga.Group.VIEW,
-                    section=2,
-                    order=0,
+                    section=0,
+                    order=-5,  # Negative order to appear first
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -311,23 +312,24 @@ class MainWindow:
                     id='view.toggle_collection',
                     label=_("Collection"),
                     action=self._toggle_collection_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '6',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '2',
                     description=_("Show/hide Collection pane"),
                     group=toga.Group.VIEW,
-                    section=2,
-                    order=1,
+                    section=0,
+                    order=-4,
                     show_in_menu=True,
                     desktop_only=True
                 ),
+                # Steps/Browser would be Cmd+Option+3 here when implemented
                 'view.toggle_output': FicheroCommand(
                     id='view.toggle_output',
                     label=_("Output"),
                     action=self._toggle_output_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '7',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '4',
                     description=_("Show/hide Output pane"),
                     group=toga.Group.VIEW,
-                    section=2,
-                    order=2,
+                    section=0,
+                    order=-2,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -335,11 +337,11 @@ class MainWindow:
                     id='view.toggle_inspector',
                     label=_("Adjust"),
                     action=self._toggle_inspector_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '8',
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
                     description=_("Show/hide Adjust pane"),
                     group=toga.Group.VIEW,
-                    section=2,
-                    order=3,
+                    section=0,
+                    order=-1,
                     show_in_menu=True,
                     desktop_only=True
                 ),
