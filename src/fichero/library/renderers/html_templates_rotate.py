@@ -61,7 +61,7 @@ def get_rotate_viewer(
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            background: #3833A8;
+            background: #969696;
             overflow: hidden;
             width: 100vw;
             height: 100vh;

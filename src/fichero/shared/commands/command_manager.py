@@ -469,14 +469,14 @@ class CommandManager:
                         except Exception as icon_error:
                             logger.warning(f"Failed to load toolbar icon for {command.id}: {icon_error}")
 
-                    # For toolbar-only commands (not in menus), use group=None to prevent menu appearance
-                    # This is important: setting group=None prevents the command from appearing in menus
+                    # For toolbar-only commands, use the default group
+                    # Note: We can't use group=None as it breaks Toga's command sorting
                     toolbar_cmd = toga.Command(
                         action=logged_action,
                         text=command.toolbar_text or command.label,
                         tooltip=command.description,
                         icon=icon_resource,
-                        group=None,  # No group = toolbar only, won't appear in menus
+                        group=default_group,  # Use default group to avoid NoneType errors
                     )
                     toolbar_items.append(toolbar_cmd)
 
@@ -488,12 +488,15 @@ class CommandManager:
             # Add toolbar items (additive approach)
             if toolbar_items:
                 window.toolbar.add(*toolbar_items)
-                logger.info(f"✅ Native toolbar {mode}: added {len(toolbar_items)} items for view '{view_id}', context '{context}' (group: {default_group.text})")
+                group_name = default_group.text if default_group else "None"
+                logger.info(f"✅ Native toolbar {mode}: added {len(toolbar_items)} items for view '{view_id}', context '{context}' (group: {group_name})")
             else:
                 logger.debug(f"No toolbar items to add for view '{view_id}', context '{context}'")
 
         except Exception as e:
             logger.error(f"Failed to build native toolbar: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
     def register_view_commands(self, view_id: str, commands: Dict[str, FicheroCommand]) -> None:
         """

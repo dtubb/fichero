@@ -11,7 +11,6 @@ import os
 import logging
 
 # Enable Toga debug layout mode to visualize containers
-# DISABLED: Debug layout disabled for cleaner UI
 # toga.Widget.DEBUG_LAYOUT_ENABLED = True
 from pathlib import Path
 import gettext

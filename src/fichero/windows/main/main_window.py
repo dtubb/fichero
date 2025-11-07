@@ -17,6 +17,7 @@ from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
 from fichero.windows.main.views.output import OutputView
+from fichero.shared.bars.status_bar import StatusBar
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +48,14 @@ class MainWindow:
         self.left_pane: Optional[toga.Box] = None
         self.center_pane: Optional[toga.Box] = None
         self.right_pane: Optional[toga.Box] = None
+        self.content_area: Optional[toga.Box] = None  # Container for center+right+status bar
 
         # Mobile layout container
         self.mobile_container: Optional[toga.Box] = None
+
+        # Status bar (shown at bottom of window)
+        self.status_bar: Optional[StatusBar] = None
+        self.status_bar_visible: bool = True  # Visible by default
 
         # Cached views to maintain state
         self.cached_library_view: Optional[LibraryView] = None
@@ -66,8 +72,8 @@ class MainWindow:
 
         # Pane pixel widths (when visible, desktop only)
         self.pane_widths = {
-            'library': 250,
-            'collection': 300,
+            'library': 150,
+            'collection': 150,
             'inspector': 350  # Inspector width within right_pane
         }
 
@@ -216,19 +222,36 @@ class MainWindow:
                 content=[
                     (self.center_pane, 1),  # Center pane - weight 1
                     (self.right_pane, 2)    # Right pane - weight 2 (larger)
-                ]
+                ],
+                style=Pack(flex=1)  # Expand to fill the content area
             )
 
-            # Second split: left | center_right_split
-            self.main_container = toga.SplitContainer(
+            # Create StatusBar (empty by default - no "Ready" text)
+            self.status_bar = StatusBar(platform='desktop')
+
+            # Wrap center_right_split + status bar in a Box (Finder-style: status bar only under content area)
+            # This matches macOS Finder where the sidebar extends to the bottom but content area has status bar
+            self.content_area = toga.Box(
+                style=Pack(direction=COLUMN, flex=1)
+            )
+            self.content_area.add(center_right_split)
+            if self.status_bar_visible:
+                self.content_area.add(self.status_bar.container)
+
+            # Second split: left (library) | content_area (center + right + status bar)
+            split_container = toga.SplitContainer(
                 direction=toga.SplitContainer.VERTICAL,
                 content=[
-                    (self.left_pane, 1),           # Library - weight 1
-                    (center_right_split, 3)        # Center + Right combined - weight 3
-                ]
+                    (self.left_pane, 1),           # Library - weight 1, extends to bottom
+                    (self.content_area, 3)         # Content area with status bar - weight 3
+                ],
+                style=Pack(flex=1)  # Make split container expand to fill window
             )
 
-            logger.debug("Desktop layout created with nested resizable SplitContainers")
+            # Set main container to just the split_container
+            self.main_container = split_container
+
+            logger.debug("Desktop layout created with nested resizable SplitContainers and StatusBar")
 
         except Exception as e:
             logger.error(f"Failed to create desktop layout: {e}")
@@ -293,68 +316,69 @@ class MainWindow:
 
             # Define View menu commands
             # Section 0: Pane visibility toggles at the TOP of the View menu
-            # Section 1: Zoom commands (creates divider)
-            # Section 2: Toolbar toggles (creates another divider)
+            # Section 10: Zoom commands (creates divider below pane toggles)
+            # Section 20: Toolbar toggles (creates another divider below zoom)
             # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5 for panes
             # Order: Library, Collection, Step, Preview (output), Adjust
+            # Note: macOS alphabetizes within sections, so we put each in separate sections to force order
             view_commands = {
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
-                    label=_("Library"),
+                    label=_("1 Library"),
                     action=self._toggle_library_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '1',
                     description=_("Show/hide Library pane"),
                     group=toga.Group.VIEW,
                     section=0,
-                    order=-5,  # Negative order to appear first
+                    order=0,
                     show_in_menu=True,
                     desktop_only=True
                 ),
                 'view.toggle_collection': FicheroCommand(
                     id='view.toggle_collection',
-                    label=_("Collection"),
+                    label=_("2 Collection"),
                     action=self._toggle_collection_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '2',
                     description=_("Show/hide Collection pane"),
                     group=toga.Group.VIEW,
                     section=0,
-                    order=-4,
+                    order=1,
                     show_in_menu=True,
                     desktop_only=True
                 ),
                 'view.toggle_step': FicheroCommand(
                     id='view.toggle_step',
-                    label=_("Step"),
+                    label=_("3 Step"),
                     action=self._toggle_step_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '3',
                     description=_("Show/hide Step pane"),
                     group=toga.Group.VIEW,
                     section=0,
-                    order=-3,
+                    order=2,
                     show_in_menu=True,
                     desktop_only=True
                 ),
                 'view.toggle_output': FicheroCommand(
                     id='view.toggle_output',
-                    label=_("Preview"),
+                    label=_("4 Preview"),
                     action=self._toggle_output_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '4',
                     description=_("Show/hide Preview pane"),
                     group=toga.Group.VIEW,
                     section=0,
-                    order=-2,
+                    order=3,
                     show_in_menu=True,
                     desktop_only=True
                 ),
                 'view.toggle_inspector': FicheroCommand(
                     id='view.toggle_inspector',
-                    label=_("Adjust"),
+                    label=_("5 Adjust"),
                     action=self._toggle_inspector_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
                     description=_("Show/hide Adjust pane"),
                     group=toga.Group.VIEW,
                     section=0,
-                    order=-1,
+                    order=4,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -365,8 +389,32 @@ class MainWindow:
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 't',
                     description=_("Show/hide markup toolbar in Preview pane"),
                     group=toga.Group.VIEW,
-                    section=2,
+                    section=20,
                     order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.toggle_path_bar': FicheroCommand(
+                    id='view.toggle_path_bar',
+                    label=_("Show Path Bar"),
+                    action=self._toggle_path_bar,
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + 'p',
+                    description=_("Show/hide path bar in Preview pane"),
+                    group=toga.Group.VIEW,
+                    section=20,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.toggle_status_bar': FicheroCommand(
+                    id='view.toggle_status_bar',
+                    label=_("Show Status Bar"),
+                    action=self._toggle_status_bar,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SLASH,
+                    description=_("Show/hide status bar at bottom of window"),
+                    group=toga.Group.VIEW,
+                    section=20,
+                    order=2,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -1047,6 +1095,46 @@ class MainWindow:
             logger.info(f"🔧 Toggle Markup Toolbar")
         else:
             logger.warning("Cannot toggle toolbar: OutputView not created yet")
+
+    def _toggle_path_bar(self, widget):
+        """Toggle path bar visibility in Preview pane"""
+        if self.is_mobile:
+            return
+
+        # Delegate to OutputView's layout manager to toggle path bars in all panes
+        if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
+            layout_manager = self.cached_output_view.layout_manager
+            # Toggle path bar visibility in all output panes
+            for pane in layout_manager.panes:
+                if pane._path_bar:
+                    pane._path_bar_visible = not pane._path_bar_visible
+                    # Rebuild the pane content to show/hide path bar
+                    pane._show_content()
+            logger.info(f"🔧 Toggle Path Bar")
+        else:
+            logger.warning("Cannot toggle path bar: OutputView not created yet")
+
+    def _toggle_status_bar(self, widget):
+        """Toggle status bar visibility at bottom of content area (collection + output panes)"""
+        if self.is_mobile:
+            return
+
+        # Toggle status bar visibility
+        self.status_bar_visible = not self.status_bar_visible
+
+        if self.status_bar and self.content_area:
+            if self.status_bar_visible:
+                # Add status bar if not already present
+                if self.status_bar.container not in self.content_area.children:
+                    self.content_area.add(self.status_bar.container)
+                    logger.info(f"🔧 Status Bar shown")
+            else:
+                # Remove status bar
+                if self.status_bar.container in self.content_area.children:
+                    self.content_area.remove(self.status_bar.container)
+                    logger.info(f"🔧 Status Bar hidden")
+        else:
+            logger.warning("Cannot toggle status bar: StatusBar not created yet")
 
     def _update_pane_layout(self):
         """Update pane layout based on visibility state"""

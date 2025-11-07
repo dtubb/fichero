@@ -122,7 +122,8 @@ class BaseToolbar(ABC, ToolbarProtocol):
                 vertical=False,   # Disable vertical scrolling (toolbar is fixed height)
                 style=Pack(
                     height=self.hig_specs["toolbar_height"],
-                    flex=1  # Take all available width from parent
+                    flex=1,  # Take all available width from parent
+                    background_color='#E8E8E8'  # Same grey as status bar (Finder-style)
                 )
             )
 

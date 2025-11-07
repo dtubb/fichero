@@ -487,4 +487,28 @@ def clear_icon_cache():
     """Clear the icon path cache. Useful for testing or memory management."""
     global _icon_path_cache, _image_cache
     _icon_path_cache.clear()
-    _image_cache.clear() 
+    _image_cache.clear()
+
+
+def build_library_path_string(collection_name: Optional[str] = None, item_name: Optional[str] = None) -> str:
+    """
+    Build a library path string for display (e.g., "Collection › Item").
+
+    Note: Starts with collection name (not "Library ›") to save space in path bar.
+
+    Args:
+        collection_name: Optional collection name
+        item_name: Optional item/file name
+
+    Returns:
+        Formatted path string with › separators
+    """
+    components = []
+
+    if collection_name:
+        components.append(collection_name)
+
+    if item_name:
+        components.append(item_name)
+
+    return " › ".join(components) if components else "" 

@@ -287,7 +287,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                 on_secondary_action=secondary_action["handler"],
                 style=Pack(
                     flex=1,
-                    margin=0  # Full width - no margins
+                    margin_left=2  # Small left margin so focus ring is visible
                 )
             )
 

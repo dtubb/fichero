@@ -54,11 +54,12 @@ class StepBrowser:
 
     def _build_ui(self):
         """Build UI components"""
-        # Main container
+        # Main container - no margin, extends to edges (Finder-style)
         self._container = toga.Box(
             style=Pack(
                 direction='column',
-                flex=1
+                flex=1,
+                margin=0  # Remove all margins - extends to top/bottom/left/right
             )
         )
 
@@ -121,11 +122,11 @@ class StepBrowser:
                 'index': i
             })
 
-        # Create or recreate step list
+        # Create or recreate step list - small left margin for focus ring visibility
         self._step_list = toga.DetailedList(
             data=list_data,
             on_select=self._on_step_selected,
-            style=Pack(flex=1)
+            style=Pack(flex=1, margin_left=2)  # Small left margin so focus ring is visible
         )
 
         # Add to container

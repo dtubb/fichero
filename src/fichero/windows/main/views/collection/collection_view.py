@@ -1557,7 +1557,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                 on_secondary_action=self._on_swipe_rename_item,
                 style=Pack(
                     flex=1,
-                    margin=0  # Full width - no margins
+                    margin_left=2  # Small left margin so focus ring is visible
                 )
             )
             

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import toga
 from toga.style import Pack
+from fichero.shared.bars.path_bar import PathBar
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,8 @@ class OutputPane:
         self._webview = None
         self._error_label = None
         self._loading_label = None
+        self._path_bar = None
+        self._path_bar_visible = True  # Path bar visible by default
 
         self._build_ui()
 
@@ -106,6 +109,9 @@ class OutputPane:
             style=Pack(flex=1)
         )
 
+        # PathBar for showing file path
+        self._path_bar = PathBar(platform='desktop')
+
         # Initially show loading
         self._show_loading()
 
@@ -132,6 +138,10 @@ class OutputPane:
                 html_content = self._render_original_file(step)
 
                 self.logger.debug(f"Rendering original file: {step.file_path}")
+
+                # Update path bar with library path (not filesystem path)
+                if self._path_bar:
+                    await self._update_path_bar(item_id)
 
                 # Use empty root URL with base64 data (matches old working implementation)
                 self._webview.set_content("", html_content)
@@ -167,6 +177,10 @@ class OutputPane:
             # Get the specific processing step
             processing_step = processing_steps[processing_step_index]
             self.logger.info(f"Rendering step: {processing_step.step_name} from {processing_step.file_path}")
+
+            # Update path bar with library path (not filesystem path)
+            if self._path_bar:
+                await self._update_path_bar(item_id)
 
             # Use renderer system to generate HTML
             html_content = self._render_step_with_renderer(processing_step, output_data)
@@ -542,9 +556,38 @@ class OutputPane:
         self._container.add(self._error_label)
 
     def _show_content(self):
-        """Show content (WebView)"""
+        """Show content (WebView and PathBar)"""
         self._container.clear()
         self._container.add(self._webview)
+        if self._path_bar_visible and self._path_bar:
+            self._container.add(self._path_bar.container)
+
+    async def _update_path_bar(self, item_id: str):
+        """Update path bar with library path (Collection › Item)"""
+        try:
+            from fichero.utils.path_icons import build_library_path_string
+
+            # Get item details from library
+            item = await self.library_manager.get_item(item_id)
+            if not item:
+                self._path_bar.clear()
+                return
+
+            # Get collection name
+            collection = await self.library_manager.get_collection(item.collection_id)
+            collection_name = collection.name if collection else "Unknown Collection"
+
+            # Build library path string (e.g., "My Collection › document.pdf")
+            path_string = build_library_path_string(
+                collection_name=collection_name,
+                item_name=item.name
+            )
+
+            self._path_bar.set_path(path_string)
+
+        except Exception as e:
+            self.logger.error(f"Error updating path bar: {e}")
+            self._path_bar.clear()
 
     # ==================== UTILITY METHODS ====================
 

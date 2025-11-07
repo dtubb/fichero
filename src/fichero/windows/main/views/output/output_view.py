@@ -146,7 +146,7 @@ class OutputView(BaseView, ViewCommandMixin):
 
             self.commands = {
                 # ===== VIEW MENU - Zoom Commands =====
-                # Note: Section 1 creates a divider below pane visibility toggles (section 0)
+                # Note: Section 10 creates a divider below pane visibility toggles (section 0)
                 'zoom_in': FicheroCommand(
                     id=f'{self.view_id}.zoom_in',
                     label=_("Zoom In"),
@@ -154,7 +154,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.PLUS,
                     description=_("Zoom in on image"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=0,
                     show_in_menu=True,
                     desktop_only=False,
@@ -167,7 +167,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.MINUS,
                     description=_("Zoom out on image"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=1,
                     show_in_menu=True,
                     desktop_only=False,
@@ -180,7 +180,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + '9',
                     description=_("Fit image to window"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=2,
                     show_in_menu=True,
                     desktop_only=False,
@@ -193,7 +193,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + '0',
                     description=_("Zoom to 100%"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=3,
                     show_in_menu=True,
                     desktop_only=False,
@@ -206,7 +206,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '0',
                     description=_("Fit image to window width"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=4,
                     show_in_menu=True,
                     desktop_only=False,
@@ -219,7 +219,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '9',
                     description=_("Fit image to window height"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=5,
                     show_in_menu=True,
                     desktop_only=False,
@@ -232,7 +232,7 @@ class OutputView(BaseView, ViewCommandMixin):
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '8',
                     description=_("Zoom to selected area"),
                     group=toga.Group.VIEW,
-                    section=1,
+                    section=10,
                     order=6,
                     show_in_menu=True,
                     desktop_only=False,
@@ -457,11 +457,11 @@ class OutputView(BaseView, ViewCommandMixin):
         )
 
         # Add step browser on the left (shows list of steps: Original, transcribe, etc.)
+        # No margin/padding - extends to top and bottom edges
         step_browser_container = toga.Box(
             style=Pack(
                 direction=COLUMN,
-                width=200,  # Fixed width for step browser
-                margin_right=10
+                width=150  # Fixed width 150px (matches library/collection pane width)
             )
         )
         step_browser_container.add(self.step_browser.as_box())
