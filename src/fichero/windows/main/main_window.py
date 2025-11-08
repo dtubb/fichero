@@ -425,6 +425,62 @@ class MainWindow:
                     show_in_menu=True,
                     desktop_only=True
                 ),
+                # PHASE 5: Split pane layout commands (section 30 for grouping)
+                'view.layout_single': FicheroCommand(
+                    id='view.layout_single',
+                    label=_("Single Pane"),
+                    action=lambda widget: self._set_preview_layout('single'),
+                    description=_("Switch to single pane layout"),
+                    group=toga.Group.VIEW,
+                    section=30,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.layout_dual_compare': FicheroCommand(
+                    id='view.layout_dual_compare',
+                    label=_("Two Panes Side by Side"),
+                    action=lambda widget: self._set_preview_layout('dual_compare'),
+                    description=_("Switch to two pane comparison layout"),
+                    group=toga.Group.VIEW,
+                    section=30,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.layout_triple_split_v': FicheroCommand(
+                    id='view.layout_triple_split_v',
+                    label=_("Three Panes"),
+                    action=lambda widget: self._set_preview_layout('triple_split_v'),
+                    description=_("Switch to three pane layout"),
+                    group=toga.Group.VIEW,
+                    section=30,
+                    order=2,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.layout_quad_split_v': FicheroCommand(
+                    id='view.layout_quad_split_v',
+                    label=_("Four Panes"),
+                    action=lambda widget: self._set_preview_layout('quad_split_v'),
+                    description=_("Switch to four pane layout"),
+                    group=toga.Group.VIEW,
+                    section=30,
+                    order=3,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.layout_quad_split_h': FicheroCommand(
+                    id='view.layout_quad_split_h',
+                    label=_("Four Panes (Grid)"),
+                    action=lambda widget: self._set_preview_layout('quad_split_h'),
+                    description=_("Switch to four pane grid layout (2x2)"),
+                    group=toga.Group.VIEW,
+                    section=30,
+                    order=4,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
             }
 
             # Register all View commands
@@ -432,7 +488,7 @@ class MainWindow:
                 command_manager.register_command(command)
                 logger.debug(f"Registered View command: {command_id}")
 
-            logger.info("✅ View menu commands registered (5 pane toggles + toolbar toggle)")
+            logger.info("✅ View menu commands registered (5 pane toggles + 3 toolbar toggles + 5 layout options)")
 
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
@@ -1146,6 +1202,50 @@ class MainWindow:
                     logger.info(f"🔧 Status Bar hidden")
         else:
             logger.warning("Cannot toggle status bar: StatusBar not created yet")
+
+    # ===== PREVIEW LAYOUT SWITCHING (PHASE 5) =====
+
+    def _set_preview_layout(self, layout_name: str):
+        """
+        Switch preview pane layout (PHASE 5).
+
+        Args:
+            layout_name: Layout type name (single, dual_compare, triple_split_v, quad_split_v, quad_split_h)
+        """
+        if self.is_mobile:
+            return
+
+        try:
+            from fichero.windows.main.views.output.layout_manager import LayoutType
+
+            # Map layout name to LayoutType enum
+            layout_map = {
+                'single': LayoutType.SINGLE,
+                'dual_compare': LayoutType.DUAL_COMPARE,
+                'triple_split_v': LayoutType.TRIPLE_SPLIT_V,
+                'triple_split_h': LayoutType.TRIPLE_SPLIT_H,
+                'quad_split_v': LayoutType.QUAD_SPLIT_V,
+                'quad_split_h': LayoutType.QUAD_SPLIT_H,
+            }
+
+            if layout_name not in layout_map:
+                logger.warning(f"Unknown layout name: {layout_name}")
+                return
+
+            layout_type = layout_map[layout_name]
+
+            # Get OutputView and its layout manager
+            if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
+                layout_manager = self.cached_output_view.layout_manager
+                layout_manager.set_layout(layout_type)
+                logger.info(f"📐 Switched preview layout to: {layout_name}")
+            else:
+                logger.warning("Cannot switch layout: OutputView not created yet")
+
+        except Exception as e:
+            logger.error(f"Failed to switch preview layout: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _update_pane_layout(self):
         """Update pane layout by adding/removing panes from Box containers
