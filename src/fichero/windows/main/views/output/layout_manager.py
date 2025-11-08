@@ -134,6 +134,10 @@ class LayoutManager:
             self.logger.warning(f"Unknown layout type: {layout_type}")
             self._create_single_layout()
 
+        # Set initial focus to first pane
+        if self.panes:
+            self.set_focused_pane(0)
+
         self.logger.info(f"Layout set to {layout_type.value} with {len(self.panes)} panes")
 
     def _create_single_layout(self):
@@ -448,6 +452,10 @@ class LayoutManager:
             pane_index: Index of pane to focus
         """
         if 0 <= pane_index < len(self.panes):
+            # Update all panes to show/hide focus indicator
+            for i, pane in enumerate(self.panes):
+                pane.set_focused(i == pane_index)
+
             self.focused_pane_index = pane_index
             self.logger.debug(f"Focus set to pane {pane_index}")
 

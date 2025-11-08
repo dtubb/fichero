@@ -708,7 +708,19 @@ class OutputView(BaseView, ViewCommandMixin):
         Args:
             layout_type: Layout type to switch to
         """
+        # Remember if inspector was visible
+        was_inspector_visible = self.inspector_visible
+
+        # Hide inspector temporarily (will be re-added after layout change)
+        if was_inspector_visible:
+            self._hide_inspector()
+
+        # Change the layout
         self.layout_manager.set_layout(layout_type)
+
+        # Re-show inspector if it was visible
+        if was_inspector_visible:
+            self._show_inspector()
 
     # ==================== EVENT HANDLERS ====================
 

@@ -603,3 +603,21 @@ class OutputPane:
             # Re-render current step
             import asyncio
             asyncio.create_task(self.set_step(self.current_item_id, self.current_step_index))
+
+    # ==================== FOCUS INDICATOR (PHASE 5) ====================
+
+    def set_focused(self, is_focused: bool):
+        """
+        Set focus visual indicator for this pane.
+
+        Args:
+            is_focused: True to show focus border, False to hide it
+        """
+        if is_focused:
+            # Add blue border to indicate focus (like VSCode)
+            self._container.style.background_color = '#007ACC'
+            self._container.style.margin = 2  # 2px for border
+        else:
+            # Remove border
+            self._container.style.background_color = None
+            self._container.style.margin = 0
