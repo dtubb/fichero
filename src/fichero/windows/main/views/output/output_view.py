@@ -458,14 +458,16 @@ class OutputView(BaseView, ViewCommandMixin):
 
         # Add step browser on the left (shows list of steps: Original, transcribe, etc.)
         # No margin/padding - extends to top and bottom edges
-        step_browser_container = toga.Box(
+        # Store container for dynamic show/hide
+        self.step_browser_container = toga.Box(
             style=Pack(
                 direction=COLUMN,
                 width=150  # Fixed width 150px (matches library/collection pane width)
             )
         )
-        step_browser_container.add(self.step_browser.as_box())
-        self.content_area.add(step_browser_container)
+        self.step_browser_container.add(self.step_browser.as_box())
+        self.content_area.add(self.step_browser_container)
+        self.step_browser_visible = True  # Track visibility state
 
         # Add layout manager's container (output panes) in the middle
         self.content_area.add(self.layout_manager.get_container())
@@ -1204,6 +1206,27 @@ class OutputView(BaseView, ViewCommandMixin):
             self.top_toolbar.container.style.visibility = 'hidden'
             self.top_toolbar.container.style.height = 0
             logger.info("🔧 Markup toolbar hidden")
+
+    def toggle_step_browser(self):
+        """Toggle step browser visibility using Box.add/remove (like inspector)"""
+        if not hasattr(self, 'step_browser_container'):
+            logger.warning("Cannot toggle step browser: not created yet")
+            return
+
+        # Toggle visibility state
+        self.step_browser_visible = not self.step_browser_visible
+
+        if self.step_browser_visible:
+            # Show step browser: add to content_area
+            if self.step_browser_container not in self.content_area.children:
+                # Insert at beginning (left side)
+                self.content_area.insert(0, self.step_browser_container)
+                logger.info("🔧 Step browser shown")
+        else:
+            # Hide step browser: remove from content_area
+            if self.step_browser_container in self.content_area.children:
+                self.content_area.remove(self.step_browser_container)
+                logger.info("🔧 Step browser hidden")
 
         # Force refresh
         if hasattr(self.top_toolbar.container, 'refresh'):

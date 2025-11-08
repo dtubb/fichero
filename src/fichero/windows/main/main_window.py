@@ -215,41 +215,48 @@ class MainWindow:
                 )
             )
 
-            # SplitContainer only supports 2 panes, so we need to nest them
-            # First split: center | right
-            center_right_split = toga.SplitContainer(
-                direction=toga.SplitContainer.VERTICAL,
-                content=[
-                    (self.center_pane, 1),  # Center pane - weight 1
-                    (self.right_pane, 2)    # Right pane - weight 2 (larger)
-                ],
-                style=Pack(flex=1)  # Expand to fill the content area
+            # Use Box layout for dynamic pane hiding (like OutputView's inspector)
+            # Create horizontal box for center | right
+            self.center_right_box = toga.Box(
+                style=Pack(direction=ROW, flex=1)
             )
+            # Center pane has fixed width when visible
+            self.center_pane.style.width = self.pane_widths['collection']
+            # Right pane takes remaining space
+            self.right_pane.style.flex = 1
+
+            # Add both panes initially
+            self.center_right_box.add(self.center_pane)
+            self.center_right_box.add(self.right_pane)
 
             # Create StatusBar (empty by default - no "Ready" text)
             self.status_bar = StatusBar(platform='desktop')
 
-            # Wrap center_right_split + status bar in a Box (Finder-style: status bar only under content area)
+            # Wrap center_right_box + status bar in a Box (Finder-style: status bar only under content area)
             # This matches macOS Finder where the sidebar extends to the bottom but content area has status bar
             self.content_area = toga.Box(
                 style=Pack(direction=COLUMN, flex=1)
             )
-            self.content_area.add(center_right_split)
+            self.content_area.add(self.center_right_box)
             if self.status_bar_visible:
                 self.content_area.add(self.status_bar.container)
 
-            # Second split: left (library) | content_area (center + right + status bar)
-            split_container = toga.SplitContainer(
-                direction=toga.SplitContainer.VERTICAL,
-                content=[
-                    (self.left_pane, 1),           # Library - weight 1, extends to bottom
-                    (self.content_area, 3)         # Content area with status bar - weight 3
-                ],
-                style=Pack(flex=1)  # Make split container expand to fill window
+            # Create horizontal box for library | content_area
+            # Use Box instead of SplitContainer for dynamic add/remove
+            self.main_horizontal_box = toga.Box(
+                style=Pack(direction=ROW, flex=1)
             )
+            # Library pane has fixed width when visible
+            self.left_pane.style.width = self.pane_widths['library']
+            # Content area takes remaining space
+            self.content_area.style.flex = 1
 
-            # Set main container to just the split_container
-            self.main_container = split_container
+            # Add both initially
+            self.main_horizontal_box.add(self.left_pane)
+            self.main_horizontal_box.add(self.content_area)
+
+            # Set main container to the horizontal box
+            self.main_container = self.main_horizontal_box
 
             logger.debug("Desktop layout created with nested resizable SplitContainers and StatusBar")
 
@@ -1050,24 +1057,28 @@ class MainWindow:
         self._update_pane_layout()
 
     def _toggle_step_pane(self, widget):
-        """Toggle Step pane visibility (same as Collection pane for now)"""
+        """Toggle Step browser visibility (within Output pane)"""
         if self.is_mobile:
             return
 
-        # For now, Step shares the same pane as Collection
-        # This is a placeholder for future Step-specific functionality
-        self.pane_visibility['collection'] = not self.pane_visibility['collection']
-        logger.info(f"📐 Toggle Step pane: {self.pane_visibility['collection']}")
-        self._update_pane_layout()
+        # Step browser is inside OutputView, delegate to it
+        if self.cached_output_view:
+            self.cached_output_view.toggle_step_browser()
+        else:
+            logger.warning("Cannot toggle step browser: OutputView not created yet")
 
     def _toggle_output_pane(self, widget):
-        """Toggle Output pane visibility"""
+        """Toggle Output/Preview pane visibility
+
+        Note: Preview pane is always visible as the main content area.
+        This method exists for menu consistency but doesn't actually hide the pane.
+        """
         if self.is_mobile:
             return
 
-        self.pane_visibility['output'] = not self.pane_visibility['output']
-        logger.info(f"📐 Toggle Output pane: {self.pane_visibility['output']}")
-        self._update_pane_layout()
+        # Preview pane cannot be hidden - it's the main content area
+        # Just log that the toggle was attempted
+        logger.info(f"📐 Preview pane toggle requested (Preview is always visible)")
 
     def _toggle_inspector_pane(self, widget):
         """Toggle Inspector/Adjust pane visibility (within Output pane)"""
@@ -1137,48 +1148,48 @@ class MainWindow:
             logger.warning("Cannot toggle status bar: StatusBar not created yet")
 
     def _update_pane_layout(self):
-        """Update pane layout based on visibility state"""
+        """Update pane layout by adding/removing panes from Box containers
+
+        Uses Box.add() and Box.remove() just like OutputView's inspector panel.
+        This properly hides panes and adjusts layout dynamically.
+        """
         if self.is_mobile:
             return
 
         try:
-            # Left pane (Library)
-            if self.left_pane:
-                if self.pane_visibility['library']:
-                    # Show with pixel width
-                    self.left_pane.style.update(width=self.pane_widths['library'], flex=0)
-                    logger.debug(f"Library pane visible: {self.pane_widths['library']}px")
-                else:
-                    # Hide (set width to 0)
-                    self.left_pane.style.update(width=0, flex=0)
-                    logger.debug("Library pane hidden")
+            library_visible = self.pane_visibility['library']
+            collection_visible = self.pane_visibility['collection']
 
-            # Center pane (Collection/Browser)
-            if self.center_pane:
-                if self.pane_visibility['collection']:
-                    # Show with pixel width
-                    self.center_pane.style.update(width=self.pane_widths['collection'], flex=0)
-                    logger.debug(f"Collection pane visible: {self.pane_widths['collection']}px")
-                else:
-                    # Hide (set width to 0)
-                    self.center_pane.style.update(width=0, flex=0)
-                    logger.debug("Collection pane hidden")
+            logger.debug(f"Updating pane visibility: library={library_visible}, collection={collection_visible}")
 
-            # Right pane (Output) - always flex=1 to fill remaining space
-            if self.right_pane:
-                if self.pane_visibility['output']:
-                    # Show - flex=1 fills remaining space
-                    self.right_pane.style.update(flex=1)
-                    logger.debug("Output pane visible (flex=1)")
-                else:
-                    # Hide (set width to 0, flex to 0)
-                    self.right_pane.style.update(width=0, flex=0)
-                    logger.debug("Output pane hidden")
+            # Update library pane visibility (add/remove from main_horizontal_box)
+            if library_visible:
+                # Show library: ensure it's in the box
+                if self.left_pane not in self.main_horizontal_box.children:
+                    # Insert at beginning (left side)
+                    self.main_horizontal_box.insert(0, self.left_pane)
+            else:
+                # Hide library: remove from box
+                if self.left_pane in self.main_horizontal_box.children:
+                    self.main_horizontal_box.remove(self.left_pane)
 
-            logger.info(f"📐 Pane layout updated: {self.pane_visibility}")
+            # Update collection pane visibility (add/remove from center_right_box)
+            if collection_visible:
+                # Show collection: ensure it's in the box
+                if self.center_pane not in self.center_right_box.children:
+                    # Insert at beginning (left side of center_right_box)
+                    self.center_right_box.insert(0, self.center_pane)
+            else:
+                # Hide collection: remove from box
+                if self.center_pane in self.center_right_box.children:
+                    self.center_right_box.remove(self.center_pane)
+
+            logger.info(f"📐 Pane visibility updated: library={library_visible}, collection={collection_visible}")
 
         except Exception as e:
             logger.error(f"Failed to update pane layout: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
     # ===== LEGACY CALLBACKS (for views that haven't been updated yet) =====
 
