@@ -425,59 +425,28 @@ class MainWindow:
                     show_in_menu=True,
                     desktop_only=True
                 ),
-                # PHASE 5: Split pane layout commands (section 30 for grouping)
-                'view.layout_single': FicheroCommand(
-                    id='view.layout_single',
-                    label=_("Single Pane"),
-                    action=lambda widget: self._set_preview_layout('single'),
-                    description=_("Switch to single pane layout"),
+                # PHASE 5: Dynamic split pane commands (section 30 for grouping)
+                'view.split_vertical': FicheroCommand(
+                    id='view.split_vertical',
+                    label=_("Split Vertical"),
+                    action=lambda widget: self._split_pane('vertical'),
+                    shortcut=toga.Key.MOD_1 + '\\',
+                    description=_("Split focused pane vertically (side by side)"),
                     group=toga.Group.VIEW,
                     section=30,
                     order=0,
                     show_in_menu=True,
                     desktop_only=True
                 ),
-                'view.layout_dual_compare': FicheroCommand(
-                    id='view.layout_dual_compare',
-                    label=_("Two Panes Side by Side"),
-                    action=lambda widget: self._set_preview_layout('dual_compare'),
-                    description=_("Switch to two pane comparison layout"),
+                'view.split_horizontal': FicheroCommand(
+                    id='view.split_horizontal',
+                    label=_("Split Horizontal"),
+                    action=lambda widget: self._split_pane('horizontal'),
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '\\',
+                    description=_("Split focused pane horizontally (top/bottom)"),
                     group=toga.Group.VIEW,
                     section=30,
                     order=1,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.layout_triple_split_v': FicheroCommand(
-                    id='view.layout_triple_split_v',
-                    label=_("Three Panes"),
-                    action=lambda widget: self._set_preview_layout('triple_split_v'),
-                    description=_("Switch to three pane layout"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=2,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.layout_quad_split_v': FicheroCommand(
-                    id='view.layout_quad_split_v',
-                    label=_("Four Panes"),
-                    action=lambda widget: self._set_preview_layout('quad_split_v'),
-                    description=_("Switch to four pane layout"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=3,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.layout_quad_split_h': FicheroCommand(
-                    id='view.layout_quad_split_h',
-                    label=_("Four Panes (Grid)"),
-                    action=lambda widget: self._set_preview_layout('quad_split_h'),
-                    description=_("Switch to four pane grid layout (2x2)"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=4,
                     show_in_menu=True,
                     desktop_only=True
                 ),
@@ -1205,45 +1174,38 @@ class MainWindow:
 
     # ===== PREVIEW LAYOUT SWITCHING (PHASE 5) =====
 
-    def _set_preview_layout(self, layout_name: str):
+    def _split_pane(self, direction: str):
         """
-        Switch preview pane layout (PHASE 5).
+        Split the currently focused pane (PHASE 5 - Dynamic Splitting).
 
         Args:
-            layout_name: Layout type name (single, dual_compare, triple_split_v, quad_split_v, quad_split_h)
+            direction: 'vertical' (side by side) or 'horizontal' (top/bottom)
         """
         if self.is_mobile:
             return
 
         try:
-            from fichero.windows.main.views.output.layout_manager import LayoutType
-
-            # Map layout name to LayoutType enum
-            layout_map = {
-                'single': LayoutType.SINGLE,
-                'dual_compare': LayoutType.DUAL_COMPARE,
-                'triple_split_v': LayoutType.TRIPLE_SPLIT_V,
-                'triple_split_h': LayoutType.TRIPLE_SPLIT_H,
-                'quad_split_v': LayoutType.QUAD_SPLIT_V,
-                'quad_split_h': LayoutType.QUAD_SPLIT_H,
-            }
-
-            if layout_name not in layout_map:
-                logger.warning(f"Unknown layout name: {layout_name}")
-                return
-
-            layout_type = layout_map[layout_name]
-
             # Get OutputView and its layout manager
             if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
                 layout_manager = self.cached_output_view.layout_manager
-                layout_manager.set_layout(layout_type)
-                logger.info(f"📐 Switched preview layout to: {layout_name}")
+
+                # Get currently focused pane index
+                focused_index = layout_manager.get_focused_pane_index()
+
+                # Call the appropriate split method
+                if direction == 'vertical':
+                    layout_manager.split_pane_vertical(focused_index)
+                    logger.info(f"📐 Split pane {focused_index} vertically")
+                elif direction == 'horizontal':
+                    layout_manager.split_pane_horizontal(focused_index)
+                    logger.info(f"📐 Split pane {focused_index} horizontally")
+                else:
+                    logger.warning(f"Unknown split direction: {direction}")
             else:
-                logger.warning("Cannot switch layout: OutputView not created yet")
+                logger.warning("Cannot split pane: OutputView not created yet")
 
         except Exception as e:
-            logger.error(f"Failed to switch preview layout: {e}")
+            logger.error(f"Failed to split pane: {e}")
             import traceback
             traceback.print_exc()
 

@@ -303,6 +303,28 @@ class LayoutManager:
         """
         return OutputPane(self.library_manager, self.renderer_registry)
 
+    def _rebuild_layout_simple(self, direction: str):
+        """
+        Rebuild layout with all panes in a simple row or column (PHASE 5).
+
+        This is a simple implementation that arranges all panes in a single direction.
+        Future versions can support more complex nested layouts.
+
+        Args:
+            direction: 'row' (horizontal) or 'column' (vertical)
+        """
+        # Clear the container
+        self._container.clear()
+
+        # Set container direction
+        self._container.style.direction = direction
+
+        # Add all panes to the container
+        for pane in self.panes:
+            self._container.add(pane.as_box())
+
+        self.logger.debug(f"Rebuilt layout with {len(self.panes)} panes in {direction} direction")
+
     def get_container(self) -> toga.Box:
         """
         Get the layout container for embedding.
@@ -495,31 +517,49 @@ class LayoutManager:
 
     def split_pane_horizontal(self, pane_index: int):
         """
-        Split a pane horizontally (NOT YET IMPLEMENTED - Phase 5).
-
-        This will be implemented in Phase 5 to dynamically split panes.
-        For now, use set_layout() to switch to multi-pane layouts.
+        Split a pane horizontally (top/bottom) - PHASE 5 Dynamic Splitting.
 
         Args:
             pane_index: Index of pane to split
         """
         self.logger.info(f"split_pane_horizontal() called for pane {pane_index}")
-        self.logger.warning("Dynamic pane splitting not yet implemented - use set_layout() instead")
-        # TODO: Implement dynamic pane splitting in Phase 5
+
+        # Simple approach: add a new pane below the focused one
+        # This creates a simple horizontal split
+        new_pane = self._create_pane()
+        self.panes.append(new_pane)
+
+        # For now, rebuild the entire layout as a vertical stack
+        # (All panes stacked vertically)
+        self._rebuild_layout_simple('column')
+
+        # Set focus to the new pane
+        self.set_focused_pane(len(self.panes) - 1)
+
+        self.logger.info(f"Added pane {len(self.panes) - 1} (horizontal split)")
 
     def split_pane_vertical(self, pane_index: int):
         """
-        Split a pane vertically (NOT YET IMPLEMENTED - Phase 5).
-
-        This will be implemented in Phase 5 to dynamically split panes.
-        For now, use set_layout() to switch to multi-pane layouts.
+        Split a pane vertically (side by side) - PHASE 5 Dynamic Splitting.
 
         Args:
             pane_index: Index of pane to split
         """
         self.logger.info(f"split_pane_vertical() called for pane {pane_index}")
-        self.logger.warning("Dynamic pane splitting not yet implemented - use set_layout() instead")
-        # TODO: Implement dynamic pane splitting in Phase 5
+
+        # Simple approach: add a new pane to the right of the focused one
+        # This creates a simple vertical split
+        new_pane = self._create_pane()
+        self.panes.append(new_pane)
+
+        # For now, rebuild the entire layout as a horizontal row
+        # (All panes side by side)
+        self._rebuild_layout_simple('row')
+
+        # Set focus to the new pane
+        self.set_focused_pane(len(self.panes) - 1)
+
+        self.logger.info(f"Added pane {len(self.panes) - 1} (vertical split)")
 
     def close_pane(self, pane_index: int):
         """
