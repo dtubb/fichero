@@ -13,8 +13,58 @@ import toga
 from toga.style import Pack
 
 from .output_pane import OutputPane
+from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
 
 logger = logging.getLogger(__name__)
+
+
+class ColumnContainer:
+    """
+    Container for a single column of panes (PHASE 5).
+
+    Each column can have multiple panes stacked vertically.
+    """
+
+    def __init__(self, max_panes_per_column: int = 3):
+        self.panes: List[OutputPane] = []
+        self.container: Optional[toga.Box] = None
+        self.max_panes: int = max_panes_per_column
+
+    def add_pane(self, pane: OutputPane) -> bool:
+        """Add a pane to this column. Returns False if max limit reached."""
+        if len(self.panes) >= self.max_panes:
+            return False
+        self.panes.append(pane)
+        return True
+
+    def remove_pane(self, pane_index: int):
+        """Remove a pane from this column."""
+        if 0 <= pane_index < len(self.panes):
+            self.panes.pop(pane_index)
+
+    def rebuild_layout(self, min_width: Optional[int] = None):
+        """
+        Rebuild this column's layout with all panes equally sized.
+
+        Args:
+            min_width: Optional minimum width for the column (1/4 window width)
+        """
+        if not self.container:
+            # Create container with optional minimum width
+            if min_width:
+                self.container = toga.Box(style=Pack(direction='column', flex=1, width=min_width))
+            else:
+                self.container = toga.Box(style=Pack(direction='column', flex=1))
+
+        # Update width if specified
+        if min_width and self.container:
+            self.container.style.width = min_width
+
+        self.container.clear()
+        for pane in self.panes:
+            pane_box = pane.as_box()
+            pane_box.style.flex = 1  # Equal height
+            self.container.add(pane_box)
 
 
 class LayoutType(Enum):
@@ -54,46 +104,119 @@ class LayoutManager:
         await manager.get_pane(1).set_step(item_id, step_index=1)
     """
 
-    def __init__(self, library_manager, renderer_registry):
+    def __init__(self, library_manager, renderer_registry, status_bar=None):
         """
         Initialize layout manager.
 
         Args:
             library_manager: LibraryManager instance for data access
             renderer_registry: RendererRegistry instance for rendering
+            status_bar: Optional StatusBar instance for status updates (PHASE 5)
         """
         self.library_manager = library_manager
         self.renderer_registry = renderer_registry
+        self.status_bar = status_bar
         self.logger = logging.getLogger(__name__)
 
         # Current state
         self.current_layout: LayoutType = LayoutType.SINGLE
+
+        # PHASE 5: Column-based architecture
+        self.columns: List[ColumnContainer] = []
+        self.focused_column_index: int = 0
+        self.focused_pane_index: int = 0  # Pane within focused column
+
+        # Backward compatibility: keep panes list for old layout methods
         self.panes: List[OutputPane] = []
 
-        # Focus tracking (PHASE 5)
-        self.focused_pane_index: int = 0
+        # PHASE 5: Limits
+        self.max_panes_per_column: int = 3
 
         # UI components
-        self._container = None
+        self._container = None  # Will be ScrollContainer
+        self._scroll_container = None
+        self._columns_container = None  # Horizontal box containing columns
         self._build_ui()
 
-        # Initialize with single pane
-        self.set_layout(LayoutType.SINGLE)
+        # Initialize with single column, single pane
+        self._initialize_single_column()
 
     def _build_ui(self):
-        """Build container for panes"""
-        self._container = toga.Box(
+        """Build container for columns with horizontal scroll - PHASE 5"""
+        # Columns container - holds all columns side by side
+        self._columns_container = toga.Box(
             style=Pack(
-                direction='row',
+                direction='row',  # Horizontal layout for columns
                 flex=1
             )
         )
+
+        # Scroll container - enables horizontal scrolling when > 4 columns
+        self._scroll_container = toga.ScrollContainer(
+            content=self._columns_container,
+            horizontal=True,
+            vertical=False,
+            style=Pack(flex=1)
+        )
+
+        # Main container is the scroll container
+        self._container = self._scroll_container
+
+    def _get_min_column_width(self) -> Optional[int]:
+        """
+        Calculate minimum column width as 1/4 of container width.
+
+        Returns:
+            Minimum width in pixels, or None if cannot determine
+        """
+        try:
+            # Try to get window from the scroll container
+            if hasattr(self._scroll_container, 'window') and self._scroll_container.window:
+                window_width = self._scroll_container.window.size[0]
+                min_width = int(window_width / 4)
+                self.logger.debug(f"Calculated min column width: {min_width}px (window: {window_width}px)")
+                return min_width
+        except Exception as e:
+            self.logger.debug(f"Could not calculate min column width: {e}")
+        return None
+
+    def _initialize_single_column(self):
+        """Initialize with a single column containing a single pane - PHASE 5"""
+        self.logger.info("Initializing with single column")
+
+        # Create first column
+        column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
+
+        # Create first pane
+        pane = self._create_pane()
+        column.add_pane(pane)
+
+        # Get minimum column width (1/4 of window width)
+        min_width = self._get_min_column_width()
+        column.rebuild_layout(min_width=min_width)
+
+        # Add column to list
+        self.columns.append(column)
+
+        # Add column to UI
+        self._columns_container.add(column.container)
+
+        # Update backward-compat panes list
+        self.panes = [pane]
+
+        # Set focus
+        self.focused_column_index = 0
+        self.focused_pane_index = 0
+        self.set_focused_pane(0)
+
+        self.logger.info(f"Initialized with 1 column, 1 pane")
 
     def set_layout(self, layout_type: LayoutType):
         """
         Switch to a different layout.
 
         Creates/removes panes as needed.
+        PHASE 5: Now works with column-based system.
 
         Args:
             layout_type: Type of layout to use
@@ -104,10 +227,11 @@ class LayoutManager:
         old_layout = self.current_layout
         self.current_layout = layout_type
 
-        # Clear container
-        self._container.clear()
+        # Clear columns container (not _container which is ScrollContainer)
+        self._columns_container.clear()
 
-        # Clear existing panes
+        # Clear existing columns and panes
+        self.columns = []
         self.panes = []
 
         # Create panes based on layout
@@ -141,35 +265,47 @@ class LayoutManager:
         self.logger.info(f"Layout set to {layout_type.value} with {len(self.panes)} panes")
 
     def _create_single_layout(self):
-        """Create single pane layout: [Output]"""
+        """Create single pane layout: [Output] - PHASE 5 uses column system"""
+        # Create column with single pane
+        column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
         pane = self._create_pane()
-        self.panes.append(pane)
-        self._container.add(pane.as_box())
+        column.add_pane(pane)
+        column.rebuild_layout()
+
+        # Add to system
+        self.columns.append(column)
+        self._columns_container.add(column.container)
+        self.panes.append(pane)  # Backward compat
 
     def _create_dual_layout(self):
         """
-        Create dual pane layout: [Output | Inspector].
+        Create dual pane layout: [Output | Inspector] - PHASE 5.
 
         NOTE: Inspector is managed by OutputView, not here.
         This just creates the output pane on the left.
         """
+        # Single column with single pane (inspector added separately by OutputView)
+        column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
         pane = self._create_pane()
+        column.add_pane(pane)
+        column.rebuild_layout()
+
+        self.columns.append(column)
+        self._columns_container.add(column.container)
         self.panes.append(pane)
-        self._container.add(pane.as_box())
 
     def _create_dual_compare_layout(self):
-        """Create dual comparison layout: [Output | Output]"""
-        # Left pane
-        left_pane = self._create_pane()
-        self.panes.append(left_pane)
+        """Create dual comparison layout: [Output | Output] - PHASE 5"""
+        # Two columns, each with one pane
+        for i in range(2):
+            column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
+            pane = self._create_pane()
+            column.add_pane(pane)
+            column.rebuild_layout()
 
-        # Right pane
-        right_pane = self._create_pane()
-        self.panes.append(right_pane)
-
-        # Add both with equal flex
-        self._container.add(left_pane.as_box())
-        self._container.add(right_pane.as_box())
+            self.columns.append(column)
+            self._columns_container.add(column.container)
+            self.panes.append(pane)
 
     def _create_triple_layout(self):
         """Create triple pane layout: [Output | Inspector | Output]"""
@@ -296,12 +432,51 @@ class LayoutManager:
 
     def _create_pane(self) -> OutputPane:
         """
-        Create a new output pane.
+        Create a new output pane with click handler (PHASE 5).
 
         Returns:
             New OutputPane instance
         """
-        return OutputPane(self.library_manager, self.renderer_registry)
+        return OutputPane(
+            self.library_manager,
+            self.renderer_registry,
+            on_click=self._on_pane_clicked  # PHASE 5: click-to-focus
+        )
+
+    def _on_pane_clicked(self, pane: OutputPane):
+        """
+        Handle pane click - update focus, status bar, and sync with toolbar (PHASE 5).
+
+        Args:
+            pane: The pane that was clicked
+        """
+        # Find which column and pane index this is
+        for col_idx, column in enumerate(self.columns):
+            for pane_idx, p in enumerate(column.panes):
+                if p is pane:
+                    # Found it - update focus
+                    self.logger.debug(f"Pane clicked: column {col_idx}, pane {pane_idx}")
+                    self.focused_column_index = col_idx
+                    self.focused_pane_index = pane_idx
+                    self._update_all_focus_indicators()
+
+                    # Update status bar to show which pane is selected (PHASE 5)
+                    if self.status_bar:
+                        total_cols = len(self.columns)
+                        total_panes_in_col = len(column.panes)
+                        status_text = f"Column {col_idx + 1}/{total_cols} • Pane {pane_idx + 1}/{total_panes_in_col}"
+                        self.status_bar.set_status(status_text)
+                        self.logger.debug(f"Status bar updated: {status_text}")
+
+                    # Update step browser to match pane's current step (PHASE 5)
+                    if hasattr(pane, 'current_step_index') and pane.current_step_index is not None:
+                        self.logger.debug(f"Pane is showing step {pane.current_step_index} - updating toolbar")
+                        # Emit navigation event to sync toolbar
+                        from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
+                        emit_navigation_event('step_browser_select', {'step_index': pane.current_step_index})
+                    return
+
+        self.logger.warning("Clicked pane not found in columns")
 
     def _rebuild_layout_simple(self, direction: str):
         """
@@ -513,53 +688,139 @@ class LayoutManager:
         """
         return self.focused_pane_index
 
+    def _update_all_focus_indicators(self):
+        """
+        Update focus indicators on all panes based on current column+pane indices - PHASE 5.
+        """
+        for col_idx, column in enumerate(self.columns):
+            for pane_idx, pane in enumerate(column.panes):
+                is_focused = (col_idx == self.focused_column_index and
+                             pane_idx == self.focused_pane_index)
+                pane.set_focused(is_focused)
+
     # ===== SPLIT PANE OPERATIONS (PHASE 5) =====
 
     def split_pane_horizontal(self, pane_index: int):
         """
-        Split a pane horizontally (top/bottom) - PHASE 5 Dynamic Splitting.
+        Add a new column (horizontal split) - PHASE 5 Column System.
+
+        Creates a new column with a single pane. Unlimited columns allowed,
+        horizontal scrolling appears after 4 columns (due to 1/4 window width minimum).
 
         Args:
-            pane_index: Index of pane to split
+            pane_index: Ignored (kept for backward compat)
         """
-        self.logger.info(f"split_pane_horizontal() called for pane {pane_index}")
+        self.logger.info(f"=" * 60)
+        self.logger.info(f"SPLIT HORIZONTAL: Adding new column")
+        self.logger.info(f"Current columns: {len(self.columns)}")
 
-        # Simple approach: add a new pane below the focused one
-        # This creates a simple horizontal split
+        # Create new column with new pane
+        column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
         new_pane = self._create_pane()
-        self.panes.append(new_pane)
+        column.add_pane(new_pane)
 
-        # For now, rebuild the entire layout as a vertical stack
-        # (All panes stacked vertically)
-        self._rebuild_layout_simple('column')
+        # Get minimum column width (1/4 of window width)
+        min_width = self._get_min_column_width()
+        column.rebuild_layout(min_width=min_width)
 
-        # Set focus to the new pane
-        self.set_focused_pane(len(self.panes) - 1)
+        # Add column to system
+        self.columns.append(column)
+        self._columns_container.add(column.container)
+        self.panes.append(new_pane)  # Backward compat
 
-        self.logger.info(f"Added pane {len(self.panes) - 1} (horizontal split)")
+        # Update existing columns with minimum width
+        for existing_column in self.columns[:-1]:  # All except the one we just added
+            if min_width:
+                existing_column.rebuild_layout(min_width=min_width)
+
+        # Focus new pane in new column
+        self.focused_column_index = len(self.columns) - 1
+        self.focused_pane_index = 0
+        self._update_all_focus_indicators()
+
+        self.logger.info(f"✅ Horizontal split complete. Total columns: {len(self.columns)}, min_width: {min_width}px")
+        self.logger.info(f"=" * 60)
 
     def split_pane_vertical(self, pane_index: int):
         """
-        Split a pane vertically (side by side) - PHASE 5 Dynamic Splitting.
+        Split the focused column vertically (add row) - PHASE 5 Column System.
+
+        Adds a new pane below the focused pane within the focused column.
+        Maximum 3 panes per column.
 
         Args:
-            pane_index: Index of pane to split
+            pane_index: Ignored (kept for backward compat)
         """
-        self.logger.info(f"split_pane_vertical() called for pane {pane_index}")
+        self.logger.info(f"=" * 60)
+        self.logger.info(f"SPLIT VERTICAL: Adding row to focused column")
+        self.logger.info(f"Current columns: {len(self.columns)}")
 
-        # Simple approach: add a new pane to the right of the focused one
-        # This creates a simple vertical split
+        # Get focused column
+        if self.focused_column_index >= len(self.columns):
+            self.logger.error(f"Invalid focused_column_index: {self.focused_column_index}")
+            return
+
+        column = self.columns[self.focused_column_index]
+
+        # Check limit for this column
+        if len(column.panes) >= self.max_panes_per_column:
+            self.logger.warning(f"⚠️ Maximum {self.max_panes_per_column} panes per column reached")
+            self.logger.info(f"=" * 60)
+            return
+
+        # Save content from this column's panes
+        saved_content = []
+        for pane in column.panes:
+            saved_content.append({
+                'item_id': pane.current_item_id,
+                'step_index': pane.current_step_index
+            })
+
+        self.logger.info(f"Saved content from {len(saved_content)} panes in column {self.focused_column_index}")
+
+        # Create new pane in column
         new_pane = self._create_pane()
+        column.add_pane(new_pane)
+        column.rebuild_layout()  # Rebuild just this column
+
+        # Update global panes list
         self.panes.append(new_pane)
 
-        # For now, rebuild the entire layout as a horizontal row
-        # (All panes side by side)
-        self._rebuild_layout_simple('row')
+        # Restore content to column's panes
+        for i, content in enumerate(saved_content):
+            if content['item_id'] is not None:
+                column.panes[i].load_item(content['item_id'], content['step_index'])
 
-        # Set focus to the new pane
-        self.set_focused_pane(len(self.panes) - 1)
+        # Focus new pane
+        self.focused_pane_index = len(column.panes) - 1
+        self._update_all_focus_indicators()
 
-        self.logger.info(f"Added pane {len(self.panes) - 1} (vertical split)")
+        self.logger.info(f"✅ Vertical split complete. Column {self.focused_column_index} now has {len(column.panes)} panes")
+        self.logger.info(f"=" * 60)
+
+    def _rebuild_equal_layout(self, direction: str):
+        """
+        Rebuild layout with all panes equally sized - PHASE 5 Helper.
+
+        Args:
+            direction: 'row' for columns (horizontal split), 'column' for rows (vertical split)
+        """
+        self.logger.info(f"Rebuilding layout with {len(self.panes)} panes, direction={direction}")
+
+        # Clear container
+        self._container.clear()
+
+        # Update container direction
+        self._container.style.direction = direction
+
+        # Add all panes with equal flex
+        for i, pane in enumerate(self.panes):
+            pane_box = pane.as_box()
+            pane_box.style.flex = 1  # Equal sizing
+            self._container.add(pane_box)
+            self.logger.info(f"Added pane {i} to container with flex=1")
+
+        self.logger.info(f"Layout rebuild complete: {len(self.panes)} equal panes in {direction}")
 
     def close_pane(self, pane_index: int):
         """

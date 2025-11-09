@@ -288,6 +288,12 @@ class MainWindow:
                 # Pass library_manager for file-specific filtering
                 library_manager = getattr(self.app, 'library_manager', None)
                 self.cached_output_view = OutputView(self.app, self.is_mobile, library_manager=library_manager)
+
+                # PHASE 5: Pass status bar to layout manager for pane selection updates
+                if hasattr(self.cached_output_view, 'layout_manager') and self.status_bar:
+                    self.cached_output_view.layout_manager.status_bar = self.status_bar
+                    logger.debug("✅ Status bar linked to OutputView layout manager")
+
                 logger.info("✅ OutputView pre-created - Edit menu commands registered")
         except Exception as e:
             logger.error(f"Failed to pre-create OutputView: {e}")
@@ -426,24 +432,24 @@ class MainWindow:
                     desktop_only=True
                 ),
                 # PHASE 5: Dynamic split pane commands (section 30 for grouping)
-                'view.split_vertical': FicheroCommand(
-                    id='view.split_vertical',
-                    label=_("Split Vertical"),
-                    action=lambda widget: self._split_pane('vertical'),
+                'view.split_horizontal': FicheroCommand(
+                    id='view.split_horizontal',
+                    label=_("Split Horizontal"),
+                    action=lambda widget: self._split_pane('horizontal'),
                     shortcut=toga.Key.MOD_1 + '\\',
-                    description=_("Split focused pane vertically (side by side)"),
+                    description=_("Split horizontally (add column, left/right)"),
                     group=toga.Group.VIEW,
                     section=30,
                     order=0,
                     show_in_menu=True,
                     desktop_only=True
                 ),
-                'view.split_horizontal': FicheroCommand(
-                    id='view.split_horizontal',
-                    label=_("Split Horizontal"),
-                    action=lambda widget: self._split_pane('horizontal'),
+                'view.split_vertical': FicheroCommand(
+                    id='view.split_vertical',
+                    label=_("Split Vertical"),
+                    action=lambda widget: self._split_pane('vertical'),
                     shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '\\',
-                    description=_("Split focused pane horizontally (top/bottom)"),
+                    description=_("Split vertically (add row, up/down)"),
                     group=toga.Group.VIEW,
                     section=30,
                     order=1,

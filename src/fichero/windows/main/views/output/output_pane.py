@@ -37,13 +37,14 @@ class OutputPane:
         container.add(pane.as_box())
     """
 
-    def __init__(self, library_manager, renderer_registry=None):
+    def __init__(self, library_manager, renderer_registry=None, on_click=None):
         """
         Initialize output pane.
 
         Args:
             library_manager: LibraryManager instance for data access
             renderer_registry: RendererRegistry instance for rendering (optional, will create if None)
+            on_click: Optional callback when pane is clicked (for focus handling - PHASE 5)
         """
         self.library_manager = library_manager
 
@@ -66,8 +67,12 @@ class OutputPane:
         self.scroll_x: int = 0
         self.scroll_y: int = 0
 
+        # Click callback for focus handling (PHASE 5)
+        self.on_click = on_click
+
         # UI components
-        self._container = None
+        self._outer_box = None  # Outer wrapper for focus border (PHASE 5)
+        self._container = None  # Inner container for content
         self._webview = None
         self._error_label = None
         self._loading_label = None
@@ -77,8 +82,8 @@ class OutputPane:
         self._build_ui()
 
     def _build_ui(self):
-        """Build UI components"""
-        # Main container
+        """Build UI components - PHASE 5 with outer wrapper for focus"""
+        # Inner container for actual content
         self._container = toga.Box(
             style=Pack(direction='column', flex=1)
         )
@@ -106,14 +111,27 @@ class OutputPane:
 
         # WebView for HTML rendering
         self._webview = toga.WebView(
-            style=Pack(flex=1)
+            style=Pack(flex=1),
+            on_webview_load=self._handle_click  # Detect any interaction as a click (PHASE 5)
         )
 
         # PathBar for showing file path
         self._path_bar = PathBar(platform='desktop')
 
+        # Outer wrapper box - this is where focus border is applied
+        self._outer_box = toga.Box(
+            style=Pack(direction='column', flex=1)
+        )
+        self._outer_box.add(self._container)
+
         # Initially show loading
         self._show_loading()
+
+    def _handle_click(self, widget):
+        """Handle click on pane (PHASE 5) - trigger focus callback"""
+        if self.on_click:
+            self.on_click(self)
+            self.logger.debug("Pane clicked, focus callback triggered")
 
     async def set_step(self, item_id: str, step_index: int, step=None):
         """
@@ -311,8 +329,8 @@ class OutputPane:
         """
 
     def as_box(self) -> toga.Box:
-        """Get container for embedding"""
-        return self._container
+        """Get container for embedding - PHASE 5 returns outer wrapper"""
+        return self._outer_box
 
     # ==================== ZOOM METHODS ====================
 
@@ -608,16 +626,22 @@ class OutputPane:
 
     def set_focused(self, is_focused: bool):
         """
-        Set focus visual indicator for this pane.
+        Set focus visual indicator for this pane - PHASE 5.
+
+        Focus border applied to outer wrapper, not inner container.
 
         Args:
             is_focused: True to show focus border, False to hide it
         """
         if is_focused:
-            # Add blue border to indicate focus (like VSCode)
-            self._container.style.background_color = '#007ACC'
-            self._container.style.margin = 2  # 2px for border
+            # Show focus using background color (creates border effect with margin)
+            from toga.colors import rgb
+            self._outer_box.style.background_color = rgb(0, 122, 204)  # VSCode blue
+            self._outer_box.style.margin = 2  # Creates border effect
+            self.logger.debug("Pane focused with blue border")
         else:
-            # Remove border
-            self._container.style.background_color = None
-            self._container.style.margin = 0
+            # Remove focus border
+            if hasattr(self._outer_box.style, 'background_color'):
+                del self._outer_box.style.background_color
+            self._outer_box.style.margin = 0
+            self.logger.debug("Pane unfocused")
