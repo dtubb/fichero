@@ -17,6 +17,7 @@ from fichero.shared.commands import FicheroCommand, ViewCommandMixin
 from fichero.library.library_manager import LibraryManager
 from fichero.shared.toolbars import TopToolbar, BottomToolbar
 from fichero.config.core.plan_manager import PlanManager
+from fichero.shared.widgets import ListWidget
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 
 logger = logging.getLogger(__name__)
@@ -623,14 +624,17 @@ class CollectionView(BaseView, ViewCommandMixin):
     def show(self):
         """Called when view becomes active - light refresh without recreating content"""
         try:
-            # Light refresh - just clear DetailedList selection without rebuilding everything
+            # Light refresh - just clear list selection without rebuilding everything
             if hasattr(self, 'items_list') and self.items_list:
                 # Clear any existing selection state but don't recreate the entire list
                 try:
-                    self.items_list.selection = None
-                    logger.debug("🔄 Cleared DetailedList selection state")
+                    # ListWidget doesn't have .selection, but we can trigger deselect via callback
+                    # For now, just skip clearing selection for ListWidget
+                    if hasattr(self.items_list, 'selection'):
+                        self.items_list.selection = None
+                        logger.debug("🔄 Cleared list selection state")
                 except Exception as e:
-                    logger.debug(f"Could not clear DetailedList selection: {e}")
+                    logger.debug(f"Could not clear list selection: {e}")
 
             # Mark view as visible but don't recreate content unnecessarily
             self.is_visible = True
@@ -645,21 +649,9 @@ class CollectionView(BaseView, ViewCommandMixin):
             if self.content_container:
                 self.content_container.clear()
             
-            # Add current folder header (shows what folder we're currently viewing)
-            # Only show when we have a collection selected
-            if hasattr(self, 'collection_id') and self.collection_id:
-                content_title = self._get_content_title()
-                if content_title:
-                    self.folder_header = toga.Label(
-                        content_title,
-                        style=Pack(
-                            margin=(15, 20, 10, 20),
-                            # Use default font size (no font_size specified)
-                            font_weight="bold",
-                            color=self.text_color
-                        )
-                    )
-                    self.content_container.add(self.folder_header)
+            # Note: Title/header removed - ListWidget renderers handle their own UI
+            # Tree/Table/DetailedList have built-in headers
+            # HTML/Card can render custom headers as needed
             
             # Always show DetailedList (even if empty) - Mac style
             # On Mac, empty folders just show an empty list, not a placeholder message
@@ -716,9 +708,9 @@ class CollectionView(BaseView, ViewCommandMixin):
             traceback.print_exc()
 
     def _on_navigate_back_via_navigation_helper(self):
-        """Handle hierarchical back navigation using NavigationController"""
+        """Handle hierarchical back navigation using ListWidget.navigate_up()"""
         try:
-            logger.info("Collection toolbar: Back navigation requested via NavigationController")
+            logger.info("Collection toolbar: Back navigation requested")
 
             # Clear output view when navigating back (going to folder/collection root)
             if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
@@ -727,43 +719,30 @@ class CollectionView(BaseView, ViewCommandMixin):
                     logger.info("📤 Clearing output view (back button clicked)")
                     main_window.cached_output_view.load_output()
 
-            if hasattr(self.app, 'view_integration') and self.app.view_integration:
-                navigation_controller = self.app.view_integration.get_navigation_controller()
-                if navigation_controller:
-                    navigation_controller.navigate_back()
-
-                    # Reset selection after navigating back (prevents index-based selection carry-over)
-                    if hasattr(self, 'items_list') and self.items_list:
-                        try:
-                            self.items_list.selection = None
-                            logger.debug("🔄 Reset selection after toolbar back navigation")
-                        except AttributeError:
-                            logger.debug("Could not clear selection (read-only property)")
+            # Use ListWidget's internal navigation
+            if hasattr(self, 'items_list') and self.items_list:
+                logger.info("🔙 Calling ListWidget.navigate_up()")
+                self.items_list.navigate_up()
+            else:
+                logger.warning("No items_list available - cannot navigate back")
 
         except Exception as e:
-            logger.error(f"Failed to navigate back via NavigationController: {e}")
+            logger.error(f"Failed to navigate back: {e}")
 
     def _on_navigate_to_path_via_navigation_controller(self, path: str):
-        """Handle navigation to specific path using NavigationController directly"""
+        """Handle navigation to specific path using ListWidget.navigate_to()"""
         try:
             logger.info(f"Collection toolbar: Navigate to breadcrumb path: {path}")
 
-            # Get NavigationController
-            navigation_controller = self._get_navigation_controller()
-            if not navigation_controller:
-                logger.error("❌ NavigationController not available - cannot navigate to path!")
-                raise RuntimeError("NavigationController not available")
-
-            # Use NavigationController for path navigation - NO FALLBACKS!
-            success = navigation_controller.navigate_to_path(path)
-            if not success:
-                logger.error(f"❌ NavigationController: Failed to navigate to path: '{path}'")
-                raise RuntimeError(f"NavigationController failed to navigate to path: '{path}'")
-
-            logger.info(f"✅ Successfully navigated to path: '{path}' via NavigationController")
+            # Use ListWidget's internal navigation
+            if hasattr(self, 'items_list') and self.items_list:
+                logger.info(f"📍 Calling ListWidget.navigate_to('{path}')")
+                self.items_list.navigate_to(path)
+            else:
+                logger.warning("No items_list available - cannot navigate to path")
 
         except Exception as e:
-            logger.error(f"Failed to navigate to path {path} via NavigationController: {e}")
+            logger.error(f"Failed to navigate to path {path}: {e}")
 
 
     def _on_add_folder(self):
@@ -1528,156 +1507,236 @@ class CollectionView(BaseView, ViewCommandMixin):
         """Update toolbar navigation state"""
         try:
             if hasattr(self.top_toolbar, 'update_navigation_state'):
-                self.top_toolbar.update_navigation_state(self.current_path)
+                # Check if using HTML/Card renderer which has its own back button
+                has_own_back = False
+                if hasattr(self.items_list, '_renderer_type'):
+                    has_own_back = self.items_list._renderer_type in ('html', 'card')
+                self.top_toolbar.update_navigation_state(self.current_path, has_own_back_button=has_own_back)
         except Exception as e:
             logger.error(f"Failed to update toolbar navigation: {e}")
     
     def _create_collection_items_list(self, items: List[Dict[str, Any]]):
-        """Create a detailed list view for collection items (even if empty - Mac style)"""
+        """Create a list view for collection items using HTML renderer (even if empty - Mac style)"""
         try:
-            # Always clear any existing DetailedList to reset selection state
+            # Always clear any existing list to reset selection state
             if hasattr(self, 'items_list') and self.items_list:
                 try:
-                    # Remove from container if it exists
-                    if self.content_container and self.items_list in self.content_container.children:
-                        self.content_container.remove(self.items_list)
-                    logger.info("🔄 Cleared existing DetailedList to reset selection")
+                    # Remove from container if it exists (ListWidget has a .widget property)
+                    widget_to_remove = self.items_list.widget if hasattr(self.items_list, 'widget') else self.items_list
+                    if self.content_container and widget_to_remove in self.content_container.children:
+                        self.content_container.remove(widget_to_remove)
+                    logger.info("🔄 Cleared existing list to reset selection")
                 except Exception as e:
-                    logger.debug(f"Note: Could not remove existing DetailedList: {e}")
-            
-            # LibraryService now returns Toga-compatible format directly
-            # Create the detailed list with the Toga-compatible data
-            # Swipe actions: Delete (left/primary) and Rename (right/secondary) like library view
-            self.items_list = toga.DetailedList(
-                data=items,  # Direct use of Toga-compatible format
+                    logger.debug(f"Note: Could not remove existing list: {e}")
+
+            # Convert items to ListWidget format with proper accessors
+            # Items already have 'title', 'subtitle', 'icon', 'path', 'is_folder' from library service
+            list_data = []
+            for item in items:
+                list_item = {
+                    'text': item.get('title', 'Untitled'),
+                    'title': item.get('title', 'Untitled'),
+                    'subtitle': item.get('subtitle', ''),
+                    'icon': item.get('icon'),
+                    'icon_text': item.get('icon_text', '📄'),
+                    'path': item.get('path', ''),  # For navigation
+                    'is_folder': item.get('is_folder', False),  # For folder detection
+                    '_item_data': item,  # Store full item data for card/html renderers
+                    '_collection_data': item,  # Store full item data for native renderer (Tree/Table)
+                    '_item_id': item.get('id', item.get('path', ''))
+                }
+                list_data.append(list_item)
+
+            # Create navigable ListWidget with native renderer
+            # ListWidget will handle folder navigation automatically
+            # renderer options: 'native' (Tree on macOS, Table on Windows, DetailedList on mobile)
+            #                   'tree' (force Tree), 'table' (force Table), 'detailedlist' (force DetailedList)
+            self.items_list = ListWidget(
+                headings=['Items'],
+                data=list_data,
                 on_select=self._on_item_selected,
-                primary_action="Delete",  # Left swipe = Delete
-                on_primary_action=self._on_swipe_delete_item,
-                secondary_action="Rename",  # Right swipe = Rename
-                on_secondary_action=self._on_swipe_rename_item,
+                on_navigate=self._on_navigate_path_changed,  # Navigation callback
+                navigable=True,  # Enable folder navigation
+                multiple_select=True,  # Allow selecting multiple items (Cmd+Click on macOS)
                 style=Pack(
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
-                )
+                ),
+                renderer='native'  # Use platform-appropriate widget (Tree/Table/DetailedList)
             )
-            
+
             if self.content_container:
-                self.content_container.add(self.items_list)
+                self.content_container.add(self.items_list.widget)
+
+            # For HTML/Card renderers with built-in navigation, hide toolbar back button on desktop
+            if hasattr(self, 'top_toolbar') and self.top_toolbar and not self.is_mobile:
+                renderer_type = self.items_list._renderer_type if hasattr(self.items_list, '_renderer_type') else 'native'
+                if renderer_type in ('html', 'card'):
+                    # These renderers have their own navigation controls in the header
+                    if hasattr(self.top_toolbar, '_back_button') and self.top_toolbar._back_button:
+                        self.top_toolbar._back_button.style.visibility = 'hidden'
+                        logger.debug(f"Hiding desktop toolbar back button - {renderer_type} renderer has its own navigation")
 
             if not items:
-                logger.debug("Created empty DetailedList (Mac-style - back button remains functional)")
+                logger.debug("Created empty HTML list")
             else:
-                logger.debug(f"Created DetailedList with {len(items)} items in native Toga format")
+                logger.debug(f"Created HTML list with {len(items)} items")
 
         except Exception as e:
             logger.error(f"Failed to create collection items list: {e}")
 
     def _update_items_list(self, force_recreate=False):
-        """Update the DetailedList with current collection_items data
+        """Update the list with current collection_items data.
 
         Args:
-            force_recreate: If True, recreate the DetailedList widget instead of just updating data.
-                          This ensures selection is truly cleared (Toga preserves selection on data update).
+            force_recreate: If True, forces full recreation via _create_content
         """
         try:
-            if hasattr(self, 'items_list') and self.items_list:
-                if force_recreate:
-                    # Recreate the DetailedList widget to ensure selection is cleared
-                    # Get the parent container
-                    parent_container = self.items_list.parent if hasattr(self.items_list, 'parent') else None
-
-                    if parent_container and hasattr(parent_container, 'remove'):
-                        # Remove old list
-                        parent_container.remove(self.items_list)
-
-                        # Create new list with fresh data (no selection)
-                        self.items_list = toga.DetailedList(
-                            data=self.collection_items,
-                            on_select=self._on_item_selected,
-                            primary_action="Delete",
-                            on_primary_action=self._on_swipe_delete_item,
-                            secondary_action="Rename",
-                            on_secondary_action=self._on_swipe_rename_item,
-                            style=Pack(flex=1, margin=0)
-                        )
-
-                        # Add new list back to parent
-                        parent_container.add(self.items_list)
-                        logger.debug(f"Recreated DetailedList with {len(self.collection_items)} items (no selection)")
-
-                        # Clear output view since selection was cleared by recreation
-                        if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
-                            if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
-                                logger.info("📤 Clearing output view (DetailedList recreated, selection cleared)")
-                                self.app.main_window_wrapper.cached_output_view.load_output()
-                    else:
-                        # Fallback to data update if we can't access parent
-                        logger.warning("Cannot recreate DetailedList - parent not accessible, falling back to data update")
-                        self.items_list.data = self.collection_items
-                        try:
-                            self.items_list.selection = None
-                        except AttributeError:
-                            logger.debug("Could not clear selection (read-only property)")
-
-                        # Clear output view since selection was cleared
-                        if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
-                            if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
-                                logger.info("📤 Clearing output view (selection cleared in fallback)")
-                                self.app.main_window_wrapper.cached_output_view.load_output()
-                else:
-                    # Just update the data property to refresh the list
-                    self.items_list.data = self.collection_items
-
-                    # Reset selection to nothing when updating contents
-                    # Note: Toga may still preserve selection index internally
-                    try:
-                        self.items_list.selection = None
-                    except AttributeError:
-                        logger.debug("Could not clear selection (read-only property)")
-
-                    logger.debug(f"Updated DetailedList with {len(self.collection_items)} items (selection reset)")
-
-                    # Don't clear output here - this is just a data refresh
-                    # Output clearing is handled in _handle_item_navigation and _on_item_selected
+            # Toga widgets don't properly update when data changes, so always recreate
+            logger.info(f"🔄 _update_items_list: Recreating content with {len(self.collection_items) if hasattr(self, 'collection_items') else 0} items")
+            self._create_content()
 
             # Update the title label to reflect current folder/collection
             self._update_title()
         except Exception as e:
             logger.error(f"Failed to update items list: {e}")
 
-    def _on_item_selected(self, widget):
-        """Handle item selection from detailed list"""
+    def _on_navigate_path_changed(self, new_path: str):
+        """
+        Called when ListWidget navigates to a new path.
+
+        Args:
+            new_path: The new path (empty string = root)
+        """
         try:
-            # Toga DetailedList gives us the widget
-            # widget.selection contains the selected Row object
-            if hasattr(widget, 'selection') and widget.selection is not None:
-                selected_row = widget.selection
+            logger.info(f"📍 Navigation: path changed to '{new_path}'")
 
-                # Debug: Log all available attributes on the Row object
-                logger.debug(f"Row object type: {type(selected_row)}")
-                logger.debug(f"Row object attributes: {dir(selected_row)}")
-                logger.debug(f"Row object __dict__: {getattr(selected_row, '__dict__', 'No __dict__')}")
+            # Update internal state to match ListWidget
+            self.current_path = new_path
 
-                # Try different ways to access the data
-                # Method 1: Direct attribute access
-                title_direct = getattr(selected_row, 'title', None)
-                type_direct = getattr(selected_row, 'type', None)
-                is_folder_direct = getattr(selected_row, 'is_folder', None)
+            # Update breadcrumbs/toolbar
+            if self.top_toolbar and hasattr(self.top_toolbar, 'update_navigation_state'):
+                # Check if using HTML/Card renderer which has its own back button
+                has_own_back = False
+                if hasattr(self.items_list, '_renderer_type'):
+                    has_own_back = self.items_list._renderer_type in ('html', 'card')
+                self.top_toolbar.update_navigation_state(new_path, has_own_back_button=has_own_back)
+                logger.debug(f"✅ Updated toolbar navigation state to: '{new_path}'")
 
-                logger.debug(f"Direct access - title: {title_direct}, type: {type_direct}, is_folder: {is_folder_direct}")
+            # Update title to reflect current path
+            self._update_title()
 
-                # The Row object has all the attributes we provided in the data
-                # Access them directly as Row attributes
-                item_data = {
-                    'id': getattr(selected_row, 'id', ''),
-                    'title': getattr(selected_row, 'title', 'Unknown Item'),
-                    'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
-                    'type': getattr(selected_row, 'type', 'unknown'),
-                    'is_folder': getattr(selected_row, 'is_folder', False),
-                    'path': getattr(selected_row, 'path', ''),
-                    'file_path': getattr(selected_row, 'file_path', '')
-                }
+            # Update output view when navigating
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                main_window = self.app.main_window_wrapper
+                if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                    if new_path:
+                        # Inside a folder - load folder outputs
+                        folder_id = self._get_folder_id_from_path(new_path)
+                        if folder_id:
+                            logger.info(f"📊 Loading folder-level outputs for navigated folder: {folder_id}")
+                            main_window.cached_output_view.load_output(item_id=folder_id)
+                        else:
+                            logger.warning(f"Could not get folder ID for path: {new_path}")
+                            logger.info("📤 Clearing output view (navigated to new path, no folder ID)")
+                            main_window.cached_output_view.load_output()
+                    else:
+                        # At collection root - clear output view
+                        logger.info("📤 Clearing output view (navigated to collection root)")
+                        main_window.cached_output_view.load_output()
 
+        except Exception as e:
+            logger.error(f"Failed to handle navigation change: {e}", exc_info=True)
+
+    def _on_item_selected(self, widget_or_item):
+        """Handle item selection from list (works with DetailedList, Tree, or ListWidget)"""
+        try:
+            logger.info(f"🎯 _on_item_selected called with: {type(widget_or_item)}, hasattr selection: {hasattr(widget_or_item, 'selection')}")
+
+            # Check if this is a list of selections (multiple selection enabled)
+            if isinstance(widget_or_item, list):
+                logger.info(f"📋 Multiple selection detected: {len(widget_or_item)} items")
+                # For now, handle the first item in the list
+                # TODO: Support displaying multiple items in output view
+                if widget_or_item:
+                    widget_or_item = widget_or_item[0]
+                    logger.info(f"  → Using first selected item: {widget_or_item}")
+                else:
+                    widget_or_item = None
+
+            # Check if this is a widget (DetailedList/Tree) or direct item data (ListWidget)
+            if widget_or_item is None:
+                # Deselection
+                selected_data = None
+            elif hasattr(widget_or_item, 'selection'):
+                # Native widget (DetailedList or Tree) - extract from widget.selection
+                if widget_or_item.selection is not None:
+                    selected_row = widget_or_item.selection
+                    logger.debug(f"🔍 Selection type: {type(selected_row)}, value: {selected_row}")
+
+                    # Check if this is a TreeNode (has _collection_data attribute) or Row object
+                    collection_data = getattr(selected_row, '_collection_data', None)
+                    if collection_data:
+                        # TreeNode - extract from stored _collection_data
+                        logger.debug(f"🌳 TreeNode selection - extracting from _collection_data: {collection_data}")
+                        selected_data = {
+                            'id': collection_data.get('id', ''),
+                            'title': collection_data.get('title', 'Unknown Item'),
+                            'name': collection_data.get('name', collection_data.get('title', 'Unknown')),
+                            'type': collection_data.get('type', 'unknown'),
+                            'is_folder': collection_data.get('is_folder', False),
+                            'path': collection_data.get('path', ''),
+                            'file_path': collection_data.get('file_path', '')
+                        }
+                    else:
+                        # Row object from DetailedList - extract directly
+                        logger.debug(f"📋 Row selection - extracting attributes directly")
+                        selected_data = {
+                            'id': getattr(selected_row, 'id', ''),
+                            'title': getattr(selected_row, 'title', 'Unknown Item'),
+                            'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
+                            'type': getattr(selected_row, 'type', 'unknown'),
+                            'is_folder': getattr(selected_row, 'is_folder', False),
+                            'path': getattr(selected_row, 'path', ''),
+                            'file_path': getattr(selected_row, 'file_path', '')
+                        }
+                else:
+                    selected_data = None
+            else:
+                # Direct item data passed (could be dict from custom renderer or Node from Tree widget)
+                # Check if this is a TreeNode (has _collection_data attribute)
+                collection_data = getattr(widget_or_item, '_collection_data', None)
+                if collection_data:
+                    # TreeNode passed directly from _handle_select
+                    logger.debug(f"🌳 TreeNode passed directly - extracting from _collection_data: {collection_data}")
+                    selected_data = {
+                        'id': collection_data.get('id', ''),
+                        'title': collection_data.get('title', 'Unknown Item'),
+                        'name': collection_data.get('name', collection_data.get('title', 'Unknown')),
+                        'type': collection_data.get('type', 'unknown'),
+                        'is_folder': collection_data.get('is_folder', False),
+                        'path': collection_data.get('path', ''),
+                        'file_path': collection_data.get('file_path', '')
+                    }
+                elif isinstance(widget_or_item, dict):
+                    # Dict from custom renderer (card/html) - extract the stored _item_data
+                    original_item = widget_or_item.get('_item_data', widget_or_item)
+                    selected_data = {
+                        'id': original_item.get('id', ''),
+                        'title': original_item.get('title', 'Unknown Item'),
+                        'name': original_item.get('name', original_item.get('title', 'Unknown')),
+                        'type': original_item.get('type', 'unknown'),
+                        'is_folder': original_item.get('is_folder', False),
+                        'path': original_item.get('path', ''),
+                        'file_path': original_item.get('file_path', '')
+                    }
+                else:
+                    logger.warning(f"Unexpected selection type: {type(widget_or_item)}")
+                    selected_data = None
+
+            # Now handle the selection (whether from DetailedList or ListWidget)
+            if selected_data is not None:
+                item_data = selected_data
                 logger.info(f"📌 Item selected: {item_data['title']} (id: {item_data['id']})")
                 logger.debug(f"Full item_data extracted: {item_data}")
 
@@ -1693,10 +1752,18 @@ class CollectionView(BaseView, ViewCommandMixin):
                     import asyncio
                     asyncio.create_task(self._update_inspector_async(item_data))
 
-                # Navigate on click (standard behavior)
-                # Note: Shift-click to select without navigating would require modifier key detection
-                # which Toga's DetailedList doesn't currently expose
-                self._handle_item_navigation(item_data)
+                # Update output view with selected item (if not a folder)
+                # For folders, ListWidget will handle navigation via _on_navigate_path_changed
+                if not item_data.get('is_folder', False):
+                    file_path = item_data.get('file_path')
+                    if file_path:
+                        logger.debug(f"📄 Non-folder item selected - loading outputs")
+                        import asyncio
+                        asyncio.create_task(self._load_item_outputs(item_data, file_path))
+                    else:
+                        logger.debug(f"📄 Non-folder item selected but no file_path")
+                else:
+                    logger.debug(f"📁 Folder selected - ListWidget will handle navigation")
             else:
                 logger.debug("No selection in widget")
 
@@ -2082,6 +2149,25 @@ class CollectionView(BaseView, ViewCommandMixin):
                     # Use folder ID for navigation (names can be empty/duplicate)
                     folder_id = item_data.get('id', '')
                     folder_name = item_data.get('name', '(unnamed)')
+                    folder_path = item_data.get('path', '')
+
+                    # Check if we're already at this folder (e.g., clicking header)
+                    if folder_path and folder_path == self.current_path:
+                        logger.info(f"FOLDER SELECTION: Already at folder '{folder_name}' - updating inspector and output (no navigation)")
+
+                        # Update inspector with folder metadata
+                        if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
+                            asyncio.create_task(self._update_inspector_with_folder_async(folder_id, folder_name))
+
+                        # Load folder-level outputs to output view
+                        if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                            main_window = self.app.main_window_wrapper
+                            if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                                logger.info(f"📊 Loading folder-level outputs for selected folder: {folder_id}")
+                                main_window.cached_output_view.load_output(item_id=folder_id)
+
+                        return  # Exit without navigating
+
                     logger.info(f"FOLDER NAVIGATION: Navigating to folder: '{folder_name}' (ID: {folder_id})")
 
                     # Navigate using the folder ID
@@ -3146,18 +3232,18 @@ class CollectionView(BaseView, ViewCommandMixin):
         self._load_collection_items()
     
     def _load_collection_items(self):
-        """Load items for the current collection and path"""
+        """Load ALL items for the collection (for navigable ListWidget)"""
         try:
-            logger.debug(f"📋 _load_collection_items called for instance {id(self)}")
-            logger.debug(f"   collection_id: {getattr(self, 'collection_id', 'NOT SET')}")
-            logger.debug(f"   library_service: {getattr(self, 'library_service', 'NOT SET')}")
+            logger.warning(f"🚨🚨🚨 _load_collection_items CALLED for instance {id(self)}")
+            logger.warning(f"   collection_id: {getattr(self, 'collection_id', 'NOT SET')}")
+            logger.warning(f"   library_service: {getattr(self, 'library_service', 'NOT SET')}")
 
             if self.library_service and hasattr(self, 'collection_id') and self.collection_id:
-                # Use hierarchical structure method for folder navigation
-                logger.info(f"📥 Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
-                self.collection_items = self.library_service.get_collection_structure_sync(
-                    self.collection_id,
-                    self.current_path
+                # Get ALL items for navigable ListWidget
+                # ListWidget will handle filtering by current_path
+                logger.info(f"📥 Loading ALL items for collection {self.collection_id}")
+                self.collection_items = self.library_service.get_collection_all_items(
+                    self.collection_id
                 )
 
                 # Debug: Log what we got back
@@ -3190,15 +3276,14 @@ class CollectionView(BaseView, ViewCommandMixin):
         """Load items for the current collection and path - SILENT VERSION without navigation events"""
         try:
             if self.library_service and hasattr(self, 'collection_id') and self.collection_id:
-                # Use hierarchical structure method for folder navigation
-                logger.debug(f"SILENT: Loading hierarchical structure for collection {self.collection_id}, path: '{self.current_path}'")
-                self.collection_items = self.library_service.get_collection_structure_sync(
-                    self.collection_id,
-                    self.current_path
+                # Get ALL items with full paths for navigable ListWidget
+                logger.warning(f"🚨 SILENT: Loading ALL items for collection {self.collection_id}")
+                self.collection_items = self.library_service.get_collection_all_items(
+                    self.collection_id
                 )
 
                 # Debug: Log what we got back
-                logger.debug(f"SILENT: Received {len(self.collection_items)} items from hierarchical structure")
+                logger.warning(f"🚨 SILENT: Received {len(self.collection_items)} total items with paths")
 
                 # Check if we have an existing items list to update
                 if hasattr(self, 'items_list') and self.items_list and self.collection_items:

@@ -14,6 +14,7 @@ from typing import Optional, List, Dict, Any
 from fichero.shared.views.base_view import BaseView
 from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 from fichero.shared.commands import FicheroCommand, ViewCommandMixin
+from fichero.shared.widgets import ListWidget  # Phase 6: Platform-adaptive widget
 # from ..containers.scroll_container import ScrollableContainer  # Using BaseView's scroll container instead
 from fichero.shared.toolbars.color_constants import (
     COLLECTION_ACTIVE, COLLECTION_INACTIVE, VIEW_BACKGROUND
@@ -205,12 +206,12 @@ class LibraryView(BaseView, ViewCommandMixin):
         try:
             # Store current selection to restore later
             current_selection_id = None
-            if (hasattr(self, 'collections_list') and
-                self.collections_list and
-                self.collections_list.selection):
+            if (hasattr(self, 'collections_list') and self.collections_list):
                 try:
-                    current_selection_id = self.collections_list.selection.collection_data.get('id')
-                    logger.debug(f"Preserving current selection: {current_selection_id}")
+                    selection = self.collections_list.get_selection()
+                    if selection:
+                        current_selection_id = selection.collection_data.get('id')
+                        logger.debug(f"Preserving current selection: {current_selection_id}")
                 except:
                     pass
 
@@ -252,52 +253,69 @@ class LibraryView(BaseView, ViewCommandMixin):
                 }
                 collection_data.append(formatted_item)
 
-            # Always recreate the detailed list - this is the most reliable approach
-            # (Skip the problematic in-place update that causes ListSource issues)
-            if hasattr(self, 'collections_list') and self.collections_list:
-                logger.debug("Recreating DetailedList to avoid ListSource update issues")
-                self._recreate_detailed_list(collection_data)
-            else:
-                # Create new detailed list
-                self._recreate_detailed_list(collection_data)
+            # ALWAYS recreate - Toga widgets don't properly update when data changes via set_data()
+            logger.info(f"🔄 Library: Recreating ListWidget with {len(collection_data)} collections")
+            self._recreate_detailed_list(collection_data)
 
         except Exception as e:
             logger.error(f"Failed to create/update collections detailed list: {e}")
 
     def _recreate_detailed_list(self, collection_data):
-        """Recreate the DetailedList widget (fallback when update fails)"""
+        """Recreate the list widget using ListWidget (Phase 6)"""
         try:
             # Remove existing list if present
             if hasattr(self, 'collections_list') and self.collections_list:
                 try:
-                    if self.content_container and self.collections_list in self.content_container.children:
-                        self.content_container.remove(self.collections_list)
-                except:
-                    pass
+                    if self.content_container and hasattr(self.collections_list, 'widget'):
+                        # ListWidget has a .widget property
+                        widget_to_remove = self.collections_list.widget
+                    else:
+                        widget_to_remove = self.collections_list
 
-            # Create new detailed list with context-aware swipe actions
-            primary_action, secondary_action = self._get_swipe_actions()
+                    if self.content_container and widget_to_remove in self.content_container.children:
+                        self.content_container.remove(widget_to_remove)
+                except Exception as e:
+                    logger.debug(f"Error removing old list: {e}")
 
-            self.collections_list = toga.DetailedList(
-                data=collection_data,
-                on_select=self._on_collection_selected,  # Re-enable tap to navigate
-                primary_action=primary_action["title"],
-                on_primary_action=primary_action["handler"],
-                secondary_action=secondary_action["title"],
-                on_secondary_action=secondary_action["handler"],
+            # Convert collection_data format: {title, subtitle, icon} -> {text, icon}
+            # ListWidget uses simpler format
+            tree_data = []
+            for item in collection_data:
+                tree_item = {
+                    'icon': item.get('icon'),
+                    'text': item.get('title', 'Unknown'),  # title -> text
+                    'subtitle': f"{item.get('type', 'Unknown type')} collection",  # For DetailedList
+                    # Store full collection data for callbacks
+                    '_collection_data': item.get('collection_data'),
+                    '_item_id': item.get('id')
+                }
+                tree_data.append(tree_item)
+
+            # Create ListWidget - automatically adapts to platform
+            # Desktop: Table (for flat lists), Mobile: DetailedList
+            # TESTING: Force HTML renderer to test HTML view UI
+            self.collections_list = ListWidget(
+                headings=['Collections'],
+                data=tree_data,
+                on_select=self._on_tree_select,  # Use wrapper for selection
                 style=Pack(
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
-                )
+                ),
+                renderer='table'  # TEMPORARY: Force Table for testing (Tree not rendering)
             )
 
-            if self.content_container:
-                self.content_container.add(self.collections_list)
+            # Store the data mapping for lookups
+            self._tree_data_map = {item.get('id'): item for item in collection_data}
 
-            logger.debug(f"Recreated DetailedList with {len(collection_data)} collections")
+            if self.content_container:
+                # Add the underlying widget (Tree/Table/DetailedList)
+                self.content_container.add(self.collections_list.widget)
+
+            logger.info(f"✅ Created ListWidget with {len(tree_data)} collections (platform: {self.collections_list.platform.value})")
 
         except Exception as e:
-            logger.error(f"Failed to recreate detailed list: {e}")
+            logger.error(f"Failed to recreate collections list: {e}", exc_info=True)
 
     def _get_swipe_actions(self):
         """Get fixed swipe actions for the library interface"""
@@ -379,8 +397,137 @@ class LibraryView(BaseView, ViewCommandMixin):
             return '🌐'
         else:
             return '��'
-    
-    
+    def _on_tree_select(self, selection):
+        """
+        Wrapper for ListWidget selection (Phase 6).
+
+        Converts ListWidget selection format to the format expected by
+        _on_collection_selected.
+        """
+        try:
+            logger.info(f"🌳 ListWidget selection: {selection}")
+
+            if selection is None:
+                # No selection - pass through to clear
+                class EmptyWidget:
+                    selection = None
+                self._on_collection_selected(EmptyWidget())
+                return
+
+            # ListWidget returns the underlying widget's selection
+            # For Tree/Table/DetailedList, this will be the selected item(s)
+            # We need to wrap it to match the expected interface
+
+            # Create a wrapper that mimics the DetailedList selection interface
+            class SelectionWrapper:
+                def __init__(self, item_data, collection_map):
+                    # Get the collection_data we stored earlier
+                    self.collection_data = item_data.get('_collection_data')
+                    if not self.collection_data and '_item_id' in item_data:
+                        # Fallback: lookup from map
+                        item_id = item_data['_item_id']
+                        if item_id in collection_map:
+                            self.collection_data = collection_map[item_id].get('collection_data')
+
+            class WidgetWrapper:
+                def __init__(self, selection_wrapper):
+                    self.selection = selection_wrapper
+
+            # Get the first selected item (for single selection)
+            if isinstance(selection, (list, tuple)):
+                if len(selection) > 0:
+                    selected_item = selection[0]
+                else:
+                    # Empty list - no selection
+                    logger.info("📭 Empty selection list")
+                    class EmptyWidget:
+                        selection = None
+                    self._on_collection_selected(EmptyWidget())
+                    return
+            else:
+                selected_item = selection
+
+            # Check if selected_item is None or falsy
+            if selected_item is None:
+                logger.info("📭 Selected item is None")
+                class EmptyWidget:
+                    selection = None
+                self._on_collection_selected(EmptyWidget())
+                return
+
+            logger.info(f"🔍 Selected item type: {type(selected_item)}, value: {selected_item}")
+
+            # Extract item data from the selection
+            # The format depends on the underlying widget type
+            item_data = {}
+
+            # Handle Tree Node objects - they have accessor attributes (e.g., node.collections)
+            if hasattr(selected_item, '__class__') and 'Node' in selected_item.__class__.__name__:
+                # Tree Node object - extract the text from the accessor
+                # The accessor is derived from the heading (e.g., 'Collections' -> 'collections')
+                accessor = self.collections_list.headings[0].lower() if hasattr(self, 'collections_list') else 'collections'
+                collection_name = getattr(selected_item, accessor, None)
+                logger.info(f"🌲 Tree Node selected: {collection_name}")
+
+                # Find the matching collection in _tree_data_map by name
+                if collection_name:
+                    for coll_id, coll_data in self._tree_data_map.items():
+                        if coll_data.get('title') == collection_name:
+                            item_data = {'_collection_data': coll_data.get('collection_data'), '_item_id': coll_id}
+                            logger.info(f"✅ Found collection data for '{collection_name}': {coll_data.get('collection_data')}")
+                            break
+                    else:
+                        logger.warning(f"⚠️ Could not find collection data for '{collection_name}'")
+
+            # Handle Row objects from Table widget - they have accessors like row.text, row.icon
+            elif hasattr(selected_item, '__class__') and 'Row' in selected_item.__class__.__name__:
+                # Table Row object - extract data from accessors
+                logger.info(f"📊 Table Row selected")
+                logger.info(f"📊   Row attributes: {dir(selected_item)}")
+
+                # Row objects have accessors - check if it has our custom data fields
+                if hasattr(selected_item, '_collection_data'):
+                    item_data = {'_collection_data': selected_item._collection_data}
+                    logger.info(f"✅ Found _collection_data on Row: {selected_item._collection_data}")
+                elif hasattr(selected_item, '_item_id'):
+                    # Lookup in map using _item_id
+                    item_id = selected_item._item_id
+                    if item_id in self._tree_data_map:
+                        item_data = {'_collection_data': self._tree_data_map[item_id].get('collection_data'), '_item_id': item_id}
+                        logger.info(f"✅ Found collection data via _item_id: {item_id}")
+                    else:
+                        logger.warning(f"⚠️ Could not find collection for item_id: {item_id}")
+                else:
+                    # Fallback: try to match by text
+                    row_text = getattr(selected_item, 'text', None)
+                    if row_text:
+                        for coll_id, coll_data in self._tree_data_map.items():
+                            if coll_data.get('title') == row_text:
+                                item_data = {'_collection_data': coll_data.get('collection_data'), '_item_id': coll_id}
+                                logger.info(f"✅ Found collection data by text match: '{row_text}'")
+                                break
+                        else:
+                            logger.warning(f"⚠️ Could not find collection for text: '{row_text}'")
+
+            # Handle dict (DetailedList)
+            elif isinstance(selected_item, dict):
+                item_data = selected_item
+                logger.info(f"📋 Dict selection: {item_data.keys()}")
+
+            # Handle objects with _collection_data attribute
+            elif hasattr(selected_item, '_collection_data'):
+                item_data = {'_collection_data': selected_item._collection_data}
+                logger.info(f"📦 Object with _collection_data")
+
+            wrapper = SelectionWrapper(item_data, self._tree_data_map)
+            widget_wrapper = WidgetWrapper(wrapper)
+
+            self._on_collection_selected(widget_wrapper)
+
+        except Exception as e:
+            logger.error(f"Error in _on_tree_select: {e}", exc_info=True)
+
+
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
         logger.info(f"🎯 _on_collection_selected CALLED! widget={widget}, has selection={hasattr(widget, 'selection')}")
@@ -2197,11 +2344,14 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.info("Show inspector requested")
 
             # Get currently selected collection
-            if not hasattr(self, 'collections_list') or not self.collections_list or not self.collections_list.selection:
-                logger.warning("No collection selected for inspector")
+            if not hasattr(self, 'collections_list') or not self.collections_list:
+                logger.warning("No collections list for inspector")
                 return
 
-            selected_row = self.collections_list.selection
+            selected_row = self.collections_list.get_selection()
+            if not selected_row:
+                logger.warning("No collection selected for inspector")
+                return
             collection_id = getattr(selected_row, 'id', None)
 
             if not collection_id:

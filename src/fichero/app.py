@@ -10,8 +10,10 @@ import sys
 import os
 import logging
 
-# Enable Toga debug layout mode to visualize containers
-# toga.Widget.DEBUG_LAYOUT_ENABLED = True
+# Enable Toga debug layout mode to visualize containers (PHASE 5)
+if os.environ.get('TOGA_DEBUG_LAYOUT') == '1':
+    toga.Widget.DEBUG_LAYOUT_ENABLED = True
+
 from pathlib import Path
 import gettext
 import locale
@@ -57,13 +59,19 @@ class FicheroApp(toga.App):
     
     def startup(self):
         """Initialize the app - delegates to shared initialization system"""
+        # Enable Toga debug layout mode if TOGA_DEBUG_LAYOUT is set
+        import os
+        if os.environ.get('TOGA_DEBUG_LAYOUT') == '1':
+            toga.Widget.DEBUG_LAYOUT_ENABLED = True
+            logger.info("🎨 Toga debug layout mode enabled")
+
         # Check if running as bundled GUI app (minimize console output)
         is_gui_only = self._is_gui_only_mode()
-        
+
         if not is_gui_only:
             print("🚀 Fichero GUI starting up...")
         logger.info("Fichero GUI starting up")
-        
+
         # Setup translations immediately after app creation, before importing UI modules
         self._setup_translations_early()
         
