@@ -13,6 +13,7 @@ import toga
 from toga.style import Pack
 
 from .step_manager import Step
+from fichero.shared.widgets.list_widget import ListWidget
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class StepBrowser:
             self._container.add(self._empty_label)
             return
 
-        # Create data for DetailedList
+        # Create data for ListWidget
         # The first step is the "Original" file, followed by tool outputs
         list_data = []
 
@@ -116,21 +117,25 @@ class StepBrowser:
                 icon_name = self._get_icon_for_tool(step.tool_name)
 
             list_data.append({
-                'icon': toga.Icon(icon_name) if icon_name else None,
-                'title': title,
+                'text': title,  # ListWidget uses 'text' for primary content
                 'subtitle': subtitle,
-                'index': i
+                'icon': toga.Icon(icon_name) if icon_name else None,
+                '_item_id': i  # Store index for callback
             })
 
-        # Create or recreate step list - small left margin for focus ring visibility
-        self._step_list = toga.DetailedList(
+        # Create or recreate step list using ListWidget with native renderer
+        # Force 'table' for now - Tree icons have issues with non-Icon values
+        self._step_list = ListWidget(
+            headings=['Steps'],  # Single column for steps
             data=list_data,
             on_select=self._on_step_selected,
+            renderer='native',  # Use native Table/DetailedList
+            force_widget_type='table',  # Force table - tree icons are problematic
             style=Pack(flex=1, margin_left=2)  # Small left margin so focus ring is visible
         )
 
-        # Add to container
-        self._container.add(self._step_list)
+        # Add to container (ListWidget.widget is the actual toga widget)
+        self._container.add(self._step_list.widget)
 
         # Note: We don't programmatically set selection as it's read-only in Toga
         # The selection will be set when user clicks, or we trigger the callback manually
@@ -163,14 +168,20 @@ class StepBrowser:
         }
         return icon_map.get(tool_name, 'resources/icons/toolbar/gear@10x.png')
 
-    def _on_step_selected(self, widget):
+    def _on_step_selected(self, widget, **kwargs):
         """Handle step selection"""
         try:
-            if not self._step_list or not self._step_list.selection:
+            # ListWidget passes the selected item data in kwargs
+            selected_data = kwargs.get('selected_data')
+            if not selected_data:
+                self.logger.warning("StepBrowser: No selected_data in callback")
                 return
 
-            selected = self._step_list.selection
-            index = selected.index
+            # Get the index from _item_id
+            index = selected_data.get('_item_id')
+            if index is None:
+                self.logger.warning("StepBrowser: No _item_id in selected_data")
+                return
 
             self.logger.info(f"StepBrowser: Step selected at index {index}")
             self.current_index = index
@@ -191,10 +202,10 @@ class StepBrowser:
         Args:
             index: Index to select
         """
-        if not self._step_list or not self._step_list.data:
+        if not self._step_list:
             return
 
-        if 0 <= index < len(self._step_list.data):
+        if 0 <= index < len(self.steps):
             self.current_index = index
             # Note: selection is read-only in Toga, so we just update our internal state
             # and trigger the callback
