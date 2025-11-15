@@ -1283,13 +1283,15 @@ class LibraryManager:
             # Get processing steps - behavior depends on item type
             processing_steps = []
 
+            # Import ProcessingStep here so it's available throughout the function
+            from fichero.library.director_output_parser import ProcessingStep
+
             # Check if this is a folder item (use is_folder attribute or type field)
             is_folder = getattr(item, 'is_folder', False) or getattr(item, 'type', 'file') == 'folder'
 
             # PREFERRED: Read steps from processing_history metadata (Director records execution)
             if latest_result and latest_result.metadata and 'steps' in latest_result.metadata:
                 logger.info(f"Loading processing steps from processing_history metadata")
-                from fichero.library.director_output_parser import ProcessingStep
 
                 # Get filename for file-level filtering
                 filename = source_path.name if source_path else item.name

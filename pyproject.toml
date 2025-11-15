@@ -56,6 +56,7 @@ requires = [
     "std-nslog~=1.0.3",
     "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
     "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
+    "rubicon-objc>=0.4.0,<1.0.0",  # Objective-C bridge for NSOutlineView sidebar
     # CLI dependencies for macOS
     "typer>=0.16.0,<1.0.0",
     "rich>=14.0.0,<15.0.0",

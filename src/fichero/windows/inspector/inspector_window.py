@@ -5,11 +5,14 @@ Preview-style tabbed inspector that displays metadata about the currently select
 """
 
 import logging
+import asyncio
 from typing import Optional, Dict, Any
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW
 from toga.colors import TRANSPARENT
+
+from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,9 @@ class InspectorWindow:
         self.details_container: Optional[toga.Box] = None
         self.iiif_container: Optional[toga.Box] = None  # New IIIF tab
         self.workflows_container: Optional[toga.Box] = None  # New Workflows tab
+
+        # Subscribe to pane focus events to follow focused pane
+        subscribe_to_navigation("PANE_FOCUS_CHANGED", self._on_pane_focus_changed)
 
         logger.info("InspectorWindow initialized")
 
@@ -113,6 +119,75 @@ class InspectorWindow:
                 logger.info(f"Inspector container not created yet (window={self.window is not None}, container={self.option_container is not None})")
         except Exception as e:
             logger.error(f"Failed to update metadata: {e}", exc_info=True)
+
+    def _on_pane_focus_changed(self, event):
+        """Handle pane focus change events - update inspector with focused pane's metadata"""
+        try:
+            pane = event.data.get('pane')
+            if not pane:
+                logger.warning("PANE_FOCUS_CHANGED event missing 'pane' data")
+                return
+
+            # Only update if inspector is visible
+            if not self.is_visible:
+                logger.debug("Inspector not visible, skipping pane focus update")
+                return
+
+            # Get the item_id and step_index from the pane
+            item_id = getattr(pane, 'current_item_id', None)
+            step_index = getattr(pane, 'current_step_index', None)
+
+            if not item_id:
+                logger.debug("Focused pane has no current item, clearing inspector")
+                self.update_metadata({}, selection_type='PANE')
+                return
+
+            logger.info(f"🔍 Pane focus changed to item {item_id}, step {step_index}")
+
+            # Fetch metadata from library manager asynchronously
+            asyncio.create_task(self._fetch_and_update_pane_metadata(item_id, step_index))
+
+        except Exception as e:
+            logger.error(f"Error handling pane focus change: {e}", exc_info=True)
+
+    async def _fetch_and_update_pane_metadata(self, item_id: str, step_index: Optional[int]):
+        """Fetch metadata for the focused pane's item and update inspector"""
+        try:
+            # Get library manager from app
+            if not hasattr(self.app, 'library_manager') or not self.app.library_manager:
+                logger.warning("Library manager not available")
+                return
+
+            library_manager = self.app.library_manager
+
+            # Fetch item metadata
+            item = await library_manager.get_item(item_id)
+            if not item:
+                logger.warning(f"Item {item_id} not found in library")
+                return
+
+            # Build metadata dict with item info
+            metadata = {
+                'id': item.id,
+                'name': item.name or '(unnamed)',
+                'path': str(item.path) if item.path else '',
+                'type': item.type,
+                'collection_id': item.collection_id,
+            }
+
+            # Add custom metadata if available
+            if hasattr(item, 'metadata') and item.metadata:
+                metadata.update(item.metadata)
+
+            # Add step information if available
+            if step_index is not None:
+                metadata['current_step'] = step_index
+
+            logger.info(f"✅ Fetched metadata for item {item_id} from focused pane")
+            self.update_metadata(metadata, selection_type='ITEM')
+
+        except Exception as e:
+            logger.error(f"Error fetching pane metadata: {e}", exc_info=True)
 
     def _parse_metadata_text(self, text: str) -> Dict[str, Any]:
         """Parse the text metadata into a dictionary
@@ -897,7 +972,7 @@ class InspectorWindow:
                 value_str = str(value)
 
                 # Create horizontal row for label + value
-                row = toga.Box(style=Pack(direction=ROW, margin_bottom=3, alignment='top'))
+                row = toga.Box(style=Pack(direction=ROW, margin_bottom=3, align_items='start'))
 
                 # Label (right-aligned, fixed width)
                 label_widget = toga.Label(

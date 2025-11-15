@@ -93,6 +93,10 @@ class NavigationEvents:
     SHOW_COLLECTION = "show_collection"
     SHOW_PREVIEW = "show_preview"
     SHOW_MODAL = "show_modal"
+    VIEW_FOCUSED = "view_focused"  # Phase 3.1: Layout manager view focus events
+
+    # Selection events
+    SELECTION_CHANGED = "selection_changed"  # Emitted when selection changes in any view
 
     # UI events
     BACK_BUTTON_STATE_CHANGED = "back_button_state_changed"

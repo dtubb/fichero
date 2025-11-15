@@ -49,7 +49,7 @@ class RenameCollectionView(BaseView):
             center_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    alignment="center",
+                    align_items="center",
                     flex=1
                 )
             )
@@ -58,7 +58,7 @@ class RenameCollectionView(BaseView):
             form_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
-                    alignment="center",
+                    align_items="center",
                     margin=(0, 40, 0, 40)  # Horizontal margins only
                 )
             )
@@ -79,7 +79,7 @@ class RenameCollectionView(BaseView):
             button_box = toga.Box(
                 style=Pack(
                     direction=ROW,
-                    alignment="center"
+                    align_items="center"
                 )
             )
 

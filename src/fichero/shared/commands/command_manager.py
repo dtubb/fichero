@@ -8,6 +8,7 @@ Manages command registration and platform-specific presentation:
 This replaces the old MenuManager with a more comprehensive system.
 """
 
+import sys
 import toga
 import logging
 from typing import Dict, Optional
@@ -38,6 +39,7 @@ class CommandManager:
         """Initialize the command manager"""
         self.app = app
         self.is_mobile = getattr(app, 'is_mobile', False)
+        self.is_macos = sys.platform == 'darwin'
         self._toga_commands: Dict[str, toga.Command] = {}  # Maps FicheroCommand.id to toga.Command
         self.registry = CommandRegistry.get_instance()
 
@@ -54,7 +56,29 @@ class CommandManager:
         # Multiple views can register commands with same label - routing chooses based on active view
         self._command_handlers_by_label: Dict[tuple, list] = {}
 
-        logger.info(f"CommandManager initialized (is_mobile={self.is_mobile})")
+        # macOS NSToolbar support (desktop only)
+        self.mac_toolbar_managers: Dict[str, Any] = {}  # window_id -> MacToolbarManager
+        if self.is_macos and not self.is_mobile:
+            try:
+                from fichero.shared.commands.mac_toolbar_manager import MacToolbarManager, RUBICON_AVAILABLE
+                self._mac_toolbar_class = MacToolbarManager
+                self._mac_toolbar_available = RUBICON_AVAILABLE
+                if RUBICON_AVAILABLE:
+                    logger.info("MacToolbarManager available - NSToolbar support enabled")
+                else:
+                    logger.warning("MacToolbarManager loaded but rubicon-objc not available")
+            except ImportError as e:
+                logger.warning(f"MacToolbarManager not available: {e}")
+                self._mac_toolbar_class = None
+                self._mac_toolbar_available = False
+        else:
+            self._mac_toolbar_class = None
+            self._mac_toolbar_available = False
+
+        # Track pending titlebar commands (registered before toolbar manager exists)
+        self._pending_titlebar_commands = []
+
+        logger.info(f"CommandManager initialized (is_mobile={self.is_mobile}, is_macos={self.is_macos}, mac_toolbar={self._mac_toolbar_available})")
 
     @classmethod
     def get_instance(cls, app=None) -> 'CommandManager':
@@ -77,6 +101,7 @@ class CommandManager:
                 - If show_in_menu=True: Creates toga.Command, adds to app.commands (native menu)
                 - If show_in_toolbar=True: Command available for native toolbar OR custom toolbar
                   (Native toolbar preferred, custom toolbar as override)
+                - If show_in_titlebar=True: Adds button to window titlebar
             Mobile:
                 - show_in_menu ignored (no native menus)
                 - If show_in_toolbar=True: Command available for custom toolbar only
@@ -96,10 +121,15 @@ class CommandManager:
         if not self.is_mobile and command.show_in_menu:
             self._add_to_native_menu(command)
 
-        # Log toolbar availability
-        if command.show_in_toolbar:
-            platform_str = "native/custom toolbar" if not self.is_mobile else "custom toolbar"
-            logger.debug(f"Command {command.id} available for {platform_str}")
+        # Desktop macOS: Add to titlebar if requested
+        if not self.is_mobile and command.show_in_titlebar:
+            self._add_to_titlebar(command)
+
+        # Desktop macOS: Mark as available for NSToolbar (will be built later by build_native_toolbar)
+        # Don't add to toolbar immediately - window may not exist yet!
+        if not self.is_mobile and command.show_in_toolbar:
+            platform_str = "native toolbar" if self._mac_toolbar_available else "custom toolbar"
+            logger.debug(f"Command {command.id} registered for {platform_str} (will be built later)")
 
     def _create_routing_action(self, label_key: tuple):
         """
@@ -335,6 +365,84 @@ class CommandManager:
         except Exception as e:
             logger.error(f"Failed to add command {command.id} to native menu: {e}")
 
+    def _add_to_titlebar(self, command: FicheroCommand) -> None:
+        """
+        Add command to macOS titlebar as an accessory button.
+
+        This is called when a command with show_in_titlebar=True is registered.
+        The button is added dynamically, regardless of registration timing.
+
+        Args:
+            command: FicheroCommand with show_in_titlebar=True
+        """
+        if not self._mac_toolbar_available:
+            logger.debug(f"MacToolbarManager not available, skipping titlebar for {command.id}")
+            return
+
+        try:
+            # Get the main window
+            try:
+                window = self.app.main_window.window if hasattr(self.app, 'main_window') else None
+            except ValueError:
+                # Main window not set yet - track for later
+                logger.debug(f"Main window not set yet, tracking titlebar command: {command.id}")
+                self._pending_titlebar_commands.append(command)
+                return
+
+            if not window:
+                logger.debug(f"No window, tracking titlebar command: {command.id}")
+                self._pending_titlebar_commands.append(command)
+                return
+
+            # Get or create MacToolbarManager for this window
+            window_id = id(window)
+            if window_id not in self.mac_toolbar_managers:
+                # Track for later
+                logger.debug(f"No toolbar manager yet, tracking: {command.id}")
+                self._pending_titlebar_commands.append(command)
+                return
+
+            manager = self.mac_toolbar_managers[window_id]
+
+            # Add titlebar accessory dynamically
+            manager.add_titlebar_accessory(command)
+            logger.debug(f"✅ Added titlebar accessory: {command.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to add titlebar accessory for {command.id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _process_pending_titlebar_commands(self, window_id: int) -> None:
+        """
+        Process any titlebar commands that were registered before toolbar manager existed.
+
+        Called by MacToolbarManager after initialization.
+
+        Args:
+            window_id: ID of the window whose toolbar was initialized
+        """
+        if not self._pending_titlebar_commands:
+            return
+
+        if window_id not in self.mac_toolbar_managers:
+            logger.warning(f"Cannot process pending titlebar commands: no manager for window {window_id}")
+            return
+
+        manager = self.mac_toolbar_managers[window_id]
+
+        logger.info(f"Processing {len(self._pending_titlebar_commands)} pending titlebar commands")
+
+        for command in self._pending_titlebar_commands:
+            try:
+                manager.add_titlebar_accessory(command)
+                logger.debug(f"✅ Processed pending titlebar command: {command.id}")
+            except Exception as e:
+                logger.error(f"Failed to process pending titlebar command {command.id}: {e}")
+
+        # Clear pending list
+        self._pending_titlebar_commands.clear()
+
     def get_command(self, command_id: str) -> Optional[FicheroCommand]:
         """Get a registered FicheroCommand by ID"""
         return self.registry.get(command_id)
@@ -379,6 +487,16 @@ class CommandManager:
             logger.debug("Skipping native toolbar on mobile platform")
             return
 
+        # Route to MacToolbarManager on macOS (if available)
+        print(f"🔍 CommandManager.build_native_toolbar called: view_id={view_id}, context={context}, mac_available={self._mac_toolbar_available}")
+        if self._mac_toolbar_available:
+            print(f"✅ Routing to MacToolbarManager for window: {window.title}")
+            logger.info(f"Using MacToolbarManager for window: {window.title}")
+            return self._build_mac_toolbar(window, command_ids, view_id, context, mode)
+        else:
+            print(f"⚠️  MacToolbarManager NOT available, using Toga fallback")
+
+        # Fall back to Toga toolbar on Windows/Linux or if MacToolbarManager unavailable
         try:
             # Handle remove mode
             if mode == 'remove':
@@ -498,6 +616,125 @@ class CommandManager:
             import traceback
             logger.error(traceback.format_exc())
 
+    def _build_mac_toolbar(
+        self,
+        window: 'toga.Window',
+        command_ids: list = None,
+        view_id: str = None,
+        context: str = 'normal',
+        mode: str = 'add'
+    ) -> None:
+        """
+        Build macOS NSToolbar using MacToolbarManager
+
+        Args:
+            window: Toga window
+            command_ids: Optional list of command IDs
+            view_id: Optional view ID for filtering
+            context: Context for filtering
+            mode: 'add', 'replace', or 'remove'
+        """
+        try:
+            # Get or create MacToolbarManager for this window
+            window_id = id(window)
+            if window_id not in self.mac_toolbar_managers:
+                manager = self._mac_toolbar_class(self.app, window)
+                self.mac_toolbar_managers[window_id] = manager
+                logger.debug(f"Created MacToolbarManager for window: {window.title}")
+            else:
+                manager = self.mac_toolbar_managers[window_id]
+
+            # Handle different modes
+            if mode == 'remove':
+                logger.info(f"Remove mode not yet implemented for MacToolbarManager")
+                return
+
+            # Get toolbar menus (for dropdowns)
+            toolbar_menus = []
+            try:
+                from fichero.shared.commands.toolbar_menu_manager import ToolbarMenuManager
+                menu_manager = ToolbarMenuManager.get_instance(self.app)
+                toolbar_menus = menu_manager.get_menus_for_context(view_id)
+                logger.debug(f"Found {len(toolbar_menus)} toolbar menus for view '{view_id}'")
+            except Exception as menu_err:
+                logger.debug(f"Could not get toolbar menus: {menu_err}")
+
+            # Build toolbar
+            if mode == 'replace':
+                # Full rebuild
+                manager.build_toolbar(
+                    command_manager=self,
+                    toolbar_menus=toolbar_menus,
+                    toolbar_id=f"fichero.{view_id or 'main'}.toolbar",
+                    view_id=view_id,
+                    context=context,
+                    allow_customization=True,
+                    autosave=True
+                )
+            else:  # mode == 'add'
+                # For now, treat 'add' as rebuild
+                # TODO: Implement true additive mode
+                manager.build_toolbar(
+                    command_manager=self,
+                    toolbar_menus=toolbar_menus,
+                    toolbar_id=f"fichero.{view_id or 'main'}.toolbar",
+                    view_id=view_id,
+                    context=context,
+                    allow_customization=True,
+                    autosave=True
+                )
+
+            logger.info(f"✅ Mac NSToolbar built for view '{view_id}'")
+
+        except Exception as e:
+            logger.error(f"Failed to build Mac toolbar: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _add_to_native_toolbar(self, command: FicheroCommand) -> None:
+        """
+        Add a single command to the native NSToolbar dynamically (like menus).
+
+        This is called when a command is registered with show_in_toolbar=True.
+        The toolbar must already be initialized before calling this.
+
+        Args:
+            command: FicheroCommand to add to toolbar
+        """
+        if not self._mac_toolbar_available:
+            return
+
+        try:
+            # Get the main window (assumes single window for now)
+            # TODO: Support multiple windows
+            try:
+                window = self.app.main_window.window if hasattr(self.app, 'main_window') else None
+            except ValueError:
+                # Main window not set yet - this is OK, toolbar will be built later
+                logger.debug(f"Main window not set yet, deferring toolbar item for {command.id}")
+                return
+
+            if not window:
+                logger.debug(f"No main window found, deferring toolbar item for {command.id}")
+                return
+
+            # Get or create MacToolbarManager for this window
+            window_id = id(window)
+            if window_id not in self.mac_toolbar_managers:
+                logger.warning(f"No MacToolbarManager found for window, cannot add toolbar item for {command.id}")
+                return
+
+            manager = self.mac_toolbar_managers[window_id]
+
+            # Add item to toolbar
+            manager.add_toolbar_item(command)
+            logger.debug(f"✅ Added toolbar item for command: {command.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to add command {command.id} to native toolbar: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
     def register_view_commands(self, view_id: str, commands: Dict[str, FicheroCommand]) -> None:
         """
         Register multiple commands from a view with automatic platform handling.
@@ -578,10 +815,13 @@ class CommandManager:
                 ]
 
             # Filter by view_id if provided (commands have IDs like "view.action")
+            # Include view-specific commands, global view commands, and collection commands
             if view_id:
                 toolbar_commands = [
                     cmd for cmd in toolbar_commands
-                    if cmd.id.startswith(f"{view_id}.")
+                    if (cmd.id.startswith(f"{view_id}.") or
+                        cmd.id.startswith("view.") or  # Include global view commands in all toolbars
+                        cmd.id.startswith("collection."))  # Include collection commands in all toolbars
                 ]
 
             # Filter by context if provided

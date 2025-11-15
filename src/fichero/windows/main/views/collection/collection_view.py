@@ -211,13 +211,13 @@ class CollectionView(BaseView, ViewCommandMixin):
                     action=self._on_process_requested,
                     shortcut=toga.Key.MOD_1 + toga.Key.ENTER,  # Cmd+Enter
                     icon='resources/icons/toolbar/sparkle@10x.png',
+                    toolbar_icon=None,  # Use PNG icon instead of SF Symbol
                     description=_("Process selected item or all items"),
                     group=tools_group,  # Tools menu on desktop
                     section=1,  # Section 1 = separator after Inspector
                     order=0,  # First item in this section
                     show_in_menu=True,  # Appear in Tools menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar
-                    show_in_top_toolbar=False,  # Not in mobile top toolbar
+                    show_in_top_toolbar=True,  # Show in desktop toolbar and mobile top toolbar
                     show_in_bottom_toolbar=True,  # Mobile bottom toolbar
                     toolbar_position='right',  # Right side on mobile bottom toolbar
                     mobile_only=False,  # Available on both platforms
@@ -248,7 +248,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     id='collection.process_crop',
                     label=_("Crop Images"),
                     action=self._on_quick_process_crop,
-                    icon='resources/icons/toolbar/crop.rectangle@10x.png',
+                    icon='resources/icons/toolbar/crop@10x.png',
                     description=_("Crop selected images using contour detection"),
                     group=tools_group,
                     parent='collection.quick_tools',
@@ -299,7 +299,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     id='collection.process_enhance',
                     label=_("Enhance Images"),
                     action=self._on_quick_process_enhance,
-                    icon='resources/icons/toolbar/wand.stars@10x.png',
+                    icon='resources/icons/toolbar/wand.and.sparkles@10x.png',
                     description=_("Enhance image quality with contrast and clarity improvements"),
                     group=tools_group,
                     parent='collection.quick_tools',
@@ -367,7 +367,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     id='collection.process_recombine',
                     label=_("Recombine Segments"),
                     action=self._on_quick_process_recombine,
-                    icon='resources/icons/toolbar/arrow.triangle.merge@10x.png',
+                    icon='resources/icons/toolbar/arrow.trianglehead.merge@10x.png',
                     description=_("Recombine segmented regions back together"),
                     group=tools_group,
                     parent='collection.quick_tools',
@@ -384,7 +384,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     id='collection.process_transcribe',
                     label=_("Transcribe Images"),
                     action=self._on_quick_process_transcribe,
-                    icon='resources/icons/toolbar/doc.text@10x.png',
+                    icon='resources/icons/toolbar/text.document@10x.png',
                     description=_("OCR and AI transcription of document images"),
                     group=tools_group,
                     parent='collection.quick_tools',
@@ -435,7 +435,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     id='collection.process_convert_word',
                     label=_("Convert to Word"),
                     action=self._on_quick_process_convert_word,
-                    icon='resources/icons/toolbar/doc.richtext@10x.png',
+                    icon='resources/icons/toolbar/richtext.page@10x.png',
                     description=_("Convert images and transcriptions to Word documents"),
                     group=tools_group,
                     parent='collection.quick_tools',
@@ -447,23 +447,52 @@ class CollectionView(BaseView, ViewCommandMixin):
                     context='normal'
                 ),
 
+                # ===== FILE MENU - IMPORT SUBMENU PARENT =====
+                # This is the parent submenu command that contains all import items
+                'import': FicheroCommand(
+                    id='collection.import',
+                    label=_("Import"),
+                    action=lambda widget: None,  # Dummy action - real actions in menu_items
+                    icon='resources/icons/toolbar/import.png',
+                    toolbar_icon=None,  # Use PNG icon instead of SF Symbol
+                    description=_("Import files, folders, or URLs into collection"),
+                    group=toga.Group.FILE,
+                    section=1,
+                    order=0,
+                    show_in_menu=False,  # Don't show parent in File menu - children create submenu via parent=
+                    show_in_top_toolbar=True,  # Show in desktop toolbar with dropdown
+                    desktop_only=True,
+                    context='normal',
+                    item_type='menu',  # NSMenuToolbarItem
+                    menu_items=[
+                        {'label': _("File…"), 'action': self._on_import_file, 'icon': 'doc.fill'},
+                        {'label': _("Folder…"), 'action': self._on_import_folder, 'icon': 'folder.fill'},
+                        {'label': _("URL…"), 'action': self._on_import_url, 'icon': 'link.circle.fill'},
+                        {'label': _("Link File…"), 'action': self._on_link_file, 'icon': 'doc'},
+                        {'label': _("Link Folder…"), 'action': self._on_link_folder, 'icon': 'folder'},
+                    ],
+                    shows_menu_indicator=True,
+                    tooltip=_("Import files, folders, or URLs"),
+                    visibility_priority=800
+                ),
+
                 # ===== FILE MENU - IMPORT SUBMENU ITEMS =====
                 # These commands add items to the current collection
-                # These commands are nested under the Import submenu in menus
-                # But also appear as individual toolbar buttons on desktop
+                # These commands are nested under the Import submenu in File menu
+                # They do NOT appear as individual toolbar buttons (accessed via Import dropdown)
                 'import_file': FicheroCommand(
                     id='collection.import_file',
                     label=_("File…"),
                     action=self._on_import_file,
                     icon='resources/icons/toolbar/document.png',
+                    toolbar_icon="doc.fill",  # macOS NSToolbar SF Symbol
                     description=_("Add files to current collection"),
                     group=toga.Group.FILE,  # File menu on desktop
-                    parent='collection.import',  # Nested under Import submenu in menu
+                    parent='collection.import',  # Nested under Import submenu in File menu
                     section=1,  # Same section as parent Import command
                     order=0,  # First item in Import submenu
-                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
-                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
-                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_menu=True,  # Show in File > Import menu
+                    show_in_toolbar=False,  # NOT in toolbar - accessed via Import dropdown
                     show_in_bottom_toolbar=False,  # NOT on mobile (desktop only)
                     desktop_only=True,  # Desktop only - mobile uses URL and Camera
                     mobile_only=False,
@@ -475,14 +504,14 @@ class CollectionView(BaseView, ViewCommandMixin):
                     label=_("Folder…"),
                     action=self._on_import_folder,
                     icon='resources/icons/toolbar/folder@10x.png',
+                    toolbar_icon="folder.fill",  # macOS NSToolbar SF Symbol
                     description=_("Add folder to current collection"),
                     group=toga.Group.FILE,  # File menu on desktop
-                    parent='collection.import',  # Nested under Import submenu in menu
+                    parent='collection.import',  # Nested under Import submenu in File menu
                     section=1,  # Same section as parent Import command
                     order=1,  # Second item in Import submenu
-                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
-                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
-                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_menu=True,  # Show in File > Import menu
+                    show_in_toolbar=False,  # NOT in toolbar - accessed via Import dropdown
                     show_in_bottom_toolbar=False,  # NOT on mobile (desktop only)
                     desktop_only=True,  # Desktop only - mobile uses URL and Camera
                     mobile_only=False,
@@ -494,14 +523,14 @@ class CollectionView(BaseView, ViewCommandMixin):
                     label=_("URL…"),
                     action=self._on_import_url,
                     icon='resources/icons/toolbar/link.png',
+                    toolbar_icon="link.circle.fill",  # macOS NSToolbar SF Symbol
                     description=_("Add URL to current collection"),
                     group=toga.Group.FILE,  # File menu on desktop
-                    parent='collection.import',  # Nested under Import submenu in menu
+                    parent='collection.import',  # Nested under Import submenu in File menu
                     section=1,  # Same section as parent Import command
                     order=10,  # Menu order + toolbar order
-                    show_in_menu=True,  # Desktop: File > Import menu (native menu bar)
-                    show_in_toolbar=True,  # Desktop: native command bar (window.toolbar)
-                    show_in_top_toolbar=False,  # NOT in view's custom top toolbar
+                    show_in_menu=True,  # Show in File > Import menu
+                    show_in_toolbar=False,  # NOT in top toolbar - accessed via Import dropdown
                     show_in_bottom_toolbar=True,  # Mobile: show in bottom toolbar
                     toolbar_position='left',  # Position on left side of bottom toolbar
                     desktop_only=False,  # Available on both platforms
@@ -537,10 +566,10 @@ class CollectionView(BaseView, ViewCommandMixin):
                     icon='resources/icons/toolbar/document.png',
                     description=_("Link to file (reference only, no copy)"),
                     group=toga.Group.FILE,  # File menu on desktop
-                    parent='collection.import',  # Nested under Import submenu in menu
+                    parent='collection.import',  # Nested under Import submenu in File menu
                     section=2,  # New section - creates separator above
                     order=0,  # First item in link section
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_menu=True,  # Show in File > Import menu
                     show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
                     show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
                     desktop_only=True,  # Only show on desktop, not mobile
@@ -554,10 +583,10 @@ class CollectionView(BaseView, ViewCommandMixin):
                     icon='resources/icons/toolbar/folder@10x.png',
                     description=_("Link to folder (reference only, no copy)"),
                     group=toga.Group.FILE,  # File menu on desktop
-                    parent='collection.import',  # Nested under Import submenu in menu
+                    parent='collection.import',  # Nested under Import submenu in File menu
                     section=2,  # Same section as link commands
                     order=1,  # Second item in link section
-                    show_in_menu=True,  # Appear in File > Import menu on desktop
+                    show_in_menu=True,  # Show in File > Import menu
                     show_in_toolbar=False,  # NOT in desktop toolbar (menu only)
                     show_in_bottom_toolbar=False,  # NOT on mobile bottom toolbar
                     desktop_only=True,  # Only show on desktop, not mobile
@@ -624,23 +653,31 @@ class CollectionView(BaseView, ViewCommandMixin):
     def show(self):
         """Called when view becomes active - light refresh without recreating content"""
         try:
-            # Light refresh - just clear list selection without rebuilding everything
-            if hasattr(self, 'items_list') and self.items_list:
-                # Clear any existing selection state but don't recreate the entire list
-                try:
-                    # ListWidget doesn't have .selection, but we can trigger deselect via callback
-                    # For now, just skip clearing selection for ListWidget
-                    if hasattr(self.items_list, 'selection'):
-                        self.items_list.selection = None
-                        logger.debug("🔄 Cleared list selection state")
-                except Exception as e:
-                    logger.debug(f"Could not clear list selection: {e}")
+            # Prevent recursion if show() is called while already showing
+            if hasattr(self, '_showing') and self._showing:
+                logger.debug("⏭️ Already showing collection view, skipping to prevent recursion")
+                return
 
-            # Mark view as visible but don't recreate content unnecessarily
-            self.is_visible = True
-            logger.info("🔄 Collection view refreshed on show() - lightweight refresh")
+            self._showing = True
+            try:
+                # Light refresh - just clear list selection without rebuilding everything
+                if hasattr(self, 'items_list') and self.items_list:
+                    # Clear any existing selection state but don't recreate the entire list
+                    try:
+                        # Use ListWidget's deselect_all() method
+                        self.items_list.deselect_all()
+                        logger.debug("🔄 Cleared list selection state")
+                    except Exception as e:
+                        logger.debug(f"Could not clear list selection: {e}")
+
+                # Mark view as visible but don't recreate content unnecessarily
+                self.is_visible = True
+                logger.info("🔄 Collection view refreshed on show() - lightweight refresh")
+            finally:
+                self._showing = False
         except Exception as e:
             logger.error(f"Failed to refresh collection view on show: {e}")
+            self._showing = False
     
     def _create_content(self):
         """Create the collection view content"""
@@ -1280,9 +1317,10 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.info("Show inspector requested")
 
             # Check if an item is selected
-            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
+            selection = self.items_list.get_selection() if (hasattr(self, 'items_list') and self.items_list) else None
+            if selection:
                 # Item selected - show item inspector
-                selected_row = self.items_list.selection
+                selected_row = selection
                 item_id = getattr(selected_row, 'id', None)
 
                 if item_id:
@@ -1509,7 +1547,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             if hasattr(self.top_toolbar, 'update_navigation_state'):
                 # Check if using HTML/Card renderer which has its own back button
                 has_own_back = False
-                if hasattr(self.items_list, '_renderer_type'):
+                if hasattr(self, 'items_list') and hasattr(self.items_list, '_renderer_type'):
                     has_own_back = self.items_list._renderer_type in ('html', 'card')
                 self.top_toolbar.update_navigation_state(self.current_path, has_own_back_button=has_own_back)
         except Exception as e:
@@ -1648,122 +1686,157 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle navigation change: {e}", exc_info=True)
 
-    def _on_item_selected(self, widget_or_item):
-        """Handle item selection from list (works with DetailedList, Tree, or ListWidget)"""
+    def _extract_item_data(self, widget_or_item):
+        """
+        Extract item data from widget selection, Row/Node object, or dict.
+
+        Handles all selection formats:
+        - Toga widget (has .selection attribute)
+        - Row object (from Table/DetailedList)
+        - Node object (from Tree, has ._collection_data)
+        - Dict (from custom renderer)
+
+        Args:
+            widget_or_item: Widget, Row, Node, or dict
+
+        Returns:
+            Dict with keys: id, name, title, type, is_folder, path, file_path
+            Returns None if data cannot be extracted
+        """
         try:
-            logger.info(f"🎯 _on_item_selected called with: {type(widget_or_item)}, hasattr selection: {hasattr(widget_or_item, 'selection')}")
+            # Case 1: Widget with .selection attribute
+            if hasattr(widget_or_item, 'selection'):
+                if widget_or_item.selection is None:
+                    return None
+                return self._extract_item_data(widget_or_item.selection)
 
-            # Check if this is a list of selections (multiple selection enabled)
+            # Case 2: Node object with ._collection_data attribute (Tree widget)
+            collection_data = getattr(widget_or_item, '_collection_data', None)
+            if collection_data:
+                return {
+                    'id': collection_data.get('id', ''),
+                    'title': collection_data.get('title', 'Unknown Item'),
+                    'name': collection_data.get('name', collection_data.get('title', 'Unknown')),
+                    'type': collection_data.get('type', 'unknown'),
+                    'is_folder': collection_data.get('is_folder', False),
+                    'path': collection_data.get('path', ''),
+                    'file_path': collection_data.get('file_path', '')
+                }
+
+            # Case 3: Dict (from custom renderer or already extracted)
+            if isinstance(widget_or_item, dict):
+                # Handle dicts that might have _item_data nested
+                original_item = widget_or_item.get('_item_data', widget_or_item)
+                return {
+                    'id': original_item.get('id', original_item.get('_item_id', '')),
+                    'title': original_item.get('title', 'Unknown Item'),
+                    'name': original_item.get('name', original_item.get('title', 'Unknown')),
+                    'type': original_item.get('type', 'unknown'),
+                    'is_folder': original_item.get('is_folder', False),
+                    'path': original_item.get('path', ''),
+                    'file_path': original_item.get('file_path', '')
+                }
+
+            # Case 4: Row object (from Table/DetailedList) - extract attributes
+            return {
+                'id': getattr(widget_or_item, 'id', ''),
+                'title': getattr(widget_or_item, 'title', 'Unknown Item'),
+                'name': getattr(widget_or_item, 'name', getattr(widget_or_item, 'title', 'Unknown')),
+                'type': getattr(widget_or_item, 'type', 'unknown'),
+                'is_folder': getattr(widget_or_item, 'is_folder', False),
+                'path': getattr(widget_or_item, 'path', ''),
+                'file_path': getattr(widget_or_item, 'file_path', '')
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to extract item data: {e}")
+            return None
+
+    def _on_item_selected(self, widget_or_item):
+        """Handle item selection from list (supports single and multi-selection)"""
+        try:
+            logger.info(f"🎯 CLICK TRACE #1: _on_item_selected called with: {type(widget_or_item)}, hasattr selection: {hasattr(widget_or_item, 'selection')}")
+
+            # ========== PHASE 3: Extract ALL selected items (not just first) ==========
+
+            # Normalize to list of items
+            selected_items = []
             if isinstance(widget_or_item, list):
-                logger.info(f"📋 Multiple selection detected: {len(widget_or_item)} items")
-                # For now, handle the first item in the list
-                # TODO: Support displaying multiple items in output view
-                if widget_or_item:
-                    widget_or_item = widget_or_item[0]
-                    logger.info(f"  → Using first selected item: {widget_or_item}")
-                else:
-                    widget_or_item = None
-
-            # Check if this is a widget (DetailedList/Tree) or direct item data (ListWidget)
-            if widget_or_item is None:
-                # Deselection
-                selected_data = None
-            elif hasattr(widget_or_item, 'selection'):
-                # Native widget (DetailedList or Tree) - extract from widget.selection
-                if widget_or_item.selection is not None:
-                    selected_row = widget_or_item.selection
-                    logger.debug(f"🔍 Selection type: {type(selected_row)}, value: {selected_row}")
-
-                    # Check if this is a TreeNode (has _collection_data attribute) or Row object
-                    collection_data = getattr(selected_row, '_collection_data', None)
-                    if collection_data:
-                        # TreeNode - extract from stored _collection_data
-                        logger.debug(f"🌳 TreeNode selection - extracting from _collection_data: {collection_data}")
-                        selected_data = {
-                            'id': collection_data.get('id', ''),
-                            'title': collection_data.get('title', 'Unknown Item'),
-                            'name': collection_data.get('name', collection_data.get('title', 'Unknown')),
-                            'type': collection_data.get('type', 'unknown'),
-                            'is_folder': collection_data.get('is_folder', False),
-                            'path': collection_data.get('path', ''),
-                            'file_path': collection_data.get('file_path', '')
-                        }
-                    else:
-                        # Row object from DetailedList - extract directly
-                        logger.debug(f"📋 Row selection - extracting attributes directly")
-                        selected_data = {
-                            'id': getattr(selected_row, 'id', ''),
-                            'title': getattr(selected_row, 'title', 'Unknown Item'),
-                            'name': getattr(selected_row, 'name', getattr(selected_row, 'title', 'Unknown')),
-                            'type': getattr(selected_row, 'type', 'unknown'),
-                            'is_folder': getattr(selected_row, 'is_folder', False),
-                            'path': getattr(selected_row, 'path', ''),
-                            'file_path': getattr(selected_row, 'file_path', '')
-                        }
-                else:
-                    selected_data = None
+                # Multi-selection: list of Row/Node objects
+                selected_items = widget_or_item
+                logger.info(f"📋 Multiple selection: {len(selected_items)} items")
+            elif widget_or_item is not None:
+                # Single selection: one Row/Node object
+                selected_items = [widget_or_item]
+                logger.info(f"📋 Single selection: 1 item")
             else:
-                # Direct item data passed (could be dict from custom renderer or Node from Tree widget)
-                # Check if this is a TreeNode (has _collection_data attribute)
-                collection_data = getattr(widget_or_item, '_collection_data', None)
-                if collection_data:
-                    # TreeNode passed directly from _handle_select
-                    logger.debug(f"🌳 TreeNode passed directly - extracting from _collection_data: {collection_data}")
-                    selected_data = {
-                        'id': collection_data.get('id', ''),
-                        'title': collection_data.get('title', 'Unknown Item'),
-                        'name': collection_data.get('name', collection_data.get('title', 'Unknown')),
-                        'type': collection_data.get('type', 'unknown'),
-                        'is_folder': collection_data.get('is_folder', False),
-                        'path': collection_data.get('path', ''),
-                        'file_path': collection_data.get('file_path', '')
-                    }
-                elif isinstance(widget_or_item, dict):
-                    # Dict from custom renderer (card/html) - extract the stored _item_data
-                    original_item = widget_or_item.get('_item_data', widget_or_item)
-                    selected_data = {
-                        'id': original_item.get('id', ''),
-                        'title': original_item.get('title', 'Unknown Item'),
-                        'name': original_item.get('name', original_item.get('title', 'Unknown')),
-                        'type': original_item.get('type', 'unknown'),
-                        'is_folder': original_item.get('is_folder', False),
-                        'path': original_item.get('path', ''),
-                        'file_path': original_item.get('file_path', '')
-                    }
-                else:
-                    logger.warning(f"Unexpected selection type: {type(widget_or_item)}")
-                    selected_data = None
+                # No selection (cleared)
+                selected_items = []
+                logger.info(f"📋 Selection cleared")
 
-            # Now handle the selection (whether from DetailedList or ListWidget)
-            if selected_data is not None:
-                item_data = selected_data
-                logger.info(f"📌 Item selected: {item_data['title']} (id: {item_data['id']})")
-                logger.debug(f"Full item_data extracted: {item_data}")
+            # Extract item IDs and metadata from all selected items
+            selected_item_ids = []
+            selected_metadata = []
+
+            for item in selected_items:
+                # Extract item data from widget/selection/dict
+                item_data = self._extract_item_data(item)
+
+                if item_data and item_data.get('id'):
+                    selected_item_ids.append(item_data['id'])
+                    selected_metadata.append({
+                        'item_id': item_data['id'],
+                        'item_name': item_data.get('name', item_data.get('title', 'Unknown')),
+                        'is_folder': item_data.get('is_folder', False),
+                        'type': item_data.get('type', 'unknown'),
+                        'file_path': item_data.get('file_path', ''),
+                        'path': item_data.get('path', ''),
+                    })
+
+            logger.debug(f"📌 Extracted {len(selected_item_ids)} item IDs from selection")
+
+            # PHASE 3: Update SelectionManager with ALL selected items
+            if hasattr(self.app, 'selection_manager') and self.app.selection_manager:
+                self.app.selection_manager.set_selection(
+                    view_id='collection',
+                    item_ids=selected_item_ids,
+                    metadata=selected_metadata
+                )
+                logger.debug(f"SelectionManager updated: collection -> {len(selected_item_ids)} items")
+            else:
+                logger.warning("SelectionManager not available - selection not tracked")
+
+            # ========== Keep existing behavior (inspector, preview, buttons) ==========
+
+            # Update inspector with FIRST selected item (existing behavior)
+            # (Inspector can only show one item at a time currently)
+            if selected_item_ids:
+                first_item_data = self._extract_item_data(selected_items[0])
+
+                logger.info(f"📌 Item selected: {first_item_data['title']} (id: {first_item_data['id']})")
 
                 # Enable inspector button on mobile when item is selected
                 if hasattr(self, 'commands') and 'show_inspector' in self.commands:
                     self.commands['show_inspector'].enable()
                     logger.debug("✅ Enabled 'Show Inspector' button (item selected)")
 
-                # Note: Process button stays enabled always (smart detection)
-
                 # Update inspector with item metadata asynchronously (non-blocking)
                 if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
                     import asyncio
-                    asyncio.create_task(self._update_inspector_async(item_data))
+                    asyncio.create_task(self._update_inspector_async(first_item_data))
 
                 # Update output view with selected item (if not a folder)
                 # For folders, ListWidget will handle navigation via _on_navigate_path_changed
-                if not item_data.get('is_folder', False):
-                    file_path = item_data.get('file_path')
+                if not first_item_data.get('is_folder', False):
+                    file_path = first_item_data.get('file_path')
                     if file_path:
-                        logger.debug(f"📄 Non-folder item selected - loading outputs")
+                        logger.info(f"🎯 CLICK TRACE #2: Non-folder item selected - loading outputs for {first_item_data.get('id')}")
                         import asyncio
-                        asyncio.create_task(self._load_item_outputs(item_data, file_path))
+                        asyncio.create_task(self._load_item_outputs(first_item_data, file_path))
                     else:
-                        logger.debug(f"📄 Non-folder item selected but no file_path")
+                        logger.warning(f"🎯 CLICK TRACE #2: Non-folder item selected but no file_path")
                 else:
-                    logger.debug(f"📁 Folder selected - ListWidget will handle navigation")
+                    logger.info(f"🎯 CLICK TRACE #2: Folder selected - ListWidget will handle navigation")
             else:
                 logger.debug("No selection in widget")
 
@@ -1940,6 +2013,165 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to delete item: {e}")
             import traceback
             traceback.print_exc()
+
+    async def _perform_delete_items(self, item_ids: List[str], item_names: List[str]):
+        """
+        Delete multiple items with progress tracking and error handling (Phase 4).
+
+        Args:
+            item_ids: List of item IDs to delete
+            item_names: List of item names (for logging/reporting)
+        """
+        try:
+            logger.info(f"Batch delete: {len(item_ids)} items")
+
+            # Show confirmation dialog
+            confirmed = self._show_batch_confirmation(
+                operation="Delete",
+                item_count=len(item_ids),
+                item_names=item_names
+            )
+
+            if not confirmed:
+                logger.info("Batch delete cancelled by user")
+                return
+
+            # Update status bar
+            self._update_status_bar(f"Deleting {len(item_ids)} items...")
+
+            # Delete each item, track results
+            successful = []
+            failed = []
+
+            for item_id, item_name in zip(item_ids, item_names):
+                try:
+                    success = await self.library_service.delete_collection_item(item_id)
+                    if success:
+                        successful.append(item_name)
+                        logger.info(f"✅ Deleted: {item_name}")
+                    else:
+                        failed.append((item_name, "Delete returned False"))
+                        logger.warning(f"❌ Failed to delete: {item_name}")
+                except Exception as e:
+                    failed.append((item_name, str(e)))
+                    logger.error(f"❌ Exception deleting {item_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # Report results
+            if failed:
+                # Some failures - show error dialog
+                error_text = "\n".join([f"• {name}: {reason}" for name, reason in failed[:5]])
+                if len(failed) > 5:
+                    error_text += f"\n• ...and {len(failed) - 5} more"
+
+                self.app.main_window.info_dialog(
+                    title="Deletion Summary",
+                    message=f"Deleted {len(successful)} of {len(item_ids)} items.\n\nFailed items:\n{error_text}"
+                )
+            else:
+                # All succeeded
+                logger.info(f"✅ Successfully deleted all {len(successful)} items")
+
+            # Update status bar
+            if failed:
+                self._update_status_bar(f"Deleted {len(successful)} items, {len(failed)} failed")
+            else:
+                self._update_status_bar(f"Deleted {len(successful)} items")
+
+            # Refresh collection view
+            self._load_collection_items()
+
+            # Clear selection
+            if hasattr(self.app, 'selection_manager') and self.app.selection_manager:
+                self.app.selection_manager.clear_selection('collection')
+
+        except Exception as e:
+            logger.error(f"Failed batch delete: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _show_batch_confirmation(self, operation: str, item_count: int, item_names: List[str]) -> bool:
+        """
+        Show confirmation dialog for batch operation (Phase 4).
+
+        Args:
+            operation: Operation name like "Delete", "Process"
+            item_count: Total number of items
+            item_names: Names of items (up to 5 shown)
+
+        Returns:
+            True if user confirms, False if cancelled
+        """
+        # Build item list (show up to 5 items)
+        if item_count <= 5:
+            items_text = "\n".join([f"  • {name}" for name in item_names])
+        else:
+            items_text = "\n".join([f"  • {name}" for name in item_names[:5]])
+            items_text += f"\n  • ...and {item_count - 5} more"
+
+        message = f"{operation} {item_count} items?\n\n{items_text}"
+
+        # Show confirmation dialog (Toga's synchronous dialog)
+        result = self.app.main_window.confirm_dialog(
+            title=f"{operation} Items",
+            message=message
+        )
+
+        return result
+
+    def _update_status_bar(self, message: str):
+        """
+        Update status bar with message (Phase 4 helper).
+
+        Args:
+            message: Status message to display
+        """
+        try:
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                status_bar = getattr(self.app.main_window_wrapper, 'status_bar', None)
+                if status_bar:
+                    status_bar.set_status(message)
+        except Exception as e:
+            logger.debug(f"Could not update status bar: {e}")
+
+    def _extract_selection_with_names(self, view_id: str) -> tuple[List[str], List[str]]:
+        """
+        Extract selection IDs and names from SelectionManager (Phase 4 helper).
+        Ensures lists are same length with fallback names.
+
+        Args:
+            view_id: View identifier ('collection', 'library', etc.)
+
+        Returns:
+            (item_ids, item_names) where both lists have same length
+        """
+        if not hasattr(self.app, 'selection_manager') or not self.app.selection_manager:
+            return ([], [])
+
+        item_ids = self.app.selection_manager.get_selection(view_id)
+        metadata = self.app.selection_manager.get_selection_metadata(view_id)
+
+        # Build name list with same length as ID list
+        item_names = []
+        for i, item_id in enumerate(item_ids):
+            # Try to find matching metadata
+            item_meta = None
+            if i < len(metadata):
+                item_meta = metadata[i]
+            elif metadata:
+                # Metadata list too short - try to find by ID
+                item_meta = next((m for m in metadata if m.get('item_id') == item_id), None)
+
+            # Extract name with fallback
+            if item_meta:
+                name = item_meta.get('item_name') or item_meta.get('name') or f"Item {i+1}"
+            else:
+                name = f"Item {i+1}"
+
+            item_names.append(name)
+
+        return (item_ids, item_names)
 
     def _open_file(self, file_path: str):
         """Open a file using the system default application"""
@@ -2140,7 +2372,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     # Reset selection after navigating back (prevents index-based selection carry-over)
                     if hasattr(self, 'items_list') and self.items_list:
                         try:
-                            self.items_list.selection = None
+                            self.items_list.deselect_all()
                             logger.debug("🔄 Reset selection after back navigation")
                         except AttributeError:
                             logger.debug("Could not clear selection (read-only property)")
@@ -2176,7 +2408,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     # Reset selection after navigating (prevents index-based selection carry-over)
                     if hasattr(self, 'items_list') and self.items_list:
                         try:
-                            self.items_list.selection = None
+                            self.items_list.deselect_all()
                             logger.debug("🔄 Reset selection after folder navigation")
                         except AttributeError:
                             logger.debug("Could not clear selection (read-only property)")
@@ -2271,8 +2503,9 @@ class CollectionView(BaseView, ViewCommandMixin):
             else:
                 logger.info(f"📊 Emitting preview event WITHOUT output data (original file only)")
 
+            logger.info(f"🎯 CLICK TRACE #3: About to emit show_preview event with item_id={item_id}")
             emit_navigation_event('show_preview', event_data)
-            logger.info(f"✅ Emitted preview event for file: {file_path}")
+            logger.info(f"🎯 CLICK TRACE #4: ✅ Emitted preview event for file: {file_path}, item_id={item_id}")
 
         except Exception as e:
             logger.error(f"Failed to load item outputs: {e}")
@@ -2282,23 +2515,30 @@ class CollectionView(BaseView, ViewCommandMixin):
     def _create_toolbars(self):
         """Create top and bottom toolbars for collection view"""
         try:
-            # Create toolbars for both mobile and desktop (like OutputView)
-            # Collection is child view - enable automatic mobile back navigation to Library
-            self.top_toolbar = TopToolbar(
-                app=self.app,
-                title="",  # Let NavigationController provide dynamic collection name
-                auto_mobile_nav=True,  # Show back button for hierarchical navigation
-                is_mobile=self.is_mobile
-            )
+            # MOBILE ONLY: Create custom Toga toolbars
+            # Desktop uses ONLY native window.toolbar (no custom TopToolbar/BottomToolbar widgets)
+            if self.is_mobile:
+                # Collection is child view - enable automatic mobile back navigation to Library
+                self.top_toolbar = TopToolbar(
+                    app=self.app,
+                    title="",  # Let NavigationController provide dynamic collection name
+                    auto_mobile_nav=True,  # Show back button for hierarchical navigation
+                    is_mobile=self.is_mobile
+                )
 
-            self.bottom_toolbar = BottomToolbar(
-                app=self.app,
-                is_mobile=self.is_mobile
-            )
+                self.bottom_toolbar = BottomToolbar(
+                    app=self.app,
+                    is_mobile=self.is_mobile
+                )
 
-            # Toolbars will be populated automatically by set_toolbars() from command definitions
-            self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-            logger.info(f"Toolbars created and set for collection view (mobile={self.is_mobile})")
+                # Toolbars will be populated automatically by set_toolbars() from command definitions
+                self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
+                logger.info(f"Mobile toolbars created and set for collection view")
+            else:
+                # Desktop: No custom toolbars - use native window.toolbar exclusively
+                self.top_toolbar = None
+                self.bottom_toolbar = None
+                logger.info("Desktop mode: Using native window.toolbar only for collection view")
 
         except Exception as e:
             logger.error(f"Failed to create collection toolbars: {e}")
@@ -2328,23 +2568,13 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             logger.info(f"Quick process: {plan_name}/{workflow_name} - collection_id={self.collection_id}")
 
-            # Check for selected item
-            selected_item_id = None
-            selected_item_name = None
+            # === PHASE 4: Get ALL selected items from SelectionManager ===
+            selected_item_ids, selected_item_names = self._extract_selection_with_names('collection')
 
-            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
-                try:
-                    selected_row = self.items_list.selection
-                    selected_item_id = getattr(selected_row, 'item_id', None) or getattr(selected_row, 'id', None)
-                    selected_item_name = getattr(selected_row, 'title', None) or getattr(selected_row, 'name', None)
-
-                    if selected_item_id:
-                        logger.info(f"Processing selected item with {plan_name}: {selected_item_name} (id={selected_item_id})")
-                except Exception as e:
-                    logger.debug(f"Could not get selected item: {e}")
-
-            if not selected_item_id:
-                logger.info(f"No item selected - will process all items with {plan_name}")
+            if selected_item_ids:
+                logger.info(f"Processing {len(selected_item_ids)} selected items with {plan_name}")
+            else:
+                logger.info(f"No items selected - will process all items with {plan_name}")
 
             # Get collection
             collection = await self.app.library_manager.get_collection(self.collection_id)
@@ -2356,14 +2586,32 @@ class CollectionView(BaseView, ViewCommandMixin):
             all_items = await self.app.library_manager.get_collection_items(self.collection_id)
 
             # Determine which items to process
-            if selected_item_id:
-                item_ids = [selected_item_id]
+            if selected_item_ids:
+                # Use selected items (single or multiple)
+                item_ids = selected_item_ids
             else:
+                # No selection - process all items
                 item_ids = [item.id for item in all_items]
 
             if not item_ids:
                 logger.warning(f"No items to process with {plan_name}")
                 return
+
+            # === PHASE 4: Show confirmation for large batches ===
+            if len(item_ids) >= 5 and selected_item_ids:
+                # Only show confirmation if items were explicitly selected (not "process all")
+                confirmed = self._show_batch_confirmation(
+                    operation=f"Process with {plan_name}",
+                    item_count=len(item_ids),
+                    item_names=selected_item_names
+                )
+
+                if not confirmed:
+                    logger.info(f"Batch process cancelled by user")
+                    return
+
+            # Update status bar
+            self._update_status_bar(f"Processing {len(item_ids)} items with {plan_name}...")
 
             # Process using Director integration with specified plan/workflow
             if not hasattr(self.app, 'director_integration'):
@@ -2461,9 +2709,10 @@ class CollectionView(BaseView, ViewCommandMixin):
             selected_item_id = None
             selected_item_name = None
 
-            if hasattr(self, 'items_list') and self.items_list and self.items_list.selection:
+            selection = self.items_list.get_selection() if (hasattr(self, 'items_list') and self.items_list) else None
+            if selection:
                 try:
-                    selected_row = self.items_list.selection
+                    selected_row = selection
                     selected_item_id = getattr(selected_row, 'item_id', None) or getattr(selected_row, 'id', None)
                     selected_item_name = getattr(selected_row, 'title', None) or getattr(selected_row, 'name', None)
 
@@ -3941,11 +4190,12 @@ class CollectionView(BaseView, ViewCommandMixin):
         """Get metadata for the currently selected item"""
         try:
             # Get the currently selected item from the DetailedList
-            if not hasattr(self, 'items_list') or not self.items_list or not self.items_list.selection:
+            selection = self.items_list.get_selection() if (hasattr(self, 'items_list') and self.items_list) else None
+            if not selection:
                 return "No item selected"
 
             # Get the selected row from DetailedList
-            selected_row = self.items_list.selection
+            selected_row = selection
 
             # Try to get full item_data (includes all metadata)
             if hasattr(selected_row, 'item_data'):

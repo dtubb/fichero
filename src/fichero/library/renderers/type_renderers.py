@@ -92,7 +92,7 @@ class ImageRenderer(BaseRenderer):
                 {
                     'id': 'crop',
                     'label': 'Crop',
-                    'icon': 'resources/icons/toolbar/crop.png',
+                    'icon': 'resources/icons/toolbar/crop@10x.png',
                     'js_function': 'activateTool',
                     'js_args': ['crop'],  # Pass 'crop' as argument
                     'shortcut': 'Cmd+K',

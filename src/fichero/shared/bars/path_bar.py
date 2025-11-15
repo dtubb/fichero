@@ -35,30 +35,41 @@ class PathBar:
         self.platform = platform
         self.height = self.HEIGHT_DESKTOP if platform == 'desktop' else self.HEIGHT_MOBILE
 
-        # Create the path label - will truncate with ellipsis if too long
+        # Create the path label - no flex, let it size to content
         self.path_label = toga.Label(
             '',
             style=Pack(
                 font_size=self.FONT_SIZE,
                 text_align='center',  # Centered like status bar
-                flex=1,  # Take available width
+                margin_left=10,
+                margin_right=10,
             )
         )
 
-        # Container for label with grey background
-        self.container = toga.Box(
+        # Inner container for label with grey background
+        self._inner_container = toga.Box(
             children=[self.path_label],
             style=Pack(
                 direction='row',
                 align_items='center',
                 height=self.height,
                 background_color='#E8E8E8',  # Same grey as status bar
-                margin_left=10,
-                margin_right=10,
             )
         )
 
-        logger.debug(f"PathBar created for {platform} with constrained width")
+        # Outer scroll container to enable horizontal scrolling
+        # This prevents the path from expanding the pane width
+        self.container = toga.ScrollContainer(
+            content=self._inner_container,
+            horizontal=True,  # Enable horizontal scrolling
+            vertical=False,   # Disable vertical scrolling
+            style=Pack(
+                height=self.height,
+                flex=1,  # Take available width but don't expand beyond it
+            )
+        )
+
+        logger.debug(f"PathBar created for {platform} with horizontal scrolling")
 
     def set_path(self, path):
         """

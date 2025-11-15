@@ -12,7 +12,11 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 
-from fichero.shared.toolbars.color_constants import ICON_PRIMARY, ICON_SECONDARY, VIEW_BACKGROUND
+from fichero.shared.toolbars.color_constants import ICON_PRIMARY, ICON_SECONDARY
+
+# Background colors
+SIDEBAR_BACKGROUND = '#F1F0F7'  # macOS sidebar background (0xF1, 0xF0, 0xF7) - for library sidebar only
+VIEW_BACKGROUND = '#FFFFFF'  # White background for content areas (collection, steps, etc.)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +77,8 @@ class BaseView(ABC):
         # Callbacks
         self.on_view_ready: Optional[Callable] = None
         self.on_content_changed: Optional[Callable] = None
-        
+        self.on_click: Optional[Callable] = None
+
         # Create view structure
         self._create_view_structure()
     
@@ -86,6 +91,7 @@ class BaseView(ABC):
         """Create the basic view structure with top and bottom toolbars"""
         try:
             # Create main container with white background
+            # Use flex=1 to fill available space in SplitContainer
             self.container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
@@ -93,12 +99,13 @@ class BaseView(ABC):
                     background_color=VIEW_BACKGROUND  # White background
                 )
             )
-            
+
             # Top toolbar will be inserted here (index 0)
             # Content will be in the middle (index 1)
             # Bottom toolbar will be at the end (index 2)
-            
+
             # Create content container with white background FIRST
+            # Use flex=1 to fill available space
             self.content_container = toga.Box(
                 style=Pack(
                     direction=COLUMN,
@@ -106,7 +113,7 @@ class BaseView(ABC):
                     background_color=VIEW_BACKGROUND  # White background
                 )
             )
-            
+
             # Create scroll container with content - Toga's recommended pattern
             # Disable horizontal scrolling (Finder-style - content should fit width)
             self.scroll_container = toga.ScrollContainer(
@@ -118,15 +125,15 @@ class BaseView(ABC):
                     background_color=VIEW_BACKGROUND  # White background
                 )
             )
-            
+
             # Add scroll container to main container
             self.container.add(self.scroll_container)
-            
+
             # Create content AFTER scroll container is fully set up
             self._create_content()
-            
+
             logger.debug("Base view structure created successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to create base view structure: {e}")
             # Create fallback container

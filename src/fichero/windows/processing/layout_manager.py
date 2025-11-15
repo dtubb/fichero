@@ -81,7 +81,7 @@ class ProcessingLayoutManager:
     def _create_back_button(self, on_back: Callable):
         """Create back button for mobile navigation"""
         self.back_button_container = toga.Box(
-            style=Pack(direction=ROW, alignment=CENTER, margin_bottom=10)
+            style=Pack(direction=ROW, align_items=CENTER, margin_bottom=10)
         )
         
         self.back_button = toga.Button(
@@ -105,7 +105,7 @@ class ProcessingLayoutManager:
         
         # Control buttons section
         controls_container = toga.Box(
-            style=Pack(direction=ROW, alignment=CENTER, margin_top=10)
+            style=Pack(direction=ROW, align_items=CENTER, margin_top=10)
         )
         
         # Reset button (hidden initially)

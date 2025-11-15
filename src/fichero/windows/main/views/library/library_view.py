@@ -47,6 +47,9 @@ class LibraryView(BaseView, ViewCommandMixin):
         # Cache folder icon to prevent repeated loads
         self._folder_icon_cache = None
 
+        # Initialize recursion guard flag
+        self._showing = False
+
         print("🔧 Calling super().__init__...")
         super().__init__(app, is_mobile)
         ViewCommandMixin.__init__(self)
@@ -154,16 +157,34 @@ class LibraryView(BaseView, ViewCommandMixin):
     
     def show(self):
         """Called when view becomes active - refresh DetailedList to clear cached selections"""
+        import traceback
+        # Prevent recursion if show() is called while already showing
+        if self._showing:
+            logger.warning("⏭️ Recursion detected in LibraryView.show() - preventing recursive call")
+            logger.warning(f"Call stack:\n{''.join(traceback.format_stack())}")
+            return
+
+        logger.debug("📍 LibraryView.show() called")
+        self._showing = True
         try:
             # Tell the coordinator that this view is now active
             if hasattr(self, 'coordinator') and self.coordinator:
                 self.coordinator.set_active_view('library')
 
             # Refresh the collections display to clear any cached DetailedList selection state
-            self._create_collections_display()
-            logger.info("🔄 Library view refreshed on show() to clear cached selections")
+            # Only refresh if we have collections to avoid unnecessary work
+            if self.collections:
+                logger.debug("🔄 Refreshing collections display on show()")
+                self._create_collections_display()
+            else:
+                logger.debug("📭 No collections to display on show()")
+
+            logger.info("✅ Library view show() completed successfully")
         except Exception as e:
-            logger.error(f"Failed to refresh library view on show: {e}")
+            logger.error(f"❌ Failed in LibraryView.show(): {e}", exc_info=True)
+        finally:
+            # Always reset the flag, even if an exception occurred
+            self._showing = False
     
     def register_collection_callback(self, callback):
         """Register callback for when a collection is selected"""
@@ -291,9 +312,9 @@ class LibraryView(BaseView, ViewCommandMixin):
                 }
                 tree_data.append(tree_item)
 
-            # Create ListWidget - automatically adapts to platform
-            # Desktop: Table (for flat lists), Mobile: DetailedList
-            # TESTING: Force HTML renderer to test HTML view UI
+            # Create ListWidget - using sidebar renderer for narrow card-style layout
+            # Desktop: Sidebar renderer (compact cards optimized for 140px width)
+            # Mobile: Sidebar renderer (same compact layout)
             self.collections_list = ListWidget(
                 headings=['Collections'],
                 data=tree_data,
@@ -302,7 +323,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
                 ),
-                renderer='table'  # TEMPORARY: Force Table for testing (Tree not rendering)
+                renderer='sidebar'  # Custom sidebar renderer for narrow Library column
             )
 
             # Store the data mapping for lookups
@@ -509,10 +530,25 @@ class LibraryView(BaseView, ViewCommandMixin):
                         else:
                             logger.warning(f"⚠️ Could not find collection for text: '{row_text}'")
 
-            # Handle dict (DetailedList)
+            # Handle dict (DetailedList or native sidebar)
             elif isinstance(selected_item, dict):
+                # Dict may already have _collection_data and _item_id from tree_data
                 item_data = selected_item
                 logger.info(f"📋 Dict selection: {item_data.keys()}")
+
+                # If dict doesn't have _collection_data, try to look it up
+                if '_collection_data' not in item_data and 'text' in item_data:
+                    # Try to match by text
+                    text = item_data.get('text')
+                    if text:
+                        for coll_id, coll_data in self._tree_data_map.items():
+                            if coll_data.get('title') == text:
+                                item_data['_collection_data'] = coll_data.get('collection_data')
+                                item_data['_item_id'] = coll_id
+                                logger.info(f"✅ Found collection data by text match: '{text}'")
+                                break
+                        else:
+                            logger.warning(f"⚠️ Could not find collection for text: '{text}'")
 
             # Handle objects with _collection_data attribute
             elif hasattr(selected_item, '_collection_data'):
@@ -531,6 +567,12 @@ class LibraryView(BaseView, ViewCommandMixin):
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
         logger.info(f"🎯 _on_collection_selected CALLED! widget={widget}, has selection={hasattr(widget, 'selection')}")
+
+        # Trigger focus ring when collection is selected
+        if self.on_click:
+            self.on_click()
+            logger.debug("🔵 Focus ring triggered for library view")
+
         try:
             if widget.selection and hasattr(widget.selection, 'collection_data'):
                 logger.info("✅ Widget has selection with collection_data")
@@ -542,6 +584,28 @@ class LibraryView(BaseView, ViewCommandMixin):
 
                 # Store selected collection
                 self.selected_collection = collection
+
+                # PHASE 3: Update SelectionManager with collection selection
+                if hasattr(self.app, 'selection_manager') and self.app.selection_manager:
+                    # Build metadata for status bar display
+                    item_count = collection.get('item_count', 0)
+                    metadata = [{
+                        'collection_id': collection_id,
+                        'collection_name': collection_name,
+                        'item_count': item_count,
+                        'type': collection.get('type', 'external'),
+                        'source': collection.get('source', ''),
+                    }]
+
+                    # Set selection in manager (single collection)
+                    self.app.selection_manager.set_selection(
+                        view_id='library',
+                        item_ids=[collection_id],
+                        metadata=metadata
+                    )
+                    logger.debug(f"SelectionManager updated: library -> {collection_name}")
+                else:
+                    logger.warning("SelectionManager not available - selection not tracked")
 
                 # Update inspector with collection metadata (as dict)
                 logger.info(f"📋 Collection selected, checking inspector: has_attr={hasattr(self.app, 'inspector_window')}, exists={getattr(self.app, 'inspector_window', None) is not None}")
@@ -564,6 +628,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                     logger.info(f"🔄 Calling navigation callback for {collection_name}")
                     self.on_collection_selected(collection_id, collection_name)
             else:
+                # No selection or selection cleared - clear SelectionManager first
+                if hasattr(self.app, 'selection_manager') and self.app.selection_manager:
+                    self.app.selection_manager.clear_selection('library')
+                    logger.debug("SelectionManager cleared: library")
+
                 # No selection or selection cleared - clear the center pane
                 logger.info("❌ No collection selected - clearing center pane")
                 if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
@@ -677,27 +746,43 @@ class LibraryView(BaseView, ViewCommandMixin):
                     # Use default font size (no font_size specified)
                     font_weight="bold",
                     margin=(20, 20, 15, 20),
-                    color=self.text_color
+                    color=self.text_color,
+                    width=150  # Ensure label has minimum width for visibility
                 )
             )
             if self.content_container:
                 self.content_container.add(title)
-            
+
             # Simple empty state message
             empty_message = toga.Label(
                 "No collections yet",
                 style=Pack(
                     font_size=14,
                     color="#8E8E93",  # iOS-style secondary text color
-                    margin=(20, 20, 0, 20),
-                    text_align="center"
+                    margin=(20, 20, 20, 20),
+                    text_align="center",
+                    width=150  # Ensure label has minimum width for visibility
                 )
             )
             if self.content_container:
                 self.content_container.add(empty_message)
-                
+
+            # Add a helper message for creating first collection
+            helper_message = toga.Label(
+                "Use the + button in the toolbar to create your first collection",
+                style=Pack(
+                    font_size=12,
+                    color="#8E8E93",
+                    margin=(10, 20, 20, 20),
+                    text_align="center",
+                    width=200  # Wider for longer text
+                )
+            )
+            if self.content_container:
+                self.content_container.add(helper_message)
+
             logger.debug("Created simple collections view with empty state")
-            
+
         except Exception as e:
             logger.error(f"Failed to create placeholder content: {e}")
     
@@ -1488,7 +1573,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                     section=0,  # First section of File menu
                     order=0,  # First item in section
                     show_in_menu=True,  # Appear in File menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar
+                    show_in_top_toolbar=True,  # Show in desktop toolbar
                     show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
                     desktop_only=True,  # Only show on desktop
                     context='normal'  # Always visible on desktop
@@ -1510,25 +1595,10 @@ class LibraryView(BaseView, ViewCommandMixin):
                     context='normal'  # Always visible on desktop
                 ),
 
-                # ===== FILE MENU - IMPORT SUBMENU PARENT =====
-                'import': FicheroCommand(
-                    id=f'{self.view_id}.import',
-                    label=_("Import"),
-                    action=None,  # Submenu parent has no action
-                    description=_("Import items into collection"),
-                    group=toga.Group.FILE,  # File menu on desktop
-                    section=1,  # Second section of File menu (with divider after New Collection)
-                    order=0,  # First item in this section
-                    show_in_menu=True,  # Appear in File menu on desktop
-                    show_in_toolbar=False,  # Not in toolbar
-                    show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
-                    desktop_only=True,  # Only show on desktop
-                    context='normal'  # Always visible on desktop
-                ),
-
                 # NOTE: Import commands (File, Folder, URL, Link File, Link Folder)
                 # have been MOVED to Collection View as of STEP 4.
                 # They now add items to the current collection instead of creating new collections.
+                # The empty 'import' submenu parent has been removed.
 
                 # ===== WINDOW NAVIGATION COMMANDS =====
                 # Desktop: Application/Window menus | Mobile: Bottom toolbar
@@ -1543,7 +1613,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                     section=0,  # First section - before Plans/Prompts
                     order=0,  # First item in section
                     show_in_menu=True,  # Appear in App menu
-                    show_in_toolbar=True,  # Show in desktop toolbar ONLY (not mobile top toolbar)
+                    show_in_top_toolbar=True,  # Show in desktop toolbar
                     show_in_bottom_toolbar=True,  # Mobile bottom toolbar
                     toolbar_position='center',  # Center on mobile bottom toolbar
                     mobile_only=False,  # Available on both platforms
@@ -1610,8 +1680,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                     section=-1,  # BEFORE all other Tools menu items (separator after)
                     order=0,  # First item in section
                     show_in_menu=True,  # Appear in Tools menu on desktop
-                    show_in_toolbar=True,  # Show in desktop toolbar (top left)
-                    show_in_top_toolbar=True,  # Show in mobile top toolbar (top right after Edit)
+                    show_in_top_toolbar=True,  # Show in desktop toolbar and mobile top toolbar
                     show_in_bottom_toolbar=False,  # Not in bottom toolbar
                     mobile_only=False,  # Available on both platforms
                     desktop_only=True,  # Desktop only feature
@@ -1696,16 +1765,13 @@ class LibraryView(BaseView, ViewCommandMixin):
                     icon='resources/icons/toolbar/info.circle@10x.png',
                     description=_("Show inspector for selected collection"),
                     show_in_menu=False,  # Not in menus
-                    show_in_toolbar=False,  # Not in desktop toolbar
                     show_in_top_toolbar=True,  # Mobile top toolbar
-                    toolbar_position='right',  # Right side of toolbar
                     show_in_bottom_toolbar=False,  # Not in bottom toolbar
                     mobile_only=True,  # Only on mobile
                     desktop_only=False,
                     context='normal',
-                    order=99,  # Last on right side (rightmost)
                     enabled=False  # Will be enabled when collection is selected
-                ),
+                )
             }
 
             logger.debug(f"Defined {len(self.commands)} commands for LibraryView")
@@ -2335,6 +2401,25 @@ class LibraryView(BaseView, ViewCommandMixin):
 
         except Exception as e:
             logger.error(f"Failed to open camera: {e}")
+
+    def _on_import_camera(self, widget=None):
+        """Import from camera action - opens camera interface"""
+        logger.info("Import from camera clicked")
+        # Reuse existing camera handler
+        self._on_open_camera(widget)
+
+    def _on_import_scanner(self, widget=None):
+        """Import from scanner action"""
+        logger.info("Import from scanner clicked")
+        # TODO: Implement scanner import functionality
+        # For now, show a placeholder message
+        try:
+            if hasattr(self, '_show_message'):
+                self._show_message("Scanner Import", "Scanner import feature coming soon")
+            else:
+                logger.warning("Scanner import not yet implemented")
+        except Exception as e:
+            logger.error(f"Failed to show scanner import message: {e}")
 
     # ===== MOBILE TOP TOOLBAR HANDLERS =====
 

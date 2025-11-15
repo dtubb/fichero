@@ -167,25 +167,36 @@ class TopToolbar(BaseToolbar):
         """Get simple back button - just chevron without text"""
         return "‹"
 
-    def update_navigation_state(self, current_path: str = "") -> None:
+    def update_navigation_state(self, current_path: str = "", has_own_back_button: bool = False) -> None:
         """Update back button based on navigation state
 
         Args:
             current_path: Current path within collection (empty = root)
+            has_own_back_button: If True, don't show toolbar back button (widget has its own)
 
         On Mac:
             - At collection root (empty path): Remove back button completely
             - In subfolder (non-empty path): Create and show back button
+            - If has_own_back_button=True: Never show back button (widget handles it)
 
         On Mobile:
             - Back button always exists (created in _add_navigation_elements)
         """
         try:
-            logger.info(f"🔍 update_navigation_state called: is_mobile={self.is_mobile}, current_path='{current_path}'")
+            logger.info(f"🔍 update_navigation_state called: is_mobile={self.is_mobile}, current_path='{current_path}', has_own_back_button={has_own_back_button}")
 
             # On mobile, back button is always visible (handled by auto_mobile_nav)
             if self.is_mobile:
                 logger.debug("Mobile mode - skipping (back button always visible)")
+                return
+
+            # If widget has its own back button, hide toolbar back button
+            if has_own_back_button:
+                logger.info("Widget has own back button - hiding toolbar back button")
+                if hasattr(self, 'back_button') and self.back_button is not None:
+                    if self.back_button in self.left_content.children:
+                        self.left_content.remove(self.back_button)
+                        logger.info("🚫 Back button hidden (widget handles navigation)")
                 return
 
             # On desktop (Mac), dynamically show/hide back button
@@ -493,7 +504,33 @@ class TopToolbar(BaseToolbar):
             self.edit_button.on_press = callback
 
     def register_navigation_callbacks(self, **kwargs) -> None:
-        """Register navigation callbacks (backward compatibility method)"""
-        # Handled automatically by NavigationController integration
-        pass
+        """Register navigation callbacks.
+
+        Args:
+            on_navigate_back: Callback for back button (overrides NavigationController)
+            on_back_to_library: Callback for back to library button
+            on_navigate_to_path: Callback for breadcrumb navigation
+            on_add_folder: Callback for add folder action
+            on_add_file: Callback for add file action
+        """
+        # Store custom callbacks - these override NavigationController
+        if 'on_navigate_back' in kwargs:
+            self.on_back = kwargs['on_navigate_back']
+            logger.debug("Registered custom on_back callback (overriding NavigationController)")
+
+        if 'on_back_to_library' in kwargs:
+            self.on_back_to_library = kwargs['on_back_to_library']
+            logger.debug("Registered custom on_back_to_library callback")
+
+        if 'on_navigate_to_path' in kwargs:
+            self.on_navigate_to_path = kwargs['on_navigate_to_path']
+            logger.debug("Registered custom on_navigate_to_path callback")
+
+        if 'on_add_folder' in kwargs:
+            self.on_add_folder = kwargs['on_add_folder']
+            logger.debug("Registered custom on_add_folder callback")
+
+        if 'on_add_file' in kwargs:
+            self.on_add_file = kwargs['on_add_file']
+            logger.debug("Registered custom on_add_file callback")
 

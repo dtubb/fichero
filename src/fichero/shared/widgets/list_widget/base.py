@@ -18,6 +18,14 @@ from .renderers import Renderer
 from .renderers.native import NativeRenderer
 from .renderers.card import CardRenderer
 from .renderers.html import HTMLRenderer
+from .renderers.sidebar import SidebarRenderer
+
+# Conditional import for macOS native sidebar
+try:
+    from .renderers.macos_sidebar import MacOSSidebarRenderer, RUBICON_AVAILABLE
+except ImportError:
+    RUBICON_AVAILABLE = False
+    MacOSSidebarRenderer = None
 
 
 logger = logging.getLogger(__name__)
@@ -237,6 +245,36 @@ class ListWidget:
                 multiple_select=self.multiple_select,
                 on_navigate_back=self.navigate_up if self.navigable else None,
             )
+        elif self._renderer_type == 'sidebar':
+            # Use native macOS sidebar if available and on macOS platform
+            use_native_macos = (
+                self.platform == Platform.MACOS and
+                RUBICON_AVAILABLE and
+                MacOSSidebarRenderer is not None
+            )
+
+            if use_native_macos:
+                logger.info("Creating MacOSSidebarRenderer (native NSOutlineView)")
+                try:
+                    return MacOSSidebarRenderer(
+                        headings=self.headings,
+                        on_select=self._handle_select,
+                        style=self._renderer_style,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create MacOSSidebarRenderer: {e}. Falling back to Canvas SidebarRenderer")
+                    # Fall through to create regular SidebarRenderer
+
+            # Use Canvas-based SidebarRenderer (cross-platform fallback)
+            logger.debug("Creating SidebarRenderer (Canvas-based)")
+            return SidebarRenderer(
+                headings=self.headings,
+                on_select=self._handle_select,
+                style=self._renderer_style,
+                platform=self.platform.value,
+                toga_style=self.toga_style,
+                multiple_select=self.multiple_select,
+            )
         else:
             raise ValueError(f"Unknown renderer type: {self._renderer_type}")
 
@@ -434,11 +472,11 @@ class ListWidget:
                 item_id = None
                 if isinstance(selection, list) and len(selection) > 0:
                     sel_item = selection[0]
-                    if hasattr(sel_item, '_collection_data'):
+                    if hasattr(sel_item, '_collection_data') and sel_item._collection_data:
                         item_id = sel_item._collection_data.get('id')
                     elif hasattr(sel_item, '_item_id'):
                         item_id = sel_item._item_id
-                elif hasattr(selection, '_collection_data'):
+                elif hasattr(selection, '_collection_data') and selection._collection_data:
                     item_id = selection._collection_data.get('id')
                 elif hasattr(selection, '_item_id'):
                     item_id = selection._item_id

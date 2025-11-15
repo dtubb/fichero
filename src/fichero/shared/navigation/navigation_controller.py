@@ -3,6 +3,8 @@ Navigation Controller for Fichero
 
 Centralized navigation logic that's independent of UI widgets.
 Uses event bus for UI communication to prevent loops.
+
+Enhanced in Phase 3.1 with UniversalLayoutManager for dynamic view layout.
 """
 
 import logging
@@ -12,6 +14,7 @@ from pathlib import Path
 from .navigation_state import NavigationState, NavigationContext, NavigationHistory
 from .navigation_commands import NavigationCommand
 from .navigation_event_bus import emit_navigation_event, NavigationEvents
+from .layout_manager import UniversalLayoutManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,11 @@ class NavigationController:
 
         # State deduplication to prevent multiple identical events
         self._last_emitted_state = None
+
+        # PHASE 3.1: Universal Layout Manager for dynamic view layout
+        # Replaces hardcoded 3-pane desktop system with flexible, resizable panes
+        self.layout_manager: Optional[UniversalLayoutManager] = None
+        self._initialize_layout_manager()
 
         # ✅ RELIABILITY FIX: Don't push initial state to history yet
         # The library state will be added to history when we first navigate away from it
@@ -160,6 +168,10 @@ class NavigationController:
                 logger.error("Cannot navigate to preview: no file path provided")
                 return False
 
+            # Extract item_id from file_metadata if available
+            metadata_dict = file_metadata or {}
+            item_id = metadata_dict.get('id') or metadata_dict.get('item_id')
+
             # Create new state for preview
             new_state = NavigationState(
                 context=NavigationContext.PREVIEW,
@@ -167,19 +179,25 @@ class NavigationController:
                 collection_name=self.current_state.collection_name,
                 current_path=self.current_state.current_path,
                 file_path=file_path,
-                metadata=file_metadata or {}
+                metadata=metadata_dict
             )
 
             self._transition_to_state(new_state)
 
-            # Emit preview requested event
-            emit_navigation_event(NavigationEvents.SHOW_PREVIEW, {
+            # Emit preview requested event with item_id extracted
+            event_data = {
                 'file_path': file_path,
-                'file_metadata': file_metadata or {},
+                'file_metadata': metadata_dict,
                 'navigation_state': new_state.to_dict()
-            })
+            }
 
-            logger.info(f"Navigated to preview: {file_path}")
+            # Add item_id directly to event data so handlers don't have to extract it
+            if item_id:
+                event_data['item_id'] = item_id
+
+            emit_navigation_event(NavigationEvents.SHOW_PREVIEW, event_data)
+
+            logger.info(f"Navigated to preview: {file_path} (item_id: {item_id})")
             return True
 
         except Exception as e:
@@ -570,6 +588,70 @@ class NavigationController:
 
     # ===== HELPER METHODS =====
 
+    def _initialize_layout_manager(self):
+        """
+        Initialize the Universal Layout Manager (Phase 3.1).
+
+        Creates a layout manager that handles dynamic view splitting
+        and resizing. Replaces the hardcoded 3-pane desktop system.
+        """
+        try:
+            self.layout_manager = UniversalLayoutManager(is_mobile=self.is_mobile)
+
+            # Set up layout event handlers
+            self.layout_manager.on_view_focused = self._on_layout_view_focused
+            self.layout_manager.on_view_added = self._on_layout_view_added
+            self.layout_manager.on_view_removed = self._on_layout_view_removed
+
+            logger.info("Universal Layout Manager initialized")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize layout manager: {e}")
+            # Layout manager is optional, so we can continue without it
+            self.layout_manager = None
+
+    def _on_layout_view_focused(self, slot_id: str):
+        """
+        Handle view focus event from layout manager.
+
+        Args:
+            slot_id: ID of the focused view slot
+        """
+        logger.debug(f"Layout view focused: {slot_id}")
+        # Emit event for UI updates
+        emit_navigation_event(NavigationEvents.VIEW_FOCUSED, {
+            'slot_id': slot_id
+        })
+
+    def _on_layout_view_added(self, slot_id: str):
+        """
+        Handle view added event from layout manager.
+
+        Args:
+            slot_id: ID of the added view slot
+        """
+        logger.debug(f"Layout view added: {slot_id}")
+
+    def _on_layout_view_removed(self, slot_id: str):
+        """
+        Handle view removed event from layout manager.
+
+        Args:
+            slot_id: ID of the removed view slot
+        """
+        logger.debug(f"Layout view removed: {slot_id}")
+
+    def get_layout_container(self) -> Optional[Any]:
+        """
+        Get the root layout container for placing in the window.
+
+        Returns:
+            toga.Box container with the dynamic layout, or None if not initialized
+        """
+        if self.layout_manager:
+            return self.layout_manager.container
+        return None
+
     def get_breadcrumbs(self) -> List[Dict[str, str]]:
         """Get breadcrumb trail for current state"""
         breadcrumbs = []
@@ -920,10 +1002,10 @@ class NavigationController:
     def _create_output_view(self):
         """Create output modal view"""
         try:
-            from fichero.windows.main.views.output.output_view import OutputView
+            from fichero.windows.main.views.preview import PreviewView
             # Pass library_manager for file-specific filtering
             library_manager = getattr(self.app, 'library_manager', None)
-            return OutputView(self.app, self.is_mobile, library_manager=library_manager)
+            return PreviewView(self.app, self.is_mobile, library_manager=library_manager)
         except Exception as e:
             logger.error(f"Failed to create output view: {e}")
             return None

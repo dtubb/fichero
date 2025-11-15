@@ -16,7 +16,7 @@ from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigati
 from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
-from fichero.windows.main.views.output import OutputView
+from fichero.windows.main.views.preview import PreviewView
 from fichero.shared.bars.status_bar import StatusBar
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class MainWindow:
         # Track views in each pane for inspector window
         self.left_pane_view: Optional = None   # LibraryView
         self.center_pane_view: Optional = None # CollectionView
-        self.right_pane_view: Optional = None  # OutputView
+        self.right_pane_view: Optional = None  # PreviewView
         self.focused_pane: str = 'center'      # Which pane currently has focus
 
         # Desktop layout containers
@@ -59,26 +59,39 @@ class MainWindow:
 
         # Cached views to maintain state
         self.cached_library_view: Optional[LibraryView] = None
-        self.cached_output_view: Optional[OutputView] = None
+        self.cached_output_view: Optional[PreviewView] = None
         self.cached_collection_view: Optional[CollectionView] = None  # Cache single reusable instance
 
-        # Pane visibility state (desktop only)
+        # DEPRECATED: Pane visibility state - now handled by layout_manager.toggle_column()
+        # Kept for compatibility with any remaining legacy code
         self.pane_visibility = {
-            'library': True,     # left_pane
-            'collection': True,  # center_pane (Browser/Steps)
-            'output': True,      # right_pane's output section
-            'inspector': False   # right_pane's inspector section
+            'library': True,     # Now controlled by layout_manager column "Library"
+            'collection': True,  # Now controlled by layout_manager column "Collection"
+            'output': True,      # Preview column (always visible)
+            'inspector': False   # Now controlled by layout_manager column "Adjust"
         }
 
-        # Pane pixel widths (when visible, desktop only)
+        # DEPRECATED: Pane pixel widths - now handled by layout_manager add_columns_fixed()
+        # Widths are now set in _create_desktop_layout() method
         self.pane_widths = {
             'library': 150,
             'collection': 150,
-            'inspector': 350  # Inspector width within right_pane
+            'inspector': 350
         }
 
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
+
+        # Get SelectionManager from app
+        self.selection_manager = getattr(self.app, 'selection_manager', None)
+        if not self.selection_manager:
+            logger.warning("SelectionManager not available in app")
+        else:
+            logger.debug("SelectionManager reference stored in main window")
+
+        # Create views dict to store all column views
+        # (Note: NavigationController doesn't have a views dict - we create our own)
+        self.views = {}
 
         # Create window and layout
         self._create_window()
@@ -87,7 +100,7 @@ class MainWindow:
         # Subscribe to navigation events
         self._subscribe_to_events()
 
-        # Pre-create OutputView to register its Edit menu commands at startup
+        # Pre-create PreviewView to register its Edit menu commands at startup
         # (Even though the view won't be shown until needed, its commands need to be available)
         self._precreate_output_view()
 
@@ -100,8 +113,19 @@ class MainWindow:
         if not self.is_mobile:
             self._register_view_commands()
 
+        # Register toolbar menus (desktop macOS only)
+        if not self.is_mobile:
+            self._register_toolbar_menus()
+            # Don't initialize toolbar here - it will be built by build_native_toolbar()
+            # after commands are registered and app.main_window is set
+
         # Set up initial view
         self._show_initial_view()
+
+        # Restore window state from saved preferences (async task)
+        # This restores window size, column visibility, and preview pane layouts
+        import asyncio
+        asyncio.create_task(self.restore_window_state())
 
         logger.info("Refactored main window initialized successfully")
 
@@ -182,86 +206,227 @@ class MainWindow:
             logger.error(f"Failed to create mobile layout: {e}")
 
     def _create_desktop_layout(self):
-        """Create desktop three-pane layout with nested resizable SplitContainers"""
+        """Create desktop three-pane layout using SplitContainers (Phase 3.2)"""
         try:
-            # Create simple vertical Box containers for each pane
-            # These will hold views added dynamically via _show_view_desktop
-            # flex=1 to fill allocated space from SplitContainer
+            # PHASE 3.2: Use SplitContainer-based UniversalLayoutManager with actual views
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                layout_manager = self.navigation_controller.layout_manager
 
-            # Left pane for library
-            self.left_pane = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1,  # Fill allocated space
-                    background_color="#FFFFFF"
+                # Import new views for Steps and Adjust columns
+                from fichero.windows.main.views.steps import StepBrowserView
+                from fichero.windows.main.views.adjust import AdjustView
+
+                # Create actual views for 5-column layout
+                # Column 1: Library (create if doesn't exist)
+                if 'library' not in self.views:
+                    library_view = self._get_or_create_library_view()
+                    self.views['library'] = library_view
+                else:
+                    library_view = self.views['library']
+
+                # Column 2: Collection (create if doesn't exist)
+                if 'collection' not in self.views:
+                    collection_view = self._get_or_create_collection_view("", "")
+                    self.views['collection'] = collection_view
+                else:
+                    collection_view = self.views['collection']
+
+                # Column 4: Preview/Output (create if doesn't exist)
+                if 'output' not in self.views:
+                    library_manager = getattr(self.app, 'library_manager', None)
+                    preview_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
+                    self.views['output'] = preview_view
+                else:
+                    preview_view = self.views['output']
+
+                # Column 3: Steps (NEW - extracted from PreviewView)
+                library_manager = getattr(self.app, 'library_manager', None)
+                steps_view = StepBrowserView(
+                    self.app,
+                    is_mobile=False,
+                    library_manager=library_manager
                 )
-            )
+                self.views['steps'] = steps_view
 
-            # Center pane for collection
-            self.center_pane = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1,  # Fill allocated space
-                    background_color="#FFFFFF"
+                # Wire up StepBrowserView to PreviewView (bidirectional)
+                # When a step is selected in Column 3, update the preview in Column 4
+                if hasattr(preview_view, 'step_manager'):
+                    # Create callback that updates the preview when step is selected
+                    def on_step_selected(index):
+                        """Update preview when step is selected in steps list"""
+                        if hasattr(preview_view, 'step_manager') and preview_view.step_manager:
+                            preview_view.step_manager.set_current_step(index)
+                            logger.info(f"Step selection updated preview to index {index}")
+
+                    steps_view.set_on_step_selected(on_step_selected)
+                    logger.info("✅ StepBrowserView wired up to PreviewView step_manager")
+
+                # Wire up PreviewView to StepBrowserView (reverse direction)
+                # When PreviewView loads steps, update the StepBrowserView
+                if hasattr(preview_view, 'set_step_browser_view'):
+                    preview_view.set_step_browser_view(steps_view)
+                    logger.info("✅ PreviewView wired up to StepBrowserView for step loading")
+                else:
+                    logger.warning("⚠️ PreviewView does not have set_step_browser_view method")
+
+                # Column 5: Adjust (NEW - extracted from PreviewView)
+                adjust_view = AdjustView(
+                    self.app,
+                    is_mobile=False
                 )
-            )
+                self.views['adjust'] = adjust_view
 
-            # Right pane for output
-            self.right_pane = toga.Box(
-                style=Pack(
-                    direction=COLUMN,
-                    flex=1,  # Fill allocated space
-                    background_color="#FFFFFF"
+                # Wire up AdjustView to PreviewView
+                # Pass the preview_view reference so AdjustView can call its image manipulation methods
+                if hasattr(adjust_view, 'set_preview_view'):
+                    adjust_view.set_preview_view(preview_view)
+                    logger.info("✅ AdjustView wired up to PreviewView")
+
+                # Wire up PreviewView Edit button to toggle Adjust pane
+                # The Edit button will now show/hide the Adjust column instead of the old inspector
+                if hasattr(preview_view, 'set_adjust_toggle_callback'):
+                    preview_view.set_adjust_toggle_callback(self._toggle_inspector_pane)
+                    logger.info("✅ PreviewView Edit button wired to toggle Adjust pane")
+
+                # Create a combined container for Collection + Steps (stacked vertically)
+                # Use a simple Box instead of SplitContainer to avoid toggle complexity
+                # 75%/25% split: Collection gets flex=3, Steps gets flex=1
+                import toga
+                from toga.style import Pack
+
+                # Set flex values for 75%/25% vertical split
+                collection_view.container.style.flex = 3  # 75%
+                steps_view.container.style.flex = 1       # 25%
+
+                collection_and_steps_box = toga.Box(style=Pack(direction='column', flex=1))
+                collection_and_steps_box.add(collection_view.container)
+                collection_and_steps_box.add(steps_view.container)
+
+                # Create wrapper view for the combined box
+                class CombinedView:
+                    def __init__(self, container):
+                        self.container = container
+                combined_view = CombinedView(collection_and_steps_box)
+
+                # Create 4-column layout with fixed sidebars and flexible preview
+                # Columns: Library (140px fixed) | Collection+Steps (200px fixed) | Preview (flexible) | Adjust (200px fixed)
+                views = [
+                    library_view,
+                    combined_view,  # Collection + Steps in one column
+                    preview_view,
+                    adjust_view
+                ]
+                # Fixed widths for sidebars, None for flexible preview
+                # Library: 180px (native sidebar - narrow with text truncation)
+                # Collection/Adjust: 200px (same width, narrower than before)
+                widths = [180, 200, None, 200]
+
+                # Column names for menu commands (show/hide)
+                column_names = ["Library", "Collection", "Preview", "Adjust"]
+
+                # Mark all columns as collapsible for Finder-style flexibility
+                # Only Collection is required (can close everything else for Finder-style window)
+                collapsible = [True, True, True, True]
+
+                # Minimum widths for auto-collapse behavior
+                # Preview needs 800px minimum before sidebars start hiding
+                min_widths = [180, 200, 800, 200]
+
+                logger.info(f"Creating 4-column layout with collapsible sidebars")
+                logger.info(f"  - Library: 180px fixed, collapsible (native macOS sidebar)")
+                logger.info(f"  - Collection: 200px fixed, collapsible")
+                logger.info(f"  - Preview: flexible (min 800px), NOT collapsible")
+                logger.info(f"  - Adjust: 200px fixed, collapsible")
+
+                slot_ids = layout_manager.add_columns_fixed(
+                    views,
+                    widths=widths,
+                    column_names=column_names,
+                    collapsible=collapsible,
+                    min_widths=min_widths
                 )
-            )
 
-            # Use Box layout for dynamic pane hiding (like OutputView's inspector)
-            # Create horizontal box for center | right
-            self.center_right_box = toga.Box(
-                style=Pack(direction=ROW, flex=1)
-            )
-            # Center pane has fixed width when visible
-            self.center_pane.style.width = self.pane_widths['collection']
-            # Right pane takes remaining space
-            self.right_pane.style.flex = 1
+                # Store slot IDs - Collection column contains both Collection and Steps
+                self.library_slot_id = slot_ids[0]
+                self.collection_slot_id = slot_ids[1]  # Contains both Collection + Steps
+                self.preview_slot_id = slot_ids[2]
+                self.adjust_slot_id = slot_ids[3]
 
-            # Add both panes initially
-            self.center_right_box.add(self.center_pane)
-            self.center_right_box.add(self.right_pane)
+                # Steps is in the Collection column, sharing the same slot
+                self.steps_slot_id = self.collection_slot_id
 
-            # Create StatusBar (empty by default - no "Ready" text)
-            self.status_bar = StatusBar(platform='desktop')
+                # Wire up focus system: Set on_click callbacks on views and slots
+                # The combined view acts as one focusable unit
+                all_views_and_slots = [
+                    (self.library_slot_id, library_view),
+                    (self.collection_slot_id, collection_view),  # Collection view gets focus for the combined column
+                    (self.preview_slot_id, preview_view),
+                    (self.adjust_slot_id, adjust_view)
+                ]
 
-            # Wrap center_right_box + status bar in a Box (Finder-style: status bar only under content area)
-            # This matches macOS Finder where the sidebar extends to the bottom but content area has status bar
-            self.content_area = toga.Box(
-                style=Pack(direction=COLUMN, flex=1)
-            )
-            self.content_area.add(self.center_right_box)
-            if self.status_bar_visible:
-                self.content_area.add(self.status_bar.container)
+                for i, (slot_id, view) in enumerate(all_views_and_slots):
+                    # Create a closure to capture the slot_id
+                    def make_focus_handler(sid):
+                        def handler():
+                            layout_manager.focus_slot(sid)
+                            logger.debug(f"Slot focused: {sid}")
+                        return handler
 
-            # Create horizontal box for library | content_area
-            # Use Box instead of SplitContainer for dynamic add/remove
-            self.main_horizontal_box = toga.Box(
-                style=Pack(direction=ROW, flex=1)
-            )
-            # Library pane has fixed width when visible
-            self.left_pane.style.width = self.pane_widths['library']
-            # Content area takes remaining space
-            self.content_area.style.flex = 1
+                    focus_handler = make_focus_handler(slot_id)
 
-            # Add both initially
-            self.main_horizontal_box.add(self.left_pane)
-            self.main_horizontal_box.add(self.content_area)
+                    # Set callback on view if it supports it
+                    if hasattr(view, 'on_click'):
+                        view.on_click = focus_handler
+                        logger.debug(f"Set on_click handler on view {i}")
 
-            # Set main container to the horizontal box
-            self.main_container = self.main_horizontal_box
+                    # Set callback on slot
+                    slot = layout_manager.view_slots.get(slot_id)
+                    if slot:
+                        slot.on_click = focus_handler
+                        logger.debug(f"Set on_click handler on slot {i}")
 
-            logger.debug("Desktop layout created with nested resizable SplitContainers and StatusBar")
+                # Set library view as initially focused
+                layout_manager.focus_slot(self.library_slot_id)
+                logger.info(f"Library view set as initially focused: {self.library_slot_id}")
+
+                # Store pane references (actual view containers)
+                self.library_pane = library_view.container
+                self.collection_pane = collection_view.container
+                self.steps_pane = steps_view.container
+                self.preview_pane = preview_view.container
+                self.adjust_pane = adjust_view.container
+
+                # Backward compatibility aliases
+                self.left_pane = self.library_pane
+                self.center_pane = self.collection_pane
+                self.right_pane = self.preview_pane
+
+                # Create StatusBar (empty by default - no "Ready" text)
+                self.status_bar = StatusBar(platform='desktop')
+
+                # Wrap layout container + status bar in a Box
+                # Height is 100% minus status bar
+                self.content_area = toga.Box(
+                    style=Pack(direction=COLUMN, flex=1)
+                )
+                self.content_area.add(layout_manager.container)
+                if self.status_bar_visible:
+                    self.content_area.add(self.status_bar.container)
+
+                # Set main container
+                self.main_container = self.content_area
+
+                logger.info(f"✅ Desktop layout created: 4-column layout with vertical split (Library | Collection+Steps | Preview | Adjust), widths=[270px, 250px, flex, 250px], Collection:Steps=70:30")
+            else:
+                # No layout manager available - this shouldn't happen
+                logger.error("❌ NavigationController layout_manager not available! Cannot create desktop layout.")
+                raise RuntimeError("UniversalLayoutManager is required for desktop layout")
 
         except Exception as e:
-            logger.error(f"Failed to create desktop layout: {e}")
+            logger.error(f"❌ Failed to create desktop layout: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise  # Don't silently fail - we need the layout manager
 
     def _subscribe_to_events(self):
         """Subscribe to navigation events"""
@@ -272,6 +437,11 @@ class MainWindow:
             subscribe_to_navigation(NavigationEvents.SHOW_MODAL, self._on_show_modal)
             subscribe_to_navigation(NavigationEvents.NAVIGATION_ERROR, self._on_navigation_error)
 
+            # Phase 2: Subscribe to selection changes for status bar updates
+            if self.status_bar:
+                subscribe_to_navigation(NavigationEvents.SELECTION_CHANGED, self._handle_selection_changed)
+                logger.debug("Status bar subscribed to selection events")
+
             logger.debug("Subscribed to navigation events")
 
         except Exception as e:
@@ -279,24 +449,24 @@ class MainWindow:
 
     def _precreate_output_view(self):
         """
-        Pre-create OutputView at startup to register its Edit menu commands.
+        Pre-create PreviewView at startup to register its Edit menu commands.
         The view won't be shown yet, but its commands need to be available in menus.
         """
         try:
             if self.cached_output_view is None:
-                logger.debug("Pre-creating OutputView to register Edit menu commands")
+                logger.debug("Pre-creating PreviewView to register Edit menu commands")
                 # Pass library_manager for file-specific filtering
                 library_manager = getattr(self.app, 'library_manager', None)
-                self.cached_output_view = OutputView(self.app, self.is_mobile, library_manager=library_manager)
+                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
 
                 # PHASE 5: Pass status bar to layout manager for pane selection updates
                 if hasattr(self.cached_output_view, 'layout_manager') and self.status_bar:
                     self.cached_output_view.layout_manager.status_bar = self.status_bar
-                    logger.debug("✅ Status bar linked to OutputView layout manager")
+                    logger.debug("✅ Status bar linked to PreviewView layout manager")
 
-                logger.info("✅ OutputView pre-created - Edit menu commands registered")
+                logger.info("✅ PreviewView pre-created - Edit menu commands registered")
         except Exception as e:
-            logger.error(f"Failed to pre-create OutputView: {e}")
+            logger.error(f"Failed to pre-create PreviewView: {e}")
 
     def _precreate_collection_view(self):
         """
@@ -319,6 +489,57 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to pre-create CollectionView: {e}")
 
+    def _register_toolbar_menus(self):
+        """Register toolbar dropdown menus (desktop macOS only)"""
+        try:
+            from fichero.shared.commands.toolbar_menu_manager import ToolbarMenuManager
+            from fichero.windows.main.toolbar_menus import register_toolbar_menus
+
+            # Get or create ToolbarMenuManager
+            toolbar_menu_manager = ToolbarMenuManager.get_instance(self.app)
+
+            # Register all toolbar menus
+            register_toolbar_menus(toolbar_menu_manager)
+
+            logger.info("✅ Toolbar menus registered")
+
+        except Exception as e:
+            logger.error(f"Failed to register toolbar menus: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _initialize_empty_toolbar(self):
+        """Initialize empty NSToolbar (items will be added as commands are registered)"""
+        try:
+            from fichero.shared.commands import CommandManager
+
+            command_manager = CommandManager.get_instance(self.app)
+
+            # Check if MacToolbarManager is available
+            if not command_manager._mac_toolbar_available:
+                logger.debug("MacToolbarManager not available, skipping toolbar initialization")
+                return
+
+            # Get or create MacToolbarManager for this window
+            window_id = id(self.window)
+            if window_id not in command_manager.mac_toolbar_managers:
+                from fichero.shared.commands.mac_toolbar_manager import MacToolbarManager
+                manager = MacToolbarManager(self.app, self.window)
+                command_manager.mac_toolbar_managers[window_id] = manager
+                logger.debug(f"Created MacToolbarManager for window: {self.window.title}")
+            else:
+                manager = command_manager.mac_toolbar_managers[window_id]
+
+            # Initialize empty toolbar (items will be added dynamically as commands are registered)
+            manager.initialize_empty_toolbar(toolbar_id="fichero.main.toolbar")
+
+            logger.info("✅ Empty NSToolbar initialized (items will be added as commands are registered)")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize empty toolbar: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
     def _register_view_commands(self):
         """Register View menu commands for pane visibility toggles (desktop only)"""
         try:
@@ -335,6 +556,63 @@ class MainWindow:
             # Order: Library, Collection, Step, Preview (output), Adjust
             # Note: macOS alphabetizes within sections, so we put each in separate sections to force order
             view_commands = {
+                # Library/Sidebar toggle button (NSToolbar item, positioned left of centered item)
+                'view.toggle_sidebar': FicheroCommand(
+                    id='view.toggle_sidebar',
+                    label=_("Library"),
+                    action=self._toggle_library_pane,
+                    icon="resources/icons/toolbar/sidebar.left@10x.png",
+                    toolbar_icon="resources/icons/toolbar/sidebar.left@10x.png",
+                    description=_("Show/hide Library sidebar"),
+                    show_in_menu=False,
+                    show_in_top_toolbar=True,
+                    show_in_titlebar=False,
+                    desktop_only=True,
+                    context='normal',
+                    visibility_priority=1000,
+                    tooltip=_("Show/hide Library sidebar"),
+                    navigational=True
+                ),
+                'view.toggle_collection': FicheroCommand(
+                    id='view.toggle_collection',
+                    label=_("Collection"),
+                    action=self._toggle_collection_pane,
+                    icon="resources/icons/toolbar/list.bullet.rectangle@10x.png",
+                    toolbar_icon=None,  # Use PNG icon instead of SF Symbol
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '2',
+                    description=_("Show/hide Collection pane"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=1,
+                    show_in_menu=True,
+                    show_in_top_toolbar=True,
+                    show_in_titlebar=False,
+                    desktop_only=True,
+                    context='normal',
+                    visibility_priority=600,
+                    tooltip=_("Show/hide Collection pane")
+                ),
+                # Adjust toggle button (toolbar button)
+                'view.toggle_inspector': FicheroCommand(
+                    id='view.toggle_inspector',
+                    label=_("Adjust"),  # Removed "3" prefix (not needed in toolbar)
+                    action=self._toggle_inspector_pane,
+                    icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon for right sidebar
+                    toolbar_icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '3',
+                    description=_("Show/hide Adjust pane"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=3,
+                    show_in_menu=True,
+                    show_in_top_toolbar=True,  # Add to native toolbar
+                    show_in_titlebar=False,  # Remove from titlebar accessories
+                    desktop_only=True,
+                    context='normal',  # Required for toolbar filtering
+                    visibility_priority=900,  # Very high priority - Phase 2 (stays visible)
+                    tooltip=_("Show/hide Adjust pane")  # Tooltip for toolbar button
+                ),
+                # Library toggle (menu only, no toolbar button - covered by sidebar button)
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
                     label=_("1 Library"),
@@ -345,54 +623,7 @@ class MainWindow:
                     section=0,
                     order=0,
                     show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.toggle_collection': FicheroCommand(
-                    id='view.toggle_collection',
-                    label=_("2 Collection"),
-                    action=self._toggle_collection_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '2',
-                    description=_("Show/hide Collection pane"),
-                    group=toga.Group.VIEW,
-                    section=0,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.toggle_step': FicheroCommand(
-                    id='view.toggle_step',
-                    label=_("3 Step"),
-                    action=self._toggle_step_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '3',
-                    description=_("Show/hide Step pane"),
-                    group=toga.Group.VIEW,
-                    section=0,
-                    order=2,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.toggle_output': FicheroCommand(
-                    id='view.toggle_output',
-                    label=_("4 Preview"),
-                    action=self._toggle_output_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '4',
-                    description=_("Show/hide Preview pane"),
-                    group=toga.Group.VIEW,
-                    section=0,
-                    order=3,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.toggle_inspector': FicheroCommand(
-                    id='view.toggle_inspector',
-                    label=_("5 Adjust"),
-                    action=self._toggle_inspector_pane,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
-                    description=_("Show/hide Adjust pane"),
-                    group=toga.Group.VIEW,
-                    section=0,
-                    order=4,
-                    show_in_menu=True,
+                    show_in_titlebar=False,  # Not in titlebar (sidebar button handles it)
                     desktop_only=True
                 ),
                 'view.toggle_markup_toolbar': FicheroCommand(
@@ -431,31 +662,6 @@ class MainWindow:
                     show_in_menu=True,
                     desktop_only=True
                 ),
-                # PHASE 5: Dynamic split pane commands (section 30 for grouping)
-                'view.split_horizontal': FicheroCommand(
-                    id='view.split_horizontal',
-                    label=_("Split Horizontal"),
-                    action=lambda widget: self._split_pane('horizontal'),
-                    shortcut=toga.Key.MOD_1 + '\\',
-                    description=_("Split horizontally (add column, left/right)"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
-                'view.split_vertical': FicheroCommand(
-                    id='view.split_vertical',
-                    label=_("Split Vertical"),
-                    action=lambda widget: self._split_pane('vertical'),
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '\\',
-                    description=_("Split vertically (add row, up/down)"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=True
-                ),
             }
 
             # Register all View commands
@@ -463,7 +669,7 @@ class MainWindow:
                 command_manager.register_command(command)
                 logger.debug(f"Registered View command: {command_id}")
 
-            logger.info("✅ View menu commands registered (5 pane toggles + 3 toolbar toggles + 5 layout options)")
+            logger.info("✅ View menu commands registered (5 pane toggles + 3 toolbar toggles)")
 
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
@@ -498,9 +704,8 @@ class MainWindow:
                 self.cached_library_view.register_collection_callback(self._on_collection_selected)
             else:
                 logger.debug("Reusing cached LibraryView instance")
-                # Refresh the view when reusing it
-                if hasattr(self.cached_library_view, 'show'):
-                    self.cached_library_view.show()
+                # Note: Do NOT call show() here - it causes recursion!
+                # _show_desktop_view() will call show() after this returns
 
             return self.cached_library_view
         except Exception as e:
@@ -541,6 +746,15 @@ class MainWindow:
     def _update_toolbar_for_library_view(self, context: str = 'normal'):
         """Update native toolbar for LibraryView on desktop"""
         try:
+            # Check if app.main_window is set yet
+            # During initialization, this may be called before app.main_window exists
+            # In that case, toolbar will be built later by explicit call from app.py
+            try:
+                _ = self.app.main_window
+            except (AttributeError, ValueError):
+                logger.debug("app.main_window not set yet, deferring toolbar build")
+                return
+
             from fichero.shared.commands import CommandManager
 
             command_manager = CommandManager.get_instance(self.app)
@@ -558,6 +772,13 @@ class MainWindow:
     def _update_toolbar_for_collection_view(self, context: str = 'normal'):
         """Update native toolbar for CollectionView on desktop"""
         try:
+            # Check if app.main_window is set yet
+            try:
+                _ = self.app.main_window
+            except (AttributeError, ValueError):
+                logger.debug("app.main_window not set yet, deferring toolbar build")
+                return
+
             from fichero.shared.commands import CommandManager
 
             command_manager = CommandManager.get_instance(self.app)
@@ -573,8 +794,15 @@ class MainWindow:
             logger.error(f"Failed to update toolbar for CollectionView: {e}")
 
     def _update_toolbar_for_output_view(self, context: str = 'normal'):
-        """Update native toolbar for OutputView on desktop"""
+        """Update native toolbar for PreviewView on desktop"""
         try:
+            # Check if app.main_window is set yet
+            try:
+                _ = self.app.main_window
+            except (AttributeError, ValueError):
+                logger.debug("app.main_window not set yet, deferring toolbar build")
+                return
+
             from fichero.shared.commands import CommandManager
 
             command_manager = CommandManager.get_instance(self.app)
@@ -584,10 +812,10 @@ class MainWindow:
                 context=context
             )
 
-            logger.debug(f"Updated native toolbar for OutputView (context={context})")
+            logger.debug(f"Updated native toolbar for PreviewView (context={context})")
 
         except Exception as e:
-            logger.error(f"Failed to update toolbar for OutputView: {e}")
+            logger.error(f"Failed to update toolbar for PreviewView: {e}")
 
     # ===== EVENT HANDLERS =====
 
@@ -670,15 +898,17 @@ class MainWindow:
             else:
                 self._show_view_desktop(view_key, collection_view, "center")
 
-            # Call show() method to trigger any view-specific refresh logic
-            if hasattr(collection_view, 'show'):
+            # NOTE: Do NOT call show() on desktop when using UniversalLayoutManager
+            # The layout manager handles view lifecycle. Only call show() on mobile.
+            # See line 1134-1138 for detailed explanation.
+            if self.is_mobile and hasattr(collection_view, 'show'):
                 collection_view.show()
 
         except Exception as e:
             logger.error(f"Failed to handle show collection event: {e}")
 
     def _on_show_preview(self, event):
-        """Handle show preview event - now shows OutputView with optional pre-filtered outputs"""
+        """Handle show preview event - now shows PreviewView with optional pre-filtered outputs"""
         try:
             data = event.data
             file_path = data.get('file_path')
@@ -695,12 +925,12 @@ class MainWindow:
             elif output_path:
                 logger.info(f"📊 With legacy output_path: {output_path}")
 
-            # Create or reuse OutputView
+            # Create or reuse PreviewView
             if not self.cached_output_view:
                 # Pass library_manager for file-specific filtering
                 library_manager = getattr(self.app, 'library_manager', None)
-                self.cached_output_view = OutputView(self.app, self.is_mobile, library_manager=library_manager)
-                logger.debug("Created new OutputView")
+                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
+                logger.debug("Created new PreviewView")
 
             # Get collection items from current center view if not provided
             if not collection_items:
@@ -740,7 +970,7 @@ class MainWindow:
 
                 logger.info(f"📋 Extracted {len(source_files)} source files + {len(source_item_ids)} item IDs, current index={source_index}")
 
-            # Determine what to load into OutputView
+            # Determine what to load into PreviewView
             # Priority: output_data (pre-filtered) > output_path (legacy) > original file only
 
             # Don't convert URLs to Path objects - keep as strings
@@ -772,7 +1002,7 @@ class MainWindow:
                     source_item_ids=source_item_ids  # NEW: Pass item IDs for library-based navigation
                 )
 
-            # Update native toolbar on desktop (OutputView has persistent toolbar with editing commands)
+            # Update native toolbar on desktop (PreviewView has persistent toolbar with editing commands)
             if not self.is_mobile:
                 self._update_toolbar_for_output_view(context='normal')
 
@@ -781,6 +1011,15 @@ class MainWindow:
                 self._show_view_mobile("output", self.cached_output_view)
             else:
                 self._show_view_desktop("output", self.cached_output_view, "right")
+
+                # CRITICAL: Actually show the preview pane using layout manager
+                if (hasattr(self, 'preview_slot_id') and
+                    hasattr(self, 'navigation_controller') and
+                    self.navigation_controller and
+                    hasattr(self.navigation_controller, 'layout_manager') and
+                    self.navigation_controller.layout_manager):
+                    self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
+                    logger.info(f"✅ Preview pane shown via layout manager (slot: {self.preview_slot_id})")
 
         except Exception as e:
             logger.error(f"Failed to handle show preview event: {e}")
@@ -1010,32 +1249,23 @@ class MainWindow:
             logger.error(f"Failed to show mobile view {view_key}: {e}")
 
     def _show_view_desktop(self, view_key: str, view, pane: str):
-        """Show view in desktop layout"""
+        """Show view in desktop layout - updates tracking only when using UniversalLayoutManager
+
+        IMPORTANT: When using UniversalLayoutManager, views are added once during _create_desktop_layout()
+        and never removed. This method only updates tracking variables - NO pane manipulation.
+        """
         try:
-            # Get target pane
-            if pane == "left":
-                target_pane = self.left_pane
-            elif pane == "center":
-                target_pane = self.center_pane
-            elif pane == "right":
-                target_pane = self.right_pane
-            else:
-                logger.error(f"Invalid pane: {pane}")
+            # Check if UniversalLayoutManager is active
+            using_layout_manager = (
+                hasattr(self, 'navigation_controller') and
+                self.navigation_controller and
+                hasattr(self.navigation_controller, 'layout_manager') and
+                self.navigation_controller.layout_manager
+            )
+
+            if not using_layout_manager:
+                logger.error("UniversalLayoutManager not available - desktop layout requires it")
                 return
-
-            if not target_pane:
-                logger.error(f"Pane '{pane}' not available")
-                return
-
-            # Note: No cleanup needed - we cache and reuse views (library, collection, output)
-            # They subscribe to events once in __init__ and stay subscribed
-
-            # Clear target pane
-            target_pane.clear()
-
-            # Add new view
-            view_container = view.get_container() if hasattr(view, 'get_container') else view
-            target_pane.add(view_container)
 
             # Update tracking (for mobile fallback)
             if pane == "center":  # Track center pane as current view
@@ -1054,13 +1284,18 @@ class MainWindow:
             elif pane == "center":
                 self.center_pane_view = view
                 self.focused_pane = 'center'
-            elif pane == "right":
+            elif pane in ("right", "preview"):
                 self.right_pane_view = view
                 self.focused_pane = 'right'
+            elif pane == "steps":
+                self.steps_pane_view = view if hasattr(self, 'steps_pane') else None
+                self.focused_pane = 'steps'
 
-            # Show the view
-            if hasattr(view, 'show'):
-                view.show()
+            # NOTE: Do NOT call view.show() here when using UniversalLayoutManager
+            # The layout manager handles view lifecycle management
+            # Calling show() can cause recursion issues
+            # if hasattr(view, 'show'):
+            #     view.show()
 
             logger.debug(f"Desktop view '{view_key}' displayed in '{pane}' pane")
 
@@ -1069,81 +1304,204 @@ class MainWindow:
 
     # ===== VIEW VISIBILITY TOGGLES (Desktop only) =====
 
+    def _update_toolbar_menu_checkmarks(self):
+        """Update toolbar menu checkmarks after pane visibility changes"""
+        try:
+            from fichero.shared.commands.toolbar_menu_manager import ToolbarMenuManager
+            toolbar_menu_manager = ToolbarMenuManager.get_instance(self.app)
+            if toolbar_menu_manager:
+                toolbar_menu_manager.update_menu_states()
+        except Exception as e:
+            logger.debug(f"Could not update toolbar menu checkmarks: {e}")
+
     def _toggle_library_pane(self, widget):
         """Toggle Library pane visibility"""
         if self.is_mobile:
             return
 
-        self.pane_visibility['library'] = not self.pane_visibility['library']
-        logger.info(f"📐 Toggle Library pane: {self.pane_visibility['library']}")
-        self._update_pane_layout()
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                new_state = self.navigation_controller.layout_manager.toggle_column("Library")
+                logger.info(f"📐 Toggle Library pane: {new_state}")
+                self._update_toolbar_menu_checkmarks()
+            else:
+                logger.warning("Cannot toggle Library: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Library pane: {e}")
 
     def _toggle_collection_pane(self, widget):
         """Toggle Collection/Browser pane visibility"""
         if self.is_mobile:
             return
 
-        self.pane_visibility['collection'] = not self.pane_visibility['collection']
-        logger.info(f"📐 Toggle Collection pane: {self.pane_visibility['collection']}")
-        self._update_pane_layout()
-
-    def _toggle_step_pane(self, widget):
-        """Toggle Step browser visibility (within Output pane)"""
-        if self.is_mobile:
-            return
-
-        # Step browser is inside OutputView, delegate to it
-        if self.cached_output_view:
-            self.cached_output_view.toggle_step_browser()
-        else:
-            logger.warning("Cannot toggle step browser: OutputView not created yet")
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                new_state = self.navigation_controller.layout_manager.toggle_column("Collection")
+                logger.info(f"📐 Toggle Collection pane: {new_state}")
+                self._update_toolbar_menu_checkmarks()
+            else:
+                logger.warning("Cannot toggle Collection: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Collection pane: {e}")
 
     def _toggle_output_pane(self, widget):
         """Toggle Output/Preview pane visibility
 
-        Note: Preview pane is always visible as the main content area.
-        This method exists for menu consistency but doesn't actually hide the pane.
+        Preview can now be hidden for Finder-style window (Collection only).
+        When hiding Preview:
+        - Adjust is also hidden
+        - Collection must stay visible (cannot hide everything)
+        - Window resizes to fit remaining columns
         """
         if self.is_mobile:
             return
 
-        # Preview pane cannot be hidden - it's the main content area
-        # Just log that the toggle was attempted
-        logger.info(f"📐 Preview pane toggle requested (Preview is always visible)")
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                lm = self.navigation_controller.layout_manager
+
+                # Toggle Preview column
+                new_state = lm.toggle_column("Preview")
+                logger.info(f"📐 Toggle Preview pane: {new_state}")
+
+                # If hiding Preview, also hide Adjust (but remember if it was already hidden)
+                if not new_state:
+                    logger.info("📐 Preview hidden, also hiding Adjust")
+                    adjust_slot = lm._find_slot_by_name("Adjust")
+
+                    # Remember if Adjust was already hidden before we hide Preview
+                    # Store this in a window attribute so we can restore it later
+                    if adjust_slot:
+                        self._adjust_was_visible_before_preview_hide = adjust_slot.is_visible
+                        logger.info(f"📐 Adjust was {'visible' if adjust_slot.is_visible else 'hidden'} before Preview hide")
+                        lm.hide_column("Adjust")
+
+                    # Ensure Collection stays visible (cannot have nothing)
+                    collection_slot = lm._find_slot_by_name("Collection")
+                    if collection_slot and not collection_slot.is_visible:
+                        logger.info("📐 Showing Collection (cannot hide everything)")
+                        lm.show_column("Collection")
+                else:
+                    # When showing Preview, restore Adjust to its previous state
+                    # Only show it if it was visible before we hid Preview
+                    if hasattr(self, '_adjust_was_visible_before_preview_hide') and self._adjust_was_visible_before_preview_hide:
+                        logger.info("📐 Preview shown, restoring Adjust (was visible before)")
+                        lm.show_column("Adjust")
+                    else:
+                        logger.info("📐 Preview shown, NOT showing Adjust (was hidden before or never set)")
+
+                # Resize window to fit visible columns
+                self._resize_window_to_content()
+            else:
+                logger.warning("Cannot toggle Preview: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Preview pane: {e}")
 
     def _toggle_inspector_pane(self, widget):
-        """Toggle Inspector/Adjust pane visibility (within Output pane)"""
+        """Toggle Inspector/Adjust pane visibility
+
+        Note: If Preview is hidden, Adjust cannot be shown (it's auto-hidden with Preview).
+        """
         if self.is_mobile:
             return
 
-        self.pane_visibility['inspector'] = not self.pane_visibility['inspector']
-        logger.info(f"📐 Toggle Inspector/Adjust pane: {self.pane_visibility['inspector']}")
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                lm = self.navigation_controller.layout_manager
 
-        # Delegate to OutputView's inspector toggle
-        if self.cached_output_view:
-            # OutputView already has _toggle_inspector() method
-            self.cached_output_view._toggle_inspector()
-        else:
-            logger.warning("Cannot toggle inspector: OutputView not created yet")
+                # Check if Preview is visible
+                preview_slot = lm._find_slot_by_name("Preview")
+                if preview_slot and not preview_slot.is_visible:
+                    logger.warning("📐 Cannot toggle Adjust: Preview is hidden (Adjust is auto-hidden with Preview)")
+                    return
+
+                # Toggle Adjust column
+                new_state = lm.toggle_column("Adjust")
+                logger.info(f"📐 Toggle Adjust pane: {new_state}")
+                self._update_toolbar_menu_checkmarks()
+
+                # Resize window to fit visible columns
+                self._resize_window_to_content()
+            else:
+                logger.warning("Cannot toggle Adjust: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Adjust pane: {e}")
+
+    def _resize_window_to_content(self):
+        """Resize window to fit visible columns
+
+        Calculates the total width of visible columns and resizes the window accordingly.
+        This ensures the window size matches the content when columns are toggled.
+
+        Column widths:
+        - Library: 180px (when visible)
+        - Collection: 200px (when visible)
+        - Preview: flexible (minimum 400px)
+        - Adjust: 200px (when visible)
+        """
+        if self.is_mobile:
+            return
+
+        try:
+            if not self.navigation_controller or not self.navigation_controller.layout_manager:
+                return
+
+            lm = self.navigation_controller.layout_manager
+
+            # Calculate total width of visible columns
+            total_width = 0
+
+            # Library (180px)
+            library_slot = lm._find_slot_by_name("Library")
+            if library_slot and library_slot.is_visible:
+                total_width += 180
+
+            # Collection (200px)
+            collection_slot = lm._find_slot_by_name("Collection")
+            if collection_slot and collection_slot.is_visible:
+                total_width += 200
+
+            # Preview (flexible, minimum 400px when visible)
+            preview_slot = lm._find_slot_by_name("Preview")
+            if preview_slot and preview_slot.is_visible:
+                total_width += 600  # Use a comfortable default for Preview
+
+            # Adjust (200px)
+            adjust_slot = lm._find_slot_by_name("Adjust")
+            if adjust_slot and adjust_slot.is_visible:
+                total_width += 200
+
+            # Set a minimum width
+            total_width = max(total_width, 600)  # Minimum window width
+
+            # Get current window height
+            current_height = self.window.size[1] if self.window.size else 800
+
+            # Resize window
+            self.window.size = (total_width, current_height)
+            logger.info(f"📐 Resized window to {total_width}x{current_height}")
+
+        except Exception as e:
+            logger.error(f"Failed to resize window: {e}")
 
     def _toggle_markup_toolbar(self, widget):
         """Toggle markup toolbar visibility in Preview pane"""
         if self.is_mobile:
             return
 
-        # Delegate to OutputView's toolbar toggle
+        # Delegate to PreviewView's toolbar toggle
         if self.cached_output_view:
             self.cached_output_view.toggle_toolbar()
             logger.info(f"🔧 Toggle Markup Toolbar")
         else:
-            logger.warning("Cannot toggle toolbar: OutputView not created yet")
+            logger.warning("Cannot toggle toolbar: PreviewView not created yet")
 
     def _toggle_path_bar(self, widget):
         """Toggle path bar visibility in Preview pane"""
         if self.is_mobile:
             return
 
-        # Delegate to OutputView's layout manager to toggle path bars in all panes
+        # Delegate to PreviewView's layout manager to toggle path bars in all panes
         if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
             layout_manager = self.cached_output_view.layout_manager
             # Toggle path bar visibility in all output panes
@@ -1154,7 +1512,7 @@ class MainWindow:
                     pane._show_content()
             logger.info(f"🔧 Toggle Path Bar")
         else:
-            logger.warning("Cannot toggle path bar: OutputView not created yet")
+            logger.warning("Cannot toggle path bar: PreviewView not created yet")
 
     def _toggle_status_bar(self, widget):
         """Toggle status bar visibility at bottom of content area (collection + output panes)"""
@@ -1180,84 +1538,12 @@ class MainWindow:
 
     # ===== PREVIEW LAYOUT SWITCHING (PHASE 5) =====
 
-    def _split_pane(self, direction: str):
-        """
-        Split the currently focused pane (PHASE 5 - Dynamic Splitting).
+    # _split_pane() REMOVED - split commands now handled directly in PreviewView
+    # Split commands are organized under View > Editor Layout submenu
 
-        Args:
-            direction: 'vertical' (side by side) or 'horizontal' (top/bottom)
-        """
-        if self.is_mobile:
-            return
-
-        try:
-            # Get OutputView and its layout manager
-            if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
-                layout_manager = self.cached_output_view.layout_manager
-
-                # Get currently focused pane index
-                focused_index = layout_manager.get_focused_pane_index()
-
-                # Call the appropriate split method
-                if direction == 'vertical':
-                    layout_manager.split_pane_vertical(focused_index)
-                    logger.info(f"📐 Split pane {focused_index} vertically")
-                elif direction == 'horizontal':
-                    layout_manager.split_pane_horizontal(focused_index)
-                    logger.info(f"📐 Split pane {focused_index} horizontally")
-                else:
-                    logger.warning(f"Unknown split direction: {direction}")
-            else:
-                logger.warning("Cannot split pane: OutputView not created yet")
-
-        except Exception as e:
-            logger.error(f"Failed to split pane: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _update_pane_layout(self):
-        """Update pane layout by adding/removing panes from Box containers
-
-        Uses Box.add() and Box.remove() just like OutputView's inspector panel.
-        This properly hides panes and adjusts layout dynamically.
-        """
-        if self.is_mobile:
-            return
-
-        try:
-            library_visible = self.pane_visibility['library']
-            collection_visible = self.pane_visibility['collection']
-
-            logger.debug(f"Updating pane visibility: library={library_visible}, collection={collection_visible}")
-
-            # Update library pane visibility (add/remove from main_horizontal_box)
-            if library_visible:
-                # Show library: ensure it's in the box
-                if self.left_pane not in self.main_horizontal_box.children:
-                    # Insert at beginning (left side)
-                    self.main_horizontal_box.insert(0, self.left_pane)
-            else:
-                # Hide library: remove from box
-                if self.left_pane in self.main_horizontal_box.children:
-                    self.main_horizontal_box.remove(self.left_pane)
-
-            # Update collection pane visibility (add/remove from center_right_box)
-            if collection_visible:
-                # Show collection: ensure it's in the box
-                if self.center_pane not in self.center_right_box.children:
-                    # Insert at beginning (left side of center_right_box)
-                    self.center_right_box.insert(0, self.center_pane)
-            else:
-                # Hide collection: remove from box
-                if self.center_pane in self.center_right_box.children:
-                    self.center_right_box.remove(self.center_pane)
-
-            logger.info(f"📐 Pane visibility updated: library={library_visible}, collection={collection_visible}")
-
-        except Exception as e:
-            logger.error(f"Failed to update pane layout: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+    # _update_pane_layout() REMOVED - replaced by layout_manager.toggle_column()
+    # Old method manipulated Box containers directly (left_pane, center_pane, etc.)
+    # New layout system uses layout_manager API for column visibility
 
     # ===== LEGACY CALLBACKS (for views that haven't been updated yet) =====
 
@@ -1284,6 +1570,118 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to handle file preview request: {e}")
 
+    # ===== STATE PERSISTENCE =====
+
+    def save_window_state(self):
+        """
+        Save complete window state including layout for restoration on next launch.
+
+        Saves:
+        - Window size and position
+        - Main layout state (column visibility, widths)
+        - Preview layout state (split panes, contexts, viewer states)
+        """
+        try:
+            from fichero.config.core.app_preferences import get_app_preferences
+
+            prefs = get_app_preferences(self.app)
+
+            # Save window size and position
+            if self.window:
+                # Get window position and size
+                try:
+                    position = getattr(self.window, 'position', (100, 100))
+                    size = getattr(self.window, 'size', (1200, 800))
+
+                    prefs.set_window_position('main', {
+                        'x': position[0] if position else 100,
+                        'y': position[1] if position else 100,
+                        'width': size[0] if size else 1200,
+                        'height': size[1] if size else 800
+                    })
+                    logger.debug(f"Saved window position: {position}, size: {size}")
+                except Exception as e:
+                    logger.warning(f"Could not save window position/size: {e}")
+
+            # Save main layout state (column visibility, widths)
+            if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+                try:
+                    layout_state = self.navigation_controller.layout_manager.get_layout_state()
+                    prefs._preferences['main_layout'] = layout_state
+                    prefs._save_preferences()
+                    logger.debug(f"Saved main layout state: {len(layout_state.get('slots', []))} slots")
+                except Exception as e:
+                    logger.warning(f"Could not save main layout state: {e}")
+
+            # Save preview layout state (split panes)
+            preview_view = self.views.get('output')
+            if preview_view and hasattr(preview_view, 'layout_manager'):
+                try:
+                    preview_layout = preview_view.layout_manager.get_layout_state()
+                    prefs._preferences['preview_layout'] = preview_layout
+                    prefs._save_preferences()
+                    logger.debug(f"Saved preview layout state: {preview_layout.get('layout_type')}")
+                except Exception as e:
+                    logger.warning(f"Could not save preview layout state: {e}")
+
+            logger.info("✅ Window state saved successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to save window state: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    async def restore_window_state(self):
+        """
+        Restore window state from saved preferences.
+
+        Restores:
+        - Window size and position
+        - Main layout state (column visibility, widths)
+        - Preview layout state (split panes, contexts, viewer states)
+        """
+        try:
+            from fichero.config.core.app_preferences import get_app_preferences
+
+            prefs = get_app_preferences(self.app)
+
+            # Restore window size and position
+            window_state = prefs.get_window_position('main')
+            if window_state and self.window:
+                try:
+                    self.window.position = (window_state['x'], window_state['y'])
+                    self.window.size = (window_state['width'], window_state['height'])
+                    logger.debug(f"Restored window position: ({window_state['x']}, {window_state['y']})")
+                    logger.debug(f"Restored window size: {window_state['width']}x{window_state['height']}")
+                except Exception as e:
+                    logger.warning(f"Could not restore window position/size: {e}")
+
+            # Restore main layout (column visibility and widths)
+            main_layout = prefs._preferences.get('main_layout')
+            if main_layout and self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+                try:
+                    self.navigation_controller.layout_manager.restore_layout(main_layout)
+                    logger.debug(f"Restored main layout: {len(main_layout.get('slots', []))} slots")
+                except Exception as e:
+                    logger.warning(f"Could not restore main layout: {e}")
+
+            # Restore preview layout (split panes)
+            preview_layout = prefs._preferences.get('preview_layout')
+            preview_view = self.views.get('output')
+            if preview_layout and preview_view and hasattr(preview_view, 'layout_manager'):
+                try:
+                    await preview_view.layout_manager.restore_layout_state(preview_layout)
+                    logger.debug(f"Restored preview layout: {preview_layout.get('layout_type')}")
+                except Exception as e:
+                    logger.warning(f"Could not restore preview layout: {e}")
+
+            logger.info("✅ Window state restored successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to restore window state: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
     # ===== PUBLIC INTERFACE =====
 
     def show(self):
@@ -1298,6 +1696,9 @@ class MainWindow:
     def close(self):
         """Close the main window with proper cleanup"""
         try:
+            # Save window state before closing
+            self.save_window_state()
+
             # Clean up all cached views before closing
             self._cleanup_all_cached_views()
 
@@ -1306,6 +1707,106 @@ class MainWindow:
                 logger.info("Main window closed")
         except Exception as e:
             logger.error(f"Failed to close main window: {e}")
+
+    # Phase 2: Selection tracking event handler
+
+    def _handle_selection_changed(self, event):
+        """
+        Handle SELECTION_CHANGED events to update status bar.
+
+        Called by NavigationEventBus when any view's selection changes.
+        Updates status bar with selection count and total item count.
+
+        CRITICAL FIX #2: Includes defensive checks for view readiness.
+
+        Args:
+            event: NavigationEvent with selection data
+        """
+        try:
+            # CRITICAL FIX #2: Early return if status bar not ready
+            if not self.status_bar:
+                logger.debug("Status bar not available, skipping update")
+                return
+
+            # Extract event data
+            view_id = event.data.get('view_id', '')
+            context = event.data.get('context', '')
+            selected_count = event.data.get('count', 0)
+            metadata = event.data.get('metadata', [])
+
+            logger.debug(f"Selection changed: view_id={view_id}, context={context}, count={selected_count}")
+
+            # Get total item count and folder count for this view
+            total_items = 0
+            folder_count = 0
+
+            if view_id == 'library':
+                # CRITICAL FIX #2: Defensive check with early return
+                if not hasattr(self, 'left_pane_view') or self.left_pane_view is None:
+                    logger.debug("Library view not ready, skipping status update")
+                    return
+
+                if hasattr(self.left_pane_view, 'collections'):
+                    total_items = len(self.left_pane_view.collections)
+                    logger.debug(f"Library view has {total_items} collections")
+                else:
+                    logger.debug("Library view has no collections attribute, skipping")
+                    return
+
+            elif view_id == 'collection':
+                # CRITICAL FIX #2: Defensive check with early return
+                if not hasattr(self, 'center_pane_view') or self.center_pane_view is None:
+                    logger.debug("Collection view not ready, skipping status update")
+                    return
+
+                if hasattr(self.center_pane_view, 'collection_items'):
+                    items = self.center_pane_view.collection_items
+                    total_items = len(items)
+                    logger.debug(f"Collection view has {total_items} items")
+
+                    # CRITICAL FIX #1: Count folders using item.get() for dictionaries
+                    folder_count = sum(
+                        1 for item in items
+                        if isinstance(item, dict) and item.get('is_folder', False)
+                    )
+                    logger.debug(f"Collection has {folder_count} folders")
+                else:
+                    logger.debug("Collection view has no collection_items attribute, skipping")
+                    return
+
+            elif view_id == 'steps':
+                # CRITICAL FIX #2: Defensive check with early return
+                if not hasattr(self, 'right_pane_view') or self.right_pane_view is None:
+                    logger.debug("Preview view not ready, skipping status update")
+                    return
+
+                # Get total steps from PreviewView (if it has step browser)
+                if hasattr(self.right_pane_view, 'step_browser'):
+                    step_browser = self.right_pane_view.step_browser
+                    if step_browser and hasattr(step_browser, 'steps'):
+                        total_items = len(step_browser.steps)
+                        logger.debug(f"Steps view has {total_items} steps")
+                    else:
+                        logger.debug("Step browser not ready, skipping")
+                        return
+                else:
+                    logger.debug("Preview view has no step_browser attribute, skipping")
+                    return
+
+            # Update status bar with formatted message
+            self.status_bar.update_status_from_selection(
+                context=context,
+                selected_count=selected_count,
+                metadata={
+                    'total_items': total_items,
+                    'folder_count': folder_count
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to update status bar on selection change: {e}")
+            import traceback
+            traceback.print_exc()
 
 
     def get_window_info(self) -> Dict[str, Any]:

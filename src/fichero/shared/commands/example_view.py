@@ -95,7 +95,7 @@ class ExampleView(BaseView, ViewCommandMixin):
                 label='Crop',
                 action=self._crop,
                 shortcut=toga.Key.MOD_1 + 'k',
-                icon='resources/icons/crop.png',
+                icon='resources/icons/crop@10x.png',
                 toolbar_text='Crop',
                 toolbar_position='center',
                 show_in_menu=True,
@@ -199,7 +199,7 @@ class ExampleView(BaseView, ViewCommandMixin):
             style=Pack(
                 direction=COLUMN,
                 flex=1,
-                padding=20
+                margin=20
             )
         )
 
@@ -209,7 +209,7 @@ class ExampleView(BaseView, ViewCommandMixin):
             style=Pack(
                 font_size=18,
                 font_weight='bold',
-                padding_bottom=10
+                margin_bottom=10
             )
         )
         content_box.add(title)
@@ -221,14 +221,14 @@ class ExampleView(BaseView, ViewCommandMixin):
             "- Desktop: Native menus with keyboard shortcuts\n"
             "- Both: Custom toolbars\n\n"
             "Try the toolbar buttons or use keyboard shortcuts!",
-            style=Pack(padding_bottom=20)
+            style=Pack(margin_bottom=20)
         )
         content_box.add(description)
 
         # Add status label
         self.status_label = toga.Label(
             "Ready",
-            style=Pack(padding_top=20, font_size=14)
+            style=Pack(margin_top=20, font_size=14)
         )
         content_box.add(self.status_label)
 

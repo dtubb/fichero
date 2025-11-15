@@ -776,6 +776,86 @@ class LibraryService:
             logger.error(f"Failed to get collection items sync: {e}")
             return []
 
+    def get_collection_all_items(self, collection_id: str) -> List[Dict[str, Any]]:
+        """Get ALL items in collection with full paths for navigable ListWidget
+
+        Args:
+            collection_id: The collection ID
+
+        Returns:
+            List of ALL folders and files with full path property set
+        """
+        try:
+            # Get ALL items from database
+            all_items = self.library_manager.storage.get_collection_items(collection_id)
+            logger.info(f"📚 get_collection_all_items: Retrieved {len(all_items)} items from database")
+
+            # Log sample of items
+            for item in all_items[:5]:
+                logger.debug(f"📚   Item: '{item.name}' type={item.type} parent_id={item.parent_id}")
+
+            # Build parent_id to full_path mapping
+            id_to_path = {}
+
+            # First pass: map all folder IDs to their paths
+            # We need to do this recursively
+            def build_path(item_id, items_by_id):
+                if item_id is None:
+                    return ""
+                if item_id in id_to_path:
+                    return id_to_path[item_id]
+
+                item = items_by_id.get(item_id)
+                if not item:
+                    return ""
+
+                parent_path = build_path(item.parent_id, items_by_id)
+                item_path = f"{parent_path}/{item.name}" if parent_path else item.name
+                id_to_path[item_id] = item_path
+                return item_path
+
+            # Create lookup dict
+            items_by_id = {item.id: item for item in all_items}
+
+            # Build paths for all items
+            for item in all_items:
+                if item.type == "folder":
+                    build_path(item.id, items_by_id)
+
+            # Convert all items to Toga format with full paths
+            toga_items = []
+            folder_icon = self._get_folder_icon()
+
+            for item in all_items:
+                # Calculate full path for this item
+                if item.type == "folder":
+                    full_path = id_to_path.get(item.id, item.name or "")
+                else:
+                    # For files, path is parent folder's path + filename
+                    parent_path = id_to_path.get(item.parent_id, "")
+                    if parent_path:
+                        full_path = f"{parent_path}/{item.name}" if item.name else parent_path
+                    else:
+                        full_path = item.name or ""
+
+                # Build item data
+                item_data = self._build_item_data(item, full_path, folder_icon)
+                toga_items.append(item_data)
+
+            logger.info(f"📚 Returning {len(toga_items)} total items for navigable list")
+
+            # Log sample of returned paths
+            for item_data in toga_items[:10]:
+                logger.debug(f"📚   Return: '{item_data.get('title')}' path='{item_data.get('path')}' is_folder={item_data.get('is_folder')}")
+
+            return toga_items
+
+        except Exception as e:
+            logger.error(f"Failed to get all collection items: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
     def get_collection_structure_sync(self, collection_id: str, current_path: str = "") -> List[Dict[str, Any]]:
         """Get hierarchical collection structure for GUI navigation
 
@@ -799,11 +879,90 @@ class LibraryService:
             # This keeps the collection view clean and prevents processing output folders from appearing
             logger.debug(f"Getting hierarchical items from library database for collection type: {collection.type}")
             return self._get_database_hierarchical_structure(collection_id, current_path)
-                
+
         except Exception as e:
             logger.error(f"Failed to get collection structure sync: {e}")
             return []
     
+    def _get_folder_icon(self):
+        """Load and cache folder icon"""
+        try:
+            import toga
+            folder_icon_path = self.library_manager.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+            if folder_icon_path.exists():
+                return toga.Image(str(folder_icon_path))
+        except Exception as e:
+            logger.debug(f"Could not load folder icon: {e}")
+        return None
+
+    def _build_item_data(self, item, full_path: str, folder_icon):
+        """Build item data dict from database item"""
+        # Build subtitle
+        subtitle_parts = [] if item.type == "folder" else [item.type or "File"]
+
+        # Add size info if available
+        if hasattr(item, 'source_path') and item.source_path:
+            try:
+                file_path = Path(item.source_path)
+                if file_path.exists():
+                    size = file_path.stat().st_size
+                    if size > 1024 * 1024:
+                        subtitle_parts.append(f"{size / (1024*1024):.1f} MB")
+                    elif size > 1024:
+                        subtitle_parts.append(f"{size / 1024:.1f} KB")
+            except Exception:
+                pass
+
+        # Determine file path
+        file_path = None
+        if hasattr(item, 'local_path') and item.local_path:
+            file_path = item.local_path
+        elif hasattr(item, 'source_path') and item.source_path:
+            file_path = item.source_path
+
+        # Build display title
+        display_name = item.name if item.name else "(unnamed)"
+        if item.type == "folder" and not item.name:
+            if item.metadata.get('manifest_label'):
+                display_name = item.metadata['manifest_label']
+            else:
+                display_name = "(unnamed folder)"
+
+        # Get icon using IconGenerator
+        if item.type == "folder":
+            icon = folder_icon
+        else:
+            # Use icon generator for files
+            icon = self.library_manager.icon_generator.get_item_icon(
+                file_path,
+                item.type or 'file'
+            )
+
+        item_data = {
+            'id': item.id,
+            'title': display_name,
+            'subtitle': " • ".join(subtitle_parts),
+            'icon': icon,
+            'name': item.name,
+            'type': item.type,
+            'is_folder': item.type == "folder",
+            'path': full_path,  # Full path for navigation
+            'file_path': file_path if item.type != "folder" else '',
+            'description': item.metadata.get('description', ''),
+            'created_at': item.created_at.isoformat() if item.created_at else None
+        }
+
+        # Include ALL metadata fields
+        if item.metadata:
+            for key, value in item.metadata.items():
+                if key not in item_data:
+                    item_data[key] = value
+
+        # Add self-reference
+        item_data['item_data'] = item_data
+
+        return item_data
+
     def _get_file_type_and_icon(self, file_path: Path) -> tuple[str, None]:
         """Determine file type (icon will be generated by icon_generator if needed)"""
         if file_path.is_dir():

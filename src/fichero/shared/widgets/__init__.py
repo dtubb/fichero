@@ -2,22 +2,26 @@
 Platform-agnostic widget abstractions for Fichero.
 
 This module provides widgets that automatically adapt to the target platform:
-- AbstractTreeList: Tree (macOS/Linux), Table (Windows), DetailedList (mobile)
-- AbstractToolbar: Toolbars with size variants (full, compact, mini)
+- ListWidget: Platform-adaptive list (Table/DetailedList/Tree with pluggable renderers)
 - ResizableCanvas: Draggable resize handles for pane splitting
+
+Note: Toolbar functionality is provided by src/fichero/shared/toolbars/
 """
 
-from .abstract_tree_list import AbstractTreeList, Platform
-from .abstract_toolbar import AbstractToolbar, ToolbarSize, ToolbarButton
-from .resizable_canvas import ResizableCanvas, Orientation, create_resize_handle
+from .list_widget import ListWidget, Platform
 
-__all__ = [
-    'AbstractTreeList',
-    'Platform',
-    'AbstractToolbar',
-    'ToolbarSize',
-    'ToolbarButton',
-    'ResizableCanvas',
-    'Orientation',
-    'create_resize_handle',
-]
+# ResizableCanvas import is optional (may not exist yet)
+try:
+    from .resizable_canvas import ResizableCanvas, Orientation, create_resize_handle
+    __all__ = [
+        'ListWidget',
+        'Platform',
+        'ResizableCanvas',
+        'Orientation',
+        'create_resize_handle',
+    ]
+except ImportError:
+    __all__ = [
+        'ListWidget',
+        'Platform',
+    ]

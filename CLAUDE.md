@@ -124,6 +124,21 @@ pip install briefcase
 
 Fichero is a cross-platform document processing application built with BeeWare/Toga. It processes archival materials through image enhancement, AI transcription, and Word document generation.
 
+### Architecture Refactor Documentation
+
+**Navigation System Refactor** - Comprehensive documentation for the ongoing UI architecture improvements:
+
+- **Main Plan**: `docs/architecture/NAVIGATION_REFACTOR_PLAN.md` - Complete 8-week refactor plan with all phases
+- **List Widget Architecture**: `docs/architecture/LIST_WIDGET_ARCHITECTURE.md` - Platform-adaptive list widget with renderer system
+- **Progress Tracking**: `docs/architecture/navigation_refactor/PROGRESS_TRACKER.md` - Session-by-session progress updates
+
+Key components being refactored:
+- ListWidget (platform-adaptive Table/DetailedList/Tree abstraction)
+- ResizableCanvas (drag handles for pane resizing)
+- Base View Interface (unified view management)
+- Focus Border System (consistent focus indicators)
+- Navigation State Management (centralized navigation tracking)
+
 ### Core Architecture Layers
 
 **Application Layer:**
@@ -158,6 +173,30 @@ Fichero is a cross-platform document processing application built with BeeWare/T
 - `src/fichero/windows/` - Window management system
 - `src/fichero/shared/` - Shared UI components (toolbars, views)
 - Cross-platform responsive design (desktop three-pane, mobile single-pane)
+
+**macOS Native Toolbar System:**
+- `src/fichero/shared/commands/mac_toolbar_manager.py` - NSToolbar integration using Rubicon-ObjC
+- `src/fichero/shared/commands/command_manager.py` - Unified FicheroCommand system
+- Commands declared once work in both menus and toolbar
+- NSToolbar features: dropdown menus, SF Symbols, PNG icons, customization, autosave
+- Explicit toolbar layout defined in `toolbarDefaultItemIdentifiers_`
+- Icon priority: `toolbar_icon` (SF Symbol) → `icon` (PNG file path)
+- Set `toolbar_icon=None` to force PNG icon usage instead of SF Symbols
+
+**Toolbar Button Order (November 2025):**
+```
+[Library] [Collection] [New Collection] [Import ▾] [FlexSpace] [Settings] [Show Inspector] [Process] [Adjust]
+```
+
+Key toolbar commands:
+- `view.toggle_sidebar` - Library toggle (navigational, left of title)
+- `view.toggle_collection` - Collection toggle (PNG: `list.bullet.rectangle@10x.png`)
+- `library.new_collection` - New Collection button
+- `collection.import` - Import dropdown menu (PNG: `import.png`, `item_type='menu'`)
+- `library.settings` - Settings button
+- `library.inspector` - Show Inspector (desktop), `library.show_inspector` (mobile only)
+- `collection.process` - Process button (PNG: `sparkle@10x.png`)
+- `view.toggle_inspector` - Adjust toggle (right sidebar)
 
 ### Processing Workflow
 

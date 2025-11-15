@@ -251,7 +251,7 @@ class BottomToolbar(BaseToolbar):
                 container = toga.Box(
                     style=Pack(
                         direction=COLUMN,
-                        alignment=CENTER,
+                        align_items=CENTER,
                         margin=(2, 4, 0, 4)  # Small top margin, side margins, no bottom margin
                     )
                 )

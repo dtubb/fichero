@@ -422,7 +422,7 @@ class URLAddView(BaseView):
 
         # Create activity view
         activity_container = toga.Box(
-            style=Pack(direction=COLUMN, flex=1, align_items='center', padding=50)
+            style=Pack(direction=COLUMN, flex=1, align_items='center', margin=50)
         )
 
         # Activity indicator (native Toga spinner)
@@ -453,7 +453,7 @@ class URLAddView(BaseView):
 
         # Create success view
         success_container = toga.Box(
-            style=Pack(direction=COLUMN, flex=1, align_items='center', padding=50)
+            style=Pack(direction=COLUMN, flex=1, align_items='center', margin=50)
         )
 
         success_title = toga.Label(

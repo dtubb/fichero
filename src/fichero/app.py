@@ -10,9 +10,8 @@ import sys
 import os
 import logging
 
-# Enable Toga debug layout mode to visualize containers (PHASE 5)
-if os.environ.get('TOGA_DEBUG_LAYOUT') == '1':
-    toga.Widget.DEBUG_LAYOUT_ENABLED = True
+# Enable Toga debug layout mode to visualize containers (PHASE 3.2 - disabled by default)
+# toga.Widget.DEBUG_LAYOUT_ENABLED = True
 
 from pathlib import Path
 import gettext
@@ -101,6 +100,11 @@ class FicheroApp(toga.App):
             # Initialize library manager
             self.library_manager = LibraryManager(self)
             logger.info("Library manager initialized at app level")
+
+            # Initialize SelectionManager
+            from fichero.shared.selection import SelectionManager
+            self.selection_manager = SelectionManager()
+            logger.info("SelectionManager initialized")
 
             # Initialize library service
             self.library_service = LibraryService(self.library_manager)
@@ -282,6 +286,20 @@ class FicheroApp(toga.App):
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
 
+            # Build toolbar after app is running (like the working demo)
+            # This ensures all commands are registered and window is fully loaded
+            if is_desktop:
+                async def build_toolbar_when_ready(app, **kwargs):
+                    """Build toolbar after app is fully running"""
+                    import asyncio
+                    await asyncio.sleep(0.1)  # Brief delay to ensure everything is initialized
+
+                    print("🔍 Building native toolbar (app is now running)...")
+                    self.main_window_wrapper._update_toolbar_for_library_view(context='normal')
+                    print("✅ Native toolbar built successfully")
+
+                self.on_running = build_toolbar_when_ready
+
             # Initialize Inspector window (desktop only)
             if is_desktop:
                 from fichero.windows.inspector import InspectorWindow
@@ -289,9 +307,6 @@ class FicheroApp(toga.App):
                 logger.info("Inspector window initialized")
             else:
                 self.inspector_window = None
-
-            # Note: Native toolbar is built by MainWindow._update_toolbar_for_*_view()
-            # when each view is shown. Don't build it here - MainWindow handles timing.
 
         except Exception as e:
             error_msg = f"GUI interface setup failed: {e}"

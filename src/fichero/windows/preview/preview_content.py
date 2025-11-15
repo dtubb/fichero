@@ -145,7 +145,7 @@ class PreviewContent:
             style=Pack(
                 direction=ROW,
                 margin=(10, 0, 0, 0),
-                alignment='center'
+                align_items='center'
             )
         )
 
@@ -409,10 +409,10 @@ class PreviewContent:
                 style=Pack(
                     direction=COLUMN,
                     margin=20,
-                    alignment='center'
+                    align_items='center'
                 )
             )
-            
+
             # Image icon
             icon_label = toga.Label(
                 "🖼️",
@@ -484,10 +484,10 @@ class PreviewContent:
                 style=Pack(
                     direction=COLUMN,
                     margin=20,
-                    alignment='center'
+                    align_items='center'
                 )
             )
-            
+
             # File icon based on type
             file_type = self._get_file_type_icon()
             icon_label = toga.Label(
@@ -568,10 +568,10 @@ Use 'Open with System App' to view this file."""
             style=Pack(
                 direction=COLUMN,
                 margin=50,
-                alignment='center'
+                align_items='center'
             )
         )
-        
+
         icon_label = toga.Label(
             "📂",
             style=Pack(
@@ -600,10 +600,10 @@ Use 'Open with System App' to view this file."""
             style=Pack(
                 direction=COLUMN,
                 margin=20,
-                alignment='center'
+                align_items='center'
             )
         )
-        
+
         icon_label = toga.Label(
             "⚠️",
             style=Pack(
