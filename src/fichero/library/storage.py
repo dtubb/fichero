@@ -6,6 +6,7 @@ Handles persistent storage of collections, items, and processing history.
 
 import sqlite3
 import logging
+import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -192,6 +193,21 @@ class LibraryStorage:
                     )
                 """)
 
+                # Step metadata versions table for version tracking
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS step_metadata_versions (
+                        id TEXT PRIMARY KEY,
+                        item_id TEXT NOT NULL,
+                        step_name TEXT NOT NULL,
+                        version INTEGER NOT NULL,
+                        changed_at TEXT NOT NULL,
+                        changed_by TEXT,
+                        change_reason TEXT,
+                        metadata_snapshot TEXT NOT NULL,
+                        FOREIGN KEY (item_id) REFERENCES collection_items(id) ON DELETE CASCADE
+                    )
+                """)
+
                 # Create indexes for performance
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_history_item_id ON processing_history(item_id)")
@@ -210,6 +226,13 @@ class LibraryStorage:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_type ON extracted_metadata(metadata_type)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_key ON extracted_metadata(key)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_value ON extracted_metadata(value)")
+
+                # Indexes for step_metadata_versions
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_item_id ON step_metadata_versions(item_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_step_name ON step_metadata_versions(step_name)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_changed_at ON step_metadata_versions(changed_at)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_item_step ON step_metadata_versions(item_id, step_name)")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_metadata_versions_unique ON step_metadata_versions(item_id, step_name, version)")
                 
                 conn.commit()
                 logger.info("Library database initialized successfully")
@@ -1606,4 +1629,136 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to count items with file hash: {e}")
+            return 0
+
+    # Step metadata version tracking methods
+
+    def add_metadata_version(
+        self,
+        item_id: str,
+        step_name: str,
+        version: int,
+        metadata_snapshot: Dict[str, Any],
+        changed_by: str = "tool",
+        change_reason: str = "processing_step"
+    ) -> bool:
+        """Add a metadata version snapshot"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                version_id = str(uuid.uuid4())
+
+                cursor.execute("""
+                    INSERT INTO step_metadata_versions
+                    (id, item_id, step_name, version, changed_at, changed_by, change_reason, metadata_snapshot)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    version_id,
+                    item_id,
+                    step_name,
+                    version,
+                    datetime.now().isoformat(),
+                    changed_by,
+                    change_reason,
+                    self._serialize_metadata(metadata_snapshot)
+                ))
+
+                conn.commit()
+                logger.debug(f"Added metadata version v{version} for {step_name} on item {item_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add metadata version: {e}")
+            return False
+
+    def get_metadata_versions(
+        self,
+        item_id: str,
+        step_name: str
+    ) -> List[Dict[str, Any]]:
+        """Get all version snapshots for a step on an item"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, version, changed_at, changed_by, change_reason, metadata_snapshot
+                    FROM step_metadata_versions
+                    WHERE item_id = ? AND step_name = ?
+                    ORDER BY version ASC
+                """, (item_id, step_name))
+
+                versions = []
+                for row in cursor.fetchall():
+                    versions.append({
+                        'id': row[0],
+                        'version': row[1],
+                        'changed_at': row[2],
+                        'changed_by': row[3],
+                        'change_reason': row[4],
+                        'metadata': self._deserialize_metadata(row[5])
+                    })
+
+                return versions
+
+        except Exception as e:
+            logger.error(f"Failed to get metadata versions: {e}")
+            return []
+
+    def get_metadata_version(
+        self,
+        item_id: str,
+        step_name: str,
+        version: int
+    ) -> Optional[Dict[str, Any]]:
+        """Get a specific version snapshot"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, version, changed_at, changed_by, change_reason, metadata_snapshot
+                    FROM step_metadata_versions
+                    WHERE item_id = ? AND step_name = ? AND version = ?
+                """, (item_id, step_name, version))
+
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'id': row[0],
+                        'version': row[1],
+                        'changed_at': row[2],
+                        'changed_by': row[3],
+                        'change_reason': row[4],
+                        'metadata': self._deserialize_metadata(row[5])
+                    }
+
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to get metadata version: {e}")
+            return None
+
+    def get_latest_version_number(
+        self,
+        item_id: str,
+        step_name: str
+    ) -> int:
+        """Get the latest version number for a step (returns 0 if no versions exist)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT MAX(version)
+                    FROM step_metadata_versions
+                    WHERE item_id = ? AND step_name = ?
+                """, (item_id, step_name))
+
+                result = cursor.fetchone()[0]
+                return result if result is not None else 0
+
+        except Exception as e:
+            logger.error(f"Failed to get latest version number: {e}")
             return 0 

@@ -95,6 +95,37 @@ class CropInfo:
 # Default contour detection settings
 DEFAULT_CONTOUR_SETTINGS = ContourSettings()
 
+def validate_crop_box(box: dict, image_width: int, image_height: int) -> Tuple[bool, Optional[str]]:
+    """
+    Validate crop box coordinates are within image bounds.
+
+    Args:
+        box: Crop box with {x1, y1, x2, y2} coordinates
+        image_width: Image width in pixels
+        image_height: Image height in pixels
+
+    Returns:
+        (is_valid, error_message)
+    """
+    x1 = box.get('x1', 0)
+    y1 = box.get('y1', 0)
+    x2 = box.get('x2', 0)
+    y2 = box.get('y2', 0)
+
+    # Check coordinates are non-negative
+    if x1 < 0 or y1 < 0:
+        return False, f"Crop coordinates must be non-negative: x1={x1}, y1={y1}"
+
+    # Check coordinates are within bounds
+    if x2 > image_width or y2 > image_height:
+        return False, f"Crop box exceeds image dimensions ({image_width}x{image_height}): x2={x2}, y2={y2}"
+
+    # Check box has positive area
+    if x2 <= x1 or y2 <= y1:
+        return False, f"Crop box must have positive area: x1={x1}, y1={y1}, x2={x2}, y2={y2}"
+
+    return True, None
+
 def create_crop_info(
     box: dict,
     method: str,
@@ -488,12 +519,27 @@ def crop_with_fallback(image: Image.Image, metadata: dict) -> Tuple[Image.Image,
     return rotated_image, crop_info
 
 def process_image(
-    file_path: Path, 
-    out_path: Path, 
+    file_path: Path,
+    out_path: Path,
     output_format: str = 'jpg',
-    contour_settings: ContourSettings = DEFAULT_CONTOUR_SETTINGS
+    contour_settings: ContourSettings = DEFAULT_CONTOUR_SETTINGS,
+    library_manager = None,
+    item_id: Optional[str] = None
 ) -> dict:
-    """Process a single image file"""
+    """
+    Process a single image file.
+
+    Args:
+        file_path: Path to input image file
+        out_path: Path for output image file
+        output_format: Output image format (jpg, png, jxl)
+        contour_settings: Contour detection settings
+        library_manager: Optional LibraryManager for library mode
+        item_id: Optional item ID for library mode
+
+    Returns:
+        Dict with outputs, source, and details for JSONL manifest
+    """
     # Use SegmentHandler for path handling
     rel_path = SegmentHandler.get_relative_path(file_path)
     
@@ -552,22 +598,83 @@ def process_image(
     
     # Get the processed image and crop info
     processed_image, crop_info = result
-    
+
+    # Validate crop box coordinates
+    is_valid, error = validate_crop_box(
+        crop_info.box,
+        crop_info.original_size[0],
+        crop_info.original_size[1]
+    )
+
+    if not is_valid:
+        tool_logger.error(f"Invalid crop box: {error}")
+        # Fall back to original image
+        result = crop_with_fallback(image, metadata)
+        processed_image, crop_info = result
+
     # Ensure output directory exists
     ensure_dirs(out_path)
-    
+
     # Save the result using the format utility with the specified output format
     final_path, actual_format = save_image(processed_image, out_path, output_format)
-    
+
     # Convert crop_info to dict and add additional metadata
     crop_info_dict = crop_info.to_dict()
     crop_info_dict["attempts"] = attempts
     crop_info_dict["output_format"] = actual_format  # Store the actual format used
     crop_info_dict["input_metadata"] = metadata
-    
+
+    # Save to library backend if in library mode
+    if library_manager and item_id:
+        try:
+            metadata_api = library_manager.metadata_api
+
+            # Prepare metadata for library storage
+            # Categorize fields according to metadata type taxonomy
+            metadata_for_library = {
+                # Step parameters
+                "padding": crop_info.padding,
+                "output_format": actual_format,
+
+                # Step results
+                "method": crop_info.method,
+                "confidence": crop_info.confidence,
+                "box": crop_info.box,
+                "original_size": crop_info.original_size,
+                "cropped_size": crop_info.cropped_size,
+
+                # Detection metadata
+                "attempts": attempts,
+                "rotation": crop_info.rotation,
+
+                # File info
+                "input_metadata": metadata
+            }
+
+            # Add contour settings if present
+            if crop_info.contour_settings:
+                metadata_for_library["contour_settings"] = crop_info.contour_settings
+
+            # Save to library database
+            success = metadata_api.save_step_metadata(
+                item_id=item_id,
+                step_name="crop",
+                metadata=metadata_for_library,
+                version=1  # Initial version
+            )
+
+            if success:
+                tool_logger.info(f"Saved crop metadata to library for item {item_id}")
+            else:
+                tool_logger.error(f"Failed to save crop metadata to library for item {item_id}")
+
+        except Exception as e:
+            tool_logger.error(f"Error saving metadata to library: {e}")
+            # Continue processing - don't fail the whole operation
+
     # Get the relative path for the output file
     output_rel_path = SegmentHandler.get_relative_path(final_path)
-    
+
     return {
         "outputs": [str(output_rel_path)],  # Use the new output path
         "source": str(rel_path),
@@ -575,20 +682,39 @@ def process_image(
     }
 
 def process_document(
-    file_path: str, 
-    output_folder: Path, 
+    file_path: str,
+    output_folder: Path,
     output_format: str = 'jpg',
-    contour_settings: ContourSettings = DEFAULT_CONTOUR_SETTINGS
+    contour_settings: ContourSettings = DEFAULT_CONTOUR_SETTINGS,
+    library_manager = None,
+    item_id: Optional[str] = None
 ) -> dict:
-    """Process a single document file"""
+    """
+    Process a single document file.
+
+    Args:
+        file_path: Path to document file
+        output_folder: Output folder
+        output_format: Output image format
+        contour_settings: Contour detection settings
+        library_manager: Optional LibraryManager for library mode
+        item_id: Optional item ID for library mode
+
+    Returns:
+        Processing result dict
+    """
     file_path = Path(file_path)
-    
+
     def process_fn(f: str, o: Path) -> dict:
-        return process_image(Path(f), o, output_format, contour_settings)
-    
+        return process_image(
+            Path(f), o, output_format, contour_settings,
+            library_manager=library_manager,
+            item_id=item_id
+        )
+
     # Get supported extensions and create file_types dict
     file_types = {ext: process_fn for ext in get_supported_extensions_list()}
-    
+
     return process_file(
         file_path=str(file_path),
         output_folder=output_folder,
@@ -614,11 +740,15 @@ def crop_batch(
     contour_min_aspect: float = DEFAULT_CONTOUR_SETTINGS.min_aspect_ratio,
     contour_max_aspect: float = DEFAULT_CONTOUR_SETTINGS.max_aspect_ratio,
     contour_padding: int = DEFAULT_CONTOUR_SETTINGS.padding,
+    library_manager = None,
     **kwargs
 ) -> dict:
     """
     Crop document pages to remove borders - importable function
-    
+
+    Args:
+        library_manager: Optional LibraryManager for library mode
+
     Returns:
         Processing statistics dictionary
     """
@@ -665,23 +795,35 @@ def crop_batch(
         max_aspect_ratio=contour_max_aspect,
         padding=contour_padding
     )
-    
+
+    # Extract item_id from kwargs if in library mode
+    item_id = kwargs.get('item_id')
+
+    # Create processing function wrapper to pass library context
+    def process_with_library(file_path: str, output_folder: Path) -> dict:
+        return process_document(
+            file_path,
+            output_folder,
+            output_format,
+            contour_settings,
+            library_manager=library_manager,
+            item_id=item_id
+        )
+
     # Create parallel-enabled batch processor using shared utility
     ParallelCropProcessor = create_parallel_batch_processor("crop", BatchProcessor, process_image)
-    
+
     processor = ParallelCropProcessor(
         input_manifest=source_manifest,
         output_folder=output_folder,
         process_name="crop",
         base_folder=source_folder,
-        processor_fn=lambda f, o: process_document(
-            f, o, output_format, contour_settings
-        ),  # Fallback for sequential
+        processor_fn=process_with_library,
         output_format=output_format,
         parallel_workers=parallel_workers,
         add_documents_prefix=kwargs.get('add_documents_prefix', False)
     )
-    
+
     return processor.process()
 
 # CLI wrapper for typer

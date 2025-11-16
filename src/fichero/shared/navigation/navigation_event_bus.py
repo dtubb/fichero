@@ -6,6 +6,7 @@ NavigationController emits events, UI components listen and update.
 """
 
 import logging
+import time
 from typing import Dict, List, Callable, Any
 from dataclasses import dataclass
 
@@ -19,6 +20,47 @@ class NavigationEvent:
     data: Dict[str, Any]
 
 
+class EventDeduplicator:
+    """Prevents duplicate event processing within a time window"""
+
+    def __init__(self, window_ms: int = 100):
+        """
+        Initialize event deduplicator.
+
+        Args:
+            window_ms: Time window in milliseconds to deduplicate events
+        """
+        self._last_events: Dict[str, float] = {}  # event_key -> timestamp
+        self._window_ms = window_ms
+
+    def should_process(self, event_type: str, event_data: Dict[str, Any]) -> bool:
+        """
+        Check if event should be processed or is a duplicate.
+
+        Args:
+            event_type: Type of event
+            event_data: Event data dictionary
+
+        Returns:
+            True if event should be processed, False if it's a duplicate
+        """
+        # Create unique key from event type + critical data
+        # For collection events, use collection_id as key
+        collection_id = event_data.get('collection_id', '')
+        item_id = event_data.get('item_id', '')
+        key = f"{event_type}:{collection_id}:{item_id}"
+
+        now = time.time() * 1000  # milliseconds
+
+        last_time = self._last_events.get(key, 0)
+        if now - last_time < self._window_ms:
+            logger.debug(f"🔕 Dedup: Skipping duplicate event '{event_type}' (within {self._window_ms}ms window)")
+            return False  # Duplicate, skip
+
+        self._last_events[key] = now
+        return True  # Process it
+
+
 class NavigationEventBus:
     """Simple event bus for navigation events - prevents loops"""
 
@@ -26,6 +68,7 @@ class NavigationEventBus:
         """Initialize event bus"""
         self._listeners: Dict[str, List[Callable]] = {}
         self._event_id = 0
+        self._deduplicator = EventDeduplicator(window_ms=100)  # 100ms dedup window
         logger.info("NavigationEventBus initialized")
 
     def subscribe(self, event_type: str, callback: Callable):
@@ -48,9 +91,14 @@ class NavigationEventBus:
             logger.debug(f"Unsubscribed from '{event_type}' events")
 
     def emit(self, event_type: str, data: Dict[str, Any] = None):
-        """Emit a navigation event"""
+        """Emit a navigation event with deduplication"""
         if data is None:
             data = {}
+
+        # Check if this event is a duplicate (within time window)
+        if not self._deduplicator.should_process(event_type, data):
+            # Duplicate event - skip emitting
+            return
 
         self._event_id += 1
         event = NavigationEvent(event_type=event_type, data=data)

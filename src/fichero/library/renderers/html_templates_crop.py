@@ -17,7 +17,9 @@ def get_rubberband_crop_viewer(
     image_path: Path,
     crop_box: dict,
     title: Optional[str] = None,
-    use_base64: bool = True
+    use_base64: bool = True,
+    item_id: Optional[str] = None,
+    step_index: Optional[int] = None
 ) -> str:
     """
     Generate HTML for rubber-band crop editor like macOS Preview.
@@ -27,6 +29,8 @@ def get_rubberband_crop_viewer(
         crop_box: Current crop box with x1, y1, x2, y2
         title: Optional title
         use_base64: Encode image as base64 (default True)
+        item_id: Optional library item ID for saving changes
+        step_index: Optional step index for context
 
     Returns:
         Complete HTML document
@@ -444,11 +448,42 @@ def get_rubberband_crop_viewer(
 
             console.log('Applying crop:', cropData);
 
-            // TODO: Send to Python backend
-            alert('Crop applied!\\n\\n' +
-                  `x1=${{cropData.x1}}, y1=${{cropData.y1}}\\n` +
-                  `x2=${{cropData.x2}}, y2=${{cropData.y2}}\\n\\n` +
-                  `Size: ${{cropData.x2 - cropData.x1}}×${{cropData.y2 - cropData.y1}}`);
+            // Send to Python via WKWebView message handler
+            try {{
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.cropEdit) {{
+                    window.webkit.messageHandlers.cropEdit.postMessage(JSON.stringify({{
+                        action: 'apply_crop',
+                        box: {{
+                            x1: cropData.x1,
+                            y1: cropData.y1,
+                            x2: cropData.x2,
+                            y2: cropData.y2
+                        }},
+                        item_id: '{item_id or ""}',
+                        step_index: {step_index if step_index is not None else 'null'}
+                    }}));
+                    console.log('Crop data sent to Python backend');
+
+                    // Show success feedback
+                    const applyBtn = document.getElementById('applyBtn');
+                    const originalText = applyBtn.textContent;
+                    applyBtn.textContent = 'Saved!';
+                    applyBtn.style.background = '#27ae60';
+                    setTimeout(() => {{
+                        applyBtn.textContent = originalText;
+                        applyBtn.style.background = '#4CAF50';
+                    }}, 2000);
+                }} else {{
+                    console.warn('Python message handler not available');
+                    alert('Crop applied!\\n\\n' +
+                          `x1=${{cropData.x1}}, y1=${{cropData.y1}}\\n` +
+                          `x2=${{cropData.x2}}, y2=${{cropData.y2}}\\n\\n` +
+                          `Size: ${{cropData.x2 - cropData.x1}}×${{cropData.y2 - cropData.y1}}`);
+                }}
+            }} catch (err) {{
+                console.error('Error sending crop data:', err);
+                alert('Error: ' + err.message);
+            }}
         }}
     </script>
 </body>

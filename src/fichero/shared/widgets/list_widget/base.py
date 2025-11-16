@@ -781,7 +781,31 @@ class ListWidget:
         Returns:
             True if item was found and removed, False otherwise
         """
-        # Find and remove from _data
+        # Find index of item to remove
+        item_index = None
+        for i, item in enumerate(self._data):
+            if item.get('_item_id') == item_id:
+                item_index = i
+                break
+
+        if item_index is None:
+            return False  # Item not found
+
+        # Try incremental remove if renderer supports it
+        if self.renderer and self.renderer.supports_incremental_updates():
+            # Remove from data first
+            removed_item = self._data.pop(item_index)
+
+            # Try incremental remove from widget
+            if self.renderer.remove_item_at_index(item_index):
+                logger.info(f"✅ Incremental remove: Removed item at index {item_index}")
+                return True
+            else:
+                # Incremental remove failed, restore item and fall back to full rebuild
+                self._data.insert(item_index, removed_item)
+                logger.warning(f"Incremental remove failed, falling back to full rebuild")
+
+        # Fall back to full rebuild (for Toga widgets or if incremental failed)
         original_len = len(self._data)
         self._data = [item for item in self._data if item.get('_item_id') != item_id]
 

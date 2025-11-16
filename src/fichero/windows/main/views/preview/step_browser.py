@@ -116,12 +116,27 @@ class StepBrowser:
                 subtitle = step.file_type
                 icon_name = self._get_icon_for_tool(step.tool_name)
 
+            # Populate _collection_data with full step information
+            # This is what gets extracted when a row is selected
+            collection_data = {
+                '_item_id': i,  # Index for callback
+                'step_index': i,
+                'step_name': step.step_name,
+                'tool_name': step.tool_name,
+                'file_path': str(step.file_path),
+                'file_type': step.file_type,
+                'step_number': step.step_number if hasattr(step, 'step_number') else i,
+            }
+
             list_data.append({
                 'text': title,  # ListWidget uses 'text' for primary content
                 'subtitle': subtitle,
                 'icon': toga.Icon(icon_name) if icon_name else None,
-                '_item_id': i  # Store index for callback
+                '_item_id': i,  # Store index for callback (backward compat)
+                '_collection_data': collection_data  # Full step data
             })
+
+            self.logger.debug(f"StepBrowser: Created row {i}: title='{title}', collection_data={collection_data}")
 
         # Create or recreate step list using ListWidget with native renderer
         # Force 'table' for now - Tree icons have issues with non-Icon values
@@ -171,37 +186,67 @@ class StepBrowser:
     def _on_step_selected(self, widget_or_data, **kwargs):
         """Handle step selection"""
         try:
-            # ListWidget can pass data as first arg (widget_or_data) or in kwargs
-            selected_data = widget_or_data if isinstance(widget_or_data, dict) else kwargs.get('selected_data')
+            self.logger.info(f"🔍 StepBrowser: Selection callback triggered")
+            self.logger.info(f"🔍   widget_or_data type: {type(widget_or_data)}")
+            self.logger.info(f"🔍   widget_or_data: {widget_or_data}")
 
+            # ListWidget passes the Row/Node object directly as first arg
+            selected_data = None
+
+            # Case 1: First arg is already a dict (custom renderers)
+            if isinstance(widget_or_data, dict):
+                selected_data = widget_or_data
+                self.logger.info("🔍 Step selection: Got dict directly")
+
+            # Case 2: First arg is Row/Node object with _collection_data accessor
+            elif hasattr(widget_or_data, '_collection_data'):
+                selected_data = widget_or_data._collection_data
+                self.logger.info(f"🔍 Extracted _collection_data from Row: {selected_data}")
+
+            # Case 3: First arg is Row/Node with _item_id (fallback)
+            elif hasattr(widget_or_data, '_item_id'):
+                # Create minimal dict with just the item_id
+                selected_data = {'_item_id': widget_or_data._item_id}
+                self.logger.info(f"🔍 Extracted _item_id from Row: {widget_or_data._item_id}")
+
+            # Case 4: Legacy - widget with .selection attribute (shouldn't happen)
+            elif hasattr(widget_or_data, 'selection'):
+                selection = widget_or_data.selection
+                if hasattr(selection, '_collection_data'):
+                    selected_data = selection._collection_data
+                elif isinstance(selection, dict):
+                    selected_data = selection
+                self.logger.info("🔍 Using legacy widget.selection extraction")
+
+            # No data found - probably deselection
             if not selected_data:
-                # Might be a widget - try to extract from selection attribute
-                if hasattr(widget_or_data, 'selection'):
-                    selection = widget_or_data.selection
-                    if hasattr(selection, '_collection_data'):
-                        selected_data = selection._collection_data
-                    elif isinstance(selection, dict):
-                        selected_data = selection
+                self.logger.warning("🔍 StepBrowser: No selected_data in callback (probably deselection)")
+                return
 
-                if not selected_data:
-                    self.logger.debug("StepBrowser: No selected_data in callback (probably deselection)")
-                    return
+            self.logger.info(f"🔍 Selected data contents: {selected_data}")
 
             # Get the index from _item_id
             index = selected_data.get('_item_id')
             if index is None:
-                self.logger.warning("StepBrowser: No _item_id in selected_data")
+                self.logger.warning(f"🔍 StepBrowser: No _item_id in selected_data: {selected_data}")
                 return
 
-            self.logger.info(f"StepBrowser: Step selected at index {index}")
+            self.logger.info(f"✅ StepBrowser: Step selected at index {index}")
+            self.logger.info(f"✅   Step name: {selected_data.get('step_name', 'unknown')}")
+            self.logger.info(f"✅   Tool name: {selected_data.get('tool_name', 'unknown')}")
+            self.logger.info(f"✅   File path: {selected_data.get('file_path', 'unknown')}")
+
             self.current_index = index
 
             # Notify callback
             if self.on_step_selected:
+                self.logger.info(f"✅ Calling parent on_step_selected callback with index {index}")
                 self.on_step_selected(index)
+            else:
+                self.logger.warning("⚠️ No on_step_selected callback set!")
 
         except Exception as e:
-            self.logger.error(f"Error handling step selection: {e}")
+            self.logger.error(f"💥 Error handling step selection: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
 

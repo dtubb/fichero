@@ -36,21 +36,36 @@ class StatusBar:
         self.platform = platform
         self.height = self.HEIGHT_DESKTOP if platform == 'desktop' else self.HEIGHT_MOBILE
 
-        # Create the status label (centered, 10pt, Finder-style)
-        self.status_label = toga.Label(
+        # Create left label (selection info - left-aligned)
+        self.left_label = toga.Label(
             '',
             style=Pack(
                 margin_left=10,
                 margin_right=10,
                 font_size=self.FONT_SIZE,
                 flex=1,
-                text_align='center'
+                text_align='left'
             )
         )
 
+        # Create right label (focus info - right-aligned)
+        self.right_label = toga.Label(
+            '',
+            style=Pack(
+                margin_left=10,
+                margin_right=10,
+                font_size=self.FONT_SIZE,
+                flex=0,
+                text_align='right'
+            )
+        )
+
+        # Keep reference to old status_label for backward compatibility
+        self.status_label = self.left_label
+
         # Create the container with grey background (match sidebar color)
         self.container = toga.Box(
-            children=[self.status_label],
+            children=[self.left_label, self.right_label],
             style=Pack(
                 direction='row',
                 align_items='center',
@@ -61,25 +76,45 @@ class StatusBar:
             )
         )
 
+        # Track current focused pane
+        self.focused_pane = None
+
         logger.debug(f"StatusBar created for {platform}")
 
     def set_status(self, text):
         """
-        Set the status text to display.
+        Set the status text to display (left side).
 
         Args:
             text: String status text to display
         """
         if text:
-            self.status_label.text = str(text)
+            self.left_label.text = str(text)
             logger.debug(f"StatusBar status set to: {text}")
         else:
-            self.status_label.text = ''
+            self.left_label.text = ''
             logger.debug("StatusBar status cleared")
+
+    def set_focused_pane(self, pane_name: str):
+        """
+        Set the focused pane name (right side).
+
+        Args:
+            pane_name: Name of the focused pane (e.g., "Collection View", "Preview Pane")
+        """
+        self.focused_pane = pane_name
+        if pane_name:
+            self.right_label.text = pane_name
+            logger.debug(f"StatusBar focused pane set to: {pane_name}")
+        else:
+            self.right_label.text = ''
+            logger.debug("StatusBar focused pane cleared")
 
     def clear(self):
         """Clear the status display."""
-        self.status_label.text = ''
+        self.left_label.text = ''
+        self.right_label.text = ''
+        self.focused_pane = None
         logger.debug("StatusBar cleared")
 
     # Phase 2: Selection count integration methods

@@ -280,3 +280,4 @@ Reference: Toga manuals are available in `/toga manuals/` directory.
 - `FORCE_MOBILE_UI=false` - Force desktop UI layout
 - `TOGA_BACKEND=toga_cocoa` - Use Cocoa backend on macOS
 - `DASHSCOPE_API_KEY` - API key for Alibaba Cloud services
+- save all markdown plans, steps, todo lists, etc. for fichero in /Users/dtubb/code/fichero_main/fichero/docs add a folder if need be, then do the plan, phase step, comments, etc. each phase should be done by an independent agent, with a clear context. each phase begisn with an agent to review code, then an agent to aricthech the plen, then  5 agents plan, implment, code review, implement code review, test in order. Got it.

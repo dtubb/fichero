@@ -19,6 +19,7 @@ from .batch_commands import BatchCommands
 from .cache_commands import CacheCommands
 from .outputs_commands import OutputsCommands
 from .step_commands import StepCommands
+from .metadata_commands import MetadataCommands
 
 
 class LibraryCommands(BaseLibraryCommands):
@@ -42,6 +43,7 @@ class LibraryCommands(BaseLibraryCommands):
         self.cache_commands = CacheCommands(app_initializer, base_commands=self)
         self.outputs_commands = OutputsCommands(app_initializer, base_commands=self)
         self.step_commands = StepCommands(app_initializer, base_commands=self)
+        self.metadata_commands = MetadataCommands(app_initializer, base_commands=self)
 
         # Register all commands
         self._register_commands()
@@ -81,3 +83,6 @@ class LibraryCommands(BaseLibraryCommands):
 
         # Step viewing and editing commands
         self.step_commands.register_commands(self.app)
+
+        # Metadata query and management commands
+        self.metadata_commands.register_commands(self.app)

@@ -64,10 +64,20 @@ from ..renderers import Renderer
 
 logger = logging.getLogger(__name__)
 
+# Cache for sidebar classes (created once, reused)
+_sidebar_classes_cache = None
+
 
 def _create_sidebar_classes():
-    """Create sidebar classes after ObjC classes are loaded."""
+    """Create sidebar classes after ObjC classes are loaded (cached after first call)."""
+    global _sidebar_classes_cache
+
+    # Return cached classes if already created
+    if _sidebar_classes_cache is not None:
+        return _sidebar_classes_cache
+
     if not RUBICON_AVAILABLE:
+        _sidebar_classes_cache = (None, None)
         return None, None
 
     _load_objc_classes()
@@ -306,6 +316,8 @@ def _create_sidebar_classes():
                         except Exception as e:
                             logger.error(f"Error in selection callback: {e}")
 
+    # Cache the classes for reuse
+    _sidebar_classes_cache = (SidebarItem, TogaSidebar)
     return SidebarItem, TogaSidebar
 
 
@@ -688,6 +700,123 @@ class MacOSSidebarRenderer(Renderer):
         self._toga_sidebar.reloadData()
 
         logger.debug(f"Attached {len(self._data)} items to native sidebar")
+
+    def supports_incremental_updates(self) -> bool:
+        """
+        Native NSOutlineView supports incremental row operations.
+
+        Returns:
+            True - we can add/remove individual rows without full rebuild
+        """
+        # Fallback mode doesn't support incremental
+        if hasattr(self, '_fallback_mode') and self._fallback_mode:
+            return False
+        return True
+
+    def remove_item_at_index(self, index: int) -> bool:
+        """
+        Remove a row from NSOutlineView incrementally using native API.
+
+        Args:
+            index: Index of item to remove
+
+        Returns:
+            True if removed successfully
+        """
+        try:
+            if not self._toga_sidebar or not self._wrapped_items:
+                logger.error(f"❌ Remove failed: _toga_sidebar={self._toga_sidebar is not None}, _wrapped_items={len(self._wrapped_items) if self._wrapped_items else 0}")
+                return False
+
+            if index < 0 or index >= len(self._wrapped_items):
+                logger.error(f"❌ Invalid index {index} for remove (have {len(self._wrapped_items)} items)")
+                return False
+
+            logger.info(f"🔍 TRACE: remove_item_at_index(index={index}, total_items={len(self._wrapped_items)})")
+
+            # Remove from data structures
+            removed_item = self._wrapped_items.pop(index)
+            removed_data = self._data.pop(index)
+
+            logger.info(f"🔍 TRACE: Removed from data - text='{removed_data.get('text', 'N/A')}', remaining={len(self._data)}")
+
+            # For flat lists (no tree hierarchy), reloadData() is the simplest and most reliable
+            # It's fast enough for <100 items (~2ms) and avoids complex animation API issues
+            # removeItemsAtIndexes is for parent-child hierarchies in NSOutlineView
+            try:
+                self._toga_sidebar.reloadData()
+                logger.info(f"✅ NSOutlineView reloadData after remove: index {index}")
+                return True
+            except Exception as e:
+                logger.error(f"❌ reloadData failed: {e}")
+                # Restore data
+                self._wrapped_items.insert(index, removed_item)
+                self._data.insert(index, removed_data)
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Exception in remove_item_at_index({index}): {type(e).__name__}: {e}", exc_info=True)
+            # Try to restore data if we removed it
+            if 'removed_item' in locals() and 'removed_data' in locals():
+                logger.warning(f"⚠️ Restoring data after exception")
+                try:
+                    self._wrapped_items.insert(index, removed_item)
+                    self._data.insert(index, removed_data)
+                except Exception as restore_error:
+                    logger.error(f"Failed to restore data: {restore_error}")
+            return False
+
+    def add_item_at_index(self, item: Dict[str, Any], index: int) -> bool:
+        """
+        Add a row to NSOutlineView incrementally using native API.
+
+        Args:
+            item: Item data to add
+            index: Index where to insert
+
+        Returns:
+            True if added successfully
+        """
+        try:
+            if not self._toga_sidebar:
+                return False
+
+            if index < 0 or index > len(self._wrapped_items):
+                logger.error(f"Invalid index {index} for add (have {len(self._wrapped_items)} items)")
+                return False
+
+            # Clean and wrap the item (same logic as attach_source)
+            clean_dict = {}
+            for k, v in item.items():
+                if isinstance(v, (str, int, float, bool, type(None))):
+                    clean_dict[k] = v
+                elif v is None:
+                    clean_dict[k] = None
+                else:
+                    logger.debug(f"Skipping non-primitive field '{k}' of type {type(v)}")
+
+            wrapper = self.SidebarItem.alloc().init()
+            wrapper._python_data = clean_dict
+
+            # Insert into wrapped items and data
+            self._wrapped_items.insert(index, wrapper)
+            self._data.insert(index, item)
+
+            # Use reloadData for simplicity and reliability (same as remove)
+            try:
+                self._toga_sidebar.reloadData()
+                logger.info(f"✅ NSOutlineView reloadData after add: index {index}")
+                return True
+            except Exception as e:
+                logger.error(f"❌ reloadData failed: {e}")
+                # Restore data
+                self._wrapped_items.pop(index)
+                self._data.pop(index)
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to add item at index {index}: {e}")
+            return False
 
 
 __all__ = ['MacOSSidebarRenderer', 'RUBICON_AVAILABLE']

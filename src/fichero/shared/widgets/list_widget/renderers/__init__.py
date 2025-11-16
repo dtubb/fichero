@@ -80,5 +80,44 @@ class Renderer(ABC):
         """
         self.source = source
 
+    def supports_incremental_updates(self) -> bool:
+        """
+        Check if this renderer supports incremental add/remove operations.
+
+        Returns:
+            True if incremental updates are supported (e.g., native NSOutlineView),
+            False if only full rebuild is supported (e.g., Toga widgets)
+        """
+        return False  # Default: most renderers don't support it
+
+    def remove_item_at_index(self, index: int) -> bool:
+        """
+        Remove an item at a specific index incrementally (without full rebuild).
+
+        Only called if supports_incremental_updates() returns True.
+
+        Args:
+            index: Index of item to remove
+
+        Returns:
+            True if removed successfully, False if not supported or failed
+        """
+        return False  # Default: not supported
+
+    def add_item_at_index(self, item: Dict[str, Any], index: int) -> bool:
+        """
+        Add an item at a specific index incrementally (without full rebuild).
+
+        Only called if supports_incremental_updates() returns True.
+
+        Args:
+            item: Item data to add
+            index: Index where to insert
+
+        Returns:
+            True if added successfully, False if not supported or failed
+        """
+        return False  # Default: not supported
+
 
 __all__ = ['Renderer']

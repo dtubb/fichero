@@ -37,9 +37,16 @@ class CollectionView(BaseView, ViewCommandMixin):
         'segment': ('Segment', 'SegmentTest'),
         'recombine': ('RecombineSegments', 'RecombineTest'),
         'transcribe': ('Transcribe', 'TranscribeTest'),
+        'transcribe_lmstudio': ('TranscribeLMStudio', 'TranscribeLMStudioTest'),
         'describe': ('Describe', 'DescribeTest'),
         'llm': ('LLMProcess', 'LLMProcessTest'),
         'convert_word': ('ConvertToWord', 'ConvertToWordTest'),
+        'json_to_excel': ('JsonToExcel', 'JsonToExcelTest'),
+        'json_to_word': ('JsonToWord', 'JsonToWordTest'),
+        'convert_to_svg': ('ConvertToSVG', 'ConvertToSVGTest'),
+        'analyze_document_groups': ('AnalyzeGroups', 'AnalyzeGroupsTest'),
+        'extract_library_metadata': ('ExtractMetadata', 'ExtractMetadataTest'),
+        'fuzzy_clean': ('FuzzyClean', 'FuzzyCleanTest'),
     }
 
     def __init__(self, app, collection_name: str = "", is_mobile: bool = False, collection_id: Optional[str] = None):

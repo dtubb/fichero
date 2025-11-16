@@ -26,6 +26,7 @@ try:
     from fichero.library.url_downloader import URLDownloader
     from fichero.library.icon_generator import IconGenerator
     from fichero.library.director_output_parser import DirectorOutputParser, ProcessingStep
+    from fichero.library.metadata_api import LibraryMetadataAPI
 except ImportError:
     try:
         from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
@@ -34,6 +35,7 @@ except ImportError:
         from .url_downloader import URLDownloader
         from .icon_generator import IconGenerator
         from .director_output_parser import DirectorOutputParser, ProcessingStep
+        from .metadata_api import LibraryMetadataAPI
     except ImportError:
         # Direct import for testing
         import models
@@ -41,6 +43,7 @@ except ImportError:
         import import_export
         import url_downloader
         import icon_generator
+        import metadata_api
         Collection = models.Collection
         CollectionItem = models.CollectionItem
         ProcessingResult = models.ProcessingResult
@@ -50,6 +53,7 @@ except ImportError:
         CollectionImporter = import_export.CollectionImporter
         URLDownloader = url_downloader.URLDownloader
         IconGenerator = icon_generator.IconGenerator
+        LibraryMetadataAPI = metadata_api.LibraryMetadataAPI
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +88,9 @@ class LibraryManager:
 
         # Initialize output parser for reading Director processing results
         self.output_parser = DirectorOutputParser()
+
+        # Initialize metadata API for storing step-level metadata
+        self.metadata_api = LibraryMetadataAPI(self.storage)
 
         # Store library path for file operations
         self.library_path = db_path.parent

@@ -241,6 +241,9 @@ class OutputPane:
             self._handler_registered = True
             self.logger.info(f"✅ Pane {self._pane_id}: JavaScript message handler '{self._handler_name}' registered")
 
+            # Also register crop edit handler for interactive crop editing
+            self._setup_crop_edit_handler(user_content_controller)
+
         except Exception as e:
             self.logger.error(f"❌ Pane {self._pane_id}: Could not setup JavaScript message handler: {e}")
             import traceback
@@ -333,6 +336,179 @@ class OutputPane:
             self.on_click(self)
             self.logger.debug(f"Pane {self._pane_id}: Interaction detected, focus callback triggered")
 
+    def _setup_crop_edit_handler(self, user_content_controller):
+        """
+        Set up message handler for crop edit events from JavaScript.
+
+        Args:
+            user_content_controller: WKUserContentController to register handler with
+        """
+        try:
+            from rubicon.objc import objc_method, NSObject
+            from rubicon.objc.runtime import objc_id
+
+            # Create handler class for crop edits
+            class CropEditHandler(NSObject):
+                pane = None
+
+                @objc_method
+                def userContentController_didReceiveScriptMessage_(
+                    self, controller: objc_id, message: objc_id
+                ) -> None:
+                    """Handle crop edit message from JavaScript"""
+                    try:
+                        if self.pane:
+                            self.pane._handle_crop_edit_message(str(message.body))
+                    except Exception as e:
+                        if self.pane:
+                            self.pane.logger.error(f"Error in crop edit handler: {e}")
+
+            # Create and register handler instance
+            self._crop_handler = CropEditHandler.alloc().init()
+            self._crop_handler.pane = self
+
+            user_content_controller.addScriptMessageHandler(
+                self._crop_handler,
+                name='cropEdit'
+            )
+
+            self.logger.info(f"✅ Pane {self._pane_id}: Crop edit handler registered")
+
+        except Exception as e:
+            self.logger.error(f"Could not setup crop edit handler: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+
+    def _handle_crop_edit_message(self, message_body: str):
+        """
+        Handle crop edit message from JavaScript.
+
+        Args:
+            message_body: JSON string with crop data
+        """
+        try:
+            import json
+            crop_data = json.loads(message_body)
+
+            self.logger.info(f"📐 Received crop edit: {crop_data}")
+
+            # Validate required fields
+            if 'action' not in crop_data or crop_data['action'] != 'apply_crop':
+                self.logger.warning(f"Unknown crop action: {crop_data.get('action')}")
+                return
+
+            if 'box' not in crop_data:
+                self.logger.error("Crop data missing 'box' field")
+                return
+
+            # Get item and step context
+            item_id = crop_data.get('item_id')
+            step_index = crop_data.get('step_index')
+
+            if not item_id or step_index is None:
+                self.logger.error("Crop data missing item_id or step_index")
+                return
+
+            # Apply the crop via renderer
+            import asyncio
+            asyncio.create_task(self._apply_crop_edit(item_id, step_index, crop_data['box']))
+
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid crop message JSON: {e}")
+        except Exception as e:
+            self.logger.error(f"Error handling crop edit: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+
+    async def _apply_crop_edit(self, item_id: str, step_index: int, box: dict):
+        """
+        Apply crop edit by calling renderer's apply_json_edits.
+
+        Args:
+            item_id: Library item ID
+            step_index: Step index for the crop
+            box: Crop box coordinates {x1, y1, x2, y2}
+        """
+        try:
+            self.logger.info(f"Applying crop edit for item {item_id}, step {step_index}")
+
+            # Get item output data to find the step
+            output_data = await self.library_manager.get_item_output_data(item_id)
+
+            if not output_data or not output_data.get('processing_steps'):
+                self.logger.error(f"No processing steps found for item {item_id}")
+                return
+
+            processing_steps = output_data.get('processing_steps', [])
+            processing_step_index = step_index - 1  # Adjust for 0-indexed array
+
+            if processing_step_index < 0 or processing_step_index >= len(processing_steps):
+                self.logger.error(f"Step index {step_index} out of range")
+                return
+
+            # Get the specific processing step
+            processing_step = processing_steps[processing_step_index]
+
+            # Get renderer for this step
+            from fichero.library.renderers.renderer_registry import RendererRegistry
+            renderer = RendererRegistry.get_renderer_for_step(
+                tool_name=processing_step.tool_name,
+                file_type=processing_step.file_type,
+                file_path=processing_step.file_path
+            )
+
+            if not renderer:
+                self.logger.error(f"No renderer found for tool: {processing_step.tool_name}")
+                return
+
+            # Create render context
+            from fichero.library.renderers.base_renderer import RenderContext
+            context = RenderContext(
+                item_id=item_id,
+                step_index=step_index,
+                step_name=processing_step.step_name,
+                tool_name=processing_step.tool_name,
+                file_path=processing_step.file_path,
+                file_type=processing_step.file_type,
+                manifest_entry=processing_step.manifest_entry,
+                show_metadata=True,
+                show_content=True,
+                interactive=True
+            )
+
+            # Prepare JSON data for renderer (must match crop tool format)
+            json_data = {
+                'details': {
+                    'box': box  # {x1, y1, x2, y2}
+                },
+                'source': processing_step.manifest_entry.get('source', '') if processing_step.manifest_entry else ''
+            }
+
+            # Apply the edit (await if renderer has async method)
+            if hasattr(renderer.apply_json_edits, '__call__'):
+                import inspect
+                if inspect.iscoroutinefunction(renderer.apply_json_edits):
+                    # Pass library_manager in context
+                    context.library_manager = self.library_manager
+                    success, error = await renderer.apply_json_edits(context, json_data)
+                else:
+                    success, error = renderer.apply_json_edits(context, json_data)
+            else:
+                success, error = False, "Renderer does not support apply_json_edits"
+
+            if success:
+                self.logger.info(f"✅ Crop applied successfully")
+                # Reload the step to show updated crop
+                await self.set_step(item_id, step_index)
+            else:
+                self.logger.error(f"❌ Failed to apply crop: {error}")
+                # TODO: Show error to user in UI
+
+        except Exception as e:
+            self.logger.error(f"Error applying crop edit: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+
     async def set_step(self, item_id: str, step_index: int, step=None):
         """
         Load and display a step's output.
@@ -381,7 +557,9 @@ class OutputPane:
                             self.file_path = file_path
                             self.tool_name = 'original'
 
-                    step = OriginalStep(item.file_path)
+                    # CollectionItem has local_path (downloaded) or source_path (external)
+                    file_path = item.local_path or item.source_path
+                    step = OriginalStep(file_path)
 
                 # Display original file directly
                 self.logger.info(f"🎯 CLICK TRACE #16: Rendering original file: {step.file_path}")
@@ -431,11 +609,15 @@ class OutputPane:
 
             # Get the specific processing step
             processing_step = processing_steps[processing_step_index]
-            self.logger.info(f"Rendering step: {processing_step.step_name} from {processing_step.file_path}")
+            self.logger.info(f"📍 OutputPane: Rendering step {step_index}")
+            self.logger.info(f"📍   Step name: {processing_step.step_name}")
+            self.logger.info(f"📍   Tool name: {processing_step.tool_name}")
+            self.logger.info(f"📍   File path: {processing_step.file_path}")
+            self.logger.info(f"📍   File type: {processing_step.file_type}")
 
             # Update path bar with library path (not filesystem path)
             if self._path_bar:
-                await self._update_path_bar(item_id)
+                await self._update_path_bar(item_id, processing_step)
 
             # Use renderer system to generate HTML
             html_content = self._render_step_with_renderer(processing_step, output_data)
@@ -496,13 +678,18 @@ class OutputPane:
 
         # Get renderer for this step
         # Try tool-specific renderer first, fall back to file type renderer
+        self.logger.info(f"🎨 OutputPane: Requesting renderer for:")
+        self.logger.info(f"🎨   tool_name: {tool_name}")
+        self.logger.info(f"🎨   file_type: {file_type}")
+        self.logger.info(f"🎨   file_path: {file_path}")
+
         renderer = RendererRegistry.get_renderer_for_step(
             tool_name=tool_name,
             file_type=file_type,
             file_path=file_path
         )
 
-        self.logger.info(f"Using renderer: {renderer.__class__.__name__} for tool '{tool_name}'")
+        self.logger.info(f"✅ Using renderer: {renderer.__class__.__name__} for tool '{tool_name}'")
 
         # Render HTML
         try:
@@ -894,8 +1081,14 @@ class OutputPane:
         if self._path_bar_visible and self._path_bar:
             self._container.add(self._path_bar.container)
 
-    async def _update_path_bar(self, item_id: str):
-        """Update path bar with library path (Collection › Item)"""
+    async def _update_path_bar(self, item_id: str, processing_step=None):
+        """
+        Update path bar with library path and debug info.
+
+        Args:
+            item_id: Library item ID
+            processing_step: Optional processing step object for debug info
+        """
         try:
             from fichero.utils.path_icons import build_library_path_string
 
@@ -915,10 +1108,34 @@ class OutputPane:
                 item_name=item.name
             )
 
+            # Add debug info if we have processing step
+            if processing_step:
+                # Get renderer name for this step
+                from fichero.library.renderers.renderer_registry import RendererRegistry
+                renderer = RendererRegistry.get_renderer_for_step(
+                    tool_name=processing_step.tool_name,
+                    file_type=processing_step.file_type,
+                    file_path=processing_step.file_path
+                )
+                renderer_name = renderer.__class__.__name__ if renderer else "Unknown"
+
+                # Add debug info to path bar
+                debug_info = f" • Step: {processing_step.step_name} • Renderer: {renderer_name} • Item: {item_id[:8]}"
+                path_string = path_string + debug_info
+
+                self.logger.info(f"🎨 Path bar updated:")
+                self.logger.info(f"🎨   Collection: {collection_name}")
+                self.logger.info(f"🎨   Item: {item.name}")
+                self.logger.info(f"🎨   Step: {processing_step.step_name}")
+                self.logger.info(f"🎨   Renderer: {renderer_name}")
+                self.logger.info(f"🎨   Output: {processing_step.file_path}")
+
             self._path_bar.set_path(path_string)
 
         except Exception as e:
             self.logger.error(f"Error updating path bar: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             self._path_bar.clear()
 
     # ==================== UTILITY METHODS ====================

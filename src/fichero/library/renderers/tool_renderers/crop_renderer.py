@@ -93,16 +93,21 @@ class CropRenderer(ImageRenderer):
                                 logger.info(f"[CropRenderer] Files in {try_dir}: {[f.name for f in files]}")
 
                     if source_path:
-                        html = get_image_editor(
+                        # Use rubber-band crop viewer for interactive editing
+                        from ..html_templates_crop import get_rubberband_crop_viewer
+
+                        html = get_rubberband_crop_viewer(
                             image_path=source_path,
+                            crop_box=crop_box,
                             title=f"Crop Editor: {context.step_name}",
                             use_base64=True,
-                            crop_box=crop_box  # Pass existing crop box to show in editor
+                            item_id=context.item_id,
+                            step_index=context.step_index
                         )
                         return RenderedOutput(
                             html=html,
                             title=context.step_name,
-                            description=f'Image editor with crop tool: {context.file_path.name}'
+                            description=f'Interactive crop editor: {context.file_path.name}'
                         )
 
         # Fallback: use parent ImageRenderer for standard display
@@ -203,70 +208,52 @@ class CropRenderer(ImageRenderer):
         Validate edited crop JSON.
 
         Checks:
-        - crop_box exists and has x, y, width, height
+        - details.box exists and has x1, y1, x2, y2 (new format)
         - Values are positive integers
-        - padding is a non-negative integer
-        - method is valid ('contour', 'yolo', 'manual')
-        - template is valid ('auto', 'light', 'dark', 'mixed')
+        - Box coordinates are sane (x2 > x1, y2 > y1)
 
         Args:
-            json_data: Edited JSON data
+            json_data: Edited JSON data with 'details.box' containing {x1, y1, x2, y2}
 
         Returns:
             Tuple of (is_valid, error_message)
         """
-        # Check crop_box exists
-        if 'crop_box' not in json_data:
-            return False, "Missing 'crop_box' field"
+        # Check details exists
+        if 'details' not in json_data:
+            return False, "Missing 'details' field"
 
-        crop_box = json_data['crop_box']
+        details = json_data['details']
 
-        # Check crop_box has required fields
-        required_fields = ['x', 'y', 'width', 'height']
+        # Check box exists
+        if 'box' not in details:
+            return False, "Missing 'box' in details"
+
+        box = details['box']
+
+        # Check box has required fields (x1, y1, x2, y2 format)
+        required_fields = ['x1', 'y1', 'x2', 'y2']
         for field in required_fields:
-            if field not in crop_box:
-                return False, f"Missing '{field}' in crop_box"
+            if field not in box:
+                return False, f"Missing '{field}' in box"
 
             # Check type and value
-            value = crop_box[field]
+            value = box[field]
             if not isinstance(value, (int, float)):
-                return False, f"crop_box.{field} must be a number, got {type(value).__name__}"
+                return False, f"box.{field} must be a number, got {type(value).__name__}"
 
             if value < 0:
-                return False, f"crop_box.{field} must be non-negative, got {value}"
+                return False, f"box.{field} must be non-negative, got {value}"
 
-        # Check width and height are positive
-        if crop_box['width'] <= 0:
-            return False, f"crop_box.width must be positive, got {crop_box['width']}"
+        # Check box is sane (x2 > x1, y2 > y1)
+        if box['x2'] <= box['x1']:
+            return False, f"box.x2 ({box['x2']}) must be greater than box.x1 ({box['x1']})"
 
-        if crop_box['height'] <= 0:
-            return False, f"crop_box.height must be positive, got {crop_box['height']}"
-
-        # Check padding
-        if 'padding' in json_data:
-            padding = json_data['padding']
-            if not isinstance(padding, (int, float)):
-                return False, f"padding must be a number, got {type(padding).__name__}"
-            if padding < 0:
-                return False, f"padding must be non-negative, got {padding}"
-
-        # Check method
-        if 'method' in json_data:
-            method = json_data['method']
-            valid_methods = ['contour', 'yolo', 'manual']
-            if method not in valid_methods:
-                return False, f"method must be one of {valid_methods}, got '{method}'"
-
-        # Check template
-        if 'template' in json_data:
-            template = json_data['template']
-            valid_templates = ['auto', 'light', 'dark', 'mixed']
-            if template not in valid_templates:
-                return False, f"template must be one of {valid_templates}, got '{template}'"
+        if box['y2'] <= box['y1']:
+            return False, f"box.y2 ({box['y2']}) must be greater than box.y1 ({box['y1']})"
 
         return True, None
 
-    def apply_json_edits(
+    async def apply_json_edits(
         self,
         context: RenderContext,
         json_data: Dict[str, Any]
@@ -370,9 +357,72 @@ class CropRenderer(ImageRenderer):
                 else:
                     logger.warning(f"Could not find entry in manifest for source: {source_file}")
 
+            # Save to library backend if we have library_manager in context
+            if hasattr(context, 'library_manager') and context.library_manager:
+                try:
+                    await self._update_library_database(context, box, source_file)
+                except Exception as db_error:
+                    logger.error(f"Failed to update library database: {db_error}")
+                    # Continue anyway - manifest was updated
+
             logger.info("Manual crop applied successfully")
             return True, None
 
         except Exception as e:
             logger.error(f"Error applying manual crop: {e}")
             return False, f"Error applying crop: {str(e)}"
+
+    async def _update_library_database(self, context: RenderContext, box: dict, source_file: str):
+        """
+        Update library database after manual crop edit.
+
+        Args:
+            context: Rendering context with library_manager
+            box: Crop box coordinates {x1, y1, x2, y2}
+            source_file: Source filename
+        """
+        from datetime import datetime
+
+        library_manager = context.library_manager
+
+        # Get library manager from parent if not available directly
+        if not library_manager and hasattr(context, 'item_id'):
+            # Try to get library_manager from global context
+            # This is a fallback - ideally it's passed in context
+            logger.warning("library_manager not in context, attempting to use metadata API directly")
+            return
+
+        # Use metadata API to save crop metadata
+        try:
+            metadata_api = library_manager.metadata_api
+
+            # Prepare metadata for library storage
+            metadata_for_library = {
+                # Step results
+                "method": "manual",
+                "box": box,
+                "cropped_size": [box['x2'] - box['x1'], box['y2'] - box['y1']],
+
+                # Mark as manually edited
+                "manually_edited": True,
+                "edited_at": datetime.now().isoformat()
+            }
+
+            # Save to library database
+            success = metadata_api.save_step_metadata(
+                item_id=context.item_id,
+                step_name="crop",
+                metadata=metadata_for_library,
+                version=None  # Auto-increment version
+            )
+
+            if success:
+                logger.info(f"✅ Saved crop metadata to library for item {context.item_id}")
+            else:
+                logger.error(f"❌ Failed to save crop metadata to library for item {context.item_id}")
+
+        except Exception as e:
+            logger.error(f"Error saving metadata to library: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Don't fail the whole operation
