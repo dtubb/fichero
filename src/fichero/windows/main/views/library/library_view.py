@@ -28,14 +28,14 @@ class LibraryView(BaseView, ViewCommandMixin):
 
     def __init__(self, app, is_mobile: bool = False):
         """Initialize library view"""
-        print(f"🔧 LibraryView.__init__ starting with app={app}, is_mobile={is_mobile}")
+        logger.debug(f" LibraryView.__init__ starting with app={app}, is_mobile={is_mobile}")
         logger.debug(f"LibraryView.__init__ called with app={app}, is_mobile={is_mobile}")
 
         # Set view_id BEFORE super().__init__
         self.view_id = "library"
 
         # Initialize collections attribute with empty list
-        print("🔧 Setting initial attributes...")
+        logger.debug(" Setting initial attributes...")
         self.is_edit_mode = False
         self.collections: List[Dict[str, Any]] = []
         self.selected_collection: Optional[Dict[str, Any]] = None
@@ -50,22 +50,28 @@ class LibraryView(BaseView, ViewCommandMixin):
         # Initialize recursion guard flag
         self._showing = False
 
-        print("🔧 Calling super().__init__...")
+        # Track background tasks for cleanup
+        self._background_tasks = set()
+
+        # Track collection count for smart widget updates
+        self._last_collection_count = 0
+
+        logger.debug(" Calling super().__init__...")
         super().__init__(app, is_mobile)
         ViewCommandMixin.__init__(self)
-        print("✅ BaseView initialization complete")
+        logger.debug(" BaseView initialization complete")
 
         # Define and register commands
-        print("🔧 Defining commands...")
+        logger.debug(" Defining commands...")
         self.define_commands()
         self.register_commands()
-        print("✅ Commands defined and registered")
+        logger.debug(" Commands defined and registered")
 
         # Note: Native toolbar will be built by MainWindow after this view is created
         # and app.main_window is set. Don't build it here - app.main_window doesn't exist yet!
 
         # Create toolbars
-        print("🔧 Creating toolbars...")
+        logger.debug(" Creating toolbars...")
 
         # Create toolbar coordinator
         self.coordinator = ToolbarCoordinator(app, is_mobile=is_mobile)
@@ -101,58 +107,63 @@ class LibraryView(BaseView, ViewCommandMixin):
                 coordinator=self.coordinator
             )
             # Toolbars will be populated automatically by set_toolbars() from command definitions
-            print("🔧 Setting mobile toolbars...")
+            logger.debug(" Setting mobile toolbars...")
             self.set_toolbars(self.top_toolbar, self.bottom_toolbar)
-            print("✅ Mobile toolbars created and set")
+            logger.debug(" Mobile toolbars created and set")
         else:
             # Desktop: No custom toolbars - use native window.toolbar exclusively
             self.top_toolbar = None
             self.bottom_toolbar = None
-            print("✅ Desktop mode: Using native window.toolbar only")
+            logger.debug(" Desktop mode: Using native window.toolbar only")
 
         # Register callbacks
-        print("🔧 Registering toolbar callbacks...")
+        logger.debug(" Registering toolbar callbacks...")
         self._register_toolbar_callbacks()
 
         # Initialize callback for collection selection
-        print("🔧 Setting collection callback...")
+        logger.debug(" Setting collection callback...")
         self.on_collection_selected = None
 
         # Initialize library manager
-        print("🔧 Initializing library system...")
+        logger.debug(" Initializing library system...")
         self._initialize_library_system()
 
         # Create initial content (will be refreshed when collections load)
-        print("🔧 Creating initial content...")
+        logger.debug(" Creating initial content...")
         self._create_content()
 
-        # Schedule collection loading for after initialization (safe for sync context)
-        print("🔧 Starting collection loading...")
+        # Schedule collection loading for after initialization
+        logger.debug(" Starting collection loading...")
+        self._needs_initial_load = False
         try:
-            asyncio.create_task(self._load_collections_async())
-            print("✅ Async task created")
+            # Try to create async task - only works if event loop is running
+            self._create_task(self._load_collections_async())
+            logger.debug(" Async task created")
         except RuntimeError:
-            # No event loop running, use thread-safe approach
-            print("🔧 Using thread for collection loading...")
-            import threading
-            threading.Thread(target=self._load_collections_sync, daemon=True).start()
-            print("✅ Thread started")
+            # No event loop yet - defer loading until show() is called
+            logger.debug(" No event loop - deferring collection load until show()")
+            self._needs_initial_load = True
 
         # Subscribe to library state events for automatic synchronization
-        print("🔧 Subscribing to library state events...")
-        from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
-        subscribe_to_navigation("collection_added", self._on_collection_added_event)
-        subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
-        subscribe_to_navigation("collection_updated", self._on_collection_updated_event)
-        subscribe_to_navigation("folder_import_started", self._on_folder_import_started_event)
-        subscribe_to_navigation("folder_import_progress", self._on_folder_import_progress_event)
-        subscribe_to_navigation("folder_import_completed", self._on_folder_import_completed_event)
-        print("✅ Event subscriptions registered")
+        # Only subscribe once per instance to prevent duplicate event handlers
+        if not hasattr(self, '_events_subscribed'):
+            logger.debug(" Subscribing to library state events...")
+            from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
+            subscribe_to_navigation("collection_added", self._on_collection_added_event)
+            subscribe_to_navigation("collection_deleted", self._on_collection_deleted_event)
+            subscribe_to_navigation("collection_updated", self._on_collection_updated_event)
+            subscribe_to_navigation("folder_import_started", self._on_folder_import_started_event)
+            subscribe_to_navigation("folder_import_progress", self._on_folder_import_progress_event)
+            subscribe_to_navigation("folder_import_completed", self._on_folder_import_completed_event)
+            self._events_subscribed = True
+            logger.debug(f" Event subscriptions registered for LibraryView instance {id(self)}")
+        else:
+            logger.debug(f"⏭️ Event subscriptions already registered for this instance {id(self)} - skipping")
 
         # Track imports in progress
         self.importing_collections = {}  # collection_id -> {folder_name, count}
 
-        print("✅ LibraryView initialization complete")
+        logger.debug(" LibraryView initialization complete")
         logger.info("Library view created successfully")
     
     def show(self):
@@ -171,13 +182,21 @@ class LibraryView(BaseView, ViewCommandMixin):
             if hasattr(self, 'coordinator') and self.coordinator:
                 self.coordinator.set_active_view('library')
 
-            # Refresh the collections display to clear any cached DetailedList selection state
-            # Only refresh if we have collections to avoid unnecessary work
-            if self.collections:
-                logger.debug("🔄 Refreshing collections display on show()")
-                self._create_collections_display()
+            # Handle deferred initial load (if event loop wasn't ready during __init__)
+            if getattr(self, '_needs_initial_load', False):
+                self._needs_initial_load = False
+                logger.debug("Performing deferred collection load")
+                self._create_task(self._load_collections_async())
+                # Note: _load_collections_async() will call _create_content() when done
+                # Don't call _create_collections_display() here - would be duplicate
             else:
-                logger.debug("📭 No collections to display on show()")
+                # Normal show - just refresh the display
+                # Only refresh if we have collections to avoid unnecessary work
+                if self.collections:
+                    logger.debug("🔄 Refreshing collections display on show()")
+                    self._create_collections_display()
+                else:
+                    logger.debug("📭 No collections to display on show()")
 
             logger.info("✅ Library view show() completed successfully")
         except Exception as e:
@@ -185,7 +204,78 @@ class LibraryView(BaseView, ViewCommandMixin):
         finally:
             # Always reset the flag, even if an exception occurred
             self._showing = False
-    
+
+    def cleanup(self):
+        """Clean up resources and unsubscribe from events to prevent memory leaks"""
+        try:
+            from fichero.shared.navigation.navigation_event_bus import unsubscribe_from_navigation
+
+            logger.debug("Starting LibraryView cleanup...")
+
+            # Unsubscribe from all navigation events
+            unsubscribe_from_navigation("collection_added", self._on_collection_added_event)
+            unsubscribe_from_navigation("collection_deleted", self._on_collection_deleted_event)
+            unsubscribe_from_navigation("collection_updated", self._on_collection_updated_event)
+            unsubscribe_from_navigation("folder_import_started", self._on_folder_import_started_event)
+            unsubscribe_from_navigation("folder_import_progress", self._on_folder_import_progress_event)
+            unsubscribe_from_navigation("folder_import_completed", self._on_folder_import_completed_event)
+            logger.debug("Unsubscribed from navigation events")
+
+            # Cancel all background tasks
+            if hasattr(self, '_background_tasks'):
+                for task in self._background_tasks:
+                    if not task.done():
+                        task.cancel()
+                self._background_tasks.clear()
+                logger.debug("Cancelled background tasks")
+
+            # Unregister toolbar coordinator from navigation controller
+            if hasattr(self, 'coordinator') and self.coordinator:
+                if hasattr(self.app, 'view_integration') and self.app.view_integration:
+                    nav = self.app.view_integration.navigation_controller
+                    if nav and hasattr(nav, 'unregister_toolbar_coordinator'):
+                        nav.unregister_toolbar_coordinator(self.coordinator)
+                        logger.debug("Unregistered toolbar coordinator")
+
+            # Clear references
+            self.on_collection_selected = None
+            self.selected_collection = None
+
+            logger.debug("LibraryView cleanup completed")
+        except Exception as e:
+            logger.error(f"Failed to cleanup LibraryView: {e}", exc_info=True)
+
+    def _create_task(self, coro):
+        """Create and track an async task for proper cleanup"""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+        # Add error handler to log unhandled exceptions
+        def _handle_task_error(t):
+            try:
+                t.result()  # Raises if task failed
+            except asyncio.CancelledError:
+                pass  # Normal cancellation, ignore
+            except Exception as e:
+                logger.error(f"Background task failed: {e}", exc_info=True)
+
+        task.add_done_callback(_handle_task_error)
+        return task
+
+    async def _safe_show_error(self, title: str, message: str):
+        """Safely show error dialog to user (P0-6 fix)"""
+        try:
+            if hasattr(self.app, 'main_window') and self.app.main_window:
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(title=title, message=message)
+                )
+            else:
+                # Fallback: log only if no window available
+                logger.error(f"Cannot show dialog - {title}: {message}")
+        except Exception as e:
+            logger.error(f"Failed to show error dialog: {e}", exc_info=True)
+
     def register_collection_callback(self, callback):
         """Register callback for when a collection is selected"""
         try:
@@ -194,19 +284,20 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to register collection callback: {e}")
     
-    def _create_content(self):
-        """Create the library view content"""
+    def _create_content(self, widget=None):
+        """Create the library view content
+
+        Args:
+            widget: Optional widget parameter (ignored, for compatibility with Toga callbacks)
+        """
         try:
             # Clear any existing content first to prevent duplicates
             if self.content_container:
                 self.content_container.clear()
-            
-            # Check if we have collections to display
-            if self.collections:
-                self._create_collections_display()
-            else:
-                self._create_placeholder_content()
-            
+
+            # Always create the collections display (will show empty sidebar if no collections)
+            self._create_collections_display()
+
         except Exception as e:
             logger.error(f"Failed to create library content: {e}")
     
@@ -274,12 +365,53 @@ class LibraryView(BaseView, ViewCommandMixin):
                 }
                 collection_data.append(formatted_item)
 
-            # ALWAYS recreate - Toga widgets don't properly update when data changes via set_data()
-            logger.info(f"🔄 Library: Recreating ListWidget with {len(collection_data)} collections")
-            self._recreate_detailed_list(collection_data)
+            # Smart update strategy: Only recreate when necessary
+            # Recreate if:
+            # 1. Widget doesn't exist yet
+            # 2. Collection count changed (add/remove)
+            # 3. Collection IDs changed (replace/reorder)
+            # 4. First load
+            current_ids = {item['id'] for item in collection_data}
+            last_ids = getattr(self, '_last_collection_ids', set())
+
+            needs_recreate = (
+                not hasattr(self, 'collections_list') or
+                not self.collections_list or
+                len(collection_data) != self._last_collection_count or
+                current_ids != last_ids
+            )
+
+            if needs_recreate:
+                logger.info(f"🔄 Library: Recreating ListWidget with {len(collection_data)} collections")
+                self._recreate_detailed_list(collection_data)
+                self._last_collection_count = len(collection_data)
+                self._last_collection_ids = current_ids
+
+                # Restore selection after recreation
+                if current_selection_id:
+                    self._restore_selection(collection_data, current_selection_id)
+            else:
+                logger.debug(f"Skipping widget recreation - no changes detected ({len(collection_data)} collections)")
 
         except Exception as e:
             logger.error(f"Failed to create/update collections detailed list: {e}")
+
+    def _restore_selection(self, collection_data, selection_id):
+        """Restore selection after widget recreation"""
+        try:
+            if not hasattr(self, 'collections_list') or not self.collections_list:
+                return
+
+            # Find the row with matching ID and select it
+            for i, item in enumerate(collection_data):
+                if item.get('id') == selection_id:
+                    # Use ListWidget's select_row method if available
+                    if hasattr(self.collections_list, 'select_row'):
+                        self.collections_list.select_row(i)
+                        logger.debug(f"Restored selection to collection: {selection_id}")
+                    break
+        except Exception as e:
+            logger.debug(f"Could not restore selection: {e}")
 
     def _recreate_detailed_list(self, collection_data):
         """Recreate the list widget using ListWidget (Phase 6)"""
@@ -319,6 +451,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                 headings=['Collections'],
                 data=tree_data,
                 on_select=self._on_tree_select,  # Use wrapper for selection
+                on_activate=self._on_collection_activate,  # Double-click to rename
                 style=Pack(
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
@@ -362,7 +495,7 @@ class LibraryView(BaseView, ViewCommandMixin):
             )
 
     def _on_swipe_delete_collection(self, widget, row):
-        """Handle delete collection swipe action"""
+        """Handle delete collection swipe action (P1-10: Now includes confirmation)"""
         try:
             if hasattr(row, 'collection_data'):
                 collection = row.collection_data
@@ -370,9 +503,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                 collection_name = collection.get('name', 'Unknown Collection')
 
                 logger.info(f"Swipe delete for collection: {collection_name}")
-                # Delete immediately without confirmation
-                import asyncio
-                asyncio.create_task(self._perform_delete_collection(collection_id, collection_name))
+                # Always confirm destructive actions, even on swipe (iOS HIG compliance)
+                self._create_task(self._confirm_and_delete_collection(collection_id, collection_name))
             else:
                 logger.warning("No collection data found in swipe delete")
         except Exception as e:
@@ -406,6 +538,127 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to handle swipe rename: {e}")
 
+    def _on_collection_activate(self, widget, row):
+        """Handle double-click on collection to rename (desktop only)"""
+        try:
+            logger.info(f"🖱️ Collection activated (double-click) - row type: {type(row)}")
+
+            # Extract collection data from row
+            collection_data = None
+            if hasattr(row, '_collection_data'):
+                collection_data = row._collection_data
+            elif hasattr(row, 'collection_data'):
+                collection_data = row.collection_data
+            elif isinstance(row, dict):
+                collection_data = row.get('_collection_data')
+
+            if collection_data:
+                collection_id = collection_data.get('id', '')
+                collection_name = collection_data.get('name', 'Unknown Collection')
+
+                logger.info(f"Double-click rename for collection: {collection_name}")
+
+                # Show rename dialog
+                self._create_task(self._show_rename_dialog(collection_id, collection_name))
+            else:
+                logger.warning("No collection data found in activated row")
+        except Exception as e:
+            logger.error(f"Failed to handle collection activation: {e}", exc_info=True)
+
+    async def _show_rename_dialog(self, collection_id: str, collection_name: str):
+        """Show dialog to rename collection - uses navigation-based rename view"""
+        try:
+            # Use NavigationController to navigate to rename view
+            # This provides a consistent UI pattern across desktop and mobile
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    success = nav_controller.navigate_to_rename_collection(collection_id, collection_name)
+                    if success:
+                        logger.info(f"Successfully navigated to rename view for: {collection_name}")
+                    else:
+                        logger.error(f"Failed to navigate to rename view for: {collection_name}")
+                        # Show error to user
+                        await self.app.main_window.dialog(
+                            toga.ErrorDialog(
+                                title=_("Navigation Error"),
+                                message=_("Could not open rename dialog. Please try again.")
+                            )
+                        )
+                else:
+                    logger.error("NavigationController not available")
+                    await self.app.main_window.dialog(
+                        toga.ErrorDialog(
+                            title=_("Error"),
+                            message=_("Navigation system not available.")
+                        )
+                    )
+            else:
+                logger.error("view_integration not available")
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(
+                        title=_("Error"),
+                        message=_("Navigation system not initialized.")
+                    )
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to show rename dialog: {e}", exc_info=True)
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title=_("Rename Error"),
+                    message=f"An error occurred: {str(e)}"
+                )
+            )
+
+    def _on_delete_collection(self, widget, item=None):
+        """Handle delete collection command (Cmd+Backspace) - desktop only"""
+        try:
+            # Get the currently selected collection
+            if not self.selected_collection:
+                logger.warning("No collection selected for deletion")
+                return
+
+            collection_id = self.selected_collection.get('id', '')
+            collection_name = self.selected_collection.get('name', 'Unknown Collection')
+
+            logger.info(f"Delete command triggered for collection: {collection_name}")
+
+            # Show confirmation dialog (async)
+            import asyncio
+            self._create_task(self._confirm_and_delete_collection(collection_id, collection_name))
+
+        except Exception as e:
+            logger.error(f"Failed to handle delete collection command: {e}", exc_info=True)
+
+    async def _confirm_and_delete_collection(self, collection_id: str, collection_name: str):
+        """Show confirmation dialog and delete collection if confirmed"""
+        try:
+            # Create QuestionDialog for confirmation
+            dialog = toga.QuestionDialog(
+                title=_("Delete Collection"),
+                message=_("Are you sure you want to delete '{name}'?\n\nThis action cannot be undone.").format(name=collection_name)
+            )
+
+            # Show dialog and wait for user response
+            if await self.app.main_window.dialog(dialog):
+                # User confirmed deletion
+                logger.info(f"User confirmed deletion of collection: {collection_name}")
+
+                # Perform the deletion
+                await self._perform_delete_collection(collection_id, collection_name)
+            else:
+                # User cancelled
+                logger.info(f"User cancelled deletion of collection: {collection_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to confirm and delete collection: {e}", exc_info=True)
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title=_("Delete Error"),
+                    message=f"An error occurred: {str(e)}"
+                )
+            )
 
     def _get_collection_icon(self, collection: Dict[str, Any]) -> Optional[str]:
         """Get appropriate icon for collection type"""
@@ -623,6 +876,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                     self.commands['show_inspector'].enable()
                     logger.debug("✅ Enabled 'Show Inspector' button (collection selected)")
 
+                # Enable delete command on desktop when collection is selected
+                if hasattr(self, 'commands') and 'delete_collection' in self.commands:
+                    self.commands['delete_collection'].enable()
+                    logger.debug("✅ Enabled 'Delete Collection' command (collection selected)")
+
                 # Navigate to collection via callback (called only once)
                 if self.on_collection_selected:
                     logger.info(f"🔄 Calling navigation callback for {collection_name}")
@@ -644,6 +902,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                 if hasattr(self, 'commands') and 'show_inspector' in self.commands:
                     self.commands['show_inspector'].disable()
                     logger.debug("❌ Disabled 'Show Inspector' button (no selection)")
+
+                # Disable delete command on desktop when no selection
+                if hasattr(self, 'commands') and 'delete_collection' in self.commands:
+                    self.commands['delete_collection'].disable()
+                    logger.debug("❌ Disabled 'Delete Collection' command (no selection)")
 
         except Exception as e:
             logger.error(f"Failed to handle collection selection: {e}")
@@ -794,6 +1057,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Bottom toolbar callbacks (mobile only - desktop uses native menus)
             if self.bottom_toolbar:
+                # Note: These callbacks are stub methods - they exist but don't implement functionality yet
                 self.bottom_toolbar.on_activity_monitor = self._on_activity_monitor
                 self.bottom_toolbar.on_library_settings = self._on_library_settings
                 self.bottom_toolbar.on_global_inbox = self._on_global_inbox
@@ -840,7 +1104,7 @@ class LibraryView(BaseView, ViewCommandMixin):
         try:
             # Show save dialog to choose location and name
             import asyncio
-            asyncio.create_task(self._create_external_collection())
+            self._create_task(self._create_external_collection())
         except Exception as e:
             logger.error(f"Failed to create external collection: {e}")
             try:
@@ -1088,7 +1352,7 @@ class LibraryView(BaseView, ViewCommandMixin):
             # Create collection using the library service
             if self.library_service:
                 import asyncio
-                asyncio.create_task(self._create_local_collection_with_unique_name())
+                self._create_task(self._create_local_collection_with_unique_name())
             else:
                 logger.error("Library service not available")
                 self._show_message("Error", "Library system not available. Please restart the application.")
@@ -1320,21 +1584,6 @@ class LibraryView(BaseView, ViewCommandMixin):
         if hasattr(self, 'on_open_collection') and self.on_open_collection:
             self.on_open_collection(row.collection_data)
     
-    def _on_delete_collection(self, widget, item):
-        """Handle delete action from swipe gesture"""
-        try:
-            if item:
-                collection_name = item.get('title', 'Unknown')
-                collection_id = item.get('id', '')
-                logger.info(f"Delete requested for collection: {collection_name}")
-                
-                # TODO: Implement delete confirmation dialog
-                # For now, just log the action
-                logger.warning(f"Delete action not implemented yet for collection {collection_id}")
-                
-        except Exception as e:
-            logger.error(f"Failed to handle collection deletion: {e}")
-    
     def _on_edit_collection(self, widget, item):
         """Handle edit action from swipe gesture"""
         try:
@@ -1353,12 +1602,30 @@ class LibraryView(BaseView, ViewCommandMixin):
     def _confirm_delete_collection(self, collection_id: str, collection_name: str):
         """Show confirmation dialog for collection deletion"""
         try:
+            # Prevent deletion of Inbox collection
+            if collection_name == "Inbox":
+                logger.warning("Cannot delete Inbox collection")
+                # Create async task to show error dialog
+                self._create_task(self._show_inbox_delete_error())
+                return
+
             # Create async task for dialog handling
             import asyncio
-            task = asyncio.create_task(self._handle_delete_confirmation(collection_id, collection_name))
+            task = self._create_task(self._handle_delete_confirmation(collection_id, collection_name))
             logger.debug(f"Created delete confirmation task for collection: {collection_name}")
         except Exception as e:
             logger.error(f"Failed to create delete confirmation dialog: {e}")
+
+    async def _show_inbox_delete_error(self):
+        """Show error dialog when trying to delete Inbox"""
+        try:
+            dialog = toga.InfoDialog(
+                title=_("Cannot Delete Inbox"),
+                message=_("The Inbox collection cannot be deleted. It's a permanent system collection.")
+            )
+            await self.app.main_window.dialog(dialog)
+        except Exception as e:
+            logger.error(f"Failed to show inbox delete error: {e}")
 
     async def _handle_delete_confirmation(self, collection_id: str, collection_name: str):
         """Handle delete confirmation dialog asynchronously"""
@@ -1384,12 +1651,22 @@ class LibraryView(BaseView, ViewCommandMixin):
     async def _perform_delete_collection(self, collection_id: str, collection_name: str):
         """Actually delete the collection from the library"""
         try:
+            import traceback
+            caller = traceback.extract_stack()[-2]
+            logger.info(f"🔍 TRACE: _perform_delete_collection called from {caller.filename}:{caller.lineno} in {caller.name}()")
+
             # Delete collection through library manager
             if hasattr(self.app, 'library_manager') and self.app.library_manager:
+                logger.info(f"🔍 TRACE: Calling library_manager.delete_collection({collection_id})")
                 success = await self.app.library_manager.delete_collection(collection_id)
 
                 if success:
-                    logger.info(f"Successfully deleted collection: {collection_name}")
+                    logger.info(f"🔍 TRACE: Successfully deleted collection from database: {collection_name}")
+
+                    # Clear the selected collection if it was the deleted one
+                    if self.selected_collection and self.selected_collection.get('id') == collection_id:
+                        self.selected_collection = None
+                        logger.debug("Cleared selected_collection after deletion")
 
                     # If we're currently viewing this collection, navigate back to library view
                     if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
@@ -1400,8 +1677,26 @@ class LibraryView(BaseView, ViewCommandMixin):
                             # Show library view
                             self.app.main_window_wrapper.show_library_view()
 
-                    # Refresh the collections display
-                    self.refresh_collections()
+                    # Remove from internal collections list
+                    self.collections = [c for c in self.collections if c.get('id') != collection_id]
+
+                    # Update the widget - remove just this item, don't recreate entire sidebar
+                    if hasattr(self, 'collections_list') and self.collections_list:
+                        logger.info(f"🔍 TRACE: Attempting incremental remove from ListWidget...")
+                        removed = self.collections_list.remove_item(collection_id)
+                        if removed:
+                            logger.info(f"✅ TRACE: Incremental remove succeeded - removed '{collection_name}' from sidebar")
+                            # Update cached count and IDs
+                            self._last_collection_count = len(self.collections)
+                            self._last_collection_ids = {c.get('id') for c in self.collections}
+                        else:
+                            logger.warning(f"❌ TRACE: Incremental remove FAILED - falling back to full refresh")
+                            logger.info(f"🔍 TRACE: Calling refresh_collections()...")
+                            await self.refresh_collections()
+                            logger.info(f"🔍 TRACE: refresh_collections() completed")
+                    else:
+                        # No widget exists, just refresh
+                        await self.refresh_collections()
                 else:
                     logger.error(f"Failed to delete collection: {collection_name}")
                     error_dialog = toga.ErrorDialog(
@@ -1418,17 +1713,12 @@ class LibraryView(BaseView, ViewCommandMixin):
                 await self.app.main_window.dialog(error_dialog)
 
         except Exception as e:
-            logger.error(f"Failed to perform collection deletion: {e}")
+            logger.error(f"Failed to perform collection deletion: {e}", exc_info=True)
             error_dialog = toga.ErrorDialog(
                 title=_("Delete Error"),
-                message=_("delete_error_message").format(error=str(e))
+                message=f"Failed to delete collection: {str(e)}"
             )
             await self.app.main_window.dialog(error_dialog)
-            self._show_message("Success", f"Collection '{collection_name}' has been deleted.")
-            
-        except Exception as e:
-            logger.error(f"Failed to perform collection deletion: {e}")
-            self._show_message("Error", f"Failed to delete collection: {str(e)}")
     
     def _edit_collection(self, collection_id: str, collection_name: str):
         """Open edit dialog for collection"""
@@ -1510,12 +1800,76 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to clear collections from management: {e}")
     
+    async def _add_collection_to_widget(self, collection_id: str):
+        """Add a newly created collection to the widget without full refresh
+
+        Args:
+            collection_id: ID of the collection to add
+
+        Returns:
+            True if successfully added, False if fallback to refresh needed
+        """
+        try:
+            if not self.library_service:
+                return False
+
+            # Get the collection data from the backend
+            collection_data = await self.library_service.get_collection_for_ui(collection_id)
+            if not collection_data:
+                logger.warning(f"Could not fetch collection data for {collection_id}")
+                return False
+
+            # Add to internal collections list
+            self.collections.append(collection_data)
+
+            # Format for ListWidget
+            folder_icon = self._folder_icon_cache
+            if not folder_icon:
+                try:
+                    import toga
+                    folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
+                    if folder_icon_path.exists():
+                        folder_icon = toga.Image(str(folder_icon_path))
+                        self._folder_icon_cache = folder_icon
+                except Exception as e:
+                    logger.debug(f"Could not load folder icon: {e}")
+
+            item_count = collection_data.get('item_count', 0)
+            formatted_item = {
+                'icon': folder_icon,
+                'text': collection_data.get('name', 'Unknown'),
+                'subtitle': f"{item_count} items",
+                '_collection_data': collection_data,
+                '_item_id': collection_data.get('id')
+            }
+
+            # Add to widget if it exists
+            if hasattr(self, 'collections_list') and self.collections_list:
+                self.collections_list.add_item(formatted_item)
+                logger.info(f"✅ Added collection to sidebar: {collection_data.get('name')}")
+
+                # Update cache
+                self._last_collection_count = len(self.collections)
+                self._last_collection_ids = {c.get('id') for c in self.collections}
+                return True
+            else:
+                # No widget exists yet, need full refresh
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to add collection to widget: {e}")
+            return False
+
     async def refresh_collections(self):
         """Refresh the collections display"""
         try:
+            import traceback
+            caller = traceback.extract_stack()[-2]
+            logger.info(f"🔍 TRACE: refresh_collections() called from {caller.filename}:{caller.lineno} in {caller.name}()")
+
             # Reload collections from database and wait for completion
             await self._load_collections_async()
-            logger.debug("Collections display refreshed")
+            logger.info(f"🔍 TRACE: refresh_collections() completed")
 
         except Exception as e:
             logger.error(f"Failed to refresh collections: {e}")
@@ -1593,6 +1947,25 @@ class LibraryView(BaseView, ViewCommandMixin):
                     show_in_bottom_toolbar=False,  # Not on mobile bottom toolbar
                     desktop_only=True,  # Only show on desktop
                     context='normal'  # Always visible on desktop
+                ),
+
+                # ===== FILE MENU - DELETE COLLECTION =====
+                'delete_collection': FicheroCommand(
+                    id=f'{self.view_id}.delete_collection',
+                    label=_("Delete Collection"),
+                    action=self._on_delete_collection,
+                    shortcut=toga.Key.MOD_1 + toga.Key.BACKSPACE,  # Cmd+Backspace (standard Mac delete)
+                    icon='resources/icons/toolbar/trash.png',
+                    description=_("Delete the selected collection"),
+                    group=toga.Group.FILE,  # File menu on desktop
+                    section=1,  # Second section (after New commands, before Close)
+                    order=0,  # First item in delete section
+                    show_in_menu=True,  # Appear in File menu on desktop
+                    show_in_toolbar=False,  # NOT in toolbar (dangerous action, menu only)
+                    show_in_bottom_toolbar=False,  # Not on mobile (use swipe instead)
+                    desktop_only=True,  # Desktop only - mobile uses swipe
+                    context='normal',
+                    enabled=False  # Disabled by default, enabled when collection selected
                 ),
 
                 # NOTE: Import commands (File, Folder, URL, Link File, Link Folder)
@@ -1792,9 +2165,10 @@ class LibraryView(BaseView, ViewCommandMixin):
     def refresh(self):
         """Refresh the collection management view"""
         try:
-            self.refresh_collections()
+            # Create async task to refresh collections
+            self._create_task(self.refresh_collections())
             super().refresh()
-            
+
         except Exception as e:
             logger.error(f"Failed to refresh collection management view: {e}") 
 
@@ -1837,9 +2211,16 @@ class LibraryView(BaseView, ViewCommandMixin):
             self.library_service = None
     
     async def _load_collections_async(self):
-        """Load collections asynchronously and update UI"""
+        """Load collections asynchronously and update UI safely on main thread"""
         try:
+            import traceback
+            caller = traceback.extract_stack()[-2]
+            logger.info(f"🔍 TRACE: _load_collections_async() called from {caller.filename}:{caller.lineno} in {caller.name}()")
+
             if self.library_service:
+                # Ensure Inbox collection exists (auto-create if needed)
+                await self._ensure_inbox_exists()
+
                 # Determine sort mode based on current state
                 # For now, we only support name sorting with A-Z/Z-A toggle
                 sort_by = "name"  # Always sort by name
@@ -1857,7 +2238,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
                 logger.debug(f"Loaded {len(self.collections)} collections from library (sort: {sort_by}, {'A-Z' if self.sort_ascending else 'Z-A'}).")
 
-                # Refresh the display to show the loaded collections
+                # Call UI update directly (we're already async, Toga handles main thread)
                 self._create_content()
             else:
                 logger.warning("Library service not initialized, cannot load collections.")
@@ -1867,42 +2248,29 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to load collections from library: {e}")
             self.collections = []
 
-    def _load_collections_sync(self):
-        """Load collections synchronously (thread-safe version)"""
+    async def _ensure_inbox_exists(self):
+        """Ensure the Inbox collection exists, create if missing"""
         try:
-            if self.library_service:
-                # Use service layer synchronously
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Determine sort mode
-                    sort_by = "name"  # Always sort by name
+            if not hasattr(self.app, 'library_manager') or not self.app.library_manager:
+                logger.warning("Library manager not available, cannot ensure Inbox exists")
+                return
 
-                    all_collections = loop.run_until_complete(self.library_service.get_collections_for_ui(sort_by=sort_by))
+            # Check if Inbox already exists
+            all_collections = await self.app.library_manager.get_all_collections()
+            inbox_exists = any(col.name == "Inbox" for col in all_collections)
 
-                    # Service already provides UI-ready data
-                    self.collections = all_collections
-
-                    # Apply ascending/descending order
-                    if not self.sort_ascending:
-                        # Reverse for Z-A
-                        self.collections.reverse()
-
-                    logger.debug(f"Loaded {len(self.collections)} collections from library (sync, sort: {sort_by}, {'A-Z' if self.sort_ascending else 'Z-A'}).")
-
-                    # Refresh the display to show the loaded collections (this needs to be on main thread)
-                    # We'll skip UI update here and let it happen when the view is shown
-
-                finally:
-                    loop.close()
-            else:
-                logger.warning("Library service not initialized, cannot load collections (sync).")
-                self.collections = []
+            if not inbox_exists:
+                # Create Inbox collection (local type, no source path)
+                logger.info("Creating default Inbox collection")
+                await self.app.library_manager.add_collection(
+                    name="Inbox",
+                    collection_type="local",
+                    description="Default collection for new items"
+                )
+                logger.info("✅ Created Inbox collection")
 
         except Exception as e:
-            logger.error(f"Failed to load collections from library (sync): {e}")
-            self.collections = []
+            logger.error(f"Failed to ensure Inbox exists: {e}")
 
     def toggle_edit_mode(self, widget=None):
         """Toggle edit mode state"""
@@ -1995,7 +2363,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Reload collections with new sort order
             import asyncio
-            asyncio.create_task(self._load_collections_async())
+            self._create_task(self._load_collections_async())
 
         except Exception as e:
             logger.error(f"Failed to toggle sort: {e}")
@@ -2087,7 +2455,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                 title=_("Export") + f" {collection_name}",
                 suggested_filename=default_filename,
                 file_types=['zip'],
-                on_result=lambda widget, path: asyncio.create_task(
+                on_result=lambda widget, path: self._create_task(
                     self._perform_export_collection(collection_id, collection_name, path)
                 )
             )
@@ -2190,7 +2558,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Add URL to the specified collection using library service
             import asyncio
-            asyncio.create_task(self._add_url_to_collection_async(url, collection_id))
+            self._create_task(self._add_url_to_collection_async(url, collection_id))
 
         except Exception as e:
             logger.error(f"Failed to handle URL add callback: {e}")
@@ -2320,7 +2688,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Open native file dialog and add files
             import asyncio
-            asyncio.create_task(self._select_and_add_files_async(collection_id, operation="copy"))
+            self._create_task(self._select_and_add_files_async(collection_id, operation="copy"))
 
         except Exception as e:
             logger.error(f"Failed to open file import: {e}")
@@ -2340,7 +2708,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Open native folder dialog and add folder
             import asyncio
-            asyncio.create_task(self._select_and_add_folder_async(collection_id, operation="copy"))
+            self._create_task(self._select_and_add_folder_async(collection_id, operation="copy"))
 
         except Exception as e:
             logger.error(f"Failed to open folder import: {e}")
@@ -2360,7 +2728,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Open native file dialog and link files
             import asyncio
-            asyncio.create_task(self._select_and_add_files_async(collection_id, operation="link"))
+            self._create_task(self._select_and_add_files_async(collection_id, operation="link"))
 
         except Exception as e:
             logger.error(f"Failed to open link file: {e}")
@@ -2380,7 +2748,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Open native folder dialog and link folder
             import asyncio
-            asyncio.create_task(self._select_and_add_folder_async(collection_id, operation="link"))
+            self._create_task(self._select_and_add_folder_async(collection_id, operation="link"))
 
         except Exception as e:
             logger.error(f"Failed to open link folder: {e}")
@@ -2444,7 +2812,7 @@ class LibraryView(BaseView, ViewCommandMixin):
                 return
 
             # Fetch full collection metadata from library service (same for desktop and mobile)
-            asyncio.create_task(self._show_inspector_with_full_data(collection_id))
+            self._create_task(self._show_inspector_with_full_data(collection_id))
 
         except Exception as e:
             logger.error(f"Failed to show inspector: {e}")
@@ -2512,7 +2880,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Create a new collection for the URLs
             import asyncio
-            asyncio.create_task(self._create_collection_from_urls(urls))
+            self._create_task(self._create_collection_from_urls(urls))
 
         except Exception as e:
             logger.error(f"Failed to handle URLs added: {e}")
@@ -2545,8 +2913,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation="link"  # Don't download, just reference
                     )
 
-                # Refresh collections display
-                await self._load_collections_async()
+                # Add collection to widget incrementally (avoid full refresh)
+                added = await self._add_collection_to_widget(collection_id)
+                if not added:
+                    # Fallback to full refresh if incremental add failed
+                    await self._load_collections_async()
 
                 logger.info(f"Created collection '{collection_name}' with {len(urls)} URLs")
 
@@ -2573,7 +2944,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Create a new collection for the files
             import asyncio
-            asyncio.create_task(self._create_collection_from_files(files))
+            self._create_task(self._create_collection_from_files(files))
 
         except Exception as e:
             logger.error(f"Failed to handle files added: {e}")
@@ -2614,8 +2985,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation=operation  # Use determined operation (copy or link)
                     )
 
-                # Refresh collections display
-                await self._load_collections_async()
+                # Add collection to widget incrementally (avoid full refresh)
+                added = await self._add_collection_to_widget(collection_id)
+                if not added:
+                    # Fallback to full refresh if incremental add failed
+                    await self._load_collections_async()
 
                 logger.info(f"Created collection '{collection_name}' with {len(files)} files")
 
@@ -2661,7 +3035,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Create a new collection for the folders
             import asyncio
-            asyncio.create_task(self._create_collection_from_folders(folders))
+            self._create_task(self._create_collection_from_folders(folders))
 
         except Exception as e:
             logger.error(f"Failed to handle folders added: {e}")
@@ -2702,8 +3076,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation=operation  # Use determined operation (copy or link)
                     )
 
-                # Refresh collections display
-                await self._load_collections_async()
+                # Add collection to widget incrementally (avoid full refresh)
+                added = await self._add_collection_to_widget(collection_id)
+                if not added:
+                    # Fallback to full refresh if incremental add failed
+                    await self._load_collections_async()
 
                 logger.info(f"Created collection '{collection_name}' with {len(folders)} folders")
 
@@ -2734,7 +3111,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Create a new collection for the photo
             import asyncio
-            asyncio.create_task(self._create_collection_from_photo(photo_path))
+            self._create_task(self._create_collection_from_photo(photo_path))
 
         except Exception as e:
             logger.error(f"Failed to handle camera photo added: {e}")
@@ -2765,8 +3142,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                     operation="copy"  # Copy camera photos
                 )
 
-                # Refresh collections display
-                await self._load_collections_async()
+                # Add collection to widget incrementally (avoid full refresh)
+                added = await self._add_collection_to_widget(collection_id)
+                if not added:
+                    # Fallback to full refresh if incremental add failed
+                    await self._load_collections_async()
 
                 logger.info(f"Created collection '{collection_name}' with camera photo")
 
@@ -2790,19 +3170,50 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.info(f"📡 Event received: collection_added - {collection_name}")
 
             # Reload collections to show the new one
-            asyncio.create_task(self._load_collections_async())
+            self._create_task(self._load_collections_async())
 
         except Exception as e:
             logger.error(f"Failed to handle collection_added event: {e}")
+            # Show error to user (P0-6 fix)
+            self._create_task(self._safe_show_error(
+                "Update Failed",
+                f"Failed to refresh collections after adding: {str(e)}"
+            ))
 
     def _on_collection_deleted_event(self, event):
-        """Handle collection_deleted event - auto-refresh library view"""
+        """Handle collection_deleted event from other sources (external deletes)"""
         try:
+            collection_id = event.data.get("collection_id")
             collection_name = event.data.get("collection_name", "Unknown")
             logger.info(f"📡 Event received: collection_deleted - {collection_name}")
 
-            # Reload collections to remove the deleted one
-            asyncio.create_task(self._load_collections_async())
+            # Check if this collection is in our current list
+            # If it's not, it was deleted externally (e.g., via CLI or other window)
+            # and we need to refresh. If it IS in our list, we already handled it
+            # incrementally in _perform_delete_collection()
+            collection_exists = any(c.get('id') == collection_id for c in self.collections)
+
+            if collection_exists:
+                # External delete - remove incrementally
+                logger.info(f"External delete detected - removing {collection_name} from sidebar")
+                self.collections = [c for c in self.collections if c.get('id') != collection_id]
+
+                if hasattr(self, 'collections_list') and self.collections_list:
+                    removed = self.collections_list.remove_item(collection_id)
+                    if removed:
+                        # Update cache
+                        self._last_collection_count = len(self.collections)
+                        self._last_collection_ids = {c.get('id') for c in self.collections}
+                        logger.info(f"✅ Removed externally deleted collection from sidebar")
+                    else:
+                        # Fallback to full refresh if remove failed
+                        self._create_task(self._load_collections_async())
+                else:
+                    # No widget, just refresh
+                    self._create_task(self._load_collections_async())
+            else:
+                # Collection not in our list - already removed by our own delete handler
+                logger.debug(f"Collection {collection_name} already removed (local delete)")
 
         except Exception as e:
             logger.error(f"Failed to handle collection_deleted event: {e}")
@@ -2814,7 +3225,7 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.info(f"📡 Event received: collection_updated - {collection_name}")
 
             # Reload collections to show updates
-            asyncio.create_task(self._load_collections_async())
+            self._create_task(self._load_collections_async())
 
         except Exception as e:
             logger.error(f"Failed to handle collection_updated event: {e}")

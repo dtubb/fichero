@@ -442,6 +442,10 @@ class MainWindow:
                 subscribe_to_navigation(NavigationEvents.SELECTION_CHANGED, self._handle_selection_changed)
                 logger.debug("Status bar subscribed to selection events")
 
+            # Phase 1: Subscribe to selection changes for preview updates
+            subscribe_to_navigation(NavigationEvents.SELECTION_CHANGED, self._handle_preview_selection_changed)
+            logger.debug("Preview pane subscribed to selection events")
+
             logger.debug("Subscribed to navigation events")
 
         except Exception as e:
@@ -710,10 +714,10 @@ class MainWindow:
             return self.cached_library_view
         except Exception as e:
             logger.error(f"Failed to get or create library view: {e}")
-            # Fallback: create new instance
-            library_view = LibraryView(self.app, self.is_mobile)
-            library_view.register_collection_callback(self._on_collection_selected)
-            return library_view
+            # Fallback: create new instance and cache it to prevent duplicate subscriptions
+            self.cached_library_view = LibraryView(self.app, self.is_mobile)
+            self.cached_library_view.register_collection_callback(self._on_collection_selected)
+            return self.cached_library_view
 
     def _get_or_create_collection_view(self, collection_id: str, collection_name: str) -> CollectionView:
         """
@@ -904,6 +908,9 @@ class MainWindow:
             if self.is_mobile and hasattr(collection_view, 'show'):
                 collection_view.show()
 
+            # Update status bar to show focused pane
+            self._update_focused_pane_display('collection')
+
         except Exception as e:
             logger.error(f"Failed to handle show collection event: {e}")
 
@@ -918,6 +925,18 @@ class MainWindow:
             file_metadata = data.get('file_metadata', {})
             collection_items = data.get('collection_items', [])
             item_index = data.get('item_index', 0)
+
+            # Track last loaded item to prevent duplicates
+            if not hasattr(self, '_last_preview_item_id'):
+                self._last_preview_item_id = None
+
+            # Skip if this item is already loaded
+            current_item_id = item_id
+            if current_item_id and current_item_id == self._last_preview_item_id:
+                logger.debug(f"Item {current_item_id} already loaded in preview, skipping")
+                return
+
+            self._last_preview_item_id = current_item_id
 
             logger.info(f"Event: Show output for {file_path}")
             if output_data:
@@ -1020,6 +1039,9 @@ class MainWindow:
                     self.navigation_controller.layout_manager):
                     self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
                     logger.info(f"✅ Preview pane shown via layout manager (slot: {self.preview_slot_id})")
+
+            # Update status bar to show focused pane
+            self._update_focused_pane_display('output')
 
         except Exception as e:
             logger.error(f"Failed to handle show preview event: {e}")
@@ -1200,6 +1222,12 @@ class MainWindow:
             # Clean up cached library view
             if self.cached_library_view:
                 try:
+                    # Call cleanup method if it exists (P0-1 fix)
+                    if hasattr(self.cached_library_view, 'cleanup'):
+                        self.cached_library_view.cleanup()
+                        logger.debug("Called LibraryView.cleanup()")
+
+                    # Legacy cleanup methods (kept for backward compatibility)
                     if hasattr(self.cached_library_view, 'cleanup_callbacks'):
                         self.cached_library_view.cleanup_callbacks()
 
@@ -1212,6 +1240,29 @@ class MainWindow:
                     logger.debug("Cleaned up cached LibraryView")
                 except Exception as e:
                     logger.error(f"Failed to cleanup cached library view: {e}")
+                finally:
+                    # Null out reference to allow garbage collection (P0-5 fix)
+                    self.cached_library_view = None
+
+            # Clean up cached collection view
+            if self.cached_collection_view:
+                try:
+                    if hasattr(self.cached_collection_view, 'cleanup'):
+                        self.cached_collection_view.cleanup()
+                except Exception as e:
+                    logger.error(f"Failed to cleanup cached collection view: {e}")
+                finally:
+                    self.cached_collection_view = None
+
+            # Clean up cached output view
+            if self.cached_output_view:
+                try:
+                    if hasattr(self.cached_output_view, 'cleanup'):
+                        self.cached_output_view.cleanup()
+                except Exception as e:
+                    logger.error(f"Failed to cleanup cached output view: {e}")
+                finally:
+                    self.cached_output_view = None
 
             logger.debug("All cached views cleaned up")
 
@@ -1708,6 +1759,115 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to close main window: {e}")
 
+    # Phase 1: Preview integration event handlers
+
+    def _handle_preview_selection_changed(self, event):
+        """
+        Handle SELECTION_CHANGED events to update preview pane.
+
+        Responds to selections from collection view and library sidebar,
+        automatically loading the selected item in the preview/inspector pane.
+        """
+        try:
+            # Extract event data
+            view_id = event.data.get('view_id', '')
+            item_ids = event.data.get('new_selection', [])  # SelectionManager emits 'new_selection'
+            metadata = event.data.get('metadata', [])
+
+            logger.info(f"🔍 Preview selection change from view: {view_id}, items: {len(item_ids)}")
+
+            # Only respond to collection view selections (not library, not preview itself)
+            if view_id != 'collection':
+                logger.debug(f"Ignoring selection from {view_id} (preview only responds to collection)")
+                return
+
+            # If no selection, clear preview
+            if not item_ids or not metadata:
+                logger.info("Empty selection, clearing preview")
+                self._clear_preview()
+                return
+
+            # Load first selected item (multi-select shows first item)
+            first_item_meta = metadata[0]
+            self._load_preview_from_selection(first_item_meta, metadata)
+
+        except Exception as e:
+            logger.error(f"Failed to handle preview selection change: {e}", exc_info=True)
+
+    def _load_preview_from_selection(self, item_meta: dict, all_metadata: list):
+        """
+        Load item in preview pane from selection metadata.
+
+        Args:
+            item_meta: Metadata for the selected item
+            all_metadata: Full list of selected items (for navigation)
+        """
+        try:
+            # Extract file path (prefer local_path for downloaded files)
+            file_path = item_meta.get('local_path') or item_meta.get('file_path')
+            item_id = item_meta.get('id')
+
+            if not file_path:
+                logger.warning(f"No file path in selection metadata: {item_meta}")
+                return
+
+            logger.info(f"📄 Loading preview for: {file_path}")
+
+            # Check if item has processing outputs via library_manager
+            output_data = None
+            if hasattr(self.app, 'library_manager') and item_id:
+                try:
+                    # Get processing outputs for this item
+                    library_manager = self.app.library_manager
+                    item = library_manager.storage.get_item(item_id)
+
+                    if item and item.metadata.get('output_path'):
+                        output_path = item.metadata['output_path']
+                        logger.info(f"📊 Item has processing outputs: {output_path}")
+
+                        # Create output_data structure expected by _on_show_preview
+                        output_data = {
+                            'has_outputs': True,
+                            'output_path': output_path,
+                            # OutputsManager will discover steps when preview loads
+                        }
+                except Exception as e:
+                    logger.debug(f"Could not check for outputs: {e}")
+
+            # Trigger existing preview loading mechanism via SHOW_PREVIEW event
+            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event, NavigationEvent, NavigationEvents
+
+            preview_event_data = {
+                'file_path': file_path,
+                'item_id': item_id,
+                'output_data': output_data,
+                'file_metadata': item_meta,
+                'collection_items': all_metadata,  # For prev/next navigation
+                'item_index': 0,  # First selected item
+            }
+
+            emit_navigation_event(
+                NavigationEvents.SHOW_PREVIEW,
+                preview_event_data
+            )
+
+            logger.info(f"✅ Preview event emitted for {file_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to load preview from selection: {e}", exc_info=True)
+
+    def _clear_preview(self):
+        """Clear the preview pane when no item is selected"""
+        try:
+            if self.cached_output_view:
+                logger.info("📤 Clearing preview pane (no selection)")
+                # Call load_output with no arguments to clear
+                self.cached_output_view.load_output()
+            else:
+                logger.debug("No cached output view to clear")
+        except Exception as e:
+            logger.error(f"Failed to clear preview: {e}", exc_info=True)
+
     # Phase 2: Selection tracking event handler
 
     def _handle_selection_changed(self, event):
@@ -1807,6 +1967,29 @@ class MainWindow:
             logger.error(f"Failed to update status bar on selection change: {e}")
             import traceback
             traceback.print_exc()
+
+    def _update_focused_pane_display(self, view_id: str):
+        """
+        Update status bar to show which pane is currently focused.
+
+        Args:
+            view_id: ID of the focused view ('library', 'collection', 'output', etc.)
+        """
+        if not self.status_bar:
+            return
+
+        # Map view IDs to readable pane names
+        pane_names = {
+            'library': 'Library Sidebar',
+            'collection': 'Collection View',
+            'output': 'Preview Pane',
+            'steps': 'Steps Browser',
+            'preview': 'Preview Pane',
+        }
+
+        pane_name = pane_names.get(view_id, view_id.title())
+        self.status_bar.set_focused_pane(pane_name)
+        logger.debug(f"Status bar focused pane updated to: {pane_name}")
 
 
     def get_window_info(self) -> Dict[str, Any]:

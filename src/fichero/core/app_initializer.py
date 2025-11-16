@@ -52,10 +52,13 @@ class FicheroAppInitializer:
         self.settings = None
         self.director = None
         # Document system components removed - using library approach
-        
+
         # Backend selection (unified)
         self.processing_backend = None
         self.storage_backend = None
+
+        # Logging handlers (for cleanup)
+        self.log_handlers = []
         
         logger.info(f"🔧 Initializing Fichero ({'CLI' if cli_mode else 'GUI'} mode)")
     
@@ -141,9 +144,21 @@ class FicheroAppInitializer:
             if not self.cli_mode:
                 # Document managers handle their own cleanup
                 pass
-            
+
+            # Close logging handlers to prevent resource leaks
+            if self.log_handlers:
+                logger.info("🧹 Closing log handlers...")
+                for handler in self.log_handlers:
+                    try:
+                        handler.close()
+                        logging.getLogger().removeHandler(handler)
+                    except Exception as e:
+                        logger.debug(f"Error closing log handler: {e}")
+                self.log_handlers.clear()
+                logger.info("✓ Log handlers closed")
+
             logger.info("✓ Fichero cleanup completed")
-            
+
         except Exception as e:
             logger.error(f"❌ Error during cleanup: {e}")
     
@@ -163,16 +178,17 @@ class FicheroAppInitializer:
         is_gui_app = not sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else True
 
         if is_bundled_app or is_gui_app:
-            # For GUI apps: log to file only (avoid system logging that triggers briefcase log stream)
+            # For GUI apps: log to file AND console
             self._setup_file_logging(log_level)
         else:
-            # For development: use standard logging
+            # For development: use standard logging with console output
             logging.basicConfig(
                 level=log_level,
-                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                format='%(levelname)s:%(name)s:%(message)s',
+                force=True  # Force reconfiguration
             )
 
-        logger.info(f"📝 GUI logging configured at {log_level_name} level (file-based for bundled apps)")
+        logger.info(f"📝 GUI logging configured at {log_level_name} level")
     
     def _setup_file_logging(self, log_level=logging.INFO):
         """Set up file-based logging for GUI apps (avoids system logging)"""
@@ -194,20 +210,30 @@ class FicheroAppInitializer:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = logs_dir / f"fichero_{timestamp}.log"
 
-        # Configure file-based logging
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file),
-                # Add minimal console handler for critical errors only
-                logging.StreamHandler()
-            ]
-        )
+        # Get root logger and clear any existing handlers to prevent duplicates
+        root_logger = logging.getLogger()
 
-        # Set console handler to match file log level
-        console_handler = logging.getLogger().handlers[-1]
+        # Remove all existing handlers
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+
+        # Create handlers explicitly so we can track them for cleanup
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+        console_handler = logging.StreamHandler()
         console_handler.setLevel(log_level)
+        console_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
+
+        # Store handlers for cleanup
+        self.log_handlers = [file_handler, console_handler]
+
+        # Configure logging
+        root_logger.setLevel(log_level)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
 
         logger.info(f"📁 File logging configured: {log_file}")
     
