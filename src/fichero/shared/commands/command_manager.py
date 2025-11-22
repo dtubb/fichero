@@ -824,13 +824,14 @@ class CommandManager:
                 logger.info(f"🔍 SEARCH COMMANDS BEFORE VIEW FILTER: {[cmd.id for cmd in search_cmds_before]}")
 
             # Filter by view_id if provided (commands have IDs like "view.action")
-            # Include view-specific commands, global view commands, and collection commands
+            # Include view-specific commands, global view commands, collection commands, and library commands
             if view_id:
                 toolbar_commands = [
                     cmd for cmd in toolbar_commands
                     if (cmd.id.startswith(f"{view_id}.") or
                         cmd.id.startswith("view.") or  # Include global view commands in all toolbars
-                        cmd.id.startswith("collection."))  # Include collection commands in all toolbars
+                        cmd.id.startswith("collection.") or  # Include collection commands in all toolbars
+                        cmd.id.startswith("library."))  # Include library commands (search, etc.) in all toolbars
                 ]
 
             # 🔍 DEBUG POINT 4: Log search command after view_id filtering

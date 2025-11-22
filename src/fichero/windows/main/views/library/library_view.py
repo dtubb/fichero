@@ -1270,36 +1270,59 @@ class LibraryView(BaseView, ViewCommandMixin):
             search_response = library_manager.search(
                 query=query,
                 schema_types=["transcription", "catalogue", "translation"],  # Search all text content
-                limit=100  # Show up to 100 results
+                limit=100,  # Show up to 100 results
+                include_snippets=True  # Include highlighted snippets
             )
 
-            logger.info(f"Search found {search_response.total_count} results")
+            logger.info(f"Search found {search_response.total_count} results in {search_response.took_ms:.1f}ms")
 
             if search_response.total_count == 0:
                 logger.info("No search results found")
-                # Could show a message to user
+                # TODO: Show message to user (could use a toast notification)
                 return
 
-            # Convert search results to collection items format
-            search_items = []
+            # Get full item details for each search result
+            # Group results by collection for better organization
+            results_by_collection = {}
             for result in search_response.results:
-                # Each result has: collection_id, item_id, step_name, output_file, snippet
-                search_items.append({
-                    'id': result.item_id,
-                    'collection_id': result.collection_id,
-                    'name': result.output_file or f"Result {len(search_items) + 1}",
-                    'snippet': result.snippet,  # Highlighted search snippet
-                    'step_name': result.step_name,
-                    'metadata': result.metadata
-                })
+                if result.item_id:
+                    # Get full item details
+                    item = await library_manager.get_item(result.item_id)
+                    if item:
+                        if result.collection_id not in results_by_collection:
+                            results_by_collection[result.collection_id] = []
 
-            # Emit event to show search results in Collection pane
-            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
-            emit_navigation_event("show_search_results", {
-                'query': query,
-                'results': search_items,
-                'total_count': search_response.total_count
-            })
+                        # Augment item with search metadata
+                        item_data = {
+                            'item': item,
+                            'snippet': result.snippet,
+                            'rank': result.rank,
+                            'schema_type': result.schema_type,
+                            'source_label': result.source_label
+                        }
+                        results_by_collection[result.collection_id].append(item_data)
+
+            logger.info(f"Search results organized into {len(results_by_collection)} collections")
+
+            # For now, navigate to the first result's collection
+            # TODO: Create a proper search results view that shows all results
+            if results_by_collection:
+                first_collection_id = list(results_by_collection.keys())[0]
+                first_items = results_by_collection[first_collection_id]
+                first_item = first_items[0]['item']
+
+                # Get collection details
+                collection = await library_manager.get_collection(first_collection_id)
+                collection_name = collection.name if collection else "Unknown Collection"
+
+                logger.info(f"Navigating to first search result: collection={collection_name}, item={first_item.name}")
+                logger.info(f"Search context: query='{query}', total_results={search_response.total_count}, snippet='{first_items[0]['snippet'][:50]}...'")
+
+                # Navigate to collection via callback (same as clicking a collection in LibraryView)
+                if hasattr(self, 'collection_callback') and self.collection_callback:
+                    self.collection_callback(first_collection_id, collection_name)
+                else:
+                    logger.warning("No collection callback registered - cannot navigate to search result")
 
         except Exception as e:
             logger.error(f"Failed to execute search: {e}")
