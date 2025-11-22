@@ -105,8 +105,9 @@ class NativeRenderer(Renderer):
         """
         Return accessor names for the source.
 
-        Toga converts headings to lowercase for accessors:
+        Toga converts headings to lowercase for accessors and requires valid Python identifiers:
         'Collections' → 'collections'
+        'Processing History' → 'processing_history' (spaces replaced with underscores)
 
         We also add custom fields for app-specific data.
 
@@ -116,8 +117,8 @@ class NativeRenderer(Renderer):
         Returns:
             List of accessor strings
         """
-        # Base accessors from headings (lowercase)
-        base = [h.lower() for h in headings]
+        # Base accessors from headings (lowercase, spaces → underscores for valid Python identifiers)
+        base = [h.lower().replace(' ', '_') for h in headings]
 
         # Custom fields for app data and DetailedList
         custom = ['title', 'subtitle', 'icon', '_collection_data', '_item_id']
@@ -174,7 +175,12 @@ class NativeRenderer(Renderer):
             Source-compatible data (list of dicts for ListSource, list of tuples for TreeSource)
         """
         # Get the primary accessor from first heading
-        accessor = self.headings[0].lower() if self.headings else 'text'
+        # Convert to valid Python identifier (replace spaces with underscores)
+        accessor_raw = self.headings[0].lower() if self.headings else 'text'
+        accessor = accessor_raw.replace(' ', '_')  # 'Processing History' → 'processing_history'
+
+        if accessor != accessor_raw:
+            logger.info(f"🔧 Converted accessor '{accessor_raw}' → '{accessor}' (spaces to underscores)")
 
         if self.widget_type == 'tree':
             # TreeSource format: list of tuples (data_dict, children_list or None)
@@ -190,6 +196,9 @@ class NativeRenderer(Renderer):
                     '_collection_data': item.get('_collection_data'),
                     '_item_id': item.get('_item_id'),
                 }
+
+                # DEBUG: Log what we're putting in the node_data dict
+                logger.info(f"🔍 TreeSource node_data: accessor='{accessor}', value='{text_value}', keys={list(node_data.keys())}")
 
                 # Handle children recursively if present
                 children = item.get('children')

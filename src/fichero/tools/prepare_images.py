@@ -100,67 +100,112 @@ def apply_exif_rotation(image: Image.Image) -> tuple[Image.Image, dict]:
         return image, details
 
 def process_image(
-    file_path: Path, 
-    out_path: Path, 
+    file_path: Path,
+    out_path: Path,
     output_format: str = 'jpg',
     compression_quality: int = 85
 ) -> dict:
     """
     Process a single image file for preparation (EXIF rotation and compression).
-    Based on crop.py structure but without cropping.
+
+    Handles multi-page documents (PDFs) by creating separate output files for each page:
+    - Single-page: document.jpg
+    - Multi-page: document_page_001.jpg, document_page_002.jpg, etc.
+
+    Based on crop.py and split.py patterns for multi-page handling.
     """
     try:
         # Get relative path for logging
         rel_path = SegmentHandler.get_relative_path(file_path)
         tool_logger.info(f"Processing {rel_path}")
-        
+
         if not file_path.exists():
             raise FileNotFoundError(f"Input file not found: {file_path}")
-        
-        # Load image using the format utility
-        image, metadata = load_image(file_path)
-        original_size = list(image.size)
+
+        # Load image(s) using the format utility
+        # NOTE: For PDFs, this returns a list of images (one per page)
+        image_or_images, metadata = load_image(file_path)
         original_format = file_path.suffix.lower()
-        
-        # Apply EXIF rotation
-        image, rotation_details = apply_exif_rotation(image)
-        prepared_size = list(image.size)
-        
-        tool_logger.info(f"Applied rotation: {rotation_details}")
-        tool_logger.info(f"Size: {original_size} -> {prepared_size}")
-        
-        # Ensure output directory exists
-        ensure_dirs(out_path)
-        
-        # Save the result using the format utility with compression
-        if output_format.lower() == 'jpg' or output_format.lower() == 'jpeg':
-            # For JPEG, we can control compression quality
-            final_path, actual_format = save_image(image, out_path, output_format, quality=compression_quality)
-        else:
-            # For other formats, use default quality
-            final_path, actual_format = save_image(image, out_path, output_format)
-        
-        # Create prepare info
-        prepare_info = create_prepare_info(
-            original_size=original_size,
-            prepared_size=prepared_size,
-            rotation_applied=rotation_details,
-            compression_quality=compression_quality,
-            output_format=actual_format,
-            original_format=original_format
-        )
-        
-        # Get the relative path for the output file
-        output_rel_path = SegmentHandler.get_relative_path(final_path)
-        
-        return {
-            "outputs": [str(output_rel_path)],
-            "source": str(rel_path),
-            "details": prepare_info.to_dict()
+
+        # Normalize to list for uniform processing
+        is_multipage = isinstance(image_or_images, list)
+        images = image_or_images if is_multipage else [image_or_images]
+
+        tool_logger.info(f"Loaded {len(images)} page(s) from {rel_path}")
+
+        # Process each page
+        outputs = []
+        page_details = []
+
+        for page_num, image in enumerate(images, start=1):
+            # Get original size before rotation
+            original_size = list(image.size)
+
+            # Apply EXIF rotation
+            image, rotation_details = apply_exif_rotation(image)
+            prepared_size = list(image.size)
+
+            tool_logger.info(f"Page {page_num}/{len(images)}: {original_size} -> {prepared_size}")
+
+            # Create output filename
+            if is_multipage:
+                # Multi-page: document_page_001.jpg, document_page_002.jpg
+                page_suffix = f"_page_{page_num:03d}"
+                output_name = f"{rel_path.stem}{page_suffix}.{output_format}"
+            else:
+                # Single-page: document.jpg
+                output_name = f"{rel_path.stem}.{output_format}"
+
+            output_path = out_path.parent / output_name
+            ensure_dirs(output_path)
+
+            # Save the result using the format utility with compression
+            if output_format.lower() == 'jpg' or output_format.lower() == 'jpeg':
+                final_path, actual_format = save_image(image, output_path, output_format, quality=compression_quality)
+            else:
+                final_path, actual_format = save_image(image, output_path, output_format)
+
+            # Get the relative path for the output file
+            output_rel_path = SegmentHandler.get_relative_path(final_path)
+            outputs.append(str(output_rel_path))
+
+            # Track details for this page
+            page_details.append({
+                "page": page_num,
+                "original_size": original_size,
+                "prepared_size": prepared_size,
+                "rotation_applied": rotation_details
+            })
+
+        # Create overall prepare info
+        prepare_info = {
+            "original_format": original_format,
+            "output_format": output_format if not is_multipage else actual_format,
+            "compression_quality": compression_quality,
+            "total_pages": len(images),
+            "is_multipage": is_multipage,
+            "pages": page_details
         }
-        
+
+        # Add PDF-specific metadata if available
+        if "pdf_info" in metadata:
+            prepare_info["pdf_metadata"] = metadata["pdf_info"]
+
+        if is_multipage:
+            tool_logger.info(f"✅ Created {len(outputs)} output files from {len(images)} pages")
+        else:
+            tool_logger.info(f"✅ Created single output file")
+
+        return {
+            "outputs": outputs,
+            "source": str(rel_path),
+            "details": prepare_info
+        }
+
     except Exception as e:
         tool_logger.error(f"Error processing {file_path.name}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
 def process_document(

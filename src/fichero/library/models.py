@@ -75,7 +75,35 @@ class CollectionItem:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
+    def __post_init__(self):
+        """Validate storage_type value after initialization"""
+        valid_storage_types = ("external", "local", "url")
+        if self.storage_type not in valid_storage_types:
+            raise ValueError(
+                f"Invalid storage_type: {self.storage_type}. "
+                f"Must be one of: {valid_storage_types}"
+            )
+
+        # Validate storage_type consistency with paths
+        if self.storage_type == "url" and self.source_path:
+            # URL items should have http/https source_path
+            if isinstance(self.source_path, str) and not self.source_path.startswith(('http://', 'https://')):
+                # Warning only - don't fail, as this might be legacy data
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"Item {self.id}: storage_type='url' but source_path doesn't start with http:// or https://: {self.source_path[:50] if self.source_path else 'None'}"
+                )
+
+        elif self.storage_type == "local" and not self.local_path:
+            # Local items must have local_path
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Item {self.id}: storage_type='local' but local_path is not set"
+            )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -214,13 +242,15 @@ class ProcessingOutput:
 
 @dataclass
 class ExtractedMetadata:
-    """Searchable metadata extracted from processing outputs
+    """Searchable metadata extracted from processing outputs with versioning support
 
     Enables:
     - Full-text search across transcriptions
     - Finding mentions of entities (people, places, dates)
     - Searching catalogue data
     - Querying key quotes and summaries
+    - Multiple labeled versions (e.g., ai_qwen_v1, human_corrected_v2)
+    - Custom fields for extensibility
     """
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -228,14 +258,22 @@ class ExtractedMetadata:
     collection_id: str = ""  # For easier querying
     item_id: Optional[str] = None  # For file-level metadata
 
-    # Metadata type and content
-    metadata_type: str = ""  # "transcription", "entity", "quote", "summary", "catalogue_field"
-    key: str = ""  # Field name: "text", "person_name", "place", "date", "title", "description"
+    # Metadata schema and versioning
+    schema_type: str = ""  # Schema: "transcription", "translation", "catalogue", "named_entities", etc.
+    source_label: str = ""  # Source: "ai_qwen", "human_corrected", "google_translate", etc.
+    version: int = 1  # Version number for this source_label
+    schema_version: int = 1  # Schema version for evolution/migration
+
+    # Metadata content
+    key: str = ""  # Field name: "text", "language", "title", "entity_text", etc.
     value: str = ""  # The actual data
 
     # For AI-extracted data
     confidence: Optional[float] = None  # 0.0-1.0 for AI-extracted entities
     context: Optional[str] = None  # Surrounding text for quotes/entities
+
+    # Extensibility
+    custom_fields: Dict[str, Any] = field(default_factory=dict)  # Arbitrary additional fields
 
     # Indexing and search
     indexed: bool = False  # For full-text search indexing
@@ -248,11 +286,15 @@ class ExtractedMetadata:
             "processing_output_id": self.processing_output_id,
             "collection_id": self.collection_id,
             "item_id": self.item_id,
-            "metadata_type": self.metadata_type,
+            "schema_type": self.schema_type,
+            "source_label": self.source_label,
+            "version": self.version,
+            "schema_version": self.schema_version,
             "key": self.key,
             "value": self.value,
             "confidence": self.confidence,
             "context": self.context,
+            "custom_fields": self.custom_fields,
             "indexed": self.indexed,
             "created_at": self.created_at.isoformat()
         }
@@ -263,6 +305,83 @@ class ExtractedMetadata:
         # Handle datetime conversion
         if 'created_at' in data and isinstance(data['created_at'], str):
             data['created_at'] = datetime.fromisoformat(data['created_at'])
+
+        # Handle backward compatibility with old 'metadata_type' field
+        if 'metadata_type' in data and 'schema_type' not in data:
+            data['schema_type'] = data.pop('metadata_type')
+
+        # Provide defaults for new fields if missing (backward compatibility)
+        data.setdefault('source_label', 'unknown')
+        data.setdefault('version', 1)
+        data.setdefault('schema_version', 1)
+        data.setdefault('custom_fields', {})
+
+        return cls(**data)
+
+
+@dataclass
+class StepFile:
+    """Tracks individual files stored in the library for processing steps
+
+    Enables:
+    - Store step output files directly in library (no need for external Director output folders)
+    - Version multiple file outputs per step per item
+    - Track file metadata and relationships
+    - Support binary files (images, PDFs, etc.) and text files
+    """
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    item_id: str = ""  # FK to CollectionItem
+    collection_id: str = ""  # For easier querying
+    step_name: str = ""  # e.g., "prepare_images", "transcribe", "crop"
+    source_label: str = ""  # e.g., "ai_qwen", "manual_edit", "yolo_v8"
+    version: int = 1  # Version number for this step+source_label combination
+
+    # File information
+    file_name: str = ""  # Original filename (e.g., "document_001.jpg")
+    file_path: str = ""  # Relative path from library storage root
+    file_format: str = ""  # "jpg", "json", "txt", "docx"
+    file_size: Optional[int] = None  # In bytes
+    file_hash: Optional[str] = None  # SHA256 for deduplication
+    mime_type: Optional[str] = None  # MIME type
+
+    # Metadata
+    metadata: Dict[str, Any] = field(default_factory=dict)  # Arbitrary metadata
+
+    # Status
+    is_valid: bool = True  # False if needs regeneration
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            "id": self.id,
+            "item_id": self.item_id,
+            "collection_id": self.collection_id,
+            "step_name": self.step_name,
+            "source_label": self.source_label,
+            "version": self.version,
+            "file_name": self.file_name,
+            "file_path": self.file_path,
+            "file_format": self.file_format,
+            "file_size": self.file_size,
+            "file_hash": self.file_hash,
+            "mime_type": self.mime_type,
+            "metadata": self.metadata,
+            "is_valid": self.is_valid,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'StepFile':
+        """Create from dictionary"""
+        # Handle datetime conversion
+        if 'created_at' in data and isinstance(data['created_at'], str):
+            data['created_at'] = datetime.fromisoformat(data['created_at'])
+        if 'updated_at' in data and isinstance(data['updated_at'], str):
+            data['updated_at'] = datetime.fromisoformat(data['updated_at'])
 
         return cls(**data)
 
@@ -329,5 +448,73 @@ class ThumbnailRecord:
             data['created_at'] = datetime.fromisoformat(data['created_at'])
         if 'last_accessed' in data and isinstance(data['last_accessed'], str):
             data['last_accessed'] = datetime.fromisoformat(data['last_accessed'])
+
+        return cls(**data)
+
+
+@dataclass
+class TimelineEvent:
+    """Timeline event for tracking activity history at item/collection level
+
+    Enables:
+    - Activity tracking: creation, processing, metadata changes, exports
+    - Audit trail: who did what and when
+    - User-facing timeline: show processing history to users
+    - Analytics: understand workflow patterns
+
+    Event Types:
+    - created: Entity was created
+    - processed: Processing workflow executed
+    - metadata_added: New metadata version added
+    - metadata_corrected: Metadata manually corrected
+    - exported: Entity exported to file
+    - imported: Entity imported from external source
+    - status_changed: Status transition
+    - error: Error occurred
+    - custom: Custom event type
+
+    Categories:
+    - system: System-triggered events
+    - user: User-triggered events
+    - processing: Director/tool processing events
+    - metadata: Metadata operations
+
+    Actors:
+    - system: Automatic system event
+    - user:<username>: Specific user
+    - tool:<tool_name>: Processing tool (crop, enhance, etc.)
+    - ai:<model>: AI model (qwen, gpt, etc.)
+    """
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    entity_type: Literal["item", "collection"] = "item"  # What the event applies to
+    entity_id: str = ""           # Item ID or Collection ID
+    event_type: str = ""          # Event type (see docstring)
+    event_category: str = ""      # Category: "system", "user", "processing", "metadata"
+    actor: str = ""               # Who/what triggered (see docstring)
+    description: str = ""         # Human-readable description
+    metadata: Dict[str, Any] = field(default_factory=dict)  # Additional context
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'entity_type': self.entity_type,
+            'entity_id': self.entity_id,
+            'event_type': self.event_type,
+            'event_category': self.event_category,
+            'actor': self.actor,
+            'description': self.description,
+            'metadata': self.metadata,
+            'timestamp': self.timestamp.isoformat()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TimelineEvent':
+        """Create from dictionary"""
+        # Handle datetime conversion
+        if 'timestamp' in data and isinstance(data['timestamp'], str):
+            data['timestamp'] = datetime.fromisoformat(data['timestamp'])
 
         return cls(**data) 

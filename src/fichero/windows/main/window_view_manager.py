@@ -29,9 +29,6 @@ class WindowType(Enum):
     PREVIEW = "preview"
     ADD_DIALOG = "add_dialog"
     ADD_URL = "add_url"
-    ADD_WEBSITE = "add_website"
-    ADD_FILE = "add_file"
-    ADD_FOLDER = "add_folder"
     ADD_CAMERA = "add_camera"
 
 
@@ -487,48 +484,6 @@ class WindowViewManager:
                     logger.error(f"Failed to create URL Add View instance: {e}")
                     return None
 
-            elif window_type == WindowType.ADD_WEBSITE:
-                logger.info("Creating Website Add View for mobile")
-                try:
-                    from fichero.windows.add.views.website_view import WebsiteAddView
-                    mobile_view = WebsiteAddView(
-                        self.app,
-                        on_content_added=self._handle_content_added
-                    )
-                    logger.info("Website Add View instance created successfully")
-                    return mobile_view
-                except Exception as e:
-                    logger.error(f"Failed to create Website Add View instance: {e}")
-                    return None
-
-            elif window_type == WindowType.ADD_FILE:
-                logger.info("Creating File Add View for mobile")
-                try:
-                    from fichero.windows.add.views.file_view import FileAddView
-                    mobile_view = FileAddView(
-                        self.app,
-                        on_content_added=self._handle_content_added
-                    )
-                    logger.info("File Add View instance created successfully")
-                    return mobile_view
-                except Exception as e:
-                    logger.error(f"Failed to create File Add View instance: {e}")
-                    return None
-
-            elif window_type == WindowType.ADD_FOLDER:
-                logger.info("Creating Folder Add View for mobile")
-                try:
-                    from fichero.windows.add.views.folder_view import FolderAddView
-                    mobile_view = FolderAddView(
-                        self.app,
-                        on_content_added=self._handle_content_added
-                    )
-                    logger.info("Folder Add View instance created successfully")
-                    return mobile_view
-                except Exception as e:
-                    logger.error(f"Failed to create Folder Add View instance: {e}")
-                    return None
-
             elif window_type == WindowType.ADD_CAMERA:
                 logger.info("Creating Camera Add View for mobile")
                 try:
@@ -564,15 +519,6 @@ class WindowViewManager:
             if option_id == 'url':
                 from fichero.windows.add.views.url_view import URLAddView
                 view = URLAddView(
-                    self.app,
-                    on_back=navigation_callback,
-                    on_content_added=self._handle_content_added
-                )
-                self._show_modal_overlay(view)
-
-            elif option_id == 'website':
-                from fichero.windows.add.views.website_view import WebsiteAddView
-                view = WebsiteAddView(
                     self.app,
                     on_back=navigation_callback,
                     on_content_added=self._handle_content_added

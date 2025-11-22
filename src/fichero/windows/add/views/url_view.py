@@ -2,14 +2,14 @@
 URL Add View
 
 BaseView for adding URLs to the library.
-Supports single URLs and bulk URL input.
+Simple Mac-like interface for single URL import.
 """
 
 import toga
 from toga.style import Pack
 from toga.constants import COLUMN, ROW
 import logging
-from typing import Optional, Callable, List
+from typing import Optional, Callable
 import re
 
 from fichero.shared.views.base_view import BaseView
@@ -21,187 +21,120 @@ logger = logging.getLogger(__name__)
 
 
 class URLAddView(BaseView):
-    """View for adding URLs to the library"""
-    
+    """View for adding URLs to the library - simple Mac-like design"""
+
     def __init__(self, app: toga.App, on_content_added: Optional[Callable] = None):
         """Initialize URL add view"""
         self.on_content_added = on_content_added
 
         # Initialize BaseView first
         super().__init__(app, is_mobile=app.is_mobile)
-        
+
         # Create toolbars after BaseView is initialized
         self._create_toolbars()
-        
+
         logger.info("URL Add View initialized")
-    
-    def _create_toolbars(self):
-        """Create top and bottom toolbars for URL add view"""
+
+    def _create_view_structure(self):
+        """Override to create simple container without scrolling for dialog"""
         try:
-            # Create top toolbar without coordinator (no edit mode for modal views)
-            self.top_toolbar = TopToolbar(
-                app=self.app,
-                title="Add URLs",
-                auto_mobile_nav=True,
-                is_mobile=self.is_mobile
+            # Simple container without scroll for this small dialog
+            self.container = toga.Box(
+                style=Pack(direction=COLUMN, flex=1)
             )
 
-            # NavigationController integration is handled automatically by TopToolbar
+            # Content container (no scroll needed for simple dialog)
+            self.content_container = toga.Box(
+                style=Pack(direction=COLUMN, flex=1)
+            )
 
-            # Add centered title for desktop (preserving button alignment)
-            if not self.is_mobile:
-                self.top_toolbar.add_centered_title_only(
-                    title_text="Add URLs",
-                    on_title_click=None
+            # Add content directly to container (no scroll wrapper)
+            self.container.add(self.content_container)
+
+            # Create content
+            self._create_content()
+
+            logger.debug("URL add view structure created (no scrolling)")
+
+        except Exception as e:
+            logger.error(f"Failed to create URL add view structure: {e}")
+            # Fallback
+            self.container = toga.Box(style=Pack(direction=COLUMN))
+
+    def _create_toolbars(self):
+        """Create toolbars for mobile navigation only"""
+        # Only create toolbars for mobile (desktop uses window chrome)
+        if self.is_mobile:
+            try:
+                self.top_toolbar = TopToolbar(
+                    app=self.app,
+                    title="Import URL",
+                    auto_mobile_nav=True,
+                    is_mobile=self.is_mobile
                 )
 
-            # Create bottom toolbar without coordinator (no edit mode for modal views)
-            self.bottom_toolbar = BottomToolbar(
-                app=self.app,
-                is_mobile=self.is_mobile
-            )
+                self.bottom_toolbar = BottomToolbar(
+                    app=self.app,
+                    is_mobile=self.is_mobile
+                )
 
-            # Set toolbars on the view
-            self.set_top_toolbar(self.top_toolbar)
-            self.set_bottom_toolbar(self.bottom_toolbar)
+                self.set_top_toolbar(self.top_toolbar)
+                self.set_bottom_toolbar(self.bottom_toolbar)
 
-            logger.info("URL add view toolbars created successfully")
-        except Exception as e:
-            logger.error(f"Failed to create URL add toolbars: {e}")
-    
+                logger.info("URL add view toolbars created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create URL add toolbars: {e}")
+
     def _create_content(self):
-        """Create the URL input interface"""
-        # Title
-        title = toga.Label(
-            _("Add URLs to Library"),
-            style=Pack(margin=10)
+        """Create the URL input interface - minimal Mac-like design"""
+        # Main container with proper spacing
+        main_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=20, flex=1)
         )
-        self.content_container.add(title)
-        
-        # Description
-        description = toga.Label(
-            _("Add URLs as references to your library (no files will be downloaded). Perfect for copy-paste workflow from your browser."),
-            style=Pack(margin=(0, 10, 10, 10))
-        )
-        self.content_container.add(description)
-        
-        # Mode selector
-        mode_container = toga.Box(
-            style=Pack(direction=ROW, margin=10)
-        )
-        
-        mode_label = toga.Label(
-            _("Mode:"),
-            style=Pack(margin_right=10)
-        )
-        mode_container.add(mode_label)
-        
-        self.single_button = toga.Button(
-            _("Single URL"),
-            on_press=lambda widget: self._switch_mode('single'),
-            style=Pack(margin=(5, 10))
-        )
-        mode_container.add(self.single_button)
-        
-        self.multiple_button = toga.Button(
-            _("Multiple URLs"),
-            on_press=lambda widget: self._switch_mode('multiple'),
-            style=Pack(margin=(5, 10))
-        )
-        mode_container.add(self.multiple_button)
 
-        self.clipboard_button = toga.Button(
-            _("From Clipboard"),
-            on_press=lambda widget: self._import_from_clipboard(),
-            style=Pack(margin=(5, 10))
-        )
-        mode_container.add(self.clipboard_button)
-
-        self.content_container.add(mode_container)
-        
-        # Single URL input
-        self.single_container = toga.Box(
-            style=Pack(direction=COLUMN, margin=10)
-        )
-        
-        single_label = toga.Label(
-            _("Enter a single URL:"),
-            style=Pack(margin=(10, 0))
-        )
-        self.single_container.add(single_label)
-        
+        # URL input field (no label, window title provides context)
+        # on_confirm makes Enter key trigger the Add action (default button behavior)
         self.url_input = toga.TextInput(
             placeholder=_("https://example.com"),
-            style=Pack(margin=(5, 0), flex=1)
+            style=Pack(flex=1, margin=(0, 0, 20, 0)),
+            on_confirm=self._on_add_sync  # Enter key triggers Add
         )
-        self.single_container.add(self.url_input)
-        
-        self.add_single_button = toga.Button(
-            _("Add URL to Library"),
-            on_press=self._on_add_single_sync,
-            style=Pack(margin=(10, 0))
+        main_container.add(self.url_input)
+
+        # Spacer to push buttons to bottom
+        spacer = toga.Box(style=Pack(flex=1))
+        main_container.add(spacer)
+
+        # Button container (right-aligned on Mac)
+        button_container = toga.Box(
+            style=Pack(direction=ROW, margin=(0, 0, 0, 0))
         )
-        self.single_container.add(self.add_single_button)
-        
-        # Multiple URLs input
-        self.multiple_container = toga.Box(
-            style=Pack(direction=COLUMN, margin=10)
+
+        # Spacer to push buttons to right
+        button_spacer = toga.Box(style=Pack(flex=1))
+        button_container.add(button_spacer)
+
+        # Cancel button
+        self.cancel_button = toga.Button(
+            _("Cancel"),
+            on_press=self._on_cancel,
+            style=Pack(margin=(0, 8, 0, 0), width=80)
         )
-        
-        multiple_label = toga.Label(
-            _("Enter multiple URLs (one per line):"),
-            style=Pack(margin=(10, 0))
+        button_container.add(self.cancel_button)
+
+        # Add button (primary action, default)
+        self.add_button = toga.Button(
+            _("Add"),
+            on_press=self._on_add_sync,
+            style=Pack(width=80)
         )
-        self.multiple_container.add(multiple_label)
-        
-        demo_label = toga.Label(
-            _("You can paste URLs from your demo files or enter them manually"),
-            style=Pack(margin=(5, 0))
-        )
-        self.multiple_container.add(demo_label)
-        
-        self.multiline_input = toga.MultilineTextInput(
-            placeholder=_("https://example1.com\nhttps://example2.com\nhttps://example3.com"),
-            style=Pack(margin=(5, 0), flex=1)
-        )
-        self.multiple_container.add(self.multiline_input)
-        
-        self.add_multiple_button = toga.Button(
-            _("Add URLs to Library"),
-            on_press=self._on_add_multiple_sync,
-            style=Pack(margin=(10, 0))
-        )
-        self.multiple_container.add(self.add_multiple_button)
-        
-        # Status label
-        self.status_label = toga.Label(
-            _("Ready to add URLs"),
-            style=Pack(margin=10)
-        )
-        
-        # Add containers
-        self.content_container.add(self.single_container)
-        self.content_container.add(self.multiple_container)
-        self.content_container.add(self.status_label)
-        
-        # Start in single mode
-        self._switch_mode('single')
-    
-    def _switch_mode(self, mode: str):
-        """Switch between single and multiple URL input modes"""
-        self.mode = mode
-        
-        if mode == 'single':
-            self.single_button.enabled = False
-            self.multiple_button.enabled = True
-            self.single_container.style.visibility = 'visible'
-            self.multiple_container.style.visibility = 'hidden'
-        else:
-            self.single_button.enabled = True
-            self.multiple_button.enabled = False
-            self.single_container.style.visibility = 'hidden'
-            self.multiple_container.style.visibility = 'visible'
-    
+        button_container.add(self.add_button)
+
+        main_container.add(button_container)
+
+        # Add to content container
+        self.content_container.add(main_container)
+
     def _is_valid_url(self, url: str) -> bool:
         """Validate URL format"""
         url_pattern = re.compile(
@@ -213,39 +146,41 @@ class URLAddView(BaseView):
             r'(?:/?|[/?]\S+)$', re.IGNORECASE)
         return bool(url_pattern.match(url))
 
-    def _on_add_single_sync(self, widget):
-        """Synchronous wrapper for _on_add_single"""
-        import asyncio
-        asyncio.create_task(self._on_add_single(widget))
+    def _on_cancel(self, widget):
+        """Handle cancel button"""
+        if hasattr(self, 'window') and self.window:
+            self.window.close()
 
-    def _on_add_multiple_sync(self, widget):
-        """Synchronous wrapper for _on_add_multiple"""
+    def _on_add_sync(self, widget):
+        """Synchronous wrapper for _on_add"""
         import asyncio
-        asyncio.create_task(self._on_add_multiple(widget))
+        asyncio.create_task(self._on_add(widget))
 
-    async def _on_add_single(self, widget):
-        """Handle adding a single URL"""
+    async def _on_add(self, widget):
+        """Handle adding a URL"""
         try:
             url = self.url_input.value.strip()
             if not url:
-                self.status_label.text = _("Please enter a URL")
+                await self.app.main_window.dialog(
+                    toga.InfoDialog(_("Missing URL"), _("Please enter a URL."))
+                )
                 return
 
             if not self._is_valid_url(url):
-                self.status_label.text = _("Please enter a valid URL")
+                await self.app.main_window.dialog(
+                    toga.InfoDialog(_("Invalid URL"), _("Please enter a valid URL (must start with http:// or https://)."))
+                )
                 return
-
-            # Switch to activity view
-            self._show_activity_view(_("Importing from URL..."))
 
             # Call the callback with the URL and await the import to complete
             if self.on_content_added:
+                # Show progress by disabling the button
+                self.add_button.enabled = False
+                self.add_button.text = _("Adding...")
+
                 # The callback returns an async task that we can await
                 task = self.on_content_added({'option_id': 'url', 'urls': [url], 'action': 'added'})
                 logger.info(f"Import started for URL: {url}")
-
-                # Update message to indicate import is in progress
-                self.activity_message.text = _("Import in progress... This may take several minutes for large collections.")
 
                 # Wait for the import to complete
                 if task:
@@ -256,257 +191,14 @@ class URLAddView(BaseView):
                     import asyncio
                     await asyncio.sleep(0.5)
 
-                # Import complete - stop spinner and close window
-                if hasattr(self, 'activity_indicator') and self.activity_indicator:
-                    self.activity_indicator.stop()
-
-                # Close the window immediately (no success message needed)
+                # Close the window immediately
                 if hasattr(self, 'window') and self.window:
                     self.window.close()
 
         except Exception as e:
             logger.error(f"Failed to add URL: {e}")
-            self._show_error_view(str(e))
-    
-    async def _on_add_multiple(self, widget):
-        """Handle adding multiple URLs"""
-        try:
-            text = self.multiline_input.value.strip()
-            if not text:
-                self.status_label.text = _("Please enter URLs")
-                return
-
-            # Extract URLs from text
-            urls = []
-            for line in text.split('\n'):
-                url = line.strip()
-                if url and self._is_valid_url(url):
-                    urls.append(url)
-
-            if not urls:
-                self.status_label.text = _("No valid URLs found")
-                return
-
-            # Switch to activity view
-            self._show_activity_view(_("Importing %(count)d URLs...") % {'count': len(urls)})
-
-            # Call the callback with the URLs and await the import to complete
-            if self.on_content_added:
-                # The callback returns an async task that we can await
-                task = self.on_content_added({'option_id': 'url', 'urls': urls, 'action': 'added'})
-                logger.info(f"Import started for {len(urls)} URLs")
-
-                # Update message to indicate import is in progress
-                self.activity_message.text = _("Import in progress... This may take several minutes for large collections.")
-
-                # Wait for the import to complete
-                if task:
-                    await task
-                    logger.info(f"Import completed for {len(urls)} URLs")
-
-                # Show success briefly
-                self._show_success_view(_("%(count)d URLs imported successfully!") % {'count': len(urls)})
-
-                import asyncio
-                await asyncio.sleep(2)
-
-                # Reset view for another import
-                self._show_import_view()
-                self.multiline_input.value = ""
-
-        except Exception as e:
-            logger.error(f"Failed to add URLs: {e}")
-            self._show_error_view(str(e))
-
-    async def _import_from_clipboard(self):
-        """Import URLs from clipboard - perfect for mobile copy-paste workflow"""
-        try:
-            self.status_label.text = _("Reading clipboard...")
-
-            # Try to get clipboard content
-            clipboard_text = await self._get_clipboard_content()
-
-            if not clipboard_text:
-                self.status_label.text = _("Clipboard is empty or contains no text")
-                return
-
-            # Parse URLs from clipboard text
-            urls = self._extract_urls_from_text(clipboard_text)
-
-            if not urls:
-                self.status_label.text = _("No valid URLs found in clipboard")
-                return
-
-            # Show what we found
-            self.status_label.text = _("Found %(count)d URLs in clipboard. Adding to library...") % {'count': len(urls)}
-
-            # Switch to multiple mode and populate the text area
-            self._switch_mode('multiple')
-            self.multiline_input.value = '\n'.join(urls)
-
-            # Add them to the library
-            if self.on_content_added:
-                self.on_content_added({'option_id': 'url', 'urls': urls, 'action': 'added'})
-                self.status_label.text = _("%(count)d URLs imported from clipboard successfully!") % {'count': len(urls)}
-                logger.info(f"Imported {len(urls)} URLs from clipboard")
-
-        except Exception as e:
-            logger.error(f"Failed to import from clipboard: {e}")
-            self.status_label.text = _("Error importing from clipboard. Please try manual paste.")
-
-    async def _get_clipboard_content(self):
-        """Get text content from clipboard (platform-specific)"""
-        try:
-            # Try to use toga's clipboard functionality if available
-            if hasattr(self.app, 'get_clipboard_text'):
-                return await self.app.get_clipboard_text()
-
-            # For now, return None - user can still use manual paste
-            # In a real implementation, this would use platform-specific clipboard APIs
-            logger.warning("Clipboard access not available - user should use manual paste")
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to access clipboard: {e}")
-            return None
-
-    def _extract_urls_from_text(self, text):
-        """Extract URLs from pasted text (handles various formats)"""
-        import re
-
-        if not text:
-            return []
-
-        # Split by lines first
-        lines = text.strip().split('\n')
-        urls = []
-
-        url_pattern = re.compile(
-            r'https?://[^\s<>"]+',  # Basic URL pattern
-            re.IGNORECASE
-        )
-
-        for line in lines:
-            line = line.strip()
-
-            # Direct URL validation
-            if self._is_valid_url(line):
-                urls.append(line)
-            else:
-                # Extract URLs from mixed content (e.g., "Link: https://...")
-                found_urls = url_pattern.findall(line)
-                for url in found_urls:
-                    if self._is_valid_url(url):
-                        urls.append(url)
-
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_urls = []
-        for url in urls:
-            if url not in seen:
-                seen.add(url)
-                unique_urls.append(url)
-
-        return unique_urls
-
-    def _show_import_view(self):
-        """Show the import form (default view)"""
-        # Clear and recreate the content
-        self.content_container.clear()
-        self._create_content()
-
-    def _show_activity_view(self, message: str):
-        """Show activity/progress view that fills the entire content area"""
-        # Clear the entire content container
-        self.content_container.clear()
-
-        # Create activity view
-        activity_container = toga.Box(
-            style=Pack(direction=COLUMN, flex=1, align_items='center', margin=50)
-        )
-
-        # Activity indicator (native Toga spinner)
-        activity_indicator = toga.ActivityIndicator(
-            running=True,
-            style=Pack(margin=20, width=50, height=50)
-        )
-        activity_container.add(activity_indicator)
-
-        # Message label
-        activity_message = toga.Label(
-            message,
-            style=Pack(margin=20, font_size=16, text_align='center')
-        )
-        activity_container.add(activity_message)
-
-        # Add to content container
-        self.content_container.add(activity_container)
-
-        # Store references for later updates
-        self.activity_indicator = activity_indicator
-        self.activity_message = activity_message
-
-    def _show_success_view(self, message: str = None):
-        """Show success view"""
-        # Clear the entire content container
-        self.content_container.clear()
-
-        # Create success view
-        success_container = toga.Box(
-            style=Pack(direction=COLUMN, flex=1, align_items='center', margin=50)
-        )
-
-        success_title = toga.Label(
-            _("Success"),
-            style=Pack(margin=10, font_size=24, text_align='center', font_weight='bold')
-        )
-        success_container.add(success_title)
-
-        success_text = message or _("Import completed successfully!")
-        success_message = toga.Label(
-            success_text,
-            style=Pack(margin=10, font_size=16, text_align='center')
-        )
-        success_container.add(success_message)
-
-        # Add to content container
-        self.content_container.add(success_container)
-
-    def _show_error_view(self, error_message: str):
-        """Show error view"""
-        # Hide activity view and stop spinner
-        if hasattr(self, 'activity_container'):
-            self.activity_container.style.visibility = 'hidden'
-            self.activity_indicator.stop()
-
-        # Create error view if it doesn't exist
-        if not hasattr(self, 'error_container'):
-            self.error_container = toga.Box(
-                style=Pack(direction=COLUMN, margin=10, flex=1, align_items='center')
+            self.add_button.enabled = True
+            self.add_button.text = _("Add")
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(_("Import Failed"), str(e))
             )
-
-            self.error_title = toga.Label(
-                _("Import Failed"),
-                style=Pack(margin=10, font_size=24, text_align='center', font_weight='bold')
-            )
-            self.error_container.add(self.error_title)
-
-            self.error_message = toga.Label(
-                "",
-                style=Pack(margin=10, font_size=16, text_align='center')
-            )
-            self.error_container.add(self.error_message)
-
-            self.error_button = toga.Button(
-                _("Try Again"),
-                on_press=lambda widget: self._show_import_view(),
-                style=Pack(margin=10)
-            )
-            self.error_container.add(self.error_button)
-
-            self.content_container.add(self.error_container)
-
-        # Update message and show
-        self.error_message.text = _("Error: %(error)s") % {'error': error_message}
-        self.error_container.style.visibility = 'visible'
-        self.status_label.text = _("Import failed") 

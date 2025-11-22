@@ -7,6 +7,7 @@ Handles persistent storage of collections, items, and processing history.
 import sqlite3
 import logging
 import uuid
+import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -14,14 +15,14 @@ from datetime import datetime
 try:
     from fichero.library.models import (
         Collection, CollectionItem, ProcessingResult, ExternalPath,
-        ThumbnailRecord, ProcessingOutput, ExtractedMetadata
+        ThumbnailRecord, ProcessingOutput, ExtractedMetadata, StepFile
     )
 except ImportError:
     try:
         # Fallback for direct testing
         from .models import (
             Collection, CollectionItem, ProcessingResult, ExternalPath,
-            ThumbnailRecord, ProcessingOutput, ExtractedMetadata
+            ThumbnailRecord, ProcessingOutput, ExtractedMetadata, StepFile
         )
     except ImportError:
         # Direct import for testing
@@ -33,6 +34,7 @@ except ImportError:
         ThumbnailRecord = models.ThumbnailRecord
         ProcessingOutput = models.ProcessingOutput
         ExtractedMetadata = models.ExtractedMetadata
+        StepFile = models.StepFile
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +106,22 @@ class LibraryStorage:
                 except sqlite3.OperationalError:
                     logger.info("Adding parent_id column to existing collection_items table")
                     cursor.execute("ALTER TABLE collection_items ADD COLUMN parent_id TEXT")
-                
+
+                # Migration: Add indexes for storage_type and source_path (for URL lookups)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_collection_items_storage_type
+                    ON collection_items(storage_type)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_collection_items_collection_storage
+                    ON collection_items(collection_id, storage_type)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_collection_items_source_path
+                    ON collection_items(source_path)
+                """)
+                logger.debug("Created indexes for collection_items table")
+
                 # Processing history table
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS processing_history (
@@ -173,18 +190,22 @@ class LibraryStorage:
                     )
                 """)
 
-                # Extracted metadata table for searchable content
+                # Extracted metadata table for searchable content with versioning
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS extracted_metadata (
                         id TEXT PRIMARY KEY,
                         processing_output_id TEXT NOT NULL,
                         collection_id TEXT NOT NULL,
                         item_id TEXT,
-                        metadata_type TEXT NOT NULL,
+                        schema_type TEXT NOT NULL,
+                        source_label TEXT NOT NULL,
+                        version INTEGER DEFAULT 1,
+                        schema_version INTEGER DEFAULT 1,
                         key TEXT NOT NULL,
                         value TEXT NOT NULL,
                         confidence REAL,
                         context TEXT,
+                        custom_fields TEXT,
                         indexed INTEGER DEFAULT 0,
                         created_at TEXT NOT NULL,
                         FOREIGN KEY (processing_output_id) REFERENCES processing_outputs(id),
@@ -208,6 +229,75 @@ class LibraryStorage:
                     )
                 """)
 
+                # Step files table for storing step output files in library
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS step_files (
+                        id TEXT PRIMARY KEY,
+                        item_id TEXT NOT NULL,
+                        collection_id TEXT NOT NULL,
+                        step_name TEXT NOT NULL,
+                        source_label TEXT NOT NULL,
+                        version INTEGER DEFAULT 1,
+                        file_name TEXT NOT NULL,
+                        file_path TEXT NOT NULL,
+                        file_format TEXT NOT NULL,
+                        file_size INTEGER,
+                        file_hash TEXT,
+                        mime_type TEXT,
+                        metadata TEXT,
+                        is_valid INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        FOREIGN KEY (item_id) REFERENCES collection_items(id) ON DELETE CASCADE,
+                        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+                    )
+                """)
+
+                # Metadata schemas table for validation
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS metadata_schemas (
+                        id TEXT PRIMARY KEY,
+                        schema_type TEXT NOT NULL UNIQUE,
+                        schema_version INTEGER DEFAULT 1,
+                        required_fields TEXT NOT NULL,
+                        optional_fields TEXT,
+                        field_types TEXT NOT NULL,
+                        field_validators TEXT,
+                        description TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                """)
+
+                # Timeline events table for activity tracking
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS timeline_events (
+                        id TEXT PRIMARY KEY,
+                        entity_type TEXT NOT NULL,
+                        entity_id TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        event_category TEXT NOT NULL,
+                        actor TEXT NOT NULL,
+                        description TEXT,
+                        metadata TEXT,
+                        timestamp TEXT NOT NULL
+                    )
+                """)
+
+                # Create indexes for timeline queries
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_timeline_entity
+                    ON timeline_events(entity_type, entity_id, timestamp DESC)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_timeline_type
+                    ON timeline_events(event_type, timestamp DESC)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_timeline_category
+                    ON timeline_events(event_category, timestamp DESC)
+                """)
+
                 # Create indexes for performance
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_history_item_id ON processing_history(item_id)")
@@ -221,11 +311,17 @@ class LibraryStorage:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_item_id ON processing_outputs(item_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_type ON processing_outputs(output_type)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_processing_outputs_step ON processing_outputs(step_name)")
+
+                # Indexes for extracted_metadata
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_output_id ON extracted_metadata(processing_output_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_collection_id ON extracted_metadata(collection_id)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_type ON extracted_metadata(metadata_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_schema_type ON extracted_metadata(schema_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_source_label ON extracted_metadata(source_label)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_version ON extracted_metadata(version)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_key ON extracted_metadata(key)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_value ON extracted_metadata(value)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_item_schema ON extracted_metadata(item_id, schema_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_extracted_metadata_source_version ON extracted_metadata(source_label, version)")
 
                 # Indexes for step_metadata_versions
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_item_id ON step_metadata_versions(item_id)")
@@ -233,7 +329,37 @@ class LibraryStorage:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_changed_at ON step_metadata_versions(changed_at)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_metadata_versions_item_step ON step_metadata_versions(item_id, step_name)")
                 cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_metadata_versions_unique ON step_metadata_versions(item_id, step_name, version)")
-                
+
+                # Indexes for step_files
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_item_id ON step_files(item_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_collection_id ON step_files(collection_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_step_name ON step_files(step_name)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_source_label ON step_files(source_label)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_item_step ON step_files(item_id, step_name)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_source_version ON step_files(source_label, version)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_step_files_hash ON step_files(file_hash)")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_files_unique ON step_files(item_id, step_name, source_label, version, file_name)")
+
+                # Indexes for metadata_schemas
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_metadata_schemas_type ON metadata_schemas(schema_type)")
+
+                # FTS5 virtual table for full-text search
+                # Using porter stemming and unicode61 tokenizer for better search
+                cursor.execute("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+                        metadata_id UNINDEXED,
+                        collection_id UNINDEXED,
+                        item_id UNINDEXED,
+                        schema_type UNINDEXED,
+                        source_label UNINDEXED,
+                        version UNINDEXED,
+                        content,
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    )
+                """)
+
+                logger.debug("FTS5 search index table created")
+
                 conn.commit()
                 logger.info("Library database initialized successfully")
                 
@@ -1106,32 +1232,37 @@ class LibraryStorage:
     # Extracted metadata methods
 
     def add_extracted_metadata(self, metadata: ExtractedMetadata) -> bool:
-        """Add extracted metadata record"""
+        """Add extracted metadata record with versioning support"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
                 cursor.execute("""
                     INSERT INTO extracted_metadata
-                    (id, processing_output_id, collection_id, item_id, metadata_type, key, value,
-                     confidence, context, indexed, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                     version, schema_version, key, value, confidence, context, custom_fields,
+                     indexed, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     metadata.id,
                     metadata.processing_output_id,
                     metadata.collection_id,
                     metadata.item_id,
-                    metadata.metadata_type,
+                    metadata.schema_type,
+                    metadata.source_label,
+                    metadata.version,
+                    metadata.schema_version,
                     metadata.key,
                     metadata.value,
                     metadata.confidence,
                     metadata.context,
+                    self._serialize_metadata(metadata.custom_fields),
                     1 if metadata.indexed else 0,
                     metadata.created_at.isoformat()
                 ))
 
                 conn.commit()
-                logger.debug(f"Extracted metadata added: {metadata.metadata_type} - {metadata.key}")
+                logger.debug(f"Extracted metadata added: {metadata.schema_type} - {metadata.source_label}_v{metadata.version} - {metadata.key}")
                 return True
 
         except Exception as e:
@@ -1145,8 +1276,9 @@ class LibraryStorage:
                 cursor = conn.cursor()
 
                 cursor.execute("""
-                    SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
-                           confidence, context, indexed, created_at
+                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
                     FROM extracted_metadata
                     WHERE processing_output_id = ?
                     ORDER BY created_at ASC
@@ -1159,13 +1291,17 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        metadata_type=row[4],
-                        key=row[5],
-                        value=row[6],
-                        confidence=row[7],
-                        context=row[8],
-                        indexed=bool(row[9]),
-                        created_at=datetime.fromisoformat(row[10])
+                        schema_type=row[4],
+                        source_label=row[5],
+                        version=row[6],
+                        schema_version=row[7],
+                        key=row[8],
+                        value=row[9],
+                        confidence=row[10],
+                        context=row[11],
+                        custom_fields=self._deserialize_metadata(row[12]),
+                        indexed=bool(row[13]),
+                        created_at=datetime.fromisoformat(row[14])
                     )
                     metadata_list.append(metadata)
 
@@ -1176,13 +1312,14 @@ class LibraryStorage:
             return []
 
     def search_metadata(self, collection_id: str, query: str,
-                       metadata_type: str = None, key: str = None) -> List[ExtractedMetadata]:
+                       schema_type: str = None, source_label: str = None, key: str = None) -> List[ExtractedMetadata]:
         """Search metadata by value (case-insensitive LIKE search)
 
         Args:
             collection_id: Collection to search within
             query: Search query string
-            metadata_type: Optional filter by metadata type
+            schema_type: Optional filter by schema type
+            source_label: Optional filter by source label
             key: Optional filter by key
         """
         try:
@@ -1191,16 +1328,21 @@ class LibraryStorage:
 
                 # Build query with optional filters
                 sql = """
-                    SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
-                           confidence, context, indexed, created_at
+                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
                     FROM extracted_metadata
                     WHERE collection_id = ? AND value LIKE ?
                 """
                 params = [collection_id, f"%{query}%"]
 
-                if metadata_type:
-                    sql += " AND metadata_type = ?"
-                    params.append(metadata_type)
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if source_label:
+                    sql += " AND source_label = ?"
+                    params.append(source_label)
 
                 if key:
                     sql += " AND key = ?"
@@ -1217,13 +1359,17 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        metadata_type=row[4],
-                        key=row[5],
-                        value=row[6],
-                        confidence=row[7],
-                        context=row[8],
-                        indexed=bool(row[9]),
-                        created_at=datetime.fromisoformat(row[10])
+                        schema_type=row[4],
+                        source_label=row[5],
+                        version=row[6],
+                        schema_version=row[7],
+                        key=row[8],
+                        value=row[9],
+                        confidence=row[10],
+                        context=row[11],
+                        custom_fields=self._deserialize_metadata(row[12]),
+                        indexed=bool(row[13]),
+                        created_at=datetime.fromisoformat(row[14])
                     )
                     metadata_list.append(metadata)
 
@@ -1234,28 +1380,32 @@ class LibraryStorage:
             return []
 
     def get_metadata_by_collection(self, collection_id: str,
-                                   metadata_type: str = None) -> List[ExtractedMetadata]:
-        """Get all metadata for a collection, optionally filtered by type"""
+                                   schema_type: str = None, source_label: str = None) -> List[ExtractedMetadata]:
+        """Get all metadata for a collection, optionally filtered by schema type and source"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                if metadata_type:
-                    cursor.execute("""
-                        SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
-                               confidence, context, indexed, created_at
-                        FROM extracted_metadata
-                        WHERE collection_id = ? AND metadata_type = ?
-                        ORDER BY created_at DESC
-                    """, (collection_id, metadata_type))
-                else:
-                    cursor.execute("""
-                        SELECT id, processing_output_id, collection_id, item_id, metadata_type, key, value,
-                               confidence, context, indexed, created_at
-                        FROM extracted_metadata
-                        WHERE collection_id = ?
-                        ORDER BY created_at DESC
-                    """, (collection_id,))
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
+                    FROM extracted_metadata
+                    WHERE collection_id = ?
+                """
+                params = [collection_id]
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if source_label:
+                    sql += " AND source_label = ?"
+                    params.append(source_label)
+
+                sql += " ORDER BY created_at DESC"
+
+                cursor.execute(sql, params)
 
                 metadata_list = []
                 for row in cursor.fetchall():
@@ -1264,13 +1414,17 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        metadata_type=row[4],
-                        key=row[5],
-                        value=row[6],
-                        confidence=row[7],
-                        context=row[8],
-                        indexed=bool(row[9]),
-                        created_at=datetime.fromisoformat(row[10])
+                        schema_type=row[4],
+                        source_label=row[5],
+                        version=row[6],
+                        schema_version=row[7],
+                        key=row[8],
+                        value=row[9],
+                        confidence=row[10],
+                        context=row[11],
+                        custom_fields=self._deserialize_metadata(row[12]),
+                        indexed=bool(row[13]),
+                        created_at=datetime.fromisoformat(row[14])
                     )
                     metadata_list.append(metadata)
 
@@ -1761,4 +1915,552 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to get latest version number: {e}")
-            return 0 
+            return 0
+
+    # Step files methods - for storing step output files in library
+
+    def add_step_file(self, step_file: StepFile) -> bool:
+        """Add a step file record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    INSERT INTO step_files
+                    (id, item_id, collection_id, step_name, source_label, version,
+                     file_name, file_path, file_format, file_size, file_hash, mime_type,
+                     metadata, is_valid, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    step_file.id,
+                    step_file.item_id,
+                    step_file.collection_id,
+                    step_file.step_name,
+                    step_file.source_label,
+                    step_file.version,
+                    step_file.file_name,
+                    step_file.file_path,
+                    step_file.file_format,
+                    step_file.file_size,
+                    step_file.file_hash,
+                    step_file.mime_type,
+                    self._serialize_metadata(step_file.metadata),
+                    1 if step_file.is_valid else 0,
+                    step_file.created_at.isoformat(),
+                    step_file.updated_at.isoformat()
+                ))
+
+                conn.commit()
+                logger.debug(f"Step file added: {step_file.step_name} - {step_file.source_label}_v{step_file.version} - {step_file.file_name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add step file: {e}")
+            return False
+
+    def get_step_files(self, item_id: str, step_name: str = None,
+                       source_label: str = None, version: int = None) -> List[StepFile]:
+        """Get step files for an item, optionally filtered by step, source, and version"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT id, item_id, collection_id, step_name, source_label, version,
+                           file_name, file_path, file_format, file_size, file_hash, mime_type,
+                           metadata, is_valid, created_at, updated_at
+                    FROM step_files
+                    WHERE item_id = ?
+                """
+                params = [item_id]
+
+                if step_name:
+                    sql += " AND step_name = ?"
+                    params.append(step_name)
+
+                if source_label:
+                    sql += " AND source_label = ?"
+                    params.append(source_label)
+
+                if version is not None:
+                    sql += " AND version = ?"
+                    params.append(version)
+
+                sql += " ORDER BY created_at ASC"
+
+                cursor.execute(sql, params)
+
+                step_files = []
+                for row in cursor.fetchall():
+                    step_file = StepFile(
+                        id=row[0],
+                        item_id=row[1],
+                        collection_id=row[2],
+                        step_name=row[3],
+                        source_label=row[4],
+                        version=row[5],
+                        file_name=row[6],
+                        file_path=row[7],
+                        file_format=row[8],
+                        file_size=row[9],
+                        file_hash=row[10],
+                        mime_type=row[11],
+                        metadata=self._deserialize_metadata(row[12]),
+                        is_valid=bool(row[13]),
+                        created_at=datetime.fromisoformat(row[14]),
+                        updated_at=datetime.fromisoformat(row[15])
+                    )
+                    step_files.append(step_file)
+
+                return step_files
+
+        except Exception as e:
+            logger.error(f"Failed to get step files: {e}")
+            return []
+
+    def get_step_file_by_id(self, file_id: str) -> Optional[StepFile]:
+        """Get a specific step file by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, item_id, collection_id, step_name, source_label, version,
+                           file_name, file_path, file_format, file_size, file_hash, mime_type,
+                           metadata, is_valid, created_at, updated_at
+                    FROM step_files
+                    WHERE id = ?
+                """, (file_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    return None
+
+                step_file = StepFile(
+                    id=row[0],
+                    item_id=row[1],
+                    collection_id=row[2],
+                    step_name=row[3],
+                    source_label=row[4],
+                    version=row[5],
+                    file_name=row[6],
+                    file_path=row[7],
+                    file_format=row[8],
+                    file_size=row[9],
+                    file_hash=row[10],
+                    mime_type=row[11],
+                    metadata=self._deserialize_metadata(row[12]),
+                    is_valid=bool(row[13]),
+                    created_at=datetime.fromisoformat(row[14]),
+                    updated_at=datetime.fromisoformat(row[15])
+                )
+
+                return step_file
+
+        except Exception as e:
+            logger.error(f"Failed to get step file by ID: {e}")
+            return None
+
+    def get_latest_step_file_version(self, item_id: str, step_name: str, source_label: str) -> int:
+        """Get the latest version number for a step file (returns 0 if no versions exist)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT MAX(version)
+                    FROM step_files
+                    WHERE item_id = ? AND step_name = ? AND source_label = ?
+                """, (item_id, step_name, source_label))
+
+                result = cursor.fetchone()[0]
+                return result if result is not None else 0
+
+        except Exception as e:
+            logger.error(f"Failed to get latest step file version: {e}")
+            return 0
+
+    def update_step_file(self, step_file: StepFile) -> bool:
+        """Update a step file record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                step_file.updated_at = datetime.now()
+
+                cursor.execute("""
+                    UPDATE step_files
+                    SET file_size = ?, file_hash = ?, mime_type = ?, metadata = ?,
+                        is_valid = ?, updated_at = ?
+                    WHERE id = ?
+                """, (
+                    step_file.file_size,
+                    step_file.file_hash,
+                    step_file.mime_type,
+                    self._serialize_metadata(step_file.metadata),
+                    1 if step_file.is_valid else 0,
+                    step_file.updated_at.isoformat(),
+                    step_file.id
+                ))
+
+                conn.commit()
+                logger.debug(f"Step file updated: {step_file.id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update step file: {e}")
+            return False
+
+    def delete_step_file(self, file_id: str) -> bool:
+        """Delete a step file record"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("DELETE FROM step_files WHERE id = ?", (file_id,))
+
+                conn.commit()
+                logger.debug(f"Step file deleted: {file_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete step file: {e}")
+            return False
+
+    def get_step_files_by_collection(self, collection_id: str) -> List[StepFile]:
+        """Get all step files for a collection"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, item_id, collection_id, step_name, source_label, version,
+                           file_name, file_path, file_format, file_size, file_hash, mime_type,
+                           metadata, is_valid, created_at, updated_at
+                    FROM step_files
+                    WHERE collection_id = ?
+                    ORDER BY created_at DESC
+                """, (collection_id,))
+
+                step_files = []
+                for row in cursor.fetchall():
+                    step_file = StepFile(
+                        id=row[0],
+                        item_id=row[1],
+                        collection_id=row[2],
+                        step_name=row[3],
+                        source_label=row[4],
+                        version=row[5],
+                        file_name=row[6],
+                        file_path=row[7],
+                        file_format=row[8],
+                        file_size=row[9],
+                        file_hash=row[10],
+                        mime_type=row[11],
+                        metadata=self._deserialize_metadata(row[12]),
+                        is_valid=bool(row[13]),
+                        created_at=datetime.fromisoformat(row[14]),
+                        updated_at=datetime.fromisoformat(row[15])
+                    )
+                    step_files.append(step_file)
+
+                return step_files
+
+        except Exception as e:
+            logger.error(f"Failed to get step files by collection: {e}")
+            return []
+
+    # FTS5 Search Index methods
+
+    def index_metadata_for_search(self, metadata: ExtractedMetadata) -> bool:
+        """Add metadata content to FTS5 search index"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Only index if not already indexed and value contains text
+                if metadata.indexed or not metadata.value:
+                    return True
+
+                cursor.execute("""
+                    INSERT INTO search_index
+                    (metadata_id, collection_id, item_id, schema_type, source_label, version, content)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    metadata.id,
+                    metadata.collection_id,
+                    metadata.item_id,
+                    metadata.schema_type,
+                    metadata.source_label,
+                    metadata.version,
+                    metadata.value
+                ))
+
+                # Mark as indexed in extracted_metadata table
+                cursor.execute("""
+                    UPDATE extracted_metadata SET indexed = 1 WHERE id = ?
+                """, (metadata.id,))
+
+                conn.commit()
+                logger.debug(f"Metadata indexed for search: {metadata.id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to index metadata for search: {e}")
+            return False
+
+    def remove_metadata_from_index(self, metadata_id: str) -> bool:
+        """Remove metadata from FTS5 search index"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    DELETE FROM search_index WHERE metadata_id = ?
+                """, (metadata_id,))
+
+                # Mark as not indexed
+                cursor.execute("""
+                    UPDATE extracted_metadata SET indexed = 0 WHERE id = ?
+                """, (metadata_id,))
+
+                conn.commit()
+                logger.debug(f"Metadata removed from search index: {metadata_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to remove metadata from search index: {e}")
+            return False
+
+    def rebuild_search_index(self, collection_id: str = None) -> bool:
+        """Rebuild FTS5 search index for all or specific collection
+
+        Args:
+            collection_id: If provided, only rebuild for this collection
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Clear existing index
+                if collection_id:
+                    cursor.execute("DELETE FROM search_index WHERE collection_id = ?", (collection_id,))
+                    cursor.execute("UPDATE extracted_metadata SET indexed = 0 WHERE collection_id = ?", (collection_id,))
+                else:
+                    cursor.execute("DELETE FROM search_index")
+                    cursor.execute("UPDATE extracted_metadata SET indexed = 0")
+
+                # Get all searchable metadata (transcriptions, translations, catalogues)
+                searchable_types = ['transcription', 'translation', 'catalogue', 'named_entities']
+
+                if collection_id:
+                    placeholders = ','.join('?' * len(searchable_types))
+                    cursor.execute(f"""
+                        SELECT id, collection_id, item_id, schema_type, source_label, version, value
+                        FROM extracted_metadata
+                        WHERE collection_id = ? AND schema_type IN ({placeholders}) AND value IS NOT NULL AND value != ''
+                    """, (collection_id, *searchable_types))
+                else:
+                    placeholders = ','.join('?' * len(searchable_types))
+                    cursor.execute(f"""
+                        SELECT id, collection_id, item_id, schema_type, source_label, version, value
+                        FROM extracted_metadata
+                        WHERE schema_type IN ({placeholders}) AND value IS NOT NULL AND value != ''
+                    """, searchable_types)
+
+                # Batch insert into FTS5 index
+                rows = cursor.fetchall()
+                if rows:
+                    cursor.executemany("""
+                        INSERT INTO search_index
+                        (metadata_id, collection_id, item_id, schema_type, source_label, version, content)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, rows)
+
+                    # Mark all as indexed
+                    metadata_ids = [row[0] for row in rows]
+                    placeholders = ','.join('?' * len(metadata_ids))
+                    cursor.execute(f"""
+                        UPDATE extracted_metadata SET indexed = 1 WHERE id IN ({placeholders})
+                    """, metadata_ids)
+
+                conn.commit()
+                logger.info(f"Search index rebuilt: {len(rows)} metadata records indexed" +
+                           (f" for collection {collection_id}" if collection_id else ""))
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to rebuild search index: {e}")
+            return False
+
+    def get_search_index_stats(self) -> Dict[str, Any]:
+        """Get statistics about the search index"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                stats = {}
+
+                # Total indexed items
+                cursor.execute("SELECT COUNT(*) FROM search_index")
+                stats['total_indexed'] = cursor.fetchone()[0]
+
+                # By schema type
+                cursor.execute("""
+                    SELECT schema_type, COUNT(*)
+                    FROM search_index
+                    GROUP BY schema_type
+                """)
+                stats['by_schema_type'] = dict(cursor.fetchall())
+
+                # By collection
+                cursor.execute("""
+                    SELECT collection_id, COUNT(*)
+                    FROM search_index
+                    GROUP BY collection_id
+                """)
+                stats['by_collection'] = dict(cursor.fetchall())
+
+                # Unindexed count
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM extracted_metadata
+                    WHERE indexed = 0 AND schema_type IN ('transcription', 'translation', 'catalogue', 'named_entities')
+                """)
+                stats['unindexed_count'] = cursor.fetchone()[0]
+
+                return stats
+
+        except Exception as e:
+            logger.error(f"Failed to get search index stats: {e}")
+            return {}
+
+    # ===== TIMELINE EVENT METHODS =====
+
+    def add_timeline_event(self, event: 'TimelineEvent') -> bool:
+        """Add a timeline event"""
+        try:
+            from fichero.library.models import TimelineEvent
+
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO timeline_events
+                    (id, entity_type, entity_id, event_type, event_category, actor, description, metadata, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    event.id,
+                    event.entity_type,
+                    event.entity_id,
+                    event.event_type,
+                    event.event_category,
+                    event.actor,
+                    event.description,
+                    json.dumps(event.metadata),
+                    event.timestamp.isoformat()
+                ))
+                conn.commit()
+                logger.debug(f"Added timeline event {event.event_type} for {event.entity_type}:{event.entity_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to add timeline event: {e}")
+            return False
+
+    def get_timeline_events(
+        self,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        event_type: Optional[str] = None,
+        event_category: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List['TimelineEvent']:
+        """Get timeline events with optional filters"""
+        try:
+            from fichero.library.models import TimelineEvent
+
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Build query
+                where_clauses = []
+                params = []
+
+                if entity_type:
+                    where_clauses.append("entity_type = ?")
+                    params.append(entity_type)
+                if entity_id:
+                    where_clauses.append("entity_id = ?")
+                    params.append(entity_id)
+                if event_type:
+                    where_clauses.append("event_type = ?")
+                    params.append(event_type)
+                if event_category:
+                    where_clauses.append("event_category = ?")
+                    params.append(event_category)
+
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+                cursor.execute(f"""
+                    SELECT id, entity_type, entity_id, event_type, event_category,
+                           actor, description, metadata, timestamp
+                    FROM timeline_events
+                    {where_sql}
+                    ORDER BY timestamp DESC
+                    LIMIT ? OFFSET ?
+                """, params + [limit, offset])
+
+                events = []
+                for row in cursor.fetchall():
+                    event = TimelineEvent(
+                        id=row[0],
+                        entity_type=row[1],
+                        entity_id=row[2],
+                        event_type=row[3],
+                        event_category=row[4],
+                        actor=row[5],
+                        description=row[6],
+                        metadata=json.loads(row[7]) if row[7] else {},
+                        timestamp=datetime.fromisoformat(row[8])
+                    )
+                    events.append(event)
+
+                return events
+
+        except Exception as e:
+            logger.error(f"Failed to get timeline events: {e}")
+            return []
+
+    def get_item_timeline(self, item_id: str, limit: int = 50) -> List['TimelineEvent']:
+        """Get timeline events for a specific item"""
+        return self.get_timeline_events(
+            entity_type="item",
+            entity_id=item_id,
+            limit=limit
+        )
+
+    def get_collection_timeline(self, collection_id: str, limit: int = 50) -> List['TimelineEvent']:
+        """Get timeline events for a specific collection"""
+        return self.get_timeline_events(
+            entity_type="collection",
+            entity_id=collection_id,
+            limit=limit
+        )
+
+    def delete_timeline_events(self, entity_type: str, entity_id: str) -> bool:
+        """Delete all timeline events for an entity"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM timeline_events
+                    WHERE entity_type = ? AND entity_id = ?
+                """, (entity_type, entity_id))
+                conn.commit()
+                logger.info(f"Deleted timeline events for {entity_type}:{entity_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete timeline events: {e}")
+            return False 

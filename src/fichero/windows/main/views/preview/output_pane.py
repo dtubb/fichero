@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # Module-level ScriptMessageHandler class (defined once for all panes)
 # This avoids class redefinition issues when creating multiple panes
 _ScriptMessageHandler = None
+_CropEditHandler = None
+
 try:
     from rubicon.objc import objc_method, NSObject
     from rubicon.objc.runtime import objc_id
@@ -67,7 +69,24 @@ try:
                 if self.pane:
                     self.pane.logger.error(f"Error handling script message: {e}")
 
+    class CropEditHandler(NSObject):
+        """Handler for crop edit messages from JavaScript"""
+        pane = None
+
+        @objc_method
+        def userContentController_didReceiveScriptMessage_(
+            self, controller: objc_id, message: objc_id
+        ) -> None:
+            """Handle crop edit message from JavaScript"""
+            try:
+                if self.pane:
+                    self.pane._handle_crop_edit_message(str(message.body))
+            except Exception as e:
+                if self.pane:
+                    self.pane.logger.error(f"Error in crop edit handler: {e}")
+
     _ScriptMessageHandler = ScriptMessageHandler
+    _CropEditHandler = CropEditHandler
 except ImportError:
     # Rubicon not available (non-macOS platform)
     pass
@@ -151,6 +170,7 @@ class OutputPane:
     def _build_ui(self):
         """Build UI components - PHASE 5 with outer wrapper for focus"""
         # Inner container for actual content
+        # flex=1 allows horizontal expansion but content (WebView) handles vertical
         self._container = toga.Box(
             style=Pack(direction='column', flex=1)
         )
@@ -343,28 +363,14 @@ class OutputPane:
         Args:
             user_content_controller: WKUserContentController to register handler with
         """
+        # Skip if no handler class available (non-macOS)
+        if _CropEditHandler is None:
+            self.logger.debug(f"Pane {self._pane_id}: CropEditHandler not available (non-macOS platform)")
+            return
+
         try:
-            from rubicon.objc import objc_method, NSObject
-            from rubicon.objc.runtime import objc_id
-
-            # Create handler class for crop edits
-            class CropEditHandler(NSObject):
-                pane = None
-
-                @objc_method
-                def userContentController_didReceiveScriptMessage_(
-                    self, controller: objc_id, message: objc_id
-                ) -> None:
-                    """Handle crop edit message from JavaScript"""
-                    try:
-                        if self.pane:
-                            self.pane._handle_crop_edit_message(str(message.body))
-                    except Exception as e:
-                        if self.pane:
-                            self.pane.logger.error(f"Error in crop edit handler: {e}")
-
-            # Create and register handler instance
-            self._crop_handler = CropEditHandler.alloc().init()
+            # Create handler instance using module-level class
+            self._crop_handler = _CropEditHandler.alloc().init()
             self._crop_handler.pane = self
 
             user_content_controller.addScriptMessageHandler(
@@ -517,10 +523,10 @@ class OutputPane:
 
         Args:
             item_id: Library item ID
-            step_index: Index of step to display
+            step_index: Index of step to display (-1 when using tree view with step object)
             step: Optional Step object (if not provided, will query library)
         """
-        self.logger.info(f"🎯 CLICK TRACE #15: OutputPane.set_step called: item_id={item_id}, step_index={step_index}")
+        self.logger.info(f"🔵 OutputPane.set_step() called on pane {id(self)}: item_id={item_id}, step_index={step_index}, step={step.step_name if step else None}")
         self.current_item_id = item_id
         self.current_step_index = step_index
 
@@ -538,6 +544,38 @@ class OutputPane:
 
         try:
             self._show_loading()
+
+            # NEW: If step_index is -1 and step object is provided, render it directly
+            # This is used by the tree view which provides the step object directly
+            if step_index == -1 and step is not None:
+                self.logger.info(f"🌳 Rendering step from tree view: {step.step_name}")
+
+                # Render the provided step object
+                if step.tool_name == 'original' or step.step_name == 'original':
+                    # Original file
+                    html_content = self._render_original_file(step)
+
+                    # Update path bar
+                    if self._path_bar:
+                        await self._update_path_bar(item_id)
+                else:
+                    # Processing step - need to construct minimal output_data
+                    # The renderer needs some context but we can provide a minimal version
+                    output_data = {
+                        'processing_steps': [],  # Not used when rendering single step
+                        'item_id': item_id
+                    }
+                    html_content = self._render_step_with_renderer(step, output_data)
+
+                    # Update path bar
+                    if self._path_bar:
+                        await self._update_path_bar(item_id, step)
+
+                # Inject click handler and display
+                html_content = self._inject_click_handler(html_content)
+                self._webview.set_content("", html_content)
+                self._show_content()
+                return
 
             # If step 0 (original file), handle specially
             if step_index == 0:
@@ -557,14 +595,21 @@ class OutputPane:
                             self.file_path = file_path
                             self.tool_name = 'original'
 
+                            # Detect file_type from extension
+                            # Path().suffix works on both Path objects and URL strings
+                            from pathlib import Path
+                            ext = Path(str(file_path)).suffix.lower()
+                            self.file_type = 'image' if ext in ['.tif', '.tiff', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'] else 'unknown'
+
                     # CollectionItem has local_path (downloaded) or source_path (external)
                     file_path = item.local_path or item.source_path
                     step = OriginalStep(file_path)
+                    self.logger.info(f"🔧 Created OriginalStep: file_path={step.file_path}, file_type={step.file_type}")
 
                 # Display original file directly
-                self.logger.info(f"🎯 CLICK TRACE #16: Rendering original file: {step.file_path}")
+                self.logger.info(f"🎬 About to call _render_original_file")
                 html_content = self._render_original_file(step)
-                self.logger.info(f"🎯 CLICK TRACE #17: HTML generated, length={len(html_content)} bytes")
+                self.logger.info(f"✅ Got HTML content, length={len(html_content)}")
 
                 # Update path bar with library path (not filesystem path)
                 if self._path_bar:
@@ -574,11 +619,8 @@ class OutputPane:
                 html_content = self._inject_click_handler(html_content)
 
                 # Use empty root URL with base64 data (matches old working implementation)
-                self.logger.info(f"🎯 CLICK TRACE #18: Setting WebView content...")
                 self._webview.set_content("", html_content)
-                self.logger.info(f"🎯 CLICK TRACE #19: Showing content container...")
                 self._show_content()
-                self.logger.info(f"🎯 CLICK TRACE #20: ✅ HTML RENDERING COMPLETE!")
                 return
 
             # For processed steps, get data from library
@@ -637,6 +679,77 @@ class OutputPane:
             import traceback
             self.logger.error(traceback.format_exc())
             self._show_error(str(e))
+
+    async def set_content(self, file_path, file_type: str, context: Dict[str, Any]):
+        """
+        High-level method to set pane content from file_path and context.
+
+        This bridges the PreviewView API (file_path, file_type, context)
+        to the OutputPane rendering system.
+
+        Args:
+            file_path: Path to file (Path object or URL string)
+            file_type: Type of file ('image', 'json', etc.)
+            context: Dict with metadata like {'step_name': '...', 'tool_name': '...'}
+        """
+        self.logger.info(f"🔵 OutputPane.set_content() called: file_path={file_path}, file_type={file_type}")
+
+        try:
+            self._show_loading()
+
+            # Extract context info
+            step_name = context.get('step_name', 'Unknown')
+            tool_name = context.get('tool_name', 'unknown')
+
+            # Create a minimal step object for rendering
+            class MinimalStep:
+                def __init__(self, file_path, file_type, step_name, tool_name):
+                    self.file_path = file_path
+                    self.file_type = file_type
+                    self.step_name = step_name
+                    self.tool_name = tool_name
+                    self.manifest_entry = None
+
+            step = MinimalStep(file_path, file_type, step_name, tool_name)
+
+            # Render based on tool type
+            if tool_name in ['original', 'source']:
+                # Original file
+                html_content = self._render_original_file(step)
+            else:
+                # Processed step - create minimal output_data
+                output_data = {
+                    'processing_steps': [],  # Not used for direct rendering
+                    'item_id': self.current_item_id
+                }
+                html_content = self._render_step_with_renderer(step, output_data)
+
+            # Inject click handler and display
+            html_content = self._inject_click_handler(html_content)
+            self._webview.set_content("", html_content)
+            self._show_content()
+
+            self.logger.info(f"✅ Content rendered successfully: {step_name}")
+
+        except Exception as e:
+            self.logger.error(f"Error in set_content: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            self._show_error(f"Failed to load content: {str(e)}")
+
+    async def load_item(self, item_id: str, step_index: int = 0):
+        """
+        Load an item's specific step in this pane.
+
+        This is a convenience wrapper for LayoutManager compatibility.
+        Delegates to set_step() internally.
+
+        Args:
+            item_id: Library item ID
+            step_index: Step index to display (default: 0 for original)
+        """
+        self.logger.info(f"🔵 OutputPane.load_item() called: item_id={item_id}, step_index={step_index}")
+        await self.set_step(item_id, step_index)
 
     def _render_step_with_renderer(self, step, output_data: Dict[str, Any]) -> str:
         """
@@ -937,17 +1050,39 @@ class OutputPane:
         """
         file_path = step.file_path
         file_type = step.file_type
+        self.logger.info(f"🎨 _render_original_file: file_path={file_path}, file_type={file_type}")
 
         # Use interactive viewer for images
         if file_type == 'image':
             from fichero.library.renderers.html_templates import get_interactive_image_viewer
+
+            # Get appropriate title based on whether file_path is a URL or Path
+            if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                # URL - extract filename from URL
+                title = f"Original: {file_path.split('/')[-1]}"
+                self.logger.info(f"📸 Rendering URL image: {file_path}")
+            else:
+                # Convert to Path object if it's a string
+                if isinstance(file_path, str):
+                    file_path = Path(file_path)
+                # Path object - use .name attribute
+                title = f"Original: {file_path.name}"
+
             return get_interactive_image_viewer(
                 image_path=file_path,
-                title=f"Original: {file_path.name}",
-                use_base64=True  # Use base64 for security
+                title=title,
+                use_base64=True  # Use base64 for security (ignored for URLs)
             )
         else:
             # For non-image files, show basic info
+            # Get appropriate filename based on whether file_path is a URL or Path
+            if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
+                # URL - extract filename from URL
+                filename = file_path.split('/')[-1]
+            else:
+                # Path object - use .name attribute
+                filename = file_path.name
+
             html = f"""
             <!DOCTYPE html>
             <html>
@@ -979,7 +1114,7 @@ class OutputPane:
             <body>
                 <div class="card">
                     <h1>Original File</h1>
-                    <div class="info"><strong>File:</strong> {file_path.name}</div>
+                    <div class="info"><strong>File:</strong> {filename}</div>
                     <div class="info"><strong>Type:</strong> {file_type}</div>
                     <div class="info"><strong>Path:</strong> {file_path}</div>
                 </div>
@@ -1079,7 +1214,12 @@ class OutputPane:
         self._container.clear()
         self._container.add(self._webview)
         if self._path_bar_visible and self._path_bar:
+            self.logger.debug(f"Adding path bar to container (visible={self._path_bar_visible})")
             self._container.add(self._path_bar.container)
+            # Redraw the canvas after adding to ensure it renders
+            self._path_bar._draw_path()
+        else:
+            self.logger.debug(f"Path bar not shown (visible={self._path_bar_visible}, exists={self._path_bar is not None})")
 
     async def _update_path_bar(self, item_id: str, processing_step=None):
         """
@@ -1090,45 +1230,20 @@ class OutputPane:
             processing_step: Optional processing step object for debug info
         """
         try:
-            from fichero.utils.path_icons import build_library_path_string
-
             # Get item details from library
             item = await self.library_manager.get_item(item_id)
             if not item:
                 self._path_bar.clear()
                 return
 
-            # Get collection name
-            collection = await self.library_manager.get_collection(item.collection_id)
-            collection_name = collection.name if collection else "Unknown Collection"
-
-            # Build library path string (e.g., "My Collection › document.pdf")
-            path_string = build_library_path_string(
-                collection_name=collection_name,
-                item_name=item.name
-            )
-
-            # Add debug info if we have processing step
+            # Build simple path: "Item Name › Step Name"
+            # The PathBar will handle truncation of the item name if needed
             if processing_step:
-                # Get renderer name for this step
-                from fichero.library.renderers.renderer_registry import RendererRegistry
-                renderer = RendererRegistry.get_renderer_for_step(
-                    tool_name=processing_step.tool_name,
-                    file_type=processing_step.file_type,
-                    file_path=processing_step.file_path
-                )
-                renderer_name = renderer.__class__.__name__ if renderer else "Unknown"
-
-                # Add debug info to path bar
-                debug_info = f" • Step: {processing_step.step_name} • Renderer: {renderer_name} • Item: {item_id[:8]}"
-                path_string = path_string + debug_info
-
-                self.logger.info(f"🎨 Path bar updated:")
-                self.logger.info(f"🎨   Collection: {collection_name}")
-                self.logger.info(f"🎨   Item: {item.name}")
-                self.logger.info(f"🎨   Step: {processing_step.step_name}")
-                self.logger.info(f"🎨   Renderer: {renderer_name}")
-                self.logger.info(f"🎨   Output: {processing_step.file_path}")
+                step_name = processing_step.step_name or "Unknown"
+                path_string = f"{item.name} › {step_name}"
+            else:
+                # No step - just show item name
+                path_string = item.name
 
             self._path_bar.set_path(path_string)
 

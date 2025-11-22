@@ -1,17 +1,31 @@
 """
-Library Metadata API
+Library Metadata API - DEPRECATED
 
-Unified interface for tools to store and retrieve step-level metadata.
-This API provides a standardized way for processing tools to save metadata
-to the library backend, enabling searchability, version tracking, and querying.
+**DEPRECATED**: This API uses the old metadata structure with metadata_type.
+Use the new schema-based system instead:
+    - src/fichero/library/metadata_extractors.py for extraction
+    - src/fichero/library/search_service.py for search
+    - ExtractedMetadata with schema_type, source_label, version
+
+This file is kept for backward compatibility only and will be removed in a future version.
+Migration path: Use UniversalExtractor and SearchService directly.
 """
 
 import json
 import logging
 import uuid
+import warnings
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+
+# Deprecation warning
+warnings.warn(
+    "metadata_api.LibraryMetadataAPI is deprecated. "
+    "Use the new schema-based metadata system (metadata_extractors.py, search_service.py) instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 try:
     from fichero.library.storage import LibraryStorage
@@ -60,11 +74,17 @@ class LibraryMetadataAPI:
         """
         Initialize metadata API with storage backend.
 
+        **DEPRECATED**: This API is deprecated. Use the new schema-based system instead.
+
         Args:
             storage: LibraryStorage instance for database operations
         """
+        logger.warning(
+            "LibraryMetadataAPI is DEPRECATED. "
+            "Use metadata_extractors.UniversalExtractor and search_service.SearchService instead."
+        )
         self.storage = storage
-        logger.debug("LibraryMetadataAPI initialized")
+        logger.debug("LibraryMetadataAPI initialized (DEPRECATED)")
 
     def save_step_metadata(
         self,

@@ -34,7 +34,7 @@ from typing import List, Dict, Optional, Any
 from enum import Enum
 from dataclasses import dataclass
 
-from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
+from fichero.shared.navigation.navigation_event_bus import emit_navigation_event, NavigationEvents
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,6 @@ class SelectionContext(Enum):
     """Types of views/contexts that can have selections"""
     LIBRARY = "library"           # Collections in library view
     COLLECTION = "collection"     # Items in collection view
-    STEPS = "steps"               # Processing steps in step browser
     PREVIEW = "preview"           # Preview panes in output view
     ADJUST = "adjust"             # Adjust pane controls
 
@@ -120,7 +119,6 @@ class SelectionManager:
         self._selections: Dict[str, List[str]] = {
             SelectionContext.LIBRARY.value: [],
             SelectionContext.COLLECTION.value: [],
-            SelectionContext.STEPS.value: [],
             SelectionContext.PREVIEW.value: [],
             SelectionContext.ADJUST.value: [],
         }
@@ -131,7 +129,6 @@ class SelectionManager:
         self._metadata: Dict[str, List[Dict[str, Any]]] = {
             SelectionContext.LIBRARY.value: [],
             SelectionContext.COLLECTION.value: [],
-            SelectionContext.STEPS.value: [],
             SelectionContext.PREVIEW.value: [],
             SelectionContext.ADJUST.value: [],
         }
@@ -215,8 +212,8 @@ class SelectionManager:
 
         # ADDRESSING REVIEW ISSUE #1: Add try/except around emit_navigation_event()
         try:
-            # Emit event via navigation event bus
-            emit_navigation_event("SELECTION_CHANGED", {
+            # Emit event via navigation event bus (using constant for consistency)
+            emit_navigation_event(NavigationEvents.SELECTION_CHANGED, {
                 'view_id': view_id,
                 'context': context.value,
                 'old_selection': old_selection,
@@ -363,7 +360,6 @@ class SelectionManager:
             view_to_context = {
                 'library': SelectionContext.LIBRARY,
                 'collection': SelectionContext.COLLECTION,
-                'steps': SelectionContext.STEPS,
                 'preview': SelectionContext.PREVIEW,
                 'output': SelectionContext.PREVIEW,  # Alias: output → preview
                 'adjust': SelectionContext.ADJUST,

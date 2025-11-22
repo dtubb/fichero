@@ -117,6 +117,10 @@ class CommandManager:
         # Register in command registry (always)
         self.registry.register(command)
 
+        # 🔍 DEBUG POINT 2: Log search command registration
+        if command.id.endswith('.search'):
+            logger.info(f"🔍 REGISTERING SEARCH COMMAND: {command.id}, type={command.item_type}, show_in_top_toolbar={command.show_in_top_toolbar}")
+
         # Desktop: Add to native menu system if requested
         if not self.is_mobile and command.show_in_menu:
             self._add_to_native_menu(command)
@@ -814,6 +818,11 @@ class CommandManager:
                         getattr(cmd, 'show_in_bottom_toolbar', False))
                 ]
 
+            # 🔍 DEBUG POINT 3: Log search command before view_id filtering
+            search_cmds_before = [cmd for cmd in toolbar_commands if cmd.id.endswith('.search')]
+            if search_cmds_before:
+                logger.info(f"🔍 SEARCH COMMANDS BEFORE VIEW FILTER: {[cmd.id for cmd in search_cmds_before]}")
+
             # Filter by view_id if provided (commands have IDs like "view.action")
             # Include view-specific commands, global view commands, and collection commands
             if view_id:
@@ -823,6 +832,13 @@ class CommandManager:
                         cmd.id.startswith("view.") or  # Include global view commands in all toolbars
                         cmd.id.startswith("collection."))  # Include collection commands in all toolbars
                 ]
+
+            # 🔍 DEBUG POINT 4: Log search command after view_id filtering
+            search_cmds_after = [cmd for cmd in toolbar_commands if cmd.id.endswith('.search')]
+            if search_cmds_before and not search_cmds_after:
+                logger.error(f"❌ SEARCH COMMAND FILTERED OUT BY VIEW_ID! view_id={view_id}")
+            elif search_cmds_after:
+                logger.info(f"✅ SEARCH COMMANDS AFTER VIEW FILTER: {[cmd.id for cmd in search_cmds_after]}")
 
             # Filter by context if provided
             if context:

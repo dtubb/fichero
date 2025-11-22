@@ -8,7 +8,7 @@ Each tool can have its own renderer that knows how to display its outputs.
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -16,13 +16,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RenderContext:
-    """Context information for rendering"""
+    """Context information for rendering
+
+    file_path can be either:
+    - Path object for local files
+    - str (URL starting with http:// or https://) for remote resources
+    """
     # Step data
     item_id: str
     step_index: int
     step_name: str
     tool_name: str
-    file_path: Path
+    file_path: Union[Path, str]  # Path for local files, str for URLs
     file_type: str
 
     # Optional data
@@ -119,10 +124,12 @@ class BaseRenderer(ABC):
         """
         pass
 
-    @abstractmethod
     def render_cli(self, context: RenderContext) -> RenderedOutput:
         """
         Render step data as text for CLI display.
+
+        DEFAULT IMPLEMENTATION: Most renderers don't need CLI support.
+        This is a GUI-focused app, so CLI rendering is optional.
 
         Args:
             context: Rendering context with step data
@@ -130,7 +137,11 @@ class BaseRenderer(ABC):
         Returns:
             RenderedOutput with text content
         """
-        pass
+        # Simple default implementation
+        return RenderedOutput(
+            text=f"{context.step_name}: {context.file_path}",
+            title=context.step_name
+        )
 
     def get_editable_json(self, context: RenderContext) -> Optional[Dict[str, Any]]:
         """

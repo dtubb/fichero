@@ -671,24 +671,30 @@ class UniversalLayoutManager:
             'slots': []
         }
 
-        for slot_id, slot in self.view_slots.items():
-            slot_state = {
-                'slot_id': slot_id,
-                'name': slot.name,  # Column name for visibility restoration
-                'flex': slot.flex,  # Save flex ratio for desktop
-                'size': slot.size,  # Save size for mobile
-                'is_visible': slot.is_visible,  # Save visibility state
-                'fixed_width': slot.fixed_width,  # Save fixed width if any
-                'view_type': None
-            }
+        try:
+            for slot_id, slot in self.view_slots.items():
+                slot_state = {
+                    'slot_id': slot_id,
+                    'name': slot.column_name,  # Column name for visibility restoration (fixed: was slot.name)
+                    'flex': slot.flex,  # Save flex ratio for desktop
+                    'size': slot.size,  # Save size for mobile
+                    'is_visible': slot.is_visible,  # Save visibility state
+                    'fixed_width': slot.fixed_width,  # Save fixed width if any
+                    'view_type': None
+                }
 
-            # Get view type if available
-            if slot.view and hasattr(slot.view, 'view_type'):
-                slot_state['view_type'] = slot.view.view_type.value
+                # Get view type if available
+                if slot.view and hasattr(slot.view, 'view_type'):
+                    slot_state['view_type'] = slot.view.view_type.value
 
-            state['slots'].append(slot_state)
+                state['slots'].append(slot_state)
 
-        logger.debug(f"Layout state captured: {len(state['slots'])} slots")
+            logger.debug(f"Layout state captured: {len(state['slots'])} slots")
+        except AttributeError as e:
+            logger.error(f"Failed to capture layout state: {e}", exc_info=True)
+            # Return minimal valid state to prevent corruption
+            state['slots'] = []
+
         return state
 
     def restore_layout(self, state: Dict[str, Any]):

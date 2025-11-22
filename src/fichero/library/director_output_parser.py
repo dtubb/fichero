@@ -32,6 +32,7 @@ class ProcessingStep:
     file_path: Path
     file_type: str  # "image", "text", "document"
     description: str
+    manifest_entry: Optional[Dict] = None  # Enriched manifest with source_image_path
 
     @property
     def files(self) -> List[Path]:

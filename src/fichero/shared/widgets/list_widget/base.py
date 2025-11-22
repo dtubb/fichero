@@ -70,6 +70,8 @@ class ListWidget:
         force_widget_type: Optional[str] = None,  # 'table', 'tree', or 'detailedlist' for testing
         navigable: bool = False,  # Enable folder navigation
         on_navigate: Optional[Callable] = None,  # Called when path changes: on_navigate(new_path)
+        app: Optional[Any] = None,  # App instance for SelectionManager access
+        view_id: Optional[str] = None,  # View context ('library', 'collection', 'preview')
     ):
         """
         Initialize the list widget.
@@ -87,6 +89,8 @@ class ListWidget:
             force_widget_type: Force specific widget type for testing ('table', 'tree', 'detailedlist')
             navigable: Enable folder navigation (filters data by current_path)
             on_navigate: Callback when navigation path changes (receives new path)
+            app: App instance for SelectionManager access
+            view_id: View context for SelectionManager ('library', 'collection', 'preview')
         """
         logger.info(f"🎬 ListWidget.__init__: renderer={renderer}, navigable={navigable}, data_count={len(data) if data else 0}")
         if data:
@@ -101,6 +105,10 @@ class ListWidget:
         self.multiple_select = multiple_select
         self.toga_style = style or Pack(flex=1)
         self.force_widget_type = force_widget_type
+
+        # SelectionManager integration
+        self.app = app
+        self.view_id = view_id
 
         # Navigation state
         self.navigable = navigable
@@ -126,6 +134,19 @@ class ListWidget:
         # Create widget via renderer
         self.widget = self.renderer.create_widget()
         logger.info(f"🎬 Widget created: {type(self.widget).__name__}")
+
+        # Ensure widget always fills available space
+        # When parent has fixed width, Toga defaults to minimum height
+        # Explicitly set flex=1 to fill container height
+        if not self.widget.style:
+            self.widget.style = Pack(flex=1)
+        else:
+            self.widget.style.flex = 1
+            # If width is set but height isn't, ensure height fills container
+            if hasattr(self.widget.style, 'width') and self.widget.style.width:
+                # Width is fixed, ensure height is flexible
+                if hasattr(self.widget.style, 'height'):
+                    del self.widget.style.height
 
         # For Tree widgets: don't filter, use all data to build hierarchy
         # For Table/DetailedList: filter by current path for flat navigation
@@ -436,6 +457,33 @@ class ListWidget:
             # Always re-attach the new source to the widget
             self.renderer.attach_source(self._source)
 
+    def update_width(self) -> None:
+        """
+        Notify renderer that container width has changed.
+
+        Call this method after changing the container's width to allow
+        renderers (Card, Sidebar) to recalculate their layout.
+        """
+        renderer_name = self.renderer.__class__.__name__
+        logger.debug(f"update_width() called for renderer: {renderer_name}")
+
+        # Card renderer has update_container_width method
+        if hasattr(self.renderer, 'update_container_width'):
+            width = self.renderer._get_container_width()
+            if width > 0:
+                logger.debug(f"Calling update_container_width({width}) on {renderer_name}")
+                self.renderer.update_container_width(width)
+            else:
+                logger.warning(f"Container width is 0, skipping update for {renderer_name}")
+
+        # Sidebar renderer has _update_column_width_from_container method
+        elif hasattr(self.renderer, '_update_column_width_from_container'):
+            logger.debug(f"Calling _update_column_width_from_container() on {renderer_name}")
+            self.renderer._update_column_width_from_container()
+
+        else:
+            logger.debug(f"Renderer {renderer_name} does not support dynamic width updates")
+
     def _handle_select(self, widget_or_item) -> None:
         """
         Unified selection handler.
@@ -538,6 +586,40 @@ class ListWidget:
             # For Table/DetailedList, this will just select the item
             if self._on_select_callback:
                 self._on_select_callback(selection)
+
+            # Update SelectionManager if available
+            if self.app and self.view_id and hasattr(self.app, 'selection_manager'):
+                try:
+                    # Extract item IDs and metadata from selection
+                    item_ids = []
+                    metadata = []
+
+                    if selection:
+                        # Handle different selection formats
+                        if isinstance(selection, list):
+                            # Multiple selection
+                            for item in selection:
+                                item_id = self._extract_item_id(item)
+                                if item_id:
+                                    item_ids.append(item_id)
+                                    metadata.append(self._extract_item_metadata(item))
+                        else:
+                            # Single selection
+                            item_id = self._extract_item_id(selection)
+                            if item_id:
+                                item_ids = [item_id]
+                                metadata = [self._extract_item_metadata(selection)]
+
+                    # Update SelectionManager
+                    self.app.selection_manager.set_selection(
+                        view_id=self.view_id,
+                        item_ids=item_ids,
+                        metadata=metadata if metadata else None
+                    )
+                    logger.debug(f"✅ SelectionManager updated: {len(item_ids)} items selected in {self.view_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update SelectionManager: {e}", exc_info=True)
+
         except Exception as e:
             logger.error(f"Error in selection handler: {e}", exc_info=True)
 
@@ -868,6 +950,47 @@ class ListWidget:
         if isinstance(self.widget, (toga.Table, toga.Tree, toga.DetailedList)):
             self.widget.selection = None
 
+    def select_item_by_id(self, item_id: str) -> bool:
+        """
+        Select an item by its ID.
+
+        Args:
+            item_id: The ID of the item to select
+
+        Returns:
+            True if item was found and selected, False otherwise
+        """
+        if not self._source:
+            logger.warning("Cannot select item - no data source")
+            return False
+
+        if not self.widget:
+            logger.warning("Cannot select item - widget not initialized")
+            return False
+
+        # Find the row with matching ID
+        try:
+            for row in self._source:
+                if getattr(row, 'id', None) == item_id:
+                    # Set selection to this row
+                    if isinstance(self.widget, (toga.Table, toga.Tree, toga.DetailedList)):
+                        try:
+                            self.widget.selection = row
+                            logger.debug(f"Selected item with ID: {item_id}")
+                            return True
+                        except Exception as e:
+                            logger.warning(f"Failed to set widget selection: {e}")
+                            return False
+                    else:
+                        logger.warning(f"Widget type {type(self.widget).__name__} doesn't support selection")
+                        return False
+
+            logger.debug(f"Item with ID {item_id} not found in list")
+            return False
+        except Exception as e:
+            logger.error(f"Error in select_item_by_id: {e}")
+            return False
+
     def get_all_selected(self) -> List[Any]:
         """
         Get all currently selected items.
@@ -1076,6 +1199,72 @@ class ListWidget:
     def get_columns(self) -> List[str]:
         """Get the list of column names."""
         return self.headings.copy()
+
+    def _extract_item_id(self, item: Any) -> Optional[str]:
+        """
+        Extract item ID from a selection object.
+
+        Handles different selection formats:
+        - Row/Node with _collection_data attribute
+        - Row/Node with item_id/id attribute
+        - Dict with 'id' or 'item_id' key
+
+        Args:
+            item: Selection item (Row, Node, dict, etc.)
+
+        Returns:
+            Item ID as string, or None if not found
+        """
+        if item is None:
+            return None
+
+        # Try _collection_data attribute first (our custom metadata)
+        if hasattr(item, '_collection_data') and item._collection_data:
+            return item._collection_data.get('id') or item._collection_data.get('item_id')
+
+        # Try item_id or id attributes
+        if hasattr(item, 'item_id') and item.item_id:
+            return str(item.item_id)
+        if hasattr(item, 'id') and item.id:
+            return str(item.id)
+
+        # Try dict keys
+        if isinstance(item, dict):
+            return item.get('id') or item.get('item_id')
+
+        return None
+
+    def _extract_item_metadata(self, item: Any) -> Dict[str, Any]:
+        """
+        Extract metadata from a selection object.
+
+        Args:
+            item: Selection item (Row, Node, dict, etc.)
+
+        Returns:
+            Metadata dict with item properties (name, type, path, etc.)
+        """
+        metadata = {}
+
+        if item is None:
+            return metadata
+
+        # Extract from _collection_data if available
+        if hasattr(item, '_collection_data') and item._collection_data:
+            return dict(item._collection_data)
+
+        # Extract common attributes
+        for attr in ['id', 'item_id', 'title', 'name', 'type', 'path', 'file_path', 'is_folder']:
+            if hasattr(item, attr):
+                value = getattr(item, attr)
+                if value is not None:
+                    metadata[attr] = value
+
+        # If item is a dict, use it directly
+        if isinstance(item, dict):
+            metadata.update(item)
+
+        return metadata
 
     @property
     def impl(self) -> toga.Widget:

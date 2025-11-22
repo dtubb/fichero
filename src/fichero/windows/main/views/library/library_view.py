@@ -53,17 +53,40 @@ class LibraryView(BaseView, ViewCommandMixin):
         # Track background tasks for cleanup
         self._background_tasks = set()
 
-        # Track collection count for smart widget updates
-        self._last_collection_count = 0
+        # Initialize tree data map for collection lookup (used in _on_tree_select)
+        self._tree_data_map = {}
 
         logger.debug(" Calling super().__init__...")
         super().__init__(app, is_mobile)
         ViewCommandMixin.__init__(self)
         logger.debug(" BaseView initialization complete")
 
+        # CRITICAL FIX: Library sidebar doesn't need ScrollContainer (NSOutlineView has its own)
+        # Remove ScrollContainer and use content_container directly
+        if self.scroll_container and self.content_container:
+            try:
+                # Remove scroll container from main container
+                self.container.remove(self.scroll_container)
+                # Add content_container directly to main container
+                self.container.add(self.content_container)
+                # Clear scroll container reference
+                self.scroll_container = None
+                logger.info("✅ Removed ScrollContainer from LibraryView (using content_container directly)")
+            except Exception as e:
+                logger.error(f"Failed to remove ScrollContainer: {e}")
+
         # Define and register commands
         logger.debug(" Defining commands...")
         self.define_commands()
+
+        # 🔍 DEBUG POINT 1: Log all commands after definition
+        logger.info(f"🔍 LIBRARY COMMANDS DEFINED: {list(self.commands.keys())}")
+        if 'search' in self.commands:
+            cmd = self.commands['search']
+            logger.info(f"✅ Search command: id={cmd.id}, type={cmd.item_type}, show_in_top_toolbar={cmd.show_in_top_toolbar}, desktop_only={cmd.desktop_only}")
+        else:
+            logger.error("❌ Search command NOT found in self.commands!")
+
         self.register_commands()
         logger.debug(" Commands defined and registered")
 
@@ -285,33 +308,38 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to register collection callback: {e}")
     
     def _create_content(self, widget=None):
-        """Create the library view content
+        """Update the library view content
 
         Args:
             widget: Optional widget parameter (ignored, for compatibility with Toga callbacks)
         """
         try:
-            # Clear any existing content first to prevent duplicates
-            if self.content_container:
-                self.content_container.clear()
+            logger.info("🔵 _create_content() called - updating collections data")
 
-            # Always create the collections display (will show empty sidebar if no collections)
+            # Don't clear! Just update the existing widget
+            # ListWidget.set_data() handles all updates properly
             self._create_collections_display()
 
+            logger.info(f"✅ Updated library with {len(self.collections)} collections")
+
         except Exception as e:
-            logger.error(f"Failed to create library content: {e}")
+            logger.error(f"Failed to update library content: {e}", exc_info=True)
     
     def _create_collections_display(self):
         """Create display for actual collections"""
         try:
+            logger.info("🟢 _create_collections_display() called")
+            logger.info(f"🔍 Current collections count: {len(self.collections)}")
+
             # No title here - titles should only be in top toolbar
             # Create detailed list for collections directly
+            logger.info("🟢 Calling _create_collections_detailed_list()...")
             self._create_collections_detailed_list()
-            
-            logger.debug(f"Created display for {len(self.collections)} collections")
-            
+
+            logger.info(f"✅ Created display for {len(self.collections)} collections")
+
         except Exception as e:
-            logger.error(f"Failed to create collections display: {e}")
+            logger.error(f"Failed to create collections display: {e}", exc_info=True)
     
     def _create_collections_detailed_list(self):
         """Create or update detailed list view for collections with selection preservation"""
@@ -327,71 +355,54 @@ class LibraryView(BaseView, ViewCommandMixin):
                 except:
                     pass
 
-            # Format collections for Toga DetailedList (simple, no visual selection indicators)
-            collection_data = []
-
             # Load folder icon once for all collections (use cache)
-            folder_icon = None
-            if self._folder_icon_cache is not None:
-                folder_icon = self._folder_icon_cache
-            else:
+            if self._folder_icon_cache is None:
                 try:
                     import toga
                     folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
                     if folder_icon_path.exists():
-                        folder_icon = toga.Image(str(folder_icon_path))
-                        self._folder_icon_cache = folder_icon  # Cache for future use
+                        self._folder_icon_cache = toga.Image(str(folder_icon_path))
                         logger.info(f"✅ Loaded collection folder icon (cached)")
                     else:
                         logger.warning(f"❌ Folder icon not found at: {folder_icon_path}")
                 except Exception as e:
                     logger.error(f"Failed to load folder icon: {e}", exc_info=True)
 
-            for collection in self.collections:
-                collection_id = collection.get('id', '')
-                collection_name = collection.get('name', 'Unknown Collection')
+            # Create widget only once on first call
+            if not hasattr(self, 'collections_list') or not self.collections_list:
+                logger.info("🟡 Library: Creating ListWidget for first time")
 
-                # Format subtitle with storage stats
-                item_count = collection.get('item_count', 0)
-                # Simple item count - no storage type breakdown
-                subtitle = f"{item_count} items"
+                self.collections_list = ListWidget(
+                    headings=['Collections'],
+                    data=[],  # Start empty, will set data below
+                    on_select=self._on_tree_select,
+                    on_activate=self._on_collection_activate,
+                    style=Pack(
+                        flex=1,
+                        margin_left=2  # Small left margin so focus ring is visible
+                    ),
+                    renderer='sidebar'  # Custom sidebar renderer for narrow Library column
+                )
 
-                formatted_item = {
-                    'id': collection_id,
-                    'title': collection_name,
-                    'subtitle': subtitle,
-                    'icon': folder_icon,  # toga.Image or None
-                    'collection_data': collection  # Store full data for callbacks
-                }
-                collection_data.append(formatted_item)
-
-            # Smart update strategy: Only recreate when necessary
-            # Recreate if:
-            # 1. Widget doesn't exist yet
-            # 2. Collection count changed (add/remove)
-            # 3. Collection IDs changed (replace/reorder)
-            # 4. First load
-            current_ids = {item['id'] for item in collection_data}
-            last_ids = getattr(self, '_last_collection_ids', set())
-
-            needs_recreate = (
-                not hasattr(self, 'collections_list') or
-                not self.collections_list or
-                len(collection_data) != self._last_collection_count or
-                current_ids != last_ids
-            )
-
-            if needs_recreate:
-                logger.info(f"🔄 Library: Recreating ListWidget with {len(collection_data)} collections")
-                self._recreate_detailed_list(collection_data)
-                self._last_collection_count = len(collection_data)
-                self._last_collection_ids = current_ids
-
-                # Restore selection after recreation
-                if current_selection_id:
-                    self._restore_selection(collection_data, current_selection_id)
+                # Add to container once
+                if self.content_container:
+                    self.content_container.add(self.collections_list.widget)
+                    logger.info("✅ ListWidget created and added to container")
+                else:
+                    logger.error("❌ content_container is None - cannot add ListWidget!")
             else:
-                logger.debug(f"Skipping widget recreation - no changes detected ({len(collection_data)} collections)")
+                # Widget already exists and is in container - just update data below
+                logger.debug("ListWidget already exists, will update data")
+
+            # Format and update widget data
+            # ListWidget.set_data() handles efficient in-place updates
+            formatted_data = self._format_collections_for_widget(self.collections)
+            self.collections_list.set_data(formatted_data)
+            logger.debug(f"Updated ListWidget with {len(formatted_data)} collections")
+
+            # Restore selection if we had one
+            if current_selection_id:
+                self._restore_selection(formatted_data, current_selection_id)
 
         except Exception as e:
             logger.error(f"Failed to create/update collections detailed list: {e}")
@@ -404,7 +415,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             # Find the row with matching ID and select it
             for i, item in enumerate(collection_data):
-                if item.get('id') == selection_id:
+                if item.get('_item_id') == selection_id:  # Use _item_id from formatted data
                     # Use ListWidget's select_row method if available
                     if hasattr(self.collections_list, 'select_row'):
                         self.collections_list.select_row(i)
@@ -413,63 +424,42 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.debug(f"Could not restore selection: {e}")
 
-    def _recreate_detailed_list(self, collection_data):
-        """Recreate the list widget using ListWidget (Phase 6)"""
-        try:
-            # Remove existing list if present
-            if hasattr(self, 'collections_list') and self.collections_list:
-                try:
-                    if self.content_container and hasattr(self.collections_list, 'widget'):
-                        # ListWidget has a .widget property
-                        widget_to_remove = self.collections_list.widget
-                    else:
-                        widget_to_remove = self.collections_list
+    def _format_collections_for_widget(self, collections):
+        """Format collection data for ListWidget
 
-                    if self.content_container and widget_to_remove in self.content_container.children:
-                        self.content_container.remove(widget_to_remove)
-                except Exception as e:
-                    logger.debug(f"Error removing old list: {e}")
+        Args:
+            collections: List of collection dicts from library_service
 
-            # Convert collection_data format: {title, subtitle, icon} -> {text, icon}
-            # ListWidget uses simpler format
-            tree_data = []
-            for item in collection_data:
-                tree_item = {
-                    'icon': item.get('icon'),
-                    'text': item.get('title', 'Unknown'),  # title -> text
-                    'subtitle': f"{item.get('type', 'Unknown type')} collection",  # For DetailedList
-                    # Store full collection data for callbacks
-                    '_collection_data': item.get('collection_data'),
-                    '_item_id': item.get('id')
+        Returns:
+            List of dicts formatted for ListWidget with 'icon', 'text', 'subtitle', '_item_id', '_collection_data'
+        """
+        formatted = []
+        # Clear and rebuild tree data map for collection lookup
+        self._tree_data_map = {}
+
+        for collection in collections:
+            item_count = collection.get('item_count', 0)
+            subtitle = f"{item_count} {'item' if item_count == 1 else 'items'}"
+            collection_id = collection.get('id')
+
+            formatted_item = {
+                'icon': self._folder_icon_cache,
+                'text': collection.get('name', 'Unknown'),
+                'subtitle': subtitle,
+                '_item_id': collection_id,
+                '_collection_data': collection  # Store full data for callbacks
+            }
+            formatted.append(formatted_item)
+
+            # Build tree data map for fallback lookup in _on_tree_select
+            if collection_id:
+                self._tree_data_map[collection_id] = {
+                    'title': collection.get('name', 'Unknown'),
+                    'collection_data': collection
                 }
-                tree_data.append(tree_item)
 
-            # Create ListWidget - using sidebar renderer for narrow card-style layout
-            # Desktop: Sidebar renderer (compact cards optimized for 140px width)
-            # Mobile: Sidebar renderer (same compact layout)
-            self.collections_list = ListWidget(
-                headings=['Collections'],
-                data=tree_data,
-                on_select=self._on_tree_select,  # Use wrapper for selection
-                on_activate=self._on_collection_activate,  # Double-click to rename
-                style=Pack(
-                    flex=1,
-                    margin_left=2  # Small left margin so focus ring is visible
-                ),
-                renderer='sidebar'  # Custom sidebar renderer for narrow Library column
-            )
+        return formatted
 
-            # Store the data mapping for lookups
-            self._tree_data_map = {item.get('id'): item for item in collection_data}
-
-            if self.content_container:
-                # Add the underlying widget (Tree/Table/DetailedList)
-                self.content_container.add(self.collections_list.widget)
-
-            logger.info(f"✅ Created ListWidget with {len(tree_data)} collections (platform: {self.collections_list.platform.value})")
-
-        except Exception as e:
-            logger.error(f"Failed to recreate collections list: {e}", exc_info=True)
 
     def _get_swipe_actions(self):
         """Get fixed swipe actions for the library interface"""
@@ -816,6 +806,22 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Error in _on_tree_select: {e}", exc_info=True)
 
+    def select_collection(self, collection_id: str) -> bool:
+        """
+        Programmatically select a collection in the library sidebar by its ID.
+
+        Args:
+            collection_id: ID of the collection to select
+
+        Returns:
+            True if collection was found and selected, False otherwise
+        """
+        if not hasattr(self, 'collections_list') or not self.collections_list:
+            logger.warning("Cannot select collection - collections_list not initialized")
+            return False
+
+        # Use ListWidget's select_item_by_id method
+        return self.collections_list.select_item_by_id(collection_id)
 
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
@@ -1222,6 +1228,84 @@ class LibraryView(BaseView, ViewCommandMixin):
         # This would show a simple dialog for sharing collections
         pass
     
+    def _on_search(self, widget=None):
+        """Handle search action from NSSearchToolbarItem"""
+        try:
+            # Get search query from widget
+            search_query = None
+            if widget and hasattr(widget, 'stringValue'):
+                # macOS NSSearchField
+                search_query = str(widget.stringValue())
+            elif widget and hasattr(widget, 'value'):
+                # Toga search field
+                search_query = widget.value
+
+            if not search_query or not search_query.strip():
+                logger.debug("Empty search query, clearing search")
+                # Clear search - show all collections
+                asyncio.create_task(self._load_collections_async())
+                return
+
+            logger.info(f"🔍 Search requested: '{search_query}'")
+
+            # Execute search via SearchService
+            asyncio.create_task(self._execute_search(search_query))
+
+        except Exception as e:
+            logger.error(f"Failed to handle search: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _execute_search(self, query: str):
+        """Execute search and display results in CollectionView"""
+        try:
+            # Get library manager
+            library_manager = getattr(self.app, 'library_manager', None)
+            if not library_manager:
+                logger.error("No library manager available for search")
+                return
+
+            # Execute search via library manager (which uses SearchService)
+            logger.info(f"Executing search: '{query}'")
+            search_response = library_manager.search(
+                query=query,
+                schema_types=["transcription", "catalogue", "translation"],  # Search all text content
+                limit=100  # Show up to 100 results
+            )
+
+            logger.info(f"Search found {search_response.total_count} results")
+
+            if search_response.total_count == 0:
+                logger.info("No search results found")
+                # Could show a message to user
+                return
+
+            # Convert search results to collection items format
+            search_items = []
+            for result in search_response.results:
+                # Each result has: collection_id, item_id, step_name, output_file, snippet
+                search_items.append({
+                    'id': result.item_id,
+                    'collection_id': result.collection_id,
+                    'name': result.output_file or f"Result {len(search_items) + 1}",
+                    'snippet': result.snippet,  # Highlighted search snippet
+                    'step_name': result.step_name,
+                    'metadata': result.metadata
+                })
+
+            # Emit event to show search results in Collection pane
+            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
+            emit_navigation_event("show_search_results", {
+                'query': query,
+                'results': search_items,
+                'total_count': search_response.total_count
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to execute search: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _on_manage_collections(self):
         """Handle manage collections action"""
         logger.debug("Manage collections requested")
@@ -1677,26 +1761,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                             # Show library view
                             self.app.main_window_wrapper.show_library_view()
 
-                    # Remove from internal collections list
-                    self.collections = [c for c in self.collections if c.get('id') != collection_id]
-
-                    # Update the widget - remove just this item, don't recreate entire sidebar
-                    if hasattr(self, 'collections_list') and self.collections_list:
-                        logger.info(f"🔍 TRACE: Attempting incremental remove from ListWidget...")
-                        removed = self.collections_list.remove_item(collection_id)
-                        if removed:
-                            logger.info(f"✅ TRACE: Incremental remove succeeded - removed '{collection_name}' from sidebar")
-                            # Update cached count and IDs
-                            self._last_collection_count = len(self.collections)
-                            self._last_collection_ids = {c.get('id') for c in self.collections}
-                        else:
-                            logger.warning(f"❌ TRACE: Incremental remove FAILED - falling back to full refresh")
-                            logger.info(f"🔍 TRACE: Calling refresh_collections()...")
-                            await self.refresh_collections()
-                            logger.info(f"🔍 TRACE: refresh_collections() completed")
-                    else:
-                        # No widget exists, just refresh
-                        await self.refresh_collections()
+                    # Just refresh - widget handles the UI update
+                    await self.refresh_collections()
                 else:
                     logger.error(f"Failed to delete collection: {collection_name}")
                     error_dialog = toga.ErrorDialog(
@@ -1819,42 +1885,10 @@ class LibraryView(BaseView, ViewCommandMixin):
                 logger.warning(f"Could not fetch collection data for {collection_id}")
                 return False
 
-            # Add to internal collections list
-            self.collections.append(collection_data)
-
-            # Format for ListWidget
-            folder_icon = self._folder_icon_cache
-            if not folder_icon:
-                try:
-                    import toga
-                    folder_icon_path = self.app.paths.app / "resources" / "icons" / "files_folders" / "folder_small_icon.png"
-                    if folder_icon_path.exists():
-                        folder_icon = toga.Image(str(folder_icon_path))
-                        self._folder_icon_cache = folder_icon
-                except Exception as e:
-                    logger.debug(f"Could not load folder icon: {e}")
-
-            item_count = collection_data.get('item_count', 0)
-            formatted_item = {
-                'icon': folder_icon,
-                'text': collection_data.get('name', 'Unknown'),
-                'subtitle': f"{item_count} items",
-                '_collection_data': collection_data,
-                '_item_id': collection_data.get('id')
-            }
-
-            # Add to widget if it exists
-            if hasattr(self, 'collections_list') and self.collections_list:
-                self.collections_list.add_item(formatted_item)
-                logger.info(f"✅ Added collection to sidebar: {collection_data.get('name')}")
-
-                # Update cache
-                self._last_collection_count = len(self.collections)
-                self._last_collection_ids = {c.get('id') for c in self.collections}
-                return True
-            else:
-                # No widget exists yet, need full refresh
-                return False
+            # Just refresh - no need to manually add to collections or widget
+            # refresh_collections() will reload from backend and update widget
+            logger.info(f"Collection added, refreshing display: {collection_data.get('name')}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to add collection to widget: {e}")
@@ -2057,6 +2091,25 @@ class LibraryView(BaseView, ViewCommandMixin):
                     show_in_bottom_toolbar=False,  # Not in bottom toolbar
                     mobile_only=False,  # Available on both platforms
                     desktop_only=True,  # Desktop only feature
+                    context='normal'
+                ),
+
+                # ===== SEARCH TOOLBAR =====
+                'search': FicheroCommand(
+                    id=f'{self.view_id}.search',
+                    label=_("Search"),
+                    action=self._on_search,  # Provide action for fallback
+                    icon='resources/icons/toolbar/magnifyingglass@10x.png',
+                    description=_("Search transcriptions and metadata"),
+                    show_in_menu=False,  # Not in menus
+                    show_in_top_toolbar=True,  # YES - show in toolbar!
+                    show_in_bottom_toolbar=False,
+                    desktop_only=True,  # Desktop only (search UI)
+                    item_type="search",  # NSSearchToolbarItem
+                    search_placeholder=_("Search transcriptions…"),
+                    search_action=self._on_search,
+                    toolbar_icon="magnifyingglass",  # SF Symbol
+                    visibility_priority=600,  # High priority - keep visible when window narrows
                     context='normal'
                 ),
 
@@ -2913,11 +2966,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation="link"  # Don't download, just reference
                     )
 
-                # Add collection to widget incrementally (avoid full refresh)
-                added = await self._add_collection_to_widget(collection_id)
-                if not added:
-                    # Fallback to full refresh if incremental add failed
-                    await self._load_collections_async()
+                # Refresh collections to show the new collection
+                await self.refresh_collections()
 
                 logger.info(f"Created collection '{collection_name}' with {len(urls)} URLs")
 
@@ -2985,11 +3035,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation=operation  # Use determined operation (copy or link)
                     )
 
-                # Add collection to widget incrementally (avoid full refresh)
-                added = await self._add_collection_to_widget(collection_id)
-                if not added:
-                    # Fallback to full refresh if incremental add failed
-                    await self._load_collections_async()
+                # Refresh collections to show the new collection
+                await self.refresh_collections()
 
                 logger.info(f"Created collection '{collection_name}' with {len(files)} files")
 
@@ -3076,11 +3123,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                         operation=operation  # Use determined operation (copy or link)
                     )
 
-                # Add collection to widget incrementally (avoid full refresh)
-                added = await self._add_collection_to_widget(collection_id)
-                if not added:
-                    # Fallback to full refresh if incremental add failed
-                    await self._load_collections_async()
+                # Refresh collections to show the new collection
+                await self.refresh_collections()
 
                 logger.info(f"Created collection '{collection_name}' with {len(folders)} folders")
 
@@ -3142,11 +3186,8 @@ class LibraryView(BaseView, ViewCommandMixin):
                     operation="copy"  # Copy camera photos
                 )
 
-                # Add collection to widget incrementally (avoid full refresh)
-                added = await self._add_collection_to_widget(collection_id)
-                if not added:
-                    # Fallback to full refresh if incremental add failed
-                    await self._load_collections_async()
+                # Refresh collections to show the new collection
+                await self.refresh_collections()
 
                 logger.info(f"Created collection '{collection_name}' with camera photo")
 
@@ -3169,8 +3210,8 @@ class LibraryView(BaseView, ViewCommandMixin):
             collection_name = event.data.get("collection_name", "Unknown")
             logger.info(f"📡 Event received: collection_added - {collection_name}")
 
-            # Reload collections to show the new one
-            self._create_task(self._load_collections_async())
+            # Just refresh - widget handles diff and incremental updates
+            self._create_task(self.refresh_collections())
 
         except Exception as e:
             logger.error(f"Failed to handle collection_added event: {e}")
@@ -3187,32 +3228,16 @@ class LibraryView(BaseView, ViewCommandMixin):
             collection_name = event.data.get("collection_name", "Unknown")
             logger.info(f"📡 Event received: collection_deleted - {collection_name}")
 
-            # Check if this collection is in our current list
-            # If it's not, it was deleted externally (e.g., via CLI or other window)
-            # and we need to refresh. If it IS in our list, we already handled it
-            # incrementally in _perform_delete_collection()
+            # Check if collection is still in our cached list
+            # If not, we already handled it locally, skip refresh
             collection_exists = any(c.get('id') == collection_id for c in self.collections)
 
             if collection_exists:
-                # External delete - remove incrementally
-                logger.info(f"External delete detected - removing {collection_name} from sidebar")
-                self.collections = [c for c in self.collections if c.get('id') != collection_id]
-
-                if hasattr(self, 'collections_list') and self.collections_list:
-                    removed = self.collections_list.remove_item(collection_id)
-                    if removed:
-                        # Update cache
-                        self._last_collection_count = len(self.collections)
-                        self._last_collection_ids = {c.get('id') for c in self.collections}
-                        logger.info(f"✅ Removed externally deleted collection from sidebar")
-                    else:
-                        # Fallback to full refresh if remove failed
-                        self._create_task(self._load_collections_async())
-                else:
-                    # No widget, just refresh
-                    self._create_task(self._load_collections_async())
+                # External delete - just refresh
+                logger.info(f"External delete detected - refreshing library view")
+                self._create_task(self.refresh_collections())
             else:
-                # Collection not in our list - already removed by our own delete handler
+                # Already removed by our own delete handler
                 logger.debug(f"Collection {collection_name} already removed (local delete)")
 
         except Exception as e:
@@ -3224,8 +3249,8 @@ class LibraryView(BaseView, ViewCommandMixin):
             collection_name = event.data.get("collection_name", "Unknown")
             logger.info(f"📡 Event received: collection_updated - {collection_name}")
 
-            # Reload collections to show updates
-            self._create_task(self._load_collections_async())
+            # Just refresh - widget handles diff and incremental updates
+            self._create_task(self.refresh_collections())
 
         except Exception as e:
             logger.error(f"Failed to handle collection_updated event: {e}")

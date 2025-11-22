@@ -14,7 +14,7 @@ from typing import Optional
 
 
 def get_rubberband_crop_viewer(
-    image_path: Path,
+    image_path,
     crop_box: dict,
     title: Optional[str] = None,
     use_base64: bool = True,
@@ -25,21 +25,29 @@ def get_rubberband_crop_viewer(
     Generate HTML for rubber-band crop editor like macOS Preview.
 
     Args:
-        image_path: Path to original image (not cropped)
+        image_path: Path to original image (not cropped) or URL string
         crop_box: Current crop box with x1, y1, x2, y2
         title: Optional title
-        use_base64: Encode image as base64 (default True)
+        use_base64: Encode image as base64 (default True, ignored for URLs)
         item_id: Optional library item ID for saving changes
         step_index: Optional step index for context
 
     Returns:
         Complete HTML document
     """
+    # Check if this is a URL
+    is_url = isinstance(image_path, str) and image_path.startswith(('http://', 'https://'))
+
     if title is None:
-        title = image_path.name
+        if is_url:
+            title = image_path.split('/')[-1] or 'Remote Image'
+        else:
+            title = image_path.name
 
     # Prepare image source
-    if use_base64:
+    if is_url:
+        img_src = image_path
+    elif use_base64:
         try:
             with open(image_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
@@ -259,8 +267,14 @@ def get_rubberband_crop_viewer(
         }}
 
         function showOriginalCrop() {{
-            const left = originalCrop.x1 * scale;
-            const top = originalCrop.y1 * scale;
+            // Get image position within wrapper (accounting for centering)
+            const imgRect = img.getBoundingClientRect();
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const imgOffsetX = imgRect.left - wrapperRect.left;
+            const imgOffsetY = imgRect.top - wrapperRect.top;
+
+            const left = imgOffsetX + (originalCrop.x1 * scale);
+            const top = imgOffsetY + (originalCrop.y1 * scale);
             const width = (originalCrop.x2 - originalCrop.x1) * scale;
             const height = (originalCrop.y2 - originalCrop.y1) * scale;
 
@@ -278,8 +292,14 @@ def get_rubberband_crop_viewer(
                 return;
             }}
 
-            const left = selection.x1 * scale;
-            const top = selection.y1 * scale;
+            // Get image position within wrapper (accounting for centering)
+            const imgRect = img.getBoundingClientRect();
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const imgOffsetX = imgRect.left - wrapperRect.left;
+            const imgOffsetY = imgRect.top - wrapperRect.top;
+
+            const left = imgOffsetX + (selection.x1 * scale);
+            const top = imgOffsetY + (selection.y1 * scale);
             const width = (selection.x2 - selection.x1) * scale;
             const height = (selection.y2 - selection.y1) * scale;
 

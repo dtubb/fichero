@@ -410,33 +410,6 @@ class NavigationController:
         """Navigate to add URL modal view"""
         return self._navigate_to_modal(NavigationContext.ADD, "url")
 
-    def navigate_to_add_file(self) -> bool:
-        """Navigate to add file modal view"""
-        # For desktop platforms with native dialogs, call directly
-        if not self.is_mobile and hasattr(self.app, 'main_window'):
-            try:
-                import asyncio
-                asyncio.create_task(self._handle_desktop_file_dialog())
-                return True
-            except Exception as e:
-                logger.error(f"Failed to open desktop file dialog: {e}")
-
-        # Fallback to modal view for mobile or if direct dialog fails
-        return self._navigate_to_modal(NavigationContext.ADD, "file")
-
-    def navigate_to_add_folder(self) -> bool:
-        """Navigate to add folder modal view"""
-        # For desktop platforms with native dialogs, call directly
-        if not self.is_mobile and hasattr(self.app, 'main_window'):
-            try:
-                import asyncio
-                asyncio.create_task(self._handle_desktop_folder_dialog())
-                return True
-            except Exception as e:
-                logger.error(f"Failed to open desktop folder dialog: {e}")
-
-        # Fallback to modal view for mobile or if direct dialog fails
-        return self._navigate_to_modal(NavigationContext.ADD, "folder")
 
     def navigate_to_add_camera(self) -> bool:
         """Navigate to add camera modal view"""
@@ -472,10 +445,6 @@ class NavigationController:
                 view = self._create_processing_view()
             elif modal_type == "url":
                 view = self._create_add_url_view()
-            elif modal_type == "file":
-                view = self._create_add_file_view()
-            elif modal_type == "folder":
-                view = self._create_add_folder_view()
             elif modal_type == "camera":
                 view = self._create_add_camera_view()
             elif modal_type == "collection" and context == NavigationContext.RENAME:
@@ -914,24 +883,6 @@ class NavigationController:
             return ProcessingMobileView(self.app)
         except Exception as e:
             logger.error(f"Failed to create processing view: {e}")
-            return None
-
-    def _create_add_file_view(self):
-        """Create add file modal view"""
-        try:
-            from fichero.windows.add.views.file_view import FileAddView
-            return FileAddView(self.app)
-        except Exception as e:
-            logger.error(f"Failed to create add file view: {e}")
-            return None
-
-    def _create_add_folder_view(self):
-        """Create add folder modal view"""
-        try:
-            from fichero.windows.add.views.folder_view import FolderAddView
-            return FolderAddView(self.app)
-        except Exception as e:
-            logger.error(f"Failed to create add folder view: {e}")
             return None
 
     def _create_add_camera_view(self):

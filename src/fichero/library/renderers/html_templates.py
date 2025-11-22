@@ -13,7 +13,7 @@ from typing import Optional
 
 
 def get_interactive_image_viewer(
-    image_path: Path,
+    image_path,
     title: Optional[str] = None,
     use_base64: bool = True
 ) -> str:
@@ -29,19 +29,27 @@ def get_interactive_image_viewer(
     - Viewer state persistence
 
     Args:
-        image_path: Path to image file
+        image_path: Path to image file or URL string
         title: Optional title (defaults to filename)
-        use_base64: If True, encode image as base64 data URL (default)
+        use_base64: If True, encode image as base64 data URL (default, ignored for URLs)
                    If False, use file:// URL
 
     Returns:
         Complete HTML document string
     """
+    # Check if this is a URL
+    is_url = isinstance(image_path, str) and image_path.startswith(('http://', 'https://'))
+
     if title is None:
-        title = image_path.name
+        if is_url:
+            title = image_path.split('/')[-1] or 'Remote Image'
+        else:
+            title = image_path.name
 
     # Prepare image source
-    if use_base64:
+    if is_url:
+        img_src = image_path
+    elif use_base64:
         # Encode as base64 data URL
         try:
             with open(image_path, 'rb') as f:
@@ -520,7 +528,7 @@ def get_interactive_image_viewer(
 
 
 def get_interactive_crop_viewer(
-    image_path: Path,
+    image_path,
     crop_box: dict,
     title: Optional[str] = None,
     use_base64: bool = True
@@ -536,19 +544,27 @@ def get_interactive_crop_viewer(
     - Apply button to save crop
 
     Args:
-        image_path: Path to image file
+        image_path: Path to image file or URL string
         crop_box: Dict with x1, y1, x2, y2 coordinates
         title: Optional title (defaults to filename)
-        use_base64: If True, encode image as base64 data URL (default)
+        use_base64: If True, encode image as base64 data URL (default, ignored for URLs)
 
     Returns:
         Complete HTML document string
     """
+    # Check if this is a URL
+    is_url = isinstance(image_path, str) and image_path.startswith(('http://', 'https://'))
+
     if title is None:
-        title = image_path.name
+        if is_url:
+            title = image_path.split('/')[-1] or 'Remote Image'
+        else:
+            title = image_path.name
 
     # Prepare image source
-    if use_base64:
+    if is_url:
+        img_src = image_path
+    elif use_base64:
         try:
             with open(image_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')

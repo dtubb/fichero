@@ -120,8 +120,8 @@ class LayoutManager:
         self.status_bar = status_bar
         self.logger = logging.getLogger(__name__)
 
-        # Current state
-        self.current_layout: LayoutType = LayoutType.SINGLE
+        # Current state - start with dual column layout (image + transcription)
+        self.current_layout: LayoutType = LayoutType.DUAL_COMPARE
 
         # PHASE 5: Column-based architecture
         self.columns: List[ColumnContainer] = []
@@ -135,31 +135,20 @@ class LayoutManager:
         self.max_panes_per_column: int = 3
 
         # UI components
-        self._container = None  # Will be ScrollContainer
-        self._scroll_container = None
-        self._columns_container = None  # Horizontal box containing columns
+        self._container = None  # Simple Box with flex layout
         self._build_ui()
 
-        # Initialize with single column, single pane
-        self._initialize_single_column()
+        # Initialize with dual columns (image + transcription)
+        self._initialize_dual_columns()
 
     def _build_ui(self):
-        """Build container for columns with horizontal scroll - PHASE 5"""
-        # The split structure is built dynamically using nested SplitContainers
-        # Start with an empty placeholder
+        """Build container for columns with flex layout - PHASE 5"""
+        # Simple Box with flex layout - handles responsive column widths correctly
+        # ScrollContainer was interfering with flex-based width allocation
         self._split_structure = toga.Box(style=Pack(flex=1))
 
-        # Scroll container - enables horizontal scrolling when many columns
-        # Using ScrollContainer allows overflow, SplitContainer handles resizing
-        self._scroll_container = toga.ScrollContainer(
-            content=self._split_structure,
-            horizontal=True,
-            vertical=False,
-            style=Pack(flex=1)
-        )
-
-        # Main container is the scroll container
-        self._container = self._scroll_container
+        # Main container is the split structure directly (no ScrollContainer wrapper)
+        self._container = self._split_structure
 
     def _build_split_structure(self) -> toga.Widget:
         """
@@ -192,24 +181,15 @@ class LayoutManager:
 
     def _rebuild_split_structure(self):
         """Rebuild and update the split container structure"""
-        # CRITICAL: Remove column containers from their current parent first
-        # Toga widgets can only belong to one container at a time
-        for column in self.columns:
-            if column.container and hasattr(column.container, '_impl'):
-                # Clear the widget's container reference
-                try:
-                    # Access the native implementation to force detachment
-                    if hasattr(column.container._impl, 'container'):
-                        column.container._impl.container = None
-                except Exception as e:
-                    self.logger.debug(f"Could not clear container reference: {e}")
+        # Clear existing content from container
+        self._container.clear()
 
         # Build new split structure
         new_structure = self._build_split_structure()
 
-        # Update scroll container content
-        self._scroll_container.content = new_structure
-        self._split_structure = new_structure
+        # Add new structure to container
+        if new_structure:
+            self._container.add(new_structure)
 
         self.logger.debug(f"Rebuilt split structure with {len(self.columns)} columns")
 
@@ -242,6 +222,30 @@ class LayoutManager:
 
         self.logger.info(f"Initialized with 1 column, 1 pane")
 
+    def _initialize_dual_columns(self):
+        """Initialize with two columns (image + transcription) - PHASE 5"""
+        self.logger.info("Initializing with dual columns")
+
+        # Create two columns, each with one pane
+        for i in range(2):
+            column = ColumnContainer(max_panes_per_column=self.max_panes_per_column)
+            pane = self._create_pane()
+            column.add_pane(pane)
+            column.rebuild_layout()
+
+            self.columns.append(column)
+            self.panes.append(pane)
+
+        # Rebuild split structure
+        self._rebuild_split_structure()
+
+        # Set focus on first pane
+        self.focused_column_index = 0
+        self.focused_pane_index = 0
+        self._update_all_focus_indicators()
+
+        self.logger.info(f"Initialized with 2 columns, 2 panes")
+
     def set_layout(self, layout_type: LayoutType):
         """
         Switch to a different layout.
@@ -252,6 +256,11 @@ class LayoutManager:
         Args:
             layout_type: Type of layout to use
         """
+        # OPTIMIZATION: Skip recreation if layout is already set
+        if self.current_layout == layout_type and len(self.panes) > 0:
+            self.logger.debug(f"⏭️ Layout already set to {layout_type.value}, reusing existing panes")
+            return
+
         self.logger.info(f"Setting layout to: {layout_type.value}")
 
         # Store old layout

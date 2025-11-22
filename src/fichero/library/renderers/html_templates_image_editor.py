@@ -15,7 +15,7 @@ from typing import Optional, Dict
 
 
 def get_image_editor(
-    image_path: Path,
+    image_path,
     title: Optional[str] = None,
     use_base64: bool = True,
     crop_box: Optional[Dict] = None
@@ -27,19 +27,30 @@ def get_image_editor(
     commands from Fichero's BottomToolbar.
 
     Args:
-        image_path: Path to image file
+        image_path: Path to image file (Path object) or URL (string starting with http:// or https://)
         title: Optional title
-        use_base64: Encode image as base64 (default True)
+        use_base64: Encode image as base64 (default True, ignored for URLs)
         crop_box: Optional existing crop box with x1, y1, x2, y2
 
     Returns:
         Complete HTML document
     """
+    # Check if this is a URL (string starting with http:// or https://)
+    is_url = isinstance(image_path, str) and image_path.startswith(('http://', 'https://'))
+
     if title is None:
-        title = image_path.name
+        if is_url:
+            # For URLs, extract filename from URL or use last segment
+            title = image_path.split('/')[-1] or 'Remote Image'
+        else:
+            title = image_path.name
 
     # Prepare image source
-    if use_base64:
+    if is_url:
+        # URL items: use URL directly as img_src
+        img_src = image_path
+    elif use_base64:
+        # Local files with base64 encoding
         try:
             with open(image_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
@@ -55,6 +66,7 @@ def get_image_editor(
         except Exception:
             img_src = ""
     else:
+        # Local files with file:// protocol
         img_src = f"file://{image_path}"
 
     # Extract crop coordinates if provided

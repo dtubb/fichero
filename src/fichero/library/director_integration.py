@@ -16,6 +16,7 @@ from datetime import datetime
 
 from fichero.library.director_output_parser import DirectorOutputParser
 from fichero.library.models import ProcessingResult, ProcessingOutput, ExtractedMetadata
+from fichero.library.metadata_extractors import UniversalExtractor
 from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class DirectorIntegrationService:
         self.library_manager = library_manager
         self.director = director
         self.output_parser = DirectorOutputParser()
+        self.metadata_extractor = UniversalExtractor(library_manager.storage)
 
         # Track active processing tasks
         self.active_tasks: Dict[str, Dict] = {}  # task_id -> {item_id, collection_id, ...}
@@ -951,6 +953,12 @@ class DirectorIntegrationService:
         """Finalize a single item task (synchronous version)"""
         item_id = task_info['item_id']
         output_path = Path(task_info['output_path'])
+        workflow_name = task_info.get('workflow', 'unknown')
+
+        # Skip Interactive_* workflows - they're handled by ToolExecutionService
+        if workflow_name.startswith('Interactive_'):
+            logger.info(f"⏭️  Skipping Interactive workflow (handled by ToolExecutionService): {workflow_name}")
+            return
 
         logger.info(f"📊 Finalizing single item {item_id}")
 
@@ -1103,80 +1111,33 @@ class DirectorIntegrationService:
             }
         }
 
-        # Track all manifests systematically
+        # Dynamically discover all manifests in assets directory
+        # This works with ANY tool, ANY plan, ANY workflow - no hardcoding needed!
         assets_dir = output_path / "assets"
         if assets_dir.exists():
-            # 1. Documents manifest
-            manifests_dir = assets_dir / "manifests"
-            if manifests_dir.exists():
-                docs_manifest = manifests_dir / "documents_manifest.jsonl"
-                if docs_manifest.exists():
-                    metadata['manifests']['documents'] = str(docs_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'build_documents_manifest', docs_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
+            # Recursively find all *_manifest.jsonl files
+            for manifest_file in assets_dir.rglob("*_manifest.jsonl"):
+                # Extract step name from filename
+                # Examples: "enhance_manifest.jsonl" → "enhance"
+                #           "crop_manifest.jsonl" → "crop"
+                #           "documents_manifest.jsonl" → "build_documents_manifest"
+                manifest_name = manifest_file.stem  # e.g., "enhance_manifest"
+                step_name = manifest_name.replace('_manifest', '')  # e.g., "enhance"
 
-            # 2. Crop step
-            cropped_dir = assets_dir / "cropped"
-            if cropped_dir.exists():
-                crop_manifest = cropped_dir / "crop_manifest.jsonl"
-                if crop_manifest.exists():
-                    metadata['manifests']['crop'] = str(crop_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'crop', crop_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
+                # Special case: documents_manifest → build_documents_manifest
+                if step_name == 'documents':
+                    step_name = 'build_documents_manifest'
 
-            # 3. Prepared images step
-            prepared_dir = assets_dir / "prepared"
-            if prepared_dir.exists():
-                prep_manifest = prepared_dir / "prepare_images_manifest.jsonl"
-                if prep_manifest.exists():
-                    metadata['manifests']['prepare_images'] = str(prep_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'prepare_images', prep_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
+                # Add to manifests dict
+                metadata['manifests'][step_name] = str(manifest_file)
 
-            # 4. Transcription step
-            transcriptions_dir = assets_dir / "transcriptions"
-            if transcriptions_dir.exists():
-                trans_manifest = transcriptions_dir / "transcriptions_manifest.jsonl"
-                if trans_manifest.exists():
-                    metadata['manifests']['transcriptions'] = str(trans_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'transcribe', trans_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
-
-            # 5. Word conversion step
-            word_dir = assets_dir / "word"
-            if word_dir.exists():
-                word_manifest = word_dir / "convert_to_word_manifest.jsonl"
-                if word_manifest.exists():
-                    metadata['manifests']['convert_to_word'] = str(word_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'convert_to_word', word_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
-
-            # 6. LLM catalogue step
-            llm_dir = assets_dir / "llm_catalogue"
-            if llm_dir.exists():
-                llm_manifest = llm_dir / "llm_process_manifest.jsonl"
-                if llm_manifest.exists():
-                    metadata['manifests']['llm_catalogue'] = str(llm_manifest)
-                    step_data = self._parse_manifest_for_step(
-                        'catalogue_folder', llm_manifest, output_path
-                    )
-                    if step_data:
-                        metadata['steps'].append(step_data)
+                # Parse manifest to extract step details
+                step_data = self._parse_manifest_for_step(
+                    step_name, manifest_file, output_path
+                )
+                if step_data:
+                    metadata['steps'].append(step_data)
+                    logger.debug(f"📋 Found manifest for step '{step_name}': {manifest_file.name}")
 
         # Track logs
         logs_dir = output_path / "logs"
@@ -1536,7 +1497,7 @@ class DirectorIntegrationService:
             return 'prepared_image'
         elif 'word_output' in parts or 'docx' in parts:
             return 'word_doc'
-        elif 'llm_catalogue' in parts or 'catalogue' in parts.lower():
+        elif 'llm_catalogue' in parts or any('catalogue' in p.lower() for p in parts):
             return 'catalogue'
         elif 'json' in parts:
             return 'json_data'
@@ -1568,9 +1529,11 @@ class DirectorIntegrationService:
     def _extract_metadata_from_outputs(self, processing_result_id: str, collection_id: str,
                                        output_path: Path):
         """
-        Extract searchable metadata from processing outputs
+        Extract searchable metadata from processing outputs using universal extractors
 
-        Reads transcription files and catalogue JSON to create searchable metadata records.
+        Uses the UniversalExtractor to automatically extract and index metadata from
+        all output types (transcriptions, catalogues, images, etc.) with proper
+        source labels and versioning.
 
         Args:
             processing_result_id: ID of the ProcessingResult
@@ -1579,7 +1542,6 @@ class DirectorIntegrationService:
         """
         try:
             logger.info(f"📝 Extracting metadata from outputs for result {processing_result_id}")
-            import json
 
             # Get all ProcessingOutputs for this result
             outputs = self.library_manager.storage.get_processing_outputs(processing_result_id)
@@ -1590,105 +1552,29 @@ class DirectorIntegrationService:
             for output in outputs:
                 try:
                     # Reconstruct full path (output_path is relative to collection folder)
-                    # We need to go up to collection folder and then follow output_path
                     full_output_path = output_path.parent.parent.parent / output.output_path
 
                     if not full_output_path.exists():
                         logger.warning(f"📝 Output file not found: {full_output_path}")
                         continue
 
-                    # Extract based on output type
-                    if output.output_type == 'transcription':
-                        # Read transcription text file
-                        try:
-                            with open(full_output_path, 'r', encoding='utf-8') as f:
-                                text_content = f.read().strip()
+                    # Use universal extractor to extract metadata
+                    extracted_metadata = self.metadata_extractor.extract_from_output(
+                        output_path=full_output_path,
+                        output_type=output.output_type,
+                        collection_id=collection_id,
+                        item_id=output.item_id or "",
+                        processing_output_id=output.id,
+                        step_name=output.step_name
+                    )
 
-                            if text_content:
-                                # Create metadata record for transcription
-                                metadata = ExtractedMetadata(
-                                    processing_output_id=output.id,
-                                    collection_id=collection_id,
-                                    item_id=output.item_id,
-                                    metadata_type='transcription',
-                                    key='text',
-                                    value=text_content,
-                                    indexed=False
-                                )
+                    if extracted_metadata:
+                        metadata_created += len(extracted_metadata)
+                        logger.debug(f"📝 Extracted {len(extracted_metadata)} metadata records from {output.output_type}: {output.source_file}")
 
-                                success = self.library_manager.storage.add_extracted_metadata(metadata)
-                                if success:
-                                    metadata_created += 1
-                                    logger.debug(f"📝 Extracted transcription metadata: {output.source_file}")
-
-                                # Update output record to mark metadata as extracted
-                                output.metadata_extracted = True
-                                self.library_manager.storage.update_processing_output(output)
-
-                        except Exception as e:
-                            logger.warning(f"📝 Failed to read transcription {full_output_path}: {e}")
-
-                    elif output.output_type == 'catalogue' or output.file_format == 'json':
-                        # Parse JSON catalogue
-                        try:
-                            with open(full_output_path, 'r', encoding='utf-8') as f:
-                                catalogue_data = json.load(f)
-
-                            # Extract key fields from catalogue
-                            # Structure varies, but common fields include:
-                            # - title, description, date, location, people, subjects, etc.
-
-                            extracted_fields = []
-
-                            # Common catalogue fields to extract
-                            field_mappings = {
-                                'title': 'title',
-                                'description': 'description',
-                                'date': 'date',
-                                'location': 'location',
-                                'people': 'person_name',
-                                'subjects': 'subject',
-                                'notes': 'notes',
-                                'summary': 'summary'
-                            }
-
-                            # Extract direct fields
-                            for json_key, metadata_key in field_mappings.items():
-                                if json_key in catalogue_data:
-                                    value = catalogue_data[json_key]
-                                    if value:
-                                        # Handle both string and list values
-                                        if isinstance(value, list):
-                                            for item in value:
-                                                if item:
-                                                    extracted_fields.append((metadata_key, str(item)))
-                                        else:
-                                            extracted_fields.append((metadata_key, str(value)))
-
-                            # Create metadata records
-                            for key, value in extracted_fields:
-                                metadata = ExtractedMetadata(
-                                    processing_output_id=output.id,
-                                    collection_id=collection_id,
-                                    item_id=output.item_id,
-                                    metadata_type='catalogue_field',
-                                    key=key,
-                                    value=value,
-                                    indexed=False
-                                )
-
-                                success = self.library_manager.storage.add_extracted_metadata(metadata)
-                                if success:
-                                    metadata_created += 1
-                                    logger.debug(f"📝 Extracted catalogue field: {key}={value[:50]}...")
-
-                            if extracted_fields:
-                                # Update output record to mark metadata as extracted
-                                output.metadata_extracted = True
-                                self.library_manager.storage.update_processing_output(output)
-
-                        except Exception as e:
-                            logger.warning(f"📝 Failed to parse catalogue JSON {full_output_path}: {e}")
+                        # Update output record to mark metadata as extracted
+                        output.metadata_extracted = True
+                        self.library_manager.storage.update_processing_output(output)
 
                 except Exception as e:
                     logger.warning(f"📝 Failed to extract metadata from {output.output_path}: {e}")

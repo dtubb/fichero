@@ -28,7 +28,7 @@ RUBICON_AVAILABLE = False
 
 if PLATFORM_SUPPORTED:
     try:
-        from rubicon.objc import ObjCClass, objc_method, NSObject, SEL, at, NSArray
+        from rubicon.objc import ObjCClass, objc_method, NSObject, SEL, at, NSArray, NSSize
         RUBICON_AVAILABLE = True
         logger.info("Rubicon-ObjC available - macOS NSToolbar support enabled")
     except ImportError as e:
@@ -65,6 +65,7 @@ if RUBICON_AVAILABLE:
                     "library.new_collection",    # New Collection button
                     "collection.import",         # Import dropdown menu
                     "NSToolbarFlexibleSpaceItem",
+                    "library.search",            # Search field
                     "library.settings",          # Settings
                     "library.inspector",         # Show Inspector (desktop)
                     "collection.process",        # Process
@@ -72,7 +73,12 @@ if RUBICON_AVAILABLE:
                 ]
 
                 # Debug: Log what's in toolbar_items
-                logger.debug(f"toolbar_items keys: {list(self.toolbar_items.keys())}")
+                logger.info(f"🔍 toolbar_items keys: {list(self.toolbar_items.keys())}")
+                if "library.search" in self.toolbar_items:
+                    logger.info(f"✅ library.search IS in toolbar_items")
+                else:
+                    logger.error(f"❌ library.search NOT in toolbar_items!")
+                logger.info(f"🔍 Returning default layout: {layout}")
 
                 # Use explicit layout as-is - NSToolbar will handle missing items
                 # Don't filter based on toolbar_items because this method may be called
@@ -111,11 +117,25 @@ if RUBICON_AVAILABLE:
             ):
                 """Create and return toolbar item for identifier"""
                 id_str = str(identifier)
-                logger.debug(f"NSToolbar calling toolbar_itemForItemIdentifier: '{id_str}'")
+                logger.info(f"🔍 NSToolbar requesting item: '{id_str}'")
 
+                # Special handling for search items - NSSearchToolbarItem might need fresh creation
+                if 'search' in id_str.lower():
+                    logger.info(f"🔍 SPECIAL: Creating NSSearchToolbarItem dynamically for: {id_str}")
+                    # Try to get from cache first
+                    if id_str in self.toolbar_items:
+                        cached_item = self.toolbar_items[id_str]
+                        logger.info(f"✅ Found cached search item: {cached_item}")
+                        return cached_item
+                    else:
+                        logger.error(f"❌ Search item not in cache, can't create dynamically without command")
+                        return None
+
+                # Standard items - return from cache
                 if id_str in self.toolbar_items:
-                    logger.debug(f"Returning cached item for: {id_str}")
-                    return self.toolbar_items[id_str]
+                    item = self.toolbar_items[id_str]
+                    logger.info(f"✅ Returning item for: {id_str} (type: {type(item).__name__})")
+                    return item
 
                 logger.warning(f"Toolbar item not found: {id_str}")
                 return None
@@ -362,11 +382,21 @@ class MacToolbarManager:
 
                 # Create items (delegate exists now, so target will be set correctly)
                 for command in commands:
+                    # 🔍 DEBUG POINT 5: Log search command item creation attempt
+                    if command.id.endswith('.search'):
+                        logger.info(f"🔍 ATTEMPTING TO CREATE SEARCH ITEM: {command.id}, type={command.item_type}")
+
                     item = self._create_toolbar_item(command)
                     if item:
                         self._all_items[command.id] = item
                         self._all_command_handlers[command.id] = command
                         logger.debug(f"Pre-created item for: {command.id}")
+
+                        # 🔍 DEBUG POINT 6: Log search item creation success
+                        if command.id.endswith('.search'):
+                            logger.info(f"✅ SEARCH ITEM CREATED SUCCESSFULLY: {command.id}")
+                    elif command.id.endswith('.search'):
+                        logger.error(f"❌ SEARCH ITEM CREATION FAILED: {command.id}")
 
                 # Create dropdown menus if provided
                 if toolbar_menus:
@@ -489,6 +519,19 @@ class MacToolbarManager:
         # Keep reference
         self._toolbar = toolbar
         self._toolbar_initialized = True
+
+        # EXPERIMENTAL: Try manually inserting search item if it wasn't requested by delegate
+        # NSToolbar seems to skip search items in the delegate flow
+        try:
+            search_identifier = "library.search"
+            if search_identifier in self._delegate.toolbar_items:
+                logger.info(f"🔬 EXPERIMENTAL: Attempting to manually insert search item at index 5")
+                toolbar.insertItemWithItemIdentifier_atIndex_(search_identifier, 5)
+                logger.info(f"✅ Successfully inserted search item programmatically")
+            else:
+                logger.warning(f"Search item not in delegate's toolbar_items, skipping manual insertion")
+        except Exception as e:
+            logger.warning(f"Could not manually insert search item: {e}")
 
         # Explicitly validate toolbar items to fix greyed out state
         logger.debug("Validating toolbar items...")
@@ -858,11 +901,16 @@ class MacToolbarManager:
             # Dispatch based on item_type
             item_type = getattr(command, 'item_type', 'button')
 
+            # 🔍 DEBUG POINT 7: Log search item dispatch
+            if command.id.endswith('.search'):
+                logger.info(f"🔍 DISPATCHING SEARCH ITEM: {command.id}, item_type={item_type}")
+
             if item_type == "menu":
                 return self._create_menu_toolbar_item(command)
             elif item_type == "group":
                 return self._create_group_toolbar_item(command)
             elif item_type == "search":
+                logger.info(f"🔍 CALLING _create_search_toolbar_item for {command.id}")
                 return self._create_search_toolbar_item(command)
             elif item_type == "space":
                 return self._create_space_item(command, flexible=False)
@@ -1111,29 +1159,57 @@ class MacToolbarManager:
             NSSearchToolbarItem or None
         """
         try:
+            logger.info(f"🔍 DEBUG POINT 8: INSIDE _create_search_toolbar_item for {command.id}")
+
             # Create NSSearchToolbarItem
             search_item = NSSearchToolbarItem.alloc().initWithItemIdentifier(command.id)
+            logger.info(f"🔍 NSSearchToolbarItem created: {search_item}")
 
             # Set labels and tooltip
             self._set_item_labels_and_tooltip(search_item, command)
 
+            # Get the search field from the toolbar item
+            search_field = search_item.searchField
+            logger.info(f"🔍 Search field obtained: {search_field}")
+
             # Set placeholder text
             if command.search_placeholder:
-                search_field = search_item.searchField
                 search_field.placeholderString = command.search_placeholder
+                logger.info(f"🔍 Placeholder set: {command.search_placeholder}")
 
-            # Set action if provided
+            # Set visibility priority (higher = more likely to stay visible when window narrows)
+            if hasattr(command, 'visibility_priority') and command.visibility_priority:
+                search_item.setVisibilityPriority_(command.visibility_priority)
+                logger.info(f"🔍 Visibility priority set: {command.visibility_priority}")
+            else:
+                # Default high priority for search field
+                search_item.setVisibilityPriority_(600)
+                logger.info(f"🔍 Default visibility priority set: 600")
+
+            # CRITICAL: Set preferredWidthForSearchField (NSSearchToolbarItem-specific property)
+            # This is the proper way to size NSSearchToolbarItem according to Apple docs
+            # NOTE: NSSearchToolbarItem does NOT support setMinSize/setMaxSize (those are for regular NSToolbarItem)
+            search_item.setPreferredWidthForSearchField_(250.0)  # 250pt preferred width
+            logger.info(f"🔍 Preferred search field width set: 250pt")
+
+            # Set action on the search field (not the toolbar item)
             if command.search_action:
                 # Create handler for search action
                 handler = _ActionHandler.alloc().init()
-                handler._cmd = command  # FIXED: Use _cmd to match ActionHandler class definition
-                search_item.setTarget_(handler)
-                search_item.setAction_(SEL("handleCommand:"))
+                handler._cmd = command
+
+                # Set action on the search field itself
+                search_field.setTarget_(handler)
+                search_field.setAction_(SEL("handleCommand:"))
+
+                # Also handle search text changes
+                search_field.setDelegate_(handler)
 
                 # Store handler to prevent garbage collection
-                self._all_command_handlers[command.id] = handler  # FIXED: Store handler, not command
+                self._all_command_handlers[command.id] = handler
+                logger.info(f"🔍 Action handler configured")
 
-            logger.debug(f"Created search toolbar item for command: {command.id}")
+            logger.info(f"✅ Search toolbar item created successfully for: {command.id}")
             return search_item
 
         except Exception as e:

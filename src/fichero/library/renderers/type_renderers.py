@@ -110,10 +110,14 @@ class ImageRenderer(BaseRenderer):
                 }
             ]
 
+            # Get filename for description
+            is_url = isinstance(context.file_path, str) and context.file_path.startswith(('http://', 'https://'))
+            filename = context.file_path.split('/')[-1] if is_url else context.file_path.name
+
             return RenderedOutput(
                 html=html,
                 title=context.step_name,
-                description=f'Image: {context.file_path.name}',
+                description=f'Image: {filename}',
                 toolbar_commands=toolbar_commands  # Renderer declares its toolbar needs
             )
 
@@ -125,20 +129,27 @@ class ImageRenderer(BaseRenderer):
 
         # Image
         if context.show_content:
+            # Check if file_path is a URL or local file
+            is_url = isinstance(context.file_path, str) and context.file_path.startswith(('http://', 'https://'))
+            img_src = context.file_path if is_url else f'file://{context.file_path}'
+
             html_parts.append(f'<div class="image-container">')
-            html_parts.append(f'<img src="file://{context.file_path}" style="max-width: 100%; height: auto;" />')
+            html_parts.append(f'<img src="{img_src}" style="max-width: 100%; height: auto;" />')
             html_parts.append('</div>')
 
         # Metadata
         if context.show_metadata:
-            metadata = self.get_image_metadata(context.file_path)
-            html_parts.append('<div class="metadata">')
-            html_parts.append('<h3>Image Info</h3>')
-            html_parts.append('<table>')
-            for key, value in metadata.items():
-                html_parts.append(f'<tr><th>{key}</th><td>{value}</td></tr>')
-            html_parts.append('</table>')
-            html_parts.append('</div>')
+            # Only get image metadata for local files (not URLs)
+            is_url = isinstance(context.file_path, str) and context.file_path.startswith(('http://', 'https://'))
+            if not is_url:
+                metadata = self.get_image_metadata(context.file_path)
+                html_parts.append('<div class="metadata">')
+                html_parts.append('<h3>Image Info</h3>')
+                html_parts.append('<table>')
+                for key, value in metadata.items():
+                    html_parts.append(f'<tr><th>{key}</th><td>{value}</td></tr>')
+                html_parts.append('</table>')
+                html_parts.append('</div>')
 
             # Manifest data
             if context.manifest_entry:
@@ -147,10 +158,14 @@ class ImageRenderer(BaseRenderer):
                 html_parts.append(json.dumps(context.manifest_entry, indent=2))
                 html_parts.append('</pre>')
 
+        # Get filename for description
+        is_url = isinstance(context.file_path, str) and context.file_path.startswith(('http://', 'https://'))
+        filename = context.file_path.split('/')[-1] if is_url else context.file_path.name
+
         return RenderedOutput(
             html='\n'.join(html_parts),
             title=context.step_name,
-            description=f'Image: {context.file_path.name}'
+            description=f'Image: {filename}'
         )
 
     def render_cli(self, context: RenderContext) -> RenderedOutput:

@@ -104,9 +104,11 @@ class FolderProcessor:
         Returns:
             List of top-level folder paths that contain images anywhere in their tree
         """
-        image_extensions = {'.jpg', '.jpeg', '.png', '.tif', '.tiff', '.heic', '.jxl'}
+        # Import supported extensions from central constants
+        from fichero.constants import SUPPORTED_FILE_EXTENSIONS
+        image_extensions = SUPPORTED_FILE_EXTENSIONS
         folders_with_images = []
-        
+
         def _folder_has_images_recursive(folder: Path) -> bool:
             """Recursively check if folder contains any images"""
             try:

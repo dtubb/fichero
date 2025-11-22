@@ -23,7 +23,7 @@ except ImportError:
 tool_logger = get_tool_logger('image_format')
 
 # Supported input formats (RAW formats disabled for document processing)
-InputFormat = Literal['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic', 'jxl']  # removed: 'raw', 'cr2', 'nef', 'arw'
+InputFormat = Literal['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic', 'jxl', 'pdf']  # removed: 'raw', 'cr2', 'nef', 'arw'
 # Supported output formats
 OutputFormat = Literal['jpg', 'png', 'jxl']
 # Type alias for backward compatibility
@@ -38,6 +38,7 @@ SUPPORTED_EXTENSIONS = {
     '.tiff': 'process_fn',
     '.heic': 'process_fn',  # requires heif-convert system tool
     '.jxl': 'process_fn',
+    '.pdf': 'process_fn',   # requires pdf2image + poppler
     # Removed RAW formats for document processing:
     # '.raw': 'process_fn',
     # '.cr2': 'process_fn',
@@ -73,11 +74,25 @@ def check_heif_installed() -> bool:
     """Check if heif-convert is installed."""
     return shutil.which('heif-convert') is not None
 
-def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
+def check_pdf2image_available() -> bool:
+    """Check if pdf2image library is available."""
+    try:
+        import pdf2image
+        return True
+    except ImportError:
+        return False
+
+def load_image(file_path: Union[str, Path]) -> Tuple[Union[Image.Image, List[Image.Image]], dict]:
     """
-    Load an image file, handling various formats including HEIC and JXL.
+    Load an image file, handling various formats including HEIC, JXL, and PDF.
     RAW formats are no longer supported (disabled for document processing).
-    Returns (image, metadata) where metadata contains format info and any errors.
+
+    For PDF files, returns a LIST of images (one per page).
+    For other formats, returns a single image.
+
+    Returns (image_or_images, metadata) where:
+    - image_or_images is either Image.Image or List[Image.Image]
+    - metadata contains format info, page count (for PDFs), and any errors
     """
     file_path = Path(file_path)
     metadata = {
@@ -86,13 +101,62 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
     }
     
     try:
+        # Handle PDF format - Convert all pages to images
+        if file_path.suffix.lower() == '.pdf':
+            try:
+                if not check_pdf2image_available():
+                    error_msg = "PDF support requires pdf2image library (not available on mobile platforms)"
+                    metadata["errors"].append(error_msg)
+                    raise ValueError(error_msg)
+
+                from pdf2image import convert_from_path
+
+                tool_logger.info(f"Converting PDF to images: {file_path.name}")
+
+                # Convert all pages to PIL images at 300 DPI
+                images = convert_from_path(
+                    str(file_path),
+                    dpi=300,  # High quality for archival/OCR
+                    fmt='png',  # Lossless intermediate format
+                    thread_count=4,  # Parallel processing
+                    use_pdftocairo=True  # Better quality than pdftoppm
+                )
+
+                tool_logger.info(f"✅ Converted {len(images)} pages from PDF")
+
+                # Add PDF-specific metadata
+                metadata["total_pages"] = len(images)
+                metadata["is_multipage"] = len(images) > 1
+                metadata["dpi"] = 300
+
+                # Try to extract PDF metadata
+                try:
+                    from pdf2image import pdfinfo_from_path
+                    info = pdfinfo_from_path(str(file_path))
+                    metadata["pdf_info"] = {
+                        "pages": info.get("Pages", len(images)),
+                        "producer": info.get("Producer", ""),
+                        "creator": info.get("Creator", "")
+                    }
+                except Exception as e:
+                    tool_logger.warning(f"Could not extract PDF metadata: {e}")
+
+                # Return list of images for multi-page PDFs
+                return images, metadata
+
+            except Exception as e:
+                error_msg = f"PDF processing failed: {str(e)}"
+                metadata["errors"].append(error_msg)
+                tool_logger.error(error_msg)
+                raise
+
         # Handle RAW formats - COMMENTED OUT: Not needed for document processing
-        if file_path.suffix.lower() in ['.raw', '.cr2', '.nef', '.arw']:
+        elif file_path.suffix.lower() in ['.raw', '.cr2', '.nef', '.arw']:
             metadata["errors"].append("RAW format support has been disabled for document processing")
             raise ValueError("RAW format support has been disabled for document processing")
             # try:
             #     with rawpy.imread(str(file_path)) as raw:
-            #         rgb = raw.postprocess(use_camera_wb=True, half_size=False, 
+            #         rgb = raw.postprocess(use_camera_wb=True, half_size=False,
             #                             no_auto_bright=False, output_bps=8)
             #         image = Image.fromarray(rgb)
             #         metadata["raw_info"] = {
@@ -105,7 +169,7 @@ def load_image(file_path: Union[str, Path]) -> Tuple[Image.Image, dict]:
             #     metadata["errors"].append(f"RAW processing failed: {str(e)}")
             #     # Fall back to PIL
             #     image = Image.open(file_path)
-        
+
         # Handle HEIC format - PARTIALLY DISABLED: pillow_heif removed
         elif file_path.suffix.lower() == '.heic':
             try:

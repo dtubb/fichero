@@ -20,6 +20,8 @@ from .cache_commands import CacheCommands
 from .outputs_commands import OutputsCommands
 from .step_commands import StepCommands
 from .metadata_commands import MetadataCommands
+from .search_commands import SearchCommands
+from .bulk_metadata_commands import BulkMetadataCommands
 
 
 class LibraryCommands(BaseLibraryCommands):
@@ -44,6 +46,8 @@ class LibraryCommands(BaseLibraryCommands):
         self.outputs_commands = OutputsCommands(app_initializer, base_commands=self)
         self.step_commands = StepCommands(app_initializer, base_commands=self)
         self.metadata_commands = MetadataCommands(app_initializer, base_commands=self)
+        self.search_commands = SearchCommands(app_initializer, base_commands=self)
+        self.bulk_metadata_commands = BulkMetadataCommands(app_initializer, base_commands=self)
 
         # Register all commands
         self._register_commands()
@@ -86,3 +90,9 @@ class LibraryCommands(BaseLibraryCommands):
 
         # Metadata query and management commands
         self.metadata_commands.register_commands(self.app)
+
+        # Full-text search commands
+        self.search_commands.register_commands(self.app)
+
+        # Bulk metadata operations
+        self.bulk_metadata_commands.register_commands(self.app)

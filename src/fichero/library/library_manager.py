@@ -27,6 +27,7 @@ try:
     from fichero.library.icon_generator import IconGenerator
     from fichero.library.director_output_parser import DirectorOutputParser, ProcessingStep
     from fichero.library.metadata_api import LibraryMetadataAPI
+    from fichero.library.search_service import SearchService, SearchResponse
 except ImportError:
     try:
         from .models import Collection, CollectionItem, ProcessingResult, ExternalPath
@@ -36,6 +37,7 @@ except ImportError:
         from .icon_generator import IconGenerator
         from .director_output_parser import DirectorOutputParser, ProcessingStep
         from .metadata_api import LibraryMetadataAPI
+        from .search_service import SearchService, SearchResponse
     except ImportError:
         # Direct import for testing
         import models
@@ -92,6 +94,9 @@ class LibraryManager:
         # Initialize metadata API for storing step-level metadata
         self.metadata_api = LibraryMetadataAPI(self.storage)
 
+        # Initialize search service for full-text and metadata search
+        self.search_service = SearchService(db_path)
+
         # Store library path for file operations
         self.library_path = db_path.parent
 
@@ -105,7 +110,108 @@ class LibraryManager:
         # DISABLED: Auto-populate demo collections on first run
         # self._demo_setup_pending = True  # Will be handled in get_all_collections
         self._demo_setup_pending = False  # Demo collections disabled by user request
-    
+
+    # ===== UTILITY METHODS =====
+
+    @staticmethod
+    def _is_url(source: str) -> bool:
+        """
+        Check if a source string is a URL
+
+        Args:
+            source: Source string to check
+
+        Returns:
+            True if source is a valid URL with http/https protocol
+        """
+        if not source or not isinstance(source, str):
+            return False
+
+        # Protocol-based detection (most reliable)
+        return source.startswith(('http://', 'https://'))
+
+    @staticmethod
+    def _validate_url(url: str) -> bool:
+        """
+        Validate URL format
+
+        Args:
+            url: URL string to validate
+
+        Returns:
+            True if URL is valid format
+        """
+        if not url or not isinstance(url, str):
+            return False
+
+        # Must start with http:// or https://
+        if not url.startswith(('http://', 'https://')):
+            return False
+
+        # Basic format check
+        import re
+        url_pattern = re.compile(
+            r'^https?://'  # http:// or https://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+            r'localhost|'  # localhost...
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+        return bool(url_pattern.match(url))
+
+    @staticmethod
+    def _construct_iiif_url(base_url: str, source_file: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Construct IIIF Image API URL from base URL and source filename.
+        Supports multiple IIIF providers with different URL patterns.
+
+        Args:
+            base_url: Base archive/item URL
+            source_file: Relative path to source image file
+            metadata: Optional metadata dict that may contain IIIF info
+
+        Returns:
+            Full IIIF Image API URL for the source file
+        """
+        # Clean inputs
+        base_url = base_url.rstrip('/')
+        source_file = source_file.lstrip('/')
+
+        # Check if metadata contains a direct image_url (some providers give us this)
+        if metadata and 'image_url' in metadata:
+            # Use the provided image URL directly if available
+            return metadata['image_url']
+
+        # Detect provider and construct appropriate IIIF URL
+        # Provider detection based on domain
+        if 'eap.bl.uk' in base_url or 'images.eap.bl.uk' in base_url:
+            # British Library Endangered Archives Programme
+            # Pattern: {base_url}/iiif/{filename}/full/full/0/default.jpg
+            return f"{base_url}/iiif/{source_file}/full/full/0/default.jpg"
+
+        elif 'iiif.io' in base_url:
+            # Generic IIIF server
+            # Pattern: {base_url}/{filename}/full/full/0/default.jpg
+            return f"{base_url}/{source_file}/full/full/0/default.jpg"
+
+        elif 'gallica.bnf.fr' in base_url:
+            # Gallica (French National Library)
+            # Pattern: {base_url}/iiif/{filename}/full/full/0/default.jpg
+            return f"{base_url}/iiif/{source_file}/full/full/0/default.jpg"
+
+        elif 'digitalcollections.nypl.org' in base_url:
+            # New York Public Library
+            # Pattern: {base_url}/iiif/2/{filename}/full/full/0/default.jpg
+            return f"{base_url}/iiif/2/{source_file}/full/full/0/default.jpg"
+
+        else:
+            # Default: assume standard IIIF Image API 2.1 pattern
+            # This should work for most IIIF providers
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Using default IIIF pattern for unknown provider: {base_url}")
+            return f"{base_url}/iiif/{source_file}/full/full/0/default.jpg"
+
     # ===== COLLECTION MANAGEMENT =====
     
     async def add_collection(self, 
@@ -598,7 +704,21 @@ class LibraryManager:
             if operation == "link":
                 # Just reference the source
                 item.source_path = source
-                item.storage_type = "external"
+
+                # Determine storage_type by inspecting source format (protocol-based)
+                # This is more reliable than trusting item_type parameter
+                if self._is_url(source):
+                    # Source is a URL - validate and store as URL type
+                    if not self._validate_url(source):
+                        logger.warning(f"Invalid URL format: {source}")
+                        # Still accept it but log warning
+                    item.storage_type = "url"
+                    logger.debug(f"Detected URL item from source: {source[:50]}...")
+                else:
+                    # Source is a filesystem path
+                    item.storage_type = "external"
+                    logger.debug(f"Detected external item from source: {source}")
+
             elif operation in ["copy", "move"]:
                 # Copy or move to library
                 local_path = await self._add_item_to_library(collection, source, name, operation)
@@ -1379,12 +1499,23 @@ class LibraryManager:
                                             file_type = 'unknown'
 
                                         logger.debug(f"Step '{step_name}': Adding {file_type} file: {full_output_path.name}")
+
+                                        # Enrich manifest with source paths using library backend
+                                        enriched_manifest = await self.get_step_data(
+                                            collection_id=item.collection_id,
+                                            item_id=item_id,
+                                            output_id=latest_result.id if latest_result else "",
+                                            step_name=step_name,
+                                            output_file=full_output_path
+                                        )
+
                                         processing_steps.append(ProcessingStep(
                                             step_number=len(processing_steps) + 1,
                                             step_name=step_name,
                                             file_path=full_output_path,
                                             file_type=file_type,
-                                            description=f"Status: {status}"
+                                            description=f"Status: {status}",
+                                            manifest_entry=enriched_manifest
                                         ))
                                     else:
                                         logger.debug(f"Output file not found: {full_output_path}")
@@ -1449,35 +1580,58 @@ class LibraryManager:
             if not workflow and latest_result.workflow:
                 workflow = latest_result.workflow
 
-            # ALWAYS add original image/file as the FIRST step (if source_path exists and is a file)
-            if source_path and source_path.exists() and source_path.is_file() and not is_folder:
-                # Determine file type from extension
-                ext = source_path.suffix.lower()
-                if ext in {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.gif', '.bmp'}:
-                    file_type = 'image'
-                elif ext in {'.txt', '.json', '.md', '.log', '.csv', '.xml'}:
-                    file_type = 'text'
-                elif ext in {'.docx', '.doc'}:
-                    file_type = 'document'
-                elif ext == '.pdf':
-                    file_type = 'document'
-                else:
-                    file_type = 'unknown'
+            # ALWAYS add original image/file as the FIRST step
+            # For local files: check exists() and is_file()
+            # For URLs: check storage_type and valid URL format
+            if source_path and not is_folder:
+                # Check if this is a URL item
+                is_url_item = (item.storage_type == 'url' or
+                               (isinstance(item.source_path, str) and
+                                item.source_path.startswith(('http://', 'https://'))))
 
-                # Create original step and prepend to processing_steps
-                original_step = ProcessingStep(
-                    step_number=0,  # Original is step 0
-                    step_name="Original",
-                    file_path=source_path,
-                    file_type=file_type,
-                    description="Original source file"
-                )
+                # For local files: verify existence
+                # For URLs: skip filesystem checks
+                should_add_original = False
+                file_path_for_step = None
 
-                # Renumber existing steps and prepend original
-                for step in processing_steps:
-                    step.step_number += 1
-                processing_steps.insert(0, original_step)
-                logger.debug(f"Added original file as first step: {source_path.name}")
+                if is_url_item:
+                    should_add_original = True
+                    file_path_for_step = item.source_path  # Use URL string directly, not Path
+                    file_type = 'image'  # IIIF URLs are typically images
+                    logger.debug(f"Adding original URL as first step: {item.source_path}")
+                elif source_path.exists() and source_path.is_file():
+                    should_add_original = True
+                    file_path_for_step = source_path  # Use Path object
+
+                    # Determine file type from extension
+                    ext = source_path.suffix.lower()
+                    if ext in {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.gif', '.bmp'}:
+                        file_type = 'image'
+                    elif ext in {'.txt', '.json', '.md', '.log', '.csv', '.xml'}:
+                        file_type = 'text'
+                    elif ext in {'.docx', '.doc'}:
+                        file_type = 'document'
+                    elif ext == '.pdf':
+                        file_type = 'document'
+                    else:
+                        file_type = 'unknown'
+                    logger.debug(f"Adding original file as first step: {source_path.name}")
+
+                if should_add_original:
+                    # Create original step and prepend to processing_steps
+                    original_step = ProcessingStep(
+                        step_number=0,  # Original is step 0
+                        step_name="Original",
+                        file_path=file_path_for_step,  # Can be Path or URL string
+                        file_type=file_type,
+                        description="Original source file"
+                    )
+
+                    # Renumber existing steps and prepend original
+                    for step in processing_steps:
+                        step.step_number += 1
+                    processing_steps.insert(0, original_step)
+                    logger.debug(f"Added original {'URL' if is_url_item else 'file'} as first step")
 
             return {
                 'item': item,
@@ -2529,6 +2683,267 @@ class LibraryManager:
 
         return full_path if full_path.exists() else None
 
+    async def get_step_data(
+        self,
+        collection_id: str,
+        item_id: str,
+        output_id: str,
+        step_name: str,
+        output_file: Path
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Load and enrich step manifest data with resolved paths.
+
+        This is the smart backend method that does all path resolution.
+        Renderers should be dumb and just use the paths provided.
+
+        Args:
+            collection_id: Collection ID
+            item_id: Item ID
+            output_id: Output/processing result ID
+            step_name: Tool/step name (e.g., 'crop', 'enhance')
+            output_file: Path to the output file being rendered
+
+        Returns:
+            Enriched manifest entry dictionary with:
+            - Original manifest fields (source, outputs, details, etc.)
+            - source_image_path: Path object to source image (resolved by library)
+            - output_path: Path object to output file
+
+            Returns None if manifest entry not found.
+        """
+        import json
+
+        # Map tool names to their manifest locations
+        # Format: (subfolder, manifest_filename)
+        TOOL_MANIFEST_MAP = {
+            "crop": ("cropped", "crop_manifest.jsonl"),
+            "rotate": ("rotated", "rotate_manifest.jsonl"),
+            "enhance": ("enhanced", "enhance_manifest.jsonl"),
+            "transcribe": ("transcriptions", "transcribe_manifest.jsonl"),
+            "prepare_images": ("prepared", "prepare_images_manifest.jsonl"),
+            "segment": ("segmented", "segment_manifest.jsonl"),
+            "remove_background": ("no_background", "remove_background_manifest.jsonl"),
+            "llm_process": ("llm_catalogue", "llm_process_manifest.jsonl"),
+        }
+
+        # Normalize tool name
+        tool_name_lower = step_name.lower()
+
+        if tool_name_lower not in TOOL_MANIFEST_MAP:
+            logger.debug(f"No manifest mapping for tool: {step_name}")
+            return None
+
+        try:
+            # Navigate up to find the item directory (contains 'assets' folder)
+            current_path = output_file.parent
+            item_dir = None
+
+            # Walk up until we find a directory containing 'assets'
+            for _ in range(5):  # Safety limit
+                if (current_path / 'assets').exists():
+                    item_dir = current_path
+                    break
+                current_path = current_path.parent
+                if current_path == current_path.parent:  # Reached root
+                    break
+
+            if not item_dir:
+                logger.warning(f"Could not find item directory for: {output_file}")
+                return None
+
+            logger.info(f"Found item_dir: {item_dir}")
+
+            # Build path to manifest file
+            subfolder, manifest_filename = TOOL_MANIFEST_MAP[tool_name_lower]
+            manifest_file = item_dir / "assets" / subfolder / manifest_filename
+
+            logger.info(f"Looking for manifest at: {manifest_file}")
+
+            if not manifest_file.exists():
+                logger.warning(f"Manifest file not found: {manifest_file}")
+                return None
+
+            # Get the output filename to match against manifest entries
+            output_filename = output_file.name
+            logger.info(f"Searching for output filename: {output_filename}")
+
+            # Read manifest and find matching entry
+            with open(manifest_file, 'r') as f:
+                for line_num, line in enumerate(f, 1):
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line.strip())
+
+                        # Try matching by 'outputs' array (new format)
+                        entry_outputs = entry.get('outputs', [])
+                        if entry_outputs:
+                            for output_path in entry_outputs:
+                                if Path(output_path).name == output_filename:
+                                    logger.info(f"Found manifest entry at line {line_num} via outputs field")
+                                    # Enrich and return
+                                    return await self._enrich_manifest_entry(
+                                        entry, item_dir, tool_name_lower, output_file, collection_id, item_id
+                                    )
+
+                        # Try matching by 'path' field (old format)
+                        entry_path = entry.get('path', '')
+                        if entry_path and Path(entry_path).name == output_filename:
+                            logger.info(f"Found manifest entry at line {line_num} via path field")
+                            return await self._enrich_manifest_entry(
+                                entry, item_dir, tool_name_lower, output_file, collection_id, item_id
+                            )
+
+                        # Try matching by 'source' field
+                        entry_source = entry.get('source', '')
+                        if entry_source and Path(entry_source).name == output_filename:
+                            logger.info(f"Found manifest entry at line {line_num} via source field")
+                            return await self._enrich_manifest_entry(
+                                entry, item_dir, tool_name_lower, output_file, collection_id, item_id
+                            )
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Invalid JSON at line {line_num}: {e}")
+                        continue
+
+            logger.warning(f"No matching entry found in manifest for: {output_filename}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error loading step data for {step_name}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+
+    async def _enrich_manifest_entry(
+        self,
+        entry: Dict[str, Any],
+        item_dir: Path,
+        tool_name: str,
+        output_file: Path,
+        collection_id: str,
+        item_id: str
+    ) -> Dict[str, Any]:
+        """
+        Enrich manifest entry with resolved source image path.
+
+        The library backend is responsible for all path resolution.
+        This method resolves the source path for the crop tool by finding
+        the original item file in the collection's items directory.
+
+        Args:
+            entry: Raw manifest entry from JSONL
+            item_dir: Item output directory path
+            tool_name: Tool name (crop, rotate, etc)
+            output_file: Path to output file being rendered
+            collection_id: Collection ID
+            item_id: Item ID
+
+        Returns:
+            Enriched manifest entry with 'source_image_path' and 'output_path' fields
+        """
+        import copy
+        enriched = copy.deepcopy(entry)
+
+        # Add output path (easy)
+        enriched['output_path'] = output_file
+
+        # Get source filename from manifest
+        source_file = entry.get('source', '')
+        if not source_file:
+            logger.warning("No source file in manifest entry")
+            return enriched
+
+        # Define tools that need original source image resolution
+        # These tools all work with the original collection item file
+        IMAGE_TOOLS = ['crop', 'rotate', 'enhance', 'remove_background', 'describe', 'split']
+
+        # Resolve source path based on tool type
+        if tool_name in IMAGE_TOOLS:
+            # For image tools: source is the original collection item file
+            # Look up the actual item to get its source_path
+            item = await self.get_item(item_id)
+            if not item:
+                logger.warning(f"Could not find item {item_id} to resolve source path for {tool_name}")
+                return enriched
+
+            # Check if this is a URL item
+            is_url_item = (item.storage_type == 'url' or
+                          (isinstance(item.source_path, str) and
+                           item.source_path.startswith(('http://', 'https://'))))
+
+            if is_url_item:
+                # For URL items: construct IIIF image URL from base URL + source filename
+                base_url = item.source_path
+                if not isinstance(base_url, str):
+                    base_url = str(base_url)
+
+                # Construct IIIF URL using helper method (supports multiple providers)
+                iiif_url = self._construct_iiif_url(base_url, source_file, item.metadata)
+
+                enriched['source_image_path'] = iiif_url
+                logger.info(f"Constructed IIIF URL for {tool_name}: {iiif_url}")
+            else:
+                # For local items: use filesystem path resolution
+                # Get source path from item, or fall back to collection items directory
+                if item.source_path:
+                    # Item has source_path set - use it directly
+                    item_source = Path(item.source_path)
+                else:
+                    # Item has no source_path - try to find it in collection's items directory
+                    logger.debug(f"Item {item_id} has no source_path, searching in collection items directory")
+
+                    # Navigate from item_dir up to find collection root
+                    current = item_dir
+                    collection_root = None
+                    for _ in range(5):
+                        current = current.parent
+                        if current.name == 'outputs':
+                            collection_root = current.parent
+                            break
+
+                    if not collection_root:
+                        logger.warning(f"Could not find collection root from {item_dir}")
+                        return enriched
+
+                    # Search for item folder in collection's items directory
+                    items_dir = collection_root / 'items'
+                    if not items_dir.exists():
+                        logger.warning(f"Items directory not found: {items_dir}")
+                        return enriched
+
+                    # Try to match by item name
+                    item_folder = None
+                    for folder in items_dir.iterdir():
+                        if folder.is_dir() and not folder.name.startswith('.'):
+                            # Found a potential item folder
+                            item_folder = folder
+                            logger.debug(f"Found item folder: {folder.name}")
+                            break
+
+                    if not item_folder:
+                        logger.warning(f"No item folder found in {items_dir}")
+                        return enriched
+
+                    item_source = item_folder
+
+                # Build source path: item_source/{source_file}
+                source_path = item_source / source_file
+
+                if source_path.exists():
+                    enriched['source_image_path'] = source_path
+                    logger.info(f"Resolved {tool_name} source path: {source_path}")
+                else:
+                    logger.warning(f"{tool_name} source image not found at: {source_path}")
+                    # Still add the path - renderer can handle missing file
+                    enriched['source_image_path'] = source_path
+        else:
+            # For other tools: source might be from previous step
+            # Add resolution logic here when needed for other tool types
+            logger.debug(f"Source path resolution not implemented for tool: {tool_name}")
+
+        return enriched
+
     def delete_processing_result(self, result_id: str) -> bool:
         """
         Delete a processing result from database and filesystem
@@ -2573,5 +2988,80 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"Error deleting processing result {result_id}: {e}")
             return False
+
+    # Search methods
+
+    def search(self,
+               query: str,
+               collection_ids: List[str] = None,
+               schema_types: List[str] = None,
+               source_labels: List[str] = None,
+               metadata_filters: Dict[str, Any] = None,
+               limit: int = 20,
+               offset: int = 0) -> SearchResponse:
+        """
+        Search library content with full-text and metadata filtering
+
+        Args:
+            query: Search query text
+            collection_ids: Filter by specific collections
+            schema_types: Filter by metadata types (transcription, catalogue, etc.)
+            source_labels: Filter by sources (ai_qwen, human_corrected, etc.)
+            metadata_filters: Filter by metadata fields (e.g., {"language": "es", "confidence": ">0.8"})
+            limit: Maximum results
+            offset: Pagination offset
+
+        Returns:
+            SearchResponse with ranked results
+
+        Examples:
+            # Simple text search
+            results = library.search("John Smith Madrid")
+
+            # Search Spanish transcriptions only
+            results = library.search(
+                "documento legal",
+                schema_types=["transcription"],
+                metadata_filters={"language": "es"}
+            )
+
+            # Search high-confidence results in specific collection
+            results = library.search(
+                "contract",
+                collection_ids=[collection_id],
+                metadata_filters={"confidence": ">=0.9"}
+            )
+        """
+        return self.search_service.search(
+            query=query,
+            collection_ids=collection_ids,
+            schema_types=schema_types,
+            source_labels=source_labels,
+            metadata_filters=metadata_filters,
+            limit=limit,
+            offset=offset
+        )
+
+    def rebuild_search_index(self, collection_id: str = None) -> bool:
+        """
+        Rebuild full-text search index
+
+        Args:
+            collection_id: Optional collection to rebuild (None = all)
+
+        Returns:
+            True if successful
+        """
+        logger.info(f"Rebuilding search index" + (f" for collection {collection_id}" if collection_id else ""))
+        return self.storage.rebuild_search_index(collection_id)
+
+    def get_search_stats(self) -> Dict[str, Any]:
+        """
+        Get search index statistics
+
+        Returns:
+            Dict with counts by schema type and collection
+        """
+        return self.storage.get_search_index_stats()
 
  

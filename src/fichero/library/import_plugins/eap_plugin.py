@@ -79,7 +79,7 @@ class EAPImportPlugin(ImportPlugin):
         url: str,
         collection_name: str,
         collection_description: str = "",
-        max_items: int = 1000,
+        max_items: Optional[int] = None,
         download_mode: str = "link",  # "link" or "download"
         timeout: int = 600,
         collection_type: str = "local",  # "local" or "external"
@@ -94,7 +94,7 @@ class EAPImportPlugin(ImportPlugin):
             url: EAP project/archive/collection URL
             collection_name: Name for the new collection
             collection_description: Optional description
-            max_items: Maximum number of items to process (default: 1000)
+            max_items: Maximum number of items to process (default: None = unlimited)
             download_mode: "link" to store URLs only, "download" to download files (default: "link")
             timeout: Timeout in seconds (default: 10 minutes)
             collection_type: "local" or "external" collection type
@@ -647,66 +647,64 @@ class EAPImportPlugin(ImportPlugin):
                 # Parse HTML
                 soup = BeautifulSoup(html, 'html.parser')
 
-                # Find all links to archive-file pages
-                archive_links = soup.find_all('a', href=re.compile(r'/archive-file/'))
+                # Try Pattern A: Direct archive-file links on page
+                archive_files = self._extract_archive_links_from_page(soup, collection_id)
 
-                for link in archive_links[:max_items]:
-                    if self.is_cancelled:
-                        break
+                if archive_files:
+                    # Pattern A worked - found direct links
+                    logger.info(f"Pattern A: Found {len(archive_files)} archive files directly on page")
+                else:
+                    # Pattern B: Try finding "File" filter link
+                    logger.info("Pattern A failed - trying Pattern B (faceted search)")
 
-                    try:
-                        href = link.get('href')
-                        if not href:
-                            continue
+                    # Look for filter link with text like "File (2,145)"
+                    file_filter_link = None
 
-                        # Extract archive ID from URL (e.g., /archive-file/EAP1049-1-2-1)
-                        match = re.search(r'/archive-file/(EAP[^/\?]+)', href)
-                        if match:
-                            archive_id = match.group(1)
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
+                        text = link.get_text(strip=True)
 
-                            # Filter by collection/project ID if specified
-                            # Archive IDs follow patterns like:
-                            # - EAP1477-1-1-1, EAP1477-1-1-2 for collection EAP1477-1-1
-                            # - EAP1477-1-2-1, EAP1477-1-2-2 for collection EAP1477-1-2
-                            # - EAP1477-1-1, EAP1477-1-2 for project EAP1477
-                            if collection_id:
-                                # Check if archive ID starts with collection ID
-                                if not archive_id.startswith(collection_id):
-                                    logger.debug(f"Skipping archive {archive_id} (doesn't match {collection_id})")
-                                    continue
+                        # Look for links with "p_archive_type:File" or "p_archive_type%3AFile"
+                        if 'p_archive_type' in href and ('File' in href or 'File' in text):
+                            file_filter_link = href
+                            logger.info(f"Found File filter link: {href}")
+                            logger.info(f"Filter link text: {text}")
+                            break
 
-                            # Get archive name from link text or use ID
-                            archive_name = link.get_text(strip=True) or archive_id
+                    if file_filter_link:
+                        # Convert relative URL to absolute
+                        if file_filter_link.startswith('/'):
+                            filter_url = f"https://eap.bl.uk{file_filter_link}"
+                        elif file_filter_link.startswith('http'):
+                            filter_url = file_filter_link
+                        else:
+                            filter_url = f"https://eap.bl.uk/{file_filter_link}"
 
-                            # Construct manifest URL
-                            manifest_url = f"https://eap.bl.uk/archive-file/{archive_id}/manifest"
+                        logger.info(f"Following filter to: {filter_url}")
 
-                            archive_files.append({
-                                'id': archive_id,
-                                'name': archive_name,
-                                'manifest_url': manifest_url
-                            })
+                        # Follow pagination to get all results
+                        archive_files = await self._follow_pagination(
+                            session,
+                            filter_url,
+                            collection_id,
+                            max_items
+                        )
 
-                            logger.debug(f"Found archive: {archive_id} - {archive_name}")
-
-                    except Exception as e:
-                        logger.warning(f"Failed to parse archive link: {e}")
-                        continue
-
-                # Log if no archive files found (shouldn't happen on search pages)
-                if not archive_files:
-                    logger.warning(f"No archive files found on page: {url}")
-                    # Log page structure for debugging
-                    all_links = soup.find_all('a', href=True)
-                    logger.info(f"Total links on page: {len(all_links)}")
-                    # Sample first 10 archive-related links
-                    archive_related = [l for l in all_links if 'archive' in l.get('href', '').lower()][:10]
-                    if archive_related:
-                        logger.info(f"Found {len(archive_related)} archive-related links (sample):")
-                        for i, link in enumerate(archive_related):
-                            href = link.get('href', '')
-                            text = link.get_text(strip=True)[:50]
-                            logger.debug(f"  {i+1}. {href} | Text: {text}")
+                        logger.info(f"Pattern B: Found {len(archive_files)} archive files via filter + pagination")
+                    else:
+                        # Neither pattern worked
+                        logger.warning(f"No archive files found on page: {url}")
+                        # Log page structure for debugging
+                        all_links = soup.find_all('a', href=True)
+                        logger.info(f"Total links on page: {len(all_links)}")
+                        # Sample first 10 archive-related links
+                        archive_related = [l for l in all_links if 'archive' in l.get('href', '').lower()][:10]
+                        if archive_related:
+                            logger.info(f"Found {len(archive_related)} archive-related links (sample):")
+                            for i, link in enumerate(archive_related):
+                                href = link.get('href', '')
+                                text = link.get_text(strip=True)[:50]
+                                logger.debug(f"  {i+1}. {href} | Text: {text}")
 
                 # Remove duplicates (same archive ID)
                 seen_ids = set()
@@ -722,6 +720,149 @@ class EAPImportPlugin(ImportPlugin):
         except Exception as e:
             logger.error(f"Failed to find archive files: {e}")
             raise
+
+    def _extract_archive_links_from_page(self, soup: BeautifulSoup, collection_id: str = None) -> list:
+        """Extract archive file links from a BeautifulSoup page object.
+
+        Args:
+            soup: BeautifulSoup parsed HTML
+            collection_id: Optional collection/project ID to filter by
+
+        Returns:
+            List of archive file dictionaries with id, name, manifest_url
+        """
+        archive_files = []
+
+        # Find all links to archive-file pages
+        archive_links = soup.find_all('a', href=re.compile(r'/archive-file/'))
+
+        for link in archive_links:
+            if self.is_cancelled:
+                break
+
+            try:
+                href = link.get('href')
+                if not href:
+                    continue
+
+                # Extract archive ID from URL (e.g., /archive-file/EAP1049-1-2-1)
+                match = re.search(r'/archive-file/(EAP[^/\?]+)', href)
+                if match:
+                    archive_id = match.group(1)
+
+                    # Filter by collection/project ID if specified
+                    if collection_id:
+                        if not archive_id.startswith(collection_id):
+                            continue
+
+                    # Get archive name from link text or use ID
+                    archive_name = link.get_text(strip=True) or archive_id
+
+                    # Construct manifest URL
+                    manifest_url = f"https://eap.bl.uk/archive-file/{archive_id}/manifest"
+
+                    archive_files.append({
+                        'id': archive_id,
+                        'name': archive_name,
+                        'manifest_url': manifest_url
+                    })
+
+                    logger.debug(f"Found archive: {archive_id} - {archive_name}")
+
+            except Exception as e:
+                logger.warning(f"Failed to parse archive link: {e}")
+                continue
+
+        return archive_files
+
+    async def _follow_pagination(self, session: aiohttp.ClientSession, start_url: str,
+                                 collection_id: str = None, max_items: Optional[int] = None) -> list:
+        """Follow pagination links and collect all archive files.
+
+        Args:
+            session: aiohttp ClientSession
+            start_url: Starting URL (first page)
+            collection_id: Optional collection/project ID to filter by
+            max_items: Maximum number of items to collect (None = unlimited)
+
+        Returns:
+            List of archive file dictionaries
+        """
+        all_archives = []
+        current_url = start_url
+        page_num = 1
+
+        while current_url and (max_items is None or len(all_archives) < max_items):
+            if self.is_cancelled:
+                break
+
+            try:
+                logger.info(f"Fetching page {page_num}: {current_url}")
+
+                async with session.get(current_url) as response:
+                    response.raise_for_status()
+                    html = await response.text()
+
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # Extract archives from this page
+                page_archives = self._extract_archive_links_from_page(soup, collection_id)
+                all_archives.extend(page_archives)
+
+                logger.info(f"Page {page_num}: Found {len(page_archives)} archives (total: {len(all_archives)})")
+
+                # Stop if we've hit max_items
+                if max_items is not None and len(all_archives) >= max_items:
+                    logger.info(f"Reached max_items limit ({max_items})")
+                    break
+
+                # Look for "Next" pagination link
+                next_link = None
+
+                # Try common pagination patterns
+                # Pattern 1: <a rel="next" href="...">
+                next_elem = soup.find('a', rel='next')
+                if next_elem and next_elem.get('href'):
+                    next_link = next_elem.get('href')
+
+                # Pattern 2: <li class="next"><a href="...">
+                if not next_link:
+                    next_li = soup.find('li', class_='next')
+                    if next_li:
+                        next_a = next_li.find('a', href=True)
+                        if next_a:
+                            next_link = next_a.get('href')
+
+                # Pattern 3: Link with text "Next" or "»"
+                if not next_link:
+                    for link in soup.find_all('a', href=True):
+                        text = link.get_text(strip=True).lower()
+                        if text in ['next', '»', 'next page', 'next »']:
+                            next_link = link.get('href')
+                            break
+
+                if next_link:
+                    # Convert relative URL to absolute
+                    if next_link.startswith('/'):
+                        current_url = f"https://eap.bl.uk{next_link}"
+                    elif next_link.startswith('http'):
+                        current_url = next_link
+                    else:
+                        current_url = f"https://eap.bl.uk/{next_link}"
+
+                    page_num += 1
+                else:
+                    logger.info(f"No more pages (last page: {page_num})")
+                    break
+
+            except Exception as e:
+                logger.error(f"Error fetching page {page_num}: {e}")
+                break
+
+        # Trim to max_items if specified
+        if max_items is not None:
+            return all_archives[:max_items]
+        return all_archives
 
     async def _fetch_eap_items(
         self,

@@ -14,7 +14,7 @@ from typing import Optional, List
 
 
 def get_split_viewer(
-    image_path: Path,
+    image_path,
     split_positions: List[int],
     title: Optional[str] = None,
     use_base64: bool = True
@@ -23,19 +23,27 @@ def get_split_viewer(
     Generate HTML for interactive split editor.
 
     Args:
-        image_path: Path to original image (before split)
+        image_path: Path to original image (before split) or URL string
         split_positions: List of vertical split positions (x coordinates)
         title: Optional title
-        use_base64: Encode image as base64 (default True)
+        use_base64: Encode image as base64 (default True, ignored for URLs)
 
     Returns:
         Complete HTML document
     """
+    # Check if this is a URL
+    is_url = isinstance(image_path, str) and image_path.startswith(('http://', 'https://'))
+
     if title is None:
-        title = image_path.name
+        if is_url:
+            title = image_path.split('/')[-1] or 'Remote Image'
+        else:
+            title = image_path.name
 
     # Prepare image source
-    if use_base64:
+    if is_url:
+        img_src = image_path
+    elif use_base64:
         try:
             with open(image_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')

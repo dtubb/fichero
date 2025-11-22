@@ -127,7 +127,10 @@ def _create_sidebar_classes():
             if item is None:
                 # Root level - return number of data items
                 if self.interface and hasattr(self.interface, '_data') and self.interface._data:
-                    return len(self.interface._data)
+                    count = len(self.interface._data)
+                    logger.info(f"🔍 NSOutlineView delegate: numberOfChildren called, returning {count} items")
+                    return count
+                logger.info(f"🔍 NSOutlineView delegate: numberOfChildren called, returning 0 (no data)")
                 return 0
             # Flat list - no children
             return 0
@@ -190,7 +193,7 @@ def _create_sidebar_classes():
                 if has_python_data and is_dict:
                     text = data_value.get('text', '')
                     icon_name = data_value.get('icon', None)
-                    logger.debug(f"[VIEW] Extracted from data dict - text: '{text}', icon: {icon_name}")
+                    logger.info(f"🔍 NSOutlineView delegate: viewForTableColumn called - text: '{text}', icon: {icon_name}")
                 else:
                     text = str(item)
                     icon_name = None
@@ -203,34 +206,12 @@ def _create_sidebar_classes():
                 identifier = "IconTextCell"
                 view = outline_view.makeViewWithIdentifier(identifier, owner=outline_view)
 
+                # Get current column width (needed for both new and reused cells)
+                column_width = outline_view.tableColumns[0].width if len(outline_view.tableColumns) > 0 else 165
+                CELL_WIDTH = int(column_width)
+                TEXT_WIDTH = int(column_width - 30)  # 4px + 16px icon + 6px + 4px = 30px
+
                 if view is None:
-                    # Check if container width changed and update column if needed
-                    if hasattr(self.interface, 'widget') and self.interface.widget:
-                        try:
-                            if hasattr(self.interface.widget, '_impl') and hasattr(self.interface.widget._impl, 'native'):
-                                current_container_width = self.interface.widget._impl.native.frame.size.width
-                                if current_container_width > 0:
-                                    expected_column_width = int(current_container_width - 15)
-                                    current_column_width = int(outline_view.tableColumns[0].width) if len(outline_view.tableColumns) > 0 else 165
-
-                                    # Update column if container resized
-                                    if abs(expected_column_width - current_column_width) > 1:  # Allow 1px tolerance
-                                        logger.debug(f"📏 Container resized to {current_container_width}px, updating column: {current_column_width}px → {expected_column_width}px")
-                                        outline_view.tableColumns[0].width = expected_column_width
-                                        outline_view.tableColumns[0].minWidth = expected_column_width
-                                        outline_view.tableColumns[0].maxWidth = expected_column_width
-                        except Exception as e:
-                            logger.debug(f"Could not check container width: {e}")
-
-                    # Get column width from the NSTableColumn
-                    column_width = outline_view.tableColumns[0].width if len(outline_view.tableColumns) > 0 else 165
-
-                    # Cell fills the column
-                    CELL_WIDTH = int(column_width)
-                    # Text width = column - left margin - icon - spacing - right margin
-                    # 4px left margin + 16px icon + 6px spacing + 4px right margin = 30px
-                    TEXT_WIDTH = int(column_width - 30)
-
                     logger.debug(f"Creating NEW cell: column={column_width}px, text={TEXT_WIDTH}px")
 
                     view = NSTableCellView.alloc().initWithFrame(((0, 0), (CELL_WIDTH, 24)))
@@ -243,7 +224,6 @@ def _create_sidebar_classes():
                     view.addSubview(image_view)
 
                     # Create text field (offset by icon width, vertically centered)
-                    # Width calculated from column width
                     text_field = NSTextField.alloc().initWithFrame(((24, 6), (TEXT_WIDTH, 16)))
                     text_field.editable = False
                     text_field.bordered = False
@@ -264,6 +244,12 @@ def _create_sidebar_classes():
 
                     view.textField = text_field
                     view.addSubview(text_field)
+                else:
+                    # CRITICAL: Update frames for reused cells to match new column width
+                    # This ensures cells adapt when column width changes
+                    view.setFrame(((0, 0), (CELL_WIDTH, 24)))
+                    if view.textField:
+                        view.textField.setFrame(((24, 6), (TEXT_WIDTH, 16)))
 
                 # Set text
                 if view.textField:
@@ -388,6 +374,11 @@ class MacOSSidebarRenderer(Renderer):
         self._column = None  # Reference to NSTableColumn
         self._actual_column_width = None  # Actual column width after layout
 
+        # Width tracking for automatic resize detection
+        self._last_container_width = 0
+        self._width_check_enabled = True
+        self._resize_monitor_task = None
+
         # Lazy-load ObjC classes
         _load_objc_classes()
 
@@ -423,6 +414,10 @@ class MacOSSidebarRenderer(Renderer):
         self._scroll_view.autohidesScrollers = True
         self._scroll_view.horizontalScrollElasticity = 0  # NSScrollElasticityNone
 
+        # CRITICAL: Prevent content from being wider than visible area
+        self._scroll_view.contentView.copiesOnScroll = False
+        self._scroll_view.scrollsDynamically = True
+
         # Create outline view
         self._toga_sidebar = self.TogaSidebar.alloc().initWithFrame(
             self._scroll_view.contentView.bounds
@@ -436,6 +431,10 @@ class MacOSSidebarRenderer(Renderer):
         self._toga_sidebar.indentationPerLevel = 0.0  # Flat list, no indentation
         self._toga_sidebar.allowsMultipleSelection = self.multiple_select
         self._toga_sidebar.allowsEmptySelection = True
+
+        # Prevent horizontal scrolling in the outline view itself
+        self._toga_sidebar.allowsColumnResizing = False  # Don't allow user to resize columns
+        self._toga_sidebar.allowsColumnReordering = False  # Don't allow column reordering
 
         # Use transparent background (sidebar style)
         self._toga_sidebar.backgroundColor = NSColor.clearColor
@@ -473,17 +472,11 @@ class MacOSSidebarRenderer(Renderer):
         system_font = NSFont.systemFontOfSize(self.sidebar_font_size)
 
         # Create single column for text
-        # Width will be set dynamically after layout based on container
         self._column = NSTableColumn.alloc().initWithIdentifier("text")
 
-        # Start with minimal width - will be updated after layout
-        initial_column_width = 100
-        self._column.width = initial_column_width
-        self._column.minWidth = 50  # Allow narrow widths
-        self._column.maxWidth = 1000  # Allow wide widths
-
-        # Disable resizing
-        self._column.resizingMask = 0  # NSTableColumnNoResizing
+        # Enable automatic column resizing to fill container
+        # NSTableColumnAutoresizingMask = 1 << 0
+        self._column.resizingMask = 1  # NSTableColumnAutoresizingMask
 
         # Make column editable = False
         self._column.editable = False
@@ -491,11 +484,12 @@ class MacOSSidebarRenderer(Renderer):
         self._toga_sidebar.addTableColumn(self._column)
         self._toga_sidebar.outlineTableColumn = self._column
 
-        # Prevent column from auto-resizing
-        self._toga_sidebar.columnAutoresizingStyle = 0  # NSTableViewNoColumnAutoresizing
-        self._toga_sidebar.autoresizesOutlineColumn = False  # Don't auto-resize the outline column
+        # Enable column auto-resizing to fill container
+        # NSTableViewUniformColumnAutoresizingStyle = 1
+        self._toga_sidebar.columnAutoresizingStyle = 1  # Enable uniform column autoresizing
+        self._toga_sidebar.autoresizesOutlineColumn = True  # Auto-resize the outline column
 
-        logger.debug(f"Created NSOutlineView column (width will be set from container)")
+        logger.debug(f"Created NSOutlineView column with auto-resize enabled")
 
         # Force outline view to use the data source for values
         self._toga_sidebar.usesDataSource = True
@@ -534,6 +528,11 @@ class MacOSSidebarRenderer(Renderer):
                     constraint.active = True
 
                 logger.info("Successfully embedded native NSOutlineView with vibrancy into Toga Box")
+
+                # CRITICAL FIX: Trigger initial reload so AppKit knows to query the delegate
+                # Even with no data, this ensures the view is ready to render when data arrives
+                self._toga_sidebar.reloadData()
+                logger.debug("🔄 Triggered initial reloadData() after embedding NSOutlineView")
             else:
                 logger.warning("Could not access Box native impl - native view not embedded")
         except Exception as e:
@@ -553,66 +552,59 @@ class MacOSSidebarRenderer(Renderer):
         logger.debug("Native macOS sidebar created")
         return self.widget
 
-    def _update_column_width_from_container(self):
+    def _update_column_width_from_container(self) -> bool:
         """
         Update the NSOutlineView column width based on actual container width.
 
         This should be called after the widget is laid out and has its final size.
+
+        Returns:
+            bool: True if width was updated successfully, False if layout not ready
         """
         if not self.widget or not self._toga_sidebar or not self._column:
-            return
+            return False
 
         try:
-            # Get actual width of the native Box
-            if hasattr(self.widget, '_impl') and hasattr(self.widget._impl, 'native'):
-                native_box = self.widget._impl.native
-                actual_width = native_box.frame.size.width
+            # Single source of truth: Toga Box native frame width
+            if not hasattr(self.widget, '_impl') or not hasattr(self.widget._impl, 'native'):
+                logger.debug("Container native impl not ready")
+                return False
 
-                logger.info(f"📏 Container actual width: {actual_width}px")
+            native_box = self.widget._impl.native
+            container_width = int(native_box.frame.size.width)
 
-                # If width is 0, the layout hasn't happened yet - skip update
-                if actual_width <= 0:
-                    logger.debug(f"📏 Container width is {actual_width}px - layout not ready, skipping update")
-                    return
+            if container_width <= 0:
+                logger.debug(f"Container width is {container_width}px - layout not ready")
+                return False
 
-                # Get scroll view width
-                if self._scroll_view:
-                    scroll_width = self._scroll_view.frame.size.width
-                    logger.info(f"📏 Scroll view width: {scroll_width}px")
+            # Calculate column width (account for scrollbar)
+            scrollbar_width = 15  # macOS scrollbar width
+            column_width = max(50, container_width - scrollbar_width)
+            current_column_width = int(self._column.width)
 
-                # Get outline view width
-                outline_width = self._toga_sidebar.frame.size.width
-                logger.info(f"📏 Outline view width: {outline_width}px")
+            if abs(column_width - current_column_width) > 1:
+                logger.info(f"📏 Updating column width: {current_column_width}px → {column_width}px (container: {container_width}px)")
 
-                # Calculate column width (container width - scrollbar)
-                scrollbar_width = 15  # macOS scrollbar width
-                column_width = int(actual_width - scrollbar_width)
+                # Set width but DON'T lock min/max - let resizing mask handle auto-resize
+                self._column.width = column_width
 
-                # Ensure minimum width
-                if column_width < 50:
-                    logger.warning(f"📏 Calculated column width {column_width}px is too small, using minimum 50px")
-                    column_width = 50
+                # Only set minWidth to prevent column from collapsing too small
+                self._column.minWidth = 50
 
-                # Update column width if it changed
-                current_column_width = int(self._column.width)
-                if column_width != current_column_width:
-                    logger.info(f"📏 Updating column width: {current_column_width}px → {column_width}px")
+                # Force cell cache invalidation - cells must be recreated at new width
+                self._toga_sidebar.reloadData()
 
-                    self._column.width = column_width
-                    self._column.minWidth = column_width
-                    self._column.maxWidth = column_width
+                # CRITICAL: After reload, ensure outline view doesn't exceed column width
+                # This prevents horizontal scrolling
+                self._toga_sidebar.sizeToFit()
 
-                    # Store the column width for cell rendering
-                    self._actual_column_width = column_width
+                return True
 
-                    # Reload to apply new width
-                    self._toga_sidebar.reloadData()
-                else:
-                    logger.debug(f"📏 Column width unchanged: {column_width}px")
-                    self._actual_column_width = column_width
+            return False
 
         except Exception as e:
             logger.error(f"Failed to update column width: {e}")
+            return False
 
     def get_accessors(self, headings: List[str]) -> List[str]:
         """
@@ -656,10 +648,7 @@ class MacOSSidebarRenderer(Renderer):
             logger.warning("Cannot attach source - widget not created yet")
             return
 
-        # Update column width based on actual container size
-        self._update_column_width_from_container()
-
-        # Store data
+        # Store data FIRST (don't reload yet)
         if isinstance(source, list):
             self._data = source
         else:
@@ -696,10 +685,45 @@ class MacOSSidebarRenderer(Renderer):
             wrapper._python_data = clean_dict
             self._wrapped_items.append(wrapper)
 
-        # Reload data in outline view
+        # CRITICAL FIX: Always reload when data is attached, regardless of width
+        # This ensures content appears immediately even if layout isn't finalized
         self._toga_sidebar.reloadData()
+        logger.info(f"🔄 Reloaded NSOutlineView with {len(self._data)} items")
 
-        logger.debug(f"Attached {len(self._data)} items to native sidebar")
+        # Try to update column width - this may trigger another reload if width changed
+        width_updated = self._update_column_width_from_container()
+
+        if width_updated:
+            # Width was updated and cells reloaded again with new width
+            logger.info(f"✅ Attached {len(self._data)} items to native sidebar (width updated)")
+        else:
+            # Width is 0 or unchanged - schedule check after layout completes
+            logger.debug(f"📏 Scheduling deferred width check ({len(self._data)} items attached)")
+            # Schedule retry after next layout pass to optimize column width
+            self._schedule_deferred_reload()
+
+    def _schedule_deferred_reload(self):
+        """Schedule a single deferred check after layout completes."""
+        async def _try_reload_once():
+            import asyncio
+            await asyncio.sleep(0.3)  # Wait 300ms for layout
+            if self._data and self._wrapped_items:
+                # Try to update width - this will trigger reloadData if width changed
+                width_updated = self._update_column_width_from_container()
+                if not width_updated:
+                    # Width still not ready or unchanged - reload anyway with current width
+                    logger.debug(f"Deferred reload: triggering reloadData for {len(self._data)} items")
+                    self._toga_sidebar.reloadData()
+
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_try_reload_once())
+            logger.debug("Scheduled deferred reload (300ms delay)")
+        except RuntimeError:
+            # No event loop - reload immediately
+            logger.debug("No event loop - reloading immediately")
+            self._toga_sidebar.reloadData()
 
     def supports_incremental_updates(self) -> bool:
         """

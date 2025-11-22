@@ -1,16 +1,18 @@
 """
-AdjustView - Dynamic workflow tool controls
+AdjustView - SIMPLIFIED for Metadata Display
 
-Shows collapsible sections for each processing tool in the order they've been run.
-Each section shows:
-- Completed tools: parameters used + Re-run button
-- Available tools: parameter inputs + Run button
+Shows metadata, transcriptions, and file info for the currently selected item.
+No longer manages workflow tools - just displays processing outputs as text.
 
-Replaces the old manual rotation/crop controls with a complete workflow interface.
+Architecture:
+- Tabbed interface: Info | Transcription | Metadata | JSON
+- Read-only display of outputs
+- Copy/export functionality
 """
+
 import logging
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from pathlib import Path
 
 import toga
@@ -18,449 +20,367 @@ from toga.style import Pack
 from toga.constants import COLUMN, ROW
 
 from fichero.shared.views.base_view import BaseView
-from ..shared.tool_executor import ToolExecutor
-from ..shared.tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
 
-class ToolSection(toga.Box):
-    """
-    Collapsible section for a single tool.
-
-    Shows either:
-    - Completed: Parameters used + Re-run button
-    - Available: Parameter inputs + Run button
-    """
-
-    def __init__(self, tool_name: str, is_completed: bool = False,
-                 parameters: Dict[str, Any] = None, on_run=None):
-        super().__init__(style=Pack(direction=COLUMN, padding=5))
-
-        self.tool_name = tool_name
-        self.is_completed = is_completed
-        self.on_run = on_run
-        self.is_expanded = False
-
-        # Get tool definition from registry
-        registry = ToolRegistry()
-        self.tool_def = registry.get_tool(tool_name) or {}
-
-        # Store parameter widgets for reading values
-        self.param_widgets = {}
-
-        # Build the section
-        self._build_header()
-        self._build_content(parameters)
-
-    def _build_header(self):
-        """Build collapsible header"""
-        # Tool name
-        name = self.tool_def.get('name', self.tool_name.replace('_', ' ').title())
-
-        # Status indicator
-        if self.is_completed:
-            status = "✓ "
-            icon = "▼" if self.is_expanded else "▶"
-        else:
-            status = ""
-            icon = "▼" if self.is_expanded else "▶"
-
-        # Create button text with icon, status, and name
-        button_text = f"{icon} {status}{name}"
-
-        # Make entire header a clickable button
-        self.header_btn = toga.Button(
-            button_text,
-            on_press=self._toggle_expand,
-            style=Pack(
-                padding=5,
-                flex=1,
-                font_weight='bold' if self.is_completed else 'normal'
-            )
-        )
-
-        self.add(self.header_btn)
-
-        # Content container (hidden by default)
-        self.content_box = toga.Box(
-            style=Pack(direction=COLUMN, padding_left=25)
-        )
-        # Don't add to parent yet - will be added when expanded
-
-    def _build_content(self, parameters: Dict[str, Any] = None):
-        """Build expandable content area"""
-        # Description
-        desc = self.tool_def.get('description', '')
-        if desc:
-            desc_label = toga.Label(
-                desc,
-                style=Pack(margin_bottom=10, font_size=11, color='#666')
-            )
-            self.content_box.add(desc_label)
-
-        if self.is_completed:
-            # Show parameters that were used
-            self._build_completed_view(parameters or {})
-        else:
-            # Show parameter inputs
-            self._build_input_view()
-
-    def _build_completed_view(self, parameters: Dict[str, Any]):
-        """Show parameters that were used"""
-        if not parameters:
-            status_text = toga.Label(
-                "Completed successfully",
-                style=Pack(margin_bottom=10, color='#4CAF50')
-            )
-            self.content_box.add(status_text)
-        else:
-            # Show each parameter value
-            for param_name, param_value in parameters.items():
-                param_label = toga.Label(
-                    f"{param_name}: {param_value}",
-                    style=Pack(margin=2, font_size=11)
-                )
-                self.content_box.add(param_label)
-
-        # Re-run button
-        rerun_btn = toga.Button(
-            "Re-run",
-            on_press=self._on_run_clicked,
-            style=Pack(margin_top=10)
-        )
-        self.content_box.add(rerun_btn)
-
-    def _build_input_view(self):
-        """Show parameter input widgets"""
-        param_defs = self.tool_def.get('parameters', [])
-
-        if not param_defs:
-            # No parameters, just show Run button
-            help_text = toga.Label(
-                "Uses optimal defaults",
-                style=Pack(margin_bottom=10, font_size=11, color='#666')
-            )
-            self.content_box.add(help_text)
-        else:
-            # Create input widget for each parameter
-            for param_def in param_defs:
-                param_box = self._create_parameter_widget(param_def)
-                self.content_box.add(param_box)
-
-        # Run button
-        run_btn = toga.Button(
-            f"Run {self.tool_def.get('name', 'Tool')}",
-            on_press=self._on_run_clicked,
-            style=Pack(margin_top=10, background_color='#2196F3', color='#FFFFFF')
-        )
-        self.content_box.add(run_btn)
-
-    def _create_parameter_widget(self, param_def: Dict[str, Any]) -> toga.Box:
-        """Create input widget for a parameter"""
-        param_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
-
-        # Label
-        label = toga.Label(
-            param_def['label'],
-            style=Pack(margin_bottom=5, font_size=11)
-        )
-        param_box.add(label)
-
-        param_name = param_def['name']
-        param_type = param_def['type']
-
-        if param_type == 'select':
-            # Dropdown
-            options = [opt[1] for opt in param_def['options']]  # Display names
-            widget = toga.Selection(
-                items=options,
-                style=Pack(width=200)
-            )
-            # Set default
-            default = param_def.get('default')
-            if default:
-                # Find index of default in options
-                option_values = [opt[0] for opt in param_def['options']]
-                if default in option_values:
-                    idx = option_values.index(default)
-                    widget.value = options[idx]
-
-            self.param_widgets[param_name] = {
-                'widget': widget,
-                'options': param_def['options'],  # To map back to values
-                'type': 'select'
-            }
-
-        elif param_type == 'number':
-            # Number input
-            widget = toga.NumberInput(
-                min=param_def.get('min', 0),
-                max=param_def.get('max', 1000),
-                value=param_def.get('default', 0),
-                style=Pack(width=100)
-            )
-            self.param_widgets[param_name] = {
-                'widget': widget,
-                'type': 'number'
-            }
-        else:
-            # Unsupported parameter type - create a label as placeholder
-            widget = toga.Label(
-                f"Unsupported type: {param_type}",
-                style=Pack(margin=5)
-            )
-
-        param_box.add(widget)
-        return param_box
-
-    def _toggle_expand(self, widget):
-        """Toggle section expansion"""
-        self.is_expanded = not self.is_expanded
-
-        # Update button text with new icon
-        name = self.tool_def.get('name', self.tool_name.replace('_', ' ').title())
-        status = "✓ " if self.is_completed else ""
-        icon = "▼" if self.is_expanded else "▶"
-        self.header_btn.text = f"{icon} {status}{name}"
-
-        if self.is_expanded:
-            self.add(self.content_box)
-        else:
-            self.remove(self.content_box)
-
-    def _on_run_clicked(self, widget):
-        """Handle Run/Re-run button click"""
-        if self.on_run:
-            # Gather parameter values
-            params = self._get_parameter_values()
-            self.on_run(self.tool_name, params)
-
-    def _get_parameter_values(self) -> Dict[str, Any]:
-        """Extract values from parameter widgets"""
-        values = {}
-
-        for param_name, param_info in self.param_widgets.items():
-            widget = param_info['widget']
-            param_type = param_info['type']
-
-            if param_type == 'select':
-                # Map display name back to value
-                display_name = widget.value
-                options = param_info['options']
-                for val, display in options:
-                    if display == display_name:
-                        values[param_name] = val
-                        break
-            elif param_type == 'number':
-                values[param_name] = widget.value
-
-        return values
-
-
 class AdjustView(BaseView):
     """
-    Dynamic workflow tool controls.
+    SIMPLIFIED Metadata/Output Display Panel.
 
-    Shows collapsible sections for tools in workflow order.
-    Updates dynamically based on completed steps.
+    Shows:
+    - File info (name, size, dimensions, etc.)
+    - Transcription (if available)
+    - Metadata (if extracted)
+    - Raw JSON outputs
     """
 
     def __init__(self, app, is_mobile: bool = False):
-        """
-        Initialize adjust view.
+        """Initialize simplified metadata panel"""
+        logger.info("Initializing AdjustView (SIMPLIFIED - metadata display)")
 
-        Args:
-            app: Application instance
-            is_mobile: Whether running in mobile mode
-        """
-        logger.info("Initializing AdjustView (dynamic workflow version)")
+        # Current item
+        self.current_item_id: Optional[str] = None
+        self.library_manager = None  # Set by main_window
 
-        # Reference to preview view (set by main_window)
-        self.preview_view = None
-
-        # Track tool sections
-        self.tool_sections: List[ToolSection] = []
-
-        # Tool executor (will be initialized when preview_view is set)
-        self.tool_executor: Optional[ToolExecutor] = None
+        # UI components
+        self.tab_container = None
+        self.info_box = None
+        self.transcription_box = None
+        self.metadata_box = None
+        self.json_box = None
 
         # Call parent init
         super().__init__(app, is_mobile)
 
-        logger.info("AdjustView initialized")
+        logger.info("AdjustView (SIMPLIFIED) initialized")
 
     def _create_content(self):
-        """Create dynamic tool sections"""
-        # Container with scrolling
-        self.tools_container = toga.ScrollContainer(
+        """Create tabbed metadata display"""
+        # CRITICAL FIX: OptionContainer must NOT be inside a ScrollContainer
+        # Remove the BaseView's ScrollContainer and add tabs directly to main container
+        # BaseView creates: container -> scroll_container -> content_container
+        # We need: container -> tab_container (OptionContainer manages its own scrolling per tab)
+
+        # Remove scroll container from parent (it was added by BaseView)
+        if self.scroll_container and self.scroll_container in self.container.children:
+            self.container.remove(self.scroll_container)
+            logger.debug("Removed ScrollContainer - OptionContainer manages its own scrolling")
+
+        # Create tabs directly (no wrapper box needed - OptionContainer handles its own layout)
+        self.tab_container = toga.OptionContainer(
             style=Pack(flex=1)
         )
 
-        self.tools_box = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                padding=10
-            )
+        # Tab 1: File Info - Box with ScrollContainer for content
+        info_content = toga.Box(style=Pack(direction=COLUMN, margin=10))
+        self._add_placeholder(info_content, "Select an item to view its information")
+        self.info_box = toga.ScrollContainer(
+            content=info_content,
+            style=Pack(flex=1)
         )
 
-        # Title
-        title = toga.Label(
-            "Workflow Tools",
-            style=Pack(
-                margin_bottom=10,
-                font_size=14,
-                font_weight='bold'
-            )
+        # Tab 2: Transcription - Direct MultilineTextInput (has built-in scrolling)
+        self.transcription_box = toga.MultilineTextInput(
+            readonly=True,
+            style=Pack(flex=1, font_family='monospace', font_size=12)
         )
-        self.tools_box.add(title)
 
-        # Placeholder - will be populated when item is loaded
-        self.placeholder = toga.Label(
-            "Select an item to begin processing",
-            style=Pack(margin=20, color='#999')
+        # Tab 3: Metadata - Box with ScrollContainer for content
+        metadata_content = toga.Box(style=Pack(direction=COLUMN, margin=10))
+        self._add_placeholder(metadata_content, "No metadata available")
+        self.metadata_box = toga.ScrollContainer(
+            content=metadata_content,
+            style=Pack(flex=1)
         )
-        self.tools_box.add(self.placeholder)
 
-        self.tools_container.content = self.tools_box
-        self.content_container.add(self.tools_container)
+        # Tab 4: JSON - Direct MultilineTextInput (has built-in scrolling)
+        self.json_box = toga.MultilineTextInput(
+            readonly=True,
+            style=Pack(flex=1, font_family='monospace', font_size=11)
+        )
 
-        logger.debug("Adjustment controls created (dynamic version)")
+        # Add tabs to container
+        self.tab_container.add("Info", self.info_box)
+        self.tab_container.add("Transcription", self.transcription_box)
+        self.tab_container.add("Metadata", self.metadata_box)
+        self.tab_container.add("JSON", self.json_box)
 
-    def set_preview_view(self, preview_view):
+        # Add OptionContainer directly to main container (bypassing scroll_container)
+        self.container.add(self.tab_container)
+
+        logger.debug("Metadata panel created with 4 tabs (OptionContainer manages own scrolling)")
+
+    def _add_placeholder(self, container: toga.Box, text: str):
+        """Add placeholder text to a container"""
+        label = toga.Label(
+            text,
+            style=Pack(margin=20, color='#999', font_size=12)
+        )
+        container.add(label)
+
+    def set_library_manager(self, library_manager):
+        """Set library manager reference"""
+        self.library_manager = library_manager
+        logger.debug("Library manager set in AdjustView")
+
+    async def load_item(self, item_id: str, output_data: Optional[Dict] = None):
         """
-        Set the preview view reference.
+        Load and display item details.
+
+        Shows:
+        - File info (name, path, size, etc.)
+        - Latest transcription (if available)
+        - Extracted metadata (if available)
+        - Raw JSON data
 
         Args:
-            preview_view: PreviewView instance with step_manager
+            item_id: ID of the item to load
+            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
         """
-        self.preview_view = preview_view
-        logger.debug("PreviewView reference set in AdjustView")
-
-        # Initialize tool executor
-        if hasattr(preview_view, 'step_manager') and hasattr(preview_view, 'library_manager'):
-            self.tool_executor = ToolExecutor(
-                library_manager=preview_view.library_manager,
-                step_manager=preview_view.step_manager
-            )
-            logger.debug("ToolExecutor initialized")
-
-        # Listen for step changes
-        if hasattr(preview_view, 'step_manager') and preview_view.step_manager:
-            preview_view.step_manager.on_state_changed = self._on_step_changed
-
-    def _on_step_changed(self, state):
-        """Callback when step state changes - rebuild tool sections"""
-        logger.info(f"Step changed - rebuilding tool sections (step {state.step_index}/{state.total_steps})")
-        self.rebuild_tools()
-
-    def rebuild_tools(self):
-        """Rebuild tool sections based on current steps"""
-        if not self.preview_view or not self.preview_view.step_manager:
-            logger.debug("No preview_view/step_manager - cannot rebuild")
-            return
-
-        step_manager = self.preview_view.step_manager
-        steps = step_manager.steps
-
-        logger.info(f"Rebuilding tools - {len(steps)} steps exist")
-
-        # Clear existing sections
-        self.tools_box.clear()
-        self.tool_sections = []
-
-        # Re-add title
-        title = toga.Label(
-            "Workflow Tools",
-            style=Pack(
-                margin_bottom=10,
-                font_size=14,
-                font_weight='bold'
-            )
-        )
-        self.tools_box.add(title)
-
-        if not steps:
-            self.tools_box.add(self.placeholder)
-            return
-
-        # Add section for each completed step
-        for step in steps:
-            tool_name = step.tool_name
-            if tool_name == 'original':
-                # Show original as read-only
-                original_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
-                original_label = toga.Label(
-                    f"Original: {step.file_path.name}",
-                    style=Pack(font_size=11, font_weight='bold')
-                )
-                original_box.add(original_label)
-                self.tools_box.add(original_box)
-            else:
-                # Show completed tool
-                section = ToolSection(
-                    tool_name=tool_name,
-                    is_completed=True,
-                    parameters=step.parameters,
-                    on_run=self._on_tool_run
-                )
-                self.tool_sections.append(section)
-                self.tools_box.add(section)
-
-        # Add next available tools
-        registry = ToolRegistry()
-        completed_tools = [s.tool_name for s in steps]
-        workflow_order = registry.get_workflow_order()
-
-        for tool_name in workflow_order:
-            if tool_name not in completed_tools:
-                # Show as available
-                section = ToolSection(
-                    tool_name=tool_name,
-                    is_completed=False,
-                    on_run=self._on_tool_run
-                )
-                self.tool_sections.append(section)
-                self.tools_box.add(section)
-
-    def _on_tool_run(self, tool_name: str, parameters: Dict[str, Any]):
-        """Handle tool execution request"""
-        logger.info(f"Tool run requested: {tool_name} with params {parameters}")
-
-        if not self.tool_executor:
-            logger.error("No tool_executor available")
-            self.app.main_window.error_dialog(
-                'Error',
-                'Tool executor not initialized'
-            )
-            return
-
-        # Execute the tool asynchronously
-        asyncio.create_task(self._execute_tool_async(tool_name, parameters))
-
-    async def _execute_tool_async(self, tool_name: str, parameters: Dict[str, Any]):
-        """Execute tool asynchronously with progress feedback"""
-        logger.info(f"Executing {tool_name} asynchronously")
+        # ALWAYS reload - no deduplication to ensure content updates properly
+        logger.info(f"Loading item details: {item_id} (forced reload)")
 
         try:
-            # TODO: Show progress dialog
-            # For now, just execute and show result
+            self.current_item_id = item_id
 
-            result = await self.tool_executor.execute_tool(tool_name, parameters)
+            if not self.library_manager:
+                logger.warning("No library manager available")
+                return
 
-            if result.success:
-                logger.info(f"Tool {tool_name} completed successfully")
-                # UI will auto-update via step_manager.on_state_changed callback
-            else:
-                logger.error(f"Tool {tool_name} failed: {result.error_message}")
-                self.app.main_window.error_dialog(
-                    f'{tool_name} Failed',
-                    result.error_message
-                )
+            # Get item
+            item = self.library_manager.storage.get_item(item_id)
+            if not item:
+                logger.warning(f"Item not found: {item_id}")
+                return
+
+            # Load each tab with cached output_data
+            await self._load_info_tab(item)
+            await self._load_transcription_tab(item_id, output_data)
+            await self._load_metadata_tab(item_id, output_data)
+            await self._load_json_tab(item)
+
+            logger.info("✅ Item details loaded")
 
         except Exception as e:
-            logger.error(f"Tool execution error: {e}", exc_info=True)
-            self.app.main_window.error_dialog(
-                'Execution Error',
-                str(e)
-            )
+            logger.error(f"Failed to load item details: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _load_info_tab(self, item):
+        """Load file info tab"""
+        try:
+            # Clear existing content
+            self.info_box.content.clear()
+
+            info_container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+
+            # File name
+            file_path = item.metadata.get('local_path') or item.metadata.get('file_path', '')
+            if file_path:
+                file_name = Path(file_path).name
+                self._add_info_row(info_container, "File", file_name)
+
+            # Item name
+            self._add_info_row(info_container, "Name", item.name)
+
+            # Type
+            item_type = item.metadata.get('type', 'Unknown')
+            self._add_info_row(info_container, "Type", item_type)
+
+            # Path
+            if file_path:
+                self._add_info_row(info_container, "Path", str(file_path))
+
+            # File size
+            if file_path and Path(file_path).exists():
+                size_bytes = Path(file_path).stat().st_size
+                size_mb = size_bytes / (1024 * 1024)
+                self._add_info_row(info_container, "Size", f"{size_mb:.2f} MB")
+
+            # Created date
+            created = item.created_at
+            if created:
+                self._add_info_row(info_container, "Added", created.strftime("%Y-%m-%d %H:%M"))
+
+            # Collection
+            if hasattr(item, 'collection_id'):
+                collection = self.library_manager.storage.get_collection(item.collection_id)
+                if collection:
+                    self._add_info_row(info_container, "Collection", collection.name)
+
+            self.info_box.content = info_container
+
+        except Exception as e:
+            logger.error(f"Failed to load info tab: {e}")
+
+    def _add_info_row(self, container: toga.Box, label: str, value: str):
+        """Add a label-value row to info display"""
+        row = toga.Box(style=Pack(direction=COLUMN, margin_bottom=10))
+
+        label_widget = toga.Label(
+            label + ":",
+            style=Pack(font_weight='bold', font_size=11, color='#666')
+        )
+        row.add(label_widget)
+
+        value_widget = toga.Label(
+            str(value),
+            style=Pack(font_size=12, margin_top=2)
+        )
+        row.add(value_widget)
+
+        container.add(row)
+
+    async def _load_transcription_tab(self, item_id: str, output_data: Optional[Dict] = None):
+        """Load transcription tab - shows latest transcription output
+
+        Args:
+            item_id: ID of the item
+            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
+        """
+        try:
+            # REFACTORED: Use cached output_data if available
+            if not output_data:
+                logger.debug("⚠️ No cached output_data provided for transcription tab, fetching from library_manager")
+                output_data = await self.library_manager.get_item_output_data(item_id)
+            else:
+                logger.debug("✅ Using cached output_data for transcription tab (no database query)")
+
+            transcription_text = ""
+
+            if output_data and output_data.get('has_outputs'):
+                # Find transcription step
+                steps = output_data.get('processing_steps', [])
+                for step in reversed(steps):  # Check newest first
+                    if 'transcribe' in step.tool_name.lower():
+                        # Read transcription file
+                        file_path = step.file_path
+                        if file_path and file_path.exists():
+                            if file_path.suffix.lower() == '.json':
+                                # Parse JSON transcription
+                                import json
+                                data = json.loads(file_path.read_text())
+                                if isinstance(data, dict) and 'transcription' in data:
+                                    transcription_text = data['transcription']
+                                elif isinstance(data, str):
+                                    transcription_text = data
+                                else:
+                                    transcription_text = json.dumps(data, indent=2)
+                            else:
+                                # Plain text
+                                transcription_text = file_path.read_text()
+                            break
+
+            if not transcription_text:
+                transcription_text = "No transcription available yet.\n\nTranscription will appear here after processing."
+
+            # Update text input
+            if isinstance(self.transcription_box, toga.MultilineTextInput):
+                self.transcription_box.value = transcription_text
+
+        except Exception as e:
+            logger.error(f"Failed to load transcription: {e}")
+            if isinstance(self.transcription_box, toga.MultilineTextInput):
+                self.transcription_box.value = f"Error loading transcription: {e}"
+
+    async def _load_metadata_tab(self, item_id: str, output_data: Optional[Dict] = None):
+        """Load metadata tab - shows extracted metadata
+
+        Args:
+            item_id: ID of the item
+            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
+        """
+        try:
+            # Clear existing content
+            self.metadata_box.content.clear()
+
+            metadata_container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+
+            # REFACTORED: Use cached output_data if available
+            if not output_data:
+                logger.debug("⚠️ No cached output_data provided for metadata tab, fetching from library_manager")
+                output_data = await self.library_manager.get_item_output_data(item_id)
+            else:
+                logger.debug("✅ Using cached output_data for metadata tab (no database query)")
+
+            metadata_found = False
+
+            if output_data and output_data.get('has_outputs'):
+                # Find metadata extraction step
+                steps = output_data.get('processing_steps', [])
+                for step in reversed(steps):  # Check newest first
+                    if 'metadata' in step.tool_name.lower() or 'extract' in step.tool_name.lower():
+                        # Read metadata file
+                        file_path = step.file_path
+                        if file_path and file_path.exists():
+                            import json
+                            data = json.loads(file_path.read_text())
+
+                            # Display metadata fields
+                            for key, value in data.items():
+                                self._add_info_row(metadata_container, key.replace('_', ' ').title(), str(value))
+
+                            metadata_found = True
+                            break
+
+            if not metadata_found:
+                self._add_placeholder(metadata_container, "No metadata extracted yet.\n\nMetadata will appear here after processing.")
+
+            self.metadata_box.content = metadata_container
+
+        except Exception as e:
+            logger.error(f"Failed to load metadata: {e}")
+            self.metadata_box.content.clear()
+            self._add_placeholder(self.metadata_box.content, f"Error loading metadata: {e}")
+
+    async def _load_json_tab(self, item):
+        """Load JSON tab - shows raw item data"""
+        try:
+            import json
+
+            # Get item as dict
+            item_dict = {
+                'id': item.id,
+                'name': item.name,
+                'type': item.type.value if hasattr(item.type, 'value') else str(item.type),
+                'metadata': item.metadata,
+                'created_at': item.created_at.isoformat() if item.created_at else None,
+                'updated_at': item.updated_at.isoformat() if item.updated_at else None,
+            }
+
+            # Format as pretty JSON
+            json_text = json.dumps(item_dict, indent=2, ensure_ascii=False)
+
+            # Update text input
+            if isinstance(self.json_box, toga.MultilineTextInput):
+                self.json_box.value = json_text
+
+        except Exception as e:
+            logger.error(f"Failed to load JSON: {e}")
+            if isinstance(self.json_box, toga.MultilineTextInput):
+                self.json_box.value = f"Error loading JSON: {e}"
+
+    def clear(self):
+        """Clear all content"""
+        self.current_item_id = None
+
+        # Clear info tab
+        if self.info_box and self.info_box.content:
+            self.info_box.content.clear()
+            self._add_placeholder(self.info_box.content, "Select an item to view its information")
+
+        # Clear transcription
+        if isinstance(self.transcription_box, toga.MultilineTextInput):
+            self.transcription_box.value = "No item selected"
+
+        # Clear metadata
+        if self.metadata_box and self.metadata_box.content:
+            self.metadata_box.content.clear()
+            self._add_placeholder(self.metadata_box.content, "No metadata available")
+
+        # Clear JSON
+        if isinstance(self.json_box, toga.MultilineTextInput):
+            self.json_box.value = ""
+
+        logger.debug("Cleared all metadata panels")

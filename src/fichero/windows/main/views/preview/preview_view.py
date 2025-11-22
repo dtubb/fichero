@@ -1,16 +1,13 @@
 """
-PreviewView - Refactored PHASE 4 Version (renamed from OutputView in Phase 2.3)
+PreviewView - SIMPLIFIED VERSION
 
-Displays processing outputs using modular manager system.
-Reduced from 3,039 lines to ~300 lines by delegating to:
-- StepManager: state and navigation
-- LayoutManager: split view layouts
-- OutputPane: reusable display components
+Shows the latest output for a selected item.
+No step navigation, no processing history, just: show the image or show the metadata.
 
-Renamed from OutputView to PreviewView to clarify its role as a preview/display view,
-distinct from adjustment/editing functionality.
-
-This version is the PHASE 4 refactoring target.
+Architecture:
+- LayoutManager: Manages split view layouts (already works)
+- OutputPane: Displays content using universal renderers (already works)
+- Simple API: load_item(item_id) → shows latest output
 """
 
 import logging
@@ -26,649 +23,190 @@ from fichero.shared.views.base_view import BaseView
 from fichero.shared.commands.view_mixin import ViewCommandMixin
 from fichero.shared.toolbars import ToolbarCoordinator, TopToolbar, BottomToolbar
 
-# PHASE 4: New manager imports
-from .step_manager import StepManager, StepState
+# Simplified imports - only what we need
 from .layout_manager import LayoutManager, LayoutType
 from .output_pane import OutputPane
-# StepBrowser moved to Column 3 (StepBrowserView) in 5-column layout - import removed
-
-# PHASE 2: Renderer system
 from fichero.library.renderers.renderer_registry import RendererRegistry
-
-# PHASE 3: Inspector components (for Phase 4 integration)
-from fichero.shared.components.metadata_viewer import MetadataViewer
-from fichero.shared.components.json_editor import JsonEditor
 
 logger = logging.getLogger(__name__)
 
 
 class PreviewView(BaseView, ViewCommandMixin):
     """
-    Refactored Preview view using manager pattern (PHASE 4).
+    SIMPLIFIED Preview view - shows latest output for selected item.
 
-    Renamed from OutputView (Phase 2.3) to clarify its role as a preview/display view.
-
-    Architecture:
-        StepManager → manages navigation state
-        LayoutManager → manages split view layouts
-        OutputPane → reusable display components
-
-    Responsibilities:
-        - Command definition and registration
-        - Toolbar setup and updates
-        - Event handling and coordination
-        - View lifecycle management
+    No step navigation, no processing history tree.
+    Just: Select item → Show latest image/metadata.
     """
 
-    # Class variable to track if commands have been registered (to avoid duplicates)
     _commands_registered = False
 
     def __init__(self, app, is_mobile: bool = False, library_manager=None):
-        """
-        Initialize preview view with manager pattern.
-
-        Args:
-            app: Application instance
-            is_mobile: Whether running in mobile mode
-            library_manager: LibraryManager instance
-        """
-        logger.info("🔧 PreviewView.__init__ starting (PHASE 4 refactored)")
+        """Initialize simplified preview view"""
+        logger.info("🔧 PreviewView.__init__ starting (SIMPLIFIED VERSION)")
 
         # Store library manager
         self.library_manager = library_manager
 
-        # Callback for toggling Adjust pane (set by main_window)
-        self._toggle_adjust_callback = None
+        # Current item being displayed
+        self.current_item_id: Optional[str] = None
+        self.current_collection_items: List[Dict] = []  # For file navigation
+        self.current_item_index: int = 0
 
-        # PHASE 4: Initialize managers
-        self.step_manager = StepManager(library_manager)
-
-        # PHASE 2: Initialize renderer registry
+        # Initialize renderer registry
         self.renderer_registry = RendererRegistry()
 
-        # PHASE 4: Initialize layout manager
+        # Initialize layout manager (handles split views)
         self.layout_manager = LayoutManager(library_manager, self.renderer_registry)
 
-        # PHASE 4: Initialize tools menu manager
-        from .tools_menu_manager import ToolsMenuManager
-        self.tools_menu_manager = ToolsMenuManager(self, self.renderer_registry)
-
-        # NOTE: StepBrowser moved to Column 3 (StepBrowserView) in 5-column layout
-        # self.step_browser initialization removed
-
-        # PHASE 3: Initialize inspector components (for Phase 4 integration)
-        self.metadata_viewer = MetadataViewer()
-        self.json_editor = JsonEditor()
-
-        # Connect step manager events
-        self.step_manager.on_state_changed = self._on_step_state_changed
-
-        # Reference to StepBrowserView (wired up by main_window)
-        self.step_browser_view = None
-
-        # Subscribe to navigation events for item selection from CollectionView
-        from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigation
-        subscribe_to_navigation('show_preview', self._on_show_preview_event)
-        logger.info("✅ Subscribed to 'show_preview' navigation events")
+        # No event subscription - main_window calls load_item() directly
+        logger.info("✅ PreviewView will be loaded directly from main_window")
 
         # UI components
         self.content_area = None
-        self.inspector_panel = None  # PHASE 4: inspector sidebar
-        self.inspector_visible = False  # Inspector visibility state
 
         # Create toolbar coordinator
         self.coordinator = ToolbarCoordinator(app, is_mobile=is_mobile)
 
-        # Register coordinator with NavigationController
-        try:
-            if hasattr(app, 'view_integration') and hasattr(app.view_integration, 'navigation_controller'):
-                app.view_integration.navigation_controller.register_toolbar_coordinator(self.coordinator)
-                logger.debug("Registered toolbar coordinator with navigation controller")
-        except Exception as e:
-            logger.warning(f"Could not register toolbar coordinator: {e}")
-
-        # Force top toolbar on desktop (like Preview.app's markup toolbar)
-        self.force_bottom_toolbar_on_desktop = False
-        self.toolbar_visible = True  # Track toolbar visibility for toggle
-        logger.info(f"🔧 PreviewView: force_bottom_toolbar_on_desktop = {self.force_bottom_toolbar_on_desktop}, is_mobile = {is_mobile}")
-
-        # Set view_id for command registration (BEFORE super().__init__)
+        # Set view_id for command registration
         self.view_id = 'output'
 
         # Call parent init
         super().__init__(app, is_mobile)
-
-        # Initialize ViewCommandMixin
         ViewCommandMixin.__init__(self)
 
-        # Define and register commands (only once per class, not per instance)
+        # Define and register commands
         self.define_commands()
         if not PreviewView._commands_registered:
             self.register_commands()
             PreviewView._commands_registered = True
-            logger.debug("✅ PreviewView commands registered (first instance)")
-        else:
-            logger.debug("⏭️  PreviewView commands already registered, skipping")
+            logger.debug("✅ PreviewView commands registered")
 
         # Set up toolbars
         self._setup_toolbars()
 
-        # Set up Tools menu
-        self._setup_tools_menu()
-
-        logger.info("✅ PreviewView (PHASE 4) initialization complete")
+        logger.info("✅ PreviewView (SIMPLIFIED) initialization complete")
 
     def define_commands(self):
-        """Define all commands for PreviewView"""
+        """Define commands - only navigation and zoom, no step controls"""
         from fichero.shared.commands import FicheroCommand
         import toga
 
-        try:
-            # Create custom menu groups
-            go_group = toga.Group("Go", order=40)
-            tools_group = toga.Group("Tools", order=50)
+        go_group = toga.Group("Go", order=40)
 
-            self.commands = {
-                # ===== VIEW MENU - Zoom Commands =====
-                # Note: Section 10 creates a divider below pane visibility toggles (section 0)
-                'zoom_in': FicheroCommand(
-                    id=f'{self.view_id}.zoom_in',
-                    label=_("Zoom In"),
-                    action=self._on_zoom_in,
-                    shortcut=toga.Key.MOD_1 + toga.Key.PLUS,
-                    description=_("Zoom in on image"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'zoom_out': FicheroCommand(
-                    id=f'{self.view_id}.zoom_out',
-                    label=_("Zoom Out"),
-                    action=self._on_zoom_out,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MINUS,
-                    description=_("Zoom out on image"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'zoom_fit': FicheroCommand(
-                    id=f'{self.view_id}.zoom_fit',
-                    label=_("Zoom to Fit"),
-                    action=self._on_zoom_fit,
-                    shortcut=toga.Key.MOD_1 + '9',
-                    description=_("Fit image to window"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=2,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'actual_size': FicheroCommand(
-                    id=f'{self.view_id}.actual_size',
-                    label=_("Actual Size"),
-                    action=self._on_zoom_100,
-                    shortcut=toga.Key.MOD_1 + '0',
-                    description=_("Zoom to 100%"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=3,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'fit_width': FicheroCommand(
-                    id=f'{self.view_id}.fit_width',
-                    label=_("Fit to Width"),
-                    action=self._on_fit_width,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '0',
-                    description=_("Fit image to window width"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=4,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'fit_height': FicheroCommand(
-                    id=f'{self.view_id}.fit_height',
-                    label=_("Fit to Height"),
-                    action=self._on_fit_height,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '9',
-                    description=_("Fit image to window height"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=5,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'zoom_selection': FicheroCommand(
-                    id=f'{self.view_id}.zoom_selection',
-                    label=_("Zoom to Selection"),
-                    action=self._on_zoom_selection,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '8',
-                    description=_("Zoom to selected area"),
-                    group=toga.Group.VIEW,
-                    section=10,
-                    order=6,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
+        self.commands = {
+            # ===== VIEW MENU - Zoom Commands =====
+            'zoom_in': FicheroCommand(
+                id=f'{self.view_id}.zoom_in',
+                label=_("Zoom In"),
+                action=self._on_zoom_in,
+                shortcut=toga.Key.MOD_1 + toga.Key.PLUS,
+                description=_("Zoom in on image"),
+                group=toga.Group.VIEW,
+                section=10,
+                order=0,
+                show_in_menu=True,
+                context='normal'
+            ),
+            'zoom_out': FicheroCommand(
+                id=f'{self.view_id}.zoom_out',
+                label=_("Zoom Out"),
+                action=self._on_zoom_out,
+                shortcut=toga.Key.MOD_1 + toga.Key.MINUS,
+                description=_("Zoom out on image"),
+                group=toga.Group.VIEW,
+                section=10,
+                order=1,
+                show_in_menu=True,
+                context='normal'
+            ),
+            'zoom_fit': FicheroCommand(
+                id=f'{self.view_id}.zoom_fit',
+                label=_("Zoom to Fit"),
+                action=self._on_zoom_fit,
+                shortcut=toga.Key.MOD_1 + '9',
+                description=_("Fit image to window"),
+                group=toga.Group.VIEW,
+                section=10,
+                order=2,
+                show_in_menu=True,
+                context='normal'
+            ),
+            'actual_size': FicheroCommand(
+                id=f'{self.view_id}.actual_size',
+                label=_("Actual Size"),
+                action=self._on_zoom_100,
+                shortcut=toga.Key.MOD_1 + '0',
+                description=_("Zoom to 100%"),
+                group=toga.Group.VIEW,
+                section=10,
+                order=3,
+                show_in_menu=True,
+                context='normal'
+            ),
 
-                # ===== GO MENU - Navigation Commands =====
-                'prev_step': FicheroCommand(
-                    id=f'{self.view_id}.prev_step',
-                    label=_("Previous Step"),
-                    action=self._on_prev_step,
-                    shortcut=toga.Key.MOD_1 + toga.Key.LEFT,
-                    description=_("Navigate to previous processing step"),
-                    group=go_group,
-                    section=0,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'next_step': FicheroCommand(
-                    id=f'{self.view_id}.next_step',
-                    label=_("Next Step"),
-                    action=self._on_next_step,
-                    shortcut=toga.Key.MOD_1 + toga.Key.RIGHT,
-                    description=_("Navigate to next processing step"),
-                    group=go_group,
-                    section=0,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'prev_file': FicheroCommand(
-                    id=f'{self.view_id}.prev_file',
-                    label=_("Previous File"),
-                    action=self._on_prev_file,
-                    shortcut=toga.Key.MOD_1 + toga.Key.UP,
-                    description=_("Navigate to previous file"),
-                    group=go_group,
-                    section=1,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'next_file': FicheroCommand(
-                    id=f'{self.view_id}.next_file',
-                    label=_("Next File"),
-                    action=self._on_next_file,
-                    shortcut=toga.Key.MOD_1 + toga.Key.DOWN,
-                    description=_("Navigate to next file"),
-                    group=go_group,
-                    section=1,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=False,
-                    context='normal'
-                ),
+            # ===== GO MENU - File Navigation Only (NO STEP NAVIGATION) =====
+            'prev_file': FicheroCommand(
+                id=f'{self.view_id}.prev_file',
+                label=_("Previous File"),
+                action=self._on_prev_file,
+                shortcut=toga.Key.MOD_1 + toga.Key.UP,
+                description=_("Navigate to previous file"),
+                group=go_group,
+                section=0,
+                order=0,
+                show_in_menu=True,
+                context='normal'
+            ),
+            'next_file': FicheroCommand(
+                id=f'{self.view_id}.next_file',
+                label=_("Next File"),
+                action=self._on_next_file,
+                shortcut=toga.Key.MOD_1 + toga.Key.DOWN,
+                description=_("Navigate to next file"),
+                group=go_group,
+                section=0,
+                order=1,
+                show_in_menu=True,
+                context='normal'
+            ),
 
-                # ===== TOOLS MENU - Image Adjustment Commands =====
-                # These are always-visible adjustment tools (rotate, crop, reset)
-                # They appear in bottom toolbar at all times (context='normal')
-                'rotate_left': FicheroCommand(
-                    id=f'{self.view_id}.rotate_left',
-                    label=_("Rotate Left"),
-                    action=self._on_rotate_left,
-                    shortcut=toga.Key.MOD_1 + 'l',
-                    icon='resources/icons/toolbar/rotate.left@10x.png',
-                    description=_("Rotate image 90° counter-clockwise"),
-                    group=tools_group,
-                    section=0,
-                    order=0,
-                    toolbar_text=_("Rotate\nLeft"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,  # Show in OutputView's top toolbar only
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'  # Always visible, not just in edit mode
-                ),
-                'rotate_right': FicheroCommand(
-                    id=f'{self.view_id}.rotate_right',
-                    label=_("Rotate Right"),
-                    action=self._on_rotate_right,
-                    shortcut=toga.Key.MOD_1 + 'r',
-                    icon='resources/icons/toolbar/rotate.right@10x.png',
-                    description=_("Rotate image 90° clockwise"),
-                    group=tools_group,
-                    section=0,
-                    order=1,
-                    toolbar_text=_("Rotate\nRight"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'  # Always visible, not just in edit mode
-                ),
-                'crop': FicheroCommand(
-                    id=f'{self.view_id}.crop',
-                    label=_("Crop"),
-                    action=self._on_crop,
-                    shortcut=toga.Key.MOD_1 + 'k',
-                    icon='resources/icons/toolbar/crop@10x.png',
-                    description=_("Crop image"),
-                    group=tools_group,
-                    section=0,
-                    order=2,
-                    toolbar_text=_("Crop"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'  # Always visible, not just in edit mode
-                ),
-                'reset': FicheroCommand(
-                    id=f'{self.view_id}.reset',
-                    label=_("Reset to Original"),
-                    action=self._on_reset,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + 'r',
-                    icon='resources/icons/toolbar/arrow.up.left.and.arrow.down.right@10x.png',
-                    description=_("Reset image to original state"),
-                    group=tools_group,
-                    section=0,
-                    order=3,
-                    toolbar_text=_("Reset"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'  # Always visible, not just in edit mode
-                ),
-                'flip_horizontal': FicheroCommand(
-                    id=f'{self.view_id}.flip_horizontal',
-                    label=_("Flip Horizontal"),
-                    action=self._on_flip_horizontal,
-                    shortcut=toga.Key.MOD_1 + 'h',
-                    icon='resources/icons/toolbar/chevron.left@10x.png',
-                    description=_("Flip image horizontally"),
-                    group=tools_group,
-                    section=0,
-                    order=4,
-                    toolbar_text=_("Flip\nH"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'flip_vertical': FicheroCommand(
-                    id=f'{self.view_id}.flip_vertical',
-                    label=_("Flip Vertical"),
-                    action=self._on_flip_vertical,
-                    shortcut=toga.Key.MOD_1 + 'v',
-                    icon='resources/icons/toolbar/chevron.up@10x.png',
-                    description=_("Flip image vertically"),
-                    group=tools_group,
-                    section=0,
-                    order=5,
-                    toolbar_text=_("Flip\nV"),
-                    toolbar_position='left',
-                    show_in_menu=False,  # Don't show in macOS menu/toolbar
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'
-                ),
-                'straighten': FicheroCommand(
-                    id=f'{self.view_id}.straighten',
-                    label=_("Straighten"),
-                    action=self._on_straighten,
-                    shortcut=toga.Key.MOD_1 + 's',
-                    icon='resources/icons/toolbar/level@10x.png',
-                    description=_("Straighten image (fine rotation adjustment)"),
-                    group=tools_group,
-                    section=0,
-                    order=6,
-                    toolbar_text=_("Straight\nen"),
-                    toolbar_position='left',
-                    show_in_menu=True,
-                    show_in_top_toolbar=True,
-                    show_in_bottom_toolbar=False,
-                    desktop_only=False,
-                    context='normal'
-                ),
-
-                # ===== MOBILE TOOLBAR - Inspector Button =====
-                'show_inspector': FicheroCommand(
-                    id=f'{self.view_id}.show_inspector',
-                    label=_("Show Inspector"),
-                    action=self._on_toggle_inspector,
-                    icon='resources/icons/toolbar/info.circle@10x.png',
-                    description=_("Show/hide inspector panel"),
-                    toolbar_position='right',
-                    order=99,
-                    show_in_top_toolbar=True,
-                    mobile_only=True,
-                    context='normal'
-                ),
-
-                # ===== VIEW MENU - Editor Layout Submenu (FEATURE 1) =====
-                # Submenu parent
-                'editor_layout': FicheroCommand(
-                    id='view.editor_layout',
-                    label=_("Editor Layout"),
-                    action=None,  # Submenu parent, no action
-                    description=_("Split and arrange panes"),
-                    group=toga.Group.VIEW,
-                    section=30,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-
-                # Split commands under Editor Layout submenu
-                'split_right': FicheroCommand(
-                    id=f'{self.view_id}.split_right',
-                    label=_("Split Right"),
-                    action=self._on_split_right,
-                    shortcut=toga.Key.MOD_1 + '\\',
-                    description=_("Split pane to the right (add vertical column)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=30,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'split_down': FicheroCommand(
-                    id=f'{self.view_id}.split_down',
-                    label=_("Split Down"),
-                    action=self._on_split_down,
-                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '\\',
-                    description=_("Split pane down (add horizontal row)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=30,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'split_left': FicheroCommand(
-                    id=f'{self.view_id}.split_left',
-                    label=_("Split Left"),
-                    action=self._on_split_left,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '\\',
-                    description=_("Split pane to the left (add vertical column)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=30,
-                    order=2,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'split_up': FicheroCommand(
-                    id=f'{self.view_id}.split_up',
-                    label=_("Split Up"),
-                    action=self._on_split_up,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + toga.Key.MOD_2 + '\\',
-                    description=_("Split pane up (add horizontal row)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=30,
-                    order=3,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                # Focus cycling commands
-                'cycle_focus_next': FicheroCommand(
-                    id=f'{self.view_id}.cycle_focus_next',
-                    label=_("Next Pane"),
-                    action=self._on_cycle_focus_next,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + ']',
-                    description=_("Focus next preview pane"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=31,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'cycle_focus_prev': FicheroCommand(
-                    id=f'{self.view_id}.cycle_focus_prev',
-                    label=_("Previous Pane"),
-                    action=self._on_cycle_focus_prev,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '[',
-                    description=_("Focus previous preview pane"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=31,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                # Pane size adjustment commands (smart: width or height based on context)
-                'grow_column': FicheroCommand(
-                    id=f'{self.view_id}.grow_column',
-                    label=_("Grow Pane"),
-                    action=self._on_grow_column,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '=',
-                    description=_("Increase focused pane size by 10% (width for columns, height for rows)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=31,
-                    order=2,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'shrink_column': FicheroCommand(
-                    id=f'{self.view_id}.shrink_column',
-                    label=_("Shrink Pane"),
-                    action=self._on_shrink_column,
-                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '-',
-                    description=_("Decrease focused pane size by 10% (width for columns, height for rows)"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=31,
-                    order=3,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-
-                'move_to_window': FicheroCommand(
-                    id=f'{self.view_id}.move_to_window',
-                    label=_("Move Pane to New Window"),
-                    action=self._on_move_to_window,
-                    description=_("Move focused pane to a new window"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=32,
-                    order=0,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-                'copy_to_window': FicheroCommand(
-                    id=f'{self.view_id}.copy_to_window',
-                    label=_("Copy Pane to New Window"),
-                    action=self._on_copy_to_window,
-                    description=_("Copy focused pane to a new window"),
-                    group=toga.Group.VIEW,
-                    parent='view.editor_layout',
-                    section=32,
-                    order=1,
-                    show_in_menu=True,
-                    desktop_only=True,
-                    context='normal'
-                ),
-            }
-            logger.info(f"✅ Defined {len(self.commands)} commands for PreviewView")
-
-        except Exception as e:
-            logger.error(f"Failed to define commands: {e}")
-            self.commands = {}
+            # ===== Basic toolbar tools =====
+            'rotate_left': FicheroCommand(
+                id=f'{self.view_id}.rotate_left',
+                label=_("Rotate Left"),
+                action=self._on_rotate_left,
+                shortcut=toga.Key.MOD_1 + 'l',
+                icon='resources/icons/toolbar/rotate.left@10x.png',
+                description=_("Rotate image 90° counter-clockwise"),
+                show_in_top_toolbar=True,
+                context='normal'
+            ),
+            'rotate_right': FicheroCommand(
+                id=f'{self.view_id}.rotate_right',
+                label=_("Rotate Right"),
+                action=self._on_rotate_right,
+                shortcut=toga.Key.MOD_1 + 'r',
+                icon='resources/icons/toolbar/rotate.right@10x.png',
+                description=_("Rotate image 90° clockwise"),
+                show_in_top_toolbar=True,
+                context='normal'
+            ),
+        }
 
     def _create_content(self):
-        """Create preview view content"""
-        logger.info("Creating preview view content (PHASE 4 - 5-column layout)")
+        """Create simplified preview content - just the layout manager"""
+        self.content_area = toga.Box(style=Pack(direction=ROW, flex=1))
 
-        # Main content area - horizontal layout for output + inspector
-        # NOTE: StepBrowser has been moved to Column 3 (StepBrowserView) in 5-column layout
-        self.content_area = toga.Box(
-            style=Pack(
-                direction=ROW,
-                flex=1
-            )
-        )
-
-        # Add layout manager's container (output panes) - fills available space
+        # Add layout manager's container (output panes)
         self.content_area.add(self.layout_manager.get_container())
-
-        # Create inspector panel (hidden by default)
-        # NOTE: Might move this to Column 5 (AdjustView) later
-        self._build_inspector_panel()
 
         # Add to content container (from BaseView)
         self.content_container.add(self.content_area)
 
-    def get_container(self):
-        """Return the main container for this view"""
-        return self.container
-
-    def show(self):
-        """Show callback - called when view becomes active"""
-        try:
-            self.is_visible = True
-
-            # Tell the coordinator that this view is now active
-            if hasattr(self, 'coordinator') and self.coordinator:
-                self.coordinator.set_active_view('output')
-                logger.debug("PreviewView notified coordinator of activation")
-        except Exception as e:
-            logger.error(f"Failed to notify coordinator in show(): {e}")
-
     def _setup_toolbars(self):
-        """Set up toolbars with navigation buttons using declarative command system"""
-        # _() is available globally via gettext.install() in app.py
-
-        # Create top toolbar with file counter
+        """Set up simplified toolbars - just file navigation"""
+        # Top toolbar with file counter
         self.top_toolbar = TopToolbar(
             self.app,
             title=_("No file loaded"),
@@ -677,434 +215,374 @@ class PreviewView(BaseView, ViewCommandMixin):
             coordinator=self.coordinator
         )
 
-        # Add Export button to top toolbar (right side) - using command if available
-        if hasattr(self, 'commands') and 'export_output' in self.commands:
-            self.export_btn = self.top_toolbar.add_regular_button(
-                button_id="export_output",
-                position="right",
-                text=_("Export"),
-                on_press=self.commands['export_output'].action,
-                style_class="right_aligned"
-            )
-        else:
-            # Fallback to handler
-            self.export_btn = self.top_toolbar.add_regular_button(
-                button_id="export_output",
-                position="right",
-                text=_("Export"),
-                on_press=lambda widget: logger.info("Export pressed (no command)"),
-                style_class="right_aligned"
-            )
-
-        # Note: Edit button removed - AdjustView is now always visible in Column 5
-
-        # Create bottom toolbar with three sections: file nav | step selector | step nav
+        # Bottom toolbar with just file navigation (NO STEP NAVIGATION)
         self.bottom_toolbar = BottomToolbar(
             self.app,
             is_mobile=self.is_mobile,
             coordinator=self.coordinator
         )
 
-        # LEFT SECTION: File navigation buttons (up/down chevrons)
-        # Use declarative commands for navigation
-        self.bottom_prev_file_btn = self.bottom_toolbar.add_normal_mode_button(
+        # File navigation buttons
+        self.prev_file_btn = self.bottom_toolbar.add_normal_mode_button(
             icon="resources/icons/toolbar/chevron.up@10x.png",
-            on_press=lambda widget: asyncio.create_task(self._trigger_command('prev_file', widget)),
+            on_press=lambda w: asyncio.create_task(self._on_prev_file(w)),
             position="left",
             label=_("Prev\nFile")
         )
 
-        self.bottom_next_file_btn = self.bottom_toolbar.add_normal_mode_button(
+        self.next_file_btn = self.bottom_toolbar.add_normal_mode_button(
             icon="resources/icons/toolbar/chevron.down@10x.png",
-            on_press=lambda widget: asyncio.create_task(self._trigger_command('next_file', widget)),
+            on_press=lambda w: asyncio.create_task(self._on_next_file(w)),
             position="left",
             label=_("Next\nFile")
         )
 
-        # CENTER SECTION: Empty (removed step selector - not needed)
-        # Step selector was here but removed per user request
-        self.step_selector = None  # Removed - no longer used
+        # Register toolbars with BaseView
+        self.set_toolbars(top_toolbar=self.top_toolbar, bottom_toolbar=self.bottom_toolbar)
 
-        # RIGHT SECTION: Step navigation buttons (left/right chevrons)
-        self.prev_step_btn = self.bottom_toolbar.add_normal_mode_button(
-            icon="resources/icons/toolbar/chevron.left@10x.png",
-            on_press=lambda widget: self._trigger_command('prev_step', widget),
-            position="right",
-            label=_("Prev\nStep")
-        )
+        # Initial state - disabled until content loaded
+        self.prev_file_btn.enabled = False
+        self.next_file_btn.enabled = False
 
-        self.next_step_btn = self.bottom_toolbar.add_normal_mode_button(
-            icon="resources/icons/toolbar/chevron.forward@10x.png",
-            on_press=lambda widget: self._trigger_command('next_step', widget),
-            position="right",
-            label=_("Next\nStep")
-        )
+    def get_container(self):
+        """Return the main container for this view"""
+        return self.container
 
-        # ADJUSTMENT TOOLS: Auto-populated from command definitions
-        # Commands with context='normal' and show_in_bottom_toolbar=True will be added automatically
-        # These are always-visible tools (not hidden in "edit mode")
-        # See define_commands() for: rotate_left, rotate_right, crop, reset
-        logger.debug("Adjustment tool buttons will be auto-populated from command definitions")
-
-        # Toolbars auto-register with coordinator via constructor (coordinator=self.coordinator)
-
-        # Register toolbars with BaseView (this adds them to the container)
-        self.set_toolbars(
-            top_toolbar=self.top_toolbar,
-            bottom_toolbar=self.bottom_toolbar
-        )
-
-        # Initial button states (disabled until content is loaded)
-        self._update_toolbar_state()
-
-        logger.info("✅ Toolbars set up with navigation controls")
-
-    def _setup_tools_menu(self):
-        """Set up the Tools menu with Adjust, Go To, and Process submenus"""
-        logger.info("Setting up Tools menu")
-
-        try:
-            # Build the menu using the tools menu manager
-            tools_menu = self.tools_menu_manager.build_menu()
-
-            # Register the menu with the app
-            # Note: In Toga, menus are typically added to the app's main_window
-            # We need to check if the app has a menubar we can add to
-            # Toga's main_window property raises ValueError if not set, so we catch it
-            try:
-                if self.app.main_window and hasattr(self.app.main_window, '_impl'):
-                    # The actual menu registration depends on the platform
-                    # For now, we'll just log that it's ready
-                    logger.info("Tools menu built and ready")
-                    # TODO: Actual menu registration may need to happen at app level
-                    # The tools_menu is stored in self.tools_menu_manager.tools_menu
-            except (ValueError, AttributeError):
-                # Main window not set yet during initialization - this is normal
-                logger.debug("Tools menu built - main window not ready yet (normal during init)")
-
-        except Exception as e:
-            logger.error(f"Error setting up Tools menu: {e}", exc_info=True)
-
-    def _trigger_command(self, command_id: str, widget):
-        """Trigger a command from the declarative command registry"""
-        if hasattr(self, 'commands') and command_id in self.commands:
-            command = self.commands[command_id]
-            if command.action:
-                # Call the command's action
-                result = command.action(widget)
-                # Handle async commands
-                if asyncio.iscoroutine(result):
-                    return result
-        else:
-            logger.warning(f"Command '{command_id}' not found in registry")
-
-    # ==================== NAVIGATION EVENT HANDLERS ====================
-
-    def _on_show_preview_event(self, event):
-        """
-        Handle 'show_preview' navigation event from CollectionView.
-
-        Called when user clicks on an item in CollectionView.
-        Event data contains file_path, item_id, and optional output_data.
-        """
-        try:
-            data = event.data
-            logger.info(f"🎯 CLICK TRACE #5: PreviewView received 'show_preview' event with data keys: {list(data.keys())}")
-
-            item_id = data.get('item_id')
-            file_path = data.get('file_path')
-            logger.info(f"🎯 CLICK TRACE #6: PreviewView extracted: item_id={item_id}, file_path={file_path}")
-
-            # Load the output for the selected item
-            if item_id:
-                logger.info(f"🎯 CLICK TRACE #7: ✅ Calling load_output with item_id={item_id}")
-                self.load_output(item_id=item_id, step_index=0)
-            else:
-                logger.error(f"🎯 CLICK TRACE #7: ❌ No item_id in show_preview event. Full data: {data}")
-
-        except Exception as e:
-            logger.error(f"🎯 CLICK TRACE ERROR: Failed to handle show_preview event: {e}")
-            import traceback
-            traceback.print_exc()
+    def show(self):
+        """Show callback - called when view becomes active"""
+        self.is_visible = True
+        if hasattr(self, 'coordinator') and self.coordinator:
+            self.coordinator.set_active_view('output')
 
     # ==================== PUBLIC API ====================
 
-    def load_output(self, item_id: str = None, source_item_ids: List[str] = None,
-                    file_index: int = 0, step_index: int = 0,
-                    # Backward compatibility with old parameter names
-                    file_path=None, source_files=None, source_index: int = None):
+    async def _get_item_metadata_from_backend(self, item_id: str) -> Dict[str, Any]:
         """
-        Load output for display (PHASE 4 refactored).
+        Query extracted_metadata table for ALL metadata for an item.
 
-        Args:
-            item_id: Single library item ID to load
-            source_item_ids: List of item IDs for multi-file navigation
-            file_index: Which file to display initially
-            step_index: Which step to display initially
-            file_path: (Deprecated) Old parameter - ignored, use item_id instead
-            source_files: (Deprecated) Old parameter - ignored, use source_item_ids instead
-            source_index: (Deprecated) Old parameter - mapped to file_index
+        Uses the new metadata backend system instead of item.metadata dict.
+
+        Returns organized dict structure ready for JSON display:
+        {
+            "item_info": {...},
+            "transcriptions": {"ai_qwen_v1": {...}},
+            "catalogues": {...},
+            "file_info": {...}
+        }
         """
-        # Map old parameter names to new ones for backward compatibility
-        if source_index is not None:
-            file_index = source_index
-
-        logger.info(f"Loading output: item_id={item_id}, file_index={file_index}, step_index={step_index}")
-
-        # Run async loading in background task
-        asyncio.create_task(self._load_output_async(item_id, source_item_ids, file_index, step_index))
-
-    async def _load_output_async(self, item_id: str, source_item_ids: List[str],
-                                 file_index: int, step_index: int):
-        """Internal async method to load output"""
         try:
-            logger.info(f"🎯 CLICK TRACE #8: _load_output_async: item_id={item_id}, source_item_ids={source_item_ids}, file_index={file_index}, step_index={step_index}")
+            # Get item basic info
+            item = await self.library_manager.get_item(item_id)
+            if not item:
+                logger.warning(f"Item {item_id} not found")
+                return {}
 
-            # Load via step manager
-            if source_item_ids:
-                # Multi-file navigation
-                logger.info(f"🎯 CLICK TRACE #9: Loading item list with {len(source_item_ids)} items")
-                await self.step_manager.load_item_list(source_item_ids, initial_index=file_index)
-            elif item_id:
-                # Single file
-                logger.info(f"🎯 CLICK TRACE #9: Loading single item: {item_id}")
-                await self.step_manager.load_item(item_id)
-            else:
-                logger.error(f"🎯 CLICK TRACE #9: ❌ No item_id or source_item_ids provided")
-                return
+            # Build item info section
+            metadata = {
+                'item_info': {
+                    'name': item.name,
+                    'type': item.type,
+                    'status': item.status,
+                    'storage_type': item.storage_type,
+                    'source_path': str(item.source_path) if item.source_path else None,
+                    'local_path': str(item.local_path) if item.local_path else None,
+                    'created_at': item.created_at.isoformat() if hasattr(item, 'created_at') and item.created_at else None,
+                    'updated_at': item.updated_at.isoformat() if hasattr(item, 'updated_at') and item.updated_at else None,
+                }
+            }
 
-            # NOTE: StepBrowser moved to Column 3 (StepBrowserView) in 4-column layout
-            # Now we notify StepBrowserView when steps are loaded
-            if self.step_manager.steps:
-                logger.info(f"🎯 CLICK TRACE #10: ✅ Loaded {len(self.step_manager.steps)} steps, setting current to {step_index}")
-                logger.info(f"🎯 CLICK TRACE #11.1: About to call set_current_step({step_index})...")
-                result = self.step_manager.set_current_step(step_index)  # Returns bool, don't await
-                logger.info(f"🎯 CLICK TRACE #11.2: set_current_step returned: {result}")
+            # Add custom metadata from item.metadata dict if present
+            if hasattr(item, 'metadata') and item.metadata:
+                metadata['item_info']['custom_metadata'] = item.metadata
 
-                # DIRECTLY render the step instead of relying on callback
-                logger.info(f"🎯 CLICK TRACE #12: Directly rendering step {step_index} in primary pane...")
-                pane = self.layout_manager.get_primary_pane()
-                if pane:
-                    current_step = self.step_manager.get_step(step_index)
-                    logger.info(f"🎯 CLICK TRACE #13: ✅ Got primary pane, calling set_step(item_id={item_id}, step_index={step_index})")
-                    asyncio.create_task(pane.set_step(item_id, step_index, step=current_step))
-                else:
-                    logger.error(f"🎯 CLICK TRACE #13: ❌ No primary pane available!")
+            # Query processing outputs to get extracted metadata
+            try:
+                output_data = await self.library_manager.get_item_output_data(item_id)
 
-                # Notify StepBrowserView about the loaded steps
-                if self.step_browser_view:
-                    self.step_browser_view.load_steps(self.step_manager.steps, step_index)
-                    logger.info(f"🎯 CLICK TRACE #14: ✅ Notified StepBrowserView: {len(self.step_manager.steps)} steps loaded")
-                else:
-                    logger.warning(f"🎯 CLICK TRACE #14: ⚠️  No StepBrowserView connected to PreviewView")
-            else:
-                logger.error(f"🎯 CLICK TRACE #10: ❌ No processing steps found after loading")
+                if output_data and output_data.get('processing_steps'):
+                    # Iterate through processing steps to collect metadata
+                    for step in output_data['processing_steps']:
+                        # Each step may have a processing_output with extracted metadata
+                        if hasattr(step, 'manifest_entry') and step.manifest_entry:
+                            output_id = step.manifest_entry.get('processing_output_id')
+                            if output_id:
+                                # Get extracted metadata for this output
+                                extracted = self.library_manager.storage.get_extracted_metadata(output_id)
+
+                                for meta in extracted:
+                                    # Group by schema_type (e.g., "transcription", "catalogue")
+                                    schema_section = f"{meta.schema_type}s"  # e.g., "transcriptions"
+                                    if schema_section not in metadata:
+                                        metadata[schema_section] = {}
+
+                                    # Create version key: "source_label_vN"
+                                    version_key = f"{meta.source_label}_v{meta.version}"
+                                    if version_key not in metadata[schema_section]:
+                                        metadata[schema_section][version_key] = {}
+
+                                    # Add field
+                                    metadata[schema_section][version_key][meta.key] = meta.value
+
+                                    # Add confidence if present
+                                    if meta.confidence is not None:
+                                        metadata[schema_section][version_key][f"{meta.key}_confidence"] = meta.confidence
+
+                logger.info(f"✅ Extracted metadata from backend: {len(metadata)} sections")
+
+            except Exception as e:
+                logger.warning(f"Could not query extracted metadata: {e}")
+                # Continue with just item_info
+
+            return metadata
 
         except Exception as e:
-            logger.error(f"💥 Error loading output: {e}")
+            logger.error(f"Failed to get metadata from backend: {e}")
             import traceback
-            logger.error(traceback.format_exc())
+            traceback.print_exc()
+            return {}
 
-    def set_step_browser_view(self, step_browser_view):
+    async def _get_transcription_text(self, item_id: str, output_data: Optional[Dict] = None) -> Optional[Path]:
         """
-        Set the StepBrowserView reference for step loading communication.
+        Get transcription text from extracted_metadata table.
 
-        Called by main_window during initialization to wire PreviewView to StepBrowserView.
+        Queries for schema_type='transcription' and returns the text content.
 
         Args:
-            step_browser_view: The StepBrowserView instance to notify when steps are loaded
+            item_id: ID of the item
+            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
         """
-        self.step_browser_view = step_browser_view
-        logger.info("✅ StepBrowserView reference set in PreviewView")
+        import tempfile
+        from pathlib import Path
 
-    async def set_layout(self, layout_type: LayoutType):
-        """
-        Switch to a different layout.
-
-        Args:
-            layout_type: Layout type to switch to
-        """
-        # Remember if inspector was visible
-        was_inspector_visible = self.inspector_visible
-
-        # Hide inspector temporarily (will be re-added after layout change)
-        if was_inspector_visible:
-            self._hide_inspector()
-
-        # Change the layout
-        self.layout_manager.set_layout(layout_type)
-
-        # Re-show inspector if it was visible
-        if was_inspector_visible:
-            self._show_inspector()
-
-    # ==================== EVENT HANDLERS ====================
-
-    def _on_step_state_changed(self, state: StepState):
-        """
-        Handle step state change from StepManager.
-
-        Called automatically when navigation changes.
-        Updates UI to reflect new state.
-        """
-        logger.info(f"🎯 CLICK TRACE #12: Step state changed: step {state.step_index}/{state.total_steps}, "
-                    f"file {state.file_index}/{state.total_files}, item_id={state.item_id}")
-
-        # Update UI
-        self._update_ui_from_state()
-
-        # Reload current step in FOCUSED pane (FEATURE 1: multi-pane support)
-        if state.item_id and state.step_index >= 0:
-            logger.info(f"🎯 CLICK TRACE #13: Getting focused pane to render step...")
-            pane = self.layout_manager.get_focused_pane()  # Load into focused pane, not primary
-            if pane:
-                logger.info(f"🎯 CLICK TRACE #14: ✅ Focused pane found, calling set_step(item_id={state.item_id}, step_index={state.step_index})")
-                current_step = self.step_manager.get_step(state.step_index)
-                asyncio.create_task(pane.set_step(state.item_id, state.step_index, step=current_step))
-            else:
-                logger.error(f"🎯 CLICK TRACE #14: ❌ No focused pane available!")
-
-        # Update inspector if visible (PHASE 4)
-        if self.inspector_visible:
-            self._update_inspector()
-
-    def _update_ui_from_state(self):
-        """Update UI elements based on current StepState"""
-        state = self.step_manager.get_state()
-
-        # Update toolbar state
-        self._update_toolbar_state()
-
-        # Update Tools menu state
-        if hasattr(self, 'tools_menu_manager'):
-            self.tools_menu_manager.update_menu_states()
-
-        # Update step selector dropdown
-        self._update_step_selector()
-
-    def _update_toolbar_state(self):
-        """Update toolbar button states and labels based on current StepState"""
-        # _() is available globally via gettext.install() in app.py
-
-        state = self.step_manager.get_state()
-
-        # Update top toolbar title with file counter
-        if state.total_files > 0:
-            file_title = _("File {}/{}").format(state.file_index + 1, state.total_files)
-        elif state.item_id:
-            file_title = _("File 1/1")
-        else:
-            file_title = _("No file loaded")
-
-        # Update toolbar title (directly update title_label like the old code does)
-        if hasattr(self, 'top_toolbar') and self.top_toolbar:
-            if hasattr(self.top_toolbar, 'title_label') and self.top_toolbar.title_label:
-                self.top_toolbar.title_label.text = file_title
-
-        # Enable/disable navigation buttons based on state
-        if hasattr(self, 'prev_step_btn'):
-            self.prev_step_btn.enabled = state.can_go_prev_step
-        if hasattr(self, 'next_step_btn'):
-            self.next_step_btn.enabled = state.can_go_next_step
-        if hasattr(self, 'bottom_prev_file_btn'):
-            self.bottom_prev_file_btn.enabled = state.can_go_prev_file
-        if hasattr(self, 'bottom_next_file_btn'):
-            self.bottom_next_file_btn.enabled = state.can_go_next_file
-
-        # Enable/disable export/edit buttons
-        has_content = state.item_id is not None and state.total_steps > 0
-        if hasattr(self, 'export_btn'):
-            self.export_btn.enabled = has_content
-        if hasattr(self, 'edit_btn'):
-            self.edit_btn.enabled = has_content
-
-    def _update_step_selector(self):
-        """Update step selector dropdown with current steps"""
-        # _() is available globally via gettext.install() in app.py
-
-        # Step selector was removed from bottom toolbar - skip update
-        if not hasattr(self, 'step_selector') or self.step_selector is None:
-            return
-
-        # Get steps from manager
-        steps = self.step_manager.steps
-
-        if not steps:
-            self.step_selector.items = [_("No steps loaded")]
-            self.step_selector.enabled = False
-            return
-
-        # Build step list with format: "1. Crop Image", "2. Enhance", etc.
-        step_items = []
-        for i, step in enumerate(steps):
-            step_items.append(f"{i + 1}. {step.step_name}")
-
-        self.step_selector.items = step_items
-        self.step_selector.enabled = True
-
-        # Set current selection
-        current_index = self.step_manager.current_step_index
-        if 0 <= current_index < len(step_items):
-            self.step_selector.value = step_items[current_index]
-
-    def _on_step_selected(self, widget):
-        """Handle step selector dropdown change"""
-        if not hasattr(self, 'step_selector') or not self.step_selector.value:
-            return
-
-        # Parse step index from selection (format: "1. Step Name")
         try:
-            selection = self.step_selector.value
-            step_index = int(selection.split('.')[0]) - 1  # Convert to 0-based index
+            # Get item to access its processing outputs
+            item = await self.library_manager.get_item(item_id)
+            if not item:
+                logger.warning(f"Item {item_id} not found")
+                return None
 
-            # Update step manager
-            self.step_manager.set_current_step(step_index)
-            # State change event will trigger UI update
+            # REFACTORED: Use cached output_data if available
+            if not output_data:
+                logger.debug("⚠️ No cached output_data provided for transcription, fetching from library_manager")
+                output_data = await self.library_manager.get_item_output_data(item_id)
+            else:
+                logger.debug("✅ Using cached output_data for transcription lookup (no database query)")
 
-        except (ValueError, IndexError) as e:
-            logger.error(f"Failed to parse step selection: {e}")
+            if not output_data or not output_data.get('processing_steps'):
+                logger.info(f"No processing outputs found for item {item_id}")
+                return None
 
-    # ==================== NAVIGATION HANDLERS ====================
+            # Look for transcription in extracted metadata
+            transcription_text = None
+            for step in output_data['processing_steps']:
+                if hasattr(step, 'manifest_entry') and step.manifest_entry:
+                    output_id = step.manifest_entry.get('processing_output_id')
+                    if output_id:
+                        # Get extracted metadata for this output
+                        extracted = self.library_manager.storage.get_extracted_metadata(output_id)
 
-    def _on_prev_step(self, widget):
-        """Navigate to previous step"""
-        if self.step_manager.prev_step():
-            logger.debug("Navigated to previous step")
-            # State change event will trigger UI update
+                        # Find transcription schema_type
+                        for meta in extracted:
+                            if meta.schema_type == 'transcription' and meta.key == 'text':
+                                transcription_text = meta.value
+                                break
 
-    def _on_next_step(self, widget):
-        """Navigate to next step"""
-        if self.step_manager.next_step():
-            logger.debug("Navigated to next step")
-            # State change event will trigger UI update
+                        if transcription_text:
+                            break
+
+            if not transcription_text:
+                logger.info(f"No transcription found for item {item_id}")
+                return None
+
+            # Create temp text file
+            temp_file = Path(tempfile.gettempdir()) / f"transcription_{item_id}.txt"
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write(transcription_text)
+
+            logger.info(f"✅ Created transcription text file: {temp_file}")
+            return temp_file
+
+        except Exception as e:
+            logger.error(f"Failed to get transcription text: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    async def load_item(self, item_id: str, output_data: Optional[Dict] = None):
+        """
+        Load item with DUAL-COLUMN layout: image on left, metadata on right.
+        ALWAYS shows dual columns regardless of processing status.
+
+        Args:
+            item_id: ID of the item to load
+            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
+        """
+        # ALWAYS reload - no deduplication to ensure content updates properly
+        logger.info(f"Loading item: {item_id} (forced reload)")
+
+        try:
+            self.current_item_id = item_id
+
+            # Get item from library (use async API)
+            item = await self.library_manager.get_item(item_id)
+            if not item:
+                logger.warning(f"Item not found: {item_id}")
+                return
+
+            # Update toolbar title
+            file_index = self.current_item_index + 1
+            total_files = len(self.current_collection_items)
+            if total_files > 0:
+                title = _("File {}/{}").format(file_index, total_files)
+            else:
+                title = _("File 1/1")
+
+            if hasattr(self, 'top_toolbar') and self.top_toolbar:
+                if hasattr(self.top_toolbar, 'title_label') and self.top_toolbar.title_label:
+                    self.top_toolbar.title_label.text = title
+
+            # Update file navigation buttons
+            self.prev_file_btn.enabled = self.current_item_index > 0
+            self.next_file_btn.enabled = self.current_item_index < len(self.current_collection_items) - 1
+
+            # ALWAYS use dual-column layout
+            logger.info(f"📊 Using dual-column preview: image on left, metadata on right")
+            self.layout_manager.set_layout(LayoutType.DUAL_COMPARE)
+
+            # LEFT PANE: Display the latest image (NO STEP ITERATION)
+            left_pane = self.layout_manager.get_pane(0)
+            if left_pane:
+                try:
+                    # Get latest output using cached data if available
+                    latest_output = await self._get_latest_output(item_id, output_data)
+                    if latest_output:
+                        await left_pane.set_content(
+                            file_path=latest_output['file_path'],
+                            file_type=latest_output['file_type'],
+                            context={
+                                'step_name': latest_output['step_name'],
+                                'tool_name': latest_output['tool_name']
+                            }
+                        )
+                        logger.info(f"✅ Loaded latest output in left pane: {latest_output['step_name']}")
+                    else:
+                        logger.warning(f"⚠️ No output available for item {item_id}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to load content in left pane: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # RIGHT PANE: Display metadata/transcription - ALWAYS show content
+            right_pane = self.layout_manager.get_pane(1)
+            if right_pane:
+                try:
+                    # Get transcription using cached data if available
+                    transcription_path = await self._get_transcription_text(item_id, output_data)
+                    if transcription_path:
+                        await right_pane.set_content(
+                            file_path=transcription_path,
+                            file_type='text',
+                            context={'step_name': 'Transcription', 'tool_name': 'transcription'}
+                        )
+                        logger.info(f"✅ Loaded transcription in right pane")
+                    else:
+                        # No transcription available - show file metadata instead
+                        logger.info(f"📝 No transcription available - showing metadata")
+
+                        # Get item metadata from backend
+                        metadata = await self._get_item_metadata_from_backend(item_id)
+
+                        # Create temporary JSON file with metadata
+                        import tempfile
+                        import json
+                        temp_file = Path(tempfile.gettempdir()) / f"metadata_{item_id}.json"
+                        with open(temp_file, 'w', encoding='utf-8') as f:
+                            json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+                        # Display metadata JSON in right pane
+                        await right_pane.set_content(
+                            file_path=temp_file,
+                            file_type='json',
+                            context={'step_name': 'Metadata', 'tool_name': 'metadata'}
+                        )
+                        logger.info(f"✅ Loaded metadata in right pane")
+                except Exception as e:
+                    logger.error(f"❌ Failed to load content in right pane: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+        except Exception as e:
+            logger.error(f"Failed to load item: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _get_latest_output(self, item_id: str, output_data: Optional[Dict] = None) -> Optional[Dict]:
+        """
+        Get latest processing output for an item.
+        Returns original file if no processing done yet.
+
+        Args:
+            item_id: ID of the item
+            output_data: Optional pre-fetched output data (avoids re-querying library_manager)
+        """
+        try:
+            # Use provided output_data if available, otherwise fetch
+            if not output_data:
+                logger.debug("⚠️ No cached output_data provided, fetching from library_manager")
+                output_data = await self.library_manager.get_item_output_data(item_id)
+            else:
+                logger.debug("✅ Using cached output_data (no database query)")
+
+            if output_data and output_data.get('has_outputs'):
+                # Get last step
+                steps = output_data.get('processing_steps', [])
+                if steps:
+                    last_step = steps[-1]
+                    return {
+                        'file_path': last_step.file_path,
+                        'file_type': last_step.file_type,
+                        'step_name': last_step.step_name,
+                        'tool_name': last_step.tool_name
+                    }
+
+            # No processing outputs - return original file
+            item = await self.library_manager.get_item(item_id)
+            if item:
+                # Use direct attributes, not metadata dict
+                file_path = item.local_path or item.source_path
+                if file_path:
+                    return {
+                        'file_path': file_path,
+                        'file_type': 'image',  # Assume image for now
+                        'step_name': 'Original',
+                        'tool_name': 'original'
+                    }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get latest output: {e}")
+            return None
+
+    # ==================== FILE NAVIGATION ====================
 
     async def _on_prev_file(self, widget):
-        """Navigate to previous file"""
-        if await self.step_manager.prev_file():
-            logger.debug("Navigated to previous file")
-            # State change event will trigger UI update
+        """Navigate to previous file in collection"""
+        if self.current_item_index > 0:
+            self.current_item_index -= 1
+            item = self.current_collection_items[self.current_item_index]
+            item_id = item.get('id')
+            if item_id:
+                await self.load_item(item_id)
 
     async def _on_next_file(self, widget):
-        """Navigate to next file"""
-        if await self.step_manager.next_file():
-            logger.debug("Navigated to next file")
-            # State change event will trigger UI update
-
-    def _on_step_browser_selected(self, step_index: int):
-        """
-        Handle step selection from step browser.
-
-        NOTE: In 5-column layout, this is called from main_window when StepBrowserView (Column 3)
-        fires a step selection event, not from internal step_browser.
-
-        Args:
-            step_index: Index of selected step
-        """
-        logger.info(f"Step browser: Step {step_index} selected (5-column layout)")
-
-        # Update step manager to the selected step
-        # This will trigger _on_step_state_changed() which handles UI updates and pane loading
-        self.step_manager.set_current_step(step_index)
+        """Navigate to next file in collection"""
+        if self.current_item_index < len(self.current_collection_items) - 1:
+            self.current_item_index += 1
+            item = self.current_collection_items[self.current_item_index]
+            item_id = item.get('id')
+            if item_id:
+                await self.load_item(item_id)
 
     # ==================== ZOOM HANDLERS ====================
 
@@ -1132,25 +610,7 @@ class PreviewView(BaseView, ViewCommandMixin):
         if pane:
             pane.zoom_100()
 
-    def _on_fit_width(self, widget):
-        """Fit image to window width"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.zoom_fit_width()
-
-    def _on_fit_height(self, widget):
-        """Fit image to window height"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.zoom_fit_height()
-
-    def _on_zoom_selection(self, widget):
-        """Zoom to selected area (Shift+drag in viewer)"""
-        # Selection is handled automatically in JavaScript with Shift+drag
-        # This command just shows a message to the user
-        logger.info("Zoom to selection: Hold Shift and drag to select an area to zoom to")
-
-    # ==================== ROTATION/EDIT HANDLERS ====================
+    # ==================== ROTATION HANDLERS ====================
 
     def _on_rotate_left(self, widget):
         """Rotate image 90° counter-clockwise"""
@@ -1163,610 +623,3 @@ class PreviewView(BaseView, ViewCommandMixin):
         pane = self.layout_manager.get_primary_pane()
         if pane:
             pane.rotate_right()
-
-    def _on_crop(self, widget):
-        """Activate crop tool"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.activate_crop()
-
-    def _on_reset(self, widget):
-        """Reset image to original state (undo all edits)"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            # Reset rotation and zoom
-            pane.reset_rotation()
-            pane.zoom_100()
-
-    def _on_flip_horizontal(self, widget):
-        """Flip image horizontally"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.flip_horizontal()
-
-    def _on_flip_vertical(self, widget):
-        """Flip image vertically"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.flip_vertical()
-
-    def _on_straighten(self, widget):
-        """Activate straighten tool (fine rotation adjustment)"""
-        pane = self.layout_manager.get_primary_pane()
-        if pane:
-            pane.activate_straighten()
-
-    def _on_toggle_inspector(self, widget):
-        """Toggle inspector panel visibility (command handler)"""
-        self._toggle_inspector()
-
-    # ==================== INSPECTOR INTEGRATION (PHASE 4) ====================
-
-    def _build_inspector_panel(self):
-        """Build the inspector sidebar panel (PHASE 4)"""
-        # Create inspector container (right sidebar)
-        self.inspector_panel = toga.Box(
-            style=Pack(
-                direction=COLUMN,
-                width=350,  # Fixed width for inspector
-                margin_left=10
-            )
-        )
-
-        # Create ScrollContainer for inspector content
-        inspector_scroll = toga.ScrollContainer(
-            style=Pack(flex=1)
-        )
-
-        # Create vertical box to hold Phase 3 components
-        inspector_content = toga.Box(
-            style=Pack(direction=COLUMN, margin=5)
-        )
-
-        # Add Phase 3 MetadataViewer
-        inspector_content.add(self.metadata_viewer.as_box())
-
-        # Add separator
-        separator = toga.Box(style=Pack(height=2, background_color='#CCCCCC', margin=(10, 0)))
-        inspector_content.add(separator)
-
-        # Add Phase 3 JsonEditor with callbacks
-        self.json_editor.on_save = self._on_inspector_save
-        self.json_editor.on_cancel = self._on_inspector_cancel
-        inspector_content.add(self.json_editor.as_box())
-
-        # Add content to scroll container
-        inspector_scroll.content = inspector_content
-
-        # Add scroll container to inspector panel
-        self.inspector_panel.add(inspector_scroll)
-
-        # Inspector starts hidden
-        # (will be added to content_area when shown)
-
-    async def _show_inspector_async(self):
-        """Show inspector panel with current step metadata and editable JSON from renderer (async)"""
-        if self.inspector_visible:
-            return  # Already visible
-
-        try:
-            # Get current state from step manager (synchronously)
-            state = self.step_manager.get_state()
-            if not state or not state.item_id:
-                logger.warning("No current step to display in inspector")
-                return
-
-            # Get current pane from layout manager
-            pane = self.layout_manager.get_primary_pane()
-            if not pane:
-                logger.warning("No output pane available")
-                return
-
-            # Build metadata from current state
-            metadata = {
-                'Item ID': state.item_id,
-                'Step': f"{state.step_index + 1} / {state.total_steps}",
-                'File': f"{state.file_index + 1} / {state.total_files}",
-            }
-
-            # Get step info from current processing steps
-            if hasattr(pane, 'current_item_id') and hasattr(pane, 'current_step_index'):
-                # Get output data asynchronously
-                output_data = await self.library_manager.get_item_output_data(pane.current_item_id)
-                step_info = None
-
-                if output_data and output_data.get('processing_steps'):
-                    processing_steps = output_data['processing_steps']
-                    # Adjust for 0-indexed (step 0 is original, processing starts at 1)
-                    processing_step_index = pane.current_step_index - 1
-                    if 0 <= processing_step_index < len(processing_steps):
-                        step_info = processing_steps[processing_step_index]
-
-                if step_info:
-                    # Add step-specific metadata
-                    metadata['Step Name'] = step_info.step_name if hasattr(step_info, 'step_name') else 'Unknown'
-                    metadata['Tool'] = step_info.tool_name if hasattr(step_info, 'tool_name') else 'Unknown'
-                    metadata['File Path'] = str(step_info.file_path) if hasattr(step_info, 'file_path') else 'N/A'
-                    metadata['File Type'] = step_info.file_type if hasattr(step_info, 'file_type') else 'Unknown'
-
-                    # Get renderer for this step
-                    from fichero.library.renderers.renderer_registry import RendererRegistry
-                    from fichero.library.renderers.base_renderer import RenderContext
-                    from pathlib import Path
-
-                    tool_name = step_info.tool_name if hasattr(step_info, 'tool_name') else 'unknown'
-                    file_type = step_info.file_type if hasattr(step_info, 'file_type') else 'unknown'
-                    file_path = Path(step_info.file_path) if hasattr(step_info, 'file_path') and step_info.file_path else Path('/')
-
-                    renderer = RendererRegistry.get_renderer_for_step(
-                        tool_name=tool_name,
-                        file_type=file_type,
-                        file_path=file_path
-                    )
-
-                    logger.info(f"Using renderer {renderer.__class__.__name__} for inspector JSON")
-
-                    # Load manifest from file system
-                    manifest_entry = None
-
-                    # Build path to manifest file
-                    # Pattern: {file_path parent}/assets/{tool_name}d/{tool_name}_manifest.jsonl
-                    # Example: .../EAP1740_NP_T19_1700_001_01.tif/assets/cropped/crop_manifest.jsonl
-                    try:
-                        import json
-                        from pathlib import Path
-
-                        logger.info(f"Loading manifest for tool '{tool_name}' from file_path: {file_path}")
-
-                        # Get the item output directory
-                        # file_path is like: .../item.tif/assets/cropped/file.jpg
-                        # We need to go up to .../item.tif/ and then into assets/{tool_name}d/
-                        file_parent = file_path.parent  # .../item.tif/assets/cropped/
-                        item_dir = file_parent.parent.parent  # .../item.tif/
-
-                        # Build manifest path: {item_dir}/assets/{tool_name}d/{tool_name}_manifest.jsonl
-                        manifest_dir_name = f"{tool_name}ped" if tool_name == "crop" else f"{tool_name}d"
-                        manifest_file = item_dir / "assets" / manifest_dir_name / f"{tool_name}_manifest.jsonl"
-
-                        logger.info(f"Looking for manifest at: {manifest_file}")
-
-                        if manifest_file.exists():
-                            # Read JSONL file (one JSON object per line)
-                            with open(manifest_file, 'r') as f:
-                                # Read first line (should be the only line for simple tools)
-                                line = f.readline().strip()
-                                if line:
-                                    manifest_entry = json.loads(line)
-                                    logger.info(f"✅ Loaded manifest from file: {manifest_file}")
-                                    logger.info(f"Manifest entry keys: {list(manifest_entry.keys())}")
-                        else:
-                            logger.warning(f"❌ Manifest file not found: {manifest_file}")
-                    except Exception as e:
-                        logger.error(f"❌ Error loading manifest file: {e}", exc_info=True)
-
-                    logger.info(f"Manifest entry is: {'LOADED' if manifest_entry else 'None'}")
-
-                    # Create render context
-                    context = RenderContext(
-                        item_id=pane.current_item_id,
-                        step_index=pane.current_step_index,
-                        step_name=step_info.step_name if hasattr(step_info, 'step_name') else 'Unknown',
-                        tool_name=tool_name,
-                        file_path=file_path,
-                        file_type=file_type,
-                        manifest_entry=manifest_entry,
-                        show_metadata=True,
-                        show_content=True,
-                        interactive=True
-                    )
-
-                    # Get editable JSON from renderer
-                    editable_json = renderer.get_editable_json(context)
-
-                    if editable_json:
-                        logger.info(f"Got editable JSON from renderer: {editable_json}")
-                        self.json_editor.set_data(editable_json)
-
-                        # Store context for later use in save
-                        self._current_render_context = context
-                        self._current_renderer = renderer
-                    else:
-                        logger.info(f"Renderer {renderer.__class__.__name__} returned no editable JSON")
-                        self.json_editor.set_data({})
-                        self._current_render_context = None
-                        self._current_renderer = None
-                else:
-                    logger.warning("No step info available")
-                    self.json_editor.set_data({})
-                    self._current_render_context = None
-                    self._current_renderer = None
-
-            # Update metadata viewer
-            self.metadata_viewer.set_metadata(metadata)
-
-            # Add inspector panel to content area
-            self.content_area.add(self.inspector_panel)
-            self.inspector_visible = True
-
-            logger.debug("Inspector panel shown with renderer JSON")
-
-        except Exception as e:
-            logger.error(f"Error showing inspector: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _show_inspector(self):
-        """Show inspector panel (synchronous wrapper)"""
-        # Schedule the async version using asyncio
-        import asyncio
-        asyncio.create_task(self._show_inspector_async())
-        logger.info("Inspector show scheduled")
-
-    def _hide_inspector(self):
-        """Hide inspector panel (PHASE 4)"""
-        if not self.inspector_visible:
-            return  # Already hidden
-
-        # Remove inspector panel from content area
-        try:
-            self.content_area.remove(self.inspector_panel)
-            self.inspector_visible = False
-            logger.debug("Inspector panel hidden")
-        except Exception as e:
-            logger.error(f"Error hiding inspector panel: {e}")
-
-    def _toggle_inspector(self):
-        """
-        Toggle Adjust pane visibility (refactored to use AdjustView).
-
-        This replaces the old Phase 4 inspector with the unified AdjustView column.
-        The Edit button now shows/hides the Adjust pane beside the Preview pane.
-        """
-        if self._toggle_adjust_callback:
-            self._toggle_adjust_callback()
-            logger.info("Edit button toggled Adjust pane")
-        else:
-            logger.warning("No Adjust pane toggle callback set - Edit button has no effect")
-
-    def set_adjust_toggle_callback(self, callback):
-        """
-        Set callback for toggling the Adjust pane (called by main_window).
-
-        Args:
-            callback: Function to call when Edit button is pressed (typically main_window._toggle_inspector_pane)
-        """
-        self._toggle_adjust_callback = callback
-        logger.debug("Adjust pane toggle callback registered")
-
-    def toggle_toolbar(self):
-        """Toggle markup toolbar visibility"""
-        if not hasattr(self, 'top_toolbar') or not self.top_toolbar:
-            logger.warning("Cannot toggle toolbar: toolbar not created yet")
-            return
-
-        # Toggle visibility state
-        self.toolbar_visible = not self.toolbar_visible
-
-        if self.toolbar_visible:
-            # Show toolbar
-            self.top_toolbar.container.style.visibility = 'visible'
-            self.top_toolbar.container.style.height = None  # Auto height
-            logger.info("🔧 Markup toolbar shown")
-        else:
-            # Hide toolbar
-            self.top_toolbar.container.style.visibility = 'hidden'
-            self.top_toolbar.container.style.height = 0
-            logger.info("🔧 Markup toolbar hidden")
-
-    # toggle_step_browser() removed - StepBrowser now in Column 3 (StepBrowserView) in 5-column layout
-
-    def _update_inspector(self):
-        """Update inspector with current step data (PHASE 4)"""
-        if self.inspector_visible:
-            # Re-fetch and update
-            self._hide_inspector()
-            self._show_inspector()
-
-    def _on_inspector_save(self, updated_data: dict):
-        """
-        Handle inspector save event using renderer system.
-
-        Called when user saves edited parameters in JsonEditor.
-        Uses renderer.apply_json_edits() to validate and apply changes.
-
-        Args:
-            updated_data: Updated parameters from JsonEditor
-        """
-        logger.info(f"Inspector save requested with data: {updated_data}")
-
-        # Check if we have a current renderer and context
-        if not hasattr(self, '_current_renderer') or not self._current_renderer:
-            logger.error("No renderer available for saving")
-            # TODO: Show error feedback to user
-            return
-
-        if not hasattr(self, '_current_render_context') or not self._current_render_context:
-            logger.error("No render context available for saving")
-            # TODO: Show error feedback to user
-            return
-
-        try:
-            # Validate JSON with renderer
-            is_valid, error_message = self._current_renderer.validate_json(updated_data)
-
-            if not is_valid:
-                logger.error(f"JSON validation failed: {error_message}")
-                # TODO: Show error feedback to user with error_message
-                return
-
-            logger.info("JSON validation passed")
-
-            # Apply edits using renderer
-            success, error_message = self._current_renderer.apply_json_edits(
-                self._current_render_context,
-                updated_data
-            )
-
-            if success:
-                logger.info("Parameters applied successfully by renderer")
-                # TODO: Show success feedback to user
-
-                # Refresh the output pane to show updated result
-                pane = self.layout_manager.get_primary_pane()
-                if pane and hasattr(pane, 'refresh'):
-                    pane.refresh()
-                    logger.info("Output pane refreshed")
-            else:
-                logger.error(f"Failed to apply parameters: {error_message}")
-                # TODO: Show error feedback to user with error_message
-
-        except Exception as e:
-            logger.error(f"Error in inspector save: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            # TODO: Show error feedback to user
-
-    def _on_inspector_cancel(self):
-        """Handle inspector cancel event (PHASE 4)"""
-        logger.debug("Inspector edit cancelled")
-        # Just hide the inspector - data will be refreshed on next show
-        self._hide_inspector()
-
-    def _get_step_editor(self):
-        """Get or create step editor instance"""
-        if not hasattr(self.library_manager, 'step_editor'):
-            from fichero.library.step_editor import StepEditor
-            self.library_manager.step_editor = StepEditor(self.library_manager)
-        return self.library_manager.step_editor
-
-    # ==================== SPLIT PANE HANDLERS (FEATURE 1) ====================
-
-    def _on_split_right(self, widget):
-        """Split the focused pane to the right (add vertical column)"""
-        logger.info("Split Right: Adding column to the right")
-        try:
-            # Get the focused pane to clone its context
-            focused_pane = self.layout_manager.get_focused_pane()
-
-            # Use layout_manager's split_pane_horizontal to add a column
-            # Note: split_pane_horizontal adds a column (vertical split)
-            self.layout_manager.split_pane_horizontal(pane_index=0)  # index ignored in current implementation
-
-            # Clone context from focused pane to the new pane
-            if focused_pane:
-                new_pane = self.layout_manager.get_pane(len(self.layout_manager.panes) - 1)
-                if new_pane:
-                    focused_pane.clone_context_to(new_pane)
-                    logger.info("Cloned context from focused pane to new pane")
-
-        except Exception as e:
-            logger.error(f"Failed to split right: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_split_down(self, widget):
-        """Split the focused pane down (add horizontal row)"""
-        logger.info("Split Down: Adding row below")
-        try:
-            # Get the focused pane to clone its context
-            focused_pane = self.layout_manager.get_focused_pane()
-
-            # Use layout_manager's split_pane_vertical to add a row
-            # Note: split_pane_vertical adds a row within the focused column
-            self.layout_manager.split_pane_vertical(pane_index=0)  # index ignored in current implementation
-
-            # Clone context from focused pane to the new pane
-            if focused_pane:
-                new_pane = self.layout_manager.get_pane(len(self.layout_manager.panes) - 1)
-                if new_pane:
-                    focused_pane.clone_context_to(new_pane)
-                    logger.info("Cloned context from focused pane to new pane")
-
-        except Exception as e:
-            logger.error(f"Failed to split down: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_split_left(self, widget):
-        """Split the focused pane to the left (add vertical column)"""
-        logger.info("Split Left: Adding column to the left")
-        try:
-            # Get the focused pane to clone its context
-            focused_pane = self.layout_manager.get_focused_pane()
-
-            # For split left, we need to add a column and insert it before the current one
-            # This requires modifying the layout_manager implementation
-            # For now, use split_pane_horizontal which adds to the right
-            # TODO: Implement proper split_left in layout_manager
-            self.layout_manager.split_pane_horizontal(pane_index=0)
-
-            # Clone context from focused pane to the new pane
-            if focused_pane:
-                new_pane = self.layout_manager.get_pane(len(self.layout_manager.panes) - 1)
-                if new_pane:
-                    focused_pane.clone_context_to(new_pane)
-                    logger.info("Cloned context from focused pane to new pane")
-
-            logger.warning("Split left currently adds to right - full implementation pending")
-
-        except Exception as e:
-            logger.error(f"Failed to split left: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_split_up(self, widget):
-        """Split the focused pane up (add horizontal row above)"""
-        logger.info("Split Up: Adding row above")
-        try:
-            # Get the focused pane to clone its context
-            focused_pane = self.layout_manager.get_focused_pane()
-
-            # For split up, we need to add a row and insert it before the current one
-            # This requires modifying the layout_manager implementation
-            # For now, use split_pane_vertical which adds below
-            # TODO: Implement proper split_up in layout_manager
-            self.layout_manager.split_pane_vertical(pane_index=0)
-
-            # Clone context from focused pane to the new pane
-            if focused_pane:
-                new_pane = self.layout_manager.get_pane(len(self.layout_manager.panes) - 1)
-                if new_pane:
-                    focused_pane.clone_context_to(new_pane)
-                    logger.info("Cloned context from focused pane to new pane")
-
-            logger.warning("Split up currently adds below - full implementation pending")
-
-        except Exception as e:
-            logger.error(f"Failed to split up: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_move_to_window(self, widget):
-        """Move the focused pane to a new window"""
-        logger.info("Move to Window: Moving focused pane to new window")
-        try:
-            # Get the focused pane's context
-            focused_pane = self.layout_manager.get_focused_pane()
-            if not focused_pane:
-                logger.warning("No focused pane to move")
-                return
-
-            context = focused_pane.get_context()
-
-            # Create a new window with the context
-            self._create_preview_window(context, title="Preview")
-
-            # TODO: Remove the pane from the current layout
-            # This requires implementing close_pane in layout_manager
-            logger.warning("Pane removal not yet implemented - pane duplicated instead of moved")
-
-        except Exception as e:
-            logger.error(f"Failed to move to window: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_copy_to_window(self, widget):
-        """Copy the focused pane to a new window"""
-        logger.info("Copy to Window: Copying focused pane to new window")
-        try:
-            # Get the focused pane's context
-            focused_pane = self.layout_manager.get_focused_pane()
-            if not focused_pane:
-                logger.warning("No focused pane to copy")
-                return
-
-            context = focused_pane.get_context()
-
-            # Create a new window with the cloned context
-            self._create_preview_window(context, title="Preview (Copy)")
-
-        except Exception as e:
-            logger.error(f"Failed to copy to window: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_cycle_focus_next(self, widget):
-        """Cycle focus to next pane"""
-        logger.info("Cycling focus to next pane")
-        try:
-            self.layout_manager.cycle_focus(direction='next')
-        except Exception as e:
-            logger.error(f"Failed to cycle focus next: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_cycle_focus_prev(self, widget):
-        """Cycle focus to previous pane"""
-        logger.info("Cycling focus to previous pane")
-        try:
-            self.layout_manager.cycle_focus(direction='prev')
-        except Exception as e:
-            logger.error(f"Failed to cycle focus prev: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_grow_column(self, widget):
-        """Grow focused pane (smart: height if vertical split, width if horizontal)"""
-        logger.info("Growing focused pane")
-        try:
-            self.layout_manager.grow_focused_pane()
-        except Exception as e:
-            logger.error(f"Failed to grow pane: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _on_shrink_column(self, widget):
-        """Shrink focused pane (smart: height if vertical split, width if horizontal)"""
-        logger.info("Shrinking focused pane")
-        try:
-            self.layout_manager.shrink_focused_pane()
-        except Exception as e:
-            logger.error(f"Failed to shrink pane: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-
-    def _create_preview_window(self, context: Dict[str, Any], title: str = "Preview"):
-        """
-        Create a new preview window with the given context.
-
-        This creates a new VIEW into the library/collection/item/step,
-        not new data.
-
-        Args:
-            context: Dict with library_id, collection_id, item_id, step_index
-            title: Window title
-        """
-        try:
-            import asyncio
-
-            # Create a new window
-            new_window = toga.Window(title=title, size=(800, 600))
-
-            # Create a simple preview container
-            preview_container = toga.Box(style=Pack(direction=COLUMN, flex=1))
-
-            # Create a new OutputPane for this window
-            from .output_pane import OutputPane
-            new_pane = OutputPane(
-                self.library_manager,
-                self.renderer_registry
-            )
-
-            # Set the context (this will load the content)
-            asyncio.create_task(new_pane.set_context(context))
-
-            # Add pane to container
-            preview_container.add(new_pane.as_box())
-
-            # Set window content
-            new_window.content = preview_container
-
-            # Show the window
-            new_window.show()
-
-            logger.info(f"Created new preview window: {title}")
-
-        except Exception as e:
-            logger.error(f"Failed to create preview window: {e}")
-            import traceback
-            logger.error(traceback.format_exc())

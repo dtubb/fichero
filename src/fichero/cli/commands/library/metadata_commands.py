@@ -1,11 +1,18 @@
 """
-Metadata Management Commands
+Metadata Management Commands - DEPRECATED
 
-Commands for testing and managing step-level metadata in the library.
+**DEPRECATED**: These commands use the old metadata_api system.
+Use the new commands instead:
+    - For search: fichero library search, search-facets, search-stats
+    - For bulk ops: fichero library bulk-export-metadata, bulk-import-metadata, etc.
+
+These commands are kept for backward compatibility only and will be removed.
+They log deprecation warnings when used.
 """
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Optional, List
 import typer
@@ -14,6 +21,8 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from .base import BaseLibraryCommands
+
+logger = logging.getLogger(__name__)
 
 
 class MetadataCommands(BaseLibraryCommands):
@@ -125,6 +134,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_query(self, collection_id: str, filters: Optional[List[str]], json_output: bool, show_metadata: bool):
         """Query items by metadata filters"""
+        logger.warning("DEPRECATED: metadata-query command uses old metadata_api. Use 'fichero library search' instead.")
+        self.console.print("[yellow]⚠️  DEPRECATED: Use 'fichero library search' instead of metadata-query[/yellow]\n")
         try:
             # Get collection first
             collection = await self.get_collection_by_id(collection_id)
@@ -210,6 +221,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_show(self, item_id: str, step: Optional[str], json_output: bool, version: Optional[int]):
         """Show all metadata for an item"""
+        logger.warning("DEPRECATED: metadata-show command uses old metadata_api.")
+        self.console.print("[yellow]⚠️  DEPRECATED: This command uses the old metadata system[/yellow]\n")
         try:
             # Get item first
             item = await self.library_manager.get_item(item_id)
@@ -259,6 +272,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_export(self, collection_id: str, output_file: str, step: Optional[str], pretty: bool):
         """Export metadata to JSON file"""
+        logger.warning("DEPRECATED: metadata-export command uses old metadata_api. Use 'bulk-export-metadata' instead.")
+        self.console.print("[yellow]⚠️  DEPRECATED: Use 'fichero library bulk-export-metadata' instead[/yellow]\n")
         try:
             # Get collection first
             collection = await self.get_collection_by_id(collection_id)
@@ -323,6 +338,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_stats(self, collection_id: str, json_output: bool):
         """Show statistics about stored metadata"""
+        logger.warning("DEPRECATED: metadata-stats command uses old metadata_api.")
+        self.console.print("[yellow]⚠️  DEPRECATED: This command uses the old metadata system[/yellow]\n")
         try:
             # Get collection first
             collection = await self.get_collection_by_id(collection_id)
@@ -412,6 +429,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_import(self, item_id: str, manifest_path: str, step: Optional[str], dry_run: bool):
         """Import JSONL manifest into library metadata"""
+        logger.warning("DEPRECATED: metadata-import command uses old metadata_api. Use 'bulk-import-metadata' instead.")
+        self.console.print("[yellow]⚠️  DEPRECATED: Use 'fichero library bulk-import-metadata' instead[/yellow]\n")
         try:
             # Get item first
             item = await self.library_manager.get_item(item_id)
@@ -479,6 +498,8 @@ class MetadataCommands(BaseLibraryCommands):
 
     async def _metadata_history(self, item_id: str, step: str, json_output: bool):
         """Show version history for item metadata"""
+        logger.warning("DEPRECATED: metadata-history command uses old metadata_api.")
+        self.console.print("[yellow]⚠️  DEPRECATED: This command uses the old metadata system[/yellow]\n")
         try:
             # Get item first
             item = await self.library_manager.get_item(item_id)

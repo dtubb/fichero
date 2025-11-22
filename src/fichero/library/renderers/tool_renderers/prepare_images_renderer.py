@@ -7,6 +7,9 @@ Shows gallery view of all prepared images with parameters used.
 
 import logging
 import json
+import os
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -228,7 +231,7 @@ class PrepareImagesRenderer(FolderRenderer):
 
         return True, None
 
-    def apply_json_edits(
+    async def apply_json_edits(
         self,
         context: RenderContext,
         json_data: Dict[str, Any]
@@ -236,15 +239,12 @@ class PrepareImagesRenderer(FolderRenderer):
         """
         Apply edited preparation parameters and re-run tool.
 
-        This is a placeholder for now. Full implementation would:
-        1. Get source images from original step
-        2. Call prepare_images tool with new parameters
-        3. Update manifest with new data
-        4. Return success/failure
+        Re-executes the prepare_images tool with new parameters on source images,
+        updates the output folder, and saves the new parameters to the manifest.
 
         Args:
-            context: Rendering context
-            json_data: Edited JSON data
+            context: Rendering context with file paths and metadata
+            json_data: Edited JSON data with preparation parameters
 
         Returns:
             Tuple of (success, error_message)
@@ -254,9 +254,133 @@ class PrepareImagesRenderer(FolderRenderer):
         if not is_valid:
             return False, error
 
-        # TODO: Implement re-preparation
-        # For now, just log and return success
-        logger.info(f"Would re-prepare images with parameters: {json.dumps(json_data, indent=2)}")
-        logger.warning("apply_json_edits not fully implemented yet - changes not saved")
+        try:
+            from fichero.tools.prepare_images import prepare_batch
 
-        return False, "Image preparation re-processing not implemented yet (placeholder)"
+            # Extract parameters
+            params = self._extract_params(json_data)
+
+            # Get source folder path
+            item_dir = context.file_path.parent.parent.parent
+            source_folder = item_dir / 'documents'
+
+            if not source_folder.exists():
+                return False, f"Source folder not found: {source_folder}"
+
+            logger.info(f"Re-preparing images from source: {source_folder}")
+
+            # Create temporary manifest with all source files
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+                manifest_path = f.name
+                # Add all image files from source folder to manifest
+                for source_file in source_folder.iterdir():
+                    if source_file.is_file() and source_file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.pdf']:
+                        json.dump({'path': source_file.name}, f)
+                        f.write('\n')
+
+            # Use temporary output folder and copy back
+            with tempfile.TemporaryDirectory() as output_folder:
+                try:
+                    # Call prepare_batch with new parameters
+                    result = prepare_batch(
+                        source_folder=source_folder,
+                        source_manifest=Path(manifest_path),
+                        output_folder=Path(output_folder),
+                        compression_quality=params['quality'],
+                        output_format=params['format'],
+                        max_size=params['target_size'],
+                        resize_mode=params['resize_mode'],
+                        dpi=params['dpi'],
+                    )
+
+                    if not result.get('success', 0) > 0:
+                        return False, result.get('error', 'Image preparation failed')
+
+                    # Copy all prepared images from temp folder to output folder
+                    output_path = Path(output_folder)
+                    prepared_count = 0
+                    for prepared_file in output_path.glob('*'):
+                        if prepared_file.is_file():
+                            shutil.copy2(prepared_file, context.file_path / prepared_file.name)
+                            prepared_count += 1
+
+                    logger.info(f"Prepared {prepared_count} images to: {context.file_path}")
+
+                    # Update manifest file
+                    self._update_manifest_entry(context, params, prepared_count)
+
+                    logger.info("Images re-prepared successfully with new parameters")
+                    return True, None
+
+                finally:
+                    os.unlink(manifest_path)
+
+        except Exception as e:
+            logger.error(f"Error applying image preparation: {e}")
+            return False, f"Error applying image preparation: {str(e)}"
+
+    def _extract_params(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract preparation parameters from edited JSON.
+
+        Args:
+            json_data: Edited JSON data
+
+        Returns:
+            Dictionary with resize_mode, target_size, quality, format, dpi
+        """
+        return {
+            'resize_mode': json_data.get('resize_mode', 'fit'),
+            'target_size': json_data.get('target_size', [1200, 1600]),
+            'quality': json_data.get('quality', 95),
+            'format': json_data.get('format', 'jpg'),
+            'dpi': json_data.get('dpi', 300),
+        }
+
+    def _update_manifest_entry(self, context: RenderContext, params: Dict[str, Any], processed_count: int):
+        """
+        Update manifest file with new preparation parameters.
+
+        Uses atomic write pattern to prevent data corruption.
+
+        Args:
+            context: Rendering context
+            params: New preparation parameters
+            processed_count: Number of images processed
+        """
+        manifest_dir_name = "prepared"
+        item_dir = context.file_path.parent.parent.parent
+        manifest_file = item_dir / "assets" / manifest_dir_name / "prepare_manifest.jsonl"
+
+        if manifest_file.exists():
+            # Read existing manifest
+            with open(manifest_file, 'r') as f:
+                lines = f.readlines()
+
+            # Update the manifest entry
+            if lines:
+                entry = json.loads(lines[0])
+                entry['resize_mode'] = params['resize_mode']
+                entry['target_size'] = params['target_size']
+                entry['quality'] = params['quality']
+                entry['format'] = params['format']
+                entry['dpi'] = params['dpi']
+                entry['processed_count'] = processed_count
+                lines[0] = json.dumps(entry) + '\n'
+
+                # Atomic write: write to temp file, then rename
+                temp_fd, temp_path = tempfile.mkstemp(dir=manifest_file.parent, suffix='.tmp')
+                try:
+                    with os.fdopen(temp_fd, 'w') as f:
+                        f.writelines(lines)
+
+                    # Atomic rename
+                    shutil.move(temp_path, manifest_file)
+                    logger.info(f"Updated manifest file: {manifest_file}")
+                except Exception as e:
+                    # Cleanup temp file on error
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                    raise
+            else:
+                logger.warning("Manifest file is empty")

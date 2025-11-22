@@ -10,14 +10,9 @@ from typing import Dict, Type, Optional
 from pathlib import Path
 
 from .base_renderer import BaseRenderer, FallbackRenderer
-from .type_renderers import (
-    ImageRenderer,
-    TextRenderer,
-    JsonRenderer,
-    DocumentRenderer,
-    SvgRenderer,
-    FolderRenderer
-)
+# SIMPLIFIED: Only 2 universal renderers needed
+from .universal_image_renderer import UniversalImageRenderer
+from .universal_metadata_renderer import UniversalMetadataRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -57,76 +52,66 @@ class RendererRegistry:
         return cls._instance
 
     def _initialize(self):
-        """Initialize registry with built-in type renderers and tool renderers"""
-        logger.info("Initializing RendererRegistry")
+        """Initialize registry with SIMPLIFIED universal renderers"""
+        logger.info("Initializing RendererRegistry (SIMPLIFIED - 2 universal renderers)")
 
         # Clear registries
         self._renderers = {}
         self._type_renderers = {}
 
-        # Register type-based fallback renderers
-        self._type_renderers = {
-            'image': ImageRenderer,
-            'text': TextRenderer,
-            'json': JsonRenderer,
-            'document': DocumentRenderer,
-            'svg': SvgRenderer,
-            'folder': FolderRenderer
-        }
+        # Import universal renderers
+        from .universal_image_renderer import UniversalImageRenderer
+        from .type_renderers import JsonRenderer, TextRenderer
 
-        logger.info(f"Registered {len(self._type_renderers)} type renderers")
+        # Register ONLY 2 universal renderers
+        # UniversalImageRenderer handles ALL visual content
+        self._type_renderers['image'] = UniversalImageRenderer
+        self._type_renderers['photo'] = UniversalImageRenderer
+        self._type_renderers['picture'] = UniversalImageRenderer
+        self._type_renderers['pdf'] = UniversalImageRenderer
 
-        # Register tool-specific renderers
-        self._register_tool_renderers()
+        # Use working concrete renderers for text/data content
+        self._type_renderers['text'] = TextRenderer
+        self._type_renderers['json'] = JsonRenderer
+        self._type_renderers['transcription'] = TextRenderer
+        self._type_renderers['metadata'] = JsonRenderer
+        self._type_renderers['csv'] = TextRenderer
 
-    def _register_tool_renderers(self):
-        """Register tool-specific renderers"""
-        try:
-            from .tool_renderers import (
-                # Image processing
-                CropRenderer, RotateRenderer, EnhanceRenderer, RemoveBackgroundRenderer,
-                PrepareImagesRenderer, SplitRenderer, SegmentRenderer, RecombineRenderer,
-                # AI/text processing
-                TranscribeRenderer, DescribeRenderer, LLMProcessRenderer,
-                # Document generation
-                ConvertToWordRenderer, ConvertToSVGRenderer, JsonToWordRenderer, JsonToExcelRenderer,
-                # Metadata/analysis
-                AnalyzeGroupsRenderer, ExtractMetadataRenderer, BuildManifestRenderer, FuzzyCleanRenderer
-            )
+        # Register universal renderers for ALL tool names
+        # This ensures get_renderer() works for any tool
+        self._renderers['original'] = UniversalImageRenderer
+        self._renderers['crop'] = UniversalImageRenderer
+        self._renderers['rotate'] = UniversalImageRenderer
+        self._renderers['enhance'] = UniversalImageRenderer
+        self._renderers['segment'] = UniversalImageRenderer
+        self._renderers['split'] = UniversalImageRenderer
+        self._renderers['remove_background'] = UniversalImageRenderer
+        self._renderers['prepare_images'] = UniversalImageRenderer
+        self._renderers['recombine_segments'] = UniversalImageRenderer
 
-            # Image processing renderers
-            self._renderers['crop'] = CropRenderer
-            self._renderers['rotate'] = RotateRenderer
-            self._renderers['enhance'] = EnhanceRenderer
-            self._renderers['remove_background'] = RemoveBackgroundRenderer
-            self._renderers['prepare_images'] = PrepareImagesRenderer
-            self._renderers['split'] = SplitRenderer
-            self._renderers['segment'] = SegmentRenderer
-            self._renderers['recombine_segments'] = RecombineRenderer
+        self._renderers['transcribe_qwen_max'] = TextRenderer
+        self._renderers['transcribe_lmstudio'] = TextRenderer
+        self._renderers['describe_images'] = TextRenderer
+        self._renderers['llm_process'] = JsonRenderer
+        self._renderers['extract_library_metadata'] = JsonRenderer
+        self._renderers['fuzzy_clean'] = JsonRenderer
+        self._renderers['analyze_document_groups'] = JsonRenderer
+        self._renderers['json_to_word'] = JsonRenderer
+        self._renderers['json_to_excel'] = JsonRenderer
+        self._renderers['convert_to_word'] = JsonRenderer
+        self._renderers['convert_to_svg'] = JsonRenderer
+        self._renderers['build_documents_manifest'] = JsonRenderer
 
-            # AI/text processing renderers
-            self._renderers['transcribe_qwen_max'] = TranscribeRenderer
-            self._renderers['transcribe_lmstudio'] = TranscribeRenderer  # Same renderer for both
-            self._renderers['describe_images'] = DescribeRenderer
-            self._renderers['llm_process'] = LLMProcessRenderer
+        logger.info(f"✅ Registered SIMPLIFIED renderer system:")
+        logger.info(f"   - {len([k for k,v in self._renderers.items() if v == UniversalImageRenderer])} image tools → UniversalImageRenderer")
+        logger.info(f"   - {len([k for k,v in self._renderers.items() if v == TextRenderer])} text tools → TextRenderer")
+        logger.info(f"   - {len([k for k,v in self._renderers.items() if v == JsonRenderer])} JSON tools → JsonRenderer")
 
-            # Document generation renderers
-            self._renderers['convert_to_word'] = ConvertToWordRenderer
-            self._renderers['convert_to_svg'] = ConvertToSVGRenderer
-            self._renderers['json_to_word'] = JsonToWordRenderer
-            self._renderers['json_to_excel'] = JsonToExcelRenderer
+        # OLD COMPLEX SYSTEM REMOVED - No more 20+ specialized renderers!
+        # self._register_tool_renderers()  # DELETED
 
-            # Metadata/analysis renderers
-            self._renderers['analyze_document_groups'] = AnalyzeGroupsRenderer
-            self._renderers['extract_library_metadata'] = ExtractMetadataRenderer
-            self._renderers['build_documents_manifest'] = BuildManifestRenderer
-            self._renderers['fuzzy_clean'] = FuzzyCleanRenderer
-
-            logger.info(f"Registered {len(self._renderers)} tool-specific renderers")
-
-        except ImportError as e:
-            logger.warning(f"Could not import tool renderers: {e}")
-            logger.warning("Tool-specific renderers will not be available")
+    # OLD METHOD DELETED - No longer needed with universal renderers
+    # def _register_tool_renderers(self): ...
 
     @classmethod
     def register(cls, tool_name: str, renderer_class: Type[BaseRenderer]):

@@ -101,6 +101,11 @@ class FicheroApp(toga.App):
             self.library_manager = LibraryManager(self)
             logger.info("Library manager initialized at app level")
 
+            # Initialize state manager for session persistence
+            from fichero.config.core.state_manager import StateManager
+            self.state_manager = StateManager(self)
+            logger.info("State manager initialized at app level")
+
             # Initialize SelectionManager
             from fichero.shared.selection import SelectionManager
             self.selection_manager = SelectionManager()
@@ -556,45 +561,6 @@ class FicheroApp(toga.App):
             logger.error(f"Failed to show add URL: {e}")
             return False
 
-    def show_add_website(self):
-        """Show the add website dialog"""
-        try:
-            if hasattr(self, 'view_integration') and self.view_integration:
-                navigation_controller = self.view_integration.get_navigation_controller()
-                if navigation_controller:
-                    return navigation_controller.navigate_to_add_website()
-            logger.error("NavigationController not available")
-            return False
-        except Exception as e:
-            logger.error(f"Failed to show add website: {e}")
-            return False
-
-    def show_add_file(self):
-        """Show the add file dialog"""
-        try:
-            if hasattr(self, 'view_integration') and self.view_integration:
-                navigation_controller = self.view_integration.get_navigation_controller()
-                if navigation_controller:
-                    return navigation_controller.navigate_to_add_file()
-            logger.error("NavigationController not available")
-            return False
-        except Exception as e:
-            logger.error(f"Failed to show add file: {e}")
-            return False
-
-    def show_add_folder(self):
-        """Show the add folder dialog"""
-        try:
-            if hasattr(self, 'view_integration') and self.view_integration:
-                navigation_controller = self.view_integration.get_navigation_controller()
-                if navigation_controller:
-                    return navigation_controller.navigate_to_add_folder()
-            logger.error("NavigationController not available")
-            return False
-        except Exception as e:
-            logger.error(f"Failed to show add folder: {e}")
-            return False
-
     def show_add_camera(self):
         """Show the add camera dialog"""
         try:
@@ -614,12 +580,6 @@ class FicheroApp(toga.App):
             # Map legacy option_id to new specific methods
             if option_id == "url":
                 return self.show_add_url()
-            elif option_id == "website":
-                return self.show_add_website()
-            elif option_id == "file":
-                return self.show_add_file()
-            elif option_id == "folder":
-                return self.show_add_folder()
             elif option_id == "camera":
                 return self.show_add_camera()
             else:

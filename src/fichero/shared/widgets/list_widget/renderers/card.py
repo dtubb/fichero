@@ -96,6 +96,11 @@ class CardRenderer(Renderer):
         self.items = []  # Store all items for filtering
         self.header_is_selected = False  # Track if header folder is selected
 
+        # Width tracking for automatic resize detection
+        self._last_container_width = 0  # Track last known container width
+        self._width_check_enabled = True  # Enable automatic width checking
+        self._resize_monitor_task = None  # Asyncio task for monitoring width changes
+
     def _update_header(self):
         """Update the navigation header with folder name and back button."""
         # Clear existing header
@@ -125,8 +130,8 @@ class CardRenderer(Renderer):
 
     def _create_header_canvas(self, folder_name: str, folder_item: Any, is_selected: bool = False) -> toga.Canvas:
         """Create a clickable header canvas with back button and wrapped folder name."""
-        # Calculate header dimensions
-        header_width = 800  # Will flex to fill
+        # Calculate header dimensions - use dynamic card width
+        header_width = self.card_width  # Use actual container width
         padding = 8
         back_button_width = 30
         icon_width = 20 if folder_item else 0
@@ -249,6 +254,151 @@ class CardRenderer(Renderer):
                 return getattr(item, key, default)
         except AttributeError:
             return default
+
+    def _get_container_width(self) -> int:
+        """
+        Get the actual container width from the widget.
+
+        Returns:
+            Container width in pixels, or 0 if not laid out yet
+        """
+        if not self.widget:
+            return 0
+
+        try:
+            # Access native widget (platform-specific)
+            if hasattr(self.widget, '_impl') and hasattr(self.widget._impl, 'native'):
+                native = self.widget._impl.native
+
+                # Try to get width from native widget
+                width = 0
+                if hasattr(native, 'frame'):
+                    # macOS/iOS (NSView)
+                    width = native.frame.size.width
+                elif hasattr(native, 'get_width'):
+                    # GTK
+                    width = native.get_width()
+                elif hasattr(native, 'GetSize'):
+                    # Windows (wxPython)
+                    width, _ = native.GetSize()
+
+                # Also check parent/container width
+                if hasattr(native, 'superview') and native.superview:
+                    parent_width = native.superview.frame.size.width
+                    if parent_width > 0:
+                        width = parent_width
+
+                logger.debug(f"Container width detected: {width}px")
+                return int(width) if width > 0 else 0
+        except Exception as e:
+            logger.debug(f"Could not get container width: {e}")
+            return 0
+
+        return 0
+
+    def update_container_width(self, width: int = None, skip_rerender: bool = False) -> bool:
+        """
+        Update card width based on container width.
+
+        Args:
+            width: Explicit width in pixels, or None to auto-detect
+            skip_rerender: If True, don't trigger re-render after updating width
+
+        Returns:
+            True if width was updated, False otherwise
+        """
+        if width is None:
+            width = self._get_container_width()
+
+        if width <= 0:
+            logger.debug("Container width is 0 or unknown, deferring update")
+            return False
+
+        # Calculate card width from container
+        # Account for scroll bar and spacing
+        scrollbar_width = 15
+        card_spacing = self.card_spacing * 2  # Left and right
+        available_width = width - scrollbar_width - card_spacing
+
+        # For grid layout, divide by columns
+        if self.layout == 'grid':
+            available_width = (available_width - (self.grid_columns - 1) * self.card_spacing) // self.grid_columns
+
+        # Ensure minimum width
+        new_card_width = max(80, available_width)
+
+        # Check if width actually changed
+        if new_card_width == self.card_width:
+            logger.debug(f"Card width unchanged: {self.card_width}px")
+            return False
+
+        # Update card width
+        old_width = self.card_width
+        self.card_width = new_card_width
+        logger.info(f"Updated card width: {old_width}px -> {new_card_width}px (container: {width}px)")
+
+        # Trigger re-render if we have data and not skipping
+        if not skip_rerender and self.widget:
+            # Use self.items if available (full data), otherwise card_data (filtered data)
+            data_to_render = self.items if hasattr(self, 'items') and self.items else self.card_data
+            if data_to_render:
+                logger.info(f"Re-rendering {len(data_to_render)} cards with new width: {new_card_width}px")
+                self.attach_source(data_to_render)
+            else:
+                logger.warning("No data to re-render after width change")
+
+        return True
+
+    def _start_resize_monitoring(self):
+        """Start monitoring for container width changes (asyncio-based)."""
+        import asyncio
+
+        if self._resize_monitor_task is not None:
+            # Already monitoring
+            return
+
+        async def monitor_width():
+            """Periodically check container width and trigger re-render if changed."""
+            while self._width_check_enabled:
+                try:
+                    await asyncio.sleep(0.5)  # Check twice per second
+
+                    if not self.widget or not self.items:
+                        continue
+
+                    # Check current width
+                    current_width = self._get_container_width()
+                    if current_width <= 0:
+                        continue
+
+                    # Check if width changed
+                    if current_width != self._last_container_width:
+                        logger.info(f"📏 Auto-detected width change: {self._last_container_width}px → {current_width}px")
+                        self._last_container_width = current_width
+
+                        # Trigger re-render with new width
+                        if self.update_container_width(current_width, skip_rerender=False):
+                            logger.info(f"✓ Cards re-rendered at new width: {current_width}px")
+
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Error in resize monitor: {e}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            self._resize_monitor_task = loop.create_task(monitor_width())
+            logger.debug("Started resize monitoring")
+        except RuntimeError:
+            logger.warning("Cannot start resize monitor - no event loop")
+
+    def _stop_resize_monitoring(self):
+        """Stop monitoring for container width changes."""
+        self._width_check_enabled = False
+        if self._resize_monitor_task:
+            self._resize_monitor_task.cancel()
+            self._resize_monitor_task = None
+            logger.debug("Stopped resize monitoring")
 
     def _wrap_text(self, text: str, width: int, font_size: int) -> list:
         """
@@ -603,6 +753,9 @@ class CardRenderer(Renderer):
 
         self.grid_columns = columns
 
+        # Update container width since column count affects card width calculation
+        self.update_container_width()
+
         # Refresh grid with new column count
         if self.widget and self.card_data:
             logger.debug(f"Updating grid to {columns} columns")
@@ -637,6 +790,51 @@ class CardRenderer(Renderer):
         logger.debug(f"Converting {len(data)} items to card format")
         return data
 
+    def _schedule_deferred_render(self, data):
+        """
+        Wait for container to have non-zero width, then render.
+
+        Args:
+            data: Data to render once container width is available
+        """
+        if not hasattr(self, '_deferred_render_scheduled'):
+            self._deferred_render_scheduled = False
+
+        if self._deferred_render_scheduled:
+            logger.debug("Deferred render already scheduled, skipping")
+            return
+
+        self._deferred_render_scheduled = True
+        logger.info(f"Scheduling deferred render for {len(data)} items")
+
+        async def _try_render():
+            import asyncio
+            max_retries = 50
+            retry_interval = 0.1
+
+            for attempt in range(max_retries):
+                await asyncio.sleep(retry_interval)
+
+                container_width = self._get_container_width()
+                if container_width > 0:
+                    logger.info(f"Container width now {container_width}px (attempt {attempt + 1}), rendering {len(data)} items")
+                    self.update_container_width(container_width)
+                    self.attach_source(data)  # Retry attach
+                    self._deferred_render_scheduled = False
+                    return
+
+            logger.warning("Container width still 0 after 5s - may be hidden")
+            self._deferred_render_scheduled = False
+
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_try_render())
+        except RuntimeError:
+            # No event loop running
+            logger.warning("Cannot schedule deferred render - no event loop")
+            self._deferred_render_scheduled = False
+
     def attach_source(self, source):
         """
         Attach data to card renderer.
@@ -651,19 +849,38 @@ class CardRenderer(Renderer):
             logger.warning("Cannot attach source - widget not created yet")
             return
 
-        # Clear existing cards
-        self.cards_box.clear()
-        self.cards = []
-        self.card_data = []
-        self.selected_cards.clear()
-        self.grid_rows = []
-
         # Create card widgets from data
         if isinstance(source, list):
             data = source
         else:
             # If source is a ListSource or TreeSource, convert to list
             data = list(source)
+
+        # Try to update width from container BEFORE rendering
+        container_width = self._get_container_width()
+        if container_width > 0:
+            # Check if width changed since last render
+            width_changed = (container_width != self._last_container_width)
+
+            if width_changed:
+                logger.info(f"📏 Container width changed: {self._last_container_width}px → {container_width}px")
+                self._last_container_width = container_width
+
+            # Container is laid out - update width (skip re-render to avoid infinite loop)
+            logger.debug(f"Container width is {container_width}px, updating card width before rendering")
+            self.update_container_width(container_width, skip_rerender=True)
+        else:
+            # Container not laid out yet - defer rendering
+            logger.debug(f"Container width is 0, scheduling deferred render for {len(data)} items")
+            self._schedule_deferred_render(data)
+            return
+
+        # Clear existing cards
+        self.cards_box.clear()
+        self.cards = []
+        self.card_data = []
+        self.selected_cards.clear()
+        self.grid_rows = []
 
         # Store all items for navigation
         self.items = data
@@ -712,6 +929,10 @@ class CardRenderer(Renderer):
                 self.card_data.append(item)
 
             logger.debug(f"Created {len(self.cards)} card widgets ({self.layout} layout)")
+
+        # Start monitoring for resize events (only start once)
+        if self._resize_monitor_task is None and self._width_check_enabled:
+            self._start_resize_monitoring()
 
 
 __all__ = ['CardRenderer']

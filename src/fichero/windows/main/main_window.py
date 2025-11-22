@@ -62,22 +62,10 @@ class MainWindow:
         self.cached_output_view: Optional[PreviewView] = None
         self.cached_collection_view: Optional[CollectionView] = None  # Cache single reusable instance
 
-        # DEPRECATED: Pane visibility state - now handled by layout_manager.toggle_column()
-        # Kept for compatibility with any remaining legacy code
-        self.pane_visibility = {
-            'library': True,     # Now controlled by layout_manager column "Library"
-            'collection': True,  # Now controlled by layout_manager column "Collection"
-            'output': True,      # Preview column (always visible)
-            'inspector': False   # Now controlled by layout_manager column "Adjust"
-        }
-
-        # DEPRECATED: Pane pixel widths - now handled by layout_manager add_columns_fixed()
-        # Widths are now set in _create_desktop_layout() method
-        self.pane_widths = {
-            'library': 150,
-            'collection': 150,
-            'inspector': 350
-        }
+        # Session state tracking for persistence
+        self.current_collection_id: Optional[str] = None
+        self.current_item_id: Optional[str] = None
+        self._save_state_timer: Optional = None  # Debounced save timer
 
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
@@ -127,6 +115,10 @@ class MainWindow:
         import asyncio
         asyncio.create_task(self.restore_window_state())
 
+        # Restore session state (last collection, item, etc.)
+        # This runs after window state to ensure UI is ready
+        asyncio.create_task(self.restore_session_state())
+
         logger.info("Refactored main window initialized successfully")
 
     def _get_navigation_controller(self) -> Optional[NavigationController]:
@@ -162,7 +154,7 @@ class MainWindow:
         if self.is_mobile:
             return (375, 667)  # iPhone dimensions
         else:
-            return (1200, 800)  # Desktop dimensions
+            return (1600, 1000)  # Desktop dimensions - larger for dual-pane layout
 
     def _create_layout(self):
         """Create layout containers"""
@@ -212,8 +204,7 @@ class MainWindow:
             if self.navigation_controller and self.navigation_controller.layout_manager:
                 layout_manager = self.navigation_controller.layout_manager
 
-                # Import new views for Steps and Adjust columns
-                from fichero.windows.main.views.steps import StepBrowserView
+                # Import simplified Adjust view
                 from fichero.windows.main.views.adjust import AdjustView
 
                 # Create actual views for 5-column layout
@@ -239,101 +230,50 @@ class MainWindow:
                 else:
                     preview_view = self.views['output']
 
-                # Column 3: Steps (NEW - extracted from PreviewView)
-                library_manager = getattr(self.app, 'library_manager', None)
-                steps_view = StepBrowserView(
-                    self.app,
-                    is_mobile=False,
-                    library_manager=library_manager
-                )
-                self.views['steps'] = steps_view
+                # 4-column layout: Library | Collection | Preview | Adjust
 
-                # Wire up StepBrowserView to PreviewView (bidirectional)
-                # When a step is selected in Column 3, update the preview in Column 4
-                if hasattr(preview_view, 'step_manager'):
-                    # Create callback that updates the preview when step is selected
-                    def on_step_selected(index):
-                        """Update preview when step is selected in steps list"""
-                        if hasattr(preview_view, 'step_manager') and preview_view.step_manager:
-                            preview_view.step_manager.set_current_step(index)
-                            logger.info(f"Step selection updated preview to index {index}")
-
-                    steps_view.set_on_step_selected(on_step_selected)
-                    logger.info("✅ StepBrowserView wired up to PreviewView step_manager")
-
-                # Wire up PreviewView to StepBrowserView (reverse direction)
-                # When PreviewView loads steps, update the StepBrowserView
-                if hasattr(preview_view, 'set_step_browser_view'):
-                    preview_view.set_step_browser_view(steps_view)
-                    logger.info("✅ PreviewView wired up to StepBrowserView for step loading")
-                else:
-                    logger.warning("⚠️ PreviewView does not have set_step_browser_view method")
-
-                # Column 5: Adjust (NEW - extracted from PreviewView)
+                # Column 4: Adjust (metadata display)
                 adjust_view = AdjustView(
                     self.app,
                     is_mobile=False
                 )
                 self.views['adjust'] = adjust_view
 
-                # Wire up AdjustView to PreviewView
-                # Pass the preview_view reference so AdjustView can call its image manipulation methods
-                if hasattr(adjust_view, 'set_preview_view'):
-                    adjust_view.set_preview_view(preview_view)
-                    logger.info("✅ AdjustView wired up to PreviewView")
+                # SIMPLIFIED: Wire up AdjustView to library_manager for metadata display
+                library_manager = getattr(self.app, 'library_manager', None)
+                if hasattr(adjust_view, 'set_library_manager'):
+                    adjust_view.set_library_manager(library_manager)
+                    logger.info("✅ AdjustView wired to LibraryManager for metadata display")
 
-                # Wire up PreviewView Edit button to toggle Adjust pane
-                # The Edit button will now show/hide the Adjust column instead of the old inspector
-                if hasattr(preview_view, 'set_adjust_toggle_callback'):
-                    preview_view.set_adjust_toggle_callback(self._toggle_inspector_pane)
-                    logger.info("✅ PreviewView Edit button wired to toggle Adjust pane")
+                # REFACTORED: No longer subscribe to events - main_window will call load_item() directly
+                # This prevents duplicate event subscriptions (was causing 4x loading of same item)
+                logger.info("✅ AdjustView will be loaded directly from main_window (no event subscription)")
 
-                # Create a combined container for Collection + Steps (stacked vertically)
-                # Use a simple Box instead of SplitContainer to avoid toggle complexity
-                # 75%/25% split: Collection gets flex=3, Steps gets flex=1
+                # SIMPLIFIED: Create 4-column layout (no Steps column)
+                # Columns: Library (180px) | Collection (200px) | Preview (flex) | Adjust (300px)
                 import toga
                 from toga.style import Pack
 
-                # Set flex values for 75%/25% vertical split
-                collection_view.container.style.flex = 3  # 75%
-                steps_view.container.style.flex = 1       # 25%
-
-                collection_and_steps_box = toga.Box(style=Pack(direction='column', flex=1))
-                collection_and_steps_box.add(collection_view.container)
-                collection_and_steps_box.add(steps_view.container)
-
-                # Create wrapper view for the combined box
-                class CombinedView:
-                    def __init__(self, container):
-                        self.container = container
-                combined_view = CombinedView(collection_and_steps_box)
-
-                # Create 4-column layout with fixed sidebars and flexible preview
-                # Columns: Library (140px fixed) | Collection+Steps (200px fixed) | Preview (flexible) | Adjust (200px fixed)
                 views = [
                     library_view,
-                    combined_view,  # Collection + Steps in one column
+                    collection_view,  # Just collection, no steps
                     preview_view,
                     adjust_view
                 ]
                 # Fixed widths for sidebars, None for flexible preview
-                # Library: 180px (native sidebar - narrow with text truncation)
-                # Collection/Adjust: 200px (same width, narrower than before)
-                widths = [180, 200, None, 200]
+                widths = [180, 200, None, 300]  # Adjust wider for metadata display
 
                 # Column names for menu commands (show/hide)
                 column_names = ["Library", "Collection", "Preview", "Adjust"]
 
-                # Mark all columns as collapsible for Finder-style flexibility
-                # Only Collection is required (can close everything else for Finder-style window)
+                # Mark all columns as collapsible
                 collapsible = [True, True, True, True]
 
                 # Minimum widths for auto-collapse behavior
-                # Preview needs 800px minimum before sidebars start hiding
-                min_widths = [180, 200, 800, 200]
+                min_widths = [180, 200, 800, 300]
 
-                logger.info(f"Creating 4-column layout with collapsible sidebars")
-                logger.info(f"  - Library: 180px fixed, collapsible (native macOS sidebar)")
+                logger.info(f"Creating SIMPLIFIED 4-column layout")
+                logger.info(f"  - Library: 180px fixed, collapsible")
                 logger.info(f"  - Collection: 200px fixed, collapsible")
                 logger.info(f"  - Preview: flexible (min 800px), NOT collapsible")
                 logger.info(f"  - Adjust: 200px fixed, collapsible")
@@ -346,14 +286,11 @@ class MainWindow:
                     min_widths=min_widths
                 )
 
-                # Store slot IDs - Collection column contains both Collection and Steps
+                # Store slot IDs for 4-column layout
                 self.library_slot_id = slot_ids[0]
-                self.collection_slot_id = slot_ids[1]  # Contains both Collection + Steps
+                self.collection_slot_id = slot_ids[1]
                 self.preview_slot_id = slot_ids[2]
                 self.adjust_slot_id = slot_ids[3]
-
-                # Steps is in the Collection column, sharing the same slot
-                self.steps_slot_id = self.collection_slot_id
 
                 # Wire up focus system: Set on_click callbacks on views and slots
                 # The combined view acts as one focusable unit
@@ -392,7 +329,6 @@ class MainWindow:
                 # Store pane references (actual view containers)
                 self.library_pane = library_view.container
                 self.collection_pane = collection_view.container
-                self.steps_pane = steps_view.container
                 self.preview_pane = preview_view.container
                 self.adjust_pane = adjust_view.container
 
@@ -433,7 +369,6 @@ class MainWindow:
         try:
             subscribe_to_navigation(NavigationEvents.SHOW_LIBRARY, self._on_show_library)
             subscribe_to_navigation(NavigationEvents.SHOW_COLLECTION, self._on_show_collection)
-            subscribe_to_navigation(NavigationEvents.SHOW_PREVIEW, self._on_show_preview)
             subscribe_to_navigation(NavigationEvents.SHOW_MODAL, self._on_show_modal)
             subscribe_to_navigation(NavigationEvents.NAVIGATION_ERROR, self._on_navigation_error)
 
@@ -445,6 +380,10 @@ class MainWindow:
             # Phase 1: Subscribe to selection changes for preview updates
             subscribe_to_navigation(NavigationEvents.SELECTION_CHANGED, self._handle_preview_selection_changed)
             logger.debug("Preview pane subscribed to selection events")
+
+            # Subscribe to processing completion for preview reload
+            subscribe_to_navigation("processing_completed", self._on_processing_completed_for_preview)
+            logger.debug("Preview pane subscribed to processing_completed events")
 
             logger.debug("Subscribed to navigation events")
 
@@ -557,7 +496,7 @@ class MainWindow:
             # Section 10: Zoom commands (creates divider below pane toggles)
             # Section 20: Toolbar toggles (creates another divider below zoom)
             # Using Preview-style shortcuts: Cmd+Option+1,2,3,4,5 for panes
-            # Order: Library, Collection, Step, Preview (output), Adjust
+            # Order: Library, Collection, Preview, Adjust
             # Note: macOS alphabetizes within sections, so we put each in separate sections to force order
             view_commands = {
                 # Library/Sidebar toggle button (NSToolbar item, positioned left of centered item)
@@ -762,6 +701,10 @@ class MainWindow:
             from fichero.shared.commands import CommandManager
 
             command_manager = CommandManager.get_instance(self.app)
+
+            # 🔍 DEBUG POINT 10: Log toolbar build for library view
+            logger.info(f"🔍 BUILDING TOOLBAR for view_id='library', context={context}")
+
             command_manager.build_native_toolbar(
                 self.window,
                 view_id='library',
@@ -829,9 +772,11 @@ class MainWindow:
             logger.info(f"Event: Show library - {event}")
 
             # Clear output view when navigating to library (no file selected)
+            # Note: PreviewView handles its own events, no need to call load_output
             if hasattr(self, 'cached_output_view') and self.cached_output_view:
                 logger.info("📤 Clearing output view (navigating to library)")
-                self.cached_output_view.load_output()
+                # Reset the current item ID
+                self.cached_output_view.current_item_id = None
 
             # Get or create library view (reuses cached instance to maintain state)
             library_view = self._get_or_create_library_view()
@@ -908,143 +853,16 @@ class MainWindow:
             if self.is_mobile and hasattr(collection_view, 'show'):
                 collection_view.show()
 
+            # Track current collection for state persistence
+            self.current_collection_id = collection_id
+            # Trigger debounced state save
+            self._schedule_debounced_save()
+
             # Update status bar to show focused pane
             self._update_focused_pane_display('collection')
 
         except Exception as e:
             logger.error(f"Failed to handle show collection event: {e}")
-
-    def _on_show_preview(self, event):
-        """Handle show preview event - now shows PreviewView with optional pre-filtered outputs"""
-        try:
-            data = event.data
-            file_path = data.get('file_path')
-            output_path = data.get('output_path')  # LEGACY: Optional Director output folder path
-            output_data = data.get('output_data')  # NEW: Pre-filtered output data from LibraryManager
-            item_id = data.get('item_id')  # Item ID for file-specific filtering
-            file_metadata = data.get('file_metadata', {})
-            collection_items = data.get('collection_items', [])
-            item_index = data.get('item_index', 0)
-
-            # Track last loaded item to prevent duplicates
-            if not hasattr(self, '_last_preview_item_id'):
-                self._last_preview_item_id = None
-
-            # Skip if this item is already loaded
-            current_item_id = item_id
-            if current_item_id and current_item_id == self._last_preview_item_id:
-                logger.debug(f"Item {current_item_id} already loaded in preview, skipping")
-                return
-
-            self._last_preview_item_id = current_item_id
-
-            logger.info(f"Event: Show output for {file_path}")
-            if output_data:
-                logger.info(f"📊 With pre-filtered output data ({len(output_data.get('processing_steps', []))} steps)")
-            elif output_path:
-                logger.info(f"📊 With legacy output_path: {output_path}")
-
-            # Create or reuse PreviewView
-            if not self.cached_output_view:
-                # Pass library_manager for file-specific filtering
-                library_manager = getattr(self.app, 'library_manager', None)
-                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
-                logger.debug("Created new PreviewView")
-
-            # Get collection items from current center view if not provided
-            if not collection_items:
-                # The center view is stored in self.current_view (from _show_view_desktop)
-                center_view = self.current_view if hasattr(self, 'current_view') else None
-                logger.info(f"📋 Getting collection items from center view: {center_view}")
-                if center_view and hasattr(center_view, 'collection_items'):
-                    collection_items = center_view.collection_items
-                    logger.info(f"📋 Found {len(collection_items)} items in collection_items")
-                else:
-                    logger.warning(f"📋 No collection_items found on center view")
-
-            # Convert collection items to source file paths AND item IDs
-            source_files = []
-            source_item_ids = []  # NEW: Extract item IDs for library-based navigation
-            source_index = 0
-
-            if collection_items:
-                for i, item in enumerate(collection_items):
-                    item_file_path = item.get('file_path') or item.get('path')
-                    item_id_str = item.get('id')  # Extract item ID
-
-                    if item_file_path:
-                        # Don't convert URLs to Path objects - they should stay as strings
-                        if isinstance(item_file_path, str) and item_file_path.startswith(('http://', 'https://')):
-                            source_files.append(item_file_path)  # Keep as string
-                        else:
-                            source_files.append(Path(item_file_path))  # Convert to Path
-
-                        # Store item ID with None placeholder to maintain index alignment
-                        # CRITICAL: source_item_ids must have same length as source_files!
-                        source_item_ids.append(item_id_str if item_id_str else None)
-
-                        # Track which index matches our current file
-                        if str(item_file_path) == str(file_path):
-                            source_index = i
-
-                logger.info(f"📋 Extracted {len(source_files)} source files + {len(source_item_ids)} item IDs, current index={source_index}")
-
-            # Determine what to load into PreviewView
-            # Priority: output_data (pre-filtered) > output_path (legacy) > original file only
-
-            # Don't convert URLs to Path objects - keep as strings
-            if isinstance(file_path, str) and file_path.startswith(('http://', 'https://')):
-                file_path_arg = file_path  # Keep URL as string
-            else:
-                file_path_arg = Path(file_path)  # Convert local path to Path object
-
-            if output_data and output_data.get('has_outputs'):
-                # NEW: Use pre-filtered output data from LibraryManager
-                logger.info(f"📊 Loading from pre-filtered output data ({len(output_data['processing_steps'])} steps)")
-
-                self.cached_output_view.load_output(
-                    file_path=file_path_arg,
-                    source_files=source_files,
-                    source_index=source_index,
-                    item_id=item_id,  # Pass item_id for file-specific filtering
-                    source_item_ids=source_item_ids  # Pass item IDs for library-based navigation
-                )
-            else:
-                # Load original file (no processing outputs)
-                logger.info(f"📊 Loading original file only (no processing outputs)")
-
-                self.cached_output_view.load_output(
-                    file_path=file_path_arg,
-                    source_files=source_files,
-                    source_index=source_index,
-                    item_id=item_id,  # Pass item_id for file-specific filtering
-                    source_item_ids=source_item_ids  # NEW: Pass item IDs for library-based navigation
-                )
-
-            # Update native toolbar on desktop (PreviewView has persistent toolbar with editing commands)
-            if not self.is_mobile:
-                self._update_toolbar_for_output_view(context='normal')
-
-            # Show in appropriate pane
-            if self.is_mobile:
-                self._show_view_mobile("output", self.cached_output_view)
-            else:
-                self._show_view_desktop("output", self.cached_output_view, "right")
-
-                # CRITICAL: Actually show the preview pane using layout manager
-                if (hasattr(self, 'preview_slot_id') and
-                    hasattr(self, 'navigation_controller') and
-                    self.navigation_controller and
-                    hasattr(self.navigation_controller, 'layout_manager') and
-                    self.navigation_controller.layout_manager):
-                    self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
-                    logger.info(f"✅ Preview pane shown via layout manager (slot: {self.preview_slot_id})")
-
-            # Update status bar to show focused pane
-            self._update_focused_pane_display('output')
-
-        except Exception as e:
-            logger.error(f"Failed to handle show preview event: {e}")
 
     def _on_show_modal(self, event):
         """Handle show modal event - now handles desktop window creation directly"""
@@ -1338,9 +1156,6 @@ class MainWindow:
             elif pane in ("right", "preview"):
                 self.right_pane_view = view
                 self.focused_pane = 'right'
-            elif pane == "steps":
-                self.steps_pane_view = view if hasattr(self, 'steps_pane') else None
-                self.focused_pane = 'steps'
 
             # NOTE: Do NOT call view.show() here when using UniversalLayoutManager
             # The layout manager handles view lifecycle management
@@ -1556,12 +1371,16 @@ class MainWindow:
         if self.cached_output_view and hasattr(self.cached_output_view, 'layout_manager'):
             layout_manager = self.cached_output_view.layout_manager
             # Toggle path bar visibility in all output panes
+            pane_count = 0
             for pane in layout_manager.panes:
                 if pane._path_bar:
+                    old_state = pane._path_bar_visible
                     pane._path_bar_visible = not pane._path_bar_visible
+                    logger.info(f"🔧 Pane {pane_count}: Toggling path bar {old_state} → {pane._path_bar_visible}")
                     # Rebuild the pane content to show/hide path bar
                     pane._show_content()
-            logger.info(f"🔧 Toggle Path Bar")
+                    pane_count += 1
+            logger.info(f"🔧 Toggle Path Bar - toggled {pane_count} panes")
         else:
             logger.warning("Cannot toggle path bar: PreviewView not created yet")
 
@@ -1586,15 +1405,6 @@ class MainWindow:
                     logger.info(f"🔧 Status Bar hidden")
         else:
             logger.warning("Cannot toggle status bar: StatusBar not created yet")
-
-    # ===== PREVIEW LAYOUT SWITCHING (PHASE 5) =====
-
-    # _split_pane() REMOVED - split commands now handled directly in PreviewView
-    # Split commands are organized under View > Editor Layout submenu
-
-    # _update_pane_layout() REMOVED - replaced by layout_manager.toggle_column()
-    # Old method manipulated Box containers directly (left_pane, center_pane, etc.)
-    # New layout system uses layout_manager API for column visibility
 
     # ===== LEGACY CALLBACKS (for views that haven't been updated yet) =====
 
@@ -1733,6 +1543,194 @@ class MainWindow:
             import traceback
             logger.error(traceback.format_exc())
 
+    async def save_session_state(self):
+        """
+        Save session state for restoration on next launch.
+
+        Saves:
+        - Last selected collection ID
+        - Last selected item ID
+        - Preview pane visibility
+        - Column visibility states
+        """
+        try:
+            if not hasattr(self.app, 'state_manager'):
+                logger.warning("No state_manager available")
+                return
+
+            state_manager = self.app.state_manager
+
+            # Save current collection/item selection
+            if hasattr(self, 'current_collection_id'):
+                state_manager.set_last_collection_id(self.current_collection_id)
+                logger.debug(f"Saved last collection: {self.current_collection_id}")
+
+            if hasattr(self, 'current_item_id'):
+                state_manager.set_last_item_id(self.current_item_id)
+                logger.debug(f"Saved last item: {self.current_item_id}")
+
+            # Save preview pane visibility
+            # Simple heuristic: if we have a current_item_id, preview was visible
+            preview_view = self.views.get('output')
+            if preview_view:
+                is_visible = bool(self.current_item_id)
+                state_manager.set_preview_visible(is_visible)
+                logger.debug(f"Saved preview visible: {is_visible}")
+
+            # Save layout state (main and preview)
+            if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+                layout_state = self.navigation_controller.layout_manager.get_layout_state()
+                state_manager.set_main_layout_state(layout_state)
+
+            if preview_view and hasattr(preview_view, 'layout_manager'):
+                preview_layout = preview_view.layout_manager.get_layout_state()
+                state_manager.set_preview_layout_state(preview_layout)
+
+            # Perform async save
+            await state_manager.save_state()
+
+            logger.info("✅ Session state saved successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to save session state: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    async def restore_session_state(self):
+        """
+        Restore session state from last launch.
+
+        Restores:
+        - Last selected collection (auto-navigates)
+        - Last selected item (auto-loads in preview)
+        - Preview pane visibility
+        """
+        import asyncio
+
+        try:
+            if not hasattr(self.app, 'state_manager'):
+                logger.warning("No state_manager available")
+                return
+
+            # Give UI a moment to fully initialize
+            await asyncio.sleep(0.5)
+
+            state_manager = self.app.state_manager
+
+            # Get last session state
+            last_collection_id = state_manager.get_last_collection_id()
+            last_item_id = state_manager.get_last_item_id()
+            preview_was_visible = state_manager.get_preview_visible()
+
+            logger.debug(f"Restoring session: collection={last_collection_id}, item={last_item_id}, preview_visible={preview_was_visible}")
+
+            # Restore last collection
+            if last_collection_id:
+                try:
+                    # Verify collection still exists
+                    collection = self.app.library_manager.storage.get_collection(last_collection_id)
+                    if collection:
+                        logger.info(f"Restoring last collection: {collection.name}")
+
+                        # Navigate to collection first (this will populate collection view)
+                        if self.navigation_controller:
+                            self.navigation_controller.navigate_to_collection(last_collection_id)
+                            self.current_collection_id = last_collection_id
+
+                        # Wait for views to fully initialize
+                        await asyncio.sleep(1.0)  # Increased delay for widget initialization
+
+                        # Select collection in library sidebar (after navigation completes)
+                        try:
+                            if self.cached_library_view and hasattr(self.cached_library_view, 'select_collection'):
+                                self.cached_library_view.select_collection(last_collection_id)
+                                logger.debug(f"✅ Selected collection in library sidebar")
+                        except Exception as e:
+                            logger.warning(f"Could not select collection in sidebar: {e}")
+
+                        # Restore last item if available
+                        if last_item_id and preview_was_visible:
+
+                            # Verify item still exists
+                            item = self.app.library_manager.storage.get_item(last_item_id)
+                            if item:
+                                logger.info(f"Restoring last item: {item.name}")
+
+                                # Get output data
+                                output_data = await self.app.library_manager.get_item_output_data(last_item_id)
+
+                                # Load item in both views (same as _on_show_preview)
+                                self.current_item_id = last_item_id
+
+                                # Show preview slot
+                                if hasattr(self, 'preview_slot_id'):
+                                    self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
+
+                                # Load in PreviewView
+                                preview_view = self.views.get('output')
+                                if preview_view:
+                                    await preview_view.load_item(last_item_id, output_data=output_data)
+                                    logger.info(f"✅ Restored preview for item: {last_item_id}")
+
+                                # Load in AdjustView
+                                adjust_view = self.views.get('adjust')
+                                if adjust_view:
+                                    await adjust_view.load_item(last_item_id, output_data=output_data)
+                                    logger.info(f"✅ Restored adjust view for item: {last_item_id}")
+
+                                # Select item in collection view list
+                                try:
+                                    collection_view = self.views.get('collection') or self.cached_collection_view
+                                    if collection_view and hasattr(collection_view, 'items_list') and collection_view.items_list:
+                                        # Give widget extra time to settle
+                                        await asyncio.sleep(0.3)
+                                        if collection_view.items_list.select_item_by_id(last_item_id):
+                                            logger.debug(f"✅ Selected item in collection view list")
+                                        else:
+                                            logger.debug(f"⚠️ Could not select item in collection view (not yet loaded or not found)")
+                                except Exception as e:
+                                    logger.warning(f"Could not select item in collection view: {e}")
+                            else:
+                                logger.info(f"Last item {last_item_id} no longer exists")
+                    else:
+                        logger.info(f"Last collection {last_collection_id} no longer exists")
+
+                except Exception as e:
+                    logger.warning(f"Could not restore last collection/item: {e}")
+
+            logger.info("✅ Session state restored successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to restore session state: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _schedule_debounced_save(self):
+        """
+        Schedule debounced save of session state.
+
+        Cancels any existing save timer and creates a new one.
+        State will be saved 2 seconds after last selection change.
+        """
+        import asyncio
+
+        # Cancel existing timer if any
+        if self._save_state_timer:
+            self._save_state_timer.cancel()
+
+        # Schedule new save
+        async def delayed_save():
+            try:
+                await asyncio.sleep(2.0)  # Wait 2 seconds
+                await self.save_session_state()
+                logger.debug("⏱️ Debounced state save completed")
+            except asyncio.CancelledError:
+                logger.debug("⏱️ Debounced state save cancelled")
+            except Exception as e:
+                logger.error(f"Failed in debounced save: {e}")
+
+        self._save_state_timer = asyncio.create_task(delayed_save())
+
     # ===== PUBLIC INTERFACE =====
 
     def show(self):
@@ -1744,9 +1742,12 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to show main window: {e}")
 
-    def close(self):
+    async def close(self):
         """Close the main window with proper cleanup"""
         try:
+            # Save session state before closing (async)
+            await self.save_session_state()
+
             # Save window state before closing
             self.save_window_state()
 
@@ -1761,6 +1762,62 @@ class MainWindow:
 
     # Phase 1: Preview integration event handlers
 
+    async def _load_item_in_preview_panes(self, item_id: str, output_data: dict = None):
+        """
+        Load item in both preview panes (PreviewView and AdjustView).
+
+        This is the simplified, centralized method for loading items in preview panes.
+        It follows the pattern from restore_session_state() - direct method calls with
+        proper error handling.
+
+        Args:
+            item_id: The item ID to load
+            output_data: Optional pre-fetched output data (if None, will fetch)
+        """
+        try:
+            logger.info(f"📊 Loading item {item_id} in preview panes")
+
+            # Fetch output data if not provided
+            if output_data is None and hasattr(self.app, 'library_manager'):
+                output_data = await self.app.library_manager.get_item_output_data(item_id)
+                if output_data and output_data.get('has_outputs'):
+                    steps_count = len(output_data.get('processing_steps', []))
+                    logger.info(f"📊 Fetched output data: {steps_count} processing steps")
+
+            # Show preview slot on desktop
+            if not self.is_mobile and hasattr(self, 'preview_slot_id'):
+                if (hasattr(self, 'navigation_controller') and
+                    self.navigation_controller and
+                    hasattr(self.navigation_controller, 'layout_manager') and
+                    self.navigation_controller.layout_manager):
+                    self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
+
+            # Load in PreviewView
+            preview_view = self.views.get('output') or self.cached_output_view
+            if preview_view:
+                await preview_view.load_item(item_id, output_data=output_data)
+                logger.info(f"✅ Loaded item {item_id} in PreviewView")
+            else:
+                logger.warning("PreviewView not available")
+
+            # Load in AdjustView
+            adjust_view = self.views.get('adjust')
+            if adjust_view:
+                await adjust_view.load_item(item_id, output_data=output_data)
+                logger.info(f"✅ Loaded item {item_id} in AdjustView")
+
+            # Track current item for state persistence
+            self.current_item_id = item_id
+
+            # Trigger debounced state save
+            self._schedule_debounced_save()
+
+            # Update status bar to show focused pane
+            self._update_focused_pane_display('output')
+
+        except Exception as e:
+            logger.error(f"Failed to load item in preview panes: {e}", exc_info=True)
+
     def _handle_preview_selection_changed(self, event):
         """
         Handle SELECTION_CHANGED events to update preview pane.
@@ -1771,14 +1828,14 @@ class MainWindow:
         try:
             # Extract event data
             view_id = event.data.get('view_id', '')
-            item_ids = event.data.get('new_selection', [])  # SelectionManager emits 'new_selection'
+            item_ids = event.data.get('new_selection', [])
             metadata = event.data.get('metadata', [])
 
             logger.info(f"🔍 Preview selection change from view: {view_id}, items: {len(item_ids)}")
 
-            # Only respond to collection view selections (not library, not preview itself)
+            # Only respond to collection view selections
             if view_id != 'collection':
-                logger.debug(f"Ignoring selection from {view_id} (preview only responds to collection)")
+                logger.debug(f"Ignoring selection from {view_id}")
                 return
 
             # If no selection, clear preview
@@ -1787,86 +1844,131 @@ class MainWindow:
                 self._clear_preview()
                 return
 
-            # Load first selected item (multi-select shows first item)
+            # Get item ID from first selected item
             first_item_meta = metadata[0]
-            self._load_preview_from_selection(first_item_meta, metadata)
+            item_id = first_item_meta.get('item_id')  # Match key from collection_view metadata
+
+            if not item_id:
+                logger.warning(f"No item ID in selection metadata: {first_item_meta}")
+                return
+
+            # Create PreviewView if needed
+            if not self.cached_output_view:
+                from fichero.windows.main.views.preview.preview_view import PreviewView
+                library_manager = getattr(self.app, 'library_manager', None)
+                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
+
+            # Show preview pane
+            if self.is_mobile:
+                self._show_view_mobile("output", self.cached_output_view)
+            else:
+                self._show_view_desktop("output", self.cached_output_view, "right")
+
+            # Update toolbar
+            if not self.is_mobile:
+                self._update_toolbar_for_output_view(context='normal')
+
+            # Load item in both preview panes with output data
+            # Fetch output_data first to avoid duplicate queries and ensure adjust view gets full metadata
+            import asyncio
+            asyncio.create_task(self._load_preview_with_data(item_id))
 
         except Exception as e:
             logger.error(f"Failed to handle preview selection change: {e}", exc_info=True)
 
-    def _load_preview_from_selection(self, item_meta: dict, all_metadata: list):
+    async def _load_preview_with_data(self, item_id):
         """
-        Load item in preview pane from selection metadata.
+        Helper to fetch output_data and load preview panes.
 
-        Args:
-            item_meta: Metadata for the selected item
-            all_metadata: Full list of selected items (for navigation)
+        This ensures we pass output_data to _load_item_in_preview_panes() to avoid
+        duplicate database queries and ensure adjust view gets full metadata.
         """
         try:
-            # Extract file path (prefer local_path for downloaded files)
-            file_path = item_meta.get('local_path') or item_meta.get('file_path')
-            item_id = item_meta.get('id')
-
-            if not file_path:
-                logger.warning(f"No file path in selection metadata: {item_meta}")
-                return
-
-            logger.info(f"📄 Loading preview for: {file_path}")
-
-            # Check if item has processing outputs via library_manager
+            # Fetch output data from library manager
             output_data = None
-            if hasattr(self.app, 'library_manager') and item_id:
-                try:
-                    # Get processing outputs for this item
-                    library_manager = self.app.library_manager
-                    item = library_manager.storage.get_item(item_id)
+            if hasattr(self.app, 'library_manager') and self.app.library_manager:
+                output_data = await self.app.library_manager.get_item_output_data(item_id)
+                if output_data and output_data.get('has_outputs'):
+                    logger.info(f"📦 Fetched output data for preview: {len(output_data.get('processing_steps', []))} steps")
+                else:
+                    logger.debug(f"No output data available for item {item_id}")
 
-                    if item and item.metadata.get('output_path'):
-                        output_path = item.metadata['output_path']
-                        logger.info(f"📊 Item has processing outputs: {output_path}")
-
-                        # Create output_data structure expected by _on_show_preview
-                        output_data = {
-                            'has_outputs': True,
-                            'output_path': output_path,
-                            # OutputsManager will discover steps when preview loads
-                        }
-                except Exception as e:
-                    logger.debug(f"Could not check for outputs: {e}")
-
-            # Trigger existing preview loading mechanism via SHOW_PREVIEW event
-            from fichero.shared.navigation.navigation_event_bus import emit_navigation_event, NavigationEvent, NavigationEvents
-
-            preview_event_data = {
-                'file_path': file_path,
-                'item_id': item_id,
-                'output_data': output_data,
-                'file_metadata': item_meta,
-                'collection_items': all_metadata,  # For prev/next navigation
-                'item_index': 0,  # First selected item
-            }
-
-            emit_navigation_event(
-                NavigationEvents.SHOW_PREVIEW,
-                preview_event_data
-            )
-
-            logger.info(f"✅ Preview event emitted for {file_path}")
+            # Load preview panes with the fetched data
+            await self._load_item_in_preview_panes(item_id, output_data)
 
         except Exception as e:
-            logger.error(f"Failed to load preview from selection: {e}", exc_info=True)
+            logger.error(f"Failed to load preview with data: {e}", exc_info=True)
 
     def _clear_preview(self):
         """Clear the preview pane when no item is selected"""
+        # Simplified preview keeps showing last item (no need to clear)
+        logger.debug("📤 Preview keeps showing last selected item (no clearing needed)")
+
+    def _on_processing_completed_for_preview(self, event):
+        """
+        Reload preview when processing completes for the currently displayed item.
+
+        When a user processes an item that's currently shown in the preview panes,
+        this handler fetches the fresh output data (including new transcription)
+        and reloads both preview panes to display the updated content.
+
+        Args:
+            event: processing_completed event with item_id and collection_id
+        """
         try:
-            if self.cached_output_view:
-                logger.info("📤 Clearing preview pane (no selection)")
-                # Call load_output with no arguments to clear
-                self.cached_output_view.load_output()
-            else:
-                logger.debug("No cached output view to clear")
+            item_id = event.data.get("item_id")
+            collection_id = event.data.get("collection_id")
+
+            if not item_id:
+                logger.debug("Processing completed but no item_id in event")
+                return
+
+            # Only reload if this is the currently displayed item in preview
+            if not (hasattr(self, 'current_item_id') and
+                    self.current_item_id == item_id and
+                    hasattr(self, 'cached_output_view') and
+                    self.cached_output_view):
+                logger.debug(f"Processing completed for {item_id}, but not currently displayed in preview")
+                return
+
+            logger.info(f"🔄 Reloading preview after processing completed: {item_id}")
+
+            # Fetch fresh output data from library (includes new transcription)
+            if not hasattr(self.app, 'library_manager'):
+                logger.warning("Library manager not available for preview reload")
+                return
+
+            library_manager = self.app.library_manager
+            item = library_manager.storage.get_item(item_id)
+
+            if not item:
+                logger.warning(f"Item {item_id} not found in library")
+                return
+
+            # Build fresh output_data structure
+            output_data = None
+            if item.metadata.get('output_path'):
+                output_path = item.metadata['output_path']
+                logger.info(f"📊 Fetching fresh outputs from: {output_path}")
+
+                output_data = {
+                    'has_outputs': True,
+                    'output_path': output_path,
+                    'item_id': item_id,
+                    'collection_id': collection_id
+                }
+
+            # Reload the preview view with fresh data (async task)
+            import asyncio
+            asyncio.create_task(self.cached_output_view.load_item(
+                item_id=item_id,
+                output_data=output_data
+            ))
+
+            logger.info(f"✅ Preview reload scheduled for {item_id}")
+
         except Exception as e:
-            logger.error(f"Failed to clear preview: {e}", exc_info=True)
+            logger.error(f"Failed to reload preview after processing: {e}", exc_info=True)
 
     # Phase 2: Selection tracking event handler
 
@@ -1932,25 +2034,6 @@ class MainWindow:
                     logger.debug(f"Collection has {folder_count} folders")
                 else:
                     logger.debug("Collection view has no collection_items attribute, skipping")
-                    return
-
-            elif view_id == 'steps':
-                # CRITICAL FIX #2: Defensive check with early return
-                if not hasattr(self, 'right_pane_view') or self.right_pane_view is None:
-                    logger.debug("Preview view not ready, skipping status update")
-                    return
-
-                # Get total steps from PreviewView (if it has step browser)
-                if hasattr(self.right_pane_view, 'step_browser'):
-                    step_browser = self.right_pane_view.step_browser
-                    if step_browser and hasattr(step_browser, 'steps'):
-                        total_items = len(step_browser.steps)
-                        logger.debug(f"Steps view has {total_items} steps")
-                    else:
-                        logger.debug("Step browser not ready, skipping")
-                        return
-                else:
-                    logger.debug("Preview view has no step_browser attribute, skipping")
                     return
 
             # Update status bar with formatted message

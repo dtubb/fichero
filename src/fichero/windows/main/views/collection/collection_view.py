@@ -756,12 +756,9 @@ class CollectionView(BaseView, ViewCommandMixin):
         try:
             logger.info("Collection toolbar: Back navigation requested")
 
-            # Clear output view when navigating back (going to folder/collection root)
-            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
-                main_window = self.app.main_window_wrapper
-                if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
-                    logger.info("📤 Clearing output view (back button clicked)")
-                    main_window.cached_output_view.load_output()
+            # Back button clicked - preview stays on current item
+            # (Simplified preview doesn't need clearing)
+            logger.info("🔙 Back button clicked (preview unchanged)")
 
             # Use ListWidget's internal navigation
             if hasattr(self, 'items_list') and self.items_list:
@@ -942,11 +939,11 @@ class CollectionView(BaseView, ViewCommandMixin):
                     else:
                         logger.error("view_integration not available")
                 else:
-                    # Desktop: create new window
+                    # Desktop: create new window (compact size for minimal UI)
                     add_window = toga.Window(
                         title="Import URL",
-                        size=(600, 400),
-                        resizable=True
+                        size=(400, 150),
+                        resizable=False
                     )
                     add_window.content = url_view.container
                     # Pass window reference to view so it can close itself
@@ -1607,7 +1604,9 @@ class CollectionView(BaseView, ViewCommandMixin):
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
                 ),
-                renderer='native'  # Use platform-appropriate widget (Tree/Table/DetailedList)
+                renderer='native',  # Use platform-appropriate widget (Tree/Table/DetailedList)
+                app=self.app,  # For SelectionManager access
+                view_id='collection'  # Selection context
             )
 
             if self.content_container:
@@ -1675,20 +1674,12 @@ class CollectionView(BaseView, ViewCommandMixin):
             if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                 main_window = self.app.main_window_wrapper
                 if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
+                    # Navigation changed - preview stays on current item
+                    # (Simplified preview shows individual files only, not folder-level views)
                     if new_path:
-                        # Inside a folder - load folder outputs
-                        folder_id = self._get_folder_id_from_path(new_path)
-                        if folder_id:
-                            logger.info(f"📊 Loading folder-level outputs for navigated folder: {folder_id}")
-                            main_window.cached_output_view.load_output(item_id=folder_id)
-                        else:
-                            logger.warning(f"Could not get folder ID for path: {new_path}")
-                            logger.info("📤 Clearing output view (navigated to new path, no folder ID)")
-                            main_window.cached_output_view.load_output()
+                        logger.info(f"📁 Navigated to folder: {new_path} (preview unchanged)")
                     else:
-                        # At collection root - clear output view
-                        logger.info("📤 Clearing output view (navigated to collection root)")
-                        main_window.cached_output_view.load_output()
+                        logger.info("📁 Navigated to collection root (preview unchanged)")
 
         except Exception as e:
             logger.error(f"Failed to handle navigation change: {e}", exc_info=True)
@@ -1762,7 +1753,6 @@ class CollectionView(BaseView, ViewCommandMixin):
     def _on_item_selected(self, widget_or_item):
         """Handle item selection from list (supports single and multi-selection)"""
         try:
-            logger.info(f"🎯 CLICK TRACE #1: _on_item_selected called with: {type(widget_or_item)}, hasattr selection: {hasattr(widget_or_item, 'selection')}")
 
             # ========== PHASE 3: Extract ALL selected items (not just first) ==========
 
@@ -1833,17 +1823,12 @@ class CollectionView(BaseView, ViewCommandMixin):
                     asyncio.create_task(self._update_inspector_async(first_item_data))
 
                 # Update output view with selected item (if not a folder)
-                # For folders, ListWidget will handle navigation via _on_navigate_path_changed
+                # Note: Preview updates now handled by main_window listening to SELECTION_CHANGED event
+                # (Removed duplicate _load_item_outputs call to prevent race conditions with dual event paths)
                 if not first_item_data.get('is_folder', False):
-                    file_path = first_item_data.get('file_path')
-                    if file_path:
-                        logger.info(f"🎯 CLICK TRACE #2: Non-folder item selected - loading outputs for {first_item_data.get('id')}")
-                        import asyncio
-                        asyncio.create_task(self._load_item_outputs(first_item_data, file_path))
-                    else:
-                        logger.warning(f"🎯 CLICK TRACE #2: Non-folder item selected but no file_path")
+                    logger.debug("📊 Item selected - preview will update via SELECTION_CHANGED event")
                 else:
-                    logger.info(f"🎯 CLICK TRACE #2: Folder selected - ListWidget will handle navigation")
+                    logger.debug("Selected item is a folder, not loading outputs")
             else:
                 logger.debug("No selection in widget")
 
@@ -1854,22 +1839,12 @@ class CollectionView(BaseView, ViewCommandMixin):
 
                 # Note: Process button stays enabled always (processes all when no selection)
 
-                # Clear output view when selection is cleared (no item selected)
-                # BUT: If we're inside a folder, load the folder view instead
-                if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
-                    if hasattr(self.app.main_window_wrapper, 'cached_output_view') and self.app.main_window_wrapper.cached_output_view:
-                        # Only clear if at collection root, not inside a folder
-                        if not self.current_path:
-                            logger.info("📤 Clearing output view (selection cleared at root)")
-                            self.app.main_window_wrapper.cached_output_view.load_output()
-                        else:
-                            # Inside a folder - load folder view like Inspector does
-                            logger.info(f"📁 Loading folder view (selection cleared inside folder: {self.current_path})")
-                            folder_id = self._get_folder_id_from_path(self.current_path)
-                            if folder_id:
-                                self.app.main_window_wrapper.cached_output_view.load_output(item_id=folder_id)
-                            else:
-                                logger.warning(f"Could not get folder ID for path: {self.current_path}")
+                # Selection cleared - just log it, preview stays on last item
+                # (Simplified preview doesn't need clearing - it just shows the last selected item)
+                if not self.current_path:
+                    logger.info("📤 Selection cleared at root (preview unchanged)")
+                else:
+                    logger.info(f"📁 Selection cleared inside folder: {self.current_path} (preview unchanged)")
 
                 # Update inspector to show parent folder or collection metadata
                 # Skip if we're inside a folder (folder inspector update handled by navigation)
@@ -2364,12 +2339,8 @@ class CollectionView(BaseView, ViewCommandMixin):
                     # Handle ".." back navigation via NavigationController
                     logger.info("FOLDER NAVIGATION: Going back via '..' item using NavigationController")
 
-                    # Clear output view when navigating back (going to folder/collection root)
-                    if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
-                        main_window = self.app.main_window_wrapper
-                        if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
-                            logger.info("📤 Clearing output view (navigating back)")
-                            main_window.cached_output_view.load_output()
+                    # Preview view keeps showing last selected item (no need to clear)
+                    logger.debug("📤 Navigating back (preview unchanged)")
 
                     if hasattr(self.app, 'view_integration') and self.app.view_integration:
                         navigation_controller = self.app.view_integration.get_navigation_controller()
@@ -2398,12 +2369,12 @@ class CollectionView(BaseView, ViewCommandMixin):
                         if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
                             asyncio.create_task(self._update_inspector_with_folder_async(folder_id, folder_name))
 
-                        # Load folder-level outputs to output view
+                        # Load folder item in preview
                         if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                             main_window = self.app.main_window_wrapper
                             if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
-                                logger.info(f"📊 Loading folder-level outputs for selected folder: {folder_id}")
-                                main_window.cached_output_view.load_output(item_id=folder_id)
+                                logger.info(f"📊 Loading folder item in preview: {folder_id}")
+                                asyncio.create_task(main_window.cached_output_view.load_item(folder_id))
 
                         return  # Exit without navigating
 
@@ -2420,14 +2391,12 @@ class CollectionView(BaseView, ViewCommandMixin):
                         except AttributeError:
                             logger.debug("Could not clear selection (read-only property)")
 
-                    # Load folder-level outputs from library manager
+                    # Load folder item in preview
                     if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
                         main_window = self.app.main_window_wrapper
                         if hasattr(main_window, 'cached_output_view') and main_window.cached_output_view:
-                            # Load folder outputs by passing folder item_id to output view
-                            # The output view will use library manager to get processing steps
-                            logger.info(f"📊 Loading folder-level outputs for folder: {folder_id}")
-                            main_window.cached_output_view.load_output(item_id=folder_id)
+                            logger.info(f"📊 Loading folder item in preview: {folder_id}")
+                            asyncio.create_task(main_window.cached_output_view.load_item(folder_id))
 
                     # Update inspector to show folder metadata after navigation
                     if hasattr(self.app, 'inspector_window') and self.app.inspector_window:
@@ -2478,7 +2447,6 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             # Get file-specific filtered output data via LibraryManager
             item_id = item_data.get('id')
-            logger.info(f"📊 Getting filtered outputs - item_id: {item_id}, file_path: {file_path}")
 
             output_data = None
             if item_id:
@@ -2510,9 +2478,7 @@ class CollectionView(BaseView, ViewCommandMixin):
             else:
                 logger.info(f"📊 Emitting preview event WITHOUT output data (original file only)")
 
-            logger.info(f"🎯 CLICK TRACE #3: About to emit show_preview event with item_id={item_id}")
             emit_navigation_event('show_preview', event_data)
-            logger.info(f"🎯 CLICK TRACE #4: ✅ Emitted preview event for file: {file_path}, item_id={item_id}")
 
         except Exception as e:
             logger.error(f"Failed to load item outputs: {e}")
@@ -2628,52 +2594,11 @@ class CollectionView(BaseView, ViewCommandMixin):
             logger.info(f"Processing {len(item_ids)} items with {plan_name}/{workflow_name}")
 
             # === WORKFLOW CHAINING LOGIC ===
-            # Check if we should chain from previous output
-            # DISABLED FOR NOW - just use base plan directly
+            # REFACTORED: Removed dead workflow chaining code (was disabled with if False)
+            # Use plan directly without chaining
             actual_plan_name = plan_name
-            if False and item_ids and hasattr(self.app, 'workflow_chainer'):
-                # Get first item to check for chaining
-                first_item = await self.app.library_manager.get_item(item_ids[0])
 
-                if first_item and self.app.workflow_chainer.should_chain(first_item):
-                    # Get last output location
-                    last_output = self.app.workflow_chainer.get_last_output(first_item)
-
-                    logger.info(f"🔗 Chaining from previous output:")
-                    logger.info(f"  Last step: {last_output['step']}")
-                    logger.info(f"  Output folder: {last_output['folder']}")
-                    logger.info(f"  Manifest: {last_output['manifest']}")
-
-                    # Build path to base plan
-                    from pathlib import Path
-                    base_plan_path = Path(self.app.paths.config) / 'plans' / f"{plan_name}.yml"
-
-                    if not base_plan_path.exists():
-                        # Try resource path
-                        base_plan_path = Path(self.app.paths.app) / 'resources' / 'config_defaults' / 'plans' / f"{plan_name}.yml"
-
-                    if base_plan_path.exists():
-                        try:
-                            # Generate chained plan
-                            chained_plan_path = self.app.workflow_chainer.create_chained_plan(
-                                base_plan_path=str(base_plan_path),
-                                workflow_name=workflow_name,
-                                source_folder=last_output['folder'],
-                                source_manifest=last_output['manifest'],
-                                output_suffix=''
-                            )
-
-                            # Use chained plan instead of base plan
-                            actual_plan_name = chained_plan_path
-                            logger.info(f"✅ Using chained plan: {chained_plan_path}")
-
-                        except Exception as chain_error:
-                            logger.warning(f"Failed to create chained plan: {chain_error}")
-                            logger.info("Falling back to base plan (starting from documents)")
-                    else:
-                        logger.warning(f"Base plan not found: {base_plan_path}")
-
-            # Process items with (possibly chained) plan and workflow
+            # Process items with plan and workflow
             task_ids = await self.app.director_integration.process_items(
                 collection_id=self.collection_id,
                 item_ids=item_ids,
@@ -2700,9 +2625,10 @@ class CollectionView(BaseView, ViewCommandMixin):
     # See TOOL_CONFIGS class variable for the plan/workflow mappings.
 
     async def _on_process_requested(self, widget):
-        """Smart Process handler - process selected item or all items
+        """Process the currently selected item only.
 
-        Like inspector: if item selected → process it; nothing selected → process all
+        Requires a file to be selected - does nothing if no selection.
+        Uses SelectionManager for reliable selection access.
         """
         try:
             # Use view's collection_id directly (consistent with inspector pattern)
@@ -2712,26 +2638,42 @@ class CollectionView(BaseView, ViewCommandMixin):
 
             logger.info(f"Process clicked - collection_id={self.collection_id}")
 
-            # Check for selected item
-            selected_item_id = None
+            # Get selection from SelectionManager (centralized, reliable)
+            selected_item_ids = []
             selected_item_name = None
 
-            selection = self.items_list.get_selection() if (hasattr(self, 'items_list') and self.items_list) else None
-            if selection:
-                try:
-                    selected_row = selection
-                    selected_item_id = getattr(selected_row, 'item_id', None) or getattr(selected_row, 'id', None)
-                    selected_item_name = getattr(selected_row, 'title', None) or getattr(selected_row, 'name', None)
+            if hasattr(self.app, 'selection_manager') and self.app.selection_manager:
+                # Get selection from SelectionManager
+                selected_item_ids = self.app.selection_manager.get_selection('collection')
+                metadata = self.app.selection_manager.get_selection_metadata('collection')
 
-                    if selected_item_id:
-                        logger.info(f"Processing selected item: {selected_item_name} (id={selected_item_id})")
-                except Exception as e:
-                    logger.debug(f"Could not get selected item: {e}")
+                logger.info(f"✅ SelectionManager: {len(selected_item_ids)} items selected")
 
-            if not selected_item_id:
-                logger.info("No item selected - will process all items in current view")
+                # Extract name from first item metadata
+                if metadata and len(metadata) > 0:
+                    first_item_meta = metadata[0]
+                    selected_item_name = first_item_meta.get('title') or first_item_meta.get('name')
+            else:
+                logger.warning("SelectionManager not available - falling back to widget selection")
+                # Fallback: try widget-based selection
+                if hasattr(self, 'items_list') and self.items_list:
+                    selection = self.items_list.get_selection()
+                    if selection:
+                        item_id = getattr(selection, 'item_id', None) or getattr(selection, 'id', None)
+                        if item_id:
+                            selected_item_ids = [item_id]
+                            selected_item_name = getattr(selection, 'title', None) or getattr(selection, 'name', None)
 
-            # Show processing dialog (handles both single item and all items)
+            if not selected_item_ids or len(selected_item_ids) == 0:
+                logger.warning("No item selected - Process button requires a file selection")
+                # TODO: Could show a dialog here saying "Please select a file to process"
+                return
+
+            # Process first selected item (batch processing in future)
+            selected_item_id = selected_item_ids[0]
+            logger.info(f"Processing selected item: {selected_item_name} (id={selected_item_id})")
+
+            # Show processing dialog for selected item only
             await self._show_process_dialog(self.collection_id, selected_item_id, selected_item_name)
 
         except Exception as e:
