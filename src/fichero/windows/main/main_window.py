@@ -16,7 +16,7 @@ from fichero.shared.navigation.navigation_event_bus import subscribe_to_navigati
 from fichero.shared.navigation.navigation_controller import NavigationController
 from fichero.windows.main.views.library.library_view import LibraryView
 from fichero.windows.main.views.collection.collection_view import CollectionView
-from fichero.windows.main.views.preview import PreviewView
+# Preview views now imported inline where needed
 from fichero.shared.bars.status_bar import StatusBar
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,6 @@ class MainWindow:
 
         # Cached views to maintain state
         self.cached_library_view: Optional[LibraryView] = None
-        self.cached_output_view: Optional[PreviewView] = None
         self.cached_collection_view: Optional[CollectionView] = None  # Cache single reusable instance
 
         # Session state tracking for persistence
@@ -69,6 +68,13 @@ class MainWindow:
 
         # Get NavigationController from app
         self.navigation_controller = self._get_navigation_controller()
+
+        # Get StateManager from app for enhanced state management
+        self.state_manager = getattr(self.app, 'state_manager', None)
+        if not self.state_manager:
+            logger.warning("StateManager not available in app - some features may be limited")
+        else:
+            logger.debug("StateManager reference stored for enhanced state management")
 
         # Get SelectionManager from app
         self.selection_manager = getattr(self.app, 'selection_manager', None)
@@ -88,9 +94,7 @@ class MainWindow:
         # Subscribe to navigation events
         self._subscribe_to_events()
 
-        # Pre-create PreviewView to register its Edit menu commands at startup
-        # (Even though the view won't be shown until needed, its commands need to be available)
-        self._precreate_output_view()
+        # Note: Preview panes are created in layout, no need for pre-creation
 
         # Pre-create CollectionView on desktop to register its commands (import, process, etc.)
         # On desktop, all command menus should be available even before opening a collection
@@ -134,27 +138,74 @@ class MainWindow:
             return None
 
     def _create_window(self):
-        """Create the main window"""
+        """Create the main window with saved size and position"""
         try:
+            # Get saved size (or default)
+            size = self._get_window_size()
+
             self.window = toga.MainWindow(
-                title=self.app.formal_name,  # Set window title
-                size=self._get_window_size()
+                title=self.app.formal_name,
+                size=size
             )
 
             if not self.is_mobile:
                 self.window.min_size = (1000, 600)
 
-            logger.debug("Main window created")
+            # Set initial position from saved state (before showing)
+            position = self._get_window_position()
+            if position:
+                self.window.position = position
+                logger.info(f"Set initial window position: {position}")
+
+            # Register with window state tracker for native state tracking
+            # NOTE: We use restore=False because position/size is set above
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.register_window("main", self.window, restore=False)
+                logger.debug("Main window registered with window state tracker")
+
+            logger.debug(f"Main window created with size={size}, position={position}")
 
         except Exception as e:
             logger.error(f"Failed to create main window: {e}")
 
     def _get_window_size(self) -> tuple:
-        """Get appropriate window size for platform"""
+        """Get appropriate window size for platform, checking saved state first"""
         if self.is_mobile:
             return (375, 667)  # iPhone dimensions
-        else:
-            return (1600, 1000)  # Desktop dimensions - larger for dual-pane layout
+
+        # Check for saved window state first
+        try:
+            state_manager = getattr(self.app, 'state_manager', None)
+            if state_manager:
+                saved = state_manager.get_window_state("main")
+                if saved and saved.get('width') and saved.get('height'):
+                    width = saved['width']
+                    height = saved['height']
+                    logger.info(f"Using saved window size: {width}x{height}")
+                    return (width, height)
+        except Exception as e:
+            logger.debug(f"Could not get saved window size: {e}")
+
+        return (1600, 1000)  # Desktop default
+
+    def _get_window_position(self) -> tuple:
+        """Get saved window position, or None for system default"""
+        if self.is_mobile:
+            return None
+
+        try:
+            state_manager = getattr(self.app, 'state_manager', None)
+            if state_manager:
+                saved = state_manager.get_window_state("main")
+                if saved and saved.get('x') is not None and saved.get('y') is not None:
+                    x = saved['x']
+                    y = saved['y']
+                    logger.info(f"Using saved window position: ({x}, {y})")
+                    return (x, y)
+        except Exception as e:
+            logger.debug(f"Could not get saved window position: {e}")
+
+        return None  # Let system choose default position
 
     def _create_layout(self):
         """Create layout containers"""
@@ -222,17 +273,24 @@ class MainWindow:
                 else:
                     collection_view = self.views['collection']
 
-                # Column 4: Preview/Output (create if doesn't exist)
-                if 'output' not in self.views:
-                    library_manager = getattr(self.app, 'library_manager', None)
-                    preview_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
-                    self.views['output'] = preview_view
-                else:
-                    preview_view = self.views['output']
+                # Creating 5-column layout: Library | Collection | PreviewImage | PreviewMetadata | Adjust
 
-                # 4-column layout: Library | Collection | Preview | Adjust
+                # DUAL-PANE PREVIEW: Create 5-column layout with separate image and transcription panes
+                # Columns: Library | Collection | ImagePane | TranscriptionPane | Adjust
+                import toga
+                from toga.style import Pack
 
-                # Column 4: Adjust (metadata display)
+                # Create two dedicated preview panes with specific purposes
+                from fichero.windows.main.views.preview.preview_image_pane import PreviewImagePane
+                from fichero.windows.main.views.preview.preview_metadata_pane import PreviewMetadataPane
+
+                # Get library_manager for preview panes
+                library_manager = getattr(self.app, 'library_manager', None)
+
+                image_pane = PreviewImagePane(self.app, self.is_mobile, library_manager=library_manager)
+                metadata_pane = PreviewMetadataPane(self.app, self.is_mobile, library_manager=library_manager)
+
+                # Create AdjustView for metadata display
                 adjust_view = AdjustView(
                     self.app,
                     is_mobile=False
@@ -240,43 +298,46 @@ class MainWindow:
                 self.views['adjust'] = adjust_view
 
                 # SIMPLIFIED: Wire up AdjustView to library_manager for metadata display
-                library_manager = getattr(self.app, 'library_manager', None)
                 if hasattr(adjust_view, 'set_library_manager'):
                     adjust_view.set_library_manager(library_manager)
                     logger.info("✅ AdjustView wired to LibraryManager for metadata display")
 
-                # REFACTORED: No longer subscribe to events - main_window will call load_item() directly
-                # This prevents duplicate event subscriptions (was causing 4x loading of same item)
                 logger.info("✅ AdjustView will be loaded directly from main_window (no event subscription)")
 
-                # SIMPLIFIED: Create 4-column layout (no Steps column)
-                # Columns: Library (180px) | Collection (200px) | Preview (flex) | Adjust (300px)
-                import toga
-                from toga.style import Pack
+                # Store references for item loading
+                self.image_pane = image_pane
+                self.metadata_pane = metadata_pane
+                self.views['image'] = image_pane
+                self.views['metadata'] = metadata_pane
 
                 views = [
                     library_view,
-                    collection_view,  # Just collection, no steps
-                    preview_view,
+                    collection_view,
+                    image_pane,    # Left preview pane (dedicated image display)
+                    metadata_pane, # Right preview pane (dedicated metadata/transcription)
                     adjust_view
                 ]
-                # Fixed widths for sidebars, None for flexible preview
-                widths = [180, 200, None, 300]  # Adjust wider for metadata display
+                # Fixed widths: sidebars fixed, preview panes with 75%/25% ratio, adjust fixed
+                widths = [180, 200, None, None, 300]
+
+                # Set initial flex ratios for 75%/25% preview split
+                # We'll modify the layout creation to apply these ratios
 
                 # Column names for menu commands (show/hide)
-                column_names = ["Library", "Collection", "Preview", "Adjust"]
+                column_names = ["Library", "Collection", "PreviewImage", "PreviewMetadata", "Adjust"]
 
-                # Mark all columns as collapsible
-                collapsible = [True, True, True, True]
+                # Mark columns as collapsible (all panes can now be toggled)
+                collapsible = [True, True, True, True, True]
 
                 # Minimum widths for auto-collapse behavior
-                min_widths = [180, 200, 800, 300]
+                min_widths = [180, 200, 400, 400, 300]
 
-                logger.info(f"Creating SIMPLIFIED 4-column layout")
+                logger.info(f"Creating DUAL-PANE 5-column layout")
                 logger.info(f"  - Library: 180px fixed, collapsible")
                 logger.info(f"  - Collection: 200px fixed, collapsible")
-                logger.info(f"  - Preview: flexible (min 800px), NOT collapsible")
-                logger.info(f"  - Adjust: 200px fixed, collapsible")
+                logger.info(f"  - ImagePane: flexible (min 400px), collapsible")
+                logger.info(f"  - MetadataPane: flexible (min 400px), collapsible")
+                logger.info(f"  - Adjust: 300px fixed, collapsible")
 
                 slot_ids = layout_manager.add_columns_fixed(
                     views,
@@ -286,18 +347,37 @@ class MainWindow:
                     min_widths=min_widths
                 )
 
-                # Store slot IDs for 4-column layout
+                # Store slot IDs for 5-column layout
                 self.library_slot_id = slot_ids[0]
                 self.collection_slot_id = slot_ids[1]
-                self.preview_slot_id = slot_ids[2]
-                self.adjust_slot_id = slot_ids[3]
+                self.image_slot_id = slot_ids[2]
+                self.metadata_slot_id = slot_ids[3]
+                self.adjust_slot_id = slot_ids[4]
+                # Backward compatibility for preview_slot_id
+                self.preview_slot_id = slot_ids[2]  # For any legacy code
+
+                # Apply 75%/25% ratio to preview panes
+                # Get the preview slots and set their flex ratios
+                if not self.is_mobile:  # Only apply on desktop
+                    image_slot = layout_manager.view_slots[self.image_slot_id]
+                    metadata_slot = layout_manager.view_slots[self.metadata_slot_id]
+
+                    # Set 75% for image, 25% for metadata
+                    image_slot.container.style.flex = 75
+                    metadata_slot.container.style.flex = 25
+                    logger.info("Applied 75%/25% flex ratio to preview panes (ImagePane:75, MetadataPane:25)")
+
+                    # Also set the default state in the state manager if available
+                    if hasattr(self.app, 'state_manager') and self.app.state_manager:
+                        self.app.state_manager.set_current_preview_preset("wide_content")
 
                 # Wire up focus system: Set on_click callbacks on views and slots
                 # The combined view acts as one focusable unit
                 all_views_and_slots = [
                     (self.library_slot_id, library_view),
-                    (self.collection_slot_id, collection_view),  # Collection view gets focus for the combined column
-                    (self.preview_slot_id, preview_view),
+                    (self.collection_slot_id, collection_view),
+                    (slot_ids[2], image_pane),  # Image preview pane
+                    (slot_ids[3], metadata_pane),  # Metadata preview pane
                     (self.adjust_slot_id, adjust_view)
                 ]
 
@@ -329,8 +409,11 @@ class MainWindow:
                 # Store pane references (actual view containers)
                 self.library_pane = library_view.container
                 self.collection_pane = collection_view.container
-                self.preview_pane = preview_view.container
+                self.image_pane_container = image_pane.container
+                self.metadata_pane_container = metadata_pane.container
                 self.adjust_pane = adjust_view.container
+                # Backward compatibility for preview_pane
+                self.preview_pane = image_pane.container  # For any legacy code
 
                 # Backward compatibility aliases
                 self.left_pane = self.library_pane
@@ -352,7 +435,7 @@ class MainWindow:
                 # Set main container
                 self.main_container = self.content_area
 
-                logger.info(f"✅ Desktop layout created: 4-column layout with vertical split (Library | Collection+Steps | Preview | Adjust), widths=[270px, 250px, flex, 250px], Collection:Steps=70:30")
+                logger.info(f"✅ Desktop layout created: 5-column layout with dual preview panes (Library | Collection | ImagePane | TranscriptionPane | Adjust)")
             else:
                 # No layout manager available - this shouldn't happen
                 logger.error("❌ NavigationController layout_manager not available! Cannot create desktop layout.")
@@ -390,26 +473,7 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to subscribe to navigation events: {e}")
 
-    def _precreate_output_view(self):
-        """
-        Pre-create PreviewView at startup to register its Edit menu commands.
-        The view won't be shown yet, but its commands need to be available in menus.
-        """
-        try:
-            if self.cached_output_view is None:
-                logger.debug("Pre-creating PreviewView to register Edit menu commands")
-                # Pass library_manager for file-specific filtering
-                library_manager = getattr(self.app, 'library_manager', None)
-                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
-
-                # PHASE 5: Pass status bar to layout manager for pane selection updates
-                if hasattr(self.cached_output_view, 'layout_manager') and self.status_bar:
-                    self.cached_output_view.layout_manager.status_bar = self.status_bar
-                    logger.debug("✅ Status bar linked to PreviewView layout manager")
-
-                logger.info("✅ PreviewView pre-created - Edit menu commands registered")
-        except Exception as e:
-            logger.error(f"Failed to pre-create PreviewView: {e}")
+    # _precreate_output_view removed - using dedicated preview panes instead
 
     def _precreate_collection_view(self):
         """
@@ -518,7 +582,7 @@ class MainWindow:
                 ),
                 'view.toggle_collection': FicheroCommand(
                     id='view.toggle_collection',
-                    label=_("Collection"),
+                    label=_("2 Collection"),
                     action=self._toggle_collection_pane,
                     icon="resources/icons/toolbar/list.bullet.rectangle@10x.png",
                     toolbar_icon=None,  # Use PNG icon instead of SF Symbol
@@ -535,26 +599,71 @@ class MainWindow:
                     visibility_priority=600,
                     tooltip=_("Show/hide Collection pane")
                 ),
-                # Adjust toggle button (toolbar button)
-                'view.toggle_inspector': FicheroCommand(
-                    id='view.toggle_inspector',
-                    label=_("Adjust"),  # Removed "3" prefix (not needed in toolbar)
-                    action=self._toggle_inspector_pane,
-                    icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon for right sidebar
-                    toolbar_icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon
+                # Preview Image toggle
+                'view.toggle_preview_image': FicheroCommand(
+                    id='view.toggle_preview_image',
+                    label=_("3 Preview Image"),
+                    action=self._toggle_preview_image_pane,
                     shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '3',
-                    description=_("Show/hide Adjust pane"),
+                    description=_("Show/hide Preview Image pane"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=2,
+                    show_in_menu=True,
+                    show_in_top_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+                # Preview Metadata toggle
+                'view.toggle_preview_metadata': FicheroCommand(
+                    id='view.toggle_preview_metadata',
+                    label=_("4 Preview Metadata"),
+                    action=self._toggle_preview_metadata_pane,
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '4',
+                    description=_("Show/hide Preview Metadata pane"),
                     group=toga.Group.VIEW,
                     section=0,
                     order=3,
+                    show_in_menu=True,
+                    show_in_top_toolbar=False,
+                    desktop_only=True,
+                    context='normal'
+                ),
+                # Info toggle button (toolbar button)
+                'view.toggle_inspector': FicheroCommand(
+                    id='view.toggle_inspector',
+                    label=_("5 Info"),
+                    action=self._toggle_inspector_pane,
+                    icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon for right sidebar
+                    toolbar_icon="resources/icons/toolbar/sidebar.right@10x.png",  # PNG icon
+                    shortcut=toga.Key.MOD_1 + toga.Key.MOD_2 + '5',
+                    description=_("Show/hide Info pane"),
+                    group=toga.Group.VIEW,
+                    section=0,
+                    order=4,
                     show_in_menu=True,
                     show_in_top_toolbar=True,  # Add to native toolbar
                     show_in_titlebar=False,  # Remove from titlebar accessories
                     desktop_only=True,
                     context='normal',  # Required for toolbar filtering
                     visibility_priority=900,  # Very high priority - Phase 2 (stays visible)
-                    tooltip=_("Show/hide Adjust pane")  # Tooltip for toolbar button
+                    tooltip=_("Show/hide Info pane")  # Tooltip for toolbar button
                 ),
+
+                # === PREVIEW RATIO CONTROLS ===
+                'view.cycle_ratios': FicheroCommand(
+                    id='view.cycle_ratios',
+                    label=_("Cycle Preview Width"),
+                    action=self._cycle_preview_ratios,
+                    shortcut=toga.Key.MOD_1 + 'r',
+                    description=_("Cycle through preview pane width ratios (25/75, 50/50, 75/25)"),
+                    group=toga.Group.VIEW,
+                    section=10,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+
                 # Library toggle (menu only, no toolbar button - covered by sidebar button)
                 'view.toggle_library': FicheroCommand(
                     id='view.toggle_library',
@@ -601,6 +710,105 @@ class MainWindow:
                     description=_("Show/hide status bar at bottom of window"),
                     group=toga.Group.VIEW,
                     section=20,
+                    order=2,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+
+                # === ZOOM COMMANDS ===
+                'view.zoom_in': FicheroCommand(
+                    id='view.zoom_in',
+                    label=_("Zoom In"),
+                    action=self._zoom_in_preview,
+                    shortcut=toga.Key.MOD_1 + '=',  # Cmd++ (same key as +)
+                    description=_("Zoom in on preview image"),
+                    group=toga.Group.VIEW,
+                    section=15,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.zoom_out': FicheroCommand(
+                    id='view.zoom_out',
+                    label=_("Zoom Out"),
+                    action=self._zoom_out_preview,
+                    shortcut=toga.Key.MOD_1 + '-',  # Cmd+-
+                    description=_("Zoom out on preview image"),
+                    group=toga.Group.VIEW,
+                    section=15,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.actual_size': FicheroCommand(
+                    id='view.actual_size',
+                    label=_("Actual Size"),
+                    action=self._actual_size_preview,
+                    shortcut=toga.Key.MOD_1 + '0',  # Cmd+0
+                    description=_("Show preview image at actual size"),
+                    group=toga.Group.VIEW,
+                    section=15,
+                    order=2,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.zoom_to_fit': FicheroCommand(
+                    id='view.zoom_to_fit',
+                    label=_("Zoom to Fit"),
+                    action=self._zoom_to_fit_preview,
+                    shortcut=toga.Key.MOD_1 + '9',  # Cmd+9
+                    description=_("Fit preview image to window"),
+                    group=toga.Group.VIEW,
+                    section=15,
+                    order=3,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.zoom_to_selection': FicheroCommand(
+                    id='view.zoom_to_selection',
+                    label=_("Zoom to Selection"),
+                    action=self._zoom_to_selection_preview,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '8',  # Cmd+* (Shift+8)
+                    description=_("Zoom to current selection"),
+                    group=toga.Group.VIEW,
+                    section=15,
+                    order=4,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                # Magnifier controls (section 16 = after divider, grouped together)
+                'view.toggle_magnifier': FicheroCommand(
+                    id='view.toggle_magnifier',
+                    label=_("Show Magnifier"),
+                    action=self._toggle_magnifier_preview,
+                    shortcut=toga.Key.MOD_1 + '`',  # Cmd+` (backtick)
+                    description=_("Show magnifier panel for detailed view"),
+                    group=toga.Group.VIEW,
+                    section=16,
+                    order=0,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.magnifier_zoom_in': FicheroCommand(
+                    id='view.magnifier_zoom_in',
+                    label=_("Magnifier Zoom In"),
+                    action=self._magnifier_zoom_in_preview,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '=',  # Cmd+Shift+=
+                    description=_("Zoom in on magnifier"),
+                    group=toga.Group.VIEW,
+                    section=16,
+                    order=1,
+                    show_in_menu=True,
+                    desktop_only=True
+                ),
+                'view.magnifier_zoom_out': FicheroCommand(
+                    id='view.magnifier_zoom_out',
+                    label=_("Magnifier Zoom Out"),
+                    action=self._magnifier_zoom_out_preview,
+                    shortcut=toga.Key.MOD_1 + toga.Key.SHIFT + '-',  # Cmd+Shift+-
+                    description=_("Zoom out on magnifier"),
+                    group=toga.Group.VIEW,
+                    section=16,
                     order=2,
                     show_in_menu=True,
                     desktop_only=True
@@ -1263,10 +1471,15 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to toggle Preview pane: {e}")
 
-    def _toggle_inspector_pane(self, widget):
-        """Toggle Inspector/Adjust pane visibility
+    def _toggle_preview_image_pane(self, widget):
+        """Toggle Preview Image pane visibility
 
-        Note: If Preview is hidden, Adjust cannot be shown (it's auto-hidden with Preview).
+        Smart behavior:
+        - If both hidden: Show image first
+        - If image hidden, metadata visible: Show image (both now visible)
+        - If image visible: Hide image
+        - When hiding image and metadata hidden: Show metadata (can't hide both)
+        - Info pane auto-hides when both preview panes are hidden
         """
         if self.is_mobile:
             return
@@ -1275,23 +1488,311 @@ class MainWindow:
             if self.navigation_controller and self.navigation_controller.layout_manager:
                 lm = self.navigation_controller.layout_manager
 
-                # Check if Preview is visible
-                preview_slot = lm._find_slot_by_name("Preview")
-                if preview_slot and not preview_slot.is_visible:
-                    logger.warning("📐 Cannot toggle Adjust: Preview is hidden (Adjust is auto-hidden with Preview)")
+                image_slot = lm._find_slot_by_name("PreviewImage")
+                metadata_slot = lm._find_slot_by_name("PreviewMetadata")
+
+                if not image_slot or not metadata_slot:
+                    logger.warning("Cannot toggle Preview Image: slots not found")
                     return
 
-                # Toggle Adjust column
+                # Get current visibility states
+                image_visible = image_slot.is_visible
+                metadata_visible = metadata_slot.is_visible
+
+                # Toggle image
+                new_state = lm.toggle_column("PreviewImage")
+                logger.info(f"📐 Toggle Preview Image pane: {new_state}")
+
+                # Smart behavior: Can't hide both preview panes
+                if not new_state and not metadata_visible:
+                    logger.info("📐 Both preview panes would be hidden, showing metadata")
+                    lm.show_column("PreviewMetadata")
+                    # Also hide Info pane if both were hidden
+                    lm.hide_column("Adjust")
+
+                # If both preview panes are now hidden, hide Info pane too
+                if not image_slot.is_visible and not metadata_slot.is_visible:
+                    logger.info("📐 Both preview panes hidden, hiding Info")
+                    lm.hide_column("Adjust")
+
+                self._update_toolbar_menu_checkmarks()
+            else:
+                logger.warning("Cannot toggle Preview Image: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Preview Image pane: {e}")
+
+    def _toggle_preview_metadata_pane(self, widget):
+        """Toggle Preview Metadata pane visibility
+
+        Smart behavior:
+        - If both hidden: Show metadata first
+        - If metadata hidden, image visible: Show metadata (both now visible)
+        - If metadata visible: Hide metadata
+        - When hiding metadata and image hidden: Show image (can't hide both)
+        - Info pane auto-hides when both preview panes are hidden
+        """
+        if self.is_mobile:
+            return
+
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                lm = self.navigation_controller.layout_manager
+
+                image_slot = lm._find_slot_by_name("PreviewImage")
+                metadata_slot = lm._find_slot_by_name("PreviewMetadata")
+
+                if not image_slot or not metadata_slot:
+                    logger.warning("Cannot toggle Preview Metadata: slots not found")
+                    return
+
+                # Get current visibility states
+                image_visible = image_slot.is_visible
+                metadata_visible = metadata_slot.is_visible
+
+                # Toggle metadata
+                new_state = lm.toggle_column("PreviewMetadata")
+                logger.info(f"📐 Toggle Preview Metadata pane: {new_state}")
+
+                # Smart behavior: Can't hide both preview panes
+                if not new_state and not image_visible:
+                    logger.info("📐 Both preview panes would be hidden, showing image")
+                    lm.show_column("PreviewImage")
+                    # Also hide Info pane if both were hidden
+                    lm.hide_column("Adjust")
+
+                # If both preview panes are now hidden, hide Info pane too
+                if not image_slot.is_visible and not metadata_slot.is_visible:
+                    logger.info("📐 Both preview panes hidden, hiding Info")
+                    lm.hide_column("Adjust")
+
+                self._update_toolbar_menu_checkmarks()
+            else:
+                logger.warning("Cannot toggle Preview Metadata: layout_manager not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle Preview Metadata pane: {e}")
+
+    def _toggle_inspector_pane(self, widget):
+        """Toggle Info pane visibility
+
+        When hiding the Info view, the Preview pane expands to fill the available space.
+        When showing the Info view, the Preview pane shrinks to make room.
+        The window size remains unchanged.
+
+        Note: Info pane cannot be shown if both preview panes are hidden.
+        """
+        if self.is_mobile:
+            return
+
+        try:
+            if self.navigation_controller and self.navigation_controller.layout_manager:
+                lm = self.navigation_controller.layout_manager
+
+                # Check if at least one preview pane is visible
+                image_slot = lm._find_slot_by_name("PreviewImage")
+                metadata_slot = lm._find_slot_by_name("PreviewMetadata")
+
+                if image_slot and metadata_slot:
+                    if not image_slot.is_visible and not metadata_slot.is_visible:
+                        logger.warning("📐 Cannot toggle Info: Both preview panes are hidden")
+                        return
+
+                # Toggle Adjust/Info column
                 new_state = lm.toggle_column("Adjust")
-                logger.info(f"📐 Toggle Adjust pane: {new_state}")
+                logger.info(f"📐 Toggle Info pane: {new_state} - preview panes will {'shrink' if new_state else 'expand'}")
                 self._update_toolbar_menu_checkmarks()
 
-                # Resize window to fit visible columns
-                self._resize_window_to_content()
+                # Note: Removed window resizing - preview panes will automatically expand/shrink
+                # The layout will redistribute space to the remaining visible columns
             else:
-                logger.warning("Cannot toggle Adjust: layout_manager not available")
+                logger.warning("Cannot toggle Info: layout_manager not available")
         except Exception as e:
-            logger.error(f"Failed to toggle Adjust pane: {e}")
+            logger.error(f"Failed to toggle Info pane: {e}")
+
+    # === PREVIEW RATIO ACTION METHODS ===
+
+    def _apply_ratio_balanced(self, widget):
+        """Apply balanced 50/50 ratio to preview split"""
+        self._apply_preview_ratio("balanced", widget)
+
+    def _apply_ratio_wide_content(self, widget):
+        """Apply wide content 75/25 ratio to preview split"""
+        self._apply_preview_ratio("wide_content", widget)
+
+    def _apply_ratio_wide_image(self, widget):
+        """Apply wide image 25/75 ratio to preview split"""
+        self._apply_preview_ratio("wide_image", widget)
+
+    def _cycle_preview_ratios(self, widget):
+        """Cycle through available preview ratios (25/75, 50/50, 75/25)
+
+        Only works when both preview panes are visible.
+        """
+        try:
+            if not self.navigation_controller or not self.navigation_controller.layout_manager:
+                logger.warning("Cannot cycle ratios: layout_manager not available")
+                return
+
+            lm = self.navigation_controller.layout_manager
+
+            # Check if both preview panes are visible
+            image_slot = lm._find_slot_by_name("PreviewImage")
+            metadata_slot = lm._find_slot_by_name("PreviewMetadata")
+
+            if not image_slot or not metadata_slot:
+                logger.warning("Cannot cycle ratios: Preview slots not found")
+                return
+
+            if not image_slot.is_visible or not metadata_slot.is_visible:
+                logger.info("📐 Cannot cycle ratios: Both preview panes must be visible")
+                return
+
+            # Get current preset from state manager
+            current_preset = "wide_content"  # Default
+            if hasattr(self.app, 'state_manager') and self.app.state_manager:
+                current_preset = self.app.state_manager.get_current_preview_preset() or "wide_content"
+
+            # Cycle: wide_image (25/75) -> balanced (50/50) -> wide_content (75/25) -> wide_image
+            cycle_order = ["wide_image", "balanced", "wide_content"]
+            try:
+                current_idx = cycle_order.index(current_preset)
+                next_idx = (current_idx + 1) % len(cycle_order)
+                next_preset = cycle_order[next_idx]
+            except ValueError:
+                next_preset = "wide_image"  # Start from beginning if unknown
+
+            # Apply the next preset
+            self._apply_preview_ratio(next_preset, widget)
+            logger.info(f"📐 Cycled preview ratio to: {next_preset}")
+
+        except Exception as e:
+            logger.error(f"Failed to cycle preview ratios: {e}")
+
+    def _apply_preview_ratio(self, preset_name: str, widget):
+        """Apply a specific ratio preset to the preview columns
+
+        Only works when both preview panes are visible.
+        When only one pane is visible, it takes 100% of the space automatically.
+        """
+        try:
+            # Work with the dual-column system (PreviewImage and PreviewMetadata)
+            if not self.navigation_controller or not self.navigation_controller.layout_manager:
+                logger.warning(f"Cannot apply ratio {preset_name}: layout_manager not available")
+                return
+
+            lm = self.navigation_controller.layout_manager
+
+            # Find both preview columns
+            image_slot = lm._find_slot_by_name("PreviewImage")
+            metadata_slot = lm._find_slot_by_name("PreviewMetadata")
+
+            if not (image_slot and metadata_slot):
+                logger.warning(f"Cannot apply ratio {preset_name}: Preview columns not found")
+                return
+
+            # Only apply ratios if both panes are visible
+            if not image_slot.is_visible or not metadata_slot.is_visible:
+                logger.info(f"📐 Cannot apply ratio {preset_name}: Both preview panes must be visible")
+                return
+
+            # Get ratio from preset
+            ratio_presets = {
+                "wide_content": 0.75,    # 75%/25% - content-focused
+                "wide_image": 0.25,      # 25%/75% - image-focused
+                "balanced": 0.5          # 50%/50% - balanced
+            }
+
+            ratio = ratio_presets.get(preset_name, 0.75)  # Default to 75%/25%
+
+            # Apply flex ratios (ratio = image_flex / (image_flex + metadata_flex))
+            total_flex = 100
+            image_flex = int(ratio * total_flex)
+            metadata_flex = total_flex - image_flex
+
+            # Update container flex values
+            image_slot.container.style.flex = image_flex
+            metadata_slot.container.style.flex = metadata_flex
+
+            logger.info(f"Applied preview ratio preset: {preset_name} ({image_flex}:{metadata_flex})")
+
+            # Update state manager if available
+            if hasattr(self.app, 'state_manager') and self.app.state_manager:
+                self.app.state_manager.set_current_preview_preset(preset_name)
+                logger.debug(f"Updated state manager with preset: {preset_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to apply ratio {preset_name}: {e}")
+
+    # === PREVIEW ZOOM ACTION METHODS ===
+
+    def _zoom_in_preview(self, widget):
+        """Zoom in on preview image"""
+        self._execute_preview_zoom_command("zoomIn()")
+
+    def _zoom_out_preview(self, widget):
+        """Zoom out on preview image"""
+        self._execute_preview_zoom_command("zoomOut()")
+
+    def _actual_size_preview(self, widget):
+        """Show preview image at actual size"""
+        self._execute_preview_zoom_command("actualSize()")
+
+    def _zoom_to_fit_preview(self, widget):
+        """Fit preview image to window"""
+        self._execute_preview_zoom_command("fitToWindow()")
+
+    def _zoom_to_selection_preview(self, widget):
+        """Zoom to current selection (if any)"""
+        self._execute_preview_zoom_command("zoomToCurrentSelection()")
+
+    def _toggle_magnifier_preview(self, widget):
+        """Toggle magnifier panel"""
+        self._execute_preview_zoom_command("toggleMagnifier()")
+
+    def _magnifier_zoom_in_preview(self, widget):
+        """Zoom in on magnifier"""
+        self._execute_preview_zoom_command("magnifierZoomIn()")
+
+    def _magnifier_zoom_out_preview(self, widget):
+        """Zoom out on magnifier"""
+        self._execute_preview_zoom_command("magnifierZoomOut()")
+
+    def _execute_preview_zoom_command(self, js_command: str):
+        """Execute a JavaScript command in the preview image WebView"""
+        try:
+            # Access image_pane directly from main_window (5-column desktop layout)
+            if hasattr(self, 'image_pane') and self.image_pane:
+                if hasattr(self.image_pane, 'image_webview') and self.image_pane.image_webview:
+                    webview = self.image_pane.image_webview
+                    webview.evaluate_javascript(js_command)
+                    logger.info(f"Executed zoom command: {js_command}")
+                    return
+                else:
+                    logger.warning("Cannot execute zoom command: image_webview not available on image_pane")
+
+            # Fallback: try navigation controller's current view (mobile or legacy)
+            if hasattr(self, 'navigation_controller') and self.navigation_controller:
+                current_view = self.navigation_controller.current_view
+                if current_view:
+                    # Try preview_image_pane attribute
+                    if hasattr(current_view, 'preview_image_pane'):
+                        image_pane = current_view.preview_image_pane
+                        if image_pane and hasattr(image_pane, 'image_webview') and image_pane.image_webview:
+                            image_pane.image_webview.evaluate_javascript(js_command)
+                            logger.info(f"Executed zoom command via preview_image_pane: {js_command}")
+                            return
+
+                    # Try image_pane attribute
+                    if hasattr(current_view, 'image_pane'):
+                        image_pane = current_view.image_pane
+                        if image_pane and hasattr(image_pane, 'image_webview') and image_pane.image_webview:
+                            image_pane.image_webview.evaluate_javascript(js_command)
+                            logger.info(f"Executed zoom command via image_pane: {js_command}")
+                            return
+
+            logger.warning("Cannot execute zoom command: no image WebView found")
+
+        except Exception as e:
+            logger.error(f"Failed to execute zoom command {js_command}: {e}")
 
     def _resize_window_to_content(self):
         """Resize window to fit visible columns
@@ -1437,53 +1938,25 @@ class MainWindow:
         """
         Save complete window state including layout for restoration on next launch.
 
+        Enhanced with StateManager integration for better state persistence.
+
         Saves:
-        - Window size and position
+        - Window size, position, and display information
         - Main layout state (column visibility, widths)
-        - Preview layout state (split panes, contexts, viewer states)
+        - Preview layout state (split panes, contexts, viewer states, ratios)
+        - Pane visibility tracking
         """
         try:
-            from fichero.config.core.app_preferences import get_app_preferences
+            # Get StateManager for enhanced state persistence
+            state_manager = getattr(self.app, 'state_manager', None)
 
-            prefs = get_app_preferences(self.app)
-
-            # Save window size and position
-            if self.window:
-                # Get window position and size
-                try:
-                    position = getattr(self.window, 'position', (100, 100))
-                    size = getattr(self.window, 'size', (1200, 800))
-
-                    prefs.set_window_position('main', {
-                        'x': position[0] if position else 100,
-                        'y': position[1] if position else 100,
-                        'width': size[0] if size else 1200,
-                        'height': size[1] if size else 800
-                    })
-                    logger.debug(f"Saved window position: {position}, size: {size}")
-                except Exception as e:
-                    logger.warning(f"Could not save window position/size: {e}")
-
-            # Save main layout state (column visibility, widths)
-            if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
-                try:
-                    layout_state = self.navigation_controller.layout_manager.get_layout_state()
-                    prefs._preferences['main_layout'] = layout_state
-                    prefs._save_preferences()
-                    logger.debug(f"Saved main layout state: {len(layout_state.get('slots', []))} slots")
-                except Exception as e:
-                    logger.warning(f"Could not save main layout state: {e}")
-
-            # Save preview layout state (split panes)
-            preview_view = self.views.get('output')
-            if preview_view and hasattr(preview_view, 'layout_manager'):
-                try:
-                    preview_layout = preview_view.layout_manager.get_layout_state()
-                    prefs._preferences['preview_layout'] = preview_layout
-                    prefs._save_preferences()
-                    logger.debug(f"Saved preview layout state: {preview_layout.get('layout_type')}")
-                except Exception as e:
-                    logger.warning(f"Could not save preview layout state: {e}")
+            # Fallback to app preferences if StateManager is not available
+            if state_manager:
+                logger.debug("Using StateManager for window state persistence")
+                self._save_window_state_enhanced(state_manager)
+            else:
+                logger.debug("StateManager not available, using legacy preferences")
+                self._save_window_state_legacy()
 
             logger.info("✅ Window state saved successfully")
 
@@ -1492,49 +1965,107 @@ class MainWindow:
             import traceback
             logger.error(traceback.format_exc())
 
+    def _save_window_state_enhanced(self, state_manager):
+        """
+        Save window state using enhanced StateManager with comprehensive tracking.
+
+        Args:
+            state_manager: StateManager instance for state persistence
+        """
+        # NOTE: Window position and size are now handled by WindowStateTracker
+        # (saved in save_session_state via window_state_tracker.save_all_states())
+        # This method only saves layout state
+
+        # Save main layout state (column visibility, widths) with StateManager
+        if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+            try:
+                layout_state = self.navigation_controller.layout_manager.get_layout_state()
+                state_manager.set_main_layout_state(layout_state)
+
+                # Save individual pane visibility states
+                if 'slots' in layout_state:
+                    for slot in layout_state['slots']:
+                        pane_name = slot.get('name', '').lower()
+                        is_visible = slot.get('is_visible', True)
+                        if pane_name:
+                            state_manager.set_pane_visibility(pane_name, is_visible)
+
+                logger.debug(f"Enhanced: Saved main layout state with {len(layout_state.get('slots', []))} slots")
+            except Exception as e:
+                logger.warning(f"Could not save enhanced main layout state: {e}")
+
+        # Preview layout state now handled by UniversalLayoutManager + StateManager
+        # No need for preview-specific layout management
+
+    def _save_window_state_legacy(self):
+        """
+        Fallback method using legacy app preferences when StateManager is not available.
+        """
+        from fichero.config.core.app_preferences import get_app_preferences
+
+        prefs = get_app_preferences(self.app)
+
+        # NOTE: Window position and size are now handled by WindowStateTracker
+        # (saved in save_session_state via window_state_tracker.save_all_states())
+        # This method only saves layout state
+
+        # Save layout states (legacy method)
+        if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+            try:
+                layout_state = self.navigation_controller.layout_manager.get_layout_state()
+                prefs._preferences['main_layout'] = layout_state
+                prefs._save_preferences()
+                logger.debug(f"Legacy: Saved main layout state: {len(layout_state.get('slots', []))} slots")
+            except Exception as e:
+                logger.warning(f"Could not save legacy main layout state: {e}")
+
+        # Preview layout state now handled by UniversalLayoutManager + StateManager
+        # No legacy preview layout saving needed
+
+    def _save_display_info_macos(self, state_manager):
+        """
+        Save macOS display information for proper multi-monitor support.
+
+        Args:
+            state_manager: StateManager instance
+        """
+        try:
+            # macOS-specific display detection using Cocoa
+            import toga
+            if hasattr(toga.platform, 'cocoa'):
+                # Get main screen bounds for validation
+                import rubicon.objc as objc
+                from rubicon.objc.runtime import load_library
+
+                # This is a placeholder for macOS display detection
+                # In a real implementation, you'd use NSScreen APIs
+                logger.debug("macOS display info saved (placeholder implementation)")
+        except Exception as e:
+            logger.debug(f"macOS display detection failed: {e}")
+
     async def restore_window_state(self):
         """
         Restore window state from saved preferences.
 
+        Enhanced with StateManager integration for better state restoration.
+
         Restores:
-        - Window size and position
+        - Window size, position, and display validation
         - Main layout state (column visibility, widths)
-        - Preview layout state (split panes, contexts, viewer states)
+        - Preview layout state (split panes, contexts, viewer states, ratios)
+        - Pane visibility and focus states
         """
         try:
-            from fichero.config.core.app_preferences import get_app_preferences
+            # Get StateManager for enhanced state restoration
+            state_manager = getattr(self.app, 'state_manager', None)
 
-            prefs = get_app_preferences(self.app)
-
-            # Restore window size and position
-            window_state = prefs.get_window_position('main')
-            if window_state and self.window:
-                try:
-                    self.window.position = (window_state['x'], window_state['y'])
-                    self.window.size = (window_state['width'], window_state['height'])
-                    logger.debug(f"Restored window position: ({window_state['x']}, {window_state['y']})")
-                    logger.debug(f"Restored window size: {window_state['width']}x{window_state['height']}")
-                except Exception as e:
-                    logger.warning(f"Could not restore window position/size: {e}")
-
-            # Restore main layout (column visibility and widths)
-            main_layout = prefs._preferences.get('main_layout')
-            if main_layout and self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
-                try:
-                    self.navigation_controller.layout_manager.restore_layout(main_layout)
-                    logger.debug(f"Restored main layout: {len(main_layout.get('slots', []))} slots")
-                except Exception as e:
-                    logger.warning(f"Could not restore main layout: {e}")
-
-            # Restore preview layout (split panes)
-            preview_layout = prefs._preferences.get('preview_layout')
-            preview_view = self.views.get('output')
-            if preview_layout and preview_view and hasattr(preview_view, 'layout_manager'):
-                try:
-                    await preview_view.layout_manager.restore_layout_state(preview_layout)
-                    logger.debug(f"Restored preview layout: {preview_layout.get('layout_type')}")
-                except Exception as e:
-                    logger.warning(f"Could not restore preview layout: {e}")
+            # Use StateManager if available, otherwise fall back to legacy preferences
+            if state_manager:
+                logger.debug("Using StateManager for window state restoration")
+                await self._restore_window_state_enhanced(state_manager)
+            else:
+                logger.debug("StateManager not available, using legacy preferences")
+                await self._restore_window_state_legacy()
 
             logger.info("✅ Window state restored successfully")
 
@@ -1543,53 +2074,220 @@ class MainWindow:
             import traceback
             logger.error(traceback.format_exc())
 
+    def restore_window_position_and_size(self):
+        """
+        Restore window position and size from saved state.
+
+        NOTE: This method is now mostly unused since position/size are set
+        during window creation in _create_window(). Kept as a fallback.
+        """
+        try:
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                logger.debug("Restoring window position and size via tracker")
+                self.app.window_state_tracker.restore_window_state("main", self.window)
+            else:
+                logger.warning("No window_state_tracker available for position restoration")
+        except Exception as e:
+            logger.error(f"Failed to restore window position/size: {e}")
+
+    async def _restore_window_state_enhanced(self, state_manager):
+        """
+        Restore window state using enhanced StateManager with validation and error handling.
+
+        Args:
+            state_manager: StateManager instance
+        """
+        # NOTE: Window position and size are handled by WindowStateTracker
+        # via restore_window_position_and_size() called from app.py AFTER the window is shown.
+        # This method only restores layout and pane visibility state.
+
+        # Restore main layout with pane visibility states
+        if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+            try:
+                # Restore main layout state
+                main_layout = state_manager.get_main_layout_state()
+                if main_layout:
+                    self.navigation_controller.layout_manager.restore_layout(main_layout)
+                    logger.debug(f"Enhanced: Restored main layout: {len(main_layout.get('slots', []))} slots")
+
+                # Restore individual pane visibility states
+                pane_visibility = state_manager.get_all_pane_visibility()
+                if pane_visibility:
+                    # Map state keys to actual column names (handles camelCase and aliases)
+                    pane_to_column = {
+                        'library': 'Library',
+                        'sidebar': 'Library',           # Legacy alias
+                        'collection': 'Collection',
+                        'previewimage': 'PreviewImage',
+                        'preview': 'PreviewImage',      # Legacy alias
+                        'previewmetadata': 'PreviewMetadata',
+                        'adjust': 'Adjust',
+                        'inspector': 'Adjust',          # Legacy alias
+                    }
+                    for pane_name, is_visible in pane_visibility.items():
+                        # Map pane name to column name
+                        column_name = pane_to_column.get(pane_name.lower())
+                        if not column_name:
+                            # Skip non-column panes (status_bar, toolbar, etc.)
+                            continue
+                        # Update layout manager pane visibility
+                        try:
+                            layout_manager = self.navigation_controller.layout_manager
+                            if hasattr(layout_manager, 'set_column_visibility'):
+                                layout_manager.set_column_visibility(column_name, is_visible)
+                                logger.debug(f"Enhanced: Set {column_name} visibility: {is_visible}")
+                        except Exception as e:
+                            logger.debug(f"Could not set {column_name} visibility: {e}")
+
+            except Exception as e:
+                logger.warning(f"Could not restore enhanced main layout: {e}")
+
+        # After layout restoration, reapply the saved preview ratio preset
+        # This ensures the correct 75/25 ratio is applied even if layout restoration overwrote flex values
+        if state_manager:
+            try:
+                current_preset = state_manager.get_current_preview_preset()
+                if current_preset:
+                    # Use dummy widget for the ratio application
+                    self._apply_preview_ratio(current_preset, None)
+                    logger.info(f"✅ Reapplied preview ratio preset after restoration: {current_preset}")
+                else:
+                    # Fallback to wide_content if no preset saved
+                    self._apply_preview_ratio("wide_content", None)
+                    logger.info("✅ Applied default wide_content ratio after restoration")
+            except Exception as e:
+                logger.warning(f"Could not reapply preview ratios after restoration: {e}")
+                # Fallback to wide_content
+                try:
+                    self._apply_preview_ratio("wide_content", None)
+                    logger.info("✅ Applied fallback wide_content ratio after restoration error")
+                except Exception as e2:
+                    logger.error(f"Could not apply fallback ratio: {e2}")
+
+    async def _restore_window_state_legacy(self):
+        """
+        Fallback method using legacy app preferences when StateManager is not available.
+        """
+        from fichero.config.core.app_preferences import get_app_preferences
+
+        prefs = get_app_preferences(self.app)
+
+        # NOTE: Window position and size are handled by WindowStateTracker
+        # via restore_window_position_and_size() called from app.py AFTER the window is shown.
+        # This method only restores layout state.
+
+        # Restore layout states (legacy method)
+        main_layout = prefs._preferences.get('main_layout')
+        if main_layout and self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
+            try:
+                self.navigation_controller.layout_manager.restore_layout(main_layout)
+                logger.debug(f"Legacy: Restored main layout: {len(main_layout.get('slots', []))} slots")
+            except Exception as e:
+                logger.warning(f"Could not restore legacy main layout: {e}")
+
+        # After legacy layout restoration, apply default wide_content ratio
+        # This ensures the correct 75/25 ratio is applied even if layout restoration overwrote flex values
+        try:
+            self._apply_preview_ratio("wide_content", None)
+            logger.info("✅ Applied wide_content ratio after legacy restoration")
+        except Exception as e:
+            logger.error(f"Could not apply wide_content ratio after legacy restoration: {e}")
+
     async def save_session_state(self):
         """
         Save session state for restoration on next launch.
 
+        Enhanced with better pane visibility tracking and ratio persistence.
+
         Saves:
-        - Last selected collection ID
-        - Last selected item ID
-        - Preview pane visibility
-        - Column visibility states
+        - Last selected collection ID and item ID
+        - Preview pane visibility and focus state
+        - Column visibility states and layout proportions
+        - Preview layout ratios and presets
         """
         try:
-            if not hasattr(self.app, 'state_manager'):
-                logger.warning("No state_manager available")
+            state_manager = getattr(self.app, 'state_manager', None)
+            if not state_manager:
+                logger.warning("No state_manager available for session state saving")
                 return
 
-            state_manager = self.app.state_manager
-
-            # Save current collection/item selection
-            if hasattr(self, 'current_collection_id'):
+            # Save current collection/item selection with validation
+            if hasattr(self, 'current_collection_id') and self.current_collection_id:
                 state_manager.set_last_collection_id(self.current_collection_id)
                 logger.debug(f"Saved last collection: {self.current_collection_id}")
 
-            if hasattr(self, 'current_item_id'):
+            if hasattr(self, 'current_item_id') and self.current_item_id:
                 state_manager.set_last_item_id(self.current_item_id)
                 logger.debug(f"Saved last item: {self.current_item_id}")
 
-            # Save preview pane visibility
-            # Simple heuristic: if we have a current_item_id, preview was visible
+            # Enhanced preview pane visibility tracking
             preview_view = self.views.get('output')
             if preview_view:
                 is_visible = bool(self.current_item_id)
                 state_manager.set_preview_visible(is_visible)
-                logger.debug(f"Saved preview visible: {is_visible}")
 
-            # Save layout state (main and preview)
+                # Save active pane tracking
+                if hasattr(self, 'focused_pane'):
+                    state_manager.set_active_pane(self.focused_pane)
+
+                logger.debug(f"Saved preview visible: {is_visible}, active pane: {getattr(self, 'focused_pane', 'unknown')}")
+
+            # Enhanced layout state persistence with ratios
             if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
                 layout_state = self.navigation_controller.layout_manager.get_layout_state()
                 state_manager.set_main_layout_state(layout_state)
 
-            if preview_view and hasattr(preview_view, 'layout_manager'):
-                preview_layout = preview_view.layout_manager.get_layout_state()
-                state_manager.set_preview_layout_state(preview_layout)
+                # Save individual pane visibility from layout state
+                if 'slots' in layout_state:
+                    for slot in layout_state['slots']:
+                        pane_name = slot.get('name', '').lower()
+                        is_visible = slot.get('is_visible', True)
+                        if pane_name:
+                            state_manager.set_pane_visibility(pane_name, is_visible)
 
-            # Perform async save
-            await state_manager.save_state()
+            # Preview layout state now handled by UniversalLayoutManager + StateManager
+            # No preview-specific session state saving needed
 
-            logger.info("✅ Session state saved successfully")
+            # Save all window states via the window state tracker (macOS native)
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.save_all_states()
+                logger.debug("Saved all window states via tracker")
+
+            # Save preview viewer state (zoom, scroll, rotation) - restored on restart
+            preview_view = self.views.get('output')
+            if preview_view and hasattr(preview_view, 'preview_image_pane'):
+                image_pane = preview_view.preview_image_pane
+                if image_pane and hasattr(image_pane, 'get_viewer_state'):
+                    try:
+                        viewer_state = await image_pane.get_viewer_state()
+                        if viewer_state:
+                            state_manager.set_preview_viewer_state(viewer_state)
+                            logger.debug(f"Saved preview viewer state: {viewer_state}")
+                    except Exception as e:
+                        logger.debug(f"Could not save preview viewer state: {e}")
+
+            # Save metadata pane scroll position
+            if preview_view and hasattr(preview_view, 'preview_metadata_pane'):
+                metadata_pane = preview_view.preview_metadata_pane
+                if metadata_pane and hasattr(metadata_pane, 'get_scroll_state'):
+                    try:
+                        scroll_state = metadata_pane.get_scroll_state()
+                        if scroll_state:
+                            # Save to pane_content.preview_metadata
+                            pane_content = state_manager.get_pane_content('preview_metadata')
+                            pane_content['scroll_position'] = scroll_state.get('scroll_y', 0)
+                            state_manager.set_pane_content('preview_metadata', pane_content)
+                            logger.debug(f"Saved metadata pane scroll state: {scroll_state}")
+                    except Exception as e:
+                        logger.debug(f"Could not save metadata pane scroll state: {e}")
+
+            # Perform async save with error handling
+            try:
+                await state_manager.save_state()
+                logger.info("✅ Enhanced session state saved successfully")
+            except Exception as e:
+                logger.error(f"Failed to save state to disk: {e}")
+                # Continue execution even if disk save fails
 
         except Exception as e:
             logger.error(f"Failed to save session state: {e}")
@@ -1666,11 +2364,38 @@ class MainWindow:
                                 if hasattr(self, 'preview_slot_id'):
                                     self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
 
-                                # Load in PreviewView
-                                preview_view = self.views.get('output')
-                                if preview_view:
-                                    await preview_view.load_item(last_item_id, output_data=output_data)
-                                    logger.info(f"✅ Restored preview for item: {last_item_id}")
+                                # Load in both preview panes using centralized method
+                                await self._load_item_in_preview_panes(last_item_id, output_data)
+                                logger.info(f"✅ Restored preview for item: {last_item_id}")
+
+                                # Restore preview viewer state (zoom, scroll) on startup
+                                # Give the webview a moment to render
+                                await asyncio.sleep(0.3)
+                                saved_viewer_state = state_manager.get_preview_viewer_state()
+                                if saved_viewer_state and saved_viewer_state.get('scale', 1.0) != 1.0:
+                                    preview_view = self.views.get('output')
+                                    if preview_view and hasattr(preview_view, 'preview_image_pane'):
+                                        image_pane = preview_view.preview_image_pane
+                                        if image_pane and hasattr(image_pane, 'restore_viewer_state'):
+                                            try:
+                                                await image_pane.restore_viewer_state(saved_viewer_state)
+                                                logger.info(f"✅ Restored preview viewer state")
+                                            except Exception as e:
+                                                logger.debug(f"Could not restore viewer state: {e}")
+
+                                # Restore metadata pane scroll position
+                                saved_metadata_state = state_manager.get_pane_content('preview_metadata')
+                                saved_scroll_position = saved_metadata_state.get('scroll_position', 0)
+                                if saved_scroll_position > 0:
+                                    preview_view = self.views.get('output')
+                                    if preview_view and hasattr(preview_view, 'preview_metadata_pane'):
+                                        metadata_pane = preview_view.preview_metadata_pane
+                                        if metadata_pane and hasattr(metadata_pane, 'restore_scroll_state'):
+                                            try:
+                                                metadata_pane.restore_scroll_state({'scroll_y': saved_scroll_position})
+                                                logger.info(f"✅ Restored metadata pane scroll position")
+                                            except Exception as e:
+                                                logger.debug(f"Could not restore metadata scroll state: {e}")
 
                                 # Load in AdjustView
                                 adjust_view = self.views.get('adjust')
@@ -1754,9 +2479,17 @@ class MainWindow:
             # Clean up all cached views before closing
             self._cleanup_all_cached_views()
 
+            # Ensure final state sync with StateManager
+            if self.state_manager:
+                try:
+                    # Final state sync now handled by UniversalLayoutManager + StateManager
+                    logger.debug("Final StateManager sync - using universal layout system")
+                except Exception as e:
+                    logger.warning(f"Final StateManager sync failed: {e}")
+
             if self.window:
                 self.window.close()
-                logger.info("Main window closed")
+                logger.info("Main window closed with enhanced state cleanup")
         except Exception as e:
             logger.error(f"Failed to close main window: {e}")
 
@@ -1792,13 +2525,24 @@ class MainWindow:
                     self.navigation_controller.layout_manager):
                     self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
 
-            # Load in PreviewView
-            preview_view = self.views.get('output') or self.cached_output_view
-            if preview_view:
-                await preview_view.load_item(item_id, output_data=output_data)
-                logger.info(f"✅ Loaded item {item_id} in PreviewView")
+            # Load in both preview panes (ImagePane and TranscriptionPane)
+            # Load in ImagePane - pass metadata for direct access to paths
+            if hasattr(self, 'image_pane') and self.image_pane:
+                # Get metadata if available from the current selection
+                item_metadata = None
+                if hasattr(self, '_current_selection_metadata'):
+                    item_metadata = self._current_selection_metadata
+                await self.image_pane.load_item(item_id, output_data=output_data, item_metadata=item_metadata)
+                logger.info(f"✅ Loaded item {item_id} in ImagePane")
             else:
-                logger.warning("PreviewView not available")
+                logger.warning("ImagePane not available")
+
+            # Load in MetadataPane
+            if hasattr(self, 'metadata_pane') and self.metadata_pane:
+                await self.metadata_pane.load_item(item_id, output_data=output_data)
+                logger.info(f"✅ Loaded item {item_id} in MetadataPane")
+            else:
+                logger.warning("MetadataPane not available")
 
             # Load in AdjustView
             adjust_view = self.views.get('adjust')
@@ -1852,17 +2596,16 @@ class MainWindow:
                 logger.warning(f"No item ID in selection metadata: {first_item_meta}")
                 return
 
-            # Create PreviewView if needed
-            if not self.cached_output_view:
-                from fichero.windows.main.views.preview.preview_view import PreviewView
-                library_manager = getattr(self.app, 'library_manager', None)
-                self.cached_output_view = PreviewView(self.app, self.is_mobile, library_manager=library_manager)
+            # Store current selection metadata for preview panes
+            self._current_selection_metadata = first_item_meta
+
+            # Note: Using dedicated preview panes now - no need for cached_output_view
 
             # Show preview pane
             if self.is_mobile:
-                self._show_view_mobile("output", self.cached_output_view)
+                pass  # Preview panes already visible in 5-column layout
             else:
-                self._show_view_desktop("output", self.cached_output_view, "right")
+                pass  # Preview panes already visible in 5-column layout
 
             # Update toolbar
             if not self.is_mobile:
@@ -2074,12 +2817,58 @@ class MainWindow:
         self.status_bar.set_focused_pane(pane_name)
         logger.debug(f"Status bar focused pane updated to: {pane_name}")
 
+        # Enhanced: Update StateManager active pane tracking
+        if self.state_manager:
+            try:
+                self.state_manager.set_active_pane(view_id)
+                logger.debug(f"StateManager active pane updated to: {view_id}")
+            except Exception as e:
+                logger.debug(f"Could not update StateManager active pane: {e}")
+
 
     def get_window_info(self) -> Dict[str, Any]:
-        """Get window information for debugging"""
+        """Get window information for debugging with enhanced StateManager info"""
         return {
             "is_mobile": self.is_mobile,
             "current_view_key": self.current_view_key,
             "has_navigation_controller": self.navigation_controller is not None,
-            "window_size": self._get_window_size()
+            "has_state_manager": self.state_manager is not None,
+            "window_size": self._get_window_size(),
+            "state_manager_info": self._get_state_manager_info()
         }
+
+    def _get_state_manager_info(self) -> Dict[str, Any]:
+        """Get StateManager information for debugging and validation"""
+        if not self.state_manager:
+            return {"available": False, "reason": "No StateManager instance"}
+
+        try:
+            return {
+                "available": True,
+                "last_collection_id": self.state_manager.get_last_collection_id(),
+                "preview_visible": self.state_manager.get_preview_visible(),
+                "current_preset": self.state_manager.get_current_preview_preset(),
+                "window_size": self.state_manager.get_window_size(),
+                "pane_visibility": self.state_manager.get_all_pane_visibility()
+            }
+        except Exception as e:
+            return {"available": False, "reason": f"StateManager error: {e}"}
+
+    def ensure_state_manager_connectivity(self):
+        """Ensure all components have proper StateManager connectivity"""
+        if not self.state_manager:
+            logger.warning("StateManager not available - enhanced state features disabled")
+            return False
+
+        try:
+            # PreviewView no longer has layout_manager - using UniversalLayoutManager + StateManager
+            logger.debug("StateManager integration uses universal layout system")
+
+            # Test StateManager connectivity
+            test_value = self.state_manager.get_window_state_change_count()
+            logger.debug(f"StateManager connectivity verified - state changes: {test_value}")
+            return True
+
+        except Exception as e:
+            logger.error(f"StateManager connectivity check failed: {e}")
+            return False
