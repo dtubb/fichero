@@ -385,9 +385,9 @@ def describe_batch(
         tool_logger.success(f"⚡ Skip mode complete: {stats['processed']} empty JSON files created")
         return stats
 
-    # Normal processing path
+    # Normal processing path - using async DashScopeProvider
     tool_logger.info(f"[green]Describing images in {source_folder}")
-    tool_logger.info(f"[cyan]Using model qwen-vl-max")
+    tool_logger.info(f"[cyan]Using model qwen-vl-max with async batch processing")
 
     load_dotenv()
 
@@ -396,127 +396,203 @@ def describe_batch(
     if not api_key:
         raise ValueError("Qwen API key required")
 
-    # Create batch processor
-    class VisualDescriptionProcessor(BatchProcessor):
-        def __init__(self, *args, api_key=None, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.api_key = api_key
+    # Read manifest to get list of images to process
+    manifest_entries = []
+    if Path(source_manifest).exists():
+        with open(source_manifest, 'r') as f:
+            for line in f:
+                if line.strip():
+                    manifest_entries.append(json.loads(line))
 
-        def process_batch_parallel(self, batch: list):
-            """Process a batch of files using parallel processing"""
-            tool_logger.info(f"⚡ Starting parallel processing for {len(batch)} files")
+    if not manifest_entries:
+        tool_logger.warning("No entries found in manifest")
+        return {
+            'total': 0,
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0
+        }
 
-            # Prepare file tasks
-            file_tasks = []
-            for doc in batch:
-                path = Path(doc["path"])
+    # Build list of image paths to process
+    image_paths = []
+    for entry in manifest_entries:
+        # Get source path from entry
+        source = entry.get('source') or (entry.get('outputs', [None])[0] if entry.get('outputs') else None)
+        if not source:
+            continue
 
-                # Use base folder directly
-                if self.base_folder:
-                    base_str = str(self.base_folder)
-                    if "_staging" in base_str and "documents" not in base_str.lower():
-                        full_path = self.base_folder / "documents" / path
-                    else:
-                        full_path = self.base_folder / path
-                else:
-                    full_path = path
+        # Resolve full path
+        source_path = Path(source)
+        if source_folder:
+            base_str = str(source_folder)
+            if "_staging" in base_str and "documents" not in base_str.lower():
+                full_path = source_folder / "documents" / source_path
+            else:
+                full_path = source_folder / source_path
+        else:
+            full_path = source_path
 
-                # Create output path
-                parts = path.parts
-                if 'documents' in parts:
-                    rel_path = Path(*parts[parts.index('documents') + 1:])
-                else:
-                    rel_path = path
-                out_path = self.output_folder / "documents" / rel_path
+        if full_path.exists():
+            image_paths.append(full_path)
+        else:
+            tool_logger.warning(f"Image not found: {full_path}")
 
-                file_tasks.append((full_path, out_path, self.api_key))
+    if not image_paths:
+        tool_logger.warning("No valid images found to process")
+        return {
+            'total': len(manifest_entries),
+            'processed': 0,
+            'failed': 0,
+            'skipped': 0
+        }
 
-            if not file_tasks:
-                tool_logger.warning("⚠️ No tasks created for batch")
-                return []
+    tool_logger.info(f"Found {len(image_paths)} images to process")
 
-            # Process using ThreadPoolExecutor
-            max_workers = min(5, len(file_tasks))
-            tool_logger.info(f"🧵 Using ThreadPoolExecutor with {max_workers} workers")
+    # Import async components
+    from fichero.tools.transcribe_providers.dashscope_provider import DashScopeProvider
+    from fichero.tools.transcribe_providers.async_batch_processor import run_async_batch
 
-            results = []
-            try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    future_to_path = {
-                        executor.submit(process_image_sync, full_path, out_path, api_key): full_path
-                        for full_path, out_path, api_key in file_tasks
-                    }
-
-                    for future in concurrent.futures.as_completed(future_to_path):
-                        file_path = future_to_path[future]
-                        try:
-                            result = future.result()
-                            results.append(result)
-                            tool_logger.info(f"✅ Completed processing: {file_path.name}")
-                        except Exception as e:
-                            tool_logger.error(f"❌ Failed processing {file_path.name}: {e}")
-                            results.append({
-                                "error": str(e),
-                                "outputs": [],
-                                "source": str(file_path)
-                            })
-            except RuntimeError as e:
-                if "cannot schedule new futures after interpreter shutdown" in str(e):
-                    tool_logger.warning(f"⚠️ ThreadPoolExecutor unavailable, falling back to sequential processing")
-                    for full_path, out_path, api_key in file_tasks:
-                        try:
-                            result = process_image_sync(full_path, out_path, api_key)
-                            results.append(result)
-                            tool_logger.info(f"✅ Completed processing: {full_path.name}")
-                        except Exception as file_error:
-                            tool_logger.error(f"❌ Failed processing {full_path.name}: {file_error}")
-                            results.append({
-                                "error": str(file_error),
-                                "outputs": [],
-                                "source": str(full_path)
-                            })
-                    return results
-                else:
-                    raise
-
-            tool_logger.info(f"✅ Parallel processing complete, got {len(results)} results")
-            return results
-
-        def _process_batch(self, batch: list, stats: dict):
-            """Override to use parallel processing"""
-            batch_start = time.time()
-
-            tool_logger.info("🚀 Using unified parallel processing")
-            results = self.process_batch_parallel(batch)
-
-            batch_time = time.time() - batch_start
-            tool_logger.info(f"Batch of {len(batch)} images processed in {batch_time:.1f}s")
-
-            # Process results
-            for result in results:
-                if isinstance(result, dict):
-                    self.output_proc.save_entry(result)
-                    if result.get("error"):
-                        stats["failed"] += 1
-                    elif result.get("skipped"):
-                        stats["skipped"] += 1
-                    else:
-                        stats["processed"] += 1
-
-    # Use the batch processor
-    process_name = output_folder.name if output_folder.name else "visual_description"
-
-    processor = VisualDescriptionProcessor(
-        input_manifest=source_manifest,
-        output_folder=output_folder,
-        process_name=process_name,
-        processor_fn=None,
-        base_folder=source_folder,
-        batch_size=5,
-        api_key=api_key
+    # Create provider with VISUAL_DESCRIPTION_PROMPT instead of OCR prompt
+    provider = DashScopeProvider(
+        api_key=api_key,
+        model="qwen-vl-max",
+        prompt=VISUAL_DESCRIPTION_PROMPT,  # Use description prompt
+        max_size=2048,
+        timeout=180.0
     )
 
-    return processor.process()
+    # Create output folder
+    output_folder = Path(output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+    output_docs_folder = output_folder / "documents"
+    output_docs_folder.mkdir(parents=True, exist_ok=True)
+
+    # Process all images using async batch processor
+    tool_logger.info(f"🚀 Starting async batch processing with 15 concurrent requests")
+    async_results = run_async_batch(
+        provider=provider,
+        image_paths=image_paths,
+        output_folder=output_docs_folder,
+        max_concurrent=15,  # Higher than ThreadPoolExecutor's 5 workers
+        skip_existing=True,
+        cleanup_provider=True
+    )
+
+    # Create output manifest
+    output_manifest_path = output_folder / "descriptions_manifest.jsonl"
+
+    stats = {
+        'total': len(image_paths),
+        'processed': 0,
+        'failed': 0,
+        'skipped': 0
+    }
+
+    # Convert async results to describe_images format and write manifest
+    with open(output_manifest_path, 'w') as manifest_file:
+        for i, async_result in enumerate(async_results):
+            image_path = image_paths[i]
+
+            try:
+                # Get relative path
+                rel_path = SegmentHandler.get_relative_path(image_path)
+                json_rel_path = rel_path.with_suffix('.json')
+
+                # Build output path preserving structure
+                json_output_path = output_docs_folder / json_rel_path.parent / json_rel_path.name
+                json_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Check if skipped (already existed)
+                if async_result.get("skipped"):
+                    stats['skipped'] += 1
+                    manifest_entry = {
+                        "source": str(rel_path),
+                        "outputs": [str(json_rel_path)],
+                        "skipped": True,
+                        "success": True
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    continue
+
+                # Check for errors
+                if not async_result.get("success") or async_result.get("error"):
+                    stats['failed'] += 1
+                    error_msg = async_result.get("error", "Unknown error")
+
+                    # Save error to JSON file
+                    error_data = {"error": error_msg}
+                    with open(json_output_path, 'w', encoding='utf-8') as f:
+                        json.dump(error_data, f, indent=2)
+
+                    manifest_entry = {
+                        "source": str(rel_path),
+                        "outputs": [str(json_rel_path)],
+                        "error": error_msg,
+                        "success": False,
+                        "processed_at": datetime.now().isoformat()
+                    }
+                    manifest_file.write(json.dumps(manifest_entry) + "\n")
+                    continue
+
+                # Success case - parse the description
+                description_text = async_result.get("text", "")
+
+                try:
+                    description_json = json.loads(description_text)
+                except json.JSONDecodeError as e:
+                    tool_logger.warning(f"Failed to parse JSON response for {image_path.name}, saving as raw text: {e}")
+                    description_json = {
+                        "raw_response": description_text,
+                        "parse_error": str(e)
+                    }
+
+                # Save description as JSON
+                with open(json_output_path, 'w', encoding='utf-8') as f:
+                    json.dump(description_json, f, indent=2, ensure_ascii=False)
+
+                # Get original image dimensions
+                try:
+                    from PIL import Image
+                    image = Image.open(image_path)
+                    orig_width, orig_height = image.size
+                    original_size = f"{orig_width}x{orig_height}"
+                except:
+                    original_size = "unknown"
+
+                # Create manifest entry
+                manifest_entry = {
+                    "source": str(rel_path),
+                    "outputs": [str(json_rel_path)],
+                    "visual_description": description_json,
+                    "success": True,
+                    "details": {
+                        "has_content": bool(description_json),
+                        "processed_at": datetime.now().isoformat(),
+                        "model": "qwen-vl-max",
+                        "original_size": original_size
+                    }
+                }
+                manifest_file.write(json.dumps(manifest_entry) + "\n")
+                stats['processed'] += 1
+
+            except Exception as e:
+                tool_logger.error(f"Error creating manifest entry for {image_path}: {str(e)}")
+                stats['failed'] += 1
+                manifest_entry = {
+                    "source": str(SegmentHandler.get_relative_path(image_path)),
+                    "outputs": [],
+                    "error": str(e),
+                    "success": False,
+                    "processed_at": datetime.now().isoformat()
+                }
+                manifest_file.write(json.dumps(manifest_entry) + "\n")
+
+    tool_logger.success(
+        f"✅ Visual description complete: {stats['processed']} processed, "
+        f"{stats['skipped']} skipped, {stats['failed']} failed"
+    )
+
+    return stats
 
 
 def describe(

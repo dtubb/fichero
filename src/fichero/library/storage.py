@@ -214,6 +214,13 @@ class LibraryStorage:
                     )
                 """)
 
+                # Migration: Add collection_level column if it doesn't exist (for existing databases)
+                try:
+                    cursor.execute("SELECT collection_level FROM extracted_metadata LIMIT 1")
+                except sqlite3.OperationalError:
+                    logger.info("Adding collection_level column to existing extracted_metadata table")
+                    cursor.execute("ALTER TABLE extracted_metadata ADD COLUMN collection_level INTEGER DEFAULT 0")
+
                 # Step metadata versions table for version tracking
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS step_metadata_versions (
@@ -1022,6 +1029,7 @@ class LibraryStorage:
     def add_processing_output(self, output: ProcessingOutput) -> bool:
         """Add a processing output record"""
         try:
+            logger.debug(f"Adding processing output: id={output.id}, type={output.output_type}")
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
@@ -1055,6 +1063,8 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to add processing output: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
 
     def get_processing_outputs(self, processing_result_id: str) -> List[ProcessingOutput]:
@@ -1239,15 +1249,16 @@ class LibraryStorage:
 
                 cursor.execute("""
                     INSERT INTO extracted_metadata
-                    (id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                    (id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
                      version, schema_version, key, value, confidence, context, custom_fields,
                      indexed, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     metadata.id,
                     metadata.processing_output_id,
                     metadata.collection_id,
                     metadata.item_id,
+                    1 if metadata.collection_level else 0,
                     metadata.schema_type,
                     metadata.source_label,
                     metadata.version,
@@ -1276,7 +1287,7 @@ class LibraryStorage:
                 cursor = conn.cursor()
 
                 cursor.execute("""
-                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
                            version, schema_version, key, value, confidence, context, custom_fields,
                            indexed, created_at
                     FROM extracted_metadata
@@ -1291,17 +1302,18 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        schema_type=row[4],
-                        source_label=row[5],
-                        version=row[6],
-                        schema_version=row[7],
-                        key=row[8],
-                        value=row[9],
-                        confidence=row[10],
-                        context=row[11],
-                        custom_fields=self._deserialize_metadata(row[12]),
-                        indexed=bool(row[13]),
-                        created_at=datetime.fromisoformat(row[14])
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
                     )
                     metadata_list.append(metadata)
 
@@ -1309,6 +1321,229 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to get extracted metadata: {e}")
+            return []
+
+    def get_extracted_metadata_by_item(self, item_id: str,
+                                       schema_type: str = None,
+                                       key: str = None,
+                                       collection_level: bool = None) -> List[ExtractedMetadata]:
+        """Get extracted metadata directly by item_id
+
+        This is the preferred method for views to load metadata, as it queries
+        directly using the item_id without needing processing_output_id from manifests.
+
+        Args:
+            item_id: The item ID to query
+            schema_type: Optional filter by schema_type (e.g., 'transcription')
+            key: Optional filter by key (e.g., 'text')
+            collection_level: Optional filter by collection level (True/False/None for all)
+
+        Returns:
+            List of ExtractedMetadata records matching the filters, ordered newest first
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
+                    FROM extracted_metadata
+                    WHERE item_id = ?
+                """
+                params = [item_id]
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if key:
+                    sql += " AND key = ?"
+                    params.append(key)
+
+                if collection_level is not None:
+                    sql += " AND collection_level = ?"
+                    params.append(1 if collection_level else 0)
+
+                sql += " ORDER BY version DESC, created_at DESC"  # Newest first
+
+                cursor.execute(sql, params)
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to get extracted metadata by item: {e}")
+            return []
+
+    def get_collection_level_metadata(self, collection_id: str,
+                                      schema_type: str = None,
+                                      key: str = None) -> List[ExtractedMetadata]:
+        """Get extracted metadata for collection-level records (node-level metadata)
+
+        This method queries metadata where collection_level=True and item_id=NULL,
+        representing collection-wide metadata like catalogues, summaries, or other
+        aggregate data that applies to the entire collection rather than specific files.
+
+        Args:
+            collection_id: The collection ID to query
+            schema_type: Optional filter by schema_type (e.g., 'catalogue', 'collection_summary')
+            key: Optional filter by key (e.g., 'text', 'description')
+
+        Returns:
+            List of ExtractedMetadata records for collection-level metadata, ordered newest first
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
+                    FROM extracted_metadata
+                    WHERE collection_id = ? AND collection_level = 1 AND item_id IS NULL
+                """
+                params = [collection_id]
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if key:
+                    sql += " AND key = ?"
+                    params.append(key)
+
+                sql += " ORDER BY version DESC, created_at DESC"  # Newest first
+                cursor.execute(sql, params)
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to get collection-level metadata: {e}")
+            return []
+
+    def get_leaf_level_metadata(self, collection_id: str = None, item_id: str = None,
+                               schema_type: str = None, key: str = None) -> List[ExtractedMetadata]:
+        """Get extracted metadata for file-level records (leaf-level metadata)
+
+        This method queries metadata where collection_level=False and item_id is NOT NULL,
+        representing file-specific metadata like transcriptions, enhanced images, or other
+        data that applies to individual files rather than the entire collection.
+
+        Args:
+            collection_id: Optional collection ID filter
+            item_id: Optional specific item ID filter
+            schema_type: Optional filter by schema_type (e.g., 'transcription', 'prepared_image')
+            key: Optional filter by key (e.g., 'text', 'file_path')
+
+        Returns:
+            List of ExtractedMetadata records for file-level data, ordered newest first
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
+                    FROM extracted_metadata
+                    WHERE collection_level = 0 AND item_id IS NOT NULL
+                """
+                params = []
+
+                if collection_id:
+                    sql += " AND collection_id = ?"
+                    params.append(collection_id)
+
+                if item_id:
+                    sql += " AND item_id = ?"
+                    params.append(item_id)
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if key:
+                    sql += " AND key = ?"
+                    params.append(key)
+
+                sql += " ORDER BY version DESC, created_at DESC"  # Newest first
+
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+
+                metadata_list = []
+                for row in rows:
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+
+        except Exception as e:
+            logger.error(f"Failed to get leaf-level metadata: {e}")
             return []
 
     def search_metadata(self, collection_id: str, query: str,
@@ -1328,7 +1563,7 @@ class LibraryStorage:
 
                 # Build query with optional filters
                 sql = """
-                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
                            version, schema_version, key, value, confidence, context, custom_fields,
                            indexed, created_at
                     FROM extracted_metadata
@@ -1359,17 +1594,18 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        schema_type=row[4],
-                        source_label=row[5],
-                        version=row[6],
-                        schema_version=row[7],
-                        key=row[8],
-                        value=row[9],
-                        confidence=row[10],
-                        context=row[11],
-                        custom_fields=self._deserialize_metadata(row[12]),
-                        indexed=bool(row[13]),
-                        created_at=datetime.fromisoformat(row[14])
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
                     )
                     metadata_list.append(metadata)
 
@@ -1387,7 +1623,7 @@ class LibraryStorage:
                 cursor = conn.cursor()
 
                 sql = """
-                    SELECT id, processing_output_id, collection_id, item_id, schema_type, source_label,
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
                            version, schema_version, key, value, confidence, context, custom_fields,
                            indexed, created_at
                     FROM extracted_metadata
@@ -1414,17 +1650,18 @@ class LibraryStorage:
                         processing_output_id=row[1],
                         collection_id=row[2],
                         item_id=row[3],
-                        schema_type=row[4],
-                        source_label=row[5],
-                        version=row[6],
-                        schema_version=row[7],
-                        key=row[8],
-                        value=row[9],
-                        confidence=row[10],
-                        context=row[11],
-                        custom_fields=self._deserialize_metadata(row[12]),
-                        indexed=bool(row[13]),
-                        created_at=datetime.fromisoformat(row[14])
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
                     )
                     metadata_list.append(metadata)
 
@@ -1432,6 +1669,71 @@ class LibraryStorage:
 
         except Exception as e:
             logger.error(f"Failed to get metadata by collection: {e}")
+            return []
+
+    def get_extracted_metadata_by_collection(self, collection_id: str,
+                                             schema_type: str = None,
+                                             collection_level: bool = None) -> List[ExtractedMetadata]:
+        """Get extracted metadata for a collection with optional collection_level filtering
+
+        Args:
+            collection_id: The collection ID to query
+            schema_type: Optional filter by schema type
+            collection_level: Optional filter by collection level (True/False/None for all)
+
+        Returns:
+            List of ExtractedMetadata records
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT id, processing_output_id, collection_id, item_id, collection_level, schema_type, source_label,
+                           version, schema_version, key, value, confidence, context, custom_fields,
+                           indexed, created_at
+                    FROM extracted_metadata
+                    WHERE collection_id = ?
+                """
+                params = [collection_id]
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                if collection_level is not None:
+                    sql += " AND collection_level = ?"
+                    params.append(1 if collection_level else 0)
+
+                sql += " ORDER BY created_at DESC"
+
+                cursor.execute(sql, params)
+
+                metadata_list = []
+                for row in cursor.fetchall():
+                    metadata = ExtractedMetadata(
+                        id=row[0],
+                        processing_output_id=row[1],
+                        collection_id=row[2],
+                        item_id=row[3],
+                        collection_level=bool(row[4]),
+                        schema_type=row[5],
+                        source_label=row[6],
+                        version=row[7],
+                        schema_version=row[8],
+                        key=row[9],
+                        value=row[10],
+                        confidence=row[11],
+                        context=row[12],
+                        custom_fields=self._deserialize_metadata(row[13]),
+                        indexed=bool(row[14]),
+                        created_at=datetime.fromisoformat(row[15])
+                    )
+                    metadata_list.append(metadata)
+
+                return metadata_list
+        except Exception as e:
+            logger.error(f"Failed to get extracted metadata by collection: {e}")
             return []
 
     def cleanup_processing_outputs(self, item_id: str = None,

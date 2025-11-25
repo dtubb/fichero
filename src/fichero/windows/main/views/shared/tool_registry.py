@@ -42,7 +42,6 @@ class ToolRegistry:
         self._load_enhance()
         self._load_split()
         self._load_transcribe_qwen()
-        self._load_transcribe_lmstudio()
         self._load_llm_process()
         self._load_prepare_images()
         self._load_remove_background()
@@ -212,58 +211,6 @@ class ToolRegistry:
         }
         logger.debug("Loaded transcribe_qwen_max tool definition")
 
-    def _load_transcribe_lmstudio(self):
-        """Load transcribe_lmstudio tool definition"""
-        self._tools['transcribe_lmstudio'] = {
-            'name': 'Transcribe (LM Studio)',
-            'description': 'Extract text from images using local LM Studio server',
-            'parameters': [
-                {
-                    'name': 'api_url',
-                    'label': 'LM Studio URL',
-                    'type': 'string',
-                    'default': 'http://localhost:1234/v1',
-                    'description': 'URL of running LM Studio server'
-                },
-                {
-                    'name': 'model_name',
-                    'label': 'Model',
-                    'type': 'select',
-                    'options': [
-                        ('llava-1.5-7b-hf', 'LLaVA 1.5 7B'),
-                        ('llava-1.6-mistral-7b', 'LLaVA 1.6 Mistral 7B'),
-                        ('llava-phi-3-mini', 'LLaVA Phi-3 Mini'),
-                        ('cogvlm-grounding-generalist', 'CogVLM Grounding'),
-                    ],
-                    'default': 'llava-1.5-7b-hf',
-                    'description': 'Vision-language model to use'
-                },
-                {
-                    'name': 'prompt',
-                    'label': 'Prompt Template',
-                    'type': 'select',
-                    'options': [
-                        ('default_transcription', 'Default Transcription'),
-                        ('handwriting_recognition', 'Handwriting Recognition'),
-                        ('printed_text', 'Printed Text'),
-                        ('mixed_content', 'Mixed Content'),
-                    ],
-                    'default': 'default_transcription',
-                    'description': 'Type of transcription to perform'
-                },
-                {
-                    'name': 'max_size',
-                    'label': 'Max Image Size (px)',
-                    'type': 'number',
-                    'default': 1024,
-                    'min': 512,
-                    'max': 2048,
-                    'description': 'Maximum image dimension'
-                },
-            ]
-        }
-        logger.debug("Loaded transcribe_lmstudio tool definition")
-
     def _load_llm_process(self):
         """Load llm_process tool definition"""
         self._tools['llm_process'] = {
@@ -431,6 +378,5 @@ class ToolRegistry:
             'remove_background',
             'segment',
             'transcribe_qwen_max',
-            'transcribe_lmstudio',
             'llm_process'
         ]

@@ -41,7 +41,8 @@ requires = [
     "dashscope>=1.20.0",
 ]
 test_requires = [
-    #"pytest",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
     #"openai>=1.86.0,<2.0.0",
     #"pathvalidate>=3.2.3,<4.0.0",
     #"cryptography>=45.0.0,<46.0.0",
@@ -67,7 +68,10 @@ requires = [
     "exifread>=3.3.1,<4.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
+    "langchain-core>=0.3.79,<0.4.0",
+    "langgraph>=0.2.80,<0.3.0",
     "langchain-ollama>=0.3.3,<1.0.0",
+    "nest-asyncio>=1.6.0,<2.0.0",
     # macOS-specific optional dependencies
     "opencv-python",  # Generally works well on macOS
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
@@ -96,7 +100,10 @@ requires = [
     "exifread>=3.3.1,<4.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
+    "langchain-core>=0.3.79,<0.4.0",
+    "langgraph>=0.2.80,<0.3.0",
     "langchain-ollama>=0.3.3,<1.0.0",
+    "nest-asyncio>=1.6.0,<2.0.0",
     # Linux-specific optional dependencies
     "opencv-python",  # Generally works well on Linux
     "rawpy>=0.25.0,<1.0.0",  # RAW image support

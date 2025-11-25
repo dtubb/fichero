@@ -125,11 +125,13 @@ commands:
   - name: transcribe_qwen_max_direct
     worker_type: "io"
     help: "Transcribe background-removed images directly using Qwen VL Max model (no segmentation)"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    function: "fichero.tools.transcribe.transcribe_batch"
     args:
       source_folder: "assets/background_removed"
       source_manifest: "assets/background_removed/background_removed_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
     outputs:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"

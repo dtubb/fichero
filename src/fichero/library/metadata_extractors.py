@@ -327,9 +327,10 @@ class UniversalExtractor:
                            output_path: Path,
                            output_type: str,
                            collection_id: str,
-                           item_id: str,
+                           item_id: Optional[str],
                            processing_output_id: str,
-                           step_name: str) -> List[ExtractedMetadata]:
+                           step_name: str,
+                           workflow_manifest: Optional[Dict] = None) -> List[ExtractedMetadata]:
         """
         Extract metadata from processing output
 
@@ -337,9 +338,10 @@ class UniversalExtractor:
             output_path: Path to output file
             output_type: Type of output (transcription, catalogue, etc.)
             collection_id: Collection ID
-            item_id: Item ID
+            item_id: Item ID (None for collection-level outputs)
             processing_output_id: ProcessingOutput ID
             step_name: Step name (used as source_label)
+            workflow_manifest: Workflow manifest with scope information
 
         Returns:
             List of extracted metadata records
@@ -347,6 +349,20 @@ class UniversalExtractor:
         metadata_list = []
 
         try:
+            # Determine if this should be collection-level metadata using workflow manifest scope
+            is_collection_level = self._is_collection_level_output(step_name, output_type, output_path, item_id, workflow_manifest)
+
+            # Distinguish between true collection-level and folder-level metadata
+            # Folder-level metadata (like catalogue_folder) should keep item_id but be marked as collection_level
+            is_folder_level = is_collection_level and item_id and any(pattern in step_name.lower() for pattern in ["folder", "directory"])
+
+            # For true collection-level metadata (no item_id), set item_id to None
+            # For folder-level metadata, keep the folder's item_id
+            if is_collection_level and not is_folder_level:
+                effective_item_id = None
+            else:
+                effective_item_id = item_id
+
             # Determine source label from step name and output type
             source_label = self._determine_source_label(step_name, output_type, output_path)
 
@@ -354,30 +370,43 @@ class UniversalExtractor:
             if output_type == "transcription":
                 extractor = self.extractors["transcription"]
                 metadata_list = extractor.extract(
-                    output_path, collection_id, item_id,
+                    output_path, collection_id, effective_item_id,
                     processing_output_id, source_label
                 )
             elif output_type == "catalogue":
                 extractor = self.extractors["catalogue"]
                 metadata_list = extractor.extract(
-                    output_path, collection_id, item_id,
+                    output_path, collection_id, effective_item_id,
                     processing_output_id, source_label
                 )
             elif output_type in ["prepared_image", "enhanced_image", "image"]:
                 extractor = self.extractors["file_info"]
                 metadata_list = extractor.extract(
-                    output_path, collection_id, item_id,
+                    output_path, collection_id, effective_item_id,
                     processing_output_id, source_label
                 )
             elif output_path.suffix == ".jsonl" and "manifest" in output_path.name:
                 extractor = self.extractors["manifest"]
                 metadata_list = extractor.extract(
-                    output_path, collection_id, item_id,
+                    output_path, collection_id, effective_item_id,
                     processing_output_id, source_label
                 )
+            elif output_type == "json_data":
+                # Handle json_data by detecting what type it actually is
+                path_str = str(output_path).lower()
+                if any(keyword in path_str for keyword in ['catalogue', 'catalog']) or \
+                   any(keyword in output_path.name.lower() for keyword in ['catalogue', 'catalog']):
+                    # Route catalogue files to catalogue extractor
+                    extractor = self.extractors["catalogue"]
+                    metadata_list = extractor.extract(
+                        output_path, collection_id, effective_item_id,
+                        processing_output_id, source_label
+                    )
 
             # Store metadata in database and index for search
             for metadata in metadata_list:
+                # Set the collection_level flag based on our detection
+                metadata.collection_level = is_collection_level
                 success = self.storage.add_extracted_metadata(metadata)
                 if success:
                     # Index searchable content (transcriptions, catalogues)
@@ -415,3 +444,136 @@ class UniversalExtractor:
 
         # Default: use step name as source
         return step_name.lower().replace("_", "-")
+
+    def _is_collection_level_output(self, step_name: str, output_type: str, output_path: Path,
+                                    item_id: Optional[str], workflow_manifest: Optional[Dict] = None) -> bool:
+        """
+        Determine if an output should be treated as collection-level metadata
+
+        Uses the workflow manifest's output_scope information when available:
+        - "leaf": File-level outputs (item-specific metadata)
+        - "node": Collection-level outputs (applies to entire collection)
+        - "intermediate": Processing outputs (typically not displayed in UI)
+
+        Falls back to heuristic detection when manifest data unavailable.
+
+        Args:
+            step_name: Step name from processing
+            output_type: Type of output (transcription, catalogue, etc.)
+            output_path: Path to output file
+            item_id: Item ID (may indicate file-level processing)
+            workflow_manifest: Workflow manifest containing scope information
+
+        Returns:
+            True if output should be collection-level, False for file-level
+        """
+        # First, check workflow manifest for explicit scope information
+        if workflow_manifest and 'steps' in workflow_manifest:
+            for step in workflow_manifest['steps']:
+                if step.get('name') == step_name and 'output_scope' in step:
+                    output_scope = step['output_scope']
+                    if output_scope == 'node':
+                        logger.debug(f"[SCOPE] Step '{step_name}' marked as 'node' scope - collection-level metadata")
+                        return True
+                    elif output_scope == 'leaf':
+                        logger.debug(f"[SCOPE] Step '{step_name}' marked as 'leaf' scope - file-level metadata")
+                        return False
+                    elif output_scope == 'intermediate':
+                        logger.debug(f"[SCOPE] Step '{step_name}' marked as 'intermediate' scope - processing-only")
+                        # For intermediate outputs, treat as collection-level if no item_id, otherwise file-level
+                        return item_id is None
+                    break
+
+        # Fallback to heuristic detection if no manifest scope information
+        step_lower = step_name.lower()
+        filename = output_path.name.lower()
+        output_type_lower = output_type.lower()
+
+        # Collection-level indicators in step names
+        collection_step_patterns = [
+            "catalogue_folder",
+            "collection_summary",
+            "batch_process",
+            "folder_summary",
+            "aggregate_",
+            "batch_",
+            "collection_",
+            "folder_"
+        ]
+
+        # Collection-level indicators in output types
+        collection_output_types = [
+            "collection_catalogue",
+            "folder_catalogue",
+            "batch_summary",
+            "collection_summary"
+        ]
+
+        # Collection-level indicators in file paths
+        # These patterns should be more specific to avoid false positives
+        collection_path_patterns = [
+            "collection_summary",
+            "folder_summary",
+            "batch_summary",
+            "collection_catalogue",
+            "folder_catalogue"
+        ]
+
+        # IMPORTANT: If we have a valid item_id, this is likely file-level metadata
+        # Only override this for explicit collection-level indicators
+        has_valid_item_id = item_id and item_id.strip() and item_id != "None"
+
+        # Check step name patterns (highest priority - explicit collection-level indicators)
+        for pattern in collection_step_patterns:
+            if pattern in step_lower:
+                return True
+
+        # Check output type
+        if output_type_lower in collection_output_types:
+            return True
+
+        # Check if output is in a collection-level directory
+        # Only look at the path relative to the outputs directory to avoid false positives
+        # from the library storage path (e.g., .../library/collections/...)
+        try:
+            # Find the outputs directory in the path and only check parts after it
+            path_parts = list(output_path.parts)
+            output_relative_parts = []
+
+            # Look for 'outputs' or 'assets' directory to establish the relative path
+            for i, part in enumerate(path_parts):
+                if part.lower() in ['outputs', 'assets']:
+                    # Take everything after this directory
+                    output_relative_parts = [p.lower() for p in path_parts[i+1:]]
+                    break
+
+            # If no outputs/assets found, just use the last few parts of the path
+            if not output_relative_parts:
+                output_relative_parts = [p.lower() for p in path_parts[-3:]]  # Last 3 parts only
+
+            # Now check for collection patterns in the relative path only
+            # But only if we don't have a valid item_id (which indicates file-level)
+            if not has_valid_item_id:
+                for pattern in collection_path_patterns:
+                    if any(pattern in part for part in output_relative_parts):
+                        return True
+
+        except Exception:
+            # Fallback to original behavior if path parsing fails
+            # But only if we don't have a valid item_id
+            if not has_valid_item_id:
+                path_parts = [part.lower() for part in output_path.parts[-3:]]  # Only last 3 parts
+                for pattern in collection_path_patterns:
+                    if any(pattern in part for part in path_parts):
+                        return True
+
+        # Special case: catalogue outputs are typically collection-level
+        if output_type_lower == "catalogue" and not item_id:
+            return True
+
+        # Special case: if item_id is None or empty, it's likely collection-level
+        if not item_id or item_id.strip() == "":
+            return True
+
+        # Default: file-level metadata
+        return False

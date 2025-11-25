@@ -1,0 +1,46 @@
+{
+  "timestamp": "2025-11-24T10:57:39.039818",
+  "image_count": 5,
+  "results": [
+    {
+      "test_name": "Async Semaphore (15 concurrent) - qwen-vl-ocr",
+      "model": "qwen-vl-ocr",
+      "mode": "Async (15)",
+      "elapsed": 7.991615056991577,
+      "processed": 0,
+      "failed": 5,
+      "avg_per_image": 1.5983230113983153,
+      "output_folder": "/Users/dtubb/code/fichero_main/fichero/output_qwen_vl_ocr_async"
+    },
+    {
+      "test_name": "Sync ThreadPool (5 workers) - qwen-vl-ocr",
+      "model": "qwen-vl-ocr",
+      "mode": "Sync ThreadPool (5)",
+      "elapsed": 8.759266138076782,
+      "processed": 0,
+      "failed": 5,
+      "avg_per_image": 1.7518532276153564,
+      "output_folder": "/Users/dtubb/code/fichero_main/fichero/output_qwen_vl_ocr_sync"
+    },
+    {
+      "test_name": "Async Semaphore (15 concurrent) - qwen-vl-max",
+      "model": "qwen-vl-max",
+      "mode": "Async (15)",
+      "elapsed": 9.237396001815796,
+      "processed": 0,
+      "failed": 5,
+      "avg_per_image": 1.8474792003631593,
+      "output_folder": "/Users/dtubb/code/fichero_main/fichero/output_qwen_vl_max_async"
+    },
+    {
+      "test_name": "Sync ThreadPool (5 workers) - qwen-vl-max",
+      "model": "qwen-vl-max",
+      "mode": "Sync ThreadPool (5)",
+      "elapsed": 9.879164695739746,
+      "processed": 0,
+      "failed": 5,
+      "avg_per_image": 1.9758329391479492,
+      "output_folder": "/Users/dtubb/code/fichero_main/fichero/output_qwen_vl_max_sync"
+    }
+  ]
+}

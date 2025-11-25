@@ -1,6 +1,6 @@
 title: "Transcribe LM Studio"
 description: >
-  Minimal workflow for testing transcribe_lmstudio tool - transcribes document images using local LM Studio API.
+  Minimal workflow for testing unified transcribe tool with LM Studio provider - transcribes document images using local LM Studio API.
 
 vars:
   name: "Fichero"
@@ -14,7 +14,7 @@ workflows:
   # Transcribe LM Studio only workflow - for testing local AI transcription
   TranscribeLMStudioTest:
     - build_documents_manifest
-    - transcribe_lmstudio
+    - transcribe
 
 commands:
   - name: build_documents_manifest
@@ -27,16 +27,17 @@ commands:
     outputs:
       - "assets/manifests/documents_manifest.jsonl"
 
-  - name: transcribe_lmstudio
+  - name: transcribe
     worker_type: "gpu"
-    help: "Transcribe documents using local LM Studio API"
-    function: "fichero.tools.transcribe_lmstudio.transcribe_batch"
+    help: "Transcribe documents using unified transcription tool with LM Studio provider"
+    function: "fichero.tools.transcribe.transcribe_batch"
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "lmstudio"
       api_url: "http://localhost:1234/v1"
-      model_name: ""
+      model: ""
       prompt_file: ""
     outputs:
       - "assets/transcriptions"

@@ -956,6 +956,127 @@ class UniversalLayoutManager:
         slot.is_visible = False
         logger.info(f"🔒 Hiding slot '{slot_id}' in vertical split")
 
+    # === PREVIEW RATIO CONTROLS ===
+    # These methods provide the ratio functionality that was in PreviewLayoutManager
+
+    def set_split_ratio(self, slot_id: str, ratio: float):
+        """
+        Set the split ratio for a vertical split container.
+
+        Args:
+            slot_id: ID of the slot that contains a vertical split
+            ratio: Ratio between 0.1 and 0.9 (e.g., 0.75 = 75%/25% split)
+        """
+        if not 0.1 <= ratio <= 0.9:
+            logger.warning(f"Invalid ratio {ratio}, must be between 0.1 and 0.9")
+            return
+
+        slot = self.view_slots.get(slot_id)
+        if not slot:
+            logger.warning(f"Slot '{slot_id}' not found")
+            return
+
+        # Find the SplitContainer inside this slot
+        # The slot.container contains a SplitContainer created by split_slot_vertical
+        if slot.container and len(slot.container.children) > 0:
+            for child in slot.container.children:
+                if hasattr(child, 'direction') and hasattr(child, 'content'):
+                    # This is a SplitContainer
+                    if len(child.content) == 2:
+                        # Update the flex ratios
+                        left_widget, old_left_flex = child.content[0]
+                        right_widget, old_right_flex = child.content[1]
+
+                        # Calculate new flex values based on ratio
+                        # ratio 0.75 means left gets 75%, right gets 25%
+                        total_flex = 100
+                        new_left_flex = int(ratio * total_flex)
+                        new_right_flex = total_flex - new_left_flex
+
+                        # Rebuild content with new ratios
+                        child.content = [
+                            (left_widget, new_left_flex),
+                            (right_widget, new_right_flex)
+                        ]
+
+                        logger.info(f"Updated split ratio in slot '{slot_id}': {ratio:.2f} ({new_left_flex}:{new_right_flex})")
+                        return
+
+        logger.warning(f"No SplitContainer found in slot '{slot_id}'")
+
+    def get_available_ratio_presets(self) -> Dict[str, float]:
+        """Get available ratio presets for splits"""
+        return {
+            "balanced": 0.5,      # 50%/50%
+            "content_focused": 0.6,   # 60%/40%
+            "image_focused": 0.4,     # 40%/60%
+            "wide_content": 0.75,     # 75%/25%
+            "wide_image": 0.25        # 25%/75%
+        }
+
+    def apply_ratio_preset(self, slot_id: str, preset_name: str):
+        """Apply a ratio preset to a split"""
+        presets = self.get_available_ratio_presets()
+        if preset_name not in presets:
+            logger.warning(f"Unknown ratio preset: {preset_name}")
+            return
+
+        ratio = presets[preset_name]
+        self.set_split_ratio(slot_id, ratio)
+        logger.info(f"Applied preset '{preset_name}' (ratio={ratio}) to slot '{slot_id}'")
+
+    def cycle_ratio_presets(self, slot_id: str, direction: str = "next"):
+        """Cycle through ratio presets"""
+        presets = list(self.get_available_ratio_presets().keys())
+
+        # Find current preset (approximate)
+        current_ratio = self._estimate_current_ratio(slot_id)
+        current_preset = self._ratio_to_preset(current_ratio)
+
+        try:
+            current_index = presets.index(current_preset)
+        except ValueError:
+            current_index = 0  # Default to first preset
+
+        if direction == "next":
+            new_index = (current_index + 1) % len(presets)
+        else:  # previous
+            new_index = (current_index - 1) % len(presets)
+
+        new_preset = presets[new_index]
+        self.apply_ratio_preset(slot_id, new_preset)
+
+    def _estimate_current_ratio(self, slot_id: str) -> float:
+        """Estimate current ratio from SplitContainer flex values"""
+        slot = self.view_slots.get(slot_id)
+        if not slot or not slot.container:
+            return 0.5
+
+        # Find SplitContainer and read its flex values
+        for child in slot.container.children:
+            if hasattr(child, 'content') and len(child.content) == 2:
+                _, left_flex = child.content[0]
+                _, right_flex = child.content[1]
+                total = left_flex + right_flex
+                if total > 0:
+                    return left_flex / total
+
+        return 0.5  # Default balanced
+
+    def _ratio_to_preset(self, ratio: float) -> str:
+        """Convert ratio to closest preset name"""
+        presets = self.get_available_ratio_presets()
+        closest_preset = "balanced"
+        closest_diff = 1.0
+
+        for name, preset_ratio in presets.items():
+            diff = abs(ratio - preset_ratio)
+            if diff < closest_diff:
+                closest_diff = diff
+                closest_preset = name
+
+        return closest_preset
+
     @property
     def container(self) -> toga.Widget:
         """Get the root container for this layout (SplitContainer on desktop, Box on mobile)"""

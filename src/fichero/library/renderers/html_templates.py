@@ -129,18 +129,130 @@ def get_interactive_image_viewer(
         }}
         #minimapViewport {{
             position: absolute;
-            border: 2px solid #4CAF50;
-            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            background: rgba(0, 122, 255, 0.2);
+            box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.6);
             cursor: move;
             pointer-events: auto;
+            border-radius: 1px;
         }}
+        /* macOS-style selection box */
         #selectionBox {{
             position: fixed;
-            border: 2px dashed #4CAF50;
-            background: rgba(76, 175, 80, 0.1);
-            display: none;
-            pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            background: rgba(0, 122, 255, 0.15);
+            box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.6), 0 1px 3px rgba(0, 0, 0, 0.15);
             z-index: 999;
+            pointer-events: auto;
+            cursor: move;
+            border-radius: 1px;
+        }}
+        #selectionBox.drawing {{
+            pointer-events: none;
+        }}
+        /* Resize handles - white squares with blue border */
+        .selection-handle {{
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border: 1px solid rgba(0, 122, 255, 0.8);
+            border-radius: 1px;
+            z-index: 1000;
+        }}
+        .selection-handle.nw {{ top: -4px; left: -4px; cursor: nwse-resize; }}
+        .selection-handle.ne {{ top: -4px; right: -4px; cursor: nesw-resize; }}
+        .selection-handle.sw {{ bottom: -4px; left: -4px; cursor: nesw-resize; }}
+        .selection-handle.se {{ bottom: -4px; right: -4px; cursor: nwse-resize; }}
+        .selection-handle.n {{ top: -4px; left: 50%; margin-left: -4px; cursor: ns-resize; }}
+        .selection-handle.s {{ bottom: -4px; left: 50%; margin-left: -4px; cursor: ns-resize; }}
+        .selection-handle.e {{ right: -4px; top: 50%; margin-top: -4px; cursor: ew-resize; }}
+        .selection-handle.w {{ left: -4px; top: 50%; margin-top: -4px; cursor: ew-resize; }}
+
+        /* Magnifier panel - shows zoomed detail at bottom */
+        #magnifier {{
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 150px;
+            min-height: 80px;
+            max-height: 400px;
+            background: rgba(30, 30, 30, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            display: none;
+            z-index: 1001;
+            overflow: hidden;
+        }}
+        /* Resize handle at top of magnifier */
+        #magnifierResizeHandle {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            cursor: ns-resize;
+            background: transparent;
+            z-index: 1002;
+        }}
+        #magnifierResizeHandle:hover {{
+            background: rgba(0, 122, 255, 0.3);
+        }}
+        #magnifierResizeHandle.dragging {{
+            background: rgba(0, 122, 255, 0.5);
+        }}
+        #magnifier.active {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        #magnifierCanvas {{
+            height: 100%;
+            max-width: 100%;
+            image-rendering: pixelated;  /* Sharp pixels when zoomed */
+        }}
+        #magnifierLabel {{
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+        }}
+        #magnifierZoom {{
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 11px;
+        }}
+        /* Crosshair in magnifier center */
+        #magnifierCrosshair {{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+        }}
+        #magnifierCrosshair::before,
+        #magnifierCrosshair::after {{
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+        }}
+        #magnifierCrosshair::before {{
+            width: 1px;
+            height: 100%;
+            left: 50%;
+        }}
+        #magnifierCrosshair::after {{
+            width: 100%;
+            height: 1px;
+            top: 50%;
         }}
     </style>
 </head>
@@ -154,12 +266,35 @@ def get_interactive_image_viewer(
         <canvas id="minimapCanvas"></canvas>
         <div id="minimapViewport"></div>
     </div>
-    <div id="selectionBox"></div>
+    <div id="selectionBox">
+        <div class="selection-handle nw"></div>
+        <div class="selection-handle n"></div>
+        <div class="selection-handle ne"></div>
+        <div class="selection-handle e"></div>
+        <div class="selection-handle se"></div>
+        <div class="selection-handle s"></div>
+        <div class="selection-handle sw"></div>
+        <div class="selection-handle w"></div>
+    </div>
+    <div id="magnifier">
+        <div id="magnifierResizeHandle"></div>
+        <span id="magnifierLabel">Magnifier</span>
+        <span id="magnifierZoom">4x</span>
+        <canvas id="magnifierCanvas"></canvas>
+        <div id="magnifierCrosshair"></div>
+    </div>
     <script>
         let scale = 1;
         let rotation = 0;  // Track rotation in degrees (0, 90, 180, 270)
         let isDragging = false;
         let startX, startY, scrollLeft, scrollTop;
+
+        // Mouse position tracking for zoom-to-point
+        let lastMouseX = 0, lastMouseY = 0;
+
+        // Smooth zoom animation state
+        let isAnimating = false;
+        let animationId = null;
 
         const img = document.getElementById('image');
         const container = document.getElementById('imageContainer');
@@ -168,6 +303,13 @@ def get_interactive_image_viewer(
         const minimapCanvas = document.getElementById('minimapCanvas');
         const minimapViewport = document.getElementById('minimapViewport');
         const ctx = minimapCanvas.getContext('2d');
+
+        // Track mouse position for zoom-to-point
+        container.addEventListener('mousemove', function(e) {{
+            const rect = container.getBoundingClientRect();
+            lastMouseX = e.clientX - rect.left;
+            lastMouseY = e.clientY - rect.top;
+        }});
 
         // Load image fitted to window by default
         img.onload = function() {{
@@ -229,14 +371,92 @@ def get_interactive_image_viewer(
             container.scrollLeft = 0;
         }}
 
+        // Zoom factor - smaller for smoother feel (5% vs 20%)
+        const ZOOM_FACTOR = 1.05;
+        const ZOOM_DURATION = 120; // ms for smooth animation
+
         function zoomIn() {{
-            scale = Math.min(scale * 1.2, 5);
-            updateImageSize();
+            // Zoom towards center when using buttons
+            const centerX = container.clientWidth / 2;
+            const centerY = container.clientHeight / 2;
+            smoothZoomAtPoint(scale * 1.15, centerX, centerY);
         }}
 
         function zoomOut() {{
-            scale = Math.max(scale / 1.2, 0.1);
+            // Zoom towards center when using buttons
+            const centerX = container.clientWidth / 2;
+            const centerY = container.clientHeight / 2;
+            smoothZoomAtPoint(scale / 1.15, centerX, centerY);
+        }}
+
+        // Zoom at a specific point (keeps that point stationary)
+        function zoomAtPoint(newScale, pointX, pointY) {{
+            const oldScale = scale;
+            newScale = Math.max(0.1, Math.min(5, newScale));
+
+            if (Math.abs(newScale - scale) < 0.001) return;
+
+            // Calculate the point in image coordinates before zoom
+            const scrollX = container.scrollLeft;
+            const scrollY = container.scrollTop;
+
+            // Point relative to image content
+            const imagePointX = (scrollX + pointX) / oldScale;
+            const imagePointY = (scrollY + pointY) / oldScale;
+
+            // Apply new scale
+            scale = newScale;
             updateImageSize();
+
+            // Adjust scroll to keep the point stationary
+            container.scrollLeft = imagePointX * scale - pointX;
+            container.scrollTop = imagePointY * scale - pointY;
+        }}
+
+        // Smooth animated zoom at point using requestAnimationFrame
+        function smoothZoomAtPoint(targetScale, pointX, pointY, duration = ZOOM_DURATION) {{
+            // Cancel any ongoing animation
+            if (animationId) {{
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }}
+
+            targetScale = Math.max(0.1, Math.min(5, targetScale));
+            if (Math.abs(targetScale - scale) < 0.001) return;
+
+            const startScale = scale;
+            const startScrollX = container.scrollLeft;
+            const startScrollY = container.scrollTop;
+            const startTime = performance.now();
+
+            // Calculate target scroll position
+            const imagePointX = (startScrollX + pointX) / startScale;
+            const imagePointY = (startScrollY + pointY) / startScale;
+            const targetScrollX = imagePointX * targetScale - pointX;
+            const targetScrollY = imagePointY * targetScale - pointY;
+
+            function animate(currentTime) {{
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Ease-out cubic curve for natural deceleration
+                const eased = 1 - Math.pow(1 - progress, 3);
+
+                // Interpolate scale and scroll
+                scale = startScale + (targetScale - startScale) * eased;
+                updateImageSize();
+
+                container.scrollLeft = startScrollX + (targetScrollX - startScrollX) * eased;
+                container.scrollTop = startScrollY + (targetScrollY - startScrollY) * eased;
+
+                if (progress < 1) {{
+                    animationId = requestAnimationFrame(animate);
+                }} else {{
+                    animationId = null;
+                }}
+            }}
+
+            animationId = requestAnimationFrame(animate);
         }}
 
         function getZoomLevel() {{
@@ -256,6 +476,38 @@ def get_interactive_image_viewer(
             const centerY = top + height / 2;
             container.scrollLeft = centerX * scale - container.clientWidth / 2;
             container.scrollTop = centerY * scale - container.clientHeight / 2;
+        }}
+
+        // Zoom to current selection (if any is active)
+        // Called from menu command Cmd+*
+        function zoomToCurrentSelection() {{
+            // Check if selection box is visible and has valid dimensions
+            const selectionBox = document.getElementById('selectionBox');
+            if (!selectionBox || selectionBox.style.display === 'none') {{
+                console.log('No active selection to zoom to');
+                return;
+            }}
+
+            // Get selection bounds from the stored selectionBounds object (defined in selection code)
+            if (typeof selectionBounds === 'undefined' ||
+                selectionBounds.width < 10 || selectionBounds.height < 10) {{
+                console.log('Selection too small to zoom to');
+                return;
+            }}
+
+            // Convert screen coordinates to image coordinates
+            const rect = container.getBoundingClientRect();
+            const left = selectionBounds.left - rect.left + container.scrollLeft;
+            const top = selectionBounds.top - rect.top + container.scrollTop;
+
+            const imgLeft = left / scale;
+            const imgTop = top / scale;
+            const imgWidth = selectionBounds.width / scale;
+            const imgHeight = selectionBounds.height / scale;
+
+            // Hide selection and zoom to it
+            selectionBox.style.display = 'none';
+            zoomToSelection(imgLeft, imgTop, imgWidth, imgHeight);
         }}
 
         function rotateLeft() {{
@@ -278,6 +530,16 @@ def get_interactive_image_viewer(
                 container.scrollLeft = savedScrollX;
                 container.scrollTop = savedScrollY;
             }}, 50);
+        }}
+
+        // Get current viewer state for persistence
+        function getViewerState() {{
+            return JSON.stringify({{
+                scale: scale,
+                rotation: rotation,
+                scroll_x: container.scrollLeft,
+                scroll_y: container.scrollTop
+            }});
         }}
 
         function drawMinimap() {{
@@ -425,101 +687,394 @@ def get_interactive_image_viewer(
             container.scrollTop = scrollTop - walkY;
         }});
 
-        // Mouse wheel zoom
+        // Mouse wheel zoom (only with Command/Ctrl key, otherwise allow scrolling)
+        // Uses smaller increments and zooms towards mouse position for natural feel
         container.addEventListener('wheel', function(e) {{
-            e.preventDefault();
-            if (e.deltaY < 0) {{
-                zoomIn();
-            }} else {{
-                zoomOut();
+            if (e.metaKey || e.ctrlKey) {{
+                // Zoom when Command/Ctrl is held
+                e.preventDefault();
+
+                // Get mouse position relative to container
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                // Use smaller zoom factor for smoother feel (5% per step)
+                // Trackpad gestures send many small deltaY values, discrete mouse wheels send larger ones
+                // Normalize the delta for consistent behavior
+                const delta = Math.sign(e.deltaY);
+                const factor = delta < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+
+                // For continuous scrolling (trackpad), don't animate each step
+                // For discrete scrolling (mouse wheel), use smooth animation
+                if (Math.abs(e.deltaY) > 50) {{
+                    // Discrete scroll (mouse wheel) - use animation
+                    smoothZoomAtPoint(scale * (delta < 0 ? 1.12 : 1/1.12), mouseX, mouseY, 100);
+                }} else {{
+                    // Continuous scroll (trackpad) - immediate for responsiveness
+                    zoomAtPoint(scale * factor, mouseX, mouseY);
+                }}
             }}
+            // Otherwise, let the browser handle normal scrolling for panning
         }}, {{ passive: false }});
 
         // Selection rectangle for zoom-to-selection (Shift+drag)
-        let isSelecting = false;
+        // With macOS-style resize handles and drag-to-move
+        let isDrawingSelection = false;
+        let isDraggingSelection = false;
+        let isResizingSelection = false;
         let selectionStart = {{ x: 0, y: 0 }};
+        let selectionBounds = {{ left: 0, top: 0, width: 0, height: 0 }};
+        let dragStart = {{ x: 0, y: 0 }};
+        let activeHandle = null;
         const selectionBox = document.getElementById('selectionBox');
+        const selectionHandles = selectionBox.querySelectorAll('.selection-handle');
 
+        // Hide selection initially
+        selectionBox.style.display = 'none';
+
+        function updateSelectionBox() {{
+            selectionBox.style.left = selectionBounds.left + 'px';
+            selectionBox.style.top = selectionBounds.top + 'px';
+            selectionBox.style.width = selectionBounds.width + 'px';
+            selectionBox.style.height = selectionBounds.height + 'px';
+        }}
+
+        function hideSelection() {{
+            selectionBox.style.display = 'none';
+            selectionBox.classList.remove('drawing');
+        }}
+
+        function showSelection() {{
+            selectionBox.style.display = 'block';
+        }}
+
+        // Start drawing selection with Shift+drag
         container.addEventListener('mousedown', function(e) {{
-            if (e.shiftKey) {{
-                // Start selection
-                isSelecting = true;
-                const rect = container.getBoundingClientRect();
+            if (e.shiftKey && !e.target.classList.contains('selection-handle')) {{
+                isDrawingSelection = true;
                 selectionStart.x = e.clientX;
                 selectionStart.y = e.clientY;
 
-                selectionBox.style.left = e.clientX + 'px';
-                selectionBox.style.top = e.clientY + 'px';
-                selectionBox.style.width = '0px';
-                selectionBox.style.height = '0px';
-                selectionBox.style.display = 'block';
+                selectionBounds = {{
+                    left: e.clientX,
+                    top: e.clientY,
+                    width: 0,
+                    height: 0
+                }};
+
+                selectionBox.classList.add('drawing');
+                showSelection();
+                updateSelectionBox();
 
                 e.preventDefault();
-                return;
+                e.stopPropagation();
             }}
         }});
 
+        // Handle clicking on the selection box to drag it
+        selectionBox.addEventListener('mousedown', function(e) {{
+            if (e.target === selectionBox) {{
+                isDraggingSelection = true;
+                dragStart.x = e.clientX - selectionBounds.left;
+                dragStart.y = e.clientY - selectionBounds.top;
+                e.preventDefault();
+                e.stopPropagation();
+            }}
+        }});
+
+        // Handle clicking on resize handles
+        selectionHandles.forEach(handle => {{
+            handle.addEventListener('mousedown', function(e) {{
+                isResizingSelection = true;
+                activeHandle = handle.classList[1]; // 'nw', 'n', 'ne', etc.
+                dragStart.x = e.clientX;
+                dragStart.y = e.clientY;
+                e.preventDefault();
+                e.stopPropagation();
+            }});
+        }});
+
+        // Double-click on selection to zoom to it
+        selectionBox.addEventListener('dblclick', function(e) {{
+            if (selectionBounds.width > 10 && selectionBounds.height > 10) {{
+                const rect = container.getBoundingClientRect();
+                const left = selectionBounds.left - rect.left + container.scrollLeft;
+                const top = selectionBounds.top - rect.top + container.scrollTop;
+
+                const imgLeft = left / scale;
+                const imgTop = top / scale;
+                const imgWidth = selectionBounds.width / scale;
+                const imgHeight = selectionBounds.height / scale;
+
+                hideSelection();
+                zoomToSelection(imgLeft, imgTop, imgWidth, imgHeight);
+            }}
+            e.preventDefault();
+            e.stopPropagation();
+        }});
+
         document.addEventListener('mousemove', function(e) {{
-            if (isSelecting) {{
+            if (isDrawingSelection) {{
+                // Drawing new selection
                 const width = Math.abs(e.clientX - selectionStart.x);
                 const height = Math.abs(e.clientY - selectionStart.y);
-                const left = Math.min(e.clientX, selectionStart.x);
-                const top = Math.min(e.clientY, selectionStart.y);
+                selectionBounds.left = Math.min(e.clientX, selectionStart.x);
+                selectionBounds.top = Math.min(e.clientY, selectionStart.y);
+                selectionBounds.width = width;
+                selectionBounds.height = height;
+                updateSelectionBox();
+            }} else if (isDraggingSelection) {{
+                // Moving existing selection
+                selectionBounds.left = e.clientX - dragStart.x;
+                selectionBounds.top = e.clientY - dragStart.y;
+                updateSelectionBox();
+            }} else if (isResizingSelection && activeHandle) {{
+                // Resizing selection
+                const dx = e.clientX - dragStart.x;
+                const dy = e.clientY - dragStart.y;
 
-                selectionBox.style.left = left + 'px';
-                selectionBox.style.top = top + 'px';
-                selectionBox.style.width = width + 'px';
-                selectionBox.style.height = height + 'px';
+                const originalBounds = {{
+                    left: selectionBounds.left,
+                    top: selectionBounds.top,
+                    right: selectionBounds.left + selectionBounds.width,
+                    bottom: selectionBounds.top + selectionBounds.height
+                }};
+
+                // Adjust bounds based on which handle is being dragged
+                if (activeHandle.includes('n')) {{
+                    originalBounds.top += dy;
+                }}
+                if (activeHandle.includes('s')) {{
+                    originalBounds.bottom += dy;
+                }}
+                if (activeHandle.includes('w')) {{
+                    originalBounds.left += dx;
+                }}
+                if (activeHandle.includes('e')) {{
+                    originalBounds.right += dx;
+                }}
+
+                // Ensure minimum size and prevent inversion
+                const minSize = 20;
+                if (originalBounds.right - originalBounds.left >= minSize &&
+                    originalBounds.bottom - originalBounds.top >= minSize) {{
+                    selectionBounds.left = originalBounds.left;
+                    selectionBounds.top = originalBounds.top;
+                    selectionBounds.width = originalBounds.right - originalBounds.left;
+                    selectionBounds.height = originalBounds.bottom - originalBounds.top;
+                    updateSelectionBox();
+                }}
+
+                dragStart.x = e.clientX;
+                dragStart.y = e.clientY;
             }}
         }});
 
         document.addEventListener('mouseup', function(e) {{
-            if (isSelecting) {{
-                isSelecting = false;
-                selectionBox.style.display = 'none';
+            if (isDrawingSelection) {{
+                isDrawingSelection = false;
+                selectionBox.classList.remove('drawing');
 
-                // Calculate selection in image coordinates
-                const rect = container.getBoundingClientRect();
-                const width = Math.abs(e.clientX - selectionStart.x);
-                const height = Math.abs(e.clientY - selectionStart.y);
+                // If selection is too small, hide it
+                if (selectionBounds.width < 10 || selectionBounds.height < 10) {{
+                    hideSelection();
+                }}
+                // Otherwise keep it visible for adjustment
+            }}
+            isDraggingSelection = false;
+            isResizingSelection = false;
+            activeHandle = null;
+        }});
 
-                if (width > 10 && height > 10) {{  // Minimum selection size
-                    const left = Math.min(e.clientX, selectionStart.x) - rect.left + container.scrollLeft;
-                    const top = Math.min(e.clientY, selectionStart.y) - rect.top + container.scrollTop;
+        // Press Escape to cancel selection
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape') {{
+                hideSelection();
+                isDrawingSelection = false;
+                isDraggingSelection = false;
+                isResizingSelection = false;
+            }}
+            // Press Enter to zoom to selection
+            if (e.key === 'Enter' && selectionBox.style.display !== 'none') {{
+                if (selectionBounds.width > 10 && selectionBounds.height > 10) {{
+                    const rect = container.getBoundingClientRect();
+                    const left = selectionBounds.left - rect.left + container.scrollLeft;
+                    const top = selectionBounds.top - rect.top + container.scrollTop;
 
-                    // Convert to image coordinates (account for current scale)
                     const imgLeft = left / scale;
                     const imgTop = top / scale;
-                    const imgWidth = width / scale;
-                    const imgHeight = height / scale;
+                    const imgWidth = selectionBounds.width / scale;
+                    const imgHeight = selectionBounds.height / scale;
 
+                    hideSelection();
                     zoomToSelection(imgLeft, imgTop, imgWidth, imgHeight);
                 }}
             }}
         }});
 
-        // Double-click to cycle through zoom levels
-        let lastClickTime = 0;
-        let zoomCycleIndex = 0;  // 0=fitToWindow, 1=fitToWidth, 2=actualSize
-
+        // Double-click to zoom in at clicked point repeatedly, then fit to window at max
         container.addEventListener('dblclick', function(e) {{
             if (e.shiftKey) return;  // Don't interfere with shift-drag selection
 
             e.preventDefault();
 
-            // Cycle through zoom levels: fit → fit-width → 100% → fit
-            zoomCycleIndex = (zoomCycleIndex + 1) % 3;
+            // Get the clicked point relative to container
+            const rect = container.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
 
-            switch(zoomCycleIndex) {{
-                case 0:
-                    fitToWindow();
-                    break;
-                case 1:
-                    fitToWidth();
-                    break;
-                case 2:
-                    actualSize();
-                    break;
+            // If at or near max zoom (4x or higher), fit to window
+            // Otherwise, zoom in 2x at the clicked point
+            if (scale >= 4) {{
+                fitToWindow();
+            }} else {{
+                // Zoom in 2x at the clicked point
+                smoothZoomAtPoint(scale * 2, clickX, clickY, 200);
+            }}
+        }});
+
+        // === MAGNIFIER ===
+        // Shows a zoomed detail view at the bottom of wherever the mouse hovers
+        const magnifier = document.getElementById('magnifier');
+        const magnifierCanvas = document.getElementById('magnifierCanvas');
+        const magnifierCtx = magnifierCanvas.getContext('2d');
+        const magnifierZoomLabel = document.getElementById('magnifierZoom');
+        const magnifierResizeHandle = document.getElementById('magnifierResizeHandle');
+        let magnifierActive = false;
+        let magnifierZoom = 4;  // 4x magnification
+        let magnifierHeight = 150;  // Current height in pixels
+
+        function toggleMagnifier() {{
+            magnifierActive = !magnifierActive;
+            if (magnifierActive) {{
+                magnifier.classList.add('active');
+                // Adjust container height to make room
+                container.style.height = `calc(100vh - ${{magnifierHeight}}px)`;
+                updateMagnifier(lastMouseX, lastMouseY);
+            }} else {{
+                magnifier.classList.remove('active');
+                container.style.height = '100%';
+            }}
+        }}
+
+        function showMagnifier() {{
+            if (!magnifierActive) {{
+                toggleMagnifier();
+            }}
+        }}
+
+        function hideMagnifier() {{
+            if (magnifierActive) {{
+                toggleMagnifier();
+            }}
+        }}
+
+        function setMagnifierZoom(zoom) {{
+            magnifierZoom = Math.max(2, Math.min(10, zoom));
+            magnifierZoomLabel.textContent = magnifierZoom + 'x';
+            updateMagnifier(lastMouseX, lastMouseY);
+        }}
+
+        // Menu command functions for magnifier zoom
+        function magnifierZoomIn() {{
+            if (!magnifierActive) showMagnifier();
+            setMagnifierZoom(magnifierZoom + 1);
+        }}
+
+        function magnifierZoomOut() {{
+            if (!magnifierActive) showMagnifier();
+            setMagnifierZoom(magnifierZoom - 1);
+        }}
+
+        function setMagnifierHeight(height) {{
+            magnifierHeight = Math.max(80, Math.min(400, height));
+            magnifier.style.height = magnifierHeight + 'px';
+            if (magnifierActive) {{
+                container.style.height = `calc(100vh - ${{magnifierHeight}}px)`;
+                updateMagnifier(lastMouseX, lastMouseY);
+            }}
+        }}
+
+        function updateMagnifier(mouseX, mouseY) {{
+            if (!magnifierActive || !img.complete) return;
+
+            // Calculate the point in the original image
+            const scrollX = container.scrollLeft;
+            const scrollY = container.scrollTop;
+            const imageX = (scrollX + mouseX) / scale;
+            const imageY = (scrollY + mouseY) / scale;
+
+            // Set canvas size to fill the magnifier panel
+            const panelWidth = magnifier.clientWidth;
+            const panelHeight = magnifierHeight;
+            magnifierCanvas.width = panelWidth;
+            magnifierCanvas.height = panelHeight;
+
+            // Calculate source region (what part of image to show)
+            const sourceWidth = panelWidth / magnifierZoom;
+            const sourceHeight = panelHeight / magnifierZoom;
+            const sourceX = imageX - sourceWidth / 2;
+            const sourceY = imageY - sourceHeight / 2;
+
+            // Clear and draw
+            magnifierCtx.fillStyle = '#1e1e1e';
+            magnifierCtx.fillRect(0, 0, panelWidth, panelHeight);
+
+            // Draw the magnified portion
+            magnifierCtx.imageSmoothingEnabled = false;  // Sharp pixels
+            magnifierCtx.drawImage(
+                img,
+                sourceX, sourceY, sourceWidth, sourceHeight,  // Source rect
+                0, 0, panelWidth, panelHeight                 // Dest rect
+            );
+        }}
+
+        // Update magnifier on mouse move (reuse existing tracking)
+        container.addEventListener('mousemove', function(e) {{
+            if (magnifierActive) {{
+                const rect = container.getBoundingClientRect();
+                updateMagnifier(e.clientX - rect.left, e.clientY - rect.top);
+            }}
+        }});
+
+        // Scroll wheel on magnifier changes zoom level
+        magnifier.addEventListener('wheel', function(e) {{
+            e.preventDefault();
+            if (e.deltaY < 0) {{
+                setMagnifierZoom(magnifierZoom + 1);
+            }} else {{
+                setMagnifierZoom(magnifierZoom - 1);
+            }}
+        }}, {{ passive: false }});
+
+        // === MAGNIFIER RESIZE HANDLE ===
+        let isResizingMagnifier = false;
+        let resizeStartY = 0;
+        let resizeStartHeight = 0;
+
+        magnifierResizeHandle.addEventListener('mousedown', function(e) {{
+            isResizingMagnifier = true;
+            resizeStartY = e.clientY;
+            resizeStartHeight = magnifierHeight;
+            magnifierResizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'ns-resize';
+            e.preventDefault();
+        }});
+
+        document.addEventListener('mousemove', function(e) {{
+            if (isResizingMagnifier) {{
+                // Dragging up (negative deltaY) increases height
+                const deltaY = resizeStartY - e.clientY;
+                setMagnifierHeight(resizeStartHeight + deltaY);
+            }}
+        }});
+
+        document.addEventListener('mouseup', function() {{
+            if (isResizingMagnifier) {{
+                isResizingMagnifier = false;
+                magnifierResizeHandle.classList.remove('dragging');
+                document.body.style.cursor = '';
             }}
         }});
     </script>
@@ -1007,14 +1562,18 @@ def get_interactive_crop_viewer(
             container.scrollTop = scrollTop - walkY;
         }});
 
-        // Mouse wheel zoom
+        // Mouse wheel zoom (only with Command/Ctrl key, otherwise allow scrolling)
         container.addEventListener('wheel', function(e) {{
-            e.preventDefault();
-            if (e.deltaY < 0) {{
-                zoomIn();
-            }} else {{
-                zoomOut();
+            if (e.metaKey || e.ctrlKey) {{
+                // Zoom when Command/Ctrl is held
+                e.preventDefault();
+                if (e.deltaY < 0) {{
+                    zoomIn();
+                }} else {{
+                    zoomOut();
+                }}
             }}
+            // Otherwise, let the browser handle normal scrolling for panning
         }}, {{ passive: false }});
 
         function drawMinimap() {{

@@ -14,6 +14,7 @@ from contextlib import contextmanager
 
 from fichero.director.backends.implementations.base import ProcessingResult
 from fichero.director.workflow_logger import WorkflowLogger
+from fichero.director.workflow_manifest import WorkflowManifest
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,11 @@ class WorkflowExecutor:
             
             # Create logger
             workflow_logger = WorkflowLogger(output_path, workflow_name, task_id)
-            
+
+            # Create workflow manifest tracker
+            plan_name = plan_config.get('title', plan_config.get('name', 'Unknown Plan'))
+            manifest = WorkflowManifest(output_path, plan_name, workflow_name, task_id)
+
             # Log workflow steps for this folder
             logger.info(f"📋 Workflow steps for '{folder_name}': {workflow_steps}")
             
@@ -101,6 +106,13 @@ class WorkflowExecutor:
                     )
                 
                 # Execute step
+                # Get step configuration to extract output_scope
+                step_config = commands.get(step_name, {})
+                output_scope = step_config.get('output_scope', None)
+
+                # Record step start in manifest
+                manifest.start_step(i + 1, step_name, output_scope)
+
                 # Notify step start
                 if self.progress_callback:
                     self.progress_callback(task_id, {
@@ -108,8 +120,14 @@ class WorkflowExecutor:
                         "step": step_name,
                         "folder_name": folder_name
                     })
-                
+
                 result = self._execute_step(step_name, commands[step_name], output_path, variables, workflow_logger, parallel_workers, skip_processing)
+
+                # Record step completion in manifest
+                step_success = result.get('success', True) and result.get('failed', 0) == 0
+                manifest_path = self._find_tool_manifest(output_path, step_name)
+                errors = [result.get('error')] if result.get('error') else None
+                manifest.complete_step(i + 1, step_success, manifest_path, errors)
                 
                 # Stop on any error - check both success field and failed count
                 if not result.get('success', True) or result.get('failed', 0) > 0:
@@ -127,11 +145,14 @@ class WorkflowExecutor:
                             "failed_step": step_name,
                             "folder_name": folder_name
                         })
-                    
+
+                    # Finalize workflow manifest (failed)
+                    manifest.finalize(success=False)
+
                     # Log failed completion
                     execution_time = time.time() - start_time
                     logger.error(f"❌ FAILED WORKFLOW for folder: '{folder_name}' at step '{step_name}' after {execution_time:.1f}s (task: {task_id[:8]}...)")
-                    
+
                     return ProcessingResult(
                         task_id=task_id, success=False, folder_path=folder_path,
                         output_path=output_path, error_message=error_msg,
@@ -158,11 +179,14 @@ class WorkflowExecutor:
                     "total_steps": len(workflow_steps),
                     "folder_name": folder_name
                 })
-            
+
+            # Finalize workflow manifest (success)
+            manifest.finalize(success=True)
+
             # Log successful completion
             execution_time = time.time() - start_time
             logger.info(f"✅ COMPLETED WORKFLOW for folder: '{folder_name}' in {execution_time:.1f}s (task: {task_id[:8]}...)")
-            
+
             return ProcessingResult(
                 task_id=task_id, success=True, folder_path=folder_path,
                 output_path=output_path, execution_time=time.time() - start_time
@@ -179,11 +203,15 @@ class WorkflowExecutor:
                     "error": error_msg,
                     "folder_name": folder_name
                 })
-            
+
+            # Finalize workflow manifest (exception)
+            if workflow_logger:
+                manifest.finalize(success=False)
+
             # Log exception completion
             execution_time = time.time() - start_time
             logger.error(f"💥 EXCEPTION in workflow for folder: '{folder_name}' after {execution_time:.1f}s (task: {task_id[:8]}...): {error_msg}")
-            
+
             return ProcessingResult(
                 task_id=task_id, success=False, folder_path=folder_path,
                 output_path=output_path, error_message=error_msg,
@@ -305,5 +333,39 @@ class WorkflowExecutor:
             
             # Log error
             workflow_logger.log_step_error(step_name, error_msg, execution_time)
-            
-            return {'success': False, 'error': error_msg} 
+
+            return {'success': False, 'error': error_msg}
+
+    def _find_tool_manifest(self, output_path: Path, step_name: str) -> Optional[str]:
+        """Find the tool manifest file for a given step
+
+        Args:
+            output_path: Root output directory for this processing run
+            step_name: Name of the step (e.g., "transcribe_qwen_max")
+
+        Returns:
+            Relative path to the tool's manifest file (e.g., "assets/transcriptions/transcriptions_manifest.jsonl")
+            or None if not found
+        """
+        # Look for manifest files matching the pattern *_manifest.jsonl or *_manifest.json
+        manifest_files = list(output_path.rglob("*_manifest.jsonl")) + list(output_path.rglob("*_manifest.json"))
+
+        if not manifest_files:
+            return None
+
+        # If there's only one manifest, return it
+        if len(manifest_files) == 1:
+            return str(manifest_files[0].relative_to(output_path))
+
+        # If there are multiple manifests, try to match based on step name
+        # For example, "transcribe_qwen_max" should match "transcriptions_manifest.jsonl"
+        step_keywords = step_name.lower().split('_')
+
+        for manifest_file in manifest_files:
+            manifest_name = manifest_file.stem.lower()  # Get filename without extension
+            # Check if any keyword from step name appears in manifest name
+            if any(keyword in manifest_name for keyword in step_keywords):
+                return str(manifest_file.relative_to(output_path))
+
+        # Fallback: return the first manifest found
+        return str(manifest_files[0].relative_to(output_path))

@@ -55,19 +55,35 @@ class AdjustView(BaseView):
 
         logger.info("AdjustView (SIMPLIFIED) initialized")
 
+    def _create_view_structure(self):
+        """
+        Override BaseView's structure to use OptionContainer as root.
+
+        OptionContainer MUST be the root container (cannot be nested in Box)
+        because it's a special Toga widget that manages its own layout.
+        """
+        try:
+            # Create content first (creates tab_container as OptionContainer)
+            self._create_content()
+
+            # Use OptionContainer directly as the main container
+            # (OptionContainer cannot be added to a Box - it must be the root)
+            self.container = self.tab_container
+
+            logger.debug("AdjustView structure created (OptionContainer as root)")
+
+        except Exception as e:
+            logger.error(f"Failed to create AdjustView structure: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create fallback container
+            self.container = toga.Box(style=Pack(direction=COLUMN))
+            self.tab_container = None
+
     def _create_content(self):
         """Create tabbed metadata display"""
-        # CRITICAL FIX: OptionContainer must NOT be inside a ScrollContainer
-        # Remove the BaseView's ScrollContainer and add tabs directly to main container
-        # BaseView creates: container -> scroll_container -> content_container
-        # We need: container -> tab_container (OptionContainer manages its own scrolling per tab)
-
-        # Remove scroll container from parent (it was added by BaseView)
-        if self.scroll_container and self.scroll_container in self.container.children:
-            self.container.remove(self.scroll_container)
-            logger.debug("Removed ScrollContainer - OptionContainer manages its own scrolling")
-
-        # Create tabs directly (no wrapper box needed - OptionContainer handles its own layout)
+        # Create tabs (OptionContainer handles its own layout and scrolling)
+        # OptionContainer will be used as the root container
         self.tab_container = toga.OptionContainer(
             style=Pack(flex=1)
         )
@@ -100,16 +116,13 @@ class AdjustView(BaseView):
             style=Pack(flex=1, font_family='monospace', font_size=11)
         )
 
-        # Add tabs to container
-        self.tab_container.add("Info", self.info_box)
-        self.tab_container.add("Transcription", self.transcription_box)
-        self.tab_container.add("Metadata", self.metadata_box)
-        self.tab_container.add("JSON", self.json_box)
+        # Add tabs to OptionContainer using .content.append() (correct Toga API)
+        self.tab_container.content.append("Info", self.info_box)
+        self.tab_container.content.append("Transcription", self.transcription_box)
+        self.tab_container.content.append("Metadata", self.metadata_box)
+        self.tab_container.content.append("JSON", self.json_box)
 
-        # Add OptionContainer directly to main container (bypassing scroll_container)
-        self.container.add(self.tab_container)
-
-        logger.debug("Metadata panel created with 4 tabs (OptionContainer manages own scrolling)")
+        logger.debug("Metadata panel created with 4 tabs")
 
     def _add_placeholder(self, container: toga.Box, text: str):
         """Add placeholder text to a container"""
@@ -158,9 +171,9 @@ class AdjustView(BaseView):
             await self._load_info_tab(item)
             await self._load_transcription_tab(item_id, output_data)
             await self._load_metadata_tab(item_id, output_data)
-            await self._load_json_tab(item)
+            await self._load_json_tab(item, output_data)
 
-            logger.info("✅ Item details loaded")
+            logger.info("Item details loaded")
 
         except Exception as e:
             logger.error(f"Failed to load item details: {e}")
@@ -173,7 +186,7 @@ class AdjustView(BaseView):
             # Clear existing content
             self.info_box.content.clear()
 
-            info_container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+            info_container = toga.Box(style=Pack(direction=COLUMN, margin=10))
 
             # File name
             file_path = item.metadata.get('local_path') or item.metadata.get('file_path', '')
@@ -233,124 +246,153 @@ class AdjustView(BaseView):
         container.add(row)
 
     async def _load_transcription_tab(self, item_id: str, output_data: Optional[Dict] = None):
-        """Load transcription tab - shows latest transcription output
+        """Load transcription tab by querying ExtractedMetadata directly with item_id
+
+        This method queries the metadata system directly without needing manifest files.
+        The database is the source of truth for all transcriptions.
 
         Args:
             item_id: ID of the item
-            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
+            output_data: DEPRECATED - kept for backward compatibility but ignored
         """
         try:
-            # REFACTORED: Use cached output_data if available
-            if not output_data:
-                logger.debug("⚠️ No cached output_data provided for transcription tab, fetching from library_manager")
-                output_data = await self.library_manager.get_item_output_data(item_id)
+            # Direct query - no manifest lookups needed!
+            metadata_entries = self.library_manager.storage.get_extracted_metadata_by_item(
+                item_id=item_id,
+                schema_type='transcription',
+                key='text'
+            )
+
+            if metadata_entries:
+                transcription_text = metadata_entries[0].value  # Newest first from query
+                logger.debug(f"Loaded transcription from ExtractedMetadata ({len(transcription_text)} chars)")
             else:
-                logger.debug("✅ Using cached output_data for transcription tab (no database query)")
-
-            transcription_text = ""
-
-            if output_data and output_data.get('has_outputs'):
-                # Find transcription step
-                steps = output_data.get('processing_steps', [])
-                for step in reversed(steps):  # Check newest first
-                    if 'transcribe' in step.tool_name.lower():
-                        # Read transcription file
-                        file_path = step.file_path
-                        if file_path and file_path.exists():
-                            if file_path.suffix.lower() == '.json':
-                                # Parse JSON transcription
-                                import json
-                                data = json.loads(file_path.read_text())
-                                if isinstance(data, dict) and 'transcription' in data:
-                                    transcription_text = data['transcription']
-                                elif isinstance(data, str):
-                                    transcription_text = data
-                                else:
-                                    transcription_text = json.dumps(data, indent=2)
-                            else:
-                                # Plain text
-                                transcription_text = file_path.read_text()
-                            break
-
-            if not transcription_text:
-                transcription_text = "No transcription available yet.\n\nTranscription will appear here after processing."
+                transcription_text = "No transcription available"
+                logger.debug(f"No transcription found for item {item_id}")
 
             # Update text input
-            if isinstance(self.transcription_box, toga.MultilineTextInput):
+            if self.transcription_box:
                 self.transcription_box.value = transcription_text
 
         except Exception as e:
             logger.error(f"Failed to load transcription: {e}")
-            if isinstance(self.transcription_box, toga.MultilineTextInput):
+            if self.transcription_box:
                 self.transcription_box.value = f"Error loading transcription: {e}"
 
     async def _load_metadata_tab(self, item_id: str, output_data: Optional[Dict] = None):
-        """Load metadata tab - shows extracted metadata
+        """Load metadata tab by querying ExtractedMetadata directly with item_id
+
+        This method queries the metadata system directly without needing manifest files.
+        Shows all metadata for the item, grouped by schema type.
 
         Args:
             item_id: ID of the item
-            output_data: Optional pre-fetched output data (prevents re-querying library_manager)
+            output_data: DEPRECATED - kept for backward compatibility but ignored
         """
         try:
             # Clear existing content
             self.metadata_box.content.clear()
 
-            metadata_container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+            metadata_container = toga.Box(style=Pack(direction=COLUMN, margin=10))
 
-            # REFACTORED: Use cached output_data if available
-            if not output_data:
-                logger.debug("⚠️ No cached output_data provided for metadata tab, fetching from library_manager")
-                output_data = await self.library_manager.get_item_output_data(item_id)
+            # Direct query - get ALL metadata for this item
+            metadata_entries = self.library_manager.storage.get_extracted_metadata_by_item(
+                item_id=item_id
+            )
+
+            if metadata_entries:
+                # Group by source_label first (processing step), then by schema_type
+                metadata_by_source = {}
+                for entry in metadata_entries:
+                    source = entry.source_label
+                    if source not in metadata_by_source:
+                        metadata_by_source[source] = {}
+
+                    schema = entry.schema_type
+                    if schema not in metadata_by_source[source]:
+                        metadata_by_source[source][schema] = []
+                    metadata_by_source[source][schema].append(entry)
+
+                # Display by source
+                for source, schemas in metadata_by_source.items():
+                    # Add source header
+                    self._add_info_row(metadata_container, "Source", source)
+
+                    # Priority schemas: transcription, catalogue, translation
+                    priority_schemas = ['transcription', 'catalogue', 'translation']
+
+                    # Show priority schemas first
+                    for schema in priority_schemas:
+                        if schema in schemas:
+                            if len(schemas) > 1:
+                                # Add schema header if multiple schemas
+                                self._add_info_row(metadata_container, "Schema", schema.title())
+
+                            for entry in schemas[schema]:
+                                if entry.value:  # Only show non-empty values
+                                    label = entry.key.replace('_', ' ').title()
+                                    self._add_info_row(metadata_container, label, entry.value)
+
+                    # Show remaining schemas
+                    for schema, entries in schemas.items():
+                        if schema not in priority_schemas:
+                            if len(schemas) > 1:
+                                self._add_info_row(metadata_container, "Schema", schema.title())
+
+                            for entry in entries:
+                                if entry.value:
+                                    label = entry.key.replace('_', ' ').title()
+                                    self._add_info_row(metadata_container, label, entry.value)
+
+                logger.debug(f"Loaded {len(metadata_entries)} metadata entries from ExtractedMetadata")
             else:
-                logger.debug("✅ Using cached output_data for metadata tab (no database query)")
-
-            metadata_found = False
-
-            if output_data and output_data.get('has_outputs'):
-                # Find metadata extraction step
-                steps = output_data.get('processing_steps', [])
-                for step in reversed(steps):  # Check newest first
-                    if 'metadata' in step.tool_name.lower() or 'extract' in step.tool_name.lower():
-                        # Read metadata file
-                        file_path = step.file_path
-                        if file_path and file_path.exists():
-                            import json
-                            data = json.loads(file_path.read_text())
-
-                            # Display metadata fields
-                            for key, value in data.items():
-                                self._add_info_row(metadata_container, key.replace('_', ' ').title(), str(value))
-
-                            metadata_found = True
-                            break
-
-            if not metadata_found:
-                self._add_placeholder(metadata_container, "No metadata extracted yet.\n\nMetadata will appear here after processing.")
+                self._add_placeholder(metadata_container, "No metadata available yet")
 
             self.metadata_box.content = metadata_container
 
         except Exception as e:
             logger.error(f"Failed to load metadata: {e}")
+            import traceback
+            traceback.print_exc()
             self.metadata_box.content.clear()
             self._add_placeholder(self.metadata_box.content, f"Error loading metadata: {e}")
 
-    async def _load_json_tab(self, item):
-        """Load JSON tab - shows raw item data"""
+    async def _load_json_tab(self, item, output_data: Optional[Dict] = None):
+        """Load JSON tab - shows raw processing output JSON files
+
+        Args:
+            item: The item to display
+            output_data: Optional pre-fetched output data
+        """
         try:
             import json
+            json_text = ""
 
-            # Get item as dict
-            item_dict = {
-                'id': item.id,
-                'name': item.name,
-                'type': item.type.value if hasattr(item.type, 'value') else str(item.type),
-                'metadata': item.metadata,
-                'created_at': item.created_at.isoformat() if item.created_at else None,
-                'updated_at': item.updated_at.isoformat() if item.updated_at else None,
-            }
+            # Try to get processing output JSON first
+            if not output_data:
+                output_data = await self.library_manager.get_item_output_data(item.id)
 
-            # Format as pretty JSON
-            json_text = json.dumps(item_dict, indent=2, ensure_ascii=False)
+            if output_data and output_data.get('has_outputs'):
+                steps = output_data.get('processing_steps', [])
+                # Find latest JSON output (prefer catalogue, then transcribe, then any JSON)
+                for step in reversed(steps):
+                    if step.file_path and step.file_path.exists() and step.file_path.suffix.lower() == '.json':
+                        json_text = step.file_path.read_text()
+                        logger.debug(f"Showing JSON from: {step.tool_name}")
+                        break
+
+            # Fallback to item metadata if no processing outputs
+            if not json_text:
+                item_dict = {
+                    'id': item.id,
+                    'name': item.name,
+                    'type': item.type.value if hasattr(item.type, 'value') else str(item.type),
+                    'metadata': item.metadata,
+                    'created_at': item.created_at.isoformat() if item.created_at else None,
+                    'updated_at': item.updated_at.isoformat() if item.updated_at else None,
+                }
+                json_text = json.dumps(item_dict, indent=2, ensure_ascii=False)
+                logger.debug("Showing item metadata (no processing outputs)")
 
             # Update text input
             if isinstance(self.json_box, toga.MultilineTextInput):

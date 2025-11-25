@@ -1,13 +1,15 @@
 """
-Preview View Module
+Preview Module - Dedicated Preview Panes
 
-Displays processing outputs with flexible dual-pane comparison,
-file navigation, and step navigation.
+Contains specialized preview components:
+- PreviewImagePane: For displaying processed images
+- PreviewMetadataPane: For displaying transcriptions and metadata
 
-Renamed from OutputView (Phase 2.3) to better reflect its role as a preview/display view,
-distinct from adjustment/editing functionality.
+Simplified from the complex old PreviewView system.
 """
 
+from .preview_image_pane import PreviewImagePane
+from .preview_metadata_pane import PreviewMetadataPane
 from .preview_view import PreviewView
 
-__all__ = ['PreviewView']
+__all__ = ['PreviewImagePane', 'PreviewMetadataPane', 'PreviewView']

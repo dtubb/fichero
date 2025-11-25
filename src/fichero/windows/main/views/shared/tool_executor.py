@@ -386,42 +386,6 @@ class ToolExecutor:
             except Exception as e:
                 self.logger.warning(f"Failed to cleanup temp manifest: {e}")
 
-    async def _run_transcribe_lmstudio(self, input_path: Path, output_folder: Path,
-                                      parameters: Dict[str, Any]) -> bool:
-        """Run transcribe_lmstudio tool"""
-        from fichero.tools.transcribe_lmstudio import transcribe_batch
-        import tempfile
-        import json
-        import os
-
-        # Create temporary manifest for single item
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-            manifest_entry = {'source': str(input_path), 'outputs': [str(input_path)]}
-            f.write(json.dumps(manifest_entry) + '\n')
-            temp_manifest = f.name
-
-        try:
-            # CRITICAL-2: Remove invalid 'prompt' parameter
-            # CRITICAL-5: Use asyncio.to_thread
-            result = await asyncio.to_thread(
-                transcribe_batch,
-                input_path.parent,
-                Path(temp_manifest),
-                output_folder,
-                parameters.get('api_url', 'http://localhost:1234'),
-                parameters.get('model_name', 'llava-1.5-7b-hf')
-                # REMOVED: prompt parameter doesn't exist in function signature
-            )
-            # CRITICAL-6: Fix return value structure (returns success/failed counts)
-            return result.get('success', 0) > 0
-        finally:
-            # CRITICAL-7: Proper cleanup error handling
-            try:
-                if os.path.exists(temp_manifest):
-                    Path(temp_manifest).unlink()
-            except Exception as e:
-                self.logger.warning(f"Failed to cleanup temp manifest: {e}")
-
     async def _run_describe(self, input_path: Path, output_folder: Path,
                            parameters: Dict[str, Any]) -> bool:
         """Run describe tool"""

@@ -397,10 +397,6 @@ class InspectorWindow:
 
         logger.info(f"📂 _update_folder_content: folder_data has {len(folder_data)} fields: {list(folder_data.keys())}")
 
-        # Log director fields if present
-        if 'director_status' in folder_data:
-            logger.info(f"   Director status: {folder_data.get('director_status')}, workflow: {folder_data.get('director_workflow')}, output: {folder_data.get('director_output_path')}")
-
         # General tab - folder info
         general_rows = [
             ("Folder name:", folder_data.get('name', folder_data.get('Name', folder_data.get('Folder', 'Unknown')))),
@@ -840,27 +836,11 @@ class InspectorWindow:
                     self._add_text_to_container(self.workflows_container, "Library manager not available")
                     return
 
-                # Check for running workflow (from item metadata)
-                director_status = self.current_metadata.get('director_status')
-                director_progress = self.current_metadata.get('director_progress', 0)
-                director_workflow = self.current_metadata.get('director_workflow')
-
-                if director_status and director_status in ('pending', 'running'):
-                    # Show running status at the top
-                    self._add_running_workflow_status(
-                        self.workflows_container,
-                        director_workflow or "Processing",
-                        director_status,
-                        director_progress
-                    )
-                    # Add divider after running status
-                    self._add_workflow_divider(self.workflows_container)
-
                 try:
                     # Query database for ALL workflow runs for this item
                     processing_history = self.app.library_manager.storage.get_processing_history(item_id)
 
-                    if not processing_history and director_status not in ('pending', 'running'):
+                    if not processing_history:
                         self._add_text_to_container(self.workflows_container, "No workflow processing for this item")
                         return
 
@@ -1414,6 +1394,10 @@ class InspectorWindow:
 
             # Position window on right side of screen
             self._position_window()
+
+            # Register with window state tracker for position/size persistence
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.register_window("inspector", self.window, restore=True)
 
             logger.info("Inspector window created successfully with fixed tabs")
 

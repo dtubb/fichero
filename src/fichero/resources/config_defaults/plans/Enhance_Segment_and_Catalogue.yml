@@ -32,19 +32,16 @@ vars:
   prompt: ''
 
 workflows:
-  # Simple enhance + segment workflow - recommended for large archival scans
+  # Default workflow - simple OCR with streaming (recommended for most documents)
   Default:
     - build_documents_manifest
     - enhance
-    - segment
-    - transcribe_qwen_max_segmented
-    - recombine_segments
-    - fuzzy_clean
+    - transcribe_qwen_ocr
     - catalogue_folder
     - convert_to_word_segmented
     - catalogue_to_word
 
-  # Full enhancement pipeline + segmentation - for documents needing complete processing
+  # Full enhancement pipeline - for documents needing complete processing
   Full:
     - build_documents_manifest
     - crop
@@ -52,8 +49,7 @@ workflows:
     - rotate
     - enhance
     - remove_background
-    - segment
-    - transcribe_qwen_max_segmented
+    - transcribe_qwen_ocr
     - catalogue_folder
     - convert_to_word_segmented
     - catalogue_to_word
@@ -63,6 +59,7 @@ commands:
     worker_type: "io"
     help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    output_scope: "intermediate"  # Processing only - not displayed in UI
     args:
       source_folder: "documents"
       output_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -73,6 +70,7 @@ commands:
     worker_type: "cpu"
     help: "Crop documents using computer vision techniques"
     function: "fichero.tools.crop.crop_batch"
+    output_scope: "intermediate"  # Processing step - cropped images not typically displayed
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -88,6 +86,7 @@ commands:
     worker_type: "cpu"
     help: "Split cropped images"
     function: "fichero.tools.split.split_batch"
+    output_scope: "intermediate"  # Processing step - split images not typically displayed
     args:
       source_folder: "assets/crops"
       source_manifest: "assets/crops/crop_manifest.jsonl"
@@ -102,6 +101,7 @@ commands:
     worker_type: "cpu"
     help: "Rotate the split images to straighten text."
     function: "fichero.tools.rotate.rotate_batch"
+    output_scope: "intermediate"  # Processing step - rotated images not typically displayed
     args:
       source_folder: "assets/split"
       source_manifest: "assets/split/split_manifest.jsonl"
@@ -115,6 +115,7 @@ commands:
     worker_type: "cpu"
     help: "Enhance image quality with contrast and clarity improvements"
     function: "fichero.tools.enhance.enhance_batch"
+    output_scope: "leaf"  # File-level output - enhanced images displayed in preview
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -129,6 +130,7 @@ commands:
     worker_type: "cpu"
     help: "Remove background from enhanced images"
     function: "fichero.tools.remove_background.remove_background_batch"
+    output_scope: "intermediate"  # Processing step - background removed images typically intermediate
     args:
       source_folder: "assets/enhanced"
       source_manifest: "assets/enhanced/enhance_manifest.jsonl"
@@ -144,6 +146,7 @@ commands:
     worker_type: "cpu"
     help: "Segment large enhanced images into smaller tiles for better transcription"
     function: "fichero.tools.segment.segment_batch"
+    output_scope: "intermediate"  # Processing step - segmented tiles not displayed in UI
     args:
       source_folder: "assets/enhanced"
       source_manifest: "assets/enhanced/enhance_manifest.jsonl"
@@ -158,11 +161,30 @@ commands:
   - name: transcribe_qwen_max_segmented
     worker_type: "io"
     help: "Transcribe segmented images using Qwen VL Max model"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "intermediate"  # Processing step - segment transcriptions get recombined
     args:
       source_folder: "assets/segmented"
       source_manifest: "assets/segmented/segment_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
+    outputs:
+      - "assets/transcriptions"
+      - "assets/transcriptions/transcriptions_manifest.jsonl"
+
+  - name: transcribe_qwen_ocr
+    worker_type: "io"
+    help: "Transcribe images using Qwen VL OCR model"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "leaf"  # File-level output - OCR transcriptions displayed with documents
+    args:
+      source_folder: "assets/enhanced"
+      source_manifest: "assets/enhanced/enhance_manifest.jsonl"
+      output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
+      prompt: "Extract all text from this image. Return plain text only."
     outputs:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"
@@ -171,6 +193,7 @@ commands:
     worker_type: "io"
     help: "Recombine transcribed segments into complete documents"
     function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    output_scope: "intermediate"  # Processing step - recombined transcriptions get cleaned
     args:
       transcriptions_folder: "assets/transcriptions"
       output_folder: "assets/recombined"
@@ -184,6 +207,7 @@ commands:
     worker_type: "io"
     help: "Clean up repeated text from recombined transcriptions"
     function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "leaf"  # File-level output - final transcriptions displayed with documents
     args:
       source_folder: "assets/recombined"
       source_manifest: "assets/recombined/recombine_manifest.jsonl"
@@ -196,6 +220,7 @@ commands:
     worker_type: "io"
     help: "Process cleaned transcriptions through configurable LLM pipeline for catalogue generation"
     function: "fichero.tools.llm_process.process_documents_batch"
+    output_scope: "node"  # Collection-level output - catalogues, timelines, people, places for collection
     args:
       source_folder: "assets/cleaned"
       source_manifest: "assets/cleaned/cleaned_manifest.jsonl"
@@ -209,6 +234,7 @@ commands:
     worker_type: "io"
     help: "Convert enhanced images and recombined transcriptions to Word documents with side-by-side layout"
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
+    output_scope: "leaf"  # File-level output - individual Word documents for each source document
     depends_on:
       - "fuzzy_clean"
     args:
@@ -223,6 +249,7 @@ commands:
     worker_type: "io"
     help: "Convert catalogue JSON files to Word documents"
     function: "fichero.tools.json_to_word.json_to_word_batch"
+    output_scope: "node"  # Collection-level output - catalogue Word documents for collection overview
     args:
       source_folder: "assets/llm_catalogue"
       source_manifest: "assets/llm_catalogue/llm_process_manifest.jsonl"

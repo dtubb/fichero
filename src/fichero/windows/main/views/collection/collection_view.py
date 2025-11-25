@@ -37,7 +37,6 @@ class CollectionView(BaseView, ViewCommandMixin):
         'segment': ('Segment', 'SegmentTest'),
         'recombine': ('RecombineSegments', 'RecombineTest'),
         'transcribe': ('Transcribe', 'TranscribeTest'),
-        'transcribe_lmstudio': ('TranscribeLMStudio', 'TranscribeLMStudioTest'),
         'describe': ('Describe', 'DescribeTest'),
         'llm': ('LLMProcess', 'LLMProcessTest'),
         'convert_word': ('ConvertToWord', 'ConvertToWordTest'),
@@ -4113,11 +4112,8 @@ class CollectionView(BaseView, ViewCommandMixin):
                 logger.debug(f"Item {item_id} not found in collection after reload")
                 return
 
-            # Update the item's status
-            self.collection_items[item_index]["director_status"] = status
-            self.collection_items[item_index]["director_task_id"] = task_id
-            self.collection_items[item_index]["progress"] = 100
-
+            # Item status is updated in the database via director_integration.py
+            # Just refresh the display to show the updated status
             # Refresh the display
             if hasattr(self, 'items_list') and self.items_list:
                 try:

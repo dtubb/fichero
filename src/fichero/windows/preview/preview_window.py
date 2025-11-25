@@ -44,7 +44,11 @@ class PreviewWindow:
         
         # Center the window
         self._center_window()
-        
+
+        # Register with window state tracker for position/size persistence
+        if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+            self.app.window_state_tracker.register_window("preview", self.window, restore=True)
+
         logger.info(f"PreviewWindow initialized for: {file_path or 'no file'}")
     
     def _center_window(self):

@@ -35,7 +35,11 @@ class ProcessingWindow:
         
         # Center the window
         self._center_window()
-        
+
+        # Register with window state tracker for position/size persistence
+        if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+            self.app.window_state_tracker.register_window("processing", self.window, restore=True)
+
         logger.info("Processing window initialized successfully")
     
     def _center_window(self):

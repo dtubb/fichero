@@ -28,12 +28,16 @@ commands:
 
   - name: transcribe
     worker_type: "io"
-    help: "Transcribe images using AI models (Qwen Max)"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    help: "Transcribe images using AI models with async DashScope (file-based)"
+    function: "fichero.tools.transcribe.transcribe_batch"
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-max"
+      use_async: true
+      max_concurrent: 15
     outputs:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"

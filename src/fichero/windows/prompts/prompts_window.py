@@ -23,7 +23,11 @@ class PromptsWindow:
         
         # Use the library's window directly (Toga way)
         self.window = self.prompts_library.window
-        
+
+        # Register with window state tracker for position/size persistence
+        if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+            self.app.window_state_tracker.register_window("prompts", self.window, restore=True)
+
         logger.info("PromptsWindow initialized")
     
     def show(self):

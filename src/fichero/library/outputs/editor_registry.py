@@ -35,7 +35,7 @@ class EditorRegistry:
         json_editor = JSONEditor()
         self.register_editor(json_editor)
         self._tool_map['transcribe_qwen_max'] = json_editor
-        self._tool_map['transcribe_lmstudio'] = json_editor
+        self._tool_map['transcribe'] = json_editor
         self._tool_map['catalogue_folder'] = json_editor
         self._tool_map['llm_process'] = json_editor
 

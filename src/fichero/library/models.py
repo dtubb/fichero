@@ -54,13 +54,15 @@ class Collection:
 class CollectionItem:
     """Represents an individual item within a collection
 
-    Metadata fields for Director integration:
-        - director_task_id (str): Links to Director task
-        - director_workflow (str): Workflow name used
-        - director_output_path (str): Path to output folder
-        - director_status (str): "pending" | "running" | "success" | "failed"
-        - director_progress (float): 0-100
-        - director_error (str): Error message if failed
+    Note: Director processing data is now tracked in the ProcessingResult table,
+    NOT in the metadata dict. The item.status field reflects processing state:
+        - "pending": Not yet processed
+        - "processing": Currently being processed
+        - "completed": Successfully processed
+        - "error": Processing failed or was cancelled
+
+    Use ProcessingResult table for detailed workflow information (workflow name,
+    output paths, step status, etc.)
     """
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -256,7 +258,8 @@ class ExtractedMetadata:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     processing_output_id: str = ""  # FK to ProcessingOutput
     collection_id: str = ""  # For easier querying
-    item_id: Optional[str] = None  # For file-level metadata
+    item_id: Optional[str] = None  # For file-level metadata (None for collection-level)
+    collection_level: bool = False  # True for collection-level metadata, False for file-level
 
     # Metadata schema and versioning
     schema_type: str = ""  # Schema: "transcription", "translation", "catalogue", "named_entities", etc.
@@ -286,6 +289,7 @@ class ExtractedMetadata:
             "processing_output_id": self.processing_output_id,
             "collection_id": self.collection_id,
             "item_id": self.item_id,
+            "collection_level": self.collection_level,
             "schema_type": self.schema_type,
             "source_label": self.source_label,
             "version": self.version,
@@ -315,6 +319,7 @@ class ExtractedMetadata:
         data.setdefault('version', 1)
         data.setdefault('schema_version', 1)
         data.setdefault('custom_fields', {})
+        data.setdefault('collection_level', False)
 
         return cls(**data)
 

@@ -90,7 +90,7 @@ class RendererRegistry:
         self._renderers['recombine_segments'] = UniversalImageRenderer
 
         self._renderers['transcribe_qwen_max'] = TextRenderer
-        self._renderers['transcribe_lmstudio'] = TextRenderer
+        self._renderers['transcribe'] = TextRenderer
         self._renderers['describe_images'] = TextRenderer
         self._renderers['llm_process'] = JsonRenderer
         self._renderers['extract_library_metadata'] = JsonRenderer

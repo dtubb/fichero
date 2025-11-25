@@ -207,41 +207,39 @@ class TextRenderer(BaseRenderer):
     """
 
     def render_html(self, context: RenderContext) -> RenderedOutput:
-        """Default HTML rendering for text"""
+        """
+        Render text content as HTML.
+
+        For now, displays just the text content in a clean, readable format.
+        Future enhancements could add optional metadata display, search highlighting, etc.
+        """
         html_parts = []
 
-        # Title
-        html_parts.append(f'<h2>{context.step_name}</h2>')
+        # Add custom styling for better text display
+        html_parts.append('<style>')
+        html_parts.append('body { margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }')
+        html_parts.append('.text-content { line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }')
+        html_parts.append('</style>')
 
-        # Content
+        # Content - just the text, no header or stats
         if context.show_content and context.file_content:
             html_parts.append('<div class="text-content">')
-            html_parts.append('<pre style="white-space: pre-wrap; font-family: monospace;">')
             html_parts.append(context.file_content)
-            html_parts.append('</pre>')
             html_parts.append('</div>')
+        elif not context.file_content:
+            html_parts.append('<div class="text-content"><em>No content available</em></div>')
 
-        # Metadata
-        if context.show_metadata:
-            file_size = context.file_path.stat().st_size
-            line_count = len(context.file_content.split('\n')) if context.file_content else 0
-            char_count = len(context.file_content) if context.file_content else 0
-
-            html_parts.append('<div class="metadata">')
-            html_parts.append('<h3>Text Info</h3>')
-            html_parts.append('<table>')
-            html_parts.append(f'<tr><th>Lines</th><td>{line_count}</td></tr>')
-            html_parts.append(f'<tr><th>Characters</th><td>{char_count}</td></tr>')
-            html_parts.append(f'<tr><th>Size</th><td>{file_size} bytes</td></tr>')
-            html_parts.append('</table>')
-            html_parts.append('</div>')
-
-            # Manifest
-            if context.manifest_entry:
-                html_parts.append('<h3>Processing Info</h3>')
-                html_parts.append('<pre>')
-                html_parts.append(json.dumps(context.manifest_entry, indent=2))
-                html_parts.append('</pre>')
+        # Metadata section (for future use, currently commented out)
+        # if context.show_metadata and context.show_debug_info:
+        #     file_size = context.file_path.stat().st_size
+        #     line_count = len(context.file_content.split('\n')) if context.file_content else 0
+        #     char_count = len(context.file_content) if context.file_content else 0
+        #
+        #     html_parts.append('<hr style="margin-top: 40px;">')
+        #     html_parts.append('<div class="metadata" style="color: #666; font-size: 0.9em;">')
+        #     html_parts.append('<h3>Document Info</h3>')
+        #     html_parts.append(f'<p>Lines: {line_count} | Characters: {char_count} | Size: {file_size} bytes</p>')
+        #     html_parts.append('</div>')
 
         return RenderedOutput(
             html='\n'.join(html_parts),

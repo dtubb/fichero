@@ -29,6 +29,10 @@ class AboutWindow:
         
         # Center the window
         self._center_window()
+
+        # Register with window state tracker for position/size persistence
+        if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+            self.app.window_state_tracker.register_window("about", self.window, restore=True)
     
     def _center_window(self):
         """Center the window on screen"""

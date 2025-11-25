@@ -1,7 +1,19 @@
 """
 App Preferences Manager
-Handles non-user-editable app state like active settings file, window positions, etc.
-This is separate from user settings to avoid circular dependencies.
+
+DEPRECATED: This module is being phased out in favor of StateManager.
+The StateManager (state_manager.py) now handles all application state including:
+- Window positions and sizes (via WindowStateTracker with native macOS support)
+- User preferences (migrated from app_preferences.json)
+- Session state (last collection, item, etc.)
+- Preview viewer state (zoom, scroll, rotation)
+
+This module is kept for backward compatibility and migration purposes.
+New code should use StateManager instead.
+
+Legacy functionality:
+- Handles non-user-editable app state like active settings file, window positions, etc.
+- This is separate from user settings to avoid circular dependencies.
 """
 
 import json

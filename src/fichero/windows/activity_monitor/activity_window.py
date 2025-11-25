@@ -82,7 +82,11 @@ class ActivityMonitorWindow:
             
             # Center the window
             self._center_window()
-            
+
+            # Register with window state tracker for position/size persistence
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.register_window("activity", self.window, restore=True)
+
             logger.info("Activity monitor window created successfully")
             
         except Exception as e:

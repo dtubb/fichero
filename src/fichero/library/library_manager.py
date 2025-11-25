@@ -26,7 +26,6 @@ try:
     from fichero.library.url_downloader import URLDownloader
     from fichero.library.icon_generator import IconGenerator
     from fichero.library.director_output_parser import DirectorOutputParser, ProcessingStep
-    from fichero.library.metadata_api import LibraryMetadataAPI
     from fichero.library.search_service import SearchService, SearchResponse
 except ImportError:
     try:
@@ -36,7 +35,6 @@ except ImportError:
         from .url_downloader import URLDownloader
         from .icon_generator import IconGenerator
         from .director_output_parser import DirectorOutputParser, ProcessingStep
-        from .metadata_api import LibraryMetadataAPI
         from .search_service import SearchService, SearchResponse
     except ImportError:
         # Direct import for testing
@@ -45,7 +43,6 @@ except ImportError:
         import import_export
         import url_downloader
         import icon_generator
-        import metadata_api
         Collection = models.Collection
         CollectionItem = models.CollectionItem
         ProcessingResult = models.ProcessingResult
@@ -55,14 +52,114 @@ except ImportError:
         CollectionImporter = import_export.CollectionImporter
         URLDownloader = url_downloader.URLDownloader
         IconGenerator = icon_generator.IconGenerator
-        LibraryMetadataAPI = metadata_api.LibraryMetadataAPI
 
 logger = logging.getLogger(__name__)
 
 
 class LibraryManager:
-    """Main library management system for Fichero"""
-    
+    """
+    Main library management system for Fichero.
+
+    ASYNC DESIGN NOTES:
+    ===================
+
+    The LibraryManager uses async methods throughout, but only SOME operations
+    actually benefit from async execution. Understanding which operations are
+    truly async vs "async wrappers" is important for performance.
+
+    TRULY ASYNC OPERATIONS (significant performance benefit):
+    ----------------------------------------------------------
+    - URL operations (download_url_item, download_collection_urls):
+        * Uses aiohttp for concurrent network I/O
+        * Benefit: 10x speedup via concurrent downloads
+        * Use asyncio.gather() for multiple URLs:
+            results = await asyncio.gather(*[download_url_item(id) for id in ids])
+
+    - Thumbnail generation (get_item_icon in batch):
+        * Uses asyncio.to_thread() for concurrent PIL operations
+        * Benefit: 3-5x speedup for large batches
+        * Use asyncio.gather() for multiple thumbnails:
+            icons = await asyncio.gather(*[get_item_icon(path) for path in paths])
+
+    ASYNC WRAPPERS (minimal or no performance benefit):
+    ----------------------------------------------------
+    - Database operations (get_collection, update_item, etc.):
+        * Uses synchronous sqlite3 (NOT aiosqlite)
+        * Benefit: ZERO (just overhead)
+        * Should be called sequentially, NOT with gather():
+            collection = await get_collection(id)  # Don't use gather() here
+
+    - File operations (add_item, import_folder, etc.):
+        * Uses synchronous shutil and Path
+        * Benefit: ZERO (blocks event loop)
+        * Should be called sequentially:
+            item = await add_item(collection_id, path)  # Don't use gather() here
+
+    USING LIBRARYMANAGER FROM UI/CLI:
+    ==================================
+
+    Option 1: Use LibraryManagerSync wrapper (recommended for UI):
+    ----------------------------------------------------------------
+        from fichero.library.sync_wrapper import LibraryManagerSync
+
+        library_sync = LibraryManagerSync(library_manager)
+        collection = library_sync.get_collection(id)  # Synchronous call
+
+        Benefits:
+        - No event loop conflicts
+        - Simple, straightforward code
+        - Works from Toga callbacks (sync context)
+
+    Option 2: Use EventLoopManager (for many operations):
+    -------------------------------------------------------
+        from fichero.utils.event_loop_manager import EventLoopManager
+
+        # At app startup
+        EventLoopManager.start()
+
+        # During app lifecycle
+        result = EventLoopManager.run_async(library_manager.get_collection(id))
+
+        # At app shutdown
+        EventLoopManager.shutdown()
+
+        Benefits:
+        - More efficient for many operations (reuses event loop)
+        - Single background thread with managed lifecycle
+
+    Option 3: Use async/await directly (for async contexts only):
+    ---------------------------------------------------------------
+        async def some_async_function():
+            collection = await library_manager.get_collection(id)
+
+        Benefits:
+        - Natural async code
+        - Can use asyncio.gather() for concurrent operations
+
+    WHEN TO USE CONCURRENT EXECUTION:
+    ==================================
+
+    Use asyncio.gather() for:
+    - ✅ Multiple URL downloads (10x speedup)
+    - ✅ Multiple thumbnail generations (3-5x speedup)
+
+    Don't use asyncio.gather() for:
+    - ❌ Sequential database queries (no benefit, just overhead)
+    - ❌ File operations (blocks anyway, no benefit)
+
+    Example of good concurrent usage:
+        # Good: Concurrent URL downloads
+        url_items = [item1, item2, item3, ...]
+        results = await asyncio.gather(*[download_url_item(item.id) for item in url_items])
+
+    Example of bad concurrent usage:
+        # Bad: Concurrent database queries (no benefit)
+        item_ids = [id1, id2, id3, ...]
+        items = await asyncio.gather(*[get_item(id) for id in item_ids])
+        # Just use a loop instead:
+        items = [await get_item(id) for id in item_ids]
+    """
+
     def __init__(self, app):
         """Initialize library manager with Toga app reference"""
         self.app = app
@@ -90,9 +187,6 @@ class LibraryManager:
 
         # Initialize output parser for reading Director processing results
         self.output_parser = DirectorOutputParser()
-
-        # Initialize metadata API for storing step-level metadata
-        self.metadata_api = LibraryMetadataAPI(self.storage)
 
         # Initialize search service for full-text and metadata search
         self.search_service = SearchService(db_path)
@@ -1317,40 +1411,23 @@ class LibraryManager:
             # Get the latest processing result
             latest_result = await self.get_latest_processing_result(item_id)
 
-            # NEW: Try to discover outputs even if output_paths is empty/None
-            # This handles cases where processing is "pending" but some steps completed
+            # If no processing result, item has not been processed
             if not latest_result:
                 logger.debug(f"No processing result record for item {item_id}")
-                # IMPORTANT: Don't return early if item has director_output_path set in metadata
-                # This allows folders processed via Director to have their outputs discovered
-                director_output_path = item.metadata.get('director_output_path') if item.metadata else None
-                if not director_output_path:
-                    return {
-                        'item': item,
-                        'filename': item.name,
-                        'source_path': None,
-                        'output_root': None,
-                        'processing_steps': [],
-                        'has_outputs': False,
-                        'workflow': None,
-                        'processing_date': None,
-                        'director_status': 'pending'
-                    }
-                else:
-                    # Item has director_output_path in metadata - continue to discovery with empty latest_result
-                    logger.info(f"📂 No DB record but item has director_output_path in metadata: {director_output_path}")
+                return {
+                    'item': item,
+                    'filename': item.name,
+                    'source_path': None,
+                    'output_root': None,
+                    'processing_steps': [],
+                    'has_outputs': False,
+                    'workflow': None,
+                    'processing_date': None,
+                    'director_status': 'pending'
+                }
 
-            # Even if output_paths is empty, try to discover outputs in expected location
-            output_paths_to_check = latest_result.output_paths if (latest_result and latest_result.output_paths) else []
-
-            # Check if item has director_output_path in metadata (Director-processed items)
-            if not output_paths_to_check:
-                director_output_path = item.metadata.get('director_output_path') if item.metadata else None
-                if director_output_path:
-                    output_path = Path(director_output_path)
-                    if output_path.exists():
-                        logger.info(f"📂 Using director_output_path from item metadata: {output_path}")
-                        output_paths_to_check.append(str(output_path))
+            # Get output paths from ProcessingResult table (source of truth)
+            output_paths_to_check = latest_result.output_paths if latest_result.output_paths else []
 
             # If no output_paths set, try to find them by checking expected Director output location
             if not output_paths_to_check and hasattr(item, 'source_path') and item.source_path:
@@ -2603,15 +2680,15 @@ class LibraryManager:
         Returns:
             List of transcription text strings
         """
-        outputs = self.storage.get_outputs_by_item(item_id, output_type='transcription')
-        transcriptions = []
+        # Query metadata directly by item_id
+        metadata_list = self.storage.get_extracted_metadata_by_item(
+            item_id,
+            schema_type='transcription',
+            key='text'
+        )
 
-        for output in outputs:
-            # Get metadata for this output
-            metadata_list = self.storage.get_extracted_metadata(output.id)
-            for metadata in metadata_list:
-                if metadata.metadata_type == 'transcription' and metadata.key == 'text':
-                    transcriptions.append(metadata.value)
+        # Extract text values (already ordered newest first)
+        transcriptions = [meta.value for meta in metadata_list]
 
         return transcriptions
 
@@ -2626,17 +2703,18 @@ class LibraryManager:
             Dictionary mapping field names to lists of values
             e.g., {'title': ['Document Title'], 'date': ['1931'], 'location': ['Istmina']}
         """
-        outputs = self.storage.get_outputs_by_item(item_id, output_type='catalogue')
-        catalogue_data = {}
+        # Query catalogue metadata directly by item_id
+        metadata_list = self.storage.get_extracted_metadata_by_item(
+            item_id,
+            schema_type='catalogue'
+        )
 
-        for output in outputs:
-            # Get metadata for this output
-            metadata_list = self.storage.get_extracted_metadata(output.id)
-            for metadata in metadata_list:
-                if metadata.metadata_type == 'catalogue_field':
-                    if metadata.key not in catalogue_data:
-                        catalogue_data[metadata.key] = []
-                    catalogue_data[metadata.key].append(metadata.value)
+        # Organize by field/key
+        catalogue_data = {}
+        for metadata in metadata_list:
+            if metadata.key not in catalogue_data:
+                catalogue_data[metadata.key] = []
+            catalogue_data[metadata.key].append(metadata.value)
 
         return catalogue_data
 
@@ -2840,13 +2918,30 @@ class LibraryManager:
             item_id: Item ID
 
         Returns:
-            Enriched manifest entry with 'source_image_path' and 'output_path' fields
+            Enriched manifest entry with 'source_image_path', 'output_path', and 'processing_output_id' fields
         """
         import copy
         enriched = copy.deepcopy(entry)
 
         # Add output path (easy)
         enriched['output_path'] = output_file
+
+        # Query ProcessingOutput to link manifest entry to database
+        # This enables preview_view to access ExtractedMetadata (transcriptions)
+        try:
+            outputs = self.storage.get_outputs_by_item(item_id)
+            output_filename = output_file.name
+
+            # Find matching ProcessingOutput by step_name and output filename
+            for po in outputs:
+                if po.step_name == tool_name and Path(po.output_path).name == output_filename:
+                    enriched['processing_output_id'] = po.id
+                    logger.debug(f"Linked manifest entry to ProcessingOutput {po.id}")
+                    break
+            else:
+                logger.debug(f"No ProcessingOutput found for {tool_name}/{output_filename}")
+        except Exception as e:
+            logger.warning(f"Failed to query ProcessingOutput for manifest entry: {e}")
 
         # Get source filename from manifest
         source_file = entry.get('source', '')

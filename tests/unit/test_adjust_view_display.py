@@ -61,7 +61,7 @@ class TestAdjustViewDisplay(unittest.TestCase):
             self.assertEqual(adjust_view.current_item_id, "test-item-123")
 
     def test_no_nested_scroll_containers(self):
-        """Verify OptionContainer is NOT nested inside a ScrollContainer"""
+        """Verify OptionContainer is used as root container (not nested)"""
         from fichero.windows.main.views.adjust.adjust_view import AdjustView
 
         with patch('toga.Box') as mock_box, \
@@ -73,18 +73,24 @@ class TestAdjustViewDisplay(unittest.TestCase):
             adjust_view = AdjustView(self.app, is_mobile=False)
 
             # Verify container structure
-            # BaseView creates: container -> scroll_container -> content_container
-            # AdjustView should remove scroll_container and add tab_container directly
+            # AdjustView uses OptionContainer as the root container
+            # Structure: container = tab_container (OptionContainer)
+            # NOT: container (Box) -> scroll_container -> content_container -> tab_container
 
-            # Check that tab_container is added to main container, not scroll_container
+            # Check that tab_container exists
             self.assertIsNotNone(adjust_view.tab_container)
 
-            # The container should have tab_container as child
-            # (scroll_container was removed in _create_content)
-            container_children = adjust_view.container.children if hasattr(adjust_view.container, 'children') else []
+            # Verify that container IS the tab_container (OptionContainer is root)
+            self.assertIs(adjust_view.container, adjust_view.tab_container,
+                         "container should be the same as tab_container (OptionContainer as root)")
 
-            # Tab container should be accessible
-            self.assertIsNotNone(adjust_view.tab_container)
+            # Verify that AdjustView does NOT have scroll_container
+            # (it should be None since we override _create_view_structure)
+            self.assertIsNone(getattr(adjust_view, 'scroll_container', None))
+
+            # Verify that AdjustView does NOT have content_container
+            # (it should be None since we override _create_view_structure)
+            self.assertIsNone(getattr(adjust_view, 'content_container', None))
 
     def test_metadata_tabs_populated(self):
         """Verify metadata tabs are populated with content"""

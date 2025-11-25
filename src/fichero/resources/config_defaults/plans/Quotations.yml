@@ -53,11 +53,13 @@ commands:
   - name: transcribe_qwen_max_direct
     worker_type: "io"
     help: "Transcribe prepared documents using Qwen VL Max model"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    function: "fichero.tools.transcribe.transcribe_batch"
     args:
       source_folder: "assets/prepared/documents"
       source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
     outputs:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"

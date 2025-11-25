@@ -106,6 +106,11 @@ class FicheroApp(toga.App):
             self.state_manager = StateManager(self)
             logger.info("State manager initialized at app level")
 
+            # Initialize window state tracker for native macOS window state tracking
+            from fichero.shared.utils.window_state_tracker import WindowStateTracker
+            self.window_state_tracker = WindowStateTracker(self.state_manager)
+            logger.info("Window state tracker initialized at app level")
+
             # Initialize SelectionManager
             from fichero.shared.selection import SelectionManager
             self.selection_manager = SelectionManager()
@@ -291,8 +296,9 @@ class FicheroApp(toga.App):
             # Set the Toga main_window property to the actual Toga window
             self.main_window = self.main_window_wrapper.window
 
-            # Build toolbar after app is running (like the working demo)
+            # Build toolbar after app is running
             # This ensures all commands are registered and window is fully loaded
+            # NOTE: Window position/size is now set during window creation in _create_window()
             if is_desktop:
                 async def build_toolbar_when_ready(app, **kwargs):
                     """Build toolbar after app is fully running"""
@@ -627,11 +633,33 @@ class FicheroApp(toga.App):
         if not is_gui_only:
             print("🔄 Fichero GUI closing...")
         logger.info("Fichero GUI closing")
-        
+
         try:
-            # Close all secondary windows first
+            # Save main window layout/pane visibility state (CRITICAL: before cleanup)
+            if hasattr(self, 'main_window_wrapper') and self.main_window_wrapper:
+                logger.info("Saving main window layout state...")
+                try:
+                    self.main_window_wrapper._save_window_state()
+                except Exception as e:
+                    logger.warning(f"Could not save main window layout state: {e}")
+
+            # Save window positions via native tracker (CRITICAL: must happen before cleanup)
+            if hasattr(self, 'window_state_tracker') and self.window_state_tracker:
+                logger.info("Saving all window positions...")
+                self.window_state_tracker.save_all_states()
+
+            # Write state to disk (CRITICAL: state_manager.set_* only updates memory)
+            if hasattr(self, 'state_manager') and self.state_manager:
+                logger.info("Persisting state to disk...")
+                self.state_manager.save_state_sync()
+
+            # Close all secondary windows
             self.close_all_windows()
-            
+
+            # Clean up window state tracker observers
+            if hasattr(self, 'window_state_tracker') and self.window_state_tracker:
+                self.window_state_tracker.cleanup()
+
             # Use shared cleanup wrapper (same pattern as CLI)
             if hasattr(self, 'initializer') and self.initializer:
                 self.initializer.cleanup()

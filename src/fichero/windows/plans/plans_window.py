@@ -23,7 +23,11 @@ class PlansWindow:
         
         # Use the library's window directly (Toga way)
         self.window = self.plans_library.window
-        
+
+        # Register with window state tracker for position/size persistence
+        if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+            self.app.window_state_tracker.register_window("plans", self.window, restore=True)
+
         logger.info("PlansWindow initialized")
     
     def show(self):

@@ -164,11 +164,13 @@ commands:
   - name: transcribe_qwen_max_segmented
     worker_type: "io"
     help: "Transcribe segmented images using Qwen VL Max model"
-    function: "fichero.tools.transcribe_qwen_max.transcribe_batch"
+    function: "fichero.tools.transcribe.transcribe_batch"
     args:
       source_folder: "assets/segmented"
       source_manifest: "assets/segmented/segment_manifest.jsonl"
       output_folder: "assets/transcriptions"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
     outputs:
       - "assets/transcriptions"
       - "assets/transcriptions/transcriptions_manifest.jsonl"
