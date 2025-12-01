@@ -107,7 +107,9 @@ class TestEnhancedStateManager(unittest.TestCase):
             "version", "session", "window", "pane_visibility", "layout",
             "preview_config", "ui_preferences", "last_saved",
             # v3.0 additions:
-            "windows", "preferences", "preview_viewer_state", "pane_content"
+            "windows", "preferences", "preview_viewer_state", "pane_content",
+            # Tinderbox-inspired metadata pane:
+            "preview_metadata_pane"
         }
         self.assertEqual(set(default_state.keys()), expected_keys)
 
@@ -123,14 +125,13 @@ class TestEnhancedStateManager(unittest.TestCase):
         }
         self.assertEqual(set(default_state["window"].keys()), window_keys)
 
-        # Check pane_visibility structure (includes actual column names + legacy aliases)
+        # Check pane_visibility structure (actual column names + UI elements)
         # Column names: Library, Collection, PreviewImage, PreviewMetadata, Adjust
-        # Legacy aliases: sidebar (Library), preview (PreviewImage), inspector (Adjust)
+        # NOTE: Legacy aliases (sidebar, preview, inspector) are NOT in defaults
+        #       to avoid conflicts - they're only for reading old state files
         pane_keys = {
             # Actual column names (lowercase)
             "library", "collection", "previewimage", "previewmetadata", "adjust",
-            # Legacy aliases for backward compatibility
-            "sidebar", "preview", "inspector",
             # UI elements
             "status_bar", "toolbar"
         }
@@ -220,17 +221,16 @@ class TestEnhancedStateManager(unittest.TestCase):
         """Test pane visibility tracking for all panes"""
         manager = self.StateManager(self.mock_app)
 
-        # Test individual pane visibility for all keys (actual columns + legacy aliases + UI elements)
-        panes = [
+        # Test individual pane visibility for default keys (actual columns + UI elements)
+        # NOTE: Legacy aliases are NOT in defaults to avoid conflicts
+        default_panes = [
             # Actual column names
             "library", "collection", "previewimage", "previewmetadata", "adjust",
-            # Legacy aliases
-            "sidebar", "preview", "inspector",
             # UI elements
             "status_bar", "toolbar"
         ]
 
-        for pane in panes:
+        for pane in default_panes:
             # Test default visibility
             self.assertIsInstance(manager.get_pane_visibility(pane), bool)
 
@@ -246,13 +246,17 @@ class TestEnhancedStateManager(unittest.TestCase):
         # Test bulk operations
         all_states = manager.get_all_pane_visibility()
         self.assertIsInstance(all_states, dict)
-        self.assertEqual(set(all_states.keys()), set(panes))
+        self.assertEqual(set(all_states.keys()), set(default_panes))
 
-        new_states = {pane: False for pane in panes}
+        new_states = {pane: False for pane in default_panes}
         manager.set_all_pane_visibility(new_states)
 
-        for pane in panes:
+        for pane in default_panes:
             self.assertFalse(manager.get_pane_visibility(pane))
+
+        # Test that setting legacy alias keys also works (for backward compat)
+        manager.set_pane_visibility("sidebar", True)  # Creates new key
+        self.assertTrue(manager.get_pane_visibility("sidebar"))
 
     def test_layout_dimensions_and_proportions(self):
         """Test layout dimensions and proportions with validation"""
@@ -1034,26 +1038,30 @@ class TestEnhancedStateManager(unittest.TestCase):
         """Test that pane names map correctly to layout manager column names"""
         manager = self.StateManager(self.mock_app)
 
-        # Expected mapping: state key (lowercase) -> column name (camelCase)
-        expected_mapping = {
-            'library': True,      # Matches column "Library"
-            'collection': True,   # Matches column "Collection"
-            'previewimage': True, # Matches column "PreviewImage"
-            'previewmetadata': True,  # Matches column "PreviewMetadata"
-            'adjust': False,      # Matches column "Adjust"
-            # Legacy aliases
-            'sidebar': True,      # Alias for Library
-            'preview': True,      # Alias for PreviewImage
-            'inspector': False,   # Alias for Adjust
+        # Expected defaults: actual column name keys only
+        # NOTE: Legacy aliases are NOT in defaults to avoid conflicts
+        expected_defaults = {
+            'library': True,         # Matches column "Library"
+            'collection': True,      # Matches column "Collection"
+            'previewimage': True,    # Matches column "PreviewImage"
+            'previewmetadata': True, # Matches column "PreviewMetadata"
+            'adjust': False,         # Matches column "Adjust"
+            'status_bar': True,      # UI element
+            'toolbar': True,         # UI element
         }
 
-        # Verify default values match expected mapping
-        for key, expected_visible in expected_mapping.items():
+        # Verify default values match expected defaults
+        for key, expected_visible in expected_defaults.items():
             self.assertEqual(
                 manager.get_pane_visibility(key),
                 expected_visible,
                 f"Pane '{key}' should be {'visible' if expected_visible else 'hidden'} by default"
             )
+
+        # Legacy aliases should NOT be in defaults (returns True by default for unknown keys)
+        # But they should work when explicitly set (for reading old state files)
+        manager.set_pane_visibility("sidebar", False)
+        self.assertFalse(manager.get_pane_visibility("sidebar"))
 
     def test_pane_visibility_persistence(self):
         """Test that pane visibility persists across save/load cycles"""

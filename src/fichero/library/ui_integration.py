@@ -194,7 +194,8 @@ class LibraryUIIntegration:
                     "created_at": collection.created_at.isoformat(),
                     "updated_at": collection.updated_at.isoformat(),
                     "source_path": collection.source_path,
-                    "local_path": collection.local_path
+                    "local_path": collection.local_path,
+                    "metadata": collection.metadata  # Include full metadata for is_inbox, etc.
                 }
                 ui_collections.append(ui_collection)
             

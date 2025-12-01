@@ -19,6 +19,7 @@ from fichero.shared.widgets import ListWidget  # Phase 6: Platform-adaptive widg
 from fichero.shared.toolbars.color_constants import (
     COLLECTION_ACTIVE, COLLECTION_INACTIVE, VIEW_BACKGROUND
 )
+from .sidebar_data_model import SidebarDataModel  # Phase 6: Hierarchical sidebar organization
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,10 @@ class LibraryView(BaseView, ViewCommandMixin):
 
         # Initialize tree data map for collection lookup (used in _on_tree_select)
         self._tree_data_map = {}
+
+        # Initialize sidebar data model for hierarchical organization
+        self.sidebar_model = SidebarDataModel()
+        logger.debug(" Sidebar data model initialized")
 
         logger.debug(" Calling super().__init__...")
         super().__init__(app, is_mobile)
@@ -384,6 +389,14 @@ class LibraryView(BaseView, ViewCommandMixin):
                     renderer='sidebar'  # Custom sidebar renderer for narrow Library column
                 )
 
+                # Register get_children callback for hierarchical sidebar (Phase 6)
+                if hasattr(self.collections_list, 'set_get_children_callback'):
+                    self.collections_list.set_get_children_callback(self._get_children_for_item)
+                    logger.debug("✅ Registered get_children callback for hierarchical sidebar")
+
+                # Register drag-and-drop callbacks (Phase 6: drag-and-drop support)
+                self._register_drag_and_drop_callbacks()
+
                 # Add to container once
                 if self.content_container:
                     self.content_container.add(self.collections_list.widget)
@@ -425,39 +438,59 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.debug(f"Could not restore selection: {e}")
 
     def _format_collections_for_widget(self, collections):
-        """Format collection data for ListWidget
+        """Format collection data for ListWidget using hierarchical sidebar model
 
         Args:
             collections: List of collection dicts from library_service
 
         Returns:
             List of dicts formatted for ListWidget with 'icon', 'text', 'subtitle', '_item_id', '_collection_data'
+            Includes section headers for hierarchical organization
         """
-        formatted = []
-        # Clear and rebuild tree data map for collection lookup
+        # DEBUG: Log entry point
+        logger.info(f"🔍 FORMAT ENTRY: {len(collections)} collections to format")
+
+        # Load collections into sidebar model
+        self.sidebar_model.load_from_library_data(collections)
+
+        # Convert to widget data with section headers
+        formatted = self.sidebar_model.to_widget_data(
+            folder_icon_cache=self._folder_icon_cache,
+            include_section_headers=True
+        )
+
+        # DEBUG: Log the formatted data structure
+        logger.info(f"🔍 DEBUG: formatted data has {len(formatted)} root items")
+        for i, item in enumerate(formatted):
+            is_section = item.get('_is_section_header', False)
+            has_children = item.get('_has_children', False)
+            children_count = len(item.get('_children', []))
+            text = item.get('text', 'NO_TEXT')
+            node_type = item.get('_node_type', 'NONE')
+            logger.info(f"🔍   [{i}] '{text}' node_type={node_type} is_section={is_section} has_children={has_children} children={children_count}")
+            if children_count > 0 and children_count <= 3:
+                for j, child in enumerate(item.get('_children', [])):
+                    child_text = child.get('text', 'NO_TEXT')
+                    child_type = child.get('_node_type', 'NONE')
+                    logger.info(f"🔍       child[{j}]: '{child_text}' type={child_type}")
+
+        # Rebuild tree data map for fallback lookup in _on_tree_select
         self._tree_data_map = {}
+        for item in formatted:
+            # Skip section headers
+            if item.get('_is_section_header'):
+                continue
 
-        for collection in collections:
-            item_count = collection.get('item_count', 0)
-            subtitle = f"{item_count} {'item' if item_count == 1 else 'items'}"
-            collection_id = collection.get('id')
+            collection_data = item.get('_collection_data')
+            if collection_data:
+                collection_id = collection_data.get('id')
+                if collection_id:
+                    self._tree_data_map[collection_id] = {
+                        'title': collection_data.get('name', 'Unknown'),
+                        'collection_data': collection_data
+                    }
 
-            formatted_item = {
-                'icon': self._folder_icon_cache,
-                'text': collection.get('name', 'Unknown'),
-                'subtitle': subtitle,
-                '_item_id': collection_id,
-                '_collection_data': collection  # Store full data for callbacks
-            }
-            formatted.append(formatted_item)
-
-            # Build tree data map for fallback lookup in _on_tree_select
-            if collection_id:
-                self._tree_data_map[collection_id] = {
-                    'title': collection.get('name', 'Unknown'),
-                    'collection_data': collection
-                }
-
+        logger.debug(f"Formatted {len(formatted)} items (including section headers) for sidebar")
         return formatted
 
 
@@ -661,12 +694,39 @@ class LibraryView(BaseView, ViewCommandMixin):
             return '🌐'
         else:
             return '��'
+
+    def _get_children_for_item(self, item_data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get children for a hierarchical item (Phase 6: Hierarchical sidebar).
+
+        This callback is used by the NSOutlineView renderer to determine if an item
+        has children and what those children are.
+
+        Args:
+            item_data: Dict with item metadata (includes '_children' key if item has children)
+
+        Returns:
+            List of child item dicts, or None if no children
+        """
+        try:
+            # Check if item has pre-loaded children (from sidebar_model)
+            children = item_data.get('_children')
+            if children is not None:
+                return children
+
+            # No children
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting children for item: {e}", exc_info=True)
+            return None
+
     def _on_tree_select(self, selection):
         """
         Wrapper for ListWidget selection (Phase 6).
 
         Converts ListWidget selection format to the format expected by
-        _on_collection_selected.
+        _on_collection_selected. Handles section headers by ignoring them.
         """
         try:
             logger.info(f"🌳 ListWidget selection: {selection}")
@@ -676,6 +736,21 @@ class LibraryView(BaseView, ViewCommandMixin):
                 class EmptyWidget:
                     selection = None
                 self._on_collection_selected(EmptyWidget())
+                return
+
+            # Check if this is a section header
+            if selection.get('_is_section_header'):
+                logger.debug(f"Section header clicked: {selection.get('_section_id')} - ignoring")
+                # Don't trigger collection selection for section headers
+                return
+
+            # Phase 6: Check if this is a folder selection (hierarchical sidebar)
+            if selection.get('_folder_data'):
+                folder_data = selection.get('_folder_data')
+                logger.info(f"📂 Folder selected: {folder_data.get('name')} in collection {folder_data.get('collection_id')}")
+                # Navigate to folder view in collection
+                # Pass both collection_id and folder_id to collection view
+                self._handle_folder_selection(folder_data)
                 return
 
             # ListWidget returns the underlying widget's selection
@@ -823,6 +898,53 @@ class LibraryView(BaseView, ViewCommandMixin):
         # Use ListWidget's select_item_by_id method
         return self.collections_list.select_item_by_id(collection_id)
 
+    def _handle_folder_selection(self, folder_data: Dict[str, Any]):
+        """
+        Handle folder selection in hierarchical sidebar (Phase 6).
+
+        When a user clicks on a folder under a collection, navigate the collection
+        view to show only items within that folder.
+
+        Args:
+            folder_data: Dict with folder information including:
+                - id: Folder item ID
+                - name: Folder name
+                - collection_id: Parent collection ID
+                - parent_collection_name: Parent collection name
+        """
+        try:
+            collection_id = folder_data.get('collection_id')
+            folder_id = folder_data.get('id')
+            folder_name = folder_data.get('name', 'Unknown')
+            collection_name = folder_data.get('parent_collection_name', 'Unknown')
+
+            logger.info(f"📂 Navigating to folder '{folder_name}' in collection '{collection_name}'")
+
+            # Use ViewIntegration to navigate to collection view with folder filter
+            if hasattr(self.app, 'view_integration'):
+                # Get collection view from view_integration
+                collection_view = self.app.view_integration.collection_view
+                if collection_view:
+                    # Set the collection and folder
+                    collection_view.collection_id = collection_id
+                    collection_view.collection_name = collection_name
+                    collection_view.current_folder_id = folder_id  # New attribute for folder filtering
+
+                    # Load items for this collection
+                    self._create_task(collection_view.load_collection_data_async(collection_id))
+
+                    # Switch to collection view
+                    self.app.view_integration.show_collection_view()
+
+                    logger.info(f"✅ Navigated to folder view: {folder_name}")
+                else:
+                    logger.error("Collection view not available in view_integration")
+            else:
+                logger.error("ViewIntegration not available on app")
+
+        except Exception as e:
+            logger.error(f"Failed to handle folder selection: {e}", exc_info=True)
+
     def _on_collection_selected(self, widget):
         """Handle collection selection from detailed list"""
         logger.info(f"🎯 _on_collection_selected CALLED! widget={widget}, has selection={hasattr(widget, 'selection')}")
@@ -834,8 +956,19 @@ class LibraryView(BaseView, ViewCommandMixin):
 
         try:
             if widget.selection and hasattr(widget.selection, 'collection_data'):
-                logger.info("✅ Widget has selection with collection_data")
                 collection = widget.selection.collection_data
+
+                # Check if this is a section header (collection_data is None)
+                if collection is None:
+                    logger.info("Section header selected - ignoring selection")
+                    return
+
+                # Check if this item is marked as a section header
+                if isinstance(collection, dict) and collection.get('_is_section_header'):
+                    logger.info("Section header selected (via flag) - ignoring selection")
+                    return
+
+                logger.info("✅ Widget has selection with collection_data")
                 collection_id = collection.get('id', '')
                 collection_name = collection.get('name', '')
 
@@ -1242,8 +1375,11 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             if not search_query or not search_query.strip():
                 logger.debug("Empty search query, clearing search")
-                # Clear search - show all collections
-                asyncio.create_task(self._load_collections_async())
+                # Clear search filter on collection view
+                if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                    collection_view = getattr(self.app.main_window_wrapper, 'cached_collection_view', None)
+                    if collection_view and hasattr(collection_view, 'clear_search_filter'):
+                        collection_view.clear_search_filter()
                 return
 
             logger.info(f"🔍 Search requested: '{search_query}'")
@@ -1257,13 +1393,18 @@ class LibraryView(BaseView, ViewCommandMixin):
             traceback.print_exc()
 
     async def _execute_search(self, query: str):
-        """Execute search and display results in CollectionView"""
+        """Execute search and filter CollectionView to show matching items"""
         try:
             # Get library manager
             library_manager = getattr(self.app, 'library_manager', None)
             if not library_manager:
                 logger.error("No library manager available for search")
                 return
+
+            # Get collection view reference
+            collection_view = None
+            if hasattr(self.app, 'main_window_wrapper') and self.app.main_window_wrapper:
+                collection_view = getattr(self.app.main_window_wrapper, 'cached_collection_view', None)
 
             # Execute search via library manager (which uses SearchService)
             logger.info(f"Executing search: '{query}'")
@@ -1278,51 +1419,61 @@ class LibraryView(BaseView, ViewCommandMixin):
 
             if search_response.total_count == 0:
                 logger.info("No search results found")
-                # TODO: Show message to user (could use a toast notification)
+                # Clear any existing filter to show "no results" state
+                if collection_view:
+                    collection_view.apply_search_filter(query, set())
                 return
 
-            # Get full item details for each search result
-            # Group results by collection for better organization
+            # Collect all matching item IDs, grouped by collection
             results_by_collection = {}
+            all_matching_ids = set()
+
             for result in search_response.results:
                 if result.item_id:
-                    # Get full item details
-                    item = await library_manager.get_item(result.item_id)
-                    if item:
-                        if result.collection_id not in results_by_collection:
-                            results_by_collection[result.collection_id] = []
+                    all_matching_ids.add(result.item_id)
+                    if result.collection_id not in results_by_collection:
+                        results_by_collection[result.collection_id] = set()
+                    results_by_collection[result.collection_id].add(result.item_id)
 
-                        # Augment item with search metadata
-                        item_data = {
-                            'item': item,
-                            'snippet': result.snippet,
-                            'rank': result.rank,
-                            'schema_type': result.schema_type,
-                            'source_label': result.source_label
+            logger.info(f"Search results: {len(all_matching_ids)} items across {len(results_by_collection)} collections")
+
+            # Apply filter to collection view
+            if collection_view:
+                current_collection_id = getattr(collection_view, 'collection_id', None)
+
+                if current_collection_id and current_collection_id in results_by_collection:
+                    # Filter current collection to show only matching items
+                    matching_ids = results_by_collection[current_collection_id]
+                    logger.info(f"Filtering current collection ({current_collection_id}) to {len(matching_ids)} matching items")
+                    collection_view.apply_search_filter(query, matching_ids)
+                elif results_by_collection:
+                    # Navigate to first collection with results, then filter
+                    first_collection_id = list(results_by_collection.keys())[0]
+                    matching_ids = results_by_collection[first_collection_id]
+
+                    # Get collection details
+                    collection = await library_manager.get_collection(first_collection_id)
+                    collection_name = collection.name if collection else "Unknown Collection"
+
+                    logger.info(f"Navigating to collection '{collection_name}' with {len(matching_ids)} matching items")
+
+                    # Navigate to collection via callback
+                    if hasattr(self, 'on_collection_selected') and self.on_collection_selected:
+                        # Build collection data dict for the callback
+                        collection_data = {
+                            'id': first_collection_id,
+                            'name': collection_name,
+                            'type': collection.type if collection else 'local'
                         }
-                        results_by_collection[result.collection_id].append(item_data)
+                        self.on_collection_selected(collection_data)
 
-            logger.info(f"Search results organized into {len(results_by_collection)} collections")
-
-            # For now, navigate to the first result's collection
-            # TODO: Create a proper search results view that shows all results
-            if results_by_collection:
-                first_collection_id = list(results_by_collection.keys())[0]
-                first_items = results_by_collection[first_collection_id]
-                first_item = first_items[0]['item']
-
-                # Get collection details
-                collection = await library_manager.get_collection(first_collection_id)
-                collection_name = collection.name if collection else "Unknown Collection"
-
-                logger.info(f"Navigating to first search result: collection={collection_name}, item={first_item.name}")
-                logger.info(f"Search context: query='{query}', total_results={search_response.total_count}, snippet='{first_items[0]['snippet'][:50]}...'")
-
-                # Navigate to collection via callback (same as clicking a collection in LibraryView)
-                if hasattr(self, 'collection_callback') and self.collection_callback:
-                    self.collection_callback(first_collection_id, collection_name)
-                else:
-                    logger.warning("No collection callback registered - cannot navigate to search result")
+                        # Apply filter after navigation (small delay to ensure collection loads)
+                        await asyncio.sleep(0.1)
+                        collection_view.apply_search_filter(query, matching_ids)
+                    else:
+                        logger.warning("No collection callback registered - cannot navigate to search result")
+            else:
+                logger.warning("No collection view available - search results not displayed")
 
         except Exception as e:
             logger.error(f"Failed to execute search: {e}")
@@ -2229,6 +2380,243 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.error(f"Failed to define LibraryView commands: {e}")
             self.commands = {}
 
+    # ===== DRAG-AND-DROP SUPPORT (Phase 6) =====
+
+    def _register_drag_and_drop_callbacks(self):
+        """Register drag-and-drop callbacks with the sidebar renderer"""
+        try:
+            # Check if the renderer supports drag-and-drop
+            if hasattr(self.collections_list, 'renderer'):
+                renderer = self.collections_list.renderer
+                if hasattr(renderer, 'set_reorder_callback'):
+                    renderer.set_reorder_callback(self._on_collection_reorder)
+                    logger.info("✅ Registered reorder callback for drag-and-drop")
+
+                if hasattr(renderer, 'set_import_callback'):
+                    renderer.set_import_callback(self._on_external_drop)
+                    logger.info("✅ Registered import callback for drag-and-drop")
+
+                # Phase 2: Register new target-aware callbacks
+                if hasattr(renderer, 'set_import_to_collection_callback'):
+                    renderer.set_import_to_collection_callback(self._on_import_to_collection)
+                    logger.info("✅ Registered import-to-collection callback for drag-and-drop")
+
+                if hasattr(renderer, 'set_import_to_section_callback'):
+                    renderer.set_import_to_section_callback(self._on_import_to_section)
+                    logger.info("✅ Registered import-to-section callback for drag-and-drop")
+            else:
+                logger.debug("Renderer doesn't support drag-and-drop callbacks")
+
+        except Exception as e:
+            logger.error(f"Failed to register drag-and-drop callbacks: {e}", exc_info=True)
+
+    def _on_collection_reorder(self, collection_id: str, new_position: int) -> bool:
+        """
+        Handle collection reordering via drag-and-drop.
+
+        Args:
+            collection_id: ID of collection being moved
+            new_position: New position (1-based index)
+
+        Returns:
+            True if reorder succeeded, False otherwise
+        """
+        try:
+            logger.info(f"Reordering collection {collection_id} to position {new_position}")
+
+            # Get library manager
+            library_manager = self.app.library_manager
+
+            if not library_manager:
+                logger.error("Library manager not available")
+                return False
+
+            # Call the library manager's reorder method
+            # This is async, so we need to run it in an async context
+            import asyncio
+
+            async def do_reorder():
+                success = await library_manager.reorder_collection(collection_id, new_position)
+                if success:
+                    # Refresh the sidebar to show new order
+                    await self.refresh_collections()
+                    logger.info("✅ Collection reordered successfully")
+                else:
+                    logger.error("❌ Failed to reorder collection")
+                return success
+
+            # Create task to run the async operation
+            task = self._create_task(do_reorder())
+            return True  # Optimistic return - actual result will be handled in callback
+
+        except Exception as e:
+            logger.error(f"Error in collection reorder: {e}", exc_info=True)
+            return False
+
+    def _on_external_drop(self, file_urls: list) -> bool:
+        """
+        Handle external file/folder drops from Finder.
+
+        Args:
+            file_urls: List of file URLs dropped from Finder (can be NSURL objects or strings)
+
+        Returns:
+            True if import succeeded, False otherwise
+        """
+        try:
+            logger.info(f"External drop: {len(file_urls) if isinstance(file_urls, list) else 1} items")
+            logger.debug(f"Received file_urls type: {type(file_urls)}, value: {file_urls}")
+
+            # Convert URLs to paths and import to library
+            import asyncio
+            from pathlib import Path
+            import urllib.parse
+
+            async def do_import():
+                library_manager = self.app.library_manager
+                if not library_manager:
+                    logger.error("Library manager not available")
+                    return False
+
+                # Ensure file_urls is a list
+                urls_to_process = file_urls if isinstance(file_urls, list) else [file_urls]
+
+                # Process each dropped item
+                for file_url in urls_to_process:
+                    try:
+                        # Convert NSURL to path
+                        # file_url could be:
+                        # 1. An NSURL object with a 'path' property
+                        # 2. A string like "file:///path/to/file"
+                        # 3. Already a path string
+
+                        if hasattr(file_url, 'path'):
+                            # NSURL object - get path directly
+                            path_str = str(file_url.path)
+                            logger.debug(f"Extracted path from NSURL: {path_str}")
+                        elif isinstance(file_url, str):
+                            # String URL - parse it
+                            if file_url.startswith("file://"):
+                                # URL-decode the path
+                                path_str = urllib.parse.unquote(file_url.replace("file://", ""))
+                                logger.debug(f"Parsed file:// URL: {path_str}")
+                            else:
+                                # Already a path
+                                path_str = file_url
+                                logger.debug(f"Using string as path: {path_str}")
+                        else:
+                            logger.warning(f"Unknown file_url type: {type(file_url)}, attempting str conversion")
+                            path_str = str(file_url)
+
+                        # Create Path object
+                        path = Path(path_str)
+
+                        if not path.exists():
+                            logger.error(f"Path does not exist: {path_str}")
+                            continue
+
+                        if path.is_dir():
+                            # Import folder as external collection
+                            logger.info(f"Importing folder: {path.name}")
+                            collection_id = await library_manager.add_collection(
+                                name=path.name,
+                                type="external",
+                                source_path=str(path)
+                            )
+                            if collection_id:
+                                logger.info(f"✅ Imported folder as collection: {path.name}")
+                            else:
+                                logger.error(f"❌ Failed to import folder: {path.name}")
+
+                        elif path.is_file():
+                            # Create a new collection for the file
+                            logger.info(f"Importing file: {path.name}")
+                            # Create a collection named after the file (without extension)
+                            collection_name = path.stem
+                            collection_id = await library_manager.add_collection(
+                                name=collection_name,
+                                type="local",
+                                source_path=None
+                            )
+                            if collection_id:
+                                # Add the file to the collection
+                                await library_manager.add_item_to_collection(
+                                    collection_id=collection_id,
+                                    item_type="file",
+                                    source=str(path),
+                                    name=path.name,
+                                    operation="copy"  # Copy the file to library
+                                )
+                                logger.info(f"✅ Imported file as collection: {collection_name}")
+                            else:
+                                logger.error(f"❌ Failed to import file: {path.name}")
+
+                    except Exception as item_error:
+                        logger.error(f"Failed to process dropped item: {item_error}", exc_info=True)
+                        continue
+
+                # Refresh sidebar
+                await self.refresh_collections()
+                return True
+
+            # Create task to run the async operation
+            task = self._create_task(do_import())
+            return True  # Optimistic return
+
+        except Exception as e:
+            logger.error(f"Error in external drop: {e}", exc_info=True)
+            return False
+
+    def _on_import_to_collection(self, file_urls: list, collection_id: str) -> bool:
+        """
+        Handle importing files/folders to a specific collection.
+
+        Args:
+            file_urls: List of file URLs dropped from Finder
+            collection_id: ID of the collection to import into
+
+        Returns:
+            True if import succeeded, False otherwise
+        """
+        try:
+            logger.info(f"Import to collection: {len(file_urls)} items to collection {collection_id}")
+
+            # TODO Phase 4: Implement actual import to specific collection
+            # For now, just log and return success
+            logger.warning("Import to collection not yet implemented - Phase 4")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in import to collection: {e}", exc_info=True)
+            return False
+
+    def _on_import_to_section(self, file_urls: list, section_id: str) -> bool:
+        """
+        Handle importing files/folders to a section (creates new collection).
+
+        Args:
+            file_urls: List of file URLs dropped from Finder
+            section_id: ID of the section ('inbox', 'local', 'external')
+
+        Returns:
+            True if import succeeded, False otherwise
+        """
+        try:
+            logger.info(f"Import to section: {len(file_urls)} items to section '{section_id}'")
+
+            # TODO Phase 4: Implement collection creation based on section
+            # - If section_id == 'inbox': Add to inbox collection
+            # - If section_id == 'local': Create new local collection
+            # - If section_id == 'external': Create new external collection
+
+            # For now, just log and return success
+            logger.warning(f"Import to section '{section_id}' not yet implemented - Phase 4")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in import to section: {e}", exc_info=True)
+            return False
+
     def _on_initialize(self):
         """Called when view is initialized"""
         try:
@@ -2294,8 +2682,8 @@ class LibraryView(BaseView, ViewCommandMixin):
             logger.info(f"🔍 TRACE: _load_collections_async() called from {caller.filename}:{caller.lineno} in {caller.name}()")
 
             if self.library_service:
-                # Ensure Inbox collection exists (auto-create if needed)
-                await self._ensure_inbox_exists()
+                # Note: Inbox creation is handled by LibraryManager.get_or_create_inbox()
+                # via get_all_collections() which calls it automatically on first load
 
                 # Determine sort mode based on current state
                 # For now, we only support name sorting with A-Z/Z-A toggle
@@ -2314,6 +2702,26 @@ class LibraryView(BaseView, ViewCommandMixin):
 
                 logger.debug(f"Loaded {len(self.collections)} collections from library (sort: {sort_by}, {'A-Z' if self.sort_ascending else 'Z-A'}).")
 
+                # Load folders for hierarchical sidebar (Phase 6)
+                # Note: sidebar_model.load_from_library_data() is called in _format_collections_for_widget()
+                # Here we just preload the folder data for each collection
+                for collection in self.collections:
+                    collection_id = collection.get('id')
+                    collection_name = collection.get('name', 'Unknown')
+                    if collection_id:
+                        try:
+                            # Load folders into sidebar model cache
+                            # This will be available when _format_collections_for_widget() builds the widget data
+                            folder_count = await self.sidebar_model.load_collection_folders(
+                                collection_id,
+                                collection_name,
+                                self.library_service.library_manager
+                            )
+                            if folder_count > 0:
+                                logger.debug(f"Loaded {folder_count} folders for collection '{collection_name}'")
+                        except Exception as e:
+                            logger.error(f"Failed to load folders for collection {collection_name}: {e}")
+
                 # Call UI update directly (we're already async, Toga handles main thread)
                 self._create_content()
             else:
@@ -2323,30 +2731,6 @@ class LibraryView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to load collections from library: {e}")
             self.collections = []
-
-    async def _ensure_inbox_exists(self):
-        """Ensure the Inbox collection exists, create if missing"""
-        try:
-            if not hasattr(self.app, 'library_manager') or not self.app.library_manager:
-                logger.warning("Library manager not available, cannot ensure Inbox exists")
-                return
-
-            # Check if Inbox already exists
-            all_collections = await self.app.library_manager.get_all_collections()
-            inbox_exists = any(col.name == "Inbox" for col in all_collections)
-
-            if not inbox_exists:
-                # Create Inbox collection (local type, no source path)
-                logger.info("Creating default Inbox collection")
-                await self.app.library_manager.add_collection(
-                    name="Inbox",
-                    collection_type="local",
-                    description="Default collection for new items"
-                )
-                logger.info("✅ Created Inbox collection")
-
-        except Exception as e:
-            logger.error(f"Failed to ensure Inbox exists: {e}")
 
     def toggle_edit_mode(self, widget=None):
         """Toggle edit mode state"""

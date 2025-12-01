@@ -140,12 +140,12 @@ class StateManager:
                 "previewimage": True,      # Image preview pane
                 "previewmetadata": True,   # Metadata preview pane
                 "adjust": False,           # Adjust/Info pane (right sidebar)
-                # Legacy keys kept for backward compatibility
-                "sidebar": True,           # Alias for library
-                "preview": True,           # Legacy - maps to previewimage
-                "inspector": False,        # Alias for adjust
+                # UI elements (not layout columns)
                 "status_bar": True,
                 "toolbar": True
+                # NOTE: Legacy aliases (sidebar, preview, inspector) are NOT included
+                # in defaults to avoid conflicts. They are only used for reading OLD
+                # state files that don't have the new keys.
             },
             "layout": {
                 "main_layout": {},
@@ -186,6 +186,11 @@ class StateManager:
                 "show_status_bar": True,
                 "collection_sort_key": "name",
                 "collection_sort_reverse": False
+            },
+            # Preview metadata pane configuration (Tinderbox-inspired)
+            "preview_metadata_pane": {
+                "is_expanded": True,  # Whether metadata section is expanded
+                "display_profiles": {},  # item_type -> visible_fields list (user overrides)
             },
             "last_saved": None
         }
@@ -238,6 +243,20 @@ class StateManager:
 
         if not isinstance(state.get("ui_preferences"), dict):
             state["ui_preferences"] = default["ui_preferences"]
+
+        if not isinstance(state.get("preview_metadata_pane"), dict):
+            state["preview_metadata_pane"] = default.get("preview_metadata_pane", {
+                "is_expanded": True,
+                "display_profiles": {}
+            })
+
+        # Validate multi-window state section (v3.0)
+        if not isinstance(state.get("windows"), dict):
+            state["windows"] = default.get("windows", {})
+
+        # Validate preferences section (v3.0)
+        if not isinstance(state.get("preferences"), dict):
+            state["preferences"] = default.get("preferences", {})
 
         # Recursively ensure all nested keys exist
         def merge_nested(target: dict, source: dict):
@@ -1490,3 +1509,78 @@ class StateManager:
     def get_pane_scroll_position(self, pane_name: str) -> int:
         """Get scroll position for a pane."""
         return self.get_pane_content(pane_name).get("scroll_position", 0)
+
+    # =========================================================================
+    # Preview Metadata Pane state accessors (Tinderbox-inspired UI)
+    # =========================================================================
+
+    def get_metadata_pane_expanded(self) -> bool:
+        """
+        Get whether the metadata section is expanded.
+
+        Returns:
+            True if expanded, False if collapsed
+        """
+        pane_state = self._state.get("preview_metadata_pane", {})
+        return pane_state.get("is_expanded", True)
+
+    def set_metadata_pane_expanded(self, expanded: bool):
+        """
+        Set whether the metadata section is expanded.
+
+        Args:
+            expanded: True to expand, False to collapse
+        """
+        if "preview_metadata_pane" not in self._state:
+            self._state["preview_metadata_pane"] = {"is_expanded": True, "display_profiles": {}}
+        self._state["preview_metadata_pane"]["is_expanded"] = expanded
+
+    def get_display_profile(self, item_type: str) -> Optional[List[str]]:
+        """
+        Get custom visible fields for an item type.
+
+        Args:
+            item_type: Item type ("file", "folder", "url", etc.)
+
+        Returns:
+            List of visible field keys, or None if using defaults
+        """
+        pane_state = self._state.get("preview_metadata_pane", {})
+        profiles = pane_state.get("display_profiles", {})
+        return profiles.get(item_type)
+
+    def set_display_profile(self, item_type: str, visible_fields: List[str]):
+        """
+        Set custom visible fields for an item type.
+
+        Args:
+            item_type: Item type ("file", "folder", etc.)
+            visible_fields: Ordered list of field keys to display
+        """
+        if "preview_metadata_pane" not in self._state:
+            self._state["preview_metadata_pane"] = {"is_expanded": True, "display_profiles": {}}
+        if "display_profiles" not in self._state["preview_metadata_pane"]:
+            self._state["preview_metadata_pane"]["display_profiles"] = {}
+        self._state["preview_metadata_pane"]["display_profiles"][item_type] = visible_fields.copy()
+
+    def clear_display_profile(self, item_type: str):
+        """
+        Clear custom display profile, reverting to defaults.
+
+        Args:
+            item_type: Item type to clear profile for
+        """
+        pane_state = self._state.get("preview_metadata_pane", {})
+        profiles = pane_state.get("display_profiles", {})
+        if item_type in profiles:
+            del profiles[item_type]
+
+    def get_all_display_profiles(self) -> Dict[str, List[str]]:
+        """
+        Get all custom display profiles.
+
+        Returns:
+            Dict mapping item_type to visible_fields list
+        """
+        pane_state = self._state.get("preview_metadata_pane", {})
+        return pane_state.get("display_profiles", {}).copy()

@@ -181,6 +181,11 @@ class FicheroApp(toga.App):
         try:
             self._setup_gui_interface()
             
+            # Register on_exit handler to save state when app closes
+            # This is CRITICAL - without this, finalize() is never called and state is never saved
+            self.on_exit = self._handle_exit
+            logger.info("Exit handler registered for state persistence")
+
             if not is_gui_only:
                 print("✨ Fichero GUI ready!")
             logger.info("Fichero GUI ready")
@@ -626,6 +631,31 @@ class FicheroApp(toga.App):
             logger.error(f"Failed to close all windows: {e}")
 
     # Document operations removed - using library approach instead
+
+    def _handle_exit(self, app, **kwargs):
+        """
+        Toga on_exit handler - called when user tries to quit the app.
+
+        This handler is CRITICAL for state persistence. Without it, finalize()
+        is never called and window state, pane visibility, etc. are lost.
+
+        Args:
+            app: The Toga app instance
+            **kwargs: Additional kwargs passed by Toga
+
+        Returns:
+            True to allow app exit, False to cancel
+        """
+        logger.info("on_exit handler triggered - saving state before exit")
+        try:
+            self.finalize()
+        except Exception as e:
+            logger.error(f"Error during finalize in on_exit handler: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # Always allow exit (return True)
+        return True
 
     def finalize(self):
         """Clean up when app closes - delegates to shared cleanup system"""

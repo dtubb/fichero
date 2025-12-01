@@ -22,10 +22,10 @@ from .renderers.sidebar import SidebarRenderer
 
 # Conditional import for macOS native sidebar
 try:
-    from .renderers.macos_sidebar import MacOSSidebarRenderer, RUBICON_AVAILABLE
+    from .renderers.macos_sidebar import NSOutlineViewSidebar, RUBICON_AVAILABLE
 except ImportError:
     RUBICON_AVAILABLE = False
-    MacOSSidebarRenderer = None
+    NSOutlineViewSidebar = None
 
 
 logger = logging.getLogger(__name__)
@@ -271,19 +271,19 @@ class ListWidget:
             use_native_macos = (
                 self.platform == Platform.MACOS and
                 RUBICON_AVAILABLE and
-                MacOSSidebarRenderer is not None
+                NSOutlineViewSidebar is not None
             )
 
             if use_native_macos:
-                logger.info("Creating MacOSSidebarRenderer (native NSOutlineView)")
+                logger.info("Creating NSOutlineViewSidebar (native NSOutlineView)")
                 try:
-                    return MacOSSidebarRenderer(
+                    return NSOutlineViewSidebar(
                         headings=self.headings,
                         on_select=self._handle_select,
                         style=self._renderer_style,
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to create MacOSSidebarRenderer: {e}. Falling back to Canvas SidebarRenderer")
+                    logger.warning(f"Failed to create NSOutlineViewSidebar: {e}. Falling back to Canvas SidebarRenderer")
                     # Fall through to create regular SidebarRenderer
 
             # Use Canvas-based SidebarRenderer (cross-platform fallback)
@@ -456,6 +456,21 @@ class ListWidget:
 
             # Always re-attach the new source to the widget
             self.renderer.attach_source(self._source)
+
+    def set_get_children_callback(self, callback: Callable) -> None:
+        """
+        Set callback for getting children of hierarchical items.
+        Delegates to renderer if it supports hierarchical data (e.g., NSOutlineViewSidebar).
+
+        Args:
+            callback: Function(item_data: Dict) -> Optional[List[Dict]]
+                     Returns list of child items for the given item, or None if no children
+        """
+        if hasattr(self.renderer, 'set_get_children_callback'):
+            self.renderer.set_get_children_callback(callback)
+            logger.debug(f"✅ Delegated get_children callback to {type(self.renderer).__name__}")
+        else:
+            logger.warning(f"❌ Renderer {type(self.renderer).__name__} doesn't support set_get_children_callback")
 
     def update_width(self) -> None:
         """

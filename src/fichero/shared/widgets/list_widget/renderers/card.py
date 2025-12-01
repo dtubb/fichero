@@ -288,7 +288,7 @@ class CardRenderer(Renderer):
                     if parent_width > 0:
                         width = parent_width
 
-                logger.debug(f"Container width detected: {width}px")
+                # logger.debug(f"Container width detected: {width}px")  # Too noisy - commented out
                 return int(width) if width > 0 else 0
         except Exception as e:
             logger.debug(f"Could not get container width: {e}")

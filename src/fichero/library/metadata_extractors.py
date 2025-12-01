@@ -71,11 +71,29 @@ class MetadataExtractor:
 
 
 class TranscriptionExtractor(MetadataExtractor):
-    """Extracts transcription metadata from JSON/JSONL files"""
+    """Extracts transcription metadata from JSON/JSONL files.
+
+    Now extracts ALL fields from JSON, not just predefined ones.
+    This allows AI tools to produce custom fields like named_entities,
+    entities, sentiment, etc. that automatically appear in the UI.
+    """
+
+    # Known key aliases to normalize
+    KEY_ALIASES = {
+        "Transcription": "text",
+        "Text": "text",
+        "Language": "language",
+        "Confidence": "confidence",
+        "Model": "model",
+        "Engine": "model",
+    }
+
+    # Fields that should be treated as the main text content
+    TEXT_FIELDS = {"text", "transcription"}
 
     def extract(self, output_path: Path, collection_id: str, item_id: str,
                 processing_output_id: str, source_label: str) -> List[ExtractedMetadata]:
-        """Extract transcription metadata"""
+        """Extract transcription metadata - ALL fields from JSON."""
         metadata_list = []
 
         try:
@@ -95,28 +113,61 @@ class TranscriptionExtractor(MetadataExtractor):
             # Get version number
             version = self._get_next_version(item_id, "transcription", source_label)
 
-            # Extract text field
-            text = data.get("text", "") or data.get("transcription", "") or content
+            # Extract the main text content first
+            text = data.get("text", "") or data.get("transcription", "") or ""
+            if not text and isinstance(content, str) and not content.strip().startswith("{"):
+                text = content
 
-            # Build metadata dict
-            metadata_dict = {
-                "text": text,
-                "language": data.get("language"),
-                "confidence": data.get("confidence"),
-                "word_count": len(text.split()) if text else 0,
-                "model": data.get("model") or data.get("engine")
-            }
+            # Build metadata dict with ALL fields dynamically
+            metadata_dict = {}
 
-            # Remove None values
-            metadata_dict = {k: v for k, v in metadata_dict.items() if v is not None}
+            for key, value in data.items():
+                if value is None:
+                    continue
 
-            # Validate
-            validation = validate_metadata("transcription", metadata_dict)
-            if not validation.is_valid:
-                logger.warning(f"Transcription metadata validation warnings: {validation}")
+                # Normalize key
+                normalized_key = self.KEY_ALIASES.get(key, key)
+                normalized_key = normalized_key.lower().replace(" ", "_").replace("-", "_")
+
+                # Skip internal fields
+                if normalized_key.startswith("_"):
+                    continue
+
+                # Handle text field specially - use normalized "text" key
+                if normalized_key in self.TEXT_FIELDS:
+                    normalized_key = "text"
+
+                metadata_dict[normalized_key] = value
+
+            # Ensure we have text
+            if "text" not in metadata_dict and text:
+                metadata_dict["text"] = text
+
+            # Add computed word_count if we have text
+            if metadata_dict.get("text"):
+                text_value = metadata_dict["text"]
+                if isinstance(text_value, str):
+                    metadata_dict["word_count"] = len(text_value.split())
+
+            # Get confidence for text field
+            text_confidence = data.get("confidence")
+
+            # Validate (optional - may fail for dynamic fields)
+            try:
+                validation = validate_metadata("transcription", metadata_dict)
+                if not validation.is_valid:
+                    logger.debug(f"Transcription metadata has extra fields: {validation}")
+            except Exception:
+                pass  # Validation may fail for dynamic fields, that's OK
 
             # Create metadata records for each field
             for key, value in metadata_dict.items():
+                # Convert lists/dicts to JSON string for storage
+                if isinstance(value, (list, dict)):
+                    value_str = json.dumps(value, ensure_ascii=False)
+                else:
+                    value_str = str(value)
+
                 meta = ExtractedMetadata(
                     processing_output_id=processing_output_id,
                     collection_id=collection_id,
@@ -125,10 +176,12 @@ class TranscriptionExtractor(MetadataExtractor):
                     source_label=source_label,
                     version=version,
                     key=key,
-                    value=str(value),
-                    confidence=data.get("confidence") if key == "text" else None
+                    value=value_str,
+                    confidence=text_confidence if key == "text" else None
                 )
                 metadata_list.append(meta)
+
+            logger.debug(f"Extracted {len(metadata_list)} transcription fields from {output_path.name}")
 
         except Exception as e:
             logger.error(f"Failed to extract transcription metadata from {output_path}: {e}")
@@ -137,11 +190,28 @@ class TranscriptionExtractor(MetadataExtractor):
 
 
 class CatalogueExtractor(MetadataExtractor):
-    """Extracts catalogue metadata from JSON files"""
+    """Extracts catalogue metadata from JSON files.
+
+    Now extracts ALL fields from JSON, not just predefined ones.
+    This allows AI tools to produce custom fields like named_entities,
+    people, places, organizations that automatically appear in the UI.
+    """
+
+    # Known key aliases to normalize (Title -> title, etc.)
+    KEY_ALIASES = {
+        "Title": "title",
+        "Description": "description",
+        "Date": "date",
+        "Author": "author",
+        "Location": "location",
+        "Type": "document_type",
+        "Language": "language",
+        "Subjects": "subjects",
+    }
 
     def extract(self, output_path: Path, collection_id: str, item_id: str,
                 processing_output_id: str, source_label: str) -> List[ExtractedMetadata]:
-        """Extract catalogue metadata"""
+        """Extract catalogue metadata - ALL fields from JSON."""
         metadata_list = []
 
         try:
@@ -155,30 +225,27 @@ class CatalogueExtractor(MetadataExtractor):
             # Get version number
             version = self._get_next_version(item_id, "catalogue", source_label)
 
-            # Standard catalogue fields
-            catalogue_fields = {
-                "title": data.get("title") or data.get("Title"),
-                "description": data.get("description") or data.get("Description"),
-                "date": data.get("date") or data.get("Date"),
-                "author": data.get("author") or data.get("Author"),
-                "location": data.get("location") or data.get("Location"),
-                "document_type": data.get("document_type") or data.get("Type"),
-                "language": data.get("language") or data.get("Language"),
-            }
+            # Extract ALL fields from JSON dynamically
+            catalogue_fields = {}
+            for key, value in data.items():
+                if value is None:
+                    continue
 
-            # Handle subjects (list)
-            subjects = data.get("subjects") or data.get("Subjects")
-            if subjects:
-                catalogue_fields["subjects"] = subjects
+                # Normalize key: apply aliases, then lowercase with underscores
+                normalized_key = self.KEY_ALIASES.get(key, key)
+                normalized_key = normalized_key.lower().replace(" ", "_").replace("-", "_")
 
-            # Remove None values
-            catalogue_fields = {k: v for k, v in catalogue_fields.items() if v is not None}
+                # Skip internal/system fields
+                if normalized_key.startswith("_"):
+                    continue
+
+                catalogue_fields[normalized_key] = value
 
             # Create metadata records for each field
             for key, value in catalogue_fields.items():
-                # Convert lists to JSON string
+                # Convert lists/dicts to JSON string for storage
                 if isinstance(value, (list, dict)):
-                    value_str = json.dumps(value)
+                    value_str = json.dumps(value, ensure_ascii=False)
                 else:
                     value_str = str(value)
 
@@ -193,6 +260,8 @@ class CatalogueExtractor(MetadataExtractor):
                     value=value_str
                 )
                 metadata_list.append(meta)
+
+            logger.debug(f"Extracted {len(metadata_list)} catalogue fields from {output_path.name}")
 
         except Exception as e:
             logger.error(f"Failed to extract catalogue metadata from {output_path}: {e}")

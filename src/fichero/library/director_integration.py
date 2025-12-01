@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from fichero.library.director_output_parser import DirectorOutputParser
-from fichero.library.models import ProcessingResult, ProcessingOutput, ExtractedMetadata
+from fichero.library.models import ProcessingResult, ProcessingOutput, ExtractedMetadata, CollectionItem
 from fichero.library.metadata_extractors import UniversalExtractor
 from fichero.shared.navigation.navigation_event_bus import emit_navigation_event
 
@@ -671,6 +671,43 @@ class DirectorIntegrationService:
 
         logger.info(f"Library processing - output: {output_path}, documents: {documents_folder}")
 
+        # Build item_map: filename → item_id for all files in this folder
+        # This is CRITICAL for routing file-level outputs (transcriptions) to correct items
+        item_map = {}
+        try:
+            # Query file items with database-level filtering (optimized)
+            file_items = self.library_manager.storage.get_file_items_by_parent(
+                collection_id=collection_id,
+                parent_id=item_id
+            )
+
+            # Build map: filename → item_id
+            duplicate_count = 0
+            for file_item in file_items:
+                # Extract filename from source_path or local_path
+                file_path = file_item.source_path or file_item.local_path
+                if file_path:
+                    filename = Path(file_path).name
+
+                    # Check for duplicate filenames
+                    if filename in item_map:
+                        duplicate_count += 1
+                        logger.warning(
+                            f"[ITEM_MAP] Duplicate filename in folder: '{filename}' - "
+                            f"previous item_id={item_map[filename]}, new item_id={file_item.id} (using latest)"
+                        )
+
+                    item_map[filename] = file_item.id
+                    logger.debug(f"item_map: {filename} → {file_item.id}")
+
+            if duplicate_count > 0:
+                logger.warning(f"[ITEM_MAP] Found {duplicate_count} duplicate filename(s) in folder {item_id}")
+
+            logger.info(f"Built item_map with {len(item_map)} unique filenames from {len(file_items)} file items for folder {item_id}")
+        except Exception as e:
+            logger.error(f"Failed to build item_map for folder {item_id}: {e}")
+            # Continue with empty item_map - fallback logic will handle it
+
         # Process the folder using process_folders with properly formatted dict
         try:
             task_id = self.director.processing_coordinator.process_folders(
@@ -688,7 +725,7 @@ class DirectorIntegrationService:
             logger.error(f"Failed to submit folder processing task: {error_msg}")
             raise
 
-        # Track this task
+        # Track this task with item_map for finalization
         self.active_tasks[task_id] = {
             'item_id': item_id,
             'type': 'folder',
@@ -697,7 +734,8 @@ class DirectorIntegrationService:
             'plan_name': plan_name,
             'workflow': workflow_name,
             'collection_id': collection_id,
-            'started_at': datetime.now()
+            'started_at': datetime.now(),
+            'item_map': item_map  # Pass item_map to finalization
         }
 
         logger.debug(f"Submitted single folder task {task_id} for {input_path}")
@@ -1026,13 +1064,20 @@ class DirectorIntegrationService:
         if collection_id:
             logger.info(f"Processing outputs for item {item_id} in collection {collection_id}")
 
+            # Retrieve item_map from task_info if available (for folder processing)
+            item_map = task_info.get('item_map', None)
+            if item_map:
+                logger.info(f"Using item_map with {len(item_map)} entries for output routing")
+            else:
+                logger.debug(f"No item_map available (single file processing or legacy task)")
+
             try:
                 self._ingest_processing_outputs(
                     processing_result_id=processing_result.id,
                     collection_id=collection_id,
                     item_id=item_id,
                     output_path=output_path,
-                    item_map=None  # Single item processing doesn't use item_map
+                    item_map=item_map  # Pass item_map for folder processing
                 )
                 ingestion_success = True
                 logger.debug(f"Output ingestion completed successfully for item {item_id}")
@@ -1716,16 +1761,83 @@ class DirectorIntegrationService:
         if len(outputs) < 3:  # Expecting at least manifest, prepared images, and one other output
             validation_result['issues'].append("Folder structure processing produced fewer outputs than expected")
 
+    def _find_or_create_file_item(self, collection_id: str, source_path: str,
+                                  parent_id: str) -> Optional[str]:
+        """
+        Find existing file item or create new one for a source file.
+
+        This is a fallback mechanism for when item_map doesn't have an entry.
+
+        Args:
+            collection_id: Collection ID
+            source_path: Full path or filename of source file
+            parent_id: Parent folder item_id
+
+        Returns:
+            item_id of found or created file item, or None on failure
+        """
+        try:
+            # Validate and extract filename from source_path
+            try:
+                filename = Path(source_path).name
+                if not filename or filename in ('.', '..'):
+                    logger.warning(f"[FALLBACK] Invalid source path: {source_path}")
+                    return None
+            except (TypeError, ValueError, OSError) as e:
+                logger.warning(f"[FALLBACK] Cannot extract filename from: {source_path}: {e}")
+                return None
+
+            # First, try to find existing file item (optimized with database filtering)
+            file_items = self.library_manager.storage.get_file_items_by_parent(
+                collection_id=collection_id,
+                parent_id=parent_id
+            )
+
+            for item in file_items:
+                item_path = item.source_path or item.local_path
+                if item_path and Path(item_path).name == filename:
+                    logger.info(f"[FALLBACK] Found existing file item: {filename} -> {item.id}")
+                    return item.id
+
+            # File item doesn't exist - create it
+            logger.warning(f"[FALLBACK] Creating missing file item for: {filename}")
+
+            file_item = CollectionItem(
+                collection_id=collection_id,
+                type="file",
+                name=filename,
+                parent_id=parent_id,
+                source_path=source_path,
+                storage_type="external",
+                metadata={
+                    "created_by": "director_integration_fallback",
+                    "note": "Auto-created during processing output ingestion"
+                }
+            )
+
+            if self.library_manager.storage.add_collection_item(file_item):
+                logger.info(f"[FALLBACK] Created file item: {filename} -> {file_item.id}")
+                return file_item.id
+            else:
+                logger.error(f"[FALLBACK] Failed to create file item for: {filename}")
+                return None
+
+        except Exception as e:
+            logger.error(f"[FALLBACK] Error finding/creating file item for {source_path}: {e}")
+            return None
+
     def _resolve_target_item_id(self, source: str, step_name: str, output_type: str,
                                 default_item_id: Optional[str],
-                                item_map: Optional[Dict[str, str]] = None) -> Optional[str]:
+                                item_map: Optional[Dict[str, str]] = None,
+                                collection_id: Optional[str] = None) -> Optional[str]:
         """
         Resolve the correct target item_id for a processing output.
 
         Rules:
         1. Collection-level outputs (catalogs, summaries) -> use default_item_id (collection/folder)
         2. File-level outputs (transcriptions) -> lookup source filename in item_map
-        3. Fallback to default_item_id if mapping fails
+        3. If item_map lookup fails, try to find/create file item (fallback)
+        4. Final fallback to default_item_id if all else fails
 
         Args:
             source: Source filename from manifest
@@ -1733,6 +1845,7 @@ class DirectorIntegrationService:
             output_type: Type of output (transcription, catalogue, etc.)
             default_item_id: Default item_id (collection/folder level)
             item_map: Optional mapping of filename -> item_id
+            collection_id: Optional collection_id for fallback item creation
 
         Returns:
             Resolved item_id for this output
@@ -1747,20 +1860,51 @@ class DirectorIntegrationService:
 
         # File-level outputs: try to resolve to specific file item_id
         if item_map and source:
-            # Extract filename from source (handle paths)
-            from pathlib import Path
-            source_filename = Path(source).name
+            # Extract filename from source (handle paths with validation)
+            try:
+                source_filename = Path(source).name
+
+                # Validate filename is not empty or path separator
+                if not source_filename or source_filename in ('.', '..'):
+                    logger.warning(f"[RESOLVE] Invalid source path: {source} - filename is empty or path separator")
+                    source_filename = None
+            except (TypeError, ValueError, OSError) as e:
+                logger.warning(f"[RESOLVE] Invalid source path: {source}: {e}")
+                source_filename = None
 
             # Look up the specific item_id for this source file
-            target_item_id = item_map.get(source_filename)
-            if target_item_id:
-                logger.debug(f"[RESOLVE] File-level output: {source_filename} -> {target_item_id}")
-                return target_item_id
-            else:
-                logger.warning(f"[RESOLVE] Source file '{source_filename}' not found in item_map, using default: {default_item_id}")
+            if source_filename:
+                target_item_id = item_map.get(source_filename)
+                if target_item_id:
+                    logger.debug(f"[RESOLVE] File-level output: {source_filename} -> {target_item_id}")
+                    return target_item_id
+                else:
+                    logger.warning(f"[RESOLVE] Source file '{source_filename}' not found in item_map")
 
-        # Fallback to default_item_id
-        logger.debug(f"[RESOLVE] Fallback to default: {default_item_id}")
+                # Fallback: try to find or create file item
+                if collection_id and default_item_id:
+                    fallback_item_id = self._find_or_create_file_item(
+                        collection_id=collection_id,
+                        source_path=source,
+                        parent_id=default_item_id  # Assume default is the parent folder
+                    )
+                    if fallback_item_id:
+                        return fallback_item_id
+                    else:
+                        logger.warning(f"[RESOLVE] Fallback creation failed, using default: {default_item_id}")
+
+        # Check if we're assigning file-level output to folder (potential misrouting)
+        if not is_collection_level and output_type in ['transcription', 'enhanced_image']:
+            # Get item to check its type
+            try:
+                item = self.library_manager.storage.get_item(default_item_id)
+                if item and item.type == 'folder':
+                    logger.warning(f"[RESOLVE] ⚠️ File-level output ({output_type}) being assigned to folder item {default_item_id} - potential misrouting!")
+            except Exception as e:
+                logger.debug(f"Could not validate item type: {e}")
+
+        # Final fallback to default_item_id
+        logger.debug(f"[RESOLVE] Final fallback to default: {default_item_id}")
         return default_item_id
 
     def _is_output_collection_level(self, step_name: str, output_type: str) -> bool:
@@ -1971,7 +2115,8 @@ class DirectorIntegrationService:
                                         step_name=step_name,
                                         output_type=output_type,
                                         default_item_id=item_id,
-                                        item_map=item_map
+                                        item_map=item_map,
+                                        collection_id=collection_id  # Enable fallback item creation
                                     )
                                     logger.debug(f"[INGEST] Resolved target_item_id: {target_item_id} (source: {source}, output_type: {output_type})")
 

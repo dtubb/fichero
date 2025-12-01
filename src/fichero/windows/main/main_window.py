@@ -111,6 +111,11 @@ class MainWindow:
             # Don't initialize toolbar here - it will be built by build_native_toolbar()
             # after commands are registered and app.main_window is set
 
+        # Apply saved pane visibility synchronously BEFORE showing initial view
+        # This prevents the visible "flash" where the layout changes after window appears
+        if not self.is_mobile:
+            self._apply_initial_pane_visibility()
+
         # Set up initial view
         self._show_initial_view()
 
@@ -825,6 +830,57 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to register View commands: {e}")
 
+    def _apply_initial_pane_visibility(self):
+        """
+        Apply saved pane visibility synchronously before showing initial view.
+
+        This prevents the visible "flash" where the window appears with default
+        layout then changes to saved layout.
+        """
+        try:
+            if not self.state_manager:
+                logger.debug("No state_manager - using default visibility")
+                return
+
+            if not self.navigation_controller or not hasattr(self.navigation_controller, 'layout_manager'):
+                logger.debug("No layout_manager - cannot apply visibility")
+                return
+
+            # Get saved pane visibility
+            pane_visibility = self.state_manager.get_all_pane_visibility()
+            if not pane_visibility:
+                logger.debug("No saved pane visibility - using defaults")
+                return
+
+            # Map pane keys to column names
+            pane_to_column = {
+                'library': 'Library',
+                'collection': 'Collection',
+                'previewimage': 'PreviewImage',
+                'previewmetadata': 'PreviewMetadata',
+                'adjust': 'Adjust',
+            }
+
+            layout_manager = self.navigation_controller.layout_manager
+            if not hasattr(layout_manager, 'set_column_visibility'):
+                logger.debug("Layout manager doesn't support set_column_visibility")
+                return
+
+            # Apply visibility for each pane
+            for pane_key, column_name in pane_to_column.items():
+                if pane_key in pane_visibility:
+                    is_visible = pane_visibility[pane_key]
+                    try:
+                        layout_manager.set_column_visibility(column_name, is_visible)
+                        logger.debug(f"Initial visibility: {column_name} = {is_visible}")
+                    except Exception as e:
+                        logger.debug(f"Could not set initial {column_name} visibility: {e}")
+
+            logger.info("✅ Applied initial pane visibility from saved state")
+
+        except Exception as e:
+            logger.warning(f"Could not apply initial pane visibility: {e}")
+
     def _show_initial_view(self):
         """Show the initial library view"""
         try:
@@ -1040,6 +1096,8 @@ class MainWindow:
                 current_view.collection_id == collection_id):
                 # This is the same collection - refresh and ensure it's shown
                 logger.info(f"Refreshing existing active collection view for {collection_name}")
+                # CRITICAL FIX: Actually refresh the data when reusing the view
+                current_view._load_collection_items()
                 collection_view = current_view
             else:
                 # Get or create collection view from cache
@@ -1971,10 +2029,34 @@ class MainWindow:
 
         Args:
             state_manager: StateManager instance for state persistence
+
+        Saves:
+        - Layout state (column visibility, widths)
+        - Session state (current collection/item, focus state)
+        - Pane content state (what's loaded in each pane)
+
+        Note: Window position/size handled by WindowStateTracker.
+        Note: Preview viewer zoom/scroll requires async, saved periodically during session.
         """
-        # NOTE: Window position and size are now handled by WindowStateTracker
-        # (saved in save_session_state via window_state_tracker.save_all_states())
-        # This method only saves layout state
+        # Save current collection/item selection
+        if hasattr(self, 'current_collection_id') and self.current_collection_id:
+            state_manager.set_last_collection_id(self.current_collection_id)
+            state_manager.set_library_selected_collection(self.current_collection_id)
+            logger.debug(f"Saved last collection: {self.current_collection_id}")
+
+        if hasattr(self, 'current_item_id') and self.current_item_id:
+            state_manager.set_last_item_id(self.current_item_id)
+            state_manager.set_preview_item_id(self.current_item_id)
+            logger.debug(f"Saved last item: {self.current_item_id}")
+
+        # Save preview visibility and focus state
+        preview_view = self.views.get('output')
+        if preview_view:
+            is_visible = bool(getattr(self, 'current_item_id', None))
+            state_manager.set_preview_visible(is_visible)
+
+            if hasattr(self, 'focused_pane'):
+                state_manager.set_active_pane(self.focused_pane)
 
         # Save main layout state (column visibility, widths) with StateManager
         if self.navigation_controller and hasattr(self.navigation_controller, 'layout_manager'):
@@ -1994,8 +2076,12 @@ class MainWindow:
             except Exception as e:
                 logger.warning(f"Could not save enhanced main layout state: {e}")
 
-        # Preview layout state now handled by UniversalLayoutManager + StateManager
-        # No need for preview-specific layout management
+        # Save collection pane state (which collection is open, selected item)
+        if hasattr(self, 'current_collection_id'):
+            state_manager.set_collection_pane_state(
+                getattr(self, 'current_collection_id', None),
+                getattr(self, 'current_item_id', None)
+            )
 
     def _save_window_state_legacy(self):
         """
@@ -2113,31 +2199,49 @@ class MainWindow:
                 # Restore individual pane visibility states
                 pane_visibility = state_manager.get_all_pane_visibility()
                 if pane_visibility:
-                    # Map state keys to actual column names (handles camelCase and aliases)
-                    pane_to_column = {
+                    # Map actual column name keys to layout manager column names
+                    # IMPORTANT: Only use actual keys, not aliases, to avoid conflicts
+                    # (e.g., if library=False but sidebar=True, we want library to win)
+                    actual_keys = {
                         'library': 'Library',
-                        'sidebar': 'Library',           # Legacy alias
                         'collection': 'Collection',
                         'previewimage': 'PreviewImage',
-                        'preview': 'PreviewImage',      # Legacy alias
                         'previewmetadata': 'PreviewMetadata',
                         'adjust': 'Adjust',
-                        'inspector': 'Adjust',          # Legacy alias
                     }
-                    for pane_name, is_visible in pane_visibility.items():
-                        # Map pane name to column name
-                        column_name = pane_to_column.get(pane_name.lower())
-                        if not column_name:
-                            # Skip non-column panes (status_bar, toolbar, etc.)
-                            continue
-                        # Update layout manager pane visibility
-                        try:
-                            layout_manager = self.navigation_controller.layout_manager
-                            if hasattr(layout_manager, 'set_column_visibility'):
-                                layout_manager.set_column_visibility(column_name, is_visible)
-                                logger.debug(f"Enhanced: Set {column_name} visibility: {is_visible}")
-                        except Exception as e:
-                            logger.debug(f"Could not set {column_name} visibility: {e}")
+                    # Legacy aliases - only used if actual key doesn't exist
+                    legacy_aliases = {
+                        'sidebar': ('library', 'Library'),
+                        'preview': ('previewimage', 'PreviewImage'),
+                        'inspector': ('adjust', 'Adjust'),
+                    }
+
+                    # First pass: apply actual column name keys
+                    applied_columns = set()
+                    for pane_key, column_name in actual_keys.items():
+                        if pane_key in pane_visibility:
+                            is_visible = pane_visibility[pane_key]
+                            try:
+                                layout_manager = self.navigation_controller.layout_manager
+                                if hasattr(layout_manager, 'set_column_visibility'):
+                                    layout_manager.set_column_visibility(column_name, is_visible)
+                                    applied_columns.add(column_name)
+                                    logger.debug(f"Enhanced: Set {column_name} visibility: {is_visible}")
+                            except Exception as e:
+                                logger.debug(f"Could not set {column_name} visibility: {e}")
+
+                    # Second pass: apply legacy aliases only if actual key wasn't in state
+                    for alias_key, (actual_key, column_name) in legacy_aliases.items():
+                        if alias_key in pane_visibility and actual_key not in pane_visibility:
+                            is_visible = pane_visibility[alias_key]
+                            if column_name not in applied_columns:
+                                try:
+                                    layout_manager = self.navigation_controller.layout_manager
+                                    if hasattr(layout_manager, 'set_column_visibility'):
+                                        layout_manager.set_column_visibility(column_name, is_visible)
+                                        logger.debug(f"Enhanced: Set {column_name} visibility (via alias {alias_key}): {is_visible}")
+                                except Exception as e:
+                                    logger.debug(f"Could not set {column_name} visibility: {e}")
 
             except Exception as e:
                 logger.warning(f"Could not restore enhanced main layout: {e}")
@@ -2360,12 +2464,13 @@ class MainWindow:
                                 # Load item in both views (same as _on_show_preview)
                                 self.current_item_id = last_item_id
 
-                                # Show preview slot
-                                if hasattr(self, 'preview_slot_id'):
-                                    self.navigation_controller.layout_manager.show_slot(self.preview_slot_id)
+                                # NOTE: Do NOT show preview slot here - respect saved visibility
+                                # The pane visibility was already restored by restore_window_state()
+                                # Only load content into visible panes
 
                                 # Load in both preview panes using centralized method
-                                await self._load_item_in_preview_panes(last_item_id, output_data)
+                                # Pass show_pane=False to respect saved visibility
+                                await self._load_item_in_preview_panes(last_item_id, output_data, show_pane=False)
                                 logger.info(f"✅ Restored preview for item: {last_item_id}")
 
                                 # Restore preview viewer state (zoom, scroll) on startup
@@ -2495,7 +2600,7 @@ class MainWindow:
 
     # Phase 1: Preview integration event handlers
 
-    async def _load_item_in_preview_panes(self, item_id: str, output_data: dict = None):
+    async def _load_item_in_preview_panes(self, item_id: str, output_data: dict = None, show_pane: bool = True):
         """
         Load item in both preview panes (PreviewView and AdjustView).
 
@@ -2506,6 +2611,8 @@ class MainWindow:
         Args:
             item_id: The item ID to load
             output_data: Optional pre-fetched output data (if None, will fetch)
+            show_pane: Whether to show the preview slot (default True).
+                       Set to False when restoring session to respect saved visibility.
         """
         try:
             logger.info(f"📊 Loading item {item_id} in preview panes")
@@ -2517,8 +2624,8 @@ class MainWindow:
                     steps_count = len(output_data.get('processing_steps', []))
                     logger.info(f"📊 Fetched output data: {steps_count} processing steps")
 
-            # Show preview slot on desktop
-            if not self.is_mobile and hasattr(self, 'preview_slot_id'):
+            # Show preview slot on desktop (unless restoring session)
+            if show_pane and not self.is_mobile and hasattr(self, 'preview_slot_id'):
                 if (hasattr(self, 'navigation_controller') and
                     self.navigation_controller and
                     hasattr(self.navigation_controller, 'layout_manager') and

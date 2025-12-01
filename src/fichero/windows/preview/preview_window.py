@@ -83,6 +83,9 @@ class PreviewWindow:
     def close(self):
         """Close the window"""
         try:
+            # Save state BEFORE closing (weak ref will be invalid after)
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.save_window_state("preview")
             if hasattr(self.preview_content, 'cleanup'):
                 self.preview_content.cleanup()
             self.window.close()

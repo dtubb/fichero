@@ -9,7 +9,7 @@ import logging
 import uuid
 import json
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 
 try:
@@ -804,6 +804,55 @@ class LibraryStorage:
             logger.error(f"Failed to get item: {e}")
             return None
 
+    def get_file_items_by_parent(self, collection_id: str, parent_id: str) -> List[CollectionItem]:
+        """
+        Get file items in a collection filtered by parent_id.
+
+        This is optimized for building item_maps during folder processing.
+        Uses database-level filtering instead of querying all items.
+
+        Args:
+            collection_id: Collection ID
+            parent_id: Parent folder item_id
+
+        Returns:
+            List of CollectionItem objects with type='file' and matching parent_id
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, collection_id, type, source_path, local_path, storage_type, name, status, parent_id, created_at, updated_at, metadata
+                    FROM collection_items
+                    WHERE collection_id = ? AND parent_id = ? AND type = 'file'
+                    ORDER BY name ASC
+                """, (collection_id, parent_id))
+
+                items = []
+                for row in cursor.fetchall():
+                    item = CollectionItem(
+                        id=row[0],
+                        collection_id=row[1],
+                        type=row[2],
+                        source_path=row[3],
+                        local_path=row[4],
+                        storage_type=row[5],
+                        name=row[6],
+                        status=row[7],
+                        parent_id=row[8],
+                        created_at=datetime.fromisoformat(row[9]),
+                        updated_at=datetime.fromisoformat(row[10]),
+                        metadata=self._deserialize_metadata(row[11])
+                    )
+                    items.append(item)
+
+                return items
+
+        except Exception as e:
+            logger.error(f"Failed to get file items by parent: {e}")
+            return []
+
     def add_processing_result(self, result: ProcessingResult) -> bool:
         """Add a processing result"""
         try:
@@ -1398,6 +1447,137 @@ class LibraryStorage:
             logger.error(f"Failed to get extracted metadata by item: {e}")
             return []
 
+    # =========================================================================
+    # Metadata Update Methods (for editable metadata pane)
+    # =========================================================================
+
+    def update_extracted_metadata(
+        self, item_id: str, schema_type: str, key: str, value: str
+    ) -> bool:
+        """
+        Update or insert metadata record (UPSERT logic).
+
+        Updates most recent record if exists, otherwise creates new.
+        Uses source_label='user_edit' for user-created edits.
+
+        Args:
+            item_id: Item ID
+            schema_type: Schema type (e.g., 'transcription', 'catalogue')
+            key: Field key (e.g., 'text', 'title')
+            value: New value
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Check if record exists
+                cursor.execute("""
+                    SELECT id, collection_id FROM extracted_metadata
+                    WHERE item_id = ? AND schema_type = ? AND key = ?
+                    ORDER BY version DESC, created_at DESC
+                    LIMIT 1
+                """, (item_id, schema_type, key))
+
+                row = cursor.fetchone()
+
+                if row:
+                    # Update existing
+                    record_id = row[0]
+                    cursor.execute("""
+                        UPDATE extracted_metadata
+                        SET value = ?, created_at = ?, source_label = 'user_edit'
+                        WHERE id = ?
+                    """, (value, datetime.now().isoformat(), record_id))
+                    logger.debug(f"Updated metadata record {record_id}")
+                else:
+                    # Get collection_id from item
+                    cursor.execute(
+                        "SELECT collection_id FROM collection_items WHERE id = ?",
+                        (item_id,)
+                    )
+                    item_row = cursor.fetchone()
+                    collection_id = item_row[0] if item_row else ''
+
+                    # Insert new
+                    new_id = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT INTO extracted_metadata
+                        (id, processing_output_id, collection_id, item_id, collection_level,
+                         schema_type, source_label, version, schema_version, key, value,
+                         confidence, context, custom_fields, indexed, created_at)
+                        VALUES (?, '', ?, ?, 0, ?, 'user_edit', 1, 1, ?, ?, NULL, NULL, '{}', 0, ?)
+                    """, (new_id, collection_id, item_id, schema_type, key, value,
+                          datetime.now().isoformat()))
+                    logger.debug(f"Inserted new metadata record {new_id}")
+
+                conn.commit()
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update metadata: {e}")
+            return False
+
+    def update_extracted_metadata_batch(
+        self, updates: List[Tuple[str, str, str, str]]
+    ) -> bool:
+        """
+        Batch update metadata records.
+
+        Args:
+            updates: List of (item_id, schema_type, key, value) tuples
+
+        Returns:
+            True if all updates successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                for item_id, schema_type, key, value in updates:
+                    # Check if exists
+                    cursor.execute("""
+                        SELECT id FROM extracted_metadata
+                        WHERE item_id = ? AND schema_type = ? AND key = ?
+                        ORDER BY version DESC LIMIT 1
+                    """, (item_id, schema_type, key))
+
+                    row = cursor.fetchone()
+                    if row:
+                        cursor.execute("""
+                            UPDATE extracted_metadata
+                            SET value = ?, created_at = ?, source_label = 'user_edit'
+                            WHERE id = ?
+                        """, (value, datetime.now().isoformat(), row[0]))
+                    else:
+                        # Get collection_id from item
+                        cursor.execute(
+                            "SELECT collection_id FROM collection_items WHERE id = ?",
+                            (item_id,)
+                        )
+                        item_row = cursor.fetchone()
+                        collection_id = item_row[0] if item_row else ''
+
+                        new_id = str(uuid.uuid4())
+                        cursor.execute("""
+                            INSERT INTO extracted_metadata
+                            (id, processing_output_id, collection_id, item_id, collection_level,
+                             schema_type, source_label, version, schema_version, key, value,
+                             confidence, context, custom_fields, indexed, created_at)
+                            VALUES (?, '', ?, ?, 0, ?, 'user_edit', 1, 1, ?, ?, NULL, NULL, '{}', 0, ?)
+                        """, (new_id, collection_id, item_id, schema_type, key, value,
+                              datetime.now().isoformat()))
+
+                conn.commit()
+                logger.debug(f"Batch updated {len(updates)} metadata records")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to batch update metadata: {e}")
+            return False
+
     def get_collection_level_metadata(self, collection_id: str,
                                       schema_type: str = None,
                                       key: str = None) -> List[ExtractedMetadata]:
@@ -1734,6 +1914,85 @@ class LibraryStorage:
                 return metadata_list
         except Exception as e:
             logger.error(f"Failed to get extracted metadata by collection: {e}")
+            return []
+
+    def get_metadata_keys_for_item(self, item_id: str, schema_type: str = None) -> List[str]:
+        """Get all unique metadata keys stored for an item.
+
+        This is used to discover dynamic fields that were extracted by
+        processing tools but are not in the predefined schemas.
+
+        Args:
+            item_id: The item ID to query
+            schema_type: Optional filter by schema type (catalogue, transcription, etc.)
+
+        Returns:
+            List of unique metadata keys sorted alphabetically
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT DISTINCT key, schema_type
+                    FROM extracted_metadata
+                    WHERE item_id = ?
+                """
+                params = [item_id]
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                sql += " ORDER BY schema_type, key"
+
+                cursor.execute(sql, params)
+
+                return [row[0] for row in cursor.fetchall()]
+
+        except Exception as e:
+            logger.error(f"Failed to get metadata keys for item {item_id}: {e}")
+            return []
+
+    def get_all_metadata_keys(self, collection_id: str = None, schema_type: str = None) -> List[Dict[str, str]]:
+        """Get all unique metadata keys across the library or collection.
+
+        Returns keys with their schema type for dynamic field discovery.
+
+        Args:
+            collection_id: Optional filter by collection
+            schema_type: Optional filter by schema type
+
+        Returns:
+            List of dicts with 'key' and 'schema_type' fields
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                sql = """
+                    SELECT DISTINCT key, schema_type
+                    FROM extracted_metadata
+                    WHERE 1=1
+                """
+                params = []
+
+                if collection_id:
+                    sql += " AND collection_id = ?"
+                    params.append(collection_id)
+
+                if schema_type:
+                    sql += " AND schema_type = ?"
+                    params.append(schema_type)
+
+                sql += " ORDER BY schema_type, key"
+
+                cursor.execute(sql, params)
+
+                return [{"key": row[0], "schema_type": row[1]} for row in cursor.fetchall()]
+
+        except Exception as e:
+            logger.error(f"Failed to get all metadata keys: {e}")
             return []
 
     def cleanup_processing_outputs(self, item_id: str = None,

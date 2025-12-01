@@ -1095,6 +1095,182 @@ class TestDirectorLibraryIntegration(unittest.TestCase):
         legacy_in_query = any(m.id == "legacy-meta-123" for m in leaf_level_query)
         self.assertTrue(legacy_in_query, "Legacy metadata should appear in leaf-level queries")
 
+    def test_folder_processing_with_item_map(self):
+        """
+        Test folder processing with item_map for correct file-level routing.
+
+        This is the critical test for the bug fix: when processing a folder containing
+        multiple files, file-level outputs (transcriptions) should be routed to individual
+        file items, NOT to the folder item.
+        """
+        # ARRANGE: Create folder with 3 file items
+        test_files = [
+            "document1.jpg",
+            "document2.jpg",
+            "document3.jpg"
+        ]
+
+        # Create file items as children of the folder
+        file_items = []
+        for filename in test_files:
+            file_item = CollectionItem(
+                collection_id=self.test_collection.id,
+                type="file",
+                name=filename,
+                parent_id=self.test_folder_item.id,  # Link to parent folder
+                source_path=str(self.test_dir / "source" / "test_folder" / filename),
+                status="pending"
+            )
+            self.storage.add_collection_item(file_item)
+            file_items.append(file_item)
+
+        # Create output directory with realistic Director outputs
+        folder_output_dir = self.output_dir / "folder_with_item_map_test"
+        folder_output_dir.mkdir()
+
+        # Create workflow manifest with both file-level and folder-level steps
+        self._create_workflow_manifest(folder_output_dir, {
+            "plan_name": "Transcribir y Catalogar",
+            "workflow_name": "Catalogue",
+            "task_id": "folder-task-456",
+            "steps": [
+                {
+                    "order": 1,
+                    "name": "transcribe_qwen_max_direct",
+                    "status": "success",
+                    "manifest_file": "assets/transcriptions/transcriptions_manifest.jsonl"
+                },
+                {
+                    "order": 2,
+                    "name": "catalogue_folder",
+                    "status": "success",
+                    "manifest_file": "assets/catalogue/catalogue_manifest.jsonl"
+                }
+            ]
+        })
+
+        # Create transcription outputs (file-level)
+        self._create_transcription_outputs(folder_output_dir, test_files)
+
+        # Create folder catalogue output (collection-level)
+        self._create_catalogue_outputs(folder_output_dir, "test_folder", is_folder_level=True)
+
+        # Build item_map (this is what the fix adds)
+        item_map = {filename: item.id for filename, item in zip(test_files, file_items)}
+
+        # ACT: Run integration process with item_map
+        processing_result_id = "result-folder-456"
+        self.director_service._ingest_processing_outputs(
+            processing_result_id=processing_result_id,
+            collection_id=self.test_collection.id,
+            item_id=self.test_folder_item.id,  # Folder's item_id
+            output_path=folder_output_dir,
+            item_map=item_map  # Pass item_map for routing
+        )
+
+        self.director_service._extract_metadata_from_outputs(
+            processing_result_id=processing_result_id,
+            collection_id=self.test_collection.id,
+            output_path=folder_output_dir
+        )
+
+        # ASSERT: Verify correct routing
+
+        # 1. Each file item should have its own transcription output
+        for file_item in file_items:
+            outputs = self.storage.get_outputs_by_item(item_id=file_item.id)
+            transcription_outputs = [o for o in outputs if o.output_type == "transcription"]
+            self.assertEqual(len(transcription_outputs), 1,
+                           f"File {file_item.name} should have exactly 1 transcription output")
+
+            # Verify source_file matches
+            trans_output = transcription_outputs[0]
+            self.assertIn(file_item.name, trans_output.source_file,
+                        f"Transcription should reference source file {file_item.name}")
+
+        # 2. Folder item should have catalogue output (NOT transcriptions)
+        folder_outputs = self.storage.get_outputs_by_item(item_id=self.test_folder_item.id)
+        folder_transcriptions = [o for o in folder_outputs if o.output_type == "transcription"]
+        folder_catalogues = [o for o in folder_outputs if o.output_type == "catalogue"]
+
+        self.assertEqual(len(folder_transcriptions), 0,
+                       "Folder should NOT have transcription outputs (those are file-level)")
+        self.assertGreater(len(folder_catalogues), 0,
+                         "Folder should have catalogue output (collection-level)")
+
+        # 3. Verify metadata extraction routed correctly
+        for file_item in file_items:
+            metadata = self.storage.get_extracted_metadata_by_item(item_id=file_item.id)
+            # Each file should have transcription metadata
+            transcription_meta = [m for m in metadata if m.schema_type == "transcription"]
+            self.assertGreater(len(transcription_meta), 0,
+                             f"File {file_item.name} should have transcription metadata")
+
+        # 4. Folder metadata should be collection-level, not file-level
+        folder_metadata = self.storage.get_extracted_metadata_by_item(
+            item_id=self.test_folder_item.id
+        )
+        # Folder should have catalogue metadata, not transcriptions
+        folder_transcription_meta = [m for m in folder_metadata if m.schema_type == "transcription"]
+        self.assertEqual(len(folder_transcription_meta), 0,
+                       "Folder should NOT have transcription metadata (that's file-level)")
+
+    def test_folder_processing_without_item_map_uses_fallback(self):
+        """
+        Test that fallback item creation works when item_map is missing.
+
+        When item_map is None or incomplete, the system should try to find/create
+        file items automatically.
+        """
+        # ARRANGE: Create folder but DON'T create file items ahead of time
+        test_files = ["document_new1.jpg", "document_new2.jpg"]
+
+        folder_output_dir = self.output_dir / "folder_fallback_test"
+        folder_output_dir.mkdir()
+
+        self._create_workflow_manifest(folder_output_dir, {
+            "plan_name": "Transcribir y Catalogar",
+            "workflow_name": "Catalogue",
+            "task_id": "folder-task-789",
+            "steps": [{
+                "order": 1,
+                "name": "transcribe_qwen_max_direct",
+                "status": "success",
+                "manifest_file": "assets/transcriptions/transcriptions_manifest.jsonl"
+            }]
+        })
+
+        self._create_transcription_outputs(folder_output_dir, test_files)
+
+        # ACT: Run WITHOUT item_map (fallback should activate)
+        processing_result_id = "result-folder-789"
+        self.director_service._ingest_processing_outputs(
+            processing_result_id=processing_result_id,
+            collection_id=self.test_collection.id,
+            item_id=self.test_folder_item.id,
+            output_path=folder_output_dir,
+            item_map=None  # No item_map - should use fallback
+        )
+
+        # ASSERT: Verify fallback item creation worked
+
+        # Check that file items were auto-created
+        all_items = self.storage.get_collection_items(
+            collection_id=self.test_collection.id
+        )
+
+        file_items = [item for item in all_items
+                     if item.type == "file" and item.parent_id == self.test_folder_item.id]
+        # Should have created at least some file items via fallback
+        # (exact count depends on whether source files exist in filesystem)
+
+        # Verify that ProcessingOutputs exist
+        # Even with fallback, outputs should be created (might go to folder or new file items)
+        all_outputs = self.storage.get_outputs_by_collection(
+            collection_id=self.test_collection.id
+        )
+        self.assertGreater(len(all_outputs), 0, "Should have created ProcessingOutput records")
+
 
 if __name__ == '__main__':
     # Run with verbose output

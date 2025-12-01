@@ -336,12 +336,13 @@ class WindowStateTracker:
         """Handle window state change events."""
         logger.debug(f"Window event: {window_id} - {event_type}")
 
-        # Auto-save state on significant events
+        # Auto-save state on significant events (to memory only - disk write is expensive)
         # These events indicate the window has finished a position/size change
         auto_save_events = {'move', 'end_live_resize', 'deminiaturize'}
         if event_type in auto_save_events:
             try:
-                self.save_window_state(window_id)
+                # Save to memory only (persist_to_disk=False) - disk write happens on close
+                self.save_window_state(window_id, persist_to_disk=False)
                 logger.debug(f"Auto-saved window state for {window_id} after {event_type}")
             except Exception as e:
                 logger.error(f"Failed to auto-save window state: {e}")
@@ -607,17 +608,26 @@ class WindowStateTracker:
         except Exception as e:
             logger.error(f"Failed to restore Toga window state: {e}")
 
-    def save_window_state(self, window_id: str):
+    def save_window_state(self, window_id: str, persist_to_disk: bool = True):
         """
         Save current state of a specific window.
 
         Args:
             window_id: The window identifier
+            persist_to_disk: If True, immediately write to disk (not just memory)
         """
         state = self.get_window_state(window_id)
         if state:
             self.state_manager.set_window_state(window_id, state.to_dict())
-            logger.debug(f"Saved window state: {window_id}")
+            logger.debug(f"Saved window state to memory: {window_id}")
+
+            # Persist to disk immediately to ensure state survives crashes/force-quits
+            if persist_to_disk:
+                try:
+                    self.state_manager.save_state_sync()
+                    logger.debug(f"Persisted window state to disk: {window_id}")
+                except Exception as e:
+                    logger.warning(f"Could not persist window state to disk: {e}")
 
     def save_all_states(self):
         """Save state of all tracked windows."""

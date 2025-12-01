@@ -53,16 +53,20 @@ class ActivityMonitorWindow:
     def close(self):
         """Close the activity monitor window"""
         if self.window:
+            # Save state BEFORE closing (weak ref will be invalid after)
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.save_window_state("activity")
+
             # Stop monitoring first
             if hasattr(self, 'activity_content') and self.activity_content:
                 self.activity_content.stop_monitoring()
-            
+
             # Close the window - Toga will handle the rest
             self.window.close()
             self.window = None
             self.activity_content = None
             self.is_visible = False
-            
+
             logger.info("Activity monitor window closed")
     
     def _create_window(self):

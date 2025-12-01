@@ -73,9 +73,15 @@ class CollectionView(BaseView, ViewCommandMixin):
         # Hierarchical navigation state
         self.current_path: str = ""  # Current path within collection (empty = root)
         self.breadcrumb_path: List[str] = []  # For breadcrumb display
+        self.current_folder_id: Optional[str] = None  # Phase 6: Current folder being viewed (None = root level)
 
         # Navigation loop protection
         self._updating_from_navigation_callback = False
+
+        # Search filter state
+        self._all_items: List[Dict[str, Any]] = []  # Store unfiltered items
+        self._search_query: Optional[str] = None  # Active search query
+        self._search_item_ids: Optional[set] = None  # Set of item IDs matching search
 
         # Set view_id BEFORE initializing ViewCommandMixin
         # Always use "collection" since we cache a single reusable instance
@@ -1603,7 +1609,7 @@ class CollectionView(BaseView, ViewCommandMixin):
                     flex=1,
                     margin_left=2  # Small left margin so focus ring is visible
                 ),
-                renderer='native',  # Use platform-appropriate widget (Tree/Table/DetailedList)
+                renderer='card',  # Use card renderer for single-level view (Phase 6)
                 app=self.app,  # For SelectionManager access
                 view_id='collection'  # Selection context
             )
@@ -3425,6 +3431,11 @@ class CollectionView(BaseView, ViewCommandMixin):
     
     def set_collection_id(self, collection_id: str):
         """Set the current collection ID and load its items"""
+        # Clear any active search filter when switching collections
+        self._search_query = None
+        self._search_item_ids = None
+        self._all_items = []
+
         self.collection_id = collection_id
         self._load_collection_items()
     
@@ -3894,11 +3905,12 @@ class CollectionView(BaseView, ViewCommandMixin):
 
 
     def refresh(self):
-        """Refresh the collection view"""
+        """Refresh the collection view by reloading items from database"""
         try:
-            self.refresh_collections()
-            super().refresh()
-            
+            # Reload collection items from database
+            self._load_collection_items()
+            logger.info(f"✅ Collection view refreshed with {len(self.collection_items) if hasattr(self, 'collection_items') else 0} items")
+
         except Exception as e:
             logger.error(f"Failed to refresh collection view: {e}") 
 
@@ -4308,3 +4320,79 @@ class CollectionView(BaseView, ViewCommandMixin):
         except Exception as e:
             logger.error(f"Failed to get selection metadata: {e}")
             return f"Error loading metadata: {e}"
+
+    # ===== SEARCH FILTER METHODS =====
+
+    def apply_search_filter(self, query: str, matching_item_ids: set):
+        """Apply search filter to collection items.
+
+        Args:
+            query: The search query string
+            matching_item_ids: Set of item IDs that match the search
+        """
+        try:
+            logger.info(f"🔍 Applying search filter: '{query}' with {len(matching_item_ids)} matching items")
+
+            # Store original items if not already stored
+            if not self._all_items and self.collection_items:
+                self._all_items = list(self.collection_items)
+                logger.debug(f"Stored {len(self._all_items)} original items")
+
+            # Store search state
+            self._search_query = query
+            self._search_item_ids = matching_item_ids
+
+            # Filter items to only those matching search
+            if matching_item_ids:
+                filtered_items = [
+                    item for item in (self._all_items or self.collection_items)
+                    if item.get('id') in matching_item_ids
+                ]
+                self.collection_items = filtered_items
+                logger.info(f"✅ Filtered to {len(filtered_items)} items matching search")
+            else:
+                # No matches - show empty
+                self.collection_items = []
+                logger.info("No items match search filter")
+
+            # Update the display
+            self._update_items_list(force_recreate=True)
+
+            # Update title to show search mode
+            self._update_title()
+
+        except Exception as e:
+            logger.error(f"Failed to apply search filter: {e}", exc_info=True)
+
+    def clear_search_filter(self):
+        """Clear search filter and restore all items."""
+        try:
+            logger.info("🔍 Clearing search filter")
+
+            # Only clear if we have a search active
+            if self._search_query is None and not self._all_items:
+                logger.debug("No active search filter to clear")
+                return
+
+            # Restore original items
+            if self._all_items:
+                self.collection_items = list(self._all_items)
+                logger.info(f"✅ Restored {len(self.collection_items)} items")
+
+            # Clear search state
+            self._search_query = None
+            self._search_item_ids = None
+            self._all_items = []
+
+            # Update the display
+            self._update_items_list(force_recreate=True)
+
+            # Update title to normal mode
+            self._update_title()
+
+        except Exception as e:
+            logger.error(f"Failed to clear search filter: {e}", exc_info=True)
+
+    def is_search_active(self) -> bool:
+        """Check if a search filter is currently active."""
+        return self._search_query is not None

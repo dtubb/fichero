@@ -26,23 +26,22 @@ class TestPreviewMetadataFontSizes(unittest.TestCase):
     """Test that font sizes are set correctly in the metadata pane"""
 
     def test_font_size_constants(self):
-        """Test that 14pt font size is used in the source code"""
-        # Read the source file
-        metadata_pane_file = os.path.join(
+        """Test that appropriate font sizes are used in the source code"""
+        # Read the metadata field widget source file
+        metadata_field_file = os.path.join(
             os.path.dirname(__file__), '..', '..', 'src',
-            'fichero', 'windows', 'main', 'views', 'preview', 'preview_metadata_pane.py'
+            'fichero', 'shared', 'widgets', 'metadata_field.py'
         )
 
-        with open(metadata_pane_file, 'r') as f:
+        with open(metadata_field_file, 'r') as f:
             content = f.read()
 
-        # Check that font_size=14 appears multiple times (for different components)
-        font_size_14_count = content.count('font_size=14')
-        self.assertGreaterEqual(font_size_14_count, 4,
-                               "Should have at least 4 instances of font_size=14")
+        # Check that font sizes are defined in metadata field widget
+        self.assertIn('LABEL_FONT_SIZE', content, "Font size constants should be defined")
 
-        # Check specific components have 14pt font
-        self.assertIn('font_size=14', content, "Font size 14 should be present in code")
+        # Check that compact fonts are used (8-9pt range)
+        self.assertIn('LABEL_FONT_SIZE = 8', content, "Desktop font size should be 8pt")
+        self.assertIn('LABEL_FONT_SIZE_MOBILE = 9', content, "Mobile font size should be 9pt")
 
 
 class TestPreviewLayoutRatio(unittest.TestCase):
@@ -336,12 +335,12 @@ class TestOverallIntegration(unittest.TestCase):
     def test_all_features_present(self):
         """Integration test to verify all features are implemented"""
 
-        # Check metadata pane font sizes
-        metadata_pane_file = os.path.join(
+        # Check metadata field widget font sizes
+        metadata_field_file = os.path.join(
             os.path.dirname(__file__), '..', '..', 'src',
-            'fichero', 'windows', 'main', 'views', 'preview', 'preview_metadata_pane.py'
+            'fichero', 'shared', 'widgets', 'metadata_field.py'
         )
-        with open(metadata_pane_file, 'r') as f:
+        with open(metadata_field_file, 'r') as f:
             metadata_content = f.read()
 
         # Check state manager layout ratio
@@ -362,7 +361,7 @@ class TestOverallIntegration(unittest.TestCase):
 
         # Verify all changes are present
         features_present = {
-            'font_size_14': 'font_size=14' in metadata_content,
+            'dense_font_sizes': 'LABEL_FONT_SIZE = 8' in metadata_content,
             'wide_content_default': '"current_preset": "wide_content"' in state_content,
             'zoom_commands': all(cmd in main_content for cmd in [
                 "'view.zoom_in':", "'view.zoom_out':", "'view.actual_size':"
@@ -385,7 +384,7 @@ class TestOverallIntegration(unittest.TestCase):
             self.assertTrue(present, f"Feature {feature} should be present")
 
         print(f"\n✅ All features verified:")
-        print(f"  - 14pt font sizes in metadata pane: {features_present['font_size_14']}")
+        print(f"  - Dense font sizes in metadata pane: {features_present['dense_font_sizes']}")
         print(f"  - 75%/25% default layout ratio: {features_present['wide_content_default']}")
         print(f"  - Zoom menu commands defined: {features_present['zoom_commands']}")
         print(f"  - Zoom action methods implemented: {features_present['zoom_methods']}")

@@ -74,5 +74,8 @@ class ProcessingWindow:
     def close(self):
         """Close the window"""
         if self.window:
+            # Save state BEFORE closing (weak ref will be invalid after)
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.save_window_state("processing")
             self.window.close()
             self.window = None 

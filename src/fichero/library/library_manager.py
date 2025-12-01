@@ -198,6 +198,8 @@ class LibraryManager:
         self._collections_cache: Optional[List[Collection]] = None
         self._cache_timestamp: Optional[datetime] = None
         self._demo_setup_pending: bool = False
+        self._inbox_setup_pending: bool = True  # Create inbox on first get_all_collections
+        self._inbox_setup_lock: Optional[asyncio.Lock] = None  # Lazy initialized in async context
 
         logger.info(f"Library manager initialized successfully with database: {db_path}")
 
@@ -307,7 +309,74 @@ class LibraryManager:
             return f"{base_url}/iiif/{source_file}/full/full/0/default.jpg"
 
     # ===== COLLECTION MANAGEMENT =====
-    
+
+    async def get_or_create_inbox(self) -> str:
+        """
+        Get or create the Inbox collection with triple-check pattern to prevent duplicates.
+
+        The Inbox is a special system collection that:
+        - Always appears at the top of the sidebar
+        - Cannot be deleted or renamed
+        - Serves as the default import location
+
+        Returns:
+            Collection ID of the inbox
+        """
+        try:
+            # FIRST CHECK: Use direct storage call to avoid recursion
+            collections = self.storage.get_all_collections()
+            for collection in collections:
+                if collection.metadata.get('is_inbox'):
+                    logger.debug(f"Found existing inbox (first check): {collection.id}")
+                    return collection.id
+
+            # SECOND CHECK: Query again right before creating to catch race conditions
+            # This handles the case where another thread/task created it between checks
+            collections_recheck = self.storage.get_all_collections()
+            for collection in collections_recheck:
+                if collection.metadata.get('is_inbox'):
+                    logger.warning(f"Inbox created by another task during race (second check): {collection.id}")
+                    return collection.id
+
+            # Create inbox collection
+            logger.info("Creating Inbox collection (no existing inbox found)")
+            inbox_id = await self.add_collection(
+                name="Inbox",
+                collection_type="local",
+                source_path=None,
+                description="Default import location",
+                metadata={
+                    "is_inbox": True,
+                    "system_collection": True,
+                    "created_by": "system"
+                }
+            )
+
+            if inbox_id:
+                logger.info(f"Inbox collection created: {inbox_id}")
+
+                # THIRD CHECK: Verify only one inbox exists after creation
+                all_collections = self.storage.get_all_collections()
+                all_inboxes = [c for c in all_collections if c.metadata.get('is_inbox')]
+
+                if len(all_inboxes) > 1:
+                    logger.error(f"DUPLICATE INBOXES DETECTED: {len(all_inboxes)} inboxes found!")
+                    # Keep the first one (oldest), delete the rest
+                    inboxes_to_delete = all_inboxes[1:]
+                    for duplicate in inboxes_to_delete:
+                        logger.warning(f"Deleting duplicate inbox: {duplicate.id}")
+                        await self.delete_collection(duplicate.id)
+                    logger.info(f"Cleaned up {len(inboxes_to_delete)} duplicate inbox(es)")
+
+                return inbox_id
+            else:
+                logger.error("Failed to create inbox collection")
+                raise RuntimeError("Failed to create inbox collection")
+
+        except Exception as e:
+            logger.error(f"Error in get_or_create_inbox: {e}", exc_info=True)
+            raise
+
     async def add_collection(self, 
                            name: str,
                            collection_type: Literal["local", "external", "url", "hybrid"],
@@ -430,6 +499,20 @@ class LibraryManager:
             sort_by: Sort mode - "manual", "name", "date_created", "date_updated", "type"
         """
         try:
+            # Ensure inbox exists on first load (only once) with thread-safe double-check pattern
+            if self._inbox_setup_pending:
+                # Lazy initialize lock in async context (can't do in __init__)
+                if self._inbox_setup_lock is None:
+                    self._inbox_setup_lock = asyncio.Lock()
+
+                # Acquire lock to prevent race condition
+                async with self._inbox_setup_lock:
+                    # Double-check pattern: check flag again after acquiring lock
+                    if self._inbox_setup_pending:
+                        await self.get_or_create_inbox()
+                        self._inbox_setup_pending = False
+                        force_refresh = True  # Force refresh after inbox setup
+
             # Check for pending demo setup
             if self._demo_setup_pending:
                 await self._ensure_demo_collections()
@@ -599,6 +682,11 @@ class LibraryManager:
                 logger.error(f"Collection not found: {collection_id}")
                 return False
 
+            # Protect system collections (Inbox)
+            if collection.metadata.get('is_inbox') or collection.metadata.get('system_collection'):
+                logger.warning(f"Cannot delete system collection: {collection.name}")
+                return False
+
             # Clean up thumbnails for items in this collection
             await self._delete_collection_thumbnails(collection_id)
 
@@ -650,6 +738,11 @@ class LibraryManager:
             collection = await self.get_collection(collection_id)
             if not collection:
                 logger.error(f"Collection not found: {collection_id}")
+                return False
+
+            # Protect system collections (Inbox)
+            if collection.metadata.get('is_inbox') or collection.metadata.get('system_collection'):
+                logger.warning(f"Cannot rename system collection: {collection.name}")
                 return False
 
             # Note: We allow duplicate names - collections are identified by UUID
@@ -1158,6 +1251,32 @@ class LibraryManager:
     async def get_collection_items(self, collection_id: str) -> List[CollectionItem]:
         """Get all items in a collection"""
         return self.storage.get_collection_items(collection_id)
+
+    async def count_items_in_folder(self, folder_id: str) -> int:
+        """Count the number of items in a folder (direct children only)
+
+        Args:
+            folder_id: ID of the folder (CollectionItem with type='folder')
+
+        Returns:
+            Number of items in the folder
+        """
+        try:
+            # Get the folder item to find its collection_id
+            folder = self.storage.get_item(folder_id)
+            if not folder:
+                logger.warning(f"Folder {folder_id} not found")
+                return 0
+
+            # Get items where parent_id matches this folder_id
+            all_items = self.storage.get_collection_items(folder.collection_id)
+            folder_items = [item for item in all_items if item.parent_id == folder_id]
+
+            return len(folder_items)
+
+        except Exception as e:
+            logger.error(f"Failed to count items in folder {folder_id}: {e}")
+            return 0
 
     async def get_item(self, item_id: str) -> Optional[CollectionItem]:
         """Get a single item by ID"""
@@ -2717,6 +2836,89 @@ class LibraryManager:
             catalogue_data[metadata.key].append(metadata.value)
 
         return catalogue_data
+
+    # =========================================================================
+    # Metadata Update Methods (for editable metadata pane)
+    # =========================================================================
+
+    async def update_item_transcription(self, item_id: str, text: str) -> bool:
+        """
+        Update/overwrite transcription text for an item.
+
+        Updates the most recent transcription record, or creates new if none exists.
+
+        Args:
+            item_id: Item ID
+            text: New transcription text
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Updating transcription for item {item_id}")
+            return self.storage.update_extracted_metadata(
+                item_id=item_id,
+                schema_type="transcription",
+                key="text",
+                value=text
+            )
+        except Exception as e:
+            logger.error(f"Failed to update transcription: {e}")
+            return False
+
+    async def update_item_catalogue_field(
+        self, item_id: str, field_key: str, value: str
+    ) -> bool:
+        """
+        Update a single catalogue field for an item.
+
+        Args:
+            item_id: Item ID
+            field_key: Field name (e.g., "title", "date")
+            value: New value
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Updating catalogue field {field_key} for item {item_id}")
+            return self.storage.update_extracted_metadata(
+                item_id=item_id,
+                schema_type="catalogue",
+                key=field_key,
+                value=value
+            )
+        except Exception as e:
+            logger.error(f"Failed to update catalogue field: {e}")
+            return False
+
+    async def update_item_metadata_batch(
+        self, item_id: str, updates: Dict[str, str]
+    ) -> bool:
+        """
+        Update multiple catalogue fields in one operation.
+
+        Args:
+            item_id: Item ID
+            updates: Dict mapping field_key to new value
+
+        Returns:
+            True if all updates successful, False otherwise
+        """
+        try:
+            logger.info(f"Batch updating {len(updates)} fields for item {item_id}")
+
+            # Build batch update list
+            batch = [
+                (item_id, "catalogue", key, value)
+                for key, value in updates.items()
+            ]
+
+            return self.storage.update_extracted_metadata_batch(batch)
+
+        except Exception as e:
+            logger.error(f"Failed to batch update metadata: {e}")
+            return False
 
     async def get_output_file_path(self, output_id: str, collection_id: str) -> Optional[Path]:
         """

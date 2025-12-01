@@ -73,6 +73,9 @@ class SettingsWindow:
     def close(self):
         """Close the settings window"""
         if self.window:
+            # Save state BEFORE closing (weak ref will be invalid after)
+            if hasattr(self.app, 'window_state_tracker') and self.app.window_state_tracker:
+                self.app.window_state_tracker.save_window_state("settings")
             self.window.close()
             self.window = None
             self.settings_content = None 
