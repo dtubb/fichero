@@ -162,7 +162,84 @@ class LibraryUIIntegration:
         except Exception as e:
             logger.error(f"Failed to add file to collection: {e}")
             return False
-    
+
+    async def rename_collection(self, collection_id: str, new_name: str) -> bool:
+        """Rename a collection via library manager
+
+        Args:
+            collection_id: ID of collection to rename
+            new_name: New name for collection
+
+        Returns:
+            True if rename succeeded, False otherwise
+        """
+        try:
+            success = await self.library_manager.rename_collection(collection_id, new_name)
+            if success and self.on_collection_updated:
+                # Get updated collection for callback
+                collections = await self.library_manager.get_all_collections()
+                collection = next((c for c in collections if c.id == collection_id), None)
+                if collection:
+                    self.on_collection_updated(collection)
+            return success
+        except Exception as e:
+            logger.error(f"Failed to rename collection: {e}")
+            return False
+
+    async def delete_collection(self, collection_id: str) -> bool:
+        """Delete a collection via library manager
+
+        Args:
+            collection_id: ID of collection to delete
+
+        Returns:
+            True if delete succeeded, False otherwise
+        """
+        try:
+            success = await self.library_manager.delete_collection(collection_id)
+            if success and self.on_collection_deleted:
+                self.on_collection_deleted(collection_id)
+            return success
+        except Exception as e:
+            logger.error(f"Failed to delete collection: {e}")
+            return False
+
+    async def duplicate_collection(self, collection_id: str) -> Optional[str]:
+        """Duplicate a collection via library manager
+
+        Args:
+            collection_id: ID of collection to duplicate
+
+        Returns:
+            ID of new collection if successful, None otherwise
+        """
+        try:
+            # Get existing collection
+            collection = await self.library_manager.get_collection(collection_id)
+            if not collection:
+                logger.error(f"Collection not found: {collection_id}")
+                return None
+
+            # Create new collection with "(Copy)" suffix
+            new_name = f"{collection.name} (Copy)"
+            new_collection_id = await self.library_manager.add_collection(
+                name=new_name,
+                collection_type=collection.type,
+                source_path=collection.source_path,
+                description=collection.metadata.get("description", ""),
+                metadata=collection.metadata
+            )
+
+            if new_collection_id and self.on_collection_added:
+                new_collection = await self.library_manager.get_collection(new_collection_id)
+                if new_collection:
+                    self.on_collection_added(new_collection)
+
+            return new_collection_id
+        except Exception as e:
+            logger.error(f"Failed to duplicate collection: {e}")
+            return None
+
     # ===== COLLECTION RETRIEVAL =====
     
     async def get_collections_for_ui(self) -> List[Dict[str, Any]]:

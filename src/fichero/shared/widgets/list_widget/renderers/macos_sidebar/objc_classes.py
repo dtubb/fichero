@@ -201,8 +201,12 @@ def create_sidebar_classes():
                     return 0
 
                 if self.interface and hasattr(self.interface, '_get_children_callback'):
-                    children = self.interface._get_children_callback(item._python_data)
+                    item_data = item._python_data
+                    item_name = item_data.get('text', '?') if isinstance(item_data, dict) else str(item_data)
+                    children = self.interface._get_children_callback(item_data)
                     if children is not None:
+                        child_names = [c.get('text', '?') for c in children]
+                        logger.debug(f"numberOfChildren('{item_name}'): {len(children)} -> {child_names}")
                         return len(children)
 
                 return 0
@@ -215,8 +219,9 @@ def create_sidebar_classes():
             """Return child at index for item (None = root).
 
             IMPORTANT: Child wrappers must be STABLE (cached) for drag-drop
-            insertion lines to work. NSOutlineView uses rowForItem() to find
-            the visual row position, which only works with cached items.
+            to work without crashing. Following demo_toga_pattern.py, we store
+            the wrapper directly on the item dict as '_impl'. This ensures
+            NSOutlineView always gets the same wrapper after reloadData().
             """
             try:
                 if item is None:
@@ -229,14 +234,19 @@ def create_sidebar_classes():
                     children = self.interface._get_children_callback(item._python_data)
                     if children is not None and 0 <= index < len(children):
                         child_data = children[index]
-                        # Use cached wrapper for stable identity - required for drag-drop
-                        # Without stable wrappers, rowForItem() returns -1 and no line shows
+
+                        # Return wrapper from item's _impl (stable identity like demo)
+                        if '_impl' in child_data and child_data['_impl'] is not None:
+                            return child_data['_impl']
+
+                        # Fallback to interface method which stores _impl on item
                         if hasattr(self.interface, '_get_or_create_wrapper'):
                             return self.interface._get_or_create_wrapper(child_data)
                         else:
-                            # Fallback: create new (won't work for drag lines)
+                            # Last resort fallback (shouldn't happen)
                             child_item = SidebarItem.alloc().init()
                             child_item._python_data = child_data
+                            child_data['_impl'] = child_item
                             return child_item
 
                 return None
@@ -536,9 +546,21 @@ def create_sidebar_classes():
                                 folder_icon.setTemplate(True)
                             view.imageView.image = folder_icon
                     elif icon_name:
-                        icon = NSImage.imageNamed(icon_name)
+                        # Handle different icon types:
+                        # - String: icon name for NSImage.imageNamed()
+                        # - toga.images.Image: extract native NSImage
+                        # - Other: fallback to folder icon
+                        icon = None
+                        if isinstance(icon_name, str):
+                            icon = NSImage.imageNamed(icon_name)
+                        elif hasattr(icon_name, '_impl') and hasattr(icon_name._impl, 'native'):
+                            # toga.images.Image has _impl.native which is NSImage
+                            icon = icon_name._impl.native
+
                         if icon:
-                            icon.setTemplate(True)
+                            # Only set template mode for string-based icons (system icons)
+                            if isinstance(icon_name, str):
+                                icon.setTemplate(True)
                             view.imageView.image = icon
                         else:
                             folder_icon = NSImage.imageNamed("NSFolder")
@@ -613,6 +635,38 @@ def create_sidebar_classes():
         # =====================================================================
 
         @objc_method
+        def menuForEvent_(self, event):
+            """
+            Override menuForEvent: to provide contextual menus on right-click.
+
+            NSOutlineView doesn't automatically call the delegate method
+            outlineView:menuForTableColumn:item: - we must override menuForEvent:
+            and determine which item was clicked, then build the menu ourselves.
+            """
+            try:
+                # Get click location and convert to outline view coordinates
+                point = self.convertPoint_fromView_(event.locationInWindow, None)
+                row = self.rowAtPoint_(point)
+
+                if row < 0:
+                    # Clicked on empty area - no menu
+                    return None
+
+                # Get the item at this row
+                item = self.itemAtRow_(row)
+
+                # Select the clicked row for visual feedback
+                NSIndexSet = ObjCClass("NSIndexSet")
+                index_set = NSIndexSet.indexSetWithIndex_(row)
+                self.selectRowIndexes_byExtendingSelection_(index_set, False)
+
+                # Build and return the menu
+                return self.outlineView_menuForTableColumn_item_(self, None, item)
+            except Exception as e:
+                logger.error(f"Error in menuForEvent: {e}", exc_info=True)
+                return None
+
+        @objc_method
         def outlineView_menuForTableColumn_item_(self, outline_view, table_column, item):
             """Provide contextual menu for right-click on item."""
             try:
@@ -629,10 +683,16 @@ def create_sidebar_classes():
                 menu = NSMenu.alloc().initWithTitle("Contextual Menu")
 
                 is_section_header = False
+                node_type = None
                 if data_item and isinstance(data_item, dict):
                     is_section_header = data_item.get('_is_section_header', False)
+                    node_type = data_item.get('_node_type', 'collection')
+
+                # Store the clicked item for menu action handlers
+                self._context_menu_item = data_item
 
                 if is_section_header:
+                    # Section header menu
                     expand_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                         "Expand All", SEL('performExpandAll:'), ""
                     )
@@ -641,21 +701,193 @@ def create_sidebar_classes():
                     )
                     menu.addItem(expand_item)
                     menu.addItem(collapse_item)
+
+                    # Add "New Collection" for sections
+                    menu.addItem(NSMenuItem.separatorItem())
+                    new_collection_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                        "New Collection", SEL('performNewCollection:'), ""
+                    )
+                    menu.addItem(new_collection_item)
                 else:
+                    # Collection/item menu
+                    # Rename
+                    rename_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                        "Rename...", SEL('performRename:'), ""
+                    )
+                    menu.addItem(rename_item)
+
+                    # Duplicate
+                    duplicate_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                        "Duplicate", SEL('performDuplicate:'), ""
+                    )
+                    menu.addItem(duplicate_item)
+
+                    menu.addItem(NSMenuItem.separatorItem())
+
+                    # Reveal in Finder
                     reveal_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                         "Reveal in Finder", SEL('performRevealInFinder:'), ""
                     )
                     menu.addItem(reveal_item)
-                    menu.addItem(NSMenuItem.separatorItem())
+
+                    # Get Info
                     info_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                         "Get Info", SEL('performGetInfo:'), ""
                     )
                     menu.addItem(info_item)
 
+                    # Export Collection
+                    export_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                        "Export Collection...", SEL('performExport:'), ""
+                    )
+                    menu.addItem(export_item)
+
+                    menu.addItem(NSMenuItem.separatorItem())
+
+                    # Delete
+                    delete_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                        "Delete", SEL('performDelete:'), ""
+                    )
+                    menu.addItem(delete_item)
+
                 return menu
             except Exception as e:
                 logger.error(f"Error creating contextual menu: {e}", exc_info=True)
                 return None
+
+        # =====================================================================
+        # SECTION 6B: CONTEXTUAL MENU ACTION HANDLERS
+        # =====================================================================
+
+        @objc_method
+        def performRename_(self, sender) -> None:
+            """Handle Rename menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('rename', item_data)
+                    logger.debug(f"Rename requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performRename: {e}", exc_info=True)
+
+        @objc_method
+        def performDuplicate_(self, sender) -> None:
+            """Handle Duplicate menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('duplicate', item_data)
+                    logger.debug(f"Duplicate requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performDuplicate: {e}", exc_info=True)
+
+        @objc_method
+        def performRevealInFinder_(self, sender) -> None:
+            """Handle Reveal in Finder menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('reveal_in_finder', item_data)
+                    logger.debug(f"Reveal in Finder requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performRevealInFinder: {e}", exc_info=True)
+
+        @objc_method
+        def performGetInfo_(self, sender) -> None:
+            """Handle Get Info menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('get_info', item_data)
+                    logger.debug(f"Get Info requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performGetInfo: {e}", exc_info=True)
+
+        @objc_method
+        def performExport_(self, sender) -> None:
+            """Handle Export Collection menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('export', item_data)
+                    logger.debug(f"Export requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performExport: {e}", exc_info=True)
+
+        @objc_method
+        def performDelete_(self, sender) -> None:
+            """Handle Delete menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('delete', item_data)
+                    logger.debug(f"Delete requested for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performDelete: {e}", exc_info=True)
+
+        @objc_method
+        def performNewCollection_(self, sender) -> None:
+            """Handle New Collection menu action (for section headers)."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    item_data = self._context_menu_item
+                    if self.interface and hasattr(self.interface, '_on_context_menu_callback'):
+                        callback = self.interface._on_context_menu_callback
+                        if callback:
+                            callback('new_collection', item_data)
+                    logger.debug(f"New Collection requested in section: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performNewCollection: {e}", exc_info=True)
+
+        @objc_method
+        def performExpandAll_(self, sender) -> None:
+            """Handle Expand All menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    # Find the wrapper for this item and expand it with children
+                    item_data = self._context_menu_item
+                    item_id = get_item_id(item_data)
+                    if item_id and self.interface and hasattr(self.interface, '_item_cache'):
+                        wrapper = self.interface._item_cache.get(item_id)
+                        if wrapper:
+                            self.expandItem_expandChildren_(wrapper, True)
+                    logger.debug(f"Expand All executed for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performExpandAll: {e}", exc_info=True)
+
+        @objc_method
+        def performCollapseAll_(self, sender) -> None:
+            """Handle Collapse All menu action."""
+            try:
+                if hasattr(self, '_context_menu_item') and self._context_menu_item:
+                    # Find the wrapper for this item and collapse it with children
+                    item_data = self._context_menu_item
+                    item_id = get_item_id(item_data)
+                    if item_id and self.interface and hasattr(self.interface, '_item_cache'):
+                        wrapper = self.interface._item_cache.get(item_id)
+                        if wrapper:
+                            self.collapseItem_collapseChildren_(wrapper, True)
+                    logger.debug(f"Collapse All executed for: {item_data.get('text', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Error in performCollapseAll: {e}", exc_info=True)
 
         # =====================================================================
         # SECTION 6: EXPAND/COLLAPSE WITH OPTION KEY (Finder-like behavior)
@@ -1033,59 +1265,126 @@ def create_sidebar_classes():
                         insert_index = index
 
                     if self.interface:
-                        # Strategy: Use NSOutlineView's native move API
-                        # This tells NSOutlineView about the structural change so it can
-                        # animate properly and update its internal state tracking.
+                        # Use the simple reloadData() approach (like demo_toga_pattern.py)
+                        # This works because _get_or_create_wrapper returns the SAME wrapper
+                        # for the same item, so NSOutlineView's references stay valid
                         try:
-                            # Find source item's current location (wrapper + index)
-                            src_item, src_parent, src_index, src_parent_wrapper = \
-                                self.interface.find_item_location(source_id)
+                            interface = self.interface
+                            data = interface._data
 
-                            if src_item is None or src_index < 0:
-                                logger.error(f"Could not find source item '{source_id}'")
+                            # Find source item in tree
+                            source_item = None
+                            source_parent = None
+
+                            def find_in_tree(items, parent=None):
+                                nonlocal source_item, source_parent
+                                for i, itm in enumerate(items):
+                                    if not isinstance(itm, dict):
+                                        continue
+                                    coll_data = itm.get('_collection_data')
+                                    itm_id = coll_data.get('id') if coll_data else None
+                                    if not itm_id:
+                                        itm_id = itm.get('text', '')
+
+                                    if itm_id == source_id:
+                                        source_item = itm
+                                        source_parent = parent
+                                        return True
+                                    children = itm.get('_children', [])
+                                    if children and find_in_tree(children, itm):
+                                        return True
                                 return False
 
-                            # Get target parent wrapper (None for root level)
-                            target_parent_wrapper = None
+                            find_in_tree(data)
+
+                            if source_item is None:
+                                logger.error(f"Source item '{source_id}' not found")
+                                return False
+
+                            # Debug: log what we found
+                            logger.debug(f"Found source_item: '{source_item.get('text', '?')}'")
+                            if source_parent:
+                                logger.debug(f"source_parent: '{source_parent.get('text', '?')}'")
+                            else:
+                                logger.debug("source_parent: None (root level)")
+
+                            # Remove from old parent
+                            if source_parent is None:
+                                # Was at root level
+                                logger.debug(f"Removing from root. data before: {[d.get('text', '?') for d in data]}")
+                                data.remove(source_item)
+                                logger.debug(f"data after: {[d.get('text', '?') for d in data]}")
+                            else:
+                                children = source_parent.get('_children', [])
+                                logger.debug(f"Parent's children before: {[c.get('text', '?') for c in children]}")
+                                if source_item in children:
+                                    children.remove(source_item)
+                                    logger.debug(f"Removed! Children after: {[c.get('text', '?') for c in children]}")
+                                else:
+                                    logger.warning(f"source_item NOT in children! Object identity mismatch?")
+
+                            # Insert at new location
+                            if parent_data is None:
+                                # Insert at root
+                                logger.debug(f"Inserting at ROOT level, index={insert_index}")
+                                if insert_index >= len(data):
+                                    data.append(source_item)
+                                else:
+                                    data.insert(insert_index, source_item)
+                                logger.debug(f"Root after insert: {[d.get('text', '?') for d in data]}")
+                            else:
+                                # Insert as child of parent
+                                parent_name = parent_data.get('text', '?') if isinstance(parent_data, dict) else str(parent_data)
+                                logger.debug(f"Inserting into parent '{parent_name}', index={insert_index}")
+                                children = parent_data.setdefault('_children', [])
+                                logger.debug(f"Parent children before: {[c.get('text', '?') for c in children]}")
+                                if insert_index >= len(children):
+                                    children.append(source_item)
+                                else:
+                                    children.insert(insert_index, source_item)
+                                parent_data['_has_children'] = True
+                                logger.debug(f"Parent children after: {[c.get('text', '?') for c in children]}")
+
+                            # Verify final state - check BOTH the data tree and wrapper references
+                            if source_parent:
+                                old_children = source_parent.get('_children', [])
+                                logger.debug(f"Old parent '{source_parent.get('text', '?')}' (id={id(source_parent)}) final children: {[c.get('text', '?') for c in old_children]}")
+                                # Also verify if source_parent is same object as in data tree
+                                for section in data:
+                                    if section.get('text') == source_parent.get('text'):
+                                        logger.debug(f"  Data tree section id={id(section)}, same={section is source_parent}")
+                                        logger.debug(f"  Data tree children: {[c.get('text', '?') for c in section.get('_children', [])]}")
+                            else:
+                                logger.debug(f"Root final: {[d.get('text', '?') for d in data]}")
+
+                            # CRITICAL: Clear child cache before reloadData()
+                            # Otherwise NSOutlineView reads stale cached data
+                            interface._child_cache = {}
+                            logger.debug("Cleared _child_cache before reloadData()")
+
+                            # Reload data
+                            outline_view.reloadData()
+
+                            # Only expand root sections + target parent (not ALL items)
+                            # This prevents Documents/2024/January etc from auto-expanding
+                            for root_item in interface._wrapped_items:
+                                outline_view.expandItem_(root_item)
+                            # Also expand the target parent to show the moved item
                             if parent_data is not None:
-                                target_parent_id = get_item_id(parent_data)
-                                target_parent_wrapper = self.interface._item_cache.get(target_parent_id)
-
-                            # Calculate adjusted target index for same-parent moves
-                            same_parent = (
-                                (src_parent is None and parent_data is None) or
-                                (src_parent is not None and parent_data is not None and
-                                 get_item_id(src_parent) == get_item_id(parent_data))
-                            )
-
-                            adjusted_index = insert_index
-                            if same_parent and src_index < insert_index:
-                                adjusted_index = insert_index - 1
-
-                            logger.info(
-                                f"Moving '{source_id}' from index {src_index} "
-                                f"to index {adjusted_index}"
-                            )
-
-                            # Update data structures
-                            self.interface.update_data_after_move(
-                                source_id, src_parent, parent_data, adjusted_index
-                            )
+                                parent_wrapper = parent_data.get('_impl')
+                                if parent_wrapper:
+                                    outline_view.expandItem_(parent_wrapper)
 
                             # Fire reorder callback for external updates (database)
-                            if hasattr(self.interface, '_on_reorder_callback') and \
-                               self.interface._on_reorder_callback:
-                                self.interface._on_reorder_callback(source_id, adjusted_index)
+                            if hasattr(interface, '_on_reorder_callback') and \
+                               interface._on_reorder_callback:
+                                interface._on_reorder_callback(source_id, insert_index)
 
-                            # Schedule reloadData to sync UI
-                            # NOTE: Returning True crashes - NSOutlineView's internal item
-                            # tracking doesn't match our manual data source updates.
-                            # Proper fix requires NSTreeController migration.
-                            # See: /Users/dtubb/code/docs/NavigatingHierarchicalDataUsingOutlineAndSplitViews
-                            self.performSelector_withObject_afterDelay_(
-                                SEL('reloadData'), None, 0.0
-                            )
-                            logger.info("Move completed, reloadData scheduled")
+                            logger.info(f"Move completed: '{source_id}' to index {insert_index}")
+                            # Return False to prevent animation (avoids segfault).
+                            # The data has already been updated and reloadData() shows
+                            # the new position. This is a stable workaround until we
+                            # figure out why returning True causes animation crashes.
                             return False
 
                         except Exception as e:
@@ -1094,34 +1393,59 @@ def create_sidebar_classes():
 
                     return False
 
-                # Handle external file drop
+                # Handle external file drop from Finder
+                # Use readObjectsForClasses:options: to properly extract file URLs
                 pasteboard = drag_info.draggingPasteboard
-                types = pasteboard.types
-                has_file_url = False
-                for i in range(len(types)):
-                    if str(types[i]) == "public.file-url":
-                        has_file_url = True
-                        break
+                try:
+                    NSURL = ObjCClass("NSURL")
+                    NSArray = ObjCClass("NSArray")
 
-                if has_file_url:
-                    try:
-                        file_list = pasteboard.propertyListForType_("public.file-url")
-                        if file_list:
-                            urls = file_list if isinstance(file_list, list) else [file_list]
-                            logger.info(f"File drop: {len(urls)} items")
+                    # Create an array with NSURL class
+                    classes = NSArray.arrayWithObject_(NSURL)
+
+                    # Read file URLs from pasteboard
+                    url_objects = pasteboard.readObjectsForClasses_options_(classes, None)
+
+                    if url_objects and len(url_objects) > 0:
+                        # Convert NSURL objects to file path strings
+                        file_paths = []
+                        for i in range(len(url_objects)):
+                            url = url_objects[i]
+                            if url.isFileURL():
+                                path = str(url.path)
+                                file_paths.append(path)
+                                logger.debug(f"File drop path: {path}")
+
+                        if file_paths:
+                            # Get the target item data (where files are being dropped)
+                            target_data = None
+                            if item is not None:
+                                if hasattr(item, '_python_data'):
+                                    target_data = item._python_data
+                                else:
+                                    target_data = item
+
+                            target_name = target_data.get('text', 'root') if target_data and isinstance(target_data, dict) else 'root'
+                            logger.info(f"File drop: {len(file_paths)} items onto '{target_name}'")
 
                             if self.interface:
-                                if parent_data and isinstance(parent_data, dict):
-                                    collection_data = parent_data.get('_collection_data')
-                                    if collection_data and hasattr(self.interface, '_on_import_to_collection_callback'):
+                                # Try import_to_collection callback first (for dropping on specific collection)
+                                if target_data and isinstance(target_data, dict):
+                                    # Use the target item itself as the collection (or its _collection_data if present)
+                                    collection_data = target_data.get('_collection_data') or target_data
+                                    collection_id = collection_data.get('id') or target_data.get('text')
+                                    if collection_id and hasattr(self.interface, '_on_import_to_collection_callback'):
                                         if self.interface._on_import_to_collection_callback:
-                                            return self.interface._on_import_to_collection_callback(urls, collection_data.get('id'))
+                                            self.interface._on_import_to_collection_callback(file_paths, collection_id)
+                                            return False  # Return False to avoid animation issues
 
+                                # Fall back to general import callback
                                 if hasattr(self.interface, '_on_import_callback') and self.interface._on_import_callback:
-                                    return self.interface._on_import_callback(urls)
+                                    self.interface._on_import_callback(file_paths)
+                                    return False  # Return False to avoid animation issues
 
-                    except Exception as url_error:
-                        logger.error(f"Failed to extract file URLs: {url_error}", exc_info=True)
+                except Exception as url_error:
+                    logger.error(f"Failed to extract file URLs: {url_error}", exc_info=True)
 
                 return False
             except Exception as e:

@@ -107,6 +107,9 @@ from .tree_operations import (
     insert_item_into_parent,
     flatten_tree,
 )
+# NSTreeController imports removed - we use direct tree manipulation instead
+# from .sidebar_node import (...)  # Not used anymore
+# from .tree_controller import get_tree_controller_class  # Not used anymore
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +207,13 @@ class NSOutlineViewSidebar(Renderer):
         # Stores {source_id, target_parent_data, insert_index} during acceptDrop
         # Processed by processPendingMove_ after acceptDrop returns
         self._pending_move = None
+
+        # NSTreeController disabled - causes crashes with Rubicon-ObjC
+        # We use direct tree manipulation with reloadData() instead (like demo_toga_pattern.py)
+        self._tree_controller = None
+        self._sidebar_nodes = []  # Not used anymore
+        self._node_cache = {}  # Not used anymore
+        self._use_tree_controller = False  # DISABLED - crashes with moveNodes_toIndexPath_
 
         load_objc_classes()
         self.SidebarItem, self.TogaSidebar, self.MinWidthView = create_sidebar_classes()
@@ -330,6 +340,9 @@ class NSOutlineViewSidebar(Renderer):
         self._toga_sidebar.usesDataSource = True
         self._toga_sidebar.dataSource = self._toga_sidebar
         self._toga_sidebar.delegate = self._toga_sidebar
+
+        # NSTreeController DISABLED - crashes with Rubicon-ObjC
+        # We use direct tree manipulation with reloadData() like demo_toga_pattern.py
 
         # Register drag types
         drag_types = [
@@ -498,17 +511,26 @@ class NSOutlineViewSidebar(Renderer):
         return data
 
     def _get_or_create_wrapper(self, item_data: dict):
-        """Get existing wrapper or create new one for stable identity."""
-        item_id = get_item_id(item_data)
+        """Get existing wrapper or create new one - stored ON the item for stable identity.
 
-        if item_id and item_id in self._item_cache:
-            wrapper = self._item_cache[item_id]
-            wrapper._python_data = item_data
-            return wrapper
+        Following the pattern from demo_toga_pattern.py: store wrapper directly
+        on the item dict as '_impl'. This ensures NSOutlineView always gets the
+        same wrapper reference after reloadData(), preventing segfaults during
+        drag-drop animations.
+        """
+        # Check if wrapper already stored on item (like node._impl in demo)
+        if '_impl' in item_data and item_data['_impl'] is not None:
+            return item_data['_impl']
 
+        # Create new wrapper
         wrapper = self.SidebarItem.alloc().init()
         wrapper._python_data = item_data
 
+        # Store ON the item for stable identity (critical for drag-drop)
+        item_data['_impl'] = wrapper
+
+        # Also cache by ID for quick lookup
+        item_id = get_item_id(item_data)
         if item_id:
             self._item_cache[item_id] = wrapper
 
@@ -664,15 +686,23 @@ class NSOutlineViewSidebar(Renderer):
         else:
             self._data = list(source)
 
+        # Build node cache for quick ID lookups (both old and new systems)
         new_cache = {}
         self._wrapped_items = []
 
         for item in self._data:
-            clean_dict = clean_item_data(item)
-            wrapper = self._get_or_create_wrapper(clean_dict)
+            # IMPORTANT: Do NOT use clean_item_data for dicts!
+            # clean_item_data creates COPIES, breaking data-wrapper linkage.
+            # Wrappers must point to the SAME dicts as _data for drag-drop to work.
+            if isinstance(item, dict):
+                item_data = item
+            else:
+                item_data = clean_item_data(item)  # Only clean non-dicts
+
+            wrapper = self._get_or_create_wrapper(item_data)
             self._wrapped_items.append(wrapper)
 
-            item_id = get_item_id(clean_dict)
+            item_id = get_item_id(item_data)
             if item_id:
                 new_cache[item_id] = wrapper
 
@@ -681,6 +711,7 @@ class NSOutlineViewSidebar(Renderer):
         # Clear child cache - wrappers will be recreated on demand
         self._child_cache = {}
 
+        # NSTreeController DISABLED - just reload data directly
         self._toga_sidebar.reloadData()
         logger.info(f"Reloaded NSOutlineView with {len(self._data)} items")
 
@@ -690,6 +721,11 @@ class NSOutlineViewSidebar(Renderer):
         width_updated = self._update_column_width_from_container()
         if not width_updated:
             self._schedule_deferred_reload()
+
+    # NSTreeController methods removed - we use direct tree manipulation instead
+    # Removed: _build_node_cache, get_sidebar_node_by_id, move_via_tree_controller,
+    #          _find_and_remove_item, _find_item_by_id, _rebuild_and_refresh_tree,
+    #          _sync_nodes_to_data
 
     def _schedule_deferred_reload(self):
         """Schedule a deferred check after layout completes."""
@@ -945,6 +981,26 @@ class NSOutlineViewSidebar(Renderer):
     def set_get_children_callback(self, callback: callable):
         """Set callback for getting children of a hierarchical item."""
         self._get_children_callback = callback
+
+    def set_context_menu_callback(self, callback: callable):
+        """
+        Set callback for contextual menu actions.
+
+        The callback receives:
+            action: str - One of 'rename', 'duplicate', 'reveal_in_finder',
+                         'get_info', 'delete', 'new_collection'
+            item_data: dict - The item that was right-clicked
+
+        Example:
+            def on_context_menu(action, item_data):
+                if action == 'rename':
+                    show_rename_dialog(item_data)
+                elif action == 'delete':
+                    confirm_and_delete(item_data)
+
+            sidebar.set_context_menu_callback(on_context_menu)
+        """
+        self._on_context_menu_callback = callback
 
     # =========================================================================
     # EXPANSION STATE MANAGEMENT

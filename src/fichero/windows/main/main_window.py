@@ -1087,6 +1087,16 @@ class MainWindow:
 
             logger.info(f"Event: Show collection {collection_name}")
 
+            # Check if a folder path was set (from sidebar folder selection)
+            folder_path = getattr(self, 'current_folder_path', None)
+            folder_id = getattr(self, 'current_folder_id', None)
+
+            # Clear the folder path after reading (one-time use)
+            if folder_path:
+                logger.info(f"📂 Folder path detected: {folder_path}")
+                self.current_folder_path = None
+                self.current_folder_id = None
+
             view_key = f"collection_{collection_id}"
 
             # Check if we already have the same collection view active
@@ -1096,12 +1106,37 @@ class MainWindow:
                 current_view.collection_id == collection_id):
                 # This is the same collection - refresh and ensure it's shown
                 logger.info(f"Refreshing existing active collection view for {collection_name}")
+                # Set folder path BEFORE loading items
+                if folder_path:
+                    current_view.current_path = folder_path
+                    current_view.current_folder_id = folder_id
+                    logger.info(f"📂 Set current_path to folder: {folder_path}")
+                else:
+                    current_view.current_path = ""
+                    current_view.current_folder_id = None
                 # CRITICAL FIX: Actually refresh the data when reusing the view
                 current_view._load_collection_items()
                 collection_view = current_view
             else:
                 # Get or create collection view from cache
                 collection_view = self._get_or_create_collection_view(collection_id, collection_name)
+
+                # CRITICAL FIX: Update the collection_id on the cached view so it loads the correct items
+                # The cached view is reused for all collections, so we must update its collection_id
+                collection_view.collection_id = collection_id
+                logger.info(f"Updated collection_view.collection_id to {collection_id}")
+
+                # Set folder path BEFORE loading items
+                if folder_path:
+                    collection_view.current_path = folder_path
+                    collection_view.current_folder_id = folder_id
+                    logger.info(f"📂 Set current_path to folder: {folder_path}")
+                else:
+                    collection_view.current_path = ""
+                    collection_view.current_folder_id = None
+
+                # Now load the items for this collection
+                collection_view._load_collection_items()
 
             # Note: Toolbar is already populated at startup (see _precreate_collection_view)
             # No need to update it again when showing a collection

@@ -242,7 +242,13 @@ class SidebarDataModel:
         self._initialize_default_sections()
 
     def _initialize_default_sections(self):
-        """Create default sidebar sections"""
+        """Create default sidebar sections
+
+        Two sections:
+        - Favorites: Pinned collections (Inbox always here)
+        - Collections: All other collections (local, external, url)
+          Type is shown via icon, not separate sections
+        """
         self.sections = [
             SidebarSection(
                 id="favorites",
@@ -253,30 +259,13 @@ class SidebarDataModel:
                 sort_order=0
             ),
             SidebarSection(
-                id="local",
-                title="Library",
+                id="collections",
+                title="Collections",
                 icon="NSFolder",
                 is_header=True,
                 is_expanded=True,
                 sort_order=1
             ),
-            SidebarSection(
-                id="external",
-                title="External Folders",
-                icon="NSFolderSmart",
-                is_header=True,
-                is_expanded=True,
-                sort_order=2,
-                font_style='italic'  # Italic to distinguish from local
-            ),
-            # SidebarSection(
-            #     id="smart",
-            #     title="Smart Collections",
-            #     icon="NSFolderSmart",
-            #     is_header=True,
-            #     is_expanded=True,
-            #     sort_order=3
-            # ),
         ]
 
         # Initialize empty collection lists for each section
@@ -291,9 +280,9 @@ class SidebarDataModel:
         """
         section_id = collection.section_id
         if section_id not in self.collections:
-            logger.warning(f"Section '{section_id}' not found, adding to 'local'")
-            section_id = "local"
-            collection.section_id = "local"
+            logger.warning(f"Section '{section_id}' not found, adding to 'collections'")
+            section_id = "collections"
+            collection.section_id = "collections"
 
         self.collections[section_id].append(collection)
 
@@ -505,15 +494,10 @@ class SidebarDataModel:
             collection_name = col_data.get('name', '')
             if metadata.get('is_inbox') or collection_name == 'Inbox':
                 section_id = 'favorites'
-            # Determine section based on type
-            elif collection_type == 'local':
-                section_id = 'local'
-            elif collection_type in ['external', 'hybrid']:
-                section_id = 'external'
-            elif collection_type == 'url':
-                section_id = 'external'  # URL collections go to external for now
             else:
-                section_id = 'local'  # Default to local
+                # All other collections go to 'collections' section
+                # Type is shown via icon (local=folder, external=link, url=globe)
+                section_id = 'collections'
 
             # Determine badges and styling
             icon_badge = self._get_type_badge(collection_type)

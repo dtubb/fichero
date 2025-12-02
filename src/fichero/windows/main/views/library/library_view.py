@@ -152,6 +152,10 @@ class LibraryView(BaseView, ViewCommandMixin):
         logger.debug(" Setting collection callback...")
         self.on_collection_selected = None
 
+        # Initialize folder selection tracking
+        self.selected_folder_id = None
+        self.selected_folder_path = None
+
         # Initialize library manager
         logger.debug(" Initializing library system...")
         self._initialize_library_system()
@@ -902,8 +906,9 @@ class LibraryView(BaseView, ViewCommandMixin):
         """
         Handle folder selection in hierarchical sidebar (Phase 6).
 
-        When a user clicks on a folder under a collection, navigate the collection
-        view to show only items within that folder.
+        When a user clicks on a folder under a collection, navigate to show the
+        folder's contents in the collection view. This uses the same navigation
+        pattern as collection selection.
 
         Args:
             folder_data: Dict with folder information including:
@@ -911,36 +916,36 @@ class LibraryView(BaseView, ViewCommandMixin):
                 - name: Folder name
                 - collection_id: Parent collection ID
                 - parent_collection_name: Parent collection name
+                - metadata: Dict with relative_path, etc.
         """
         try:
             collection_id = folder_data.get('collection_id')
             folder_id = folder_data.get('id')
             folder_name = folder_data.get('name', 'Unknown')
             collection_name = folder_data.get('parent_collection_name', 'Unknown')
+            metadata = folder_data.get('metadata', {})
+            relative_path = metadata.get('relative_path', folder_name)
 
-            logger.info(f"📂 Navigating to folder '{folder_name}' in collection '{collection_name}'")
+            logger.info(f"📂 Folder selected: '{folder_name}' in collection '{collection_name}'")
 
-            # Use ViewIntegration to navigate to collection view with folder filter
-            if hasattr(self.app, 'view_integration'):
-                # Get collection view from view_integration
-                collection_view = self.app.view_integration.collection_view
-                if collection_view:
-                    # Set the collection and folder
-                    collection_view.collection_id = collection_id
-                    collection_view.collection_name = collection_name
-                    collection_view.current_folder_id = folder_id  # New attribute for folder filtering
+            # Store folder selection info for potential use by collection view
+            self.selected_folder_id = folder_id
+            self.selected_folder_path = relative_path
 
-                    # Load items for this collection
-                    self._create_task(collection_view.load_collection_data_async(collection_id))
+            # Use the registered collection callback to navigate
+            # The collection view will load items filtered by the folder path
+            if self.on_collection_selected:
+                # Pass the collection_id - the collection view will show the folder's contents
+                # We pass folder info via app attributes that CollectionView can check
+                if hasattr(self.app, 'main_window_wrapper'):
+                    # Store folder context for CollectionView to filter by
+                    self.app.main_window_wrapper.current_folder_id = folder_id
+                    self.app.main_window_wrapper.current_folder_path = relative_path
 
-                    # Switch to collection view
-                    self.app.view_integration.show_collection_view()
-
-                    logger.info(f"✅ Navigated to folder view: {folder_name}")
-                else:
-                    logger.error("Collection view not available in view_integration")
+                logger.info(f"📂 Navigating to collection '{collection_name}' with folder filter: {relative_path}")
+                self.on_collection_selected(collection_id, f"{collection_name}/{folder_name}")
             else:
-                logger.error("ViewIntegration not available on app")
+                logger.warning("No collection selection callback registered for folder navigation")
 
         except Exception as e:
             logger.error(f"Failed to handle folder selection: {e}", exc_info=True)
@@ -2404,6 +2409,11 @@ class LibraryView(BaseView, ViewCommandMixin):
                 if hasattr(renderer, 'set_import_to_section_callback'):
                     renderer.set_import_to_section_callback(self._on_import_to_section)
                     logger.info("✅ Registered import-to-section callback for drag-and-drop")
+
+                # Contextual menu callback for right-click actions
+                if hasattr(renderer, 'set_context_menu_callback'):
+                    renderer.set_context_menu_callback(self._on_context_menu_action)
+                    logger.info("✅ Registered context menu callback for right-click actions")
             else:
                 logger.debug("Renderer doesn't support drag-and-drop callbacks")
 
@@ -2581,10 +2591,75 @@ class LibraryView(BaseView, ViewCommandMixin):
         try:
             logger.info(f"Import to collection: {len(file_urls)} items to collection {collection_id}")
 
-            # TODO Phase 4: Implement actual import to specific collection
-            # For now, just log and return success
-            logger.warning("Import to collection not yet implemented - Phase 4")
-            return True
+            import asyncio
+            from pathlib import Path
+            import urllib.parse
+
+            async def do_import():
+                library_manager = self._get_library_manager()
+                if not library_manager:
+                    logger.error("No library manager available")
+                    return False
+
+                for file_url in file_urls:
+                    try:
+                        # Convert NSURL or string to path
+                        if hasattr(file_url, 'path'):
+                            path_str = str(file_url.path)
+                        elif hasattr(file_url, 'absoluteString'):
+                            url_str = str(file_url.absoluteString)
+                            if url_str.startswith('file://'):
+                                path_str = urllib.parse.unquote(url_str[7:])
+                            else:
+                                path_str = url_str
+                        elif isinstance(file_url, str):
+                            if file_url.startswith('file://'):
+                                path_str = urllib.parse.unquote(file_url[7:])
+                            else:
+                                path_str = file_url
+                        else:
+                            path_str = str(file_url)
+
+                        path = Path(path_str)
+                        if not path.exists():
+                            logger.error(f"Path does not exist: {path_str}")
+                            continue
+
+                        if path.is_dir():
+                            # Add folder to collection
+                            logger.info(f"Adding folder to collection {collection_id}: {path.name}")
+                            await library_manager.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="folder",
+                                source=str(path),
+                                name=path.name,
+                                operation="link"  # Link external folders
+                            )
+                            logger.info(f"✅ Added folder: {path.name}")
+
+                        elif path.is_file():
+                            # Add file to collection
+                            logger.info(f"Adding file to collection {collection_id}: {path.name}")
+                            await library_manager.add_item_to_collection(
+                                collection_id=collection_id,
+                                item_type="file",
+                                source=str(path),
+                                name=path.name,
+                                operation="copy"  # Copy files into library
+                            )
+                            logger.info(f"✅ Added file: {path.name}")
+
+                    except Exception as item_error:
+                        logger.error(f"Failed to import item: {item_error}", exc_info=True)
+                        continue
+
+                # Refresh sidebar to show updated counts
+                await self.refresh_collections()
+                return True
+
+            # Create task to run the async operation
+            self._create_task(do_import())
+            return True  # Optimistic return
 
         except Exception as e:
             logger.error(f"Error in import to collection: {e}", exc_info=True)
@@ -2596,7 +2671,7 @@ class LibraryView(BaseView, ViewCommandMixin):
 
         Args:
             file_urls: List of file URLs dropped from Finder
-            section_id: ID of the section ('inbox', 'local', 'external')
+            section_id: ID of the section ('favorites', 'local', 'external', 'urls')
 
         Returns:
             True if import succeeded, False otherwise
@@ -2604,18 +2679,410 @@ class LibraryView(BaseView, ViewCommandMixin):
         try:
             logger.info(f"Import to section: {len(file_urls)} items to section '{section_id}'")
 
-            # TODO Phase 4: Implement collection creation based on section
-            # - If section_id == 'inbox': Add to inbox collection
-            # - If section_id == 'local': Create new local collection
-            # - If section_id == 'external': Create new external collection
+            import asyncio
+            from pathlib import Path
+            import urllib.parse
 
-            # For now, just log and return success
-            logger.warning(f"Import to section '{section_id}' not yet implemented - Phase 4")
-            return True
+            # Map section_id to collection type
+            section_to_type = {
+                'favorites': 'local',  # Favorites section uses local collections
+                'local': 'local',
+                'external': 'external',
+                'urls': 'url',
+            }
+            collection_type = section_to_type.get(section_id, 'local')
+
+            async def do_import():
+                library_manager = self._get_library_manager()
+                if not library_manager:
+                    logger.error("No library manager available")
+                    return False
+
+                for file_url in file_urls:
+                    try:
+                        # Convert NSURL or string to path
+                        if hasattr(file_url, 'path'):
+                            path_str = str(file_url.path)
+                        elif hasattr(file_url, 'absoluteString'):
+                            url_str = str(file_url.absoluteString)
+                            if url_str.startswith('file://'):
+                                path_str = urllib.parse.unquote(url_str[7:])
+                            else:
+                                path_str = url_str
+                        elif isinstance(file_url, str):
+                            if file_url.startswith('file://'):
+                                path_str = urllib.parse.unquote(file_url[7:])
+                            else:
+                                path_str = file_url
+                        else:
+                            path_str = str(file_url)
+
+                        path = Path(path_str)
+                        if not path.exists():
+                            logger.error(f"Path does not exist: {path_str}")
+                            continue
+
+                        if path.is_dir():
+                            # Create new external collection for folder
+                            logger.info(f"Creating collection for folder: {path.name}")
+                            collection_id = await library_manager.add_collection(
+                                name=path.name,
+                                type='external',  # Folders are always external
+                                source_path=str(path)
+                            )
+                            if collection_id:
+                                logger.info(f"✅ Created external collection: {path.name}")
+                            else:
+                                logger.error(f"❌ Failed to create collection: {path.name}")
+
+                        elif path.is_file():
+                            # Create new local collection for file
+                            collection_name = path.stem
+                            logger.info(f"Creating collection for file: {collection_name}")
+                            collection_id = await library_manager.add_collection(
+                                name=collection_name,
+                                type=collection_type,
+                                source_path=None
+                            )
+                            if collection_id:
+                                # Add the file to the new collection
+                                await library_manager.add_item_to_collection(
+                                    collection_id=collection_id,
+                                    item_type="file",
+                                    source=str(path),
+                                    name=path.name,
+                                    operation="copy"
+                                )
+                                logger.info(f"✅ Created collection with file: {collection_name}")
+                            else:
+                                logger.error(f"❌ Failed to create collection: {collection_name}")
+
+                    except Exception as item_error:
+                        logger.error(f"Failed to import item: {item_error}", exc_info=True)
+                        continue
+
+                # Refresh sidebar to show new collections
+                await self.refresh_collections()
+                return True
+
+            # Create task to run the async operation
+            self._create_task(do_import())
+            return True  # Optimistic return
 
         except Exception as e:
             logger.error(f"Error in import to section: {e}", exc_info=True)
             return False
+
+    def _on_context_menu_action(self, action: str, item_data: dict) -> None:
+        """
+        Handle context menu actions from sidebar right-click.
+
+        Args:
+            action: The action identifier (e.g., 'rename', 'delete', 'reveal_in_finder')
+            item_data: The item data dict that was right-clicked
+        """
+        try:
+            logger.info(f"Context menu action: '{action}' on item: {item_data.get('text', 'unknown')}")
+
+            # Get item identifier
+            item_id = item_data.get('id') or item_data.get('_id')
+            item_text = item_data.get('text', 'Unknown')
+            item_type = item_data.get('_node_type', 'unknown')
+
+            if action == 'rename':
+                self._handle_rename_action(item_id, item_text, item_type)
+
+            elif action == 'duplicate':
+                self._handle_duplicate_action(item_id, item_text, item_type)
+
+            elif action == 'reveal_in_finder':
+                self._handle_reveal_in_finder(item_data)
+
+            elif action == 'get_info':
+                self._handle_get_info(item_id, item_data)
+
+            elif action == 'export':
+                self._handle_export_action(item_id, item_text, item_type)
+
+            elif action == 'delete':
+                self._handle_delete_action(item_id, item_text, item_type)
+
+            elif action == 'new_collection':
+                self._handle_new_collection()
+
+            elif action == 'expand_all':
+                self._handle_expand_all()
+
+            elif action == 'collapse_all':
+                self._handle_collapse_all()
+
+            else:
+                logger.warning(f"Unknown context menu action: {action}")
+
+        except Exception as e:
+            logger.error(f"Error handling context menu action '{action}': {e}", exc_info=True)
+
+    def _handle_rename_action(self, item_id: str, item_text: str, item_type: str):
+        """Handle rename context menu action"""
+        logger.info(f"Rename requested for {item_type} '{item_text}' (id: {item_id})")
+
+        # Only allow renaming collections (not section headers)
+        if item_type == 'section':
+            logger.warning("Cannot rename section headers")
+            return
+
+        # Show rename dialog
+        self._create_task(self._show_rename_dialog_context_menu(item_id, item_text))
+
+    async def _show_rename_dialog_context_menu(self, item_id: str, current_name: str):
+        """Show rename dialog for collection from context menu.
+
+        Uses the same navigation-based approach as _show_rename_dialog to provide
+        consistent UI across desktop and mobile.
+        """
+        try:
+            # Use NavigationController to navigate to rename view
+            # This provides a consistent UI pattern across desktop and mobile
+            if hasattr(self.app, 'view_integration'):
+                nav_controller = self.app.view_integration.get_navigation_controller()
+                if nav_controller:
+                    success = nav_controller.navigate_to_rename_collection(item_id, current_name)
+                    if success:
+                        logger.info(f"Successfully navigated to rename view for: {current_name}")
+                    else:
+                        logger.error(f"Failed to navigate to rename view for: {current_name}")
+                        # Show error to user
+                        await self.app.main_window.dialog(
+                            toga.ErrorDialog(
+                                title=_("Navigation Error"),
+                                message=_("Could not open rename dialog. Please try again.")
+                            )
+                        )
+                else:
+                    logger.error("NavigationController not available")
+                    await self.app.main_window.dialog(
+                        toga.ErrorDialog(
+                            title=_("Error"),
+                            message=_("Navigation system not available.")
+                        )
+                    )
+            else:
+                logger.error("view_integration not available")
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(
+                        title=_("Error"),
+                        message=_("Navigation system not initialized.")
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error showing rename dialog: {e}", exc_info=True)
+
+    def _handle_duplicate_action(self, item_id: str, item_text: str, item_type: str):
+        """Handle duplicate context menu action"""
+        logger.info(f"Duplicate requested for {item_type} '{item_text}' (id: {item_id})")
+
+        # Only allow duplicating collections (not section headers)
+        if item_type == 'section':
+            logger.warning("Cannot duplicate section headers")
+            return
+
+        self._create_task(self._duplicate_collection(item_id, item_text))
+
+    async def _duplicate_collection(self, item_id: str, collection_name: str):
+        """Duplicate a collection"""
+        try:
+            if not self.library_service:
+                logger.error("Library service not available")
+                return
+
+            logger.info(f"Duplicating collection '{collection_name}'")
+            new_collection_id = await self.library_service.duplicate_collection(item_id)
+
+            if new_collection_id:
+                logger.info(f"Collection duplicated successfully: {new_collection_id}")
+                await self.refresh_collections()
+            else:
+                logger.error(f"Failed to duplicate collection")
+                self._show_message(_("Error"), _("Failed to duplicate collection"))
+        except Exception as e:
+            logger.error(f"Error duplicating collection: {e}", exc_info=True)
+
+    def _handle_reveal_in_finder(self, item_data: dict):
+        """Handle reveal in Finder context menu action"""
+        import subprocess
+        from pathlib import Path
+
+        # Try to get the path from item data
+        source_path = item_data.get('source_path') or item_data.get('path')
+
+        if source_path:
+            path = Path(source_path)
+            if path.exists():
+                logger.info(f"Revealing in Finder: {path}")
+                subprocess.run(['open', '-R', str(path)])
+            else:
+                logger.warning(f"Path does not exist: {path}")
+        else:
+            logger.warning("No path available for reveal in Finder")
+
+    def _handle_export_action(self, item_id: str, item_text: str, item_type: str):
+        """Handle export collection context menu action"""
+        logger.info(f"Export requested for {item_type} '{item_text}' (id: {item_id})")
+
+        # Only allow exporting collections (not section headers)
+        if item_type == 'section':
+            logger.warning("Cannot export section headers")
+            return
+
+        self._create_task(self._show_export_dialog(item_id, item_text))
+
+    async def _show_export_dialog(self, item_id: str, collection_name: str):
+        """Show export dialog for collection"""
+        try:
+            import toga
+            from pathlib import Path
+
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show save file dialog
+            output_path = await window.dialog(
+                toga.SaveFileDialog(
+                    title=_("Export Collection"),
+                    suggested_filename=f"{collection_name}.json",
+                    file_types=["json"]
+                )
+            )
+
+            if output_path:
+                logger.info(f"Exporting collection '{collection_name}' to {output_path}")
+
+                # Ask if files should be included
+                include_files = await window.dialog(
+                    toga.QuestionDialog(
+                        title=_("Include Files"),
+                        message=_("Include collection files in export?\n\n(This will copy all files to the export location)")
+                    )
+                )
+
+                # Export via library service
+                if self.library_service:
+                    success = await self.library_service.export_collection(
+                        item_id,
+                        Path(output_path),
+                        include_files=include_files
+                    )
+                    if success:
+                        logger.info(f"Collection exported successfully to {output_path}")
+                        self._show_message(
+                            _("Export Complete"),
+                            _("Collection exported successfully.")
+                        )
+                    else:
+                        logger.error(f"Failed to export collection")
+                        self._show_message(_("Error"), _("Failed to export collection"))
+                else:
+                    logger.error("Library service not available")
+            else:
+                logger.info("Export cancelled by user")
+        except Exception as e:
+            logger.error(f"Error showing export dialog: {e}", exc_info=True)
+
+    def _handle_get_info(self, item_id: str, item_data: dict):
+        """Handle get info context menu action - shows inspector panel"""
+        logger.info(f"Get Info requested for item: {item_data.get('text', 'unknown')}")
+
+        # First select the collection to update internal state
+        collection_id = item_data.get('_item_id') or item_id
+        if collection_id:
+            # Update selection to ensure inspector shows this collection
+            if hasattr(self, 'selection_manager') and self.selection_manager:
+                self.selection_manager.select_collection(collection_id)
+
+        # Show the inspector via the existing method
+        self._on_show_inspector()
+
+    def _handle_delete_action(self, item_id: str, item_text: str, item_type: str):
+        """Handle delete context menu action"""
+        logger.info(f"Delete requested for {item_type} '{item_text}' (id: {item_id})")
+
+        # Only allow deleting collections (not section headers)
+        if item_type == 'section':
+            logger.warning("Cannot delete section headers")
+            return
+
+        # Show confirmation dialog
+        self._create_task(self._show_delete_confirmation(item_id, item_text))
+
+    async def _show_delete_confirmation(self, item_id: str, collection_name: str):
+        """Show delete confirmation dialog"""
+        try:
+            import toga
+
+            # Get main window
+            if not hasattr(self.app, 'main_window_wrapper') or not self.app.main_window_wrapper:
+                logger.error("No main window available")
+                return
+
+            window = self.app.main_window_wrapper.window
+
+            # Show confirmation dialog
+            confirmed = await window.dialog(
+                toga.QuestionDialog(
+                    title=_("Delete Collection"),
+                    message=_(f"Are you sure you want to delete '{collection_name}'?\n\nThis action cannot be undone.")
+                )
+            )
+
+            if confirmed:
+                logger.info(f"Deleting collection '{collection_name}'")
+
+                # Delete via library service
+                if self.library_service:
+                    success = await self.library_service.delete_collection(item_id)
+                    if success:
+                        logger.info(f"Collection deleted successfully")
+                        await self.refresh_collections()
+                    else:
+                        logger.error(f"Failed to delete collection")
+                        self._show_message(_("Error"), _("Failed to delete collection"))
+                else:
+                    logger.error("Library service not available")
+            else:
+                logger.info("Delete cancelled by user")
+        except Exception as e:
+            logger.error(f"Error showing delete confirmation: {e}", exc_info=True)
+
+    def _handle_new_collection(self):
+        """Handle new collection context menu action"""
+        logger.info("New collection requested from context menu")
+        # Trigger the existing new collection command if available
+        if hasattr(self, 'commands') and 'library.new_collection' in self.commands:
+            command = self.commands['library.new_collection']
+            if hasattr(command, 'action') and command.action:
+                command.action(None)
+        else:
+            logger.warning("New collection command not available")
+
+    def _handle_expand_all(self):
+        """Handle expand all context menu action"""
+        logger.info("Expand all requested from context menu")
+        if hasattr(self.collections_list, 'renderer'):
+            renderer = self.collections_list.renderer
+            if hasattr(renderer, 'expand_all'):
+                renderer.expand_all()
+
+    def _handle_collapse_all(self):
+        """Handle collapse all context menu action"""
+        logger.info("Collapse all requested from context menu")
+        if hasattr(self.collections_list, 'renderer'):
+            renderer = self.collections_list.renderer
+            if hasattr(renderer, 'collapse_all'):
+                renderer.collapse_all()
 
     def _on_initialize(self):
         """Called when view is initialized"""

@@ -77,6 +77,13 @@ class WidgetListDemo(toga.App):
             )
             sidebar.set_get_children_callback(self._get_children)
 
+            # Set up file drop callback
+            sidebar.set_import_callback(self._handle_file_import)
+            sidebar.set_import_to_collection_callback(self._handle_file_import_to_collection)
+
+            # Set up contextual menu callback
+            sidebar.set_context_menu_callback(self._handle_context_menu)
+
             # Create sidebar widget directly (no control buttons)
             sidebar_widget = sidebar.create_widget()
 
@@ -389,6 +396,24 @@ Try the buttons above!""",
         if children and len(children) > 0:
             return children
         return None
+
+    def _handle_file_import(self, file_paths):
+        """Handle files dropped on sidebar (generic import)"""
+        logger.info(f"FILE IMPORT: {len(file_paths)} files dropped")
+        for path in file_paths:
+            logger.info(f"  - {path}")
+
+    def _handle_file_import_to_collection(self, file_paths, collection_id):
+        """Handle files dropped on a specific collection"""
+        logger.info(f"FILE IMPORT TO COLLECTION: {len(file_paths)} files to collection '{collection_id}'")
+        for path in file_paths:
+            logger.info(f"  - {path}")
+
+    def _handle_context_menu(self, action, item_data):
+        """Handle contextual menu actions"""
+        item_name = item_data.get('text', 'unknown') if item_data else 'unknown'
+        logger.info(f"CONTEXT MENU: action='{action}' on item='{item_name}'")
+        logger.info(f"  Full item data: {item_data}")
 
 
 def main():
