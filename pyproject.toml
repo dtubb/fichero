@@ -35,6 +35,9 @@ requires = [
     "pathvalidate>=3.0.0",
     "aiofiles>=24.0.0,<25.0.0",
     "aiohttp>=3.8.0,<4.0.0",
+    # Data layer - Pydantic + DuckDB
+    "pydantic>=2.0.0,<3.0.0",
+    "duckdb>=1.0.0,<2.0.0",
     # CLI dependencies moved to desktop-only platforms
     # AI/ML dependencies for all platforms
     "openai>=1.0.0",
@@ -50,7 +53,7 @@ test_requires = [
 
 # Platform-specific configurations for GUI
 [tool.briefcase.app.fichero.macOS]
-universal_build = true
+universal_build = false  # ARM64 only - opencv-python lacks x86_64 wheels for latest versions
 requires = [
     "toga-cocoa>=0.5.1,<0.6.0",
     "toga>=0.5.1,<0.6.0",
@@ -65,11 +68,12 @@ requires = [
     "tqdm>=4.67.1,<5.0.0",
     # Document processing dependencies
     "pdf2image>=1.17.0,<2.0.0",
+    "pymupdf>=1.25.0,<2.0.0",  # PDF page extraction
     "exifread>=3.3.1,<4.0.0",
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
     "langchain-core>=0.3.79,<0.4.0",
-    "langgraph>=0.2.80,<0.3.0",
+    "langgraph>=0.2.50",
     "langchain-ollama>=0.3.3,<1.0.0",
     "nest-asyncio>=1.6.0,<2.0.0",
     # macOS-specific optional dependencies
@@ -77,6 +81,12 @@ requires = [
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
     "pytesseract>=0.3.13,<1.0.0", # OCR support
+    # Data layer dependencies (Pydantic + DuckDB + LanceDB)
+    "pydantic>=2.0.0,<3.0.0",  # Data models
+    "duckdb>=1.0.0,<2.0.0",  # Embedded analytical database
+    "lancedb>=0.25.0,<1.0.0",  # Vector DB with native Pydantic support
+    # Document extraction (PDFs, Office docs, EPUBs)
+    "kreuzberg>=0.5.0",  # Multi-format document extraction
     # AI/ML dependencies inherited from main requires
 ]
 
@@ -101,7 +111,7 @@ requires = [
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
     "langchain-core>=0.3.79,<0.4.0",
-    "langgraph>=0.2.80,<0.3.0",
+    "langgraph>=0.2.50",
     "langchain-ollama>=0.3.3,<1.0.0",
     "nest-asyncio>=1.6.0,<2.0.0",
     # Linux-specific optional dependencies
@@ -133,6 +143,7 @@ requires = [
     "python-docx>=1.1.2,<2.0.0",
     "langchain>=0.3.25,<0.4.0",
     "langchain-ollama>=0.3.3,<1.0.0",
+    "nest-asyncio>=1.6.0,<2.0.0",
     # Windows-specific optional dependencies
     "opencv-python",  # Generally works well on Windows
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
@@ -194,8 +205,42 @@ requires = [
 
 # Build system requirements
 [build-system]
-requires = ["briefcase"]
-build-backend = "briefcase.backend"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fichero = ["resources/**/*"]
+
+[project]
+name = "fichero"
+version = "0.1.0.dev1"
+description = "Document Processing and Transcription"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "toga-core>=0.5.1,<0.6.0",
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.20.0",
+    "requests>=2.25.0",
+    "cryptography>=3.0.0",
+    "ruamel.yaml>=0.17.0",
+    "pathvalidate>=3.0.0",
+    "aiofiles>=24.0.0,<25.0.0",
+    "aiohttp>=3.8.0,<4.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "duckdb>=1.0.0,<2.0.0",
+    "openai>=1.0.0",
+    "dashscope>=1.20.0",
+    "toga-cocoa>=0.5.1,<0.6.0",
+    "rubicon-objc>=0.4.0,<1.0.0",
+    "typer>=0.16.0,<1.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "lancedb>=0.25.0,<1.0.0",
+]
 
 [project.scripts]
 fichero-cli = "fichero.cli:main"
