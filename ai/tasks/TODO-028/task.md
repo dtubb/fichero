@@ -26,13 +26,13 @@ Create comprehensive documentation for the ingest module covering supported file
 
 ## Questions for Human
 - [ ] Question 1: Should documentation be in Markdown format or another format?
-    Answer: 
+    Answer: markdown
 - [ ] Question 2: Any specific documentation structure or template to follow?
-    Answer: 
+    Answer: django is a good stly.e not sure.
 - [ ] Question 3: Should I include screenshots or diagrams in the documentation?
-    Answer: 
+    Answer: no.
 - [ ] Question 4: Any specific examples or use cases to prioritize?
-    Answer: 
+    Answer: no. make it clear for ai. be concise.
 
 ## Answers and Implementation
 - [Summary of decisions made]
