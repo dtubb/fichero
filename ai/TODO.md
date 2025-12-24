@@ -85,3 +85,4 @@
 - [x] TODO-014: Fix compilation errors and warnings (P0, Low)
 - [x] TODO-015: Update development process documentation (P0, Medium)
 - [x] TODO-017: Write concise 100-character summaries for README files (P2, Low)
+- [>] TODO-018: Update TASK_WORKFLOW.md to be more concise with human review and Git steps (P1, Medium)
