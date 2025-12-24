@@ -20,13 +20,15 @@ Test the File/Folder Import Endpoint with all supported file types to ensure pro
 
 ## Questions for Human
 - [ ] Should we create a test fixture directory with sample files for all supported types?
-    Answer: [Space for answer]
+    Answer: Yes. Not sure where to put it. You decide.
 - [ ] Are there any specific file types that should be prioritized for testing?
-    Answer: [Space for answer]
+    Answer: All of them.
 - [ ] Should we test with real-world sample files or generate synthetic test files?
-    Answer: [Space for answer]
+    Answer: Download real world files from itnernet. Ask user if you can't find.
 - [ ] Are there any security considerations for testing with various file types?
-    Answer: [Space for answer]
+    Answer: We need to make sure out ingest code is wise. 
+    
+Additional task: We might as well update docs on ingest as well. 
 
 ## Answers and Implementation
 - [Summary of decisions made]
