@@ -77,6 +77,8 @@
   - Depends on: None
 - [ ] TODO-035: Improve Sidebar Error Handling (P2, Medium)
   - Depends on: None
+- [ ] TODO-040: Improve Folder Creation UI to be Inline (Mac-style) (P2, Medium)
+  - Depends on: TODO-034
 - [ ] TODO-036: Improve Sidebar Performance Optimization (P2, Medium)
   - Depends on: TODO-032
 - [ ] TODO-037: Refactor Sidebar State Management (P2, Medium)
