@@ -1,6 +1,17 @@
-# Fichero Development Tasks (Implementation Order)
+# Todo List to Manage AI Tasks
 
-**See README.md for usage instructions**
+## IMPORTANT RULES - READ FIRST!
+
+### DON'T REWRITE THIS FILE
+- **Never** overwrite or recreate TODO.md from scratch
+- **Always** use search/replace or careful editing. Do not re-order.
+- **Ask human** if you're unsure about changes
+
+### HOW TO UPDATE PROPERLY
+1. **Check inbox first** - See `ai/inbox/INBOX_WORKFLOW.md` for complete instructions
+2. **File ideas logically** - Put them where they belong (ask human for confirmation)
+3. **Edit carefully** - Use search/replace, test changes
+4. **Preserve structure** - Keep existing formatting and sections
 
 ## Legend
 - `[ ]` = Available (ready for implementation)
@@ -21,7 +32,16 @@
 - `Infrastructure`: Cross-cutting concerns
 - `Documentation`: Documentation improvements
 
-## 1. Backend API (Foundation) [P0]
+## Rules for Task List
+- Update in place.
+- Don't reorder.
+
+## AI Task Management [P0]
+
+- [x] TODO-016: Implement ai folder with TODO.md, README.md, and WORKFLOW.md
+
+## Backend API (Foundation) [P0]
+
 
 ### File Management
 - [ ] TODO-004: Complete File Import Endpoint (P1, Medium)
@@ -29,7 +49,11 @@
 - [ ] TODO-005: Complete Document Move Endpoint (P1, Medium)
   - Depends on: TODO-004
 
-## 2. Frontend Features (Built on backend) [P1]
+## Frontend Features (Built on backend) [P1]
+
+## Foundational [P3]
+
+- [x] TODO-000: Implement comprehensive drag and drop functionality
 
 ### Core UI Functionality
 - [ ] TODO-001: Complete Inline Rename Functionality (P1, High)
@@ -47,20 +71,16 @@
 - [ ] TODO-011: Enhance Search Functionality (P2, High)
   - Depends on: Backend search API
 
-## 3. AI & Workflow (Depends on backend + frontend) [P2]
+## AI & Workflow (Depends on backend + frontend) [P2]
 
 - [ ] TODO-006: Implement AI-Powered Document Analysis (P1, High)
   - Depends on: TODO-004, TODO-011
 - [ ] TODO-007: Complete Workflow Engine (P1, High)
   - Depends on: TODO-006
 
-## 4. Infrastructure (Can be done in parallel) [P2]
+## Infrastructure (Can be done in parallel) [P2]
 
 - [ ] TODO-012: Improve Error Handling (P1, Medium)
 - [ ] TODO-013: Add Comprehensive Logging (P1, Medium)
 - [x] TODO-014: Fix compilation errors and warnings (P0, Low)
 - [x] TODO-015: Update development process documentation (P0, Medium)
-
-## 5. Foundational (Already completed) [P3]
-
-- [x] TODO-000: Implement comprehensive drag and drop functionality
