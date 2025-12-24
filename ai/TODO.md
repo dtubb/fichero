@@ -82,6 +82,8 @@
   - Depends on: None
 - [ ] TODO-028: Write Comprehensive Ingest Documentation (P2, Medium)
   - Depends on: None
+- [ ] TODO-029: Test Text Extraction from Documents (P1, High)
+  - Depends on: None
 - [ ] TODO-012: Improve Error Handling (P1, Medium)
 - [ ] TODO-013: Add Comprehensive Logging (P1, Medium)
 - [x] TODO-014: Fix compilation errors and warnings (P0, Low)
