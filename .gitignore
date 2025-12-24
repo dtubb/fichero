@@ -42,7 +42,7 @@ io_worker.log
 /.venv
 /.pytest_cache
 /.cursor
-/.claude/claude --dangerously-skip-permissionsexi
+
 /.claude
 CLAUDE.md
 /.claude
