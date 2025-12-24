@@ -90,6 +90,88 @@ class TestDetectFileType:
         assert detect_file_type(Path("test.JPG")) == FileType.image
         assert detect_file_type(Path("test.PDF")) == FileType.pdf
 
+    def test_all_image_formats(self):
+        """Should detect all supported image formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        # Standard formats
+        assert detect_file_type(Path("test.jpg")) == FileType.image
+        assert detect_file_type(Path("test.jpeg")) == FileType.image
+        assert detect_file_type(Path("test.png")) == FileType.image
+        assert detect_file_type(Path("test.gif")) == FileType.image
+        assert detect_file_type(Path("test.webp")) == FileType.image
+        assert detect_file_type(Path("test.tiff")) == FileType.image
+        assert detect_file_type(Path("test.tif")) == FileType.image
+        assert detect_file_type(Path("test.bmp")) == FileType.image
+        
+        # Modern formats
+        assert detect_file_type(Path("test.heic")) == FileType.image
+        assert detect_file_type(Path("test.heif")) == FileType.image
+        assert detect_file_type(Path("test.jxl")) == FileType.image
+        assert detect_file_type(Path("test.avif")) == FileType.image
+        
+        # RAW formats
+        assert detect_file_type(Path("test.raw")) == FileType.image
+        assert detect_file_type(Path("test.cr2")) == FileType.image
+        assert detect_file_type(Path("test.cr3")) == FileType.image
+        assert detect_file_type(Path("test.nef")) == FileType.image
+        assert detect_file_type(Path("test.arw")) == FileType.image
+        assert detect_file_type(Path("test.dng")) == FileType.image
+        assert detect_file_type(Path("test.orf")) == FileType.image
+        assert detect_file_type(Path("test.rw2")) == FileType.image
+
+    def test_all_audio_formats(self):
+        """Should detect all supported audio formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.mp3")) == FileType.audio
+        assert detect_file_type(Path("test.wav")) == FileType.audio
+        assert detect_file_type(Path("test.m4a")) == FileType.audio
+        assert detect_file_type(Path("test.aac")) == FileType.audio
+        assert detect_file_type(Path("test.flac")) == FileType.audio
+        assert detect_file_type(Path("test.ogg")) == FileType.audio
+        assert detect_file_type(Path("test.wma")) == FileType.audio
+
+    def test_all_video_formats(self):
+        """Should detect all supported video formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.mp4")) == FileType.video
+        assert detect_file_type(Path("test.mov")) == FileType.video
+        assert detect_file_type(Path("test.avi")) == FileType.video
+        assert detect_file_type(Path("test.mkv")) == FileType.video
+        assert detect_file_type(Path("test.webm")) == FileType.video
+
+    def test_all_text_formats(self):
+        """Should detect all supported text formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.txt")) == FileType.text
+        assert detect_file_type(Path("test.md")) == FileType.text
+        assert detect_file_type(Path("test.rst")) == FileType.text
+        assert detect_file_type(Path("test.rtf")) == FileType.text
+
+    def test_all_word_formats(self):
+        """Should detect all supported word document formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.doc")) == FileType.word
+        assert detect_file_type(Path("test.docx")) == FileType.word
+        assert detect_file_type(Path("test.odt")) == FileType.word
+
+    def test_all_ebook_formats(self):
+        """Should detect all supported ebook formats."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.epub")) == FileType.epub
+        assert detect_file_type(Path("test.mobi")) == FileType.epub
+
 
 class TestDiscoverFiles:
     """Tests for discover_files function."""
@@ -491,6 +573,227 @@ class TestTryApfsClone:
         result = _try_apfs_clone(source, dest)
 
         assert result is False
+
+
+class TestIngestWithRealFiles:
+    """Tests for ingestion with real sample files."""
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_jpg_file(self, mock_bookmark, mock_db):
+        """Should ingest JPG file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.jpg"
+        assert doc.file_type == FileType.image
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+        assert "checksum" in doc.metadata
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_png_file(self, mock_bookmark, mock_db):
+        """Should ingest PNG file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.png"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.png"
+        assert doc.file_type == FileType.image
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_tiff_file(self, mock_bookmark, mock_db):
+        """Should ingest TIFF file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.tiff"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.tiff"
+        assert doc.file_type == FileType.image
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_webp_file(self, mock_bookmark, mock_db):
+        """Should ingest WEBP file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.webp"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.webp"
+        assert doc.file_type == FileType.image
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_pdf_file(self, mock_bookmark, mock_db):
+        """Should ingest PDF file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.pdf"
+        assert doc.file_type == FileType.pdf
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_docx_file(self, mock_bookmark, mock_db):
+        """Should ingest DOCX file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.docx"
+        assert doc.file_type == FileType.word
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_text_file(self, mock_bookmark, mock_db):
+        """Should ingest text file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.txt"
+        assert doc.file_type == FileType.text
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_markdown_file(self, mock_bookmark, mock_db):
+        """Should ingest markdown file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.md"
+        assert doc.file_type == FileType.text
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_mp3_file(self, mock_bookmark, mock_db):
+        """Should ingest MP3 file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp3"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.mp3"
+        assert doc.file_type == FileType.audio
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_wav_file(self, mock_bookmark, mock_db):
+        """Should ingest WAV file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.wav"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.wav"
+        assert doc.file_type == FileType.audio
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_mp4_file(self, mock_bookmark, mock_db):
+        """Should ingest MP4 file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp4"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.mp4"
+        assert doc.file_type == FileType.video
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_ingest_epub_file(self, mock_bookmark, mock_db):
+        """Should ingest EPUB file correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
+        
+        mock_bookmark.return_value = None
+        
+        doc = ingest_file(file_path, mode=IngestMode.LINK, extract_metadata=True)
+        
+        assert doc.name == "sample.epub"
+        assert doc.file_type == FileType.epub
+        assert "file_size" in doc.metadata
+        assert doc.metadata["file_size"] > 0
 
 
 class TestExtractFileMetadata:
