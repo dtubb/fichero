@@ -2,36 +2,28 @@
 
 ## Inbox System Overview
 
-Captures new ideas before they become tasks, ensuring organized workflow and proper review.
+Capture new ideas from the inbox and file them as tasks, ensuring organized workflow and proper review.
 
 ## Workflow
 
-1. **Ideas arrive** in `ai/inbox/ideas/` as markdown files
+1. **Check inbox** for new files in `ai/inbox/ideas/`
 2. **Review** each idea carefully
-3. **Determine** logical placement (TODO.md or task folders)
+3. **Determine** logical placement
 4. **Ask human** for confirmation
-5. **File properly** after confirmation
+5. **Update TODO.md** with task details
+6. **Create** task folder with concise name
+7. **Move** inbox file to task folder as `inbox_note.md`
+8. **Copy template** `ai/templates/inbox.md` to task folder as `task.md` and update
+9. **Request human review** of the completed task setup, and STOP.
 
-## Key Rules
+## Rules
 
-✅ **DO:**
-- Check inbox first
-- Review ideas carefully
-- Use logic for placement
-- Ask human before moving
-- Document decisions
+**DO:**
+- Update task numbers sequentially
+- Give clear, concise names
+- Document decisions in chat
+- Avoid creating summary documents
 
-❌ **DON'T:**
+**DON'T:**
 - Move ideas automatically
 - Create tasks without confirmation
-
-## File Placement
-
-| Idea Type | Location |
-|-----------|----------------|
-| Clear task | `ai/TODO.md` |
-| Task-specific | Task folder |
-
-## Example
-
-Use template: `ai/templates/inbox.md`
