@@ -1,6 +1,6 @@
 # Fichero
 
-Document management and AI processing for macOS.
+Document management and AI processing for macOS. Organize, search, chat, and run AI workflows on documents.
 
 ## Architecture
 
