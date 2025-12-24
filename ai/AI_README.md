@@ -46,9 +46,18 @@ ls ai/inbox/
 ai/
 ├── AI_README.md                    # This file (simple guide)
 ├── TODO.md                         # Task list (your starting point)
-├── contexts/                       # Background context documents
-│   ├── backend.md                  # Backend system context
-│   └── frontend.md                 # Frontend system context
+├── contexts/                       # Essential system context
+│   ├── architecture.md             # High-level system overview
+│   ├── backend/                    # Backend development context
+│   │   ├── overview.md             # What the backend does and how it works
+│   │   ├── key_files.md            # Essential backend files and navigation tips
+│   │   ├── development_standards.md # Best practices and testing standards
+│   │   └── workflow_checklist.md    # Step-by-step development workflows
+│   └── frontend/                   # Frontend development context
+│       ├── overview.md             # What the frontend does and how it works
+│       ├── key_files.md            # Essential frontend files and navigation tips
+│       ├── development_standards.md # Best practices and testing standards
+│       └── workflow_checklist.md    # Step-by-step development workflows
 ├── docs/                          # Documentation
 │   └── workflow.md                 # Workflow documentation
 ├── inbox/                         # Where new ideas go first

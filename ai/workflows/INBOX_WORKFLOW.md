@@ -14,10 +14,10 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
 5. **Update TODO.md** with task details
 6. **Create** task folder with concise name
 7. **Move** inbox file to task folder as `human_note.md`
-8. **Add** copy of `ai/templates/inbox_note.md` as `inbox_note.md` to task folder. Review `ai/contexts` to write note.
-9. **Request human review of `inbox_note.md`**
-10. **Copy contents** of `ai/templates/task` to task folder, and update each file based on `inbox_task.md` and `human_note.md`
-11. **Commit changes to Git** with clear commit message following the standard format:
+8. **Add** copy of `ai/templates/task.md` as `tasks.md` to task folder. Review `ai/contexts` as needed to update tasks.md note.
+9. **Add** copy of `ai/templates/context.md` as `context.md`to task folder. Review `ai/contexts` and tasks.md as needed to update context.md note.
+9. **Request human review of `tasks.md`** and `context.md`
+11. **Commit changes to Git** with clear commit message following the format in `ai/templates//git_update_template.md`:
     - Run `git add .` to stage all changes
     - Run `git commit -m "<descriptive commit message>"` to commit
     - Run `git push` if ready to push to remote

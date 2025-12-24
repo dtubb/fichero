@@ -39,11 +39,10 @@
 ## AI Task Management [P0]
 
 - [x] TODO-016: Implement ai folder with TODO.md, README.md, and WORKFLOW.md
-- [ ] TODO-020: Review and improve AI context documents organization (P2, Medium)
+- [x] TODO-020: Review and improve AI context documents organization (P2, Medium)
   - Depends on: None
 
 ## Backend API (Foundation) [P0]
-
 
 ### File Management
 - [ ] TODO-004: Complete File Import Endpoint (P1, Medium)
@@ -55,33 +54,20 @@
 
 ## Foundational [P3]
 
-- [x] TODO-000: Implement comprehensive drag and drop functionality
-
-### Core UI Functionality
-- [ ] TODO-001: Complete Inline Rename Functionality (P1, High)
-  - Depends on: TODO-005
-- [ ] TODO-002: Complete New Folder Creation (P1, Medium)
-  - Depends on: TODO-005
+### Sidebar Functionality
+- [ ] TODO-001: Review status of sidebar in Frontend
+- [ ] TODO-002: Complete In Line Rename (P1, Medium)
+- [ ] TODO-003: Complete New Folder Creation (P1, Medium)
+- [ ] TODO-004: Enhance Drag and Drop Visual Feedback (P2, Medium)
+- [ ] TODO-005: Confirm keyboard shortcuts for CRUD operations (P2, Low)
 
 ### Enhanced Features
-- [ ] TODO-003: Enhance Drag and Drop Visual Feedback (P2, Medium)
-  - Depends on: TODO-001, TODO-002
-- [x] TODO-008: Add keyboard shortcuts for CRUD operations (P2, Low)
-- [x] TODO-009: Create inline rename and new folder dialogs (P2, Medium)
-- [ ] TODO-010: Add Batch Operations (P2, High)
-  - Depends on: TODO-001, TODO-002
-- [ ] TODO-011: Enhance Search Functionality (P2, High)
-  - Depends on: Backend search API
+- [ ] TODO-007: Enhance Search Functionality (P2, High)
 
 ## AI & Workflow (Depends on backend + frontend) [P2]
-
-- [ ] TODO-006: Implement AI-Powered Document Analysis (P1, High)
-  - Depends on: TODO-004, TODO-011
-- [ ] TODO-007: Complete Workflow Engine (P1, High)
-  - Depends on: TODO-006
+- [ ] TODO-007: Plan Workflow Engine (P1, High)
 
 ## Infrastructure (Can be done in parallel) [P2]
-
 - [ ] TODO-012: Improve Error Handling (P1, Medium)
 - [ ] TODO-013: Add Comprehensive Logging (P1, Medium)
 - [x] TODO-014: Fix compilation errors and warnings (P0, Low)
