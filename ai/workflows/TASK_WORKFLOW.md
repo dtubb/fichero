@@ -13,12 +13,19 @@ Systematic workflow for AI to implement tasks with human oversight, following es
    - Update task status to `[>]` when starting
 
 2. **Understand task requirements**
-   - Read task folder: `ai/tasks/TODO-XXX/`
-   - Review `task.md` for step-by-step instructions, if does not exist go to INBOX_WORFKLOW.md and create relevent files. 
+   - Check if TODO folder: `ai/tasks/TODO-XXX/` exisits. 
+   - If it exists:
+      - Review `task.md` for step-by-step instructions
       - Ask for human input.
-   - Review `human_note.md` for human requirements, if it exists.
-   - Review `context.md` for background context, if it does not exist. write it.
-   - Ask human if anything is unclear
+      - Review `human_note.md` for human requirements, if it exists.
+      - Review `context.md` for background context, if it does not exist. write it.
+      - Ask human if anything is unclear
+   - If it does not exist: 
+      - if does not exist go to INBOX_WORFKLOW.md and follow its insturctions to create relevent task folder. 
+         - Create `task.md` following `ai\templates\todo\tasks.md` ask for human input.
+         - `context.md` for background context, if it does not exist. write it.
+         - Ask human if anything is unclear.
+         - Once step is defined. STOP.
 
 3. **Create or Copy relevant workflow checklist**
    - Determine task type (API endpoint, feature, bug fix, view, etc.)

@@ -54,8 +54,8 @@
 
 ## Foundational [P3]
 
-### Sidebar Functionality
-- [ ] TODO-001: Review status of sidebar in Frontend
+### Sidebar
+- [x] TODO-001: Review status of sidebar in Frontend
 - [ ] TODO-002: Complete In Line Rename (P1, Medium)
 - [ ] TODO-003: Complete New Folder Creation (P1, Medium)
 - [ ] TODO-004: Enhance Drag and Drop Visual Feedback (P2, Medium)
