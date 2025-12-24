@@ -664,6 +664,85 @@ class TestDocumentHierarchy:
         response = client.get("/api/documents/nonexistent/ancestors")
         assert response.status_code == 404
 
+    def test_move_document_success(self, client, mock_db, sample_doc, sample_collection):
+        """Move document to new parent successfully."""
+        # Mock the document to be moved
+        
+        # Mock the parent document
+        def get_side_effect(cls, doc_id):
+            if doc_id == sample_doc.id:
+                return sample_doc
+            elif doc_id == sample_collection.id:
+                return sample_collection
+            return None
+        
+        mock_db.get.side_effect = get_side_effect
+        mock_db.save.return_value = None
+
+        response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id={sample_collection.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_doc.id
+        assert data["parent_id"] == sample_collection.id
+        mock_db.save.assert_called_once()
+
+    def test_move_document_to_root(self, client, mock_db, sample_doc):
+        """Move document to root (no parent)."""
+        def get_side_effect(cls, doc_id):
+            if doc_id == sample_doc.id:
+                return sample_doc
+            return None
+        
+        mock_db.get.side_effect = get_side_effect
+        mock_db.save.return_value = None
+
+        response = client.put(f"/api/documents/{sample_doc.id}/move")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_doc.id
+        assert data["parent_id"] is None
+
+    def test_move_document_not_found(self, client, mock_db):
+        """Move nonexistent document returns 404."""
+        mock_db.get.return_value = None
+
+        response = client.put("/api/documents/nonexistent/move?parent_id=parent123")
+        assert response.status_code == 404
+
+    def test_move_document_invalid_parent(self, client, mock_db, sample_doc):
+        """Move document to nonexistent parent returns 400."""
+        def get_side_effect(cls, doc_id):
+            if doc_id == sample_doc.id:
+                return sample_doc  # Document exists
+            return None  # Parent doesn't exist
+        
+        mock_db.get.side_effect = get_side_effect
+
+        response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id=nonexistent")
+        assert response.status_code == 400
+
+    def test_move_document_preserves_properties(self, client, mock_db, sample_doc, sample_collection):
+        """Move document preserves other properties."""
+        original_name = sample_doc.name
+        original_path = sample_doc.path
+        
+        def get_side_effect(cls, doc_id):
+            if doc_id == sample_doc.id:
+                return sample_doc
+            elif doc_id == sample_collection.id:
+                return sample_collection
+            return None
+        
+        mock_db.get.side_effect = get_side_effect
+        mock_db.save.return_value = None
+
+        response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id={sample_collection.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == original_name
+        assert data["path"] == original_path
+        assert data["doc_type"] == sample_doc.doc_type.value
+
 
 class TestPagination:
     """Tests for pagination parameters."""
