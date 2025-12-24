@@ -18,15 +18,20 @@ Review current context documents and reorganize them based on human feedback to 
 
 ## Questions for Human
 - [ ] Question 1: Do you think the current context files are too overwhelming for AI use?
-    Answer: [Human to provide feedback]
+    Answer: I like the proposed edits. I prpefer option 1. mirro both. not sure if we need roadmap there or in another folder? maybe thats in ai/roadmap? 
+
 - [ ] Question 2: Which organization option do you prefer (1, 2, 3, or other)?
-    Answer: [Human to provide preference]
+    Answer: option 1.
+
 - [ ] Question 3: Should we keep the comprehensive files and add summaries, or split them up completely?
-    Answer: [Human to provide decision]
+    Answer: follow ioption 1
+
 - [ ] Question 4: Are there specific sections that should be prioritized or deprecated?
     Answer: [Human to provide guidance]
+
 - [ ] Question 5: Should we rename "contexts" to "docs" for clarity?
-    Answer: [Human to provide preference]
+    Answer: no. be concise. 
+
 
 ## Answers and Implementation
 - [Summary of decisions made based on human feedback]
