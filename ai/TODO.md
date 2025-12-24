@@ -39,6 +39,8 @@
 ## AI Task Management [P0]
 
 - [x] TODO-016: Implement ai folder with TODO.md, README.md, and WORKFLOW.md
+- [ ] TODO-020: Review and improve AI context documents organization (P2, Medium)
+  - Depends on: None
 
 ## Backend API (Foundation) [P0]
 
