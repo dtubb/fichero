@@ -33,6 +33,10 @@
 
 ### 4. Integration
 - [x] Connect UI to service layer
+- [x] Fix compile errors and scope issues
+- [x] Move InlineRenameField to be nested in SidebarView
+- [x] Add missing renamingItemId parameters to all SidebarItemRow instantiations
+- [x] Fix pre-existing build issues (EmptyResponse, unreachable catch blocks)
 - [ ] Test with all item types (documents, searches, conversations, workflows)
 - [ ] Ensure proper state updates after rename
 - [ ] Verify UI updates correctly

@@ -123,11 +123,11 @@ struct WorkflowView: View {
             
             // Placeholder for actual implementation
             // let apiWorkflow = editingWorkflow.toAPIFormat()
-            // if selectedWorkflow != nil {
-            //     _ = try await workflowStore.updateWorkflow(apiWorkflow)
-            // } else {
-            //     _ = try await workflowStore.saveWorkflow(apiWorkflow)
-            // }
+            if selectedWorkflow != nil {
+                _ = try await workflowStore.updateWorkflow(apiWorkflow)
+            } else {
+                _ = try await workflowStore.saveWorkflow(apiWorkflow)
+            }
             
         } catch {
             print("Failed to save workflow: \(error)")

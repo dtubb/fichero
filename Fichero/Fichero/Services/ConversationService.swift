@@ -75,8 +75,6 @@ struct ConversationReorderRequest: Encodable {
 
 // MARK: - Response Models
 
-private struct EmptyResponse: Codable {}
-
 struct ConversationAPI: Codable, Identifiable {
     let id: String
     let title: String

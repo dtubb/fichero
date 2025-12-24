@@ -204,8 +204,6 @@ class WorkflowService: ObservableObject {
 
 // MARK: - Response Models
 
-private struct EmptyResponse: Codable {}
-
 // MARK: - Request Models
 
 struct WorkflowUpdate: Encodable {

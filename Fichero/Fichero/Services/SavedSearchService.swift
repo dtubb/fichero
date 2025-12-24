@@ -82,8 +82,6 @@ struct SavedSearchReorderRequest: Encodable {
 
 // MARK: - Response Models
 
-private struct EmptyResponse: Codable {}
-
 struct SavedSearchAPI: Codable, Identifiable {
     let id: String
     let query: String
