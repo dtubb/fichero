@@ -2,7 +2,7 @@
 
 ## Task Processing System Overview
 
-Systematic workflow for AI to implement tasks with human oversight, following established checklists and standards.
+Systematic workflow for AI to autonomlsy implement tasks, following established checklists and standards.
 
 ## Workflow
 
@@ -39,7 +39,7 @@ Systematic workflow for AI to implement tasks with human oversight, following es
      - Planning Phase: Understand requirements and design
      - Implementation Phase: Write code following standards
      - Testing Phase: Verify functionality and edge cases
-     - Review Phase: Self-check and prepare for human review
+     - Review Phase: Self-check and make notes. Continue.
    - Check off items as completed
    - Take notes in `notes.md` for decisions and issues
 
@@ -57,12 +57,11 @@ Systematic workflow for AI to implement tasks with human oversight, following es
    - Verify code follows established patterns
    - Create summary of changes in `summaries/` folder
 
-7. **Human review**
-   - Present completed work to human
+7. **Do not do Human review**
+   - Present completed work to human in clear file
    - Show files changed and decisions made
    - Show completed checklist with all items checked
-   - Request feedback and approval
-   - Update based on human input
+   - Continue
 
 8. **Finalize and commit**
    - Update task status to `[x]` in TODO.md
@@ -70,7 +69,7 @@ Systematic workflow for AI to implement tasks with human oversight, following es
     - Run `git add .` to stage all changes
     - Run `git commit -m "<descriptive commit message>"` to commit
     - Run `git push` if ready to push to remote
-    - Then STOP.
+    - Then go back to AI_README.md to proceed to next step.
 
 ## Task Structure
 
@@ -89,24 +88,25 @@ tasks/TODO-XXX/
 **DO:**
 - Follow workflow checklists systematically
 - Keep tasks small and focused
-- Ask human when unsure about requirements
+- Do not Ask human when unsure about requirements Follow best practices.
 - Follow established development standards
 - Document decisions and changes
 - Update checklist as you progress
 
 **DON'T:**
-- Skip checklist steps without human approval
+- Wait for human approval
 - Make changes outside task scope
-- Skip human review of completed work
+- Wait for human review of completed work
 - Create summary files in root directory
 - Proceed to next task without explicit confirmation
+- Don't stop and ask questions. Continue to next step.
 
 ## Best Practices
 
 - **Systematic approach**: Follow checklists step by step
 - **Focused development**: One task at a time
 - **Clear documentation**: Update checklist and notes as you work
-- **Human oversight**: Review at each major phase
+- **No Human oversight**: No human oversight at each major phase. Do best guess.
 - **Clean structure**: Keep all task-related files in task folder
 - **Reference standards**: Use context files for guidance
 
@@ -115,5 +115,5 @@ tasks/TODO-XXX/
 - Review appropriate workflow checklist
 - Check development standards
 - Re-read task requirements
-- Ask for clarification on specific steps
+- Do not ask for clarification on specific steps
 - Keep implementation focused and simple

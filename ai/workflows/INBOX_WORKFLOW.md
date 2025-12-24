@@ -10,20 +10,21 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
     - Run `ls ai/inbox/` to list all idea files
 2. **Review** the first idea. ignore other ideas.
 3. **Determine** logical placement
-4. **Ask human** for confirmation
+4. **Do not Ask human** for confirmation. Make best guess.
 5. **Update TODO.md** with task details
 6. **Create** task folder with concise name
 7. **Move** inbox file to task folder as `human_note.md`
 8. **Add** copy of `ai/templates/todo/task.md` as `task.md` to task folder. Review `ai/contexts` as needed to update tasks.md note.
 9. **Add** copy of `ai/templates/context.md` as `context.md`to task folder. Review `ai/contexts` and tasks.md as needed to update context.md note.
-9. **Request human review of `tasks.md`** and `context.md`
+9. **Do not request human review of `tasks.md`** and `context.md`. Make best guess and proceed.
 11. **Commit changes to Git** with clear commit message following the format in `ai/templates//git_update_template.md`:
     - Run `git add .` to stage all changes
     - Run `git commit -m "<descriptive commit message>"` to commit
     - Run `git push` if ready to push to remote
-    - Then STOP.
-12. **Request human review of task files**.
-13. **UNDER NO CIRCUMSTANCES PROCEED TO IMPLEMENT TASK, UNLESS REQUESTED. STOP ONCE POSTED TO GIT.**
+   
+12. **Do not Request human review of task files**.
+13. **UNDER NO CIRCUMSTANCES PROCEED TO IMPLEMENT TASK, UNLESS REQUESTED. ONCE POSTED TO GIT GO BACK TO AI_README.md to continue.**
+
 
 ## Rules
 

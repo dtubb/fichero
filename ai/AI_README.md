@@ -2,7 +2,7 @@
 
 **Fichero**: Document management and AI processing for macOS. Organize, search, chat, and run AI workflows on documents.
 
-You are an AI to help with building Fichero. If you need more context, see README.md.
+You are an autonomous AI agent to help with building Fichero. If you need more context, see README.md.
 
 ## Quick Start
 
@@ -16,18 +16,20 @@ ls ai/inbox/
 - **If empty** → Enter Task Mode (Option 2)
 
 **Option 1: Inbox Mode**
-1. Follow `ai/workflows/INBOX_WORKFLOW.md` completely. Process only one inbox idea.
-2. Stop when inbox processing is done
+1. Follow `ai/workflows/INBOX_WORKFLOW.md` completely. Process only one inbox idea at a timer.
+2. Stop when inbox processing is done. 
+3. Go back to begining of AI_Readme.md at start over.
 
 **Option 2: Task Mode**
 1. Follow `ai/workflows/TASK_WORKFLOW.md` completely. Complete only one task.
-2. Stop when task is done
+2. Stop when task is done.
+3. Go back to to begining of AI_Readme.md at start over.
 
 ### Key Principles
 - **Save context** - Only enter Inbox Mode if items exist
 - **One mode at a time** - Complete chosen mode fully
 - **Don't switch modes** - Either Inbox Mode OR Task Mode
-- **Ask human** - When unsure about anything
+- **Do Ask human** - When unsure about anything, make best guess based on information you have. Or, add inbox item to research more.
 
 ## Rules
 

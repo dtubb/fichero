@@ -20,9 +20,9 @@ Refactor the monolithic SidebarView.swift by extracting nested components to sep
 
 ## Questions for Human
 - [ ] Question 1: Should I preserve the exact same component structure and naming?
-    Answer: [Space for answer]
+    Answer: Make it better. Do the right thing.
 - [ ] Question 2: Are there any specific SwiftUI patterns or conventions I should follow?
-    Answer: [Space for answer]
+    Answer: Follow best practices. Look up sample code if need be. Look in sample_code for ideas and best practices. 
 
 ## Answers and Implementation
 - [Summary of decisions made]
