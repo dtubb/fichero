@@ -2,7 +2,7 @@
 
 ## Quick Start
 
-4. **Find a task** - Pick In Progress task `[>]` or first `[ ]` (available) tasks in TODO.md
+4. **Find a task** - Choose the one the Human requested. Or Pick In Progress task `[>]` or first `[ ]` (available) tasks in TODO.md
 5. **Follow the steps below** to preapre each task. Make sure it has clear instructions.
 6. **Ask questions** - Request human input when needed. Ask them to update specific files, or update files youurself.
 7. **Complete and update** - Mark task as `[x]` when done

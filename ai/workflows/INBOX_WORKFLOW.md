@@ -6,8 +6,9 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
 
 ## Workflow
 
-1. **Check inbox** for new files in `ai/inbox/ideas/`
-2. **Review** each idea carefully
+1. **Check inbox** for new files in `ai/inbox/`:
+    - Run `ls ai/inbox/` to list all idea files
+2. **Review** the first idea. ignore other ideas.
 3. **Determine** logical placement
 4. **Ask human** for confirmation
 5. **Update TODO.md** with task details

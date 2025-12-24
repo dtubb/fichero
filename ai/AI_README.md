@@ -16,7 +16,7 @@ ls ai/inbox/ideas/
 - **If empty** → Enter Task Mode (Option 2)
 
 **Option 1: Inbox Mode**
-1. Follow `ai/inbox/INBOX_WORKFLOW.md` completely
+1. Follow `ai/inbox/INBOX_WORKFLOW.md` completely. Process only one inbox idea.
 2. Stop when inbox processing is done
 
 **Option 2: Task Mode**
