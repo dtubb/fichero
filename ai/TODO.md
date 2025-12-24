@@ -65,7 +65,17 @@
 - [ ] TODO-003: Complete New Folder Creation (P1, Medium)
 - [ ] TODO-021: Enhance Drag and Drop Visual Feedback (P2, Medium)
 - [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
-- [ ] TODO-030: Comprehensive Sidebar Code Review and Refactoring (P1, High)
+- [x] TODO-030: Comprehensive Sidebar Code Review and Refactoring (P1, High)
+  - Depends on: None
+- [ ] TODO-031: Fix SwiftLint Violations in SidebarView (P1, High)
+  - Depends on: None
+- [ ] TODO-032: Refactor Sidebar Component Structure (P1, High)
+  - Depends on: None
+- [ ] TODO-033: Implement Unit Tests for SidebarView (P1, High)
+  - Depends on: None
+- [ ] TODO-034: Implement New Folder Functionality (P1, High)
+  - Depends on: None
+- [ ] TODO-035: Improve Sidebar Error Handling (P2, Medium)
   - Depends on: None
 
 ### Enhanced Features
