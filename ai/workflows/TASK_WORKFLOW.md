@@ -69,7 +69,7 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
     - Run `git add .` to stage all changes
     - Run `git commit -m "<descriptive commit message>"` to commit
     - Run `git push` if ready to push to remote
-    - Then go back to AI_README.md to proceed to next step.
+9. Go back to AI_README.md to proceed to next step. Do not stop. Continue.
 
 ## Task Structure
 
