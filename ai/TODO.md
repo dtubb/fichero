@@ -58,8 +58,8 @@
 - [x] TODO-001: Review status of sidebar in Frontend
 - [ ] TODO-002: Complete In Line Rename (P1, Medium)
 - [ ] TODO-003: Complete New Folder Creation (P1, Medium)
-- [ ] TODO-004: Enhance Drag and Drop Visual Feedback (P2, Medium)
-- [ ] TODO-005: Confirm keyboard shortcuts for CRUD operations (P2, Low)
+- [ ] TODO-021: Enhance Drag and Drop Visual Feedback (P2, Medium)
+- [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
 
 ### Enhanced Features
 - [ ] TODO-007: Enhance Search Functionality (P2, High)
