@@ -47,3 +47,4 @@ io_worker.log
 CLAUDE.md
 /.claude
 .aider*
+opencode.json
