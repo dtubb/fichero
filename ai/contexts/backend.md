@@ -2,14 +2,24 @@
 
 ## Overview
 
-Python/FastAPI backend development patterns and best practices for Fichero.
+Python/FastAPI backend development patterns and best practices for Fichero's document management and AI processing system.
 
 ## Key Components
 
-- **FastAPI Application**: `src/fichero/api/main.py`
-- **API Routes**: `src/fichero/api/routes/`
-- **Data Layer**: `src/fichero/db.py`, `src/fichero/models.py`
-- **AI Integration**: `src/fichero/llm.py`, `src/fichero/workflows/`
+- **FastAPI Application**: `src/fichero/api/main.py` - Main application entry point
+- **API Routes**: `src/fichero/api/routes/` - RESTful API endpoints
+  - `documents.py` - Document management endpoints
+  - `ingest.py` - File ingestion and processing
+  - `search.py` - Search functionality
+  - `chat.py` - AI chat endpoints
+  - `models.py` - Model management
+  - `providers.py` - Provider configuration
+  - `storage.py` - Storage operations
+- **Data Layer**: `src/fichero/db.py`, `src/fichero/models.py` - Database operations and data models
+- **AI Integration**: `src/fichero/llm.py`, `src/fichero/workflows/` - AI workflows and processing
+- **Storage**: `src/fichero/storage.py` - File storage management
+- **Bookmarks**: `src/fichero/bookmarks.py` - Bookmark management
+- **Providers**: `src/fichero/providers.py` - AI provider integrations
 
 ## Development Patterns
 
@@ -99,3 +109,23 @@ def test_document_endpoint():
 - Document API endpoints with docstrings
 - Use async/await for I/O operations
 - Implement proper authentication and authorization
+
+## Feature Planning Context
+
+### Current Focus Areas
+- **Document Management**: Complete file import, move, and organization endpoints
+- **AI Integration**: Enhance workflow engine and AI-powered document analysis
+- **Search**: Implement comprehensive search functionality with filtering
+- **Batch Operations**: Add support for bulk document operations
+
+### Architecture Evolution
+- **Modular Design**: Maintain clear separation between API routes, services, and data layers
+- **AI Workflows**: Expand workflow system for complex document processing pipelines
+- **Performance**: Optimize database queries and API response times
+- **Error Handling**: Improve error reporting and recovery mechanisms
+
+### Future Considerations
+- **Scalability**: Design for handling large document collections
+- **Extensibility**: Easy integration of new AI providers and workflow types
+- **Security**: Enhanced authentication and authorization for sensitive operations
+- **Monitoring**: Comprehensive logging and performance monitoring
