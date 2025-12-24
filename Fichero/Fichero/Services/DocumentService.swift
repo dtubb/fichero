@@ -1,10 +1,12 @@
 import Foundation
+import Combine
 
 /// Service for document CRUD operations.
 ///
 /// Communicates with the Python backend via APIClient.
 /// Uses the Document type from Document.swift.
-actor DocumentService {
+@MainActor
+class DocumentService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - List Operations
@@ -91,6 +93,88 @@ actor DocumentService {
     /// Delete a document.
     func deleteDocument(_ id: String) async throws {
         try await api.delete("/documents/\(id)")
+    }
+
+    /// Duplicate an existing document.
+    func duplicateDocument(_ id: String) async throws -> Document {
+        // First get the original document
+        let original = try await getDocument(id)
+
+        // Create a new document with the same properties but different name
+        let newDocument = DocumentCreateRequest(
+            name: "\(original.name) (Copy)",
+            parentId: original.parentId,
+            docType: original.docType,
+            fileType: original.fileType,
+            path: original.path,
+            pageContent: original.pageContent,
+            metadata: original.metadata
+        )
+
+        return try await createDocument(newDocument)
+    }
+
+    /// Import a file into a specific location.
+    func importFile(at url: URL, parentId: String? = nil) async throws -> Document {
+        // Create form data for file upload
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:8765/api/documents/import")!)
+        request.httpMethod = "POST"
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+
+        // Add parentId if provided
+        if let parentId = parentId {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"parent_id\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(parentId)\r\n".data(using: .utf8)!)
+        }
+
+        // Add file
+        let filename = url.lastPathComponent
+        let mimeType = mimeType(for: url)
+        let fileData = try Data(contentsOf: url)
+
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // End boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(Document.self, from: data)
+    }
+
+    /// Move a document to a new parent.
+    func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
+        let update = DocumentUpdateRequest(parentId: parentId)
+        return try await updateDocument(documentId, update)
+    }
+
+    /// Helper to determine MIME type from file extension
+    private func mimeType(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "application/pdf"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "txt": return "text/plain"
+        case "doc", "docx": return "application/msword"
+        default: return "application/octet-stream"
+        }
     }
 
     // MARK: - Convenience Methods

@@ -386,13 +386,13 @@ class Workflow(BaseModel):
     """
     A processing pipeline/recipe definition.
 
-    Defines a sequence of steps to run on documents.
-    Steps reference tools and providers.
+    Supports both step-based (legacy) and node-based (visual editor) formats.
+    Node-based workflows use nodes and edges for visual pipeline creation.
+    Step-based workflows maintain backward compatibility.
 
     Examples:
-        - "Transcribe OCR" - just OCR
-        - "Full Analysis" - OCR → entities → summary
-        - "PDF Processing" - extract pages → enhance → OCR
+        - Legacy: [{"name": "transcribe", "tool": "transcribe", "provider": "qwen"}]
+        - Visual: Nodes with ports connected by edges
     """
     model_config = ConfigDict(from_attributes=True)
 
@@ -400,7 +400,16 @@ class Workflow(BaseModel):
     name: str
     description: str = ""
 
-    # Pipeline steps
+    # Organization
+    folder_path: str = "/"  # Unix-style path: "/archive/letters"
+    sort_order: int = 0     # User-defined order within folder
+    is_template: bool = False
+    tags: list[str] = []
+
+    # Pipeline format choice
+    format: str = "steps"  # "steps" (legacy) or "nodes" (visual editor)
+
+    # Legacy pipeline steps (for backward compatibility)
     steps: list[dict[str, Any]] = Field(default_factory=list)
     # Example:
     # [
@@ -408,8 +417,20 @@ class Workflow(BaseModel):
     #     {"name": "entities", "tool": "extract_entities", "provider": "openai"},
     # ]
 
-    # Default config for steps
+    # Visual workflow nodes and edges
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    # Node example:
+    # {"id": "node1", "tool": "transcribe", "label": "Transcribe", "position_x": 100, "position_y": 200, ...}
+    # Edge example:
+    # {"source_node_id": "node1", "source_port_id": "output", "target_node_id": "node2", "target_port_id": "input"}
+
+    # Default config for steps/nodes
     config: dict[str, Any] = Field(default_factory=dict)
+
+    # LLM configuration
+    provider: str = ""
+    model: str = ""
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
@@ -702,6 +723,38 @@ class SavedSearch(BaseModel):
     is_smart_search: bool = True       # Whether to use semantic search
     filters: dict[str, Any] | None = None  # Optional filter parameters
 
+    # Organization
+    folder_path: str = "/"  # Unix-style path for organization
+    sort_order: int = 0     # User-defined order within folder
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# =============================================================================
+# Conversation - Chat Conversation
+# =============================================================================
+
+class Conversation(BaseModel):
+    """
+    Chat conversation with message history.
+
+    Stores chat conversation data for persistence.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    title: str                          # Conversation title
+    messages: list[dict] = Field(default_factory=list)  # Chat message history
+    provider: str | None = None         # LLM provider used
+    model: str | None = None           # LLM model used
+    document_ids: list[str] = Field(default_factory=list)  # Documents used in RAG
+    metadata: dict[str, Any] = Field(default_factory=dict)  # Additional metadata
+
+    # Organization
+    folder_path: str = "/"  # Unix-style path for organization
+    sort_order: int = 0     # User-defined order within folder
+
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -730,4 +783,5 @@ __all__ = [
     "Model",
     "Tool",
     "SavedSearch",
+    "Conversation",
 ]

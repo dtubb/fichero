@@ -68,7 +68,7 @@ def resolve_inputs(
         try:
             resolved[param] = resolve_value(source, state, workflow_config)
         except Exception as e:
-            logger.warning(f"Failed to resolve {param}={source}: {e}")
+            logger.warning("Failed to resolve %s=%s: %s", param, source, e)
             resolved[param] = None
 
     return resolved
@@ -158,7 +158,7 @@ def _resolve_path(
         key = match.group(1)
         return _get_nested(dict(state), key)
 
-    logger.warning(f"Unknown path pattern: {path}")
+    logger.warning("Unknown path pattern: %s", path)
     return None
 
 
@@ -268,7 +268,7 @@ def _apply_transform(value: Any, transform: str) -> Any:
         return _extract_json(value)
 
     else:
-        logger.warning(f"Unknown transform: {transform}")
+        logger.warning("Unknown transform: %s", transform)
         return value
 
 
@@ -294,7 +294,7 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
         return json.loads(text)
     except json.JSONDecodeError:
         if not repair:
-            logger.warning(f"JSON parse failed: {text[:100]}...")
+            logger.warning("JSON parse failed: %s...", text[:100])
             return value
 
     # Attempt repairs
@@ -324,7 +324,7 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
     try:
         return json.loads(repaired)
     except json.JSONDecodeError as e:
-        logger.warning(f"JSON repair failed: {e}")
+        logger.warning("JSON repair failed: %s", e)
         return value
 
 
@@ -360,7 +360,7 @@ def _extract_json(value: Any) -> Any:
     if code_match:
         return _parse_json(code_match.group(1), repair=True)
 
-    logger.warning(f"Could not extract JSON from: {value[:100]}...")
+    logger.warning("Could not extract JSON from: %s...", value[:100])
     return value
 
 
@@ -526,5 +526,5 @@ def evaluate_condition(
         result = eval(resolved_condition, {"__builtins__": {}}, {})
         return bool(result)
     except Exception as e:
-        logger.warning(f"Condition evaluation failed: {condition} -> {resolved_condition}: {e}")
+        logger.warning("Condition evaluation failed: %s -> %s: %s", condition, resolved_condition, e)
         return False

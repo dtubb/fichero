@@ -94,7 +94,7 @@ def get_api_key(provider: str) -> str | None:
         return None
 
     if returncode != 0:
-        logger.debug(f"Keychain get failed: {stderr.strip()}")
+        logger.debug("Keychain get failed: %s", stderr.strip())
 
     return None
 
@@ -135,10 +135,10 @@ def set_api_key(provider: str, key: str) -> bool:
     )
 
     if returncode == 0:
-        logger.debug(f"Stored API key for {provider}")
+        logger.debug("Stored API key for %s", provider)
         return True
     else:
-        logger.warning(f"Failed to store API key: {stderr.strip()}")
+        logger.warning("Failed to store API key: %s", stderr.strip())
         return False
 
 

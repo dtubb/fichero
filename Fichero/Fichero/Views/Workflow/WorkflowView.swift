@@ -10,8 +10,11 @@ struct WorkflowView: View {
     @Binding var editingWorkflow: Workflow
 
     @State private var isRunning: Bool = false
+    @State private var isSaving: Bool = false
     @State private var showOutputLog: Bool = false
     @State private var executionState: WorkflowExecutionState?
+
+    @StateObject private var workflowStore = WorkflowStore()
 
     init(
         workflow: WorkflowSidebarItem?,
@@ -57,6 +60,16 @@ struct WorkflowView: View {
 
             Divider()
 
+            // Save
+            Button(action: {
+                Task {
+                    await saveWorkflow()
+                }
+            }) {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .help("Save Workflow")
+
             // Export
             Button(action: exportWorkflow) {
                 Image(systemName: "square.and.arrow.up")
@@ -101,9 +114,30 @@ struct WorkflowView: View {
         }
     }
 
+    @MainActor
+    private func saveWorkflow() async {
+        do {
+            // Convert local workflow to API format and save to backend via WorkflowStore
+            // TODO: Implement with proper workflow type once files are added to Xcode project
+            print("Save workflow: \(editingWorkflow.name)")
+            
+            // Placeholder for actual implementation
+            // let apiWorkflow = editingWorkflow.toAPIFormat()
+            // if selectedWorkflow != nil {
+            //     _ = try await workflowStore.updateWorkflow(apiWorkflow)
+            // } else {
+            //     _ = try await workflowStore.saveWorkflow(apiWorkflow)
+            // }
+            
+        } catch {
+            print("Failed to save workflow: \(error)")
+        }
+    }
+
     private func exportWorkflow() {
+        // TODO: Implement export when workflow type is available
         print("Export workflow: \(editingWorkflow.name)")
-        // Will export workflow definition as YAML/JSON
+        // Will export workflow definition as JSON using WorkflowExporter
     }
 }
 

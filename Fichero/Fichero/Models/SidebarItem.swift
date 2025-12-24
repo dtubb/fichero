@@ -29,6 +29,8 @@ struct SidebarItem: Identifiable, Hashable {
     let section: SidebarSection
     let itemType: ItemType
     var children: [SidebarItem]?
+    var progress: Double? = nil  // Optional progress indicator (0.0 to 1.0)
+    var showProgress: Bool = false  // Whether to show the progress indicator
 
     enum ItemType: Hashable {
         case document(Document)
@@ -50,7 +52,9 @@ struct SidebarItem: Identifiable, Hashable {
             icon: doc.docType.icon,
             section: .library,
             itemType: .document(doc),
-            children: children
+            children: children,
+            progress: nil,
+            showProgress: false
         )
     }
 
@@ -61,7 +65,9 @@ struct SidebarItem: Identifiable, Hashable {
             icon: search.icon,
             section: .searches,
             itemType: .savedSearch(search),
-            children: nil
+            children: nil,
+            progress: nil,
+            showProgress: false
         )
     }
 
@@ -72,7 +78,9 @@ struct SidebarItem: Identifiable, Hashable {
             icon: "arrow.triangle.branch",
             section: .workflows,
             itemType: .workflow(workflow),
-            children: nil
+            children: nil,
+            progress: nil,
+            showProgress: false
         )
     }
 
@@ -83,7 +91,9 @@ struct SidebarItem: Identifiable, Hashable {
             icon: "bubble.left.and.bubble.right",
             section: .chat,
             itemType: .conversation(conversation),
-            children: nil
+            children: nil,
+            progress: nil,
+            showProgress: false
         )
     }
 }

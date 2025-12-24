@@ -4,7 +4,8 @@ import Foundation
 ///
 /// Uses Swift concurrency (async/await) for all network operations.
 /// The backend runs on localhost:8765 when started with `fichero serve`.
-actor APIClient {
+@MainActor
+class APIClient: ObservableObject {
     static let shared = APIClient()
 
     private let baseURL: URL
@@ -178,15 +179,15 @@ actor APIClient {
 
     // MARK: - URL Builders (for images)
 
-    nonisolated func thumbnailURL(for documentId: String) -> URL {
+    func thumbnailURL(for documentId: String) -> URL {
         URL(string: "http://127.0.0.1:8765/api/storage/thumbnail/\(documentId)")!
     }
 
-    nonisolated func displayURL(for documentId: String) -> URL {
+    func displayURL(for documentId: String) -> URL {
         URL(string: "http://127.0.0.1:8765/api/storage/display/\(documentId)")!
     }
 
-    nonisolated func sourceURL(for documentId: String) -> URL {
+    func sourceURL(for documentId: String) -> URL {
         URL(string: "http://127.0.0.1:8765/api/storage/source/\(documentId)")!
     }
 
@@ -218,6 +219,58 @@ actor APIClient {
             return errorResponse.detail
         }
         return String(data: data, encoding: .utf8) ?? "Unknown error"
+    }
+}
+
+// MARK: - HTTP Methods Extension
+
+extension APIClient {
+    func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        let url = URL(string: "http://127.0.0.1:8765/api")!.appendingPathComponent(path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(body)
+
+        NSLog("[APIClient] PATCH %@", url.absoluteString)
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        let session = URLSession(configuration: config)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: String(data: data, encoding: .utf8) ?? "Unknown")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(T.self, from: data)
+    }
+
+    /// POST with body, no response (for endpoints that return empty response)
+    func postVoid<B: Encodable>(_ path: String, body: B) async throws {
+        let url = baseURL.appendingPathComponent(path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try encoder.encode(body)
+
+        NSLog("[APIClient] POST %@ (no response)", url.absoluteString)
+
+        let (data, response) = try await session.data(for: request)
+        NSLog("[APIClient] Response received, %d bytes", data.count)
+        try validateResponse(response, data: data)
     }
 }
 

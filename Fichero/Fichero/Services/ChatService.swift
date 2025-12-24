@@ -1,7 +1,9 @@
 import Foundation
+import Combine
 
 /// Service for RAG chat operations via the Fichero backend.
-actor ChatService {
+@MainActor
+class ChatService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - Chat

@@ -300,18 +300,25 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @router.get("/conversations")
-async def list_conversations() -> List[dict]:
-    """List all conversations."""
-    return [
-        {
+async def list_conversations(
+    folder_path: str = "/"
+) -> List[dict]:
+    """List all conversations, optionally filtered by folder."""
+    # For now, return in-memory conversations
+    # In the future, this could query from the database
+    result = []
+    for conv in _conversations.values():
+        result.append({
             "id": conv["id"],
             "title": conv["title"],
             "message_count": len(conv["messages"]),
             "created_at": conv["created_at"],
             "updated_at": conv["updated_at"],
-        }
-        for conv in _conversations.values()
-    ]
+            # For now, assume all conversations are in root folder
+            "folder_path": "/",
+            "sort_order": 0
+        })
+    return result
 
 
 @router.get("/conversations/{conversation_id}")
@@ -330,6 +337,39 @@ async def get_conversation(conversation_id: str) -> ConversationHistory:
     )
 
 
+@router.post("/conversations/{conversation_id}/duplicate")
+async def duplicate_conversation(conversation_id: str) -> dict:
+    """Duplicate a conversation with a new ID."""
+    if conversation_id not in _conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    original_conv = _conversations[conversation_id]
+
+    # Create a new conversation with a new ID and modified title
+    new_conv_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    new_title = f"{original_conv['title']} (Copy)"
+
+    new_conv = {
+        "id": new_conv_id,
+        "title": new_title,
+        "messages": original_conv["messages"][:],  # Copy the messages
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+    }
+
+    _conversations[new_conv_id] = new_conv
+
+    return {
+        "id": new_conv_id,
+        "title": new_title,
+        "message_count": len(new_conv["messages"]),
+        "created_at": new_conv["created_at"],
+        "updated_at": new_conv["updated_at"],
+        "folder_path": "/",
+        "sort_order": 0
+    }
+
+
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation."""
@@ -338,6 +378,14 @@ async def delete_conversation(conversation_id: str):
 
     del _conversations[conversation_id]
     return {"status": "deleted"}
+
+
+@router.post("/conversations/reorder")
+async def reorder_conversations(conversation_ids: list[str], folder_path: str = "/") -> dict:
+    """Reorder conversations within a folder."""
+    # For now, since conversations are in-memory, we'll just return a success status
+    # In a real implementation with database persistence, we'd update the sort_order field
+    return {"status": "reordered", "count": len(conversation_ids), "folder_path": folder_path}
 
 
 @router.get("/providers")

@@ -1,7 +1,9 @@
 import Foundation
+import Combine
 
 /// Service for managing workflow tools and execution via the backend API.
-actor WorkflowService {
+@MainActor
+class WorkflowService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - Tools
@@ -41,93 +43,190 @@ actor WorkflowService {
         )
         return try await api.post("/workflows/run", body: request)
     }
+
+    // MARK: - Workflow CRUD
+
+    /// Create a new workflow.
+    func createWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowResponse {
+        return try await api.post("/workflows", body: workflow)
+    }
+
+    /// List all saved workflows.
+    func listWorkflows(folderPath: String = "/") async throws -> [WorkflowResponse] {
+        return try await api.get("/workflows?folder_path=\(folderPath)")
+    }
+
+    /// Get a specific workflow by ID.
+    func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
+        let response: WorkflowResponse = try await api.get("/workflows/\(id)")
+
+        // Convert the response nodes to WorkflowNode objects
+        var nodes: [WorkflowNode] = []
+        for nodeDict in response.nodes {
+            let nodeId = (nodeDict["id"]?.value as? String) ?? UUID().uuidString
+            let tool = (nodeDict["tool"]?.value as? String) ?? ""
+            let label = nodeDict["label"]?.value as? String
+            let description = nodeDict["description"]?.value as? String
+            let positionX = (nodeDict["position_x"]?.value as? Double) ?? 0.0
+            let positionY = (nodeDict["position_y"]?.value as? Double) ?? 0.0
+            let enabled = (nodeDict["enabled"]?.value as? Bool) ?? true
+
+            // Fetch tool info to get port definitions
+            var inputPorts: [PortInfo] = []
+            var outputPorts: [PortInfo] = []
+            if !tool.isEmpty {
+                do {
+                    let toolInfo = try await getTool(tool)
+                    inputPorts = toolInfo.inputPorts
+                    outputPorts = toolInfo.outputPorts
+                } catch {
+                    // If tool not found, use empty ports
+                    NSLog("[WorkflowService] Failed to fetch tool info for \(tool): \(error)")
+                }
+            }
+
+            let node = WorkflowNode(
+                id: nodeId,
+                tool: tool,
+                label: label,
+                description: description,
+                positionX: positionX,
+                positionY: positionY,
+                enabled: enabled,
+                inputPorts: inputPorts,
+                outputPorts: outputPorts
+            )
+            nodes.append(node)
+        }
+
+        // Convert the response edges to WorkflowEdge objects
+        var edges: [WorkflowEdge] = []
+        for edgeDict in response.edges {
+            let edgeId = (edgeDict["id"]?.value as? String) ?? UUID().uuidString
+            let source = (edgeDict["source"]?.value as? String) ?? ""
+            let target = (edgeDict["target"]?.value as? String) ?? ""
+            let sourcePortId = (edgeDict["source_port"]?.value as? String) ?? "output"
+            let targetPortId = (edgeDict["target_port"]?.value as? String) ?? "input"
+            let condition = edgeDict["condition"]?.value as? String
+            let label = edgeDict["label"]?.value as? String
+            let animated = (edgeDict["animated"]?.value as? Bool) ?? false
+
+            let edge = WorkflowEdge(
+                id: edgeId,
+                sourceNodeId: source,
+                targetNodeId: target,
+                sourcePortId: sourcePortId,
+                targetPortId: targetPortId,
+                condition: condition,
+                label: label,
+                animated: animated
+            )
+            edges.append(edge)
+        }
+
+        return WorkflowDefinition(
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            provider: response.provider,
+            model: response.model,
+            nodes: nodes,
+            edges: edges
+        )
+    }
+
+    /// Update an existing workflow.
+    func updateWorkflow(_ id: String, workflow: WorkflowDefinition) async throws -> WorkflowResponse {
+        return try await api.put("/workflows/\(id)", body: workflow)
+    }
+
+    /// Delete a workflow.
+    func deleteWorkflow(_ id: String) async throws {
+        _ = try await api.delete("/workflows/\(id)")
+    }
+
+    /// Duplicate a workflow.
+    func duplicateWorkflow(_ id: String) async throws -> WorkflowResponse {
+        return try await api.post("/workflows/\(id)/duplicate")
+    }
+
+    /// Rename a workflow.
+    func renameWorkflow(_ id: String, newName: String) async throws -> WorkflowResponse {
+        let update = WorkflowUpdate(name: newName)
+        return try await api.patch("/workflows/\(id)", body: update)
+    }
+
+    /// Reorder workflows.
+    func reorderWorkflows(_ workflowIds: [String], folderPath: String = "/") async throws {
+        let request: ReorderRequest = ReorderRequest(workflowIds: workflowIds, folderPath: folderPath)
+        try await api.postVoid("/workflows/reorder", body: request)
+    }
+
+    /// Import a workflow from JSON data.
+    func importWorkflow(name: String = "", description: String = "", workflowData: [String: AnyCodable]) async throws -> WorkflowResponse {
+        struct ImportRequest: Encodable {
+            let name: String
+            let description: String
+            let workflowData: [String: AnyCodable]
+
+            enum CodingKeys: String, CodingKey {
+                case name, description
+                case workflowData = "workflow_data"
+            }
+        }
+
+        let request = ImportRequest(name: name, description: description, workflowData: workflowData)
+        return try await api.post("/workflows/import", body: request)
+    }
+
+    /// Export a workflow as JSON data.
+    func exportWorkflow(_ id: String) async throws -> [String: AnyCodable] {
+        return try await api.get("/workflows/\(id)/export")
+    }
+
+    /// Run a saved workflow.
+    func runSavedWorkflow(
+        _ id: String,
+        inputs: [String: Any] = [:],
+        inputFiles: [String] = []
+    ) async throws -> WorkflowRunResult {
+        // First get the saved workflow
+        let workflow = try await getWorkflow(id)
+
+        let request = RunWorkflowRequest(
+            workflow: workflow,
+            inputs: inputs,
+            inputFiles: inputFiles
+        )
+        return try await api.post("/workflows/\(id)/run", body: request)
+    }
 }
 
-// MARK: - Port Definition
+// MARK: - Response Models
 
-struct PortInfo: Codable, Identifiable, Hashable {
-    let id: String
+private struct EmptyResponse: Codable {}
+
+// MARK: - Request Models
+
+struct WorkflowUpdate: Encodable {
     let name: String
-    let portType: String  // "input" or "output"
-    let dataType: String
-    let required: Bool
-    let description: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, description, required
-        case portType = "port_type"
-        case dataType = "data_type"
-    }
-
-    /// Whether this is an input port
-    var isInput: Bool { portType == "input" }
-
-    /// Whether this is an output port
-    var isOutput: Bool { portType == "output" }
 }
 
-// MARK: - Tool Definition
-
-struct ToolInfo: Codable, Identifiable {
-    let name: String
-    let displayName: String
-    let description: String
-    let category: String
-    let icon: String
-    let color: String
-    let inputPorts: [PortInfo]
-    let outputPorts: [PortInfo]
-    let configSchema: [String: AnyCodable]
-    let defaultOutputSchema: [String: AnyCodable]?
-    let usesLlm: Bool
-    let supportsBatch: Bool
-    let supportsStreaming: Bool
-    let supportsStructuredOutput: Bool
-    let sortOrder: Int
-
-    var id: String { name }
+struct ReorderRequest: Encodable {
+    let workflowIds: [String]
+    let folderPath: String
 
     enum CodingKeys: String, CodingKey {
-        case name, description, category, icon, color
-        case displayName = "display_name"
-        case inputPorts = "input_ports"
-        case outputPorts = "output_ports"
-        case configSchema = "config_schema"
-        case defaultOutputSchema = "default_output_schema"
-        case usesLlm = "uses_llm"
-        case supportsBatch = "supports_batch"
-        case supportsStreaming = "supports_streaming"
-        case supportsStructuredOutput = "supports_structured_output"
-        case sortOrder = "sort_order"
-    }
-
-    /// SwiftUI Color for this tool
-    var swiftUIColor: String { color }
-
-    /// SF Symbol for this tool
-    var systemImage: String { icon }
-}
-
-// MARK: - Tools Grouped Response
-
-struct CategoryTools: Codable, Identifiable {
-    let category: String
-    let displayName: String
-    let tools: [ToolInfo]
-
-    var id: String { category }
-
-    enum CodingKeys: String, CodingKey {
-        case category, tools
-        case displayName = "display_name"
+        case workflowIds = "workflow_ids"
+        case folderPath = "folder_path"
     }
 }
+
+// MARK: - Additional Service Types
 
 struct ToolsGroupedResponse: Codable {
     let categories: [CategoryTools]
 }
-
-// MARK: - Node Definition
 
 struct NodeResponse: Codable, Identifiable {
     let id: String
@@ -147,165 +246,6 @@ struct NodeResponse: Codable, Identifiable {
         case positionY = "position_y"
     }
 }
-
-struct InputMapping: Codable {
-    let portId: String
-    let sourcePath: String
-    let transform: String?
-
-    enum CodingKeys: String, CodingKey {
-        case portId = "port_id"
-        case sourcePath = "source_path"
-        case transform
-    }
-}
-
-struct NodeDefinition: Codable, Identifiable {
-    let id: String
-    var tool: String
-    var inputPorts: [PortInfo]
-    var outputPorts: [PortInfo]
-    var inputMappings: [InputMapping]
-    var config: [String: AnyCodable]
-    var positionX: Double
-    var positionY: Double
-    var label: String?
-    var description: String?
-    var enabled: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id, tool, config, label, description, enabled
-        case inputPorts = "input_ports"
-        case outputPorts = "output_ports"
-        case inputMappings = "input_mappings"
-        case positionX = "position_x"
-        case positionY = "position_y"
-    }
-
-    init(
-        id: String = UUID().uuidString,
-        tool: String,
-        inputPorts: [PortInfo] = [],
-        outputPorts: [PortInfo] = [],
-        inputMappings: [InputMapping] = [],
-        config: [String: AnyCodable] = [:],
-        positionX: Double = 0,
-        positionY: Double = 0,
-        label: String? = nil,
-        description: String? = nil,
-        enabled: Bool = true
-    ) {
-        self.id = id
-        self.tool = tool
-        self.inputPorts = inputPorts
-        self.outputPorts = outputPorts
-        self.inputMappings = inputMappings
-        self.config = config
-        self.positionX = positionX
-        self.positionY = positionY
-        self.label = label
-        self.description = description
-        self.enabled = enabled
-    }
-
-    /// Create from a NodeResponse
-    init(from response: NodeResponse) {
-        self.id = response.id
-        self.tool = response.tool
-        self.inputPorts = response.inputPorts
-        self.outputPorts = response.outputPorts
-        self.inputMappings = []
-        self.config = [:]
-        self.positionX = response.positionX
-        self.positionY = response.positionY
-        self.label = response.label
-        self.description = response.description
-        self.enabled = true
-    }
-}
-
-// MARK: - Edge Definition
-
-struct EdgeDefinition: Codable, Identifiable {
-    let id: String
-    var source: String
-    var target: String
-    var sourcePort: String
-    var targetPort: String
-    var condition: String?
-    var animated: Bool
-    var label: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, source, target, condition, animated, label
-        case sourcePort = "source_port"
-        case targetPort = "target_port"
-    }
-
-    init(
-        id: String = UUID().uuidString,
-        source: String,
-        target: String,
-        sourcePort: String = "output",
-        targetPort: String = "input",
-        condition: String? = nil,
-        animated: Bool = false,
-        label: String? = nil
-    ) {
-        self.id = id
-        self.source = source
-        self.target = target
-        self.sourcePort = sourcePort
-        self.targetPort = targetPort
-        self.condition = condition
-        self.animated = animated
-        self.label = label
-    }
-}
-
-// MARK: - Workflow Definition
-
-struct WorkflowDefinition: Codable, Identifiable {
-    let id: String
-    var name: String
-    var description: String
-    var nodes: [NodeDefinition]
-    var edges: [EdgeDefinition]
-    var provider: String
-    var model: String
-    var timeoutSeconds: Int
-    var maxRetries: Int
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, description, nodes, edges, provider, model
-        case timeoutSeconds = "timeout_seconds"
-        case maxRetries = "max_retries"
-    }
-
-    init(
-        id: String = UUID().uuidString,
-        name: String,
-        description: String = "",
-        nodes: [NodeDefinition] = [],
-        edges: [EdgeDefinition] = [],
-        provider: String = "openai",
-        model: String = "gpt-4o",
-        timeoutSeconds: Int = 300,
-        maxRetries: Int = 3
-    ) {
-        self.id = id
-        self.name = name
-        self.description = description
-        self.nodes = nodes
-        self.edges = edges
-        self.provider = provider
-        self.model = model
-        self.timeoutSeconds = timeoutSeconds
-        self.maxRetries = maxRetries
-    }
-}
-
-// MARK: - Workflow Run
 
 struct RunWorkflowRequest: Encodable {
     let workflow: WorkflowDefinition
@@ -349,173 +289,18 @@ struct WorkflowRunResult: Codable {
     }
 }
 
-// MARK: - SwiftUI Workflow Model (for UI state)
-
-/// SwiftUI-friendly workflow model with observable state
-struct Workflow: Identifiable {
+struct WorkflowResponse: Codable {
     let id: String
-    var name: String
-    var description: String?
-    var nodes: [WorkflowNode]
-    var edges: [WorkflowEdge]
-    var provider: String
-    var model: String
+    let name: String
+    let description: String
+    let provider: String
+    let model: String
+    let nodes: [[String: AnyCodable]]
+    let edges: [[String: AnyCodable]]
 
-    init(
-        id: String = UUID().uuidString,
-        name: String,
-        description: String? = nil,
-        nodes: [WorkflowNode] = [],
-        edges: [WorkflowEdge] = [],
-        provider: String = "openai",
-        model: String = "gpt-4o"
-    ) {
-        self.id = id
-        self.name = name
-        self.description = description
-        self.nodes = nodes
-        self.edges = edges
-        self.provider = provider
-        self.model = model
-    }
-
-    /// Convert to API WorkflowDefinition
-    func toDefinition() -> WorkflowDefinition {
-        WorkflowDefinition(
-            id: id,
-            name: name,
-            description: description ?? "",
-            nodes: nodes.map { $0.toDefinition() },
-            edges: edges.map { $0.toDefinition() },
-            provider: provider,
-            model: model
-        )
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, provider, model, nodes, edges
     }
 }
 
-/// A node in the workflow canvas
-struct WorkflowNode: Identifiable {
-    let id: String
-    var tool: String
-    var label: String
-    var inputPorts: [PortInfo]
-    var outputPorts: [PortInfo]
-    var inputMappings: [InputMapping]
-    var config: [String: Any]
-    var positionX: Double
-    var positionY: Double
-    var enabled: Bool
-    var usesLlm: Bool  // Whether this tool requires LLM provider/model selection
-
-    // LLM settings (for LLM tools)
-    var providerName: String?
-    var modelName: String?
-
-    init(
-        id: String = UUID().uuidString,
-        tool: String,
-        label: String? = nil,
-        inputPorts: [PortInfo] = [],
-        outputPorts: [PortInfo] = [],
-        inputMappings: [InputMapping] = [],
-        config: [String: Any] = [:],
-        positionX: Double = 0,
-        positionY: Double = 0,
-        enabled: Bool = true,
-        usesLlm: Bool = false,
-        providerName: String? = nil,
-        modelName: String? = nil
-    ) {
-        self.id = id
-        self.tool = tool
-        self.label = label ?? tool.capitalized
-        self.inputPorts = inputPorts
-        self.outputPorts = outputPorts
-        self.inputMappings = inputMappings
-        self.config = config
-        self.positionX = positionX
-        self.positionY = positionY
-        self.enabled = enabled
-        self.usesLlm = usesLlm
-        self.providerName = providerName
-        self.modelName = modelName
-    }
-
-    /// Create from a ToolInfo
-    init(from tool: ToolInfo, positionX: Double = 0, positionY: Double = 0) {
-        self.id = "\(tool.name)_\(UUID().uuidString.prefix(8))"
-        self.tool = tool.name
-        self.label = tool.displayName
-        self.inputPorts = tool.inputPorts
-        self.outputPorts = tool.outputPorts
-        self.inputMappings = []
-        self.config = [:]
-        self.positionX = positionX
-        self.positionY = positionY
-        self.enabled = true
-        self.usesLlm = tool.usesLlm
-        self.providerName = nil
-        self.modelName = nil
-    }
-
-    func toDefinition() -> NodeDefinition {
-        NodeDefinition(
-            id: id,
-            tool: tool,
-            inputPorts: inputPorts,
-            outputPorts: outputPorts,
-            inputMappings: inputMappings,
-            config: config.mapValues { AnyCodable($0) },
-            positionX: positionX,
-            positionY: positionY,
-            label: label,
-            enabled: enabled
-        )
-    }
-}
-
-/// An edge connecting two node ports
-struct WorkflowEdge: Identifiable {
-    let id: String
-    var sourceNodeId: String
-    var sourcePortId: String
-    var targetNodeId: String
-    var targetPortId: String
-    var condition: String?
-    var animated: Bool
-    var label: String?
-
-    init(
-        id: String = UUID().uuidString,
-        sourceNodeId: String,
-        sourcePortId: String = "output",
-        targetNodeId: String,
-        targetPortId: String = "input",
-        condition: String? = nil,
-        animated: Bool = false,
-        label: String? = nil
-    ) {
-        self.id = id
-        self.sourceNodeId = sourceNodeId
-        self.sourcePortId = sourcePortId
-        self.targetNodeId = targetNodeId
-        self.targetPortId = targetPortId
-        self.condition = condition
-        self.animated = animated
-        self.label = label
-    }
-
-    func toDefinition() -> EdgeDefinition {
-        EdgeDefinition(
-            id: id,
-            source: sourceNodeId,
-            target: targetNodeId,
-            sourcePort: sourcePortId,
-            targetPort: targetPortId,
-            condition: condition,
-            animated: animated,
-            label: label
-        )
-    }
-}
 

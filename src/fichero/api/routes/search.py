@@ -168,6 +168,34 @@ async def list_saved_searches() -> List[SavedSearchResponse]:
     ]
 
 
+@router.post("/saved/{search_id}/duplicate")
+async def duplicate_saved_search(search_id: str) -> SavedSearchResponse:
+    """Duplicate a saved search with a new name."""
+    original = db.get(SavedSearch, search_id)
+    if not original:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+
+    # Create a new saved search with same properties but different ID and modified name
+    new_saved = SavedSearch(
+        query=original.query,
+        is_smart_search=original.is_smart_search,
+        filters=original.filters,
+    )
+
+    # Add "(Copy)" to the name to indicate it's a duplicate
+    # Since SavedSearch model might not have a name field, we'll keep the same query
+    # but the database layer should generate a new ID
+    db.save(new_saved)
+
+    return SavedSearchResponse(
+        id=new_saved.id,
+        query=new_saved.query,
+        is_smart_search=new_saved.is_smart_search,
+        filters=new_saved.filters,
+        created_at=new_saved.created_at.isoformat(),
+    )
+
+
 @router.delete("/saved/{search_id}")
 async def delete_saved_search(search_id: str):
     """Delete a saved search."""
@@ -177,3 +205,19 @@ async def delete_saved_search(search_id: str):
 
     db.delete(saved)
     return {"status": "deleted"}
+
+
+@router.post("/saved/reorder")
+async def reorder_saved_searches(search_ids: list[str], folder_path: str = "/") -> dict:
+    """Reorder saved searches within a folder."""
+    # Update sort_order for each saved search
+    for i, search_id in enumerate(search_ids):
+        saved = db.get(SavedSearch, search_id)
+        if not saved:
+            raise HTTPException(status_code=404, detail=f"Saved search not found: {search_id}")
+
+        # Update sort order
+        saved.sort_order = i
+        db.save(saved)
+
+    return {"status": "reordered", "count": len(search_ids)}

@@ -19,6 +19,9 @@ struct ContentView: View {
     // Document store - connects to Python backend
     @StateObject private var documentStore = DocumentStore()
 
+    // Workflow store - manages workflow persistence
+    @StateObject private var workflowStore = WorkflowStore()
+
     // Workflow state
     @State private var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
 
@@ -29,9 +32,11 @@ struct ContentView: View {
     // Search state
     @State private var savedSearches: [SavedSearch] = []
 
-    // Services
-    private let conversationService = ConversationService()
-    private let savedSearchService = SavedSearchService()
+    // Services - as StateObjects for EnvironmentObject injection
+    @StateObject private var conversationService = ConversationService()
+    @StateObject private var savedSearchService = SavedSearchService()
+    @StateObject private var documentService = DocumentService()
+    @StateObject private var workflowService = WorkflowService()
 
     // MARK: - Sidebar Data
 
@@ -51,7 +56,9 @@ struct ContentView: View {
     }
 
     private var workflowItems: [SidebarItem] {
-        []  // TODO: Load from API
+        workflowStore.workflows.map { workflow in
+            SidebarItem.fromWorkflow(workflow)
+        }
     }
 
     // MARK: - Computed Properties
@@ -78,8 +85,13 @@ struct ContentView: View {
             return search?.name ?? "Search"
         case .chat(let conversation):
             return conversation?.title ?? "Chat"
-        case .workflow(let workflow):
-            return workflow?.name ?? "Workflow"
+        case .workflow(let sidebarWorkflow):
+            // If we have a specific workflow, show its name
+            if let workflow = sidebarWorkflow {
+                return workflow.name
+            }
+            // Otherwise check if we're editing one
+            return editingWorkflow.name
         }
     }
 
@@ -131,7 +143,7 @@ struct ContentView: View {
                             .background(Color(nsColor: .controlBackgroundColor))
                             .cornerRadius(4)
 
-                        Text("PYTHONPATH=src .venv/bin/python -m fichero.api")
+                        Text("PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765")
                             .font(.system(.body, design: .monospaced))
                             .padding(8)
                             .background(Color(nsColor: .controlBackgroundColor))
@@ -178,6 +190,11 @@ struct ContentView: View {
                     NSLog("[ContentView] Created chat with %d documents in scope", documentIds.count)
                 }
             )
+            .environmentObject(documentStore)
+            .environmentObject(documentService)
+            .environmentObject(savedSearchService)
+            .environmentObject(conversationService)
+            .environmentObject(workflowService)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } content: {
             // Content area - changes based on view mode
@@ -191,6 +208,9 @@ struct ContentView: View {
         .task {
             // Load collections from backend
             await documentStore.loadCollections()
+
+            // Load workflows from backend
+            await workflowStore.loadWorkflows()
 
             // Load conversations from backend
             do {
@@ -216,13 +236,26 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: viewMode) { _, newMode in
-            // Load workflow from API when workflow mode changes
-            if case .workflow(let workflowItem) = newMode, let item = workflowItem {
-                // TODO: Load full workflow from API using item.id
-                // For now, create new workflow with matching name
-                editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description)
-            }
+         .onChange(of: viewMode) { _, newMode in
+             // Load workflow from API when workflow mode changes
+             if case .workflow(let workflowItem) = newMode, let item = workflowItem {
+                 // Load full workflow from API using item.id
+                 Task {
+                     do {
+                         let fullWorkflow = try await workflowStore.getWorkflow(item.id)
+                         // Convert from API response to local Workflow type
+                         editingWorkflow = Workflow(
+                             id: fullWorkflow.id,
+                             name: fullWorkflow.name,
+                             description: fullWorkflow.description
+                         )
+                     } catch {
+                         NSLog("[ContentView] Failed to load workflow: %@", error.localizedDescription)
+                         // Fallback to creating new workflow with matching name
+                         editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
+                     }
+                 }
+             }
             // Load children from backend when library item selected
             if case .library(let doc) = newMode, let document = doc {
                 Task {
@@ -305,7 +338,7 @@ struct ContentView: View {
                 onConversationUpdated: { refreshConversations() }
             )
 
-        case .workflow(let workflow):
+         case .workflow(let workflow):
             // Workflow canvas + output log (inspector is in detail column)
             WorkflowView(
                 workflow: workflow,

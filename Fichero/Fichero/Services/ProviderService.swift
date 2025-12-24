@@ -3,7 +3,8 @@ import SwiftUI
 
 /// Service for managing AI providers via the backend API.
 /// API keys are stored in macOS Keychain via the Python backend.
-actor ProviderService {
+@MainActor
+class ProviderService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - Catalog (read-only provider info)
@@ -422,40 +423,5 @@ struct ConnectionTestResponse: Codable {
         case message
         case latencyMs = "latency_ms"
         case modelTested = "model_tested"
-    }
-}
-
-// MARK: - APIClient Extension for PATCH
-
-extension APIClient {
-    func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
-        let url = URL(string: "http://127.0.0.1:8765/api")!.appendingPathComponent(path)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(body)
-
-        NSLog("[APIClient] PATCH %@", url.absoluteString)
-
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        let session = URLSession(configuration: config)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: String(data: data, encoding: .utf8) ?? "Unknown")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(T.self, from: data)
     }
 }

@@ -77,7 +77,7 @@ def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
         return None
 
     if not path.exists():
-        logger.warning(f"Cannot create bookmark for non-existent path: {path}")
+        logger.warning("Cannot create bookmark for non-existent path: %s", path)
         return None
 
     try:
@@ -113,13 +113,13 @@ def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
                     # Use ctypes to extract bytes from the void pointer
                     return ctypes.string_at(ptr, length)
             except (TypeError, AttributeError, OSError) as e:
-                logger.warning(f"Error extracting bookmark data: {e}")
+                logger.warning("Error extracting bookmark data: %s", e)
 
-        logger.warning(f"Failed to create bookmark for {path}")
+        logger.warning("Failed to create bookmark for %s", path)
         return None
 
     except Exception as e:
-        logger.warning(f"Bookmark creation error for {path}: {e}")
+        logger.warning("Bookmark creation error for %s: %s", path, e)
         return None
 
 
@@ -171,20 +171,20 @@ def resolve_bookmark(bookmark_data: bytes) -> Path | None:
         path = Path(str(path_str))
 
         if not path.exists():
-            logger.debug(f"Resolved bookmark path does not exist: {path}")
+            logger.debug("Resolved bookmark path does not exist: %s", path)
             return None
 
         # Start security-scoped access
         success = url.startAccessingSecurityScopedResource()
         if not success:
-            logger.warning(f"Failed to start security scope access for {path}")
+            logger.warning("Failed to start security scope access for %s", path)
             # Still return path - it might work without security scope
 
-        logger.debug(f"Resolved bookmark to: {path}")
+        logger.debug("Resolved bookmark to: %s", path)
         return path
 
     except Exception as e:
-        logger.warning(f"Bookmark resolution error: {e}")
+        logger.warning("Bookmark resolution error: %s", e)
         return None
 
 
@@ -202,9 +202,9 @@ def stop_accessing(path: Path) -> None:
     try:
         url = NSURL.fileURLWithPath_(str(path.resolve()))
         url.stopAccessingSecurityScopedResource()
-        logger.debug(f"Stopped security scope access for: {path}")
+        logger.debug("Stopped security scope access for: %s", path)
     except Exception as e:
-        logger.debug(f"Error stopping security scope access: {e}")
+        logger.debug("Error stopping security scope access: %s", e)
 
 
 def is_bookmark_stale(bookmark_data: bytes) -> bool:

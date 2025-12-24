@@ -1,8 +1,10 @@
 import Foundation
+import Combine
 
 /// Service for browsing and selecting LLM models via the backend API.
 /// Supports Hugging Face model discovery with search and filtering.
-actor ModelService {
+@MainActor
+class ModelService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - Hugging Face Models

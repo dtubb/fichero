@@ -7,7 +7,7 @@ CRUD operations for Document model.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from fichero.db import db
@@ -185,3 +185,81 @@ async def delete_document(doc_id: str):
 
     db.delete(doc)
     logger.info(f"Deleted document: {doc_id}")
+
+
+@router.post("/reorder")
+async def reorder_documents(doc_ids: list[str], folder_path: str = "/") -> dict:
+    """Reorder documents within a folder."""
+    # Update sort_order for each document
+    for i, doc_id in enumerate(doc_ids):
+        doc = db.get(Document, doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+        # For now, only update documents in the specified folder path
+        # In a more complex system, we'd verify the document is in the right folder
+        doc.sort_order = i
+        db.save(doc)
+
+    return {"status": "reordered", "count": len(doc_ids)}
+
+
+@router.post("/import")
+async def import_file(
+    file: UploadFile,
+    parent_id: Optional[str] = None,
+) -> Document:
+    """Import a file and create a document."""
+    from fichero.ingest import ingest_file
+    from fichero.storage import save_uploaded_file
+    
+    # Save the uploaded file
+    file_path = await save_uploaded_file(file)
+    
+    # Ingest the file to create document content
+    doc_data = await ingest_file(file_path, parent_id=parent_id)
+    
+    # Create document record
+    new_doc = Document(
+        name=doc_data.name,
+        parent_id=parent_id,
+        doc_type=doc_data.doc_type,
+        file_type=doc_data.file_type,
+        path=file_path,
+        page_content=doc_data.page_content,
+        metadata=doc_data.metadata,
+    )
+    
+    db.save(new_doc)
+    logger.info(f"Imported document: {new_doc.id} ({new_doc.name})")
+    
+    return new_doc
+
+
+@router.put("/{doc_id}/move")
+async def move_document(
+    doc_id: str,
+    parent_id: Optional[str] = None,
+) -> Document:
+    """Move a document to a new parent location."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    
+    # Verify new parent exists if specified
+    if parent_id:
+        parent = db.get(Document, parent_id)
+        if not parent:
+            raise HTTPException(status_code=400, detail=f"Parent not found: {parent_id}")
+    
+    # Update parent
+    doc.parent_id = parent_id
+    
+    # Update timestamp
+    from datetime import datetime
+    doc.updated_at = datetime.now()
+    
+    db.save(doc)
+    logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
+    
+    return doc

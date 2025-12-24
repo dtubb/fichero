@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path

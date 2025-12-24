@@ -65,7 +65,7 @@ struct WorkflowNodeView: View {
             }
 
             // Label
-            Text(node.label)
+            Text(node.label ?? node.tool)
                 .font(.caption)
                 .fontWeight(.medium)
                 .lineLimit(2)
@@ -177,10 +177,10 @@ struct WorkflowNodeView: View {
             node: WorkflowNode(
                 tool: "files",
                 label: "Input Files",
-                inputPorts: [],
-                outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")],
                 positionX: 0,
-                positionY: 0
+                positionY: 0,
+                inputPorts: [],
+                outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
             ),
             isSelected: false,
             connectedInputPorts: [],
@@ -196,10 +196,10 @@ struct WorkflowNodeView: View {
             node: WorkflowNode(
                 tool: "transcribe",
                 label: "Transcribe",
-                inputPorts: [PortInfo(id: "input", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
-                outputPorts: [PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")],
                 positionX: 0,
                 positionY: 0,
+                inputPorts: [PortInfo(id: "input", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
+                outputPorts: [PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")],
                 modelName: "gpt-4o"
             ),
             isSelected: true,

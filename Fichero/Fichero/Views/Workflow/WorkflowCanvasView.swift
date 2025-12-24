@@ -307,11 +307,11 @@ struct WorkflowCanvasView: View {
         let original = workflow.nodes[index]
         let duplicate = WorkflowNode(
             tool: original.tool,
-            label: "\(original.label) Copy",
-            inputPorts: original.inputPorts,
-            outputPorts: original.outputPorts,
+            label: "\((original.label ?? original.tool)) Copy",
             positionX: original.positionX + 50,
             positionY: original.positionY + 50,
+            inputPorts: original.inputPorts,
+            outputPorts: original.outputPorts,
             providerName: original.providerName,
             modelName: original.modelName
         )
@@ -426,8 +426,8 @@ struct WorkflowCanvasView: View {
         if let targetNode = nearestNode, let targetPort = nearestPort {
             let newEdge = WorkflowEdge(
                 sourceNodeId: edge.sourceNodeId,
-                sourcePortId: edge.sourcePortId,
                 targetNodeId: targetNode.id,
+                sourcePortId: edge.sourcePortId,
                 targetPortId: targetPort.id
             )
             workflow.edges.append(newEdge)
@@ -455,8 +455,8 @@ struct WorkflowCanvasView: View {
         // Create the edge
         let newEdge = WorkflowEdge(
             sourceNodeId: dragged.sourceNodeId,
-            sourcePortId: dragged.sourcePortId,
             targetNodeId: node.id,
+            sourcePortId: dragged.sourcePortId,
             targetPortId: port.id
         )
 
@@ -544,8 +544,8 @@ struct WorkflowCanvasView: View {
            let inputPort = node.inputPorts.first {
             let newEdge = WorkflowEdge(
                 sourceNodeId: source.id,
-                sourcePortId: outputPort.id,
                 targetNodeId: node.id,
+                sourcePortId: outputPort.id,
                 targetPortId: inputPort.id
             )
             workflow.edges.append(newEdge)
@@ -579,8 +579,8 @@ struct WorkflowCanvasView: View {
            let inputPort = node.inputPorts.first {
             let newEdge = WorkflowEdge(
                 sourceNodeId: source.id,
-                sourcePortId: outputPort.id,
                 targetNodeId: node.id,
+                sourcePortId: outputPort.id,
                 targetPortId: inputPort.id
             )
             workflow.edges.append(newEdge)
@@ -632,29 +632,29 @@ struct WorkflowCanvasView: View {
                 WorkflowNode(
                     tool: "files",
                     label: "Input Files",
-                    inputPorts: [],
-                    outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")],
                     positionX: 150,
-                    positionY: 200
+                    positionY: 200,
+                    inputPorts: [],
+                    outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
                 ),
                 WorkflowNode(
                     tool: "transcribe",
                     label: "Transcribe",
+                    positionX: 350,
+                    positionY: 200,
                     inputPorts: [PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
                     outputPorts: [
                         PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: ""),
                         PortInfo(id: "structured", name: "JSON", portType: "output", dataType: "json", required: true, description: "")
-                    ],
-                    positionX: 350,
-                    positionY: 200
+                    ]
                 ),
                 WorkflowNode(
                     tool: "to_word",
                     label: "To Word",
-                    inputPorts: [PortInfo(id: "content", name: "Content", portType: "input", dataType: "any", required: true, description: "")],
-                    outputPorts: [PortInfo(id: "file", name: "File", portType: "output", dataType: "file", required: true, description: "")],
                     positionX: 550,
-                    positionY: 200
+                    positionY: 200,
+                    inputPorts: [PortInfo(id: "content", name: "Content", portType: "input", dataType: "any", required: true, description: "")],
+                    outputPorts: [PortInfo(id: "file", name: "File", portType: "output", dataType: "file", required: true, description: "")]
                 )
             ],
             edges: []

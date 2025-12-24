@@ -46,3 +46,4 @@ io_worker.log
 /.claude
 CLAUDE.md
 /.claude
+.aider*

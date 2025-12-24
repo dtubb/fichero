@@ -1,7 +1,9 @@
 import Foundation
+import Combine
 
 /// Service for search operations via the Fichero backend.
-actor SearchService {
+@MainActor
+class SearchService: ObservableObject {
     private let api = APIClient.shared
 
     // MARK: - Semantic Search

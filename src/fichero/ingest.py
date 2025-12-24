@@ -221,7 +221,7 @@ def ingest_file(
 
     if save:
         db.save(doc)
-        logger.info(f"Ingested: {path.name} ({mode.value})")
+        logger.info("Ingested: %s (%s)", path.name, mode.value)
 
         # Create embedding for search
         if auto_embed and doc.page_content:
@@ -255,12 +255,12 @@ def _copy_to_library(source: Path) -> Path:
 
     # Try APFS clone first (macOS only, instant, no disk space until modified)
     if _try_apfs_clone(source, dest):
-        logger.debug(f"APFS clone: {source.name}")
+        logger.debug("APFS clone: %s", source.name)
         return dest
 
     # Fallback to regular copy
     shutil.copy2(source, dest)
-    logger.debug(f"Copied: {source.name}")
+    logger.debug("Copied: %s", source.name)
     return dest
 
 
@@ -304,7 +304,7 @@ def _extract_file_metadata(doc: Document, path: Path) -> None:
             _extract_image_metadata(doc, path)
 
     except Exception as e:
-        logger.warning(f"Metadata extraction failed for {path}: {e}")
+        logger.warning("Metadata extraction failed for %s: %s", path, e)
 
 
 def _file_checksum(path: Path, algorithm: str = "sha256") -> str:
@@ -344,7 +344,7 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
     except ImportError:
         logger.debug("Pillow not available for image metadata")
     except Exception as e:
-        logger.debug(f"Image metadata extraction failed: {e}")
+        logger.debug("Image metadata extraction failed: %s", e)
 
 
 def _extract_text_content(doc: Document, path: Path) -> None:
@@ -363,14 +363,14 @@ def _extract_text_content(doc: Document, path: Path) -> None:
             doc.page_content = content.text
             doc.metadata["text_extracted"] = True
             doc.metadata["text_length"] = len(content.text)
-            logger.debug(f"Extracted {len(content.text)} chars from {path.name}")
+            logger.debug("Extracted %s chars from %s", len(content.text), path.name)
         else:
             doc.metadata["text_extracted"] = False
 
     except ImportError as e:
-        logger.debug(f"Loader not available: {e}")
+        logger.debug("Loader not available: %s", e)
     except Exception as e:
-        logger.warning(f"Text extraction failed for {path}: {e}")
+        logger.warning("Text extraction failed for %s: %s", path, e)
         doc.metadata["text_extracted"] = False
 
 

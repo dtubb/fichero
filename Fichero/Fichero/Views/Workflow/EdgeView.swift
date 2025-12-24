@@ -1,13 +1,5 @@
 import SwiftUI
 
-/// Represents an edge being drawn (during drag)
-struct DraggedEdge {
-    let sourceNodeId: String
-    let sourcePortId: String
-    let startPoint: CGPoint
-    var currentPoint: CGPoint
-}
-
 /// Visual representation of an edge (connection between ports)
 struct EdgeView: View {
     let edge: WorkflowEdge
@@ -232,8 +224,8 @@ struct PortPositionCalculator {
         EdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
-                sourcePortId: "output",
                 targetNodeId: "b",
+                sourcePortId: "output",
                 targetPortId: "input"
             ),
             sourcePoint: CGPoint(x: 50, y: 50),
@@ -246,8 +238,8 @@ struct PortPositionCalculator {
         EdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
-                sourcePortId: "output",
                 targetNodeId: "c",
+                sourcePortId: "output",
                 targetPortId: "input"
             ),
             sourcePoint: CGPoint(x: 50, y: 150),
@@ -260,8 +252,8 @@ struct PortPositionCalculator {
         EdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
-                sourcePortId: "true",
                 targetNodeId: "d",
+                sourcePortId: "true",
                 targetPortId: "input",
                 condition: "$.nodes.classify.category == 'invoice'",
                 label: "invoice"

@@ -71,7 +71,7 @@ struct WorkflowOutputLog: View {
                 .padding(.horizontal, 8)
 
             ForEach(workflow.nodes) { node in
-                Text(node.label)
+                Text(node.label ?? node.tool)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .frame(width: 80, alignment: .center)

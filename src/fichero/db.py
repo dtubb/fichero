@@ -95,6 +95,9 @@ class Database:
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init
         self._tables_created: set[str] = set()
+        
+        # Migrate workflows table if needed
+        self._migrate_workflow_table()
 
     # =========================================================================
     # Core CRUD Operations
@@ -404,16 +407,16 @@ class Database:
             text = doc.name
 
         if not text or len(text.strip()) < MIN_CONTENT_LENGTH:
-            logger.debug(f"Skipping embedding for {doc.id}: content too short")
+            logger.debug("Skipping embedding for %s: content too short", doc.id)
             return False
 
         try:
             vector = self._embed_text(text)
             self.save_embedding(doc, vector, text[:500])
-            logger.debug(f"Created embedding for {doc.id}")
+            logger.debug("Created embedding for %s", doc.id)
             return True
         except Exception as e:
-            logger.warning(f"Failed to create embedding for {doc.id}: {e}")
+            logger.warning("Failed to create embedding for %s: %s", doc.id, e)
             return False
 
     def search(
@@ -472,7 +475,7 @@ class Database:
             return results
 
         except Exception as e:
-            logger.warning(f"Search failed: {e}")
+            logger.warning("Search failed: %s", e)
             return []
 
     def reindex_all(self, on_progress: Callable[[int, int], None] | None = None) -> int:
@@ -497,7 +500,7 @@ class Database:
             if on_progress:
                 on_progress(indexed, total)
 
-        logger.info(f"Reindexed {indexed}/{total} documents")
+        logger.info("Reindexed %s/%s documents", indexed, total)
         return indexed
 
     def embedding_stats(self) -> dict:
@@ -525,7 +528,7 @@ class Database:
             try:
                 from fastembed import TextEmbedding
                 self._embedder = TextEmbedding(model_name=DEFAULT_MODEL)
-                logger.debug(f"Loaded embedding model: {DEFAULT_MODEL}")
+                logger.debug("Loaded embedding model: %s", DEFAULT_MODEL)
             except ImportError:
                 raise ImportError(
                     "fastembed not installed. "
@@ -599,7 +602,7 @@ class Database:
             for trace in traces:
                 f.write(trace.model_dump_json() + '\n')
 
-        logger.debug(f"Exported {len(traces)} traces to {path}")
+        logger.debug("Exported %s traces to %s", len(traces), path)
         return path
 
     def import_traces_jsonl(self, path: str | Path) -> int:
@@ -625,7 +628,7 @@ class Database:
                     self.save(trace)
                     count += 1
 
-        logger.debug(f"Imported {count} traces from {path}")
+        logger.debug("Imported %s traces from %s", count, path)
         return count
 
     # =========================================================================
@@ -779,7 +782,118 @@ class Database:
     def close(self) -> None:
         """Close database connection."""
         self.conn.close()
+    
+    def _migrate_workflow_table(self) -> None:
+        """Migrate workflows table to new schema if needed."""
+        try:
+            # Check current schema
+            result = self.conn.execute("PRAGMA table_info('workflows')").fetchall()
+            columns = [row[1] for row in result]
+            
+            # If old schema (has 'steps' but not 'format'), migrate
+            if 'steps' in columns and 'format' not in columns:
+                print("Migrating workflows table to new schema...")
+                
+                # Add new columns
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN format VARCHAR DEFAULT 'steps'
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN nodes JSON DEFAULT []
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN edges JSON DEFAULT []
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN folder_path VARCHAR DEFAULT '/'
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN sort_order INTEGER DEFAULT 0
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN is_template BOOLEAN DEFAULT FALSE
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN tags JSON DEFAULT []
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN provider VARCHAR DEFAULT ''
+                """)
+                
+                self.conn.execute("""
+                    ALTER TABLE workflows 
+                    ADD COLUMN model VARCHAR DEFAULT ''
+                """)
+                
+                # Migrate existing data: convert steps to placeholder nodes/edges
+                self.conn.execute("""
+                    UPDATE workflows 
+                    SET format = 'steps'
+                    WHERE format IS NULL OR format = ''
+                """)
+                
+                print("Workflows table migration completed")
+                
+        except Exception as e:
+            # Table might not exist or other issue
+            print(f"Migration check failed: {e}")
+
+    def _migrate_saved_search_table(self) -> None:
+        """Migrate saved_searches table to add missing columns."""
+        try:
+            # Check if table exists
+            result = self.conn.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='saved_searches'
+            """).fetchone()
+            
+            if not result:
+                # Table doesn't exist, nothing to migrate
+                return
+            
+            # Check current schema
+            result = self.conn.execute("PRAGMA table_info('saved_searches')").fetchall()
+            columns = {row[1]: row for row in result}
+            
+            # Add folder_path if missing
+            if 'folder_path' not in columns:
+                print("Migrating saved_searches table: adding folder_path column...")
+                self.conn.execute("""
+                    ALTER TABLE saved_searches 
+                    ADD COLUMN folder_path VARCHAR DEFAULT '/'
+                """)
+            
+            # Add sort_order if missing
+            if 'sort_order' not in columns:
+                print("Migrating saved_searches table: adding sort_order column...")
+                self.conn.execute("""
+                    ALTER TABLE saved_searches 
+                    ADD COLUMN sort_order INTEGER DEFAULT 0
+                """)
+            
+            print("Saved searches table migration completed")
+            
+        except Exception as e:
+            # Table might not exist or other issue
+            print(f"Saved searches migration check failed: {e}")
 
 
 # Global instance - can be overridden for testing
 db = Database()
+db._migrate_workflow_table()
+db._migrate_saved_search_table()

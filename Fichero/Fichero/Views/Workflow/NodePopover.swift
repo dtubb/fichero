@@ -58,7 +58,7 @@ struct NodePopover: View {
             .foregroundColor(.secondary)
 
             HStack(spacing: 4) {
-                Text(node.label)
+                Text(node.label ?? node.tool)
                     .font(.headline)
                 Image(systemName: "pencil")
                     .font(.caption)
@@ -84,8 +84,11 @@ struct NodePopover: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            TextField("Node label", text: $node.label)
-                .textFieldStyle(.roundedBorder)
+            TextField("Node label", text: Binding(
+                get: { node.label ?? node.tool },
+                set: { node.label = $0 }
+            ))
+            .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -297,14 +300,14 @@ struct NodePopover: View {
         node: .constant(WorkflowNode(
             tool: "transcribe",
             label: "Transcribe Text",
+            positionX: 0,
+            positionY: 0,
             inputPorts: [
                 PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "")
             ],
             outputPorts: [
                 PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")
-            ],
-            positionX: 0,
-            positionY: 0
+            ]
         )),
         onDelete: {},
         onDuplicate: {}
