@@ -95,6 +95,12 @@ class DocumentService: ObservableObject {
         try await api.delete("/documents/\(id)")
     }
 
+    /// Rename a document.
+    func renameDocument(_ id: String, newName: String) async throws -> Document {
+        let update = DocumentUpdateRequest(name: newName)
+        return try await updateDocument(id, update)
+    }
+
     /// Duplicate an existing document.
     func duplicateDocument(_ id: String) async throws -> Document {
         // First get the original document

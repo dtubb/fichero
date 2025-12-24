@@ -30,6 +30,9 @@ struct SidebarView: View {
     @State private var chatExpanded = true
     @State private var workflowsExpanded = true
     @State private var isChatDropTargeted = false
+    
+    // Rename state
+    @State private var renamingItemId: String? = nil
 
     var body: some View {
         List(selection: $selectedItem) {
@@ -321,6 +324,7 @@ struct SectionHeader: View {
 struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
+    @Binding var renamingItemId: String?
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var searchService: SavedSearchService
@@ -332,6 +336,9 @@ struct SidebarItemRow: View {
     // Drag and drop state
     @State private var isDragging = false
     @State private var isDropTargeted = false
+    
+    // Rename state
+    @State private var renameError: String? = nil
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -374,22 +381,39 @@ struct SidebarItemRow: View {
 
     private var itemLabel: some View {
         HStack {
-            Label {
-                Text(item.name)
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: item.icon)
-                    .foregroundColor(iconColor)
-            }
+            if renamingItemId == item.id {
+                // Show inline rename field
+                InlineRenameField(
+                    currentName: item.name,
+                    placeholder: "Enter new name",
+                    onCommit: { newName in
+                        try await handleRename(newName: newName)
+                        renamingItemId = nil
+                    },
+                    onCancel: {
+                        renamingItemId = nil
+                    }
+                )
+                .transition(.opacity.combined(with: .scale))
+            } else {
+                // Show normal label
+                Label {
+                    Text(item.name)
+                        .lineLimit(1)
+                } icon: {
+                    Image(systemName: item.icon)
+                        .foregroundColor(iconColor)
+                }
 
-            Spacer()
+                Spacer()
 
-            // Show progress indicator if enabled and progress is available
-            if item.showProgress, let progress = item.progress {
-                ProgressView(value: progress, total: 1.0)
-                    .progressViewStyle(LinearProgressViewStyle())
-                    .frame(width: 40)
-                    .scaleEffect(CGSize(width: 0.7, height: 0.7))
+                // Show progress indicator if enabled and progress is available
+                if item.showProgress, let progress = item.progress {
+                    ProgressView(value: progress, total: 1.0)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(width: 40)
+                        .scaleEffect(CGSize(width: 0.7, height: 0.7))
+                }
             }
         }
         .opacity(isDragging ? 0.5 : 1.0)
@@ -408,8 +432,7 @@ struct SidebarItemRow: View {
             switch item.itemType {
             case .document(let document):
                 Button("Rename...") {
-                    // TODO: Implement inline rename for document
-                    print("Rename document: \(item.name)")
+                    startRename()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
@@ -487,8 +510,7 @@ struct SidebarItemRow: View {
 
             case .savedSearch(let search):
                 Button("Rename...") {
-                    // TODO: Implement inline rename for saved search
-                    print("Rename saved search: \(item.name)")
+                    startRename()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
@@ -528,8 +550,7 @@ struct SidebarItemRow: View {
 
             case .conversation(let conversation):
                 Button("Rename...") {
-                    // TODO: Implement inline rename for conversation
-                    print("Rename conversation: \(item.name)")
+                    startRename()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
@@ -569,8 +590,7 @@ struct SidebarItemRow: View {
 
             case .workflow(let workflow):
                 Button("Rename...") {
-                    // TODO: Implement inline rename for workflow
-                    print("Rename workflow: \(item.name)")
+                    startRename()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
@@ -637,6 +657,70 @@ struct SidebarItemRow: View {
             return .green
         case .workflows:
             return .purple
+        }
+    }
+
+    private func startRename() {
+        renamingItemId = item.id
+    }
+
+    private func handleRename(newName: String) async throws {
+        switch item.itemType {
+        case .document(let document):
+            let renamedDoc = try await documentService.renameDocument(document.id, newName: newName)
+            NSLog("[Sidebar] Document renamed: %@ -> %@", document.name, renamedDoc.name)
+            
+            // Show success alert
+            if let window = NSApp.keyWindow {
+                let alert = NSAlert()
+                alert.messageText = "Document Renamed"
+                alert.informativeText = "\"\\(document.name)\" was successfully renamed to \"\\(renamedDoc.name)\"."
+                alert.addButton(withTitle: "OK")
+                alert.beginSheetModal(for: window, completionHandler: nil)
+            }
+
+        case .savedSearch(let search):
+            let renamedSearch = try await searchService.renameSavedSearch(search.id, newName: newName)
+            NSLog("[Sidebar] Search renamed: %@ -> %@", search.name, renamedSearch.query)
+            
+            // Show success alert
+            if let window = NSApp.keyWindow {
+                let alert = NSAlert()
+                alert.messageText = "Search Renamed"
+                alert.informativeText = "\"\\(search.name)\" was successfully renamed to \"\\(renamedSearch.query)\"."
+                alert.addButton(withTitle: "OK")
+                alert.beginSheetModal(for: window, completionHandler: nil)
+            }
+
+        case .conversation(let conversation):
+            let renamedConv = try await conversationService.renameConversation(conversation.id, newTitle: newName)
+            NSLog("[Sidebar] Conversation renamed: %@ -> %@", conversation.title, renamedConv.title)
+            
+            // Show success alert
+            if let window = NSApp.keyWindow {
+                let alert = NSAlert()
+                alert.messageText = "Conversation Renamed"
+                alert.informativeText = "\"\\(conversation.title)\" was successfully renamed to \"\\(renamedConv.title)\"."
+                alert.addButton(withTitle: "OK")
+                alert.beginSheetModal(for: window, completionHandler: nil)
+            }
+
+        case .workflow(let workflow):
+            let renamedWorkflow = try await workflowService.renameWorkflow(workflow.id, newName: newName)
+            NSLog("[Sidebar] Workflow renamed: %@ -> %@", workflow.name, renamedWorkflow.name)
+            
+            // Show success alert
+            if let window = NSApp.keyWindow {
+                let alert = NSAlert()
+                alert.messageText = "Workflow Renamed"
+                alert.informativeText = "\"\\(workflow.name)\" was successfully renamed to \"\\(renamedWorkflow.name)\"."
+                alert.addButton(withTitle: "OK")
+                alert.beginSheetModal(for: window, completionHandler: nil)
+            }
+
+        case .sectionHeader:
+            // Cannot rename section headers
+            break
         }
     }
 

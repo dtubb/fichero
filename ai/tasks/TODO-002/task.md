@@ -4,10 +4,10 @@
 Implement inline rename functionality for sidebar items in the Fichero frontend.
 
 ## Steps
-- [ ] Step 1: Review TODO-001 analysis for inline rename requirements
-- [ ] Step 2: Implement text field editing when "Rename..." context menu is selected
-- [ ] Step 3: Add Enter to confirm, Escape to cancel functionality
-- [ ] Step 4: Integrate with backend API for rename operations
+- [x] Step 1: Review TODO-001 analysis for inline rename requirements
+- [x] Step 2: Implement text field editing when "Rename..." context menu is selected
+- [x] Step 3: Add Enter to confirm, Escape to cancel functionality
+- [x] Step 4: Integrate with backend API for rename operations
 - [ ] Step 5: Test with different item types (documents, folders, searches, etc.)
 
 ## Files

@@ -786,13 +786,24 @@ class Database:
     def _migrate_workflow_table(self) -> None:
         """Migrate workflows table to new schema if needed."""
         try:
+            # First check if table exists
+            table_exists = self.conn.execute("""
+                SELECT COUNT(*) FROM information_schema.tables 
+                WHERE table_name = 'workflows'
+            """).fetchone()[0] > 0
+            
+            if not table_exists:
+                # Table doesn't exist, no migration needed
+                logger.debug("Workflows table does not exist, skipping migration")
+                return
+            
             # Check current schema
             result = self.conn.execute("PRAGMA table_info('workflows')").fetchall()
             columns = [row[1] for row in result]
             
             # If old schema (has 'steps' but not 'format'), migrate
             if 'steps' in columns and 'format' not in columns:
-                print("Migrating workflows table to new schema...")
+                logger.info("Migrating workflows table to new schema...")
                 
                 # Add new columns
                 self.conn.execute("""
@@ -847,23 +858,24 @@ class Database:
                     WHERE format IS NULL OR format = ''
                 """)
                 
-                print("Workflows table migration completed")
+                logger.info("Workflows table migration completed")
                 
         except Exception as e:
             # Table might not exist or other issue
-            print(f"Migration check failed: {e}")
+            logger.warning(f"Migration check failed: {e}")
 
     def _migrate_saved_search_table(self) -> None:
         """Migrate saved_searches table to add missing columns."""
         try:
-            # Check if table exists
-            result = self.conn.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='saved_searches'
-            """).fetchone()
+            # Check if table exists using DuckDB's information_schema
+            table_exists = self.conn.execute("""
+                SELECT COUNT(*) FROM information_schema.tables 
+                WHERE table_name = 'saved_searches'
+            """).fetchone()[0] > 0
             
-            if not result:
+            if not table_exists:
                 # Table doesn't exist, nothing to migrate
+                logger.debug("Saved searches table does not exist, skipping migration")
                 return
             
             # Check current schema
@@ -872,7 +884,7 @@ class Database:
             
             # Add folder_path if missing
             if 'folder_path' not in columns:
-                print("Migrating saved_searches table: adding folder_path column...")
+                logger.info("Migrating saved_searches table: adding folder_path column...")
                 self.conn.execute("""
                     ALTER TABLE saved_searches 
                     ADD COLUMN folder_path VARCHAR DEFAULT '/'
@@ -880,17 +892,17 @@ class Database:
             
             # Add sort_order if missing
             if 'sort_order' not in columns:
-                print("Migrating saved_searches table: adding sort_order column...")
+                logger.info("Migrating saved_searches table: adding sort_order column...")
                 self.conn.execute("""
                     ALTER TABLE saved_searches 
                     ADD COLUMN sort_order INTEGER DEFAULT 0
                 """)
             
-            print("Saved searches table migration completed")
+            logger.info("Saved searches table migration completed")
             
         except Exception as e:
             # Table might not exist or other issue
-            print(f"Saved searches migration check failed: {e}")
+            logger.warning(f"Saved searches migration check failed: {e}")
 
 
 # Global instance - can be overridden for testing

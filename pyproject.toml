@@ -266,6 +266,7 @@ dependencies = [
     # FastAPI backend for SwiftUI frontend
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.5",
     # Unified LLM interface (100+ providers, cost tracking)
     "litellm>=1.55.0",
 ]
