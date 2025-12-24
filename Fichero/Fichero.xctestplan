@@ -1,0 +1,37 @@
+{
+  "configurations" : [
+    {
+      "id" : "A045F2B4-103D-43FA-8F1C-94B88EC10046",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Fichero.xcodeproj",
+      "identifier" : "500",
+      "name" : "Fichero"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Fichero.xcodeproj",
+        "identifier" : "A1051F882EFC83A000B28C3E",
+        "name" : "FicheroTests"
+      }
+    },
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Fichero.xcodeproj",
+        "identifier" : "A1051F922EFC83A000B28C3E",
+        "name" : "FicheroUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
