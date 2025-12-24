@@ -56,7 +56,7 @@
 
 ### Sidebar
 - [x] TODO-001: Review status of sidebar in Frontend
-- [ ] TODO-002: Complete In Line Rename (P1, Medium)
+- [x] TODO-002: Complete In Line Rename (P1, Medium) - Ready for testing
 - [ ] TODO-003: Complete New Folder Creation (P1, Medium)
 - [ ] TODO-021: Enhance Drag and Drop Visual Feedback (P2, Medium)
 - [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
@@ -68,6 +68,8 @@
 - [ ] TODO-007: Plan Workflow Engine (P1, High)
 
 ## Infrastructure (Can be done in parallel) [P2]
+- [ ] TODO-023: Fix Backend Launch Issues (P0, High)
+  - Depends on: None
 - [ ] TODO-012: Improve Error Handling (P1, Medium)
 - [ ] TODO-013: Add Comprehensive Logging (P1, Medium)
 - [x] TODO-014: Fix compilation errors and warnings (P0, Low)
