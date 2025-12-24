@@ -37,6 +37,7 @@
 - [x] Move InlineRenameField to be nested in SidebarView
 - [x] Add missing renamingItemId parameters to all SidebarItemRow instantiations
 - [x] Fix pre-existing build issues (EmptyResponse, unreachable catch blocks)
+- [x] Revert incomplete workflow save implementation (apiWorkflow not defined)
 - [ ] Test with all item types (documents, searches, conversations, workflows)
 - [ ] Ensure proper state updates after rename
 - [ ] Verify UI updates correctly
