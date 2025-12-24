@@ -24,6 +24,9 @@ Investigate and fix the SwiftUI import interface issues where the UI doesn't upd
 - [ ] Question 3: Should delete functionality review be part of this task or separate?
     Answer: Seperate task. Needs to work to. 
 
+Of note, add unit tests to swift as well.
+we have xctestplan, with FicheroTests and FicheroUITests. not working though. in xCode says mssing.
+
 ## Answers and Implementation
 - [Will investigate layout recursion warnings and UI update mechanism]
 - [Will test with sample files from human_note.md paths]

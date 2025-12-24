@@ -54,7 +54,7 @@
 ## Frontend Features (Built on backend) [P1]
 
 ### File Import/Export
-- [ ] TODO-024: Fix Frontend Import UI and Update Issues (P1, Medium)
+- [x] TODO-024: Fix Frontend Import UI and Update Issues (P1, Medium)
   - Depends on: TODO-004 (backend import endpoint)
 
 ## Foundational [P3]
@@ -65,6 +65,8 @@
 - [ ] TODO-003: Complete New Folder Creation (P1, Medium)
 - [ ] TODO-021: Enhance Drag and Drop Visual Feedback (P2, Medium)
 - [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
+- [ ] TODO-030: Comprehensive Sidebar Code Review and Refactoring (P1, High)
+  - Depends on: None
 
 ### Enhanced Features
 - [ ] TODO-007: Enhance Search Functionality (P2, High)

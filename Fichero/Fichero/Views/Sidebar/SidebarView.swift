@@ -279,30 +279,33 @@ struct SidebarView: View {
     private func handleFileDropOnLibrary(url: URL) {
         NSLog("[Sidebar] File dropped on Library section: %@", url.path)
 
-        Task {
-            do {
-                // Import file as a top-level document (no parent)
-                let importedDoc = try await documentStore.importFile(at: url, parentId: nil)
-                NSLog("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
-                
-                // Show success alert
-                if let window = NSApp.keyWindow {
-                    let alert = NSAlert()
-                    alert.messageText = "File Imported"
-                    alert.informativeText = "\"\(importedDoc.name)\" was successfully imported to your library."
-                    alert.addButton(withTitle: "OK")
-                    alert.beginSheetModal(for: window, completionHandler: nil)
-                }
-            } catch {
-                NSLog("[Sidebar] Error importing file to library: %@", String(describing: error))
-                
-                // Show error alert
-                if let window = NSApp.keyWindow {
-                    let alert = NSAlert()
-                    alert.messageText = "Import Failed"
-                    alert.informativeText = "Failed to import file: \(error.localizedDescription)"
-                    alert.addButton(withTitle: "OK")
-                    alert.beginSheetModal(for: window, completionHandler: nil)
+        // Defer the import operation to avoid layout recursion
+        DispatchQueue.main.async {
+            Task {
+                do {
+                    // Import file as a top-level document (no parent)
+                    let importedDoc = try await documentStore.importFile(at: url, parentId: nil)
+                    NSLog("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
+                    
+                    // Show success alert
+                    if let window = NSApp.keyWindow {
+                        let alert = NSAlert()
+                        alert.messageText = "File Imported"
+                        alert.informativeText = "\"\(importedDoc.name)\" was successfully imported to your library."
+                        alert.addButton(withTitle: "OK")
+                        alert.beginSheetModal(for: window, completionHandler: nil)
+                    }
+                } catch {
+                    NSLog("[Sidebar] Error importing file to library: %@", String(describing: error))
+                    
+                    // Show error alert
+                    if let window = NSApp.keyWindow {
+                        let alert = NSAlert()
+                        alert.messageText = "Import Failed"
+                        alert.informativeText = "Failed to import file: \(error.localizedDescription)"
+                        alert.addButton(withTitle: "OK")
+                        alert.beginSheetModal(for: window, completionHandler: nil)
+                    }
                 }
             }
         }
@@ -774,29 +777,32 @@ struct SidebarItemRow: View {
         if targetDocument.docType == .collection || targetDocument.docType == .folder {
             NSLog("[Sidebar] File dropped on \(targetDocument.name): \(url.path)")
             
-            Task {
-                do {
-                    let importedDoc = try await documentStore.importFile(at: url, parentId: targetDocument.id)
-                    NSLog("[Sidebar] Successfully imported file: \(importedDoc.name)")
-                    
-                    // Show success alert
-                    if let window = NSApp.keyWindow {
-                        let alert = NSAlert()
-                        alert.messageText = "File Imported"
-                        alert.informativeText = "\"\(importedDoc.name)\" was successfully imported into \"\(targetDocument.name)\"."
-                        alert.addButton(withTitle: "OK")
-                        alert.beginSheetModal(for: window, completionHandler: nil)
-                    }
-                } catch {
-                    NSLog("[Sidebar] Error importing file: \(error)")
-                    
-                    // Show error alert
-                    if let window = NSApp.keyWindow {
-                        let alert = NSAlert()
-                        alert.messageText = "Import Failed"
-                        alert.informativeText = "Failed to import file: \(error.localizedDescription)"
-                        alert.addButton(withTitle: "OK")
-                        alert.beginSheetModal(for: window, completionHandler: nil)
+            // Defer the import operation to avoid layout recursion
+            DispatchQueue.main.async {
+                Task {
+                    do {
+                        let importedDoc = try await documentStore.importFile(at: url, parentId: targetDocument.id)
+                        NSLog("[Sidebar] Successfully imported file: \(importedDoc.name)")
+                        
+                        // Show success alert
+                        if let window = NSApp.keyWindow {
+                            let alert = NSAlert()
+                            alert.messageText = "File Imported"
+                            alert.informativeText = "\"\(importedDoc.name)\" was successfully imported into \"\(targetDocument.name)\"."
+                            alert.addButton(withTitle: "OK")
+                            alert.beginSheetModal(for: window, completionHandler: nil)
+                        }
+                    } catch {
+                        NSLog("[Sidebar] Error importing file: \(error)")
+                        
+                        // Show error alert
+                        if let window = NSApp.keyWindow {
+                            let alert = NSAlert()
+                            alert.messageText = "Import Failed"
+                            alert.informativeText = "Failed to import file: \(error.localizedDescription)"
+                            alert.addButton(withTitle: "OK")
+                            alert.beginSheetModal(for: window, completionHandler: nil)
+                        }
                     }
                 }
             }

@@ -18,6 +18,9 @@ struct ContentView: View {
 
     // Document store - connects to Python backend
     @StateObject private var documentStore = DocumentStore()
+    
+    // Force UI refresh counter
+    @State private var refreshCounter = 0
 
     // Workflow store - manages workflow persistence
     @StateObject private var workflowStore = WorkflowStore()
@@ -74,6 +77,50 @@ struct ContentView: View {
             return documentStore.currentDocuments.first { $0.id == firstId }
         }
         return detailDocument
+    }
+
+    /// Handle document change events
+    private func handleDocumentChange(_ change: DocumentChange) {
+        // Ensure we're on main thread for UI updates
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.handleDocumentChangeOnMain(change)
+            }
+            return
+        }
+        handleDocumentChangeOnMain(change)
+    }
+
+    /// Handle document changes on main thread
+    private func handleDocumentChangeOnMain(_ change: DocumentChange) {
+        switch change {
+        case .collectionsUpdated(_):
+            // Force UI refresh by updating state
+            refreshCounter += 1
+            
+        case .collectionSelected(let collection):
+            // Update selection if needed
+            if let item = libraryItems.first(where: { $0.id == collection.id }) {
+                selectedSidebarItem = item
+            }
+
+        case .documentsUpdated(_):
+            // Force UI refresh for document updates
+            refreshCounter += 1
+
+        case .documentDeleted(let document):
+            // Remove deleted document from selection
+            browserSelection.remove(document.id)
+            if detailDocument?.id == document.id {
+                detailDocument = nil
+            }
+            // Force UI refresh
+            refreshCounter += 1
+
+        case .documentCreated(_):
+            // Force UI refresh for new documents
+            refreshCounter += 1
+        }
     }
 
     /// Navigation title based on current mode
@@ -290,6 +337,9 @@ struct ContentView: View {
             } else if newSelection.isEmpty {
                 detailDocument = nil
             }
+        }
+        .onReceive(documentStore.documentChangePublisher.replaceError(with: DocumentChange.collectionsUpdated([]))) { change in
+            handleDocumentChange(change)
         }
         // Provider sheets (triggered from app menu or first launch)
         .sheet(isPresented: $appState.showAddProvider) {
