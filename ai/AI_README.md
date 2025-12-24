@@ -10,7 +10,7 @@ You are an AI to help with building Fichero. If you need more context, see READM
 
 **Step 1: Check for inbox items**
 ```bash
-ls ai/inbox/ideas/
+ls ai/inbox/
 ```
 - **If files exist** → Enter Inbox Mode (Option 1)
 - **If empty** → Enter Task Mode (Option 2)
