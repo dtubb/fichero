@@ -49,3 +49,6 @@ CLAUDE.md
 .aider*
 opencode.json
 Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserInterfaceState.xcuserstate
+.pytest_cache
+.vscode
+.briefcase 
