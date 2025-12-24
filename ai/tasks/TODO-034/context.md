@@ -1,11 +1,13 @@
-# Context for TODO-XXX: [Simple Task Name]
+# Context for TODO-034: Implement New Folder Functionality
 
 ## Background
-[Simple background - 1-2 sentences]
+This task completes the "New Folder" functionality in SidebarView context menus. Currently, all four sections (Library, Searches, Chat, Workflows) have "New Folder..." buttons with print statements but no actual implementation.
 
 ## What you need to know
-- [Key point 1]
-- [Key point 2]
+- Current state: All context menus have "New Folder..." buttons with placeholder print statements
+- Backend integration needed: Folder creation API and document service methods
+- UI consistency required: Ensure same behavior across all four sections
+- Error handling: Proper validation and user feedback needed
 
-## No not Ask if unclear
-- Do not request human input if needed
+## Ask if unclear
+- Request human input if needed

@@ -1,21 +1,29 @@
-# TODO-XXX: [Simple Task Name]
+# TODO-034: Implement New Folder Functionality
 
 ## What to do
-[Simple description - one sentence]
+Implement "New Folder" functionality in SidebarView context menus across all sections (Library, Searches, Chat, Workflows).
 
 ## Steps
-- [ ] Step 1: [Simple action]
-- [ ] Step 2: [Simple action]
-- [ ] Step 3: [Simple action]
+- [ ] Step 1: Design folder creation API and data model
+- [ ] Step 2: Implement backend service methods for folder creation
+- [ ] Step 3: Create folder creation UI flow with proper validation
+- [ ] Step 4: Implement folder creation logic in Library section context menu
+- [ ] Step 5: Implement folder creation logic in Searches section context menu
+- [ ] Step 6: Implement folder creation logic in Chat section context menu
+- [ ] Step 7: Implement folder creation logic in Workflows section context menu
+- [ ] Step 8: Add proper error handling and user feedback
+- [ ] Step 9: Test folder creation across all sections
 
 ## Files
-- File to change: [path/to/file]
+- File to change: Fichero/Views/SidebarView.swift (main implementation)
+- File to change: Fichero/Services/DocumentService.swift (backend integration)
+- File to change: Fichero/Models/FolderModel.swift (data model)
 
 ## Questions for Human
-- [ ] Question 1: [Question about requirements or implementation]
-    Answer: [Space for answer based on best guess]
-- [ ] Question 2: [Question about priorities or approach]
-    Answer: [Space for  based on best guessanswer]
+- [ ] Question 1: Should folder creation be synchronous or asynchronous with loading indicators?
+    Answer: [Space for answer]
+- [ ] Question 2: Are there any specific naming conventions for folders that need to be enforced?
+    Answer: [Space for answer]
 
 ## Answers and Implementation
 - [Summary of decisions made]
