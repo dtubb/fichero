@@ -18,11 +18,11 @@ Investigate and fix the SwiftUI import interface issues where the UI doesn't upd
 
 ## Questions for Human
 - [ ] Question 1: Should I focus only on the UI issues or also investigate backend integration?
-    Answer: [Focus on frontend UI issues first, backend is separate task]
+    Answer: Backend first. See TODO-004. 
 - [ ] Question 2: Are there specific SwiftUI views or components that handle import functionality?
-    Answer: [Need to identify import-related views in Browser module]
+    Answer: Not sure. But, no ui. it shoudl be in sider.
 - [ ] Question 3: Should delete functionality review be part of this task or separate?
-    Answer: [Include basic review, create separate task if major issues found]
+    Answer: Seperate task. Needs to work to. 
 
 ## Answers and Implementation
 - [Will investigate layout recursion warnings and UI update mechanism]
