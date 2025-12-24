@@ -18,11 +18,11 @@ Update backend.md and frontend.md context documents to reflect current applicati
 
 ## Questions for Human
 - [ ] Question 1: Should context documents focus on current implementation or include future architecture plans?
-    Answer: [Space for answer]
+    Answer: It's both. But, for now. Focus on documenting what we have. Backend and Frontend. 
 - [ ] Question 2: Are there specific backend API areas that need more detailed documentation?
-    Answer: [Space for answer]
+    Answer: They're in the src folder. I want these context docuemtns to be concise and short, so that we can 
 - [ ] Question 3: Should frontend context include architecture diagrams or just code patterns?
-    Answer: [Space for answer]
+    Answer: Not sure we need code patterns. Simple and conceise with limited context. But, I do want additonal thigns. like style guide for code. etc. 
 
 ## Answers and Implementation
 - [Summary of decisions made]
