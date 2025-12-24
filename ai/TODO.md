@@ -45,8 +45,7 @@
 ## Backend API (Foundation) [P0]
 
 ### File Management
-- [ ] TODO-004: Complete File Import Endpoint (P1, Medium)
-  - Depends on: None
+- [x] TODO-004: Complete, test, and make sure File/Folder Import Endpoint works in backend. (P1, Medium)
 - [ ] TODO-005: Complete Document Move Endpoint (P1, Medium)
   - Depends on: TODO-004
 

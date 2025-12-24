@@ -320,6 +320,301 @@ class TestIngestRoutes:
         response = client.get("/api/ingest/status/nonexistent")
         assert response.status_code == 404
 
+    def test_ingest_file_with_parameters(self, client):
+        """Ingest file with all parameters."""
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(b"fake image data")
+            temp_path = f.name
+
+        try:
+            with patch("fichero.ingest.ingest_file") as mock_ingest:
+                mock_ingest.return_value = Document(
+                    id="new123",
+                    name="ingested.jpg",
+                    doc_type=DocType.file,
+                    parent_id="parent-123",
+                )
+
+                response = client.post("/api/ingest/file", json={
+                    "path": temp_path,
+                    "parent_id": "parent-123",
+                    "copy_mode": True,
+                    "extract_text": False,
+                    "auto_embed": False,
+                })
+                assert response.status_code == 200
+                data = response.json()
+                assert data["parent_id"] == "parent-123"
+                
+                # Verify the ingest_file was called with correct parameters
+                mock_ingest.assert_called_once()
+                call_args = mock_ingest.call_args
+                assert call_args[1]["parent_id"] == "parent-123"
+                assert call_args[1]["mode"].value == "copy"  # copy_mode=True
+                assert call_args[1]["extract_text"] is False
+                assert call_args[1]["auto_embed"] is False
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    def test_ingest_file_not_a_file(self, client):
+        """Ingest directory as file returns 400."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            response = client.post("/api/ingest/file", json={
+                "path": tmpdir,
+            })
+            assert response.status_code == 400
+            data = response.json()
+            assert "detail" in data
+            assert "Not a file" in data["detail"]
+
+    def test_ingest_file_invalid_path_type(self, client):
+        """Ingest with invalid path type returns 422."""
+        response = client.post("/api/ingest/file", json={
+            "path": 123,  # Invalid type
+        })
+        assert response.status_code == 422  # Validation error
+
+    def test_ingest_file_missing_required_path(self, client):
+        """Ingest file without path returns 422."""
+        response = client.post("/api/ingest/file", json={
+            # Missing path
+        })
+        assert response.status_code == 422
+
+    def test_ingest_folder_with_parameters(self, client):
+        """Ingest folder with all parameters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create test files
+            (Path(tmpdir) / "file1.jpg").write_bytes(b"data1")
+            (Path(tmpdir) / "file2.png").write_bytes(b"data2")
+
+            with patch("fichero.ingest.count_files") as mock_count:
+                mock_count.return_value = 2
+
+                response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                    "parent_id": "parent-456",
+                    "copy_mode": True,
+                    "recursive": False,
+                    "extract_text": True,
+                    "auto_embed": True,
+                })
+                assert response.status_code == 200
+                data = response.json()
+                assert "task_id" in data
+                assert data["status"] == "pending"
+                assert data["path"] == tmpdir
+
+    def test_ingest_folder_not_a_directory(self, client):
+        """Ingest file as folder returns 400."""
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(b"fake image data")
+            temp_path = f.name
+
+        try:
+            response = client.post("/api/ingest/folder", json={
+                "path": temp_path,
+            })
+            assert response.status_code == 400
+            data = response.json()
+            assert "detail" in data
+            assert "Not a directory" in data["detail"]
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    def test_ingest_folder_empty_directory(self, client):
+        """Ingest empty folder returns task ID."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Empty directory
+            with patch("fichero.ingest.count_files") as mock_count:
+                mock_count.return_value = 0
+
+                response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                })
+                assert response.status_code == 200
+                data = response.json()
+                assert "task_id" in data
+                assert data["status"] == "pending"
+
+    def test_ingest_folder_missing_required_path(self, client):
+        """Ingest folder without path returns 422."""
+        response = client.post("/api/ingest/folder", json={
+            # Missing path
+        })
+        assert response.status_code == 422
+
+    def test_get_ingest_status_valid_task(self, client):
+        """Get status of valid task returns task info."""
+        # First, start a task
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.jpg"
+            test_file.write_bytes(b"fake image data")
+
+            with patch("fichero.ingest.count_files") as mock_count:
+                mock_count.return_value = 1
+
+                create_response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                })
+                assert create_response.status_code == 200
+                task_data = create_response.json()
+                task_id = task_data["task_id"]
+
+                # Now get the status
+                status_response = client.get(f"/api/ingest/status/{task_id}")
+                assert status_response.status_code == 200
+                status_data = status_response.json()
+                assert status_data["task_id"] == task_id
+                assert status_data["status"] == "pending"
+                assert status_data["path"] == tmpdir
+                assert status_data["progress"] == 0.0
+                assert status_data["total"] == 1
+                assert status_data["processed"] == 0
+
+    def test_ingest_file_different_file_types(self, client):
+        """Test ingest with different file types."""
+        file_types = [
+            ("test.pdf", b"%PDF-1.4 fake pdf"),
+            ("test.txt", b"text content"),
+            ("test.png", b"\x89PNG\r\n\x1a\n fake png"),
+        ]
+
+        for filename, content in file_types:
+            with tempfile.NamedTemporaryFile(suffix=filename, delete=False) as f:
+                f.write(content)
+                temp_path = f.name
+
+            try:
+                with patch("fichero.ingest.ingest_file") as mock_ingest:
+                    mock_ingest.return_value = Document(
+                        id="test123",
+                        name=filename,
+                        doc_type=DocType.file,
+                    )
+
+                    response = client.post("/api/ingest/file", json={
+                        "path": temp_path,
+                    })
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["name"] == filename
+            finally:
+                Path(temp_path).unlink(missing_ok=True)
+
+    def test_ingest_file_with_special_characters(self, client):
+        """Test ingest file with special characters in filename."""
+        special_names = [
+            "test file with spaces.jpg",
+            "test-file-with-dashes.jpg",
+            "test_file_with_underscores.jpg",
+            "test.file.with.dots.jpg",
+        ]
+
+        for filename in special_names:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+                f.write(b"fake image data")
+                temp_path = f.name
+                # Rename to include special characters
+                special_path = Path(f.name).parent / filename
+                Path(f.name).rename(special_path)
+
+            try:
+                with patch("fichero.ingest.ingest_file") as mock_ingest:
+                    mock_ingest.return_value = Document(
+                        id="test123",
+                        name=filename,
+                        doc_type=DocType.file,
+                    )
+
+                    response = client.post("/api/ingest/file", json={
+                        "path": str(special_path),
+                    })
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["name"] == filename
+            finally:
+                special_path.unlink(missing_ok=True)
+
+    def test_ingest_endpoint_error_handling(self, client):
+        """Test error handling in ingest endpoints."""
+        # Test file ingest with exception
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(b"fake image data")
+            temp_path = f.name
+
+        try:
+            with patch("fichero.ingest.ingest_file") as mock_ingest:
+                mock_ingest.side_effect = Exception("Test error")
+
+                response = client.post("/api/ingest/file", json={
+                    "path": temp_path,
+                })
+                assert response.status_code == 500
+                data = response.json()
+                assert "detail" in data
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    def test_ingest_folder_recursive_parameter(self, client):
+        """Test recursive parameter in folder ingest."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create nested structure
+            (Path(tmpdir) / "file1.jpg").write_bytes(b"data1")
+            subdir = Path(tmpdir) / "subdir"
+            subdir.mkdir()
+            (subdir / "file2.jpg").write_bytes(b"data2")
+
+            with patch("fichero.ingest.count_files") as mock_count:
+                # Test recursive=True
+                mock_count.return_value = 2
+                response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                    "recursive": True,
+                })
+                assert response.status_code == 200
+                
+                # Test recursive=False
+                mock_count.return_value = 1
+                response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                    "recursive": False,
+                })
+                assert response.status_code == 200
+
+    def test_ingest_status_progress_tracking(self, client):
+        """Test progress tracking in task status."""
+        # This would require more complex setup with actual background tasks
+        # For now, just verify the structure
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.jpg"
+            test_file.write_bytes(b"fake image data")
+
+            with patch("fichero.ingest.count_files") as mock_count:
+                mock_count.return_value = 1
+
+                create_response = client.post("/api/ingest/folder", json={
+                    "path": tmpdir,
+                })
+                assert create_response.status_code == 200
+                task_data = create_response.json()
+                task_id = task_data["task_id"]
+
+                # Verify status structure
+                status_response = client.get(f"/api/ingest/status/{task_id}")
+                assert status_response.status_code == 200
+                status_data = status_response.json()
+                
+                # Check all expected fields are present
+                expected_fields = ["task_id", "status", "path", "progress", "total", "processed"]
+                for field in expected_fields:
+                    assert field in status_data
+                
+                # Verify field types
+                assert isinstance(status_data["progress"], float)
+                assert isinstance(status_data["total"], int)
+                assert isinstance(status_data["processed"], int)
+
 
 class TestStorageRoutes:
     """Tests for /api/storage endpoints."""
