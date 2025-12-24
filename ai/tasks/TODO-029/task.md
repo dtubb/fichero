@@ -20,13 +20,13 @@ Test text extraction functionality in the ingest module for supported document f
 
 ## Questions for Human
 - [ ] Question 1: Should I create specific test documents for text extraction?
-    Answer: [Space for answer]
+    Answer: yes
 - [ ] Question 2: Any specific text extraction scenarios to prioritize?
-    Answer: [Space for answer]
+    Answer: no
 - [ ] Question 3: Should I test with complex document structures?
-    Answer: [Space for answer]
+    Answer: yes
 - [ ] Question 4: Any specific languages to test?
-    Answer: [Space for answer]
+    Answer: no.
 
 ## Answers and Implementation
 - [Summary of decisions made]
