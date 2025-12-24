@@ -52,6 +52,10 @@
 
 ## Frontend Features (Built on backend) [P1]
 
+### File Import/Export
+- [ ] TODO-024: Fix Frontend Import UI and Update Issues (P1, Medium)
+  - Depends on: TODO-004 (backend import endpoint)
+
 ## Foundational [P3]
 
 ### Sidebar
