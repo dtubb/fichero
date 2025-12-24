@@ -13,6 +13,7 @@ struct SidebarView: View {
     @EnvironmentObject private var searchService: SavedSearchService
     @EnvironmentObject private var conversationService: ConversationService
     @EnvironmentObject private var workflowService: WorkflowService
+    @EnvironmentObject private var documentService: DocumentService
 
     // Section data - injected from parent (computed in ContentView)
     let libraryItems: [SidebarItem]
@@ -34,6 +35,14 @@ struct SidebarView: View {
     // Rename state
     @State private var renamingItemId: String? = nil
 
+    // New folder state
+    @State private var showingNewFolderDialog = false
+    @State private var newFolderParentId: String? = nil
+    @State private var newFolderSection: SidebarSection? = nil
+    @State private var newFolderName = ""
+    @State private var newFolderErrorMessage: String? = nil
+    @State private var isCreatingFolder = false
+
     var body: some View {
         List(selection: $selectedItem) {
             // LIBRARY section
@@ -43,6 +52,9 @@ struct SidebarView: View {
                         item: item,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        showingNewFolderDialog: $showingNewFolderDialog,
+                        newFolderParentId: $newFolderParentId,
+                        newFolderSection: $newFolderSection,
                         viewMode: $viewMode,
                         selectedItem: $selectedItem
                     )
@@ -62,6 +74,9 @@ struct SidebarView: View {
                         item: item,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        showingNewFolderDialog: $showingNewFolderDialog,
+                        newFolderParentId: $newFolderParentId,
+                        newFolderSection: $newFolderSection,
                         viewMode: $viewMode,
                         selectedItem: $selectedItem
                     )
@@ -88,6 +103,9 @@ struct SidebarView: View {
                         item: item,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        showingNewFolderDialog: $showingNewFolderDialog,
+                        newFolderParentId: $newFolderParentId,
+                        newFolderSection: $newFolderSection,
                         viewMode: $viewMode,
                         selectedItem: $selectedItem
                     )
@@ -124,6 +142,9 @@ struct SidebarView: View {
                         item: item,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        showingNewFolderDialog: $showingNewFolderDialog,
+                        newFolderParentId: $newFolderParentId,
+                        newFolderSection: $newFolderSection,
                         viewMode: $viewMode,
                         selectedItem: $selectedItem
                     )
@@ -152,6 +173,57 @@ struct SidebarView: View {
             Empty(completeImmediately: true)
         }.receive(on: DispatchQueue.main)) { change in
             handleDocumentChange(change)
+        }
+        .sheet(isPresented: $showingNewFolderDialog) {
+            VStack(spacing: 16) {
+                // Title
+                Text("New Folder")
+                    .font(.headline)
+
+                // Text field
+                TextField("Enter folder name", text: Binding(
+                    get: { newFolderName },
+                    set: { newFolderName = $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .disableAutocorrection(true)
+
+                // Error message
+                if let errorMessage = newFolderErrorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Buttons
+                HStack {
+                    Button("Cancel") {
+                        showingNewFolderDialog = false
+                        newFolderName = ""
+                        newFolderErrorMessage = nil
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Spacer()
+
+                    Button("Create") {
+                        Task {
+                            await createNewFolderInline()
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(newFolderName.isEmpty || isCreatingFolder)
+                    .overlay {
+                        if isCreatingFolder {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(width: 300)
         }
     }
 
@@ -214,6 +286,69 @@ struct SidebarView: View {
 
     private func createNewWorkflow() {
         viewMode = .workflow(nil)
+    }
+
+    /// Create a new folder in the specified section
+    private func createNewFolder(name: String) async throws {
+        guard let section = newFolderSection else {
+            throw NSError(domain: "com.fichero.sidebar", code: 1, userInfo: [NSLocalizedDescriptionKey: "No section specified for folder creation"])
+        }
+
+        // Create the folder using the appropriate service based on section
+        let newFolder: Document
+        switch section {
+        case .library:
+            newFolder = try await documentService.createFolder(name: name, parentId: newFolderParentId)
+        case .searches:
+            // For searches, we'll create a folder in the searches section
+            // This might need a different approach depending on how searches are organized
+            newFolder = try await documentService.createFolder(name: name, parentId: newFolderParentId)
+        case .chat:
+            // For chat, we'll create a folder in the conversations section
+            newFolder = try await documentService.createFolder(name: name, parentId: newFolderParentId)
+        case .workflows:
+            // For workflows, we'll create a folder in the workflows section
+            newFolder = try await documentService.createFolder(name: name, parentId: newFolderParentId)
+        }
+
+        // Show success alert
+        if let window = NSApp.keyWindow {
+            let alert = NSAlert()
+            alert.messageText = "Folder Created"
+            alert.informativeText = "\"\(newFolder.name)\" was successfully created."
+            alert.addButton(withTitle: "OK")
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        }
+
+        // Reset state
+        newFolderParentId = nil
+        newFolderSection = nil
+    }
+
+    /// Create a new folder inline (for the sheet dialog)
+    private func createNewFolderInline() async {
+        guard let section = newFolderSection else {
+            newFolderErrorMessage = "No section specified for folder creation"
+            return
+        }
+
+        guard !newFolderName.isEmpty else {
+            newFolderErrorMessage = "Folder name cannot be empty"
+            return
+        }
+
+        isCreatingFolder = true
+        newFolderErrorMessage = nil
+
+        do {
+            try await createNewFolder(name: newFolderName)
+            showingNewFolderDialog = false
+            newFolderName = ""
+        } catch {
+            newFolderErrorMessage = error.localizedDescription
+        }
+
+        isCreatingFolder = false
     }
 
     private func handleChatDrop(providers: [NSItemProvider]) -> Bool {
@@ -332,6 +467,9 @@ struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
     @Binding var renamingItemId: String?
+    @Binding var showingNewFolderDialog: Bool
+    @Binding var newFolderParentId: String?
+    @Binding var newFolderSection: SidebarSection?
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var searchService: SavedSearchService
@@ -368,6 +506,9 @@ struct SidebarItemRow: View {
                         item: child,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        showingNewFolderDialog: $showingNewFolderDialog,
+                        newFolderParentId: $newFolderParentId,
+                        newFolderSection: $newFolderSection,
                         viewMode: $viewMode,
                         selectedItem: $selectedItem
                     )
@@ -477,8 +618,9 @@ struct SidebarItemRow: View {
                 Divider()
 
                 Button("New Folder...") {
-                    // TODO: Implement new folder
-                    print("Create new folder in documents")
+                    newFolderParentId = document.id
+                    newFolderSection = .library
+                    showingNewFolderDialog = true
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
 
@@ -537,8 +679,11 @@ struct SidebarItemRow: View {
                 Divider()
 
                 Button("New Folder...") {
-                    // TODO: Implement new folder
-                    print("Create new folder in searches")
+                    // For searches, we need to determine the appropriate parent
+                    // Since searches might not have a traditional hierarchy, we'll use nil for now
+                    newFolderParentId = nil
+                    newFolderSection = .searches
+                    showingNewFolderDialog = true
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
 
@@ -577,8 +722,9 @@ struct SidebarItemRow: View {
                 Divider()
 
                 Button("New Folder...") {
-                    // TODO: Implement new folder
-                    print("Create new folder in chat")
+                    newFolderParentId = conversation.id
+                    newFolderSection = .chat
+                    showingNewFolderDialog = true
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
 
@@ -629,8 +775,9 @@ struct SidebarItemRow: View {
                 Divider()
 
                 Button("New Folder...") {
-                    // TODO: Implement new folder
-                    print("Create new folder in workflows")
+                    newFolderParentId = workflow.id
+                    newFolderSection = .workflows
+                    showingNewFolderDialog = true
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
 

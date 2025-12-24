@@ -85,6 +85,16 @@ class DocumentService: ObservableObject {
         return try await createDocument(doc)
     }
 
+    /// Create a new folder.
+    func createFolder(name: String, parentId: String? = nil) async throws -> Document {
+        let doc = DocumentCreateRequest(
+            name: name,
+            parentId: parentId,
+            docType: .folder
+        )
+        return try await createDocument(doc)
+    }
+
     /// Update an existing document.
     func updateDocument(_ id: String, _ update: DocumentUpdateRequest) async throws -> Document {
         try await api.put("/documents/\(id)", body: update)

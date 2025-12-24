@@ -73,7 +73,7 @@
   - Depends on: None
 - [ ] TODO-033: Implement Unit Tests for SidebarView (P1, High)
   - Depends on: None
-- [ ] TODO-034: Implement New Folder Functionality (P1, High)
+- [x] TODO-034: Implement New Folder Functionality (P1, High)
   - Depends on: None
 - [ ] TODO-035: Improve Sidebar Error Handling (P2, Medium)
   - Depends on: None

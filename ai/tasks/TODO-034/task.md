@@ -4,15 +4,15 @@
 Implement "New Folder" functionality in SidebarView context menus across all sections (Library, Searches, Chat, Workflows).
 
 ## Steps
-- [ ] Step 1: Design folder creation API and data model
-- [ ] Step 2: Implement backend service methods for folder creation
-- [ ] Step 3: Create folder creation UI flow with proper validation
-- [ ] Step 4: Implement folder creation logic in Library section context menu
-- [ ] Step 5: Implement folder creation logic in Searches section context menu
-- [ ] Step 6: Implement folder creation logic in Chat section context menu
-- [ ] Step 7: Implement folder creation logic in Workflows section context menu
-- [ ] Step 8: Add proper error handling and user feedback
-- [ ] Step 9: Test folder creation across all sections
+- [x] Step 1: Design folder creation API and data model
+- [x] Step 2: Implement backend service methods for folder creation
+- [x] Step 3: Create folder creation UI flow with proper validation
+- [x] Step 4: Implement folder creation logic in Library section context menu
+- [x] Step 5: Implement folder creation logic in Searches section context menu
+- [x] Step 6: Implement folder creation logic in Chat section context menu
+- [x] Step 7: Implement folder creation logic in Workflows section context menu
+- [x] Step 8: Add proper error handling and user feedback
+- [x] Step 9: Test folder creation across all sections
 
 ## Files
 - File to change: Fichero/Views/SidebarView.swift (main implementation)
