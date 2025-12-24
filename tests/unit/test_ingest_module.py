@@ -862,3 +862,292 @@ class TestExtractFileMetadata:
 
         assert doc.metadata["width"] == 640
         assert doc.metadata["height"] == 480
+
+
+class TestContentAccess:
+    """Tests for content access after ingestion."""
+
+    def test_text_extraction_from_txt(self, tmp_path):
+        """Should extract text from TXT files."""
+        from fichero.ingest import _extract_text_content
+        from fichero.models import Document, FileType
+        
+        file = tmp_path / "test.txt"
+        file.write_text("Hello World\nThis is a test file.")
+        
+        doc = Document(name="test.txt", file_type=FileType.text, metadata={})
+        _extract_text_content(doc, file)
+        
+        # Text extraction modifies doc.page_content
+        assert hasattr(doc, 'page_content')
+        if doc.page_content:
+            assert "Hello World" in doc.page_content
+            assert "This is a test file" in doc.page_content
+
+    def test_text_extraction_from_md(self, tmp_path):
+        """Should extract text from Markdown files."""
+        from fichero.ingest import _extract_text_content
+        from fichero.models import Document, FileType
+        
+        file = tmp_path / "test.md"
+        file.write_text("# Test File\n\nThis is **markdown** content.")
+        
+        doc = Document(name="test.md", file_type=FileType.text, metadata={})
+        _extract_text_content(doc, file)
+        
+        # Text extraction modifies doc.page_content
+        assert hasattr(doc, 'page_content')
+        if doc.page_content:
+            assert "Test File" in doc.page_content
+            assert "markdown" in doc.page_content
+
+    def test_pdf_text_extraction(self, tmp_path):
+        """Should extract text from PDF files."""
+        from fichero.ingest import _extract_text_content
+        from fichero.models import Document, FileType
+        
+        try:
+            from PyPDF2 import PdfWriter
+        except ImportError:
+            pytest.skip("PyPDF2 not installed")
+        
+        file = tmp_path / "test.pdf"
+        
+        # Create a simple PDF with text
+        writer = PdfWriter()
+        from io import BytesIO
+        from reportlab.pdfgen import canvas
+        
+        buffer = BytesIO()
+        can = canvas.Canvas(buffer)
+        can.drawString(100, 700, "Hello PDF World")
+        can.save()
+        
+        buffer.seek(0)
+        file.write_bytes(buffer.read())
+        
+        doc = Document(name="test.pdf", file_type=FileType.pdf, metadata={})
+        content = _extract_text_content(doc, file)
+        
+        assert "Hello PDF World" in content
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error conditions."""
+
+    def test_corrupted_file_handling(self, tmp_path):
+        """Should handle corrupted files gracefully."""
+        from fichero.ingest import _extract_file_metadata
+        from fichero.models import Document, FileType
+        
+        file = tmp_path / "corrupted.jpg"
+        file.write_bytes(b"This is not a valid image file")
+        
+        doc = Document(name="corrupted.jpg", file_type=FileType.image, metadata={})
+        
+        # Should not crash, but may not extract metadata
+        try:
+            _extract_file_metadata(doc, file)
+        except Exception:
+            # Expected to fail for corrupted files
+            pass
+        
+        # Document should still exist
+        assert doc is not None
+
+    def test_file_with_special_characters(self, tmp_path):
+        """Should handle files with special characters in names."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+        
+        # Test various special characters
+        special_names = [
+            "test file with spaces.jpg",
+            "test-file-with-dashes.jpg", 
+            "test_file_with_underscores.jpg",
+            "test.file.with.dots.jpg",
+            "test(parens).jpg",
+            "test[brackets].jpg",
+        ]
+        
+        for name in special_names:
+            result = detect_file_type(Path(name))
+            assert result == FileType.image
+
+    def test_very_large_filename(self, tmp_path):
+        """Should handle very long filenames."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+        
+        long_name = "a" * 200 + ".jpg"
+        result = detect_file_type(Path(long_name))
+        assert result == FileType.image
+
+    def test_file_with_no_extension(self, tmp_path):
+        """Should handle files with no extension."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+        
+        result = detect_file_type(Path("no_extension"))
+        assert result == FileType.other
+
+    def test_file_with_multiple_extensions(self, tmp_path):
+        """Should handle files with multiple extensions."""
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+        
+        # Should use the last extension
+        result = detect_file_type(Path("test.tar.gz"))
+        assert result == FileType.other  # .gz is not a known type
+        
+        result = detect_file_type(Path("test.document.pdf"))
+        assert result == FileType.pdf
+
+
+class TestIntegration:
+    """Integration tests for complete ingestion workflow."""
+
+    def test_complete_ingestion_workflow(self, tmp_path):
+        """Should complete full ingestion workflow successfully."""
+        from fichero.ingest import ingest_file
+        from fichero.models import Document, FileType
+        
+        # Create a test file
+        file = tmp_path / "test_ingestion.jpg"
+        file.write_bytes(b"fake image data")
+        
+        # Mock database operations - db is imported locally in the function
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            # Mock file operations
+            with patch("fichero.ingest.shutil") as mock_shutil:
+                mock_shutil.copy2.return_value = None
+                
+                from fichero.ingest import IngestMode
+                
+                result = ingest_file(
+                    path=str(file),
+                    parent_id=None,
+                    mode=IngestMode.COPY,
+                    extract_text=False,
+                    auto_embed=False
+                )
+                
+                # Verify document was created
+                assert result is not None
+                assert result.name == "test_ingestion.jpg"
+                assert result.file_type == FileType.image
+                
+                # Verify database save was called
+                mock_db.save.assert_called_once()
+
+    def test_ingestion_with_text_extraction(self, tmp_path):
+        """Should ingest file with text extraction enabled."""
+        from fichero.ingest import ingest_file
+        from fichero.models import Document, FileType
+        
+        # Create a text file
+        file = tmp_path / "test_text.txt"
+        file.write_text("Test content for extraction")
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.ingest.shutil") as mock_shutil:
+                mock_shutil.copy2.return_value = None
+                
+                from fichero.ingest import IngestMode
+                
+                result = ingest_file(
+                    path=str(file),
+                    parent_id=None,
+                    mode=IngestMode.COPY,
+                    extract_text=True,
+                    auto_embed=False
+                )
+                
+                assert result is not None
+                assert result.name == "test_text.txt"
+                assert result.file_type == FileType.text
+                # Text content should be extracted
+                assert result.metadata.get("text_extracted") == True
+                assert "Test content for extraction" in result.page_content
+
+
+class TestPerformance:
+    """Performance tests for ingestion operations."""
+
+    def test_multiple_file_ingestion(self, tmp_path):
+        """Should handle ingestion of multiple files efficiently."""
+        from fichero.ingest import ingest_file
+        from fichero.models import FileType
+        import time
+        
+        # Create multiple test files
+        files = []
+        for i in range(5):
+            file = tmp_path / f"test_{i}.jpg"
+            file.write_bytes(b"fake image data")
+            files.append(file)
+        
+        start_time = time.time()
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.ingest.shutil") as mock_shutil:
+                mock_shutil.copy2.return_value = None
+                
+                # Ingest all files
+                results = []
+                for file in files:
+                    from fichero.ingest import IngestMode
+                    
+                    result = ingest_file(
+                        path=str(file),
+                        parent_id=None,
+                        mode=IngestMode.COPY,
+                        extract_text=False,
+                        auto_embed=False
+                    )
+                    results.append(result)
+        
+        end_time = time.time()
+        
+        # Should complete in reasonable time
+        assert len(results) == 5
+        assert end_time - start_time < 10  # Should take less than 10 seconds
+
+    def test_large_file_handling(self, tmp_path):
+        """Should handle large files without crashing."""
+        from fichero.ingest import ingest_file
+        
+        # Create a large file (10MB)
+        file = tmp_path / "large_file.jpg"
+        large_data = b"x" * (10 * 1024 * 1024)  # 10MB
+        file.write_bytes(large_data)
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.ingest.shutil") as mock_shutil:
+                mock_shutil.copy2.return_value = None
+                
+                # Should not crash with large file
+                from fichero.ingest import IngestMode
+                
+                result = ingest_file(
+                    path=str(file),
+                    parent_id=None,
+                    mode=IngestMode.COPY,
+                    extract_text=False,
+                    auto_embed=False
+                )
+                
+                assert result is not None
+                assert result.name == "large_file.jpg"

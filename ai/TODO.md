@@ -48,7 +48,7 @@
 - [x] TODO-004: Complete, test, and make sure File/Folder Import Endpoint works in backend. (P1, Medium)
 - [x] TODO-005: Complete Document Move Endpoint (P1, Medium)
   - Depends on: TODO-004
-- [ ] TODO-025: Test File/Folder Import Endpoint with all supported file types (P1, High)
+- [x] TODO-025: Test File/Folder Import Endpoint with all supported file types (P1, High)
   - Depends on: TODO-004
 
 ## Frontend Features (Built on backend) [P1]
