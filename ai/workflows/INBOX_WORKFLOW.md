@@ -14,7 +14,14 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
 6. **Create** task folder with concise name
 7. **Move** inbox file to task folder as `inbox_note.md`
 8. **Copy template** `ai/templates/inbox.md` to task folder as `task.md` and update
-9. **Request human review** of the completed task setup, and STOP.
+9. **Request human review** of the completed task setup
+10. **Update workflow** based on human feedback and show differences
+11. **Confirm changes** with human before finalizing
+12. **Commit changes to Git** with clear commit message following the standard format:
+    - Run `git add .` to stage all changes
+    - Run `git commit -m "<descriptive commit message>"` to commit
+    - Run `git push` if ready to push to remote
+    - Then STOP.
 
 ## Rules
 
