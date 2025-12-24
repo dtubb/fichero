@@ -142,8 +142,9 @@ The SidebarView.swift file is a complex component with 994 lines that handles mu
 
 ## Follow-up Tasks Created
 
-Based on this review, the following follow-up tasks should be created:
+Based on this review, the following follow-up tasks have been created:
 
+### Immediate Fixes (High Priority)
 1. **TODO-031: Fix SwiftLint Violations in SidebarView**
    - Clean up all SwiftLint violations
    - Ensure code style compliance
@@ -152,17 +153,40 @@ Based on this review, the following follow-up tasks should be created:
    - Extract nested components to separate files
    - Improve code organization
 
-3. **TODO-033: Implement Unit Tests for SidebarView**
-   - Create testable architecture
-   - Write comprehensive unit tests
-
-4. **TODO-034: Implement New Folder Functionality**
+3. **TODO-034: Implement New Folder Functionality**
    - Complete the TODO items for new folder creation
    - Add proper folder management
+
+### Quality Assurance
+4. **TODO-033: Implement Unit Tests for SidebarView**
+   - Create testable architecture
+   - Write comprehensive unit tests
 
 5. **TODO-035: Improve Sidebar Error Handling**
    - Standardize error handling patterns
    - Add proper error recovery
+
+### Performance and Architecture
+6. **TODO-036: Improve Sidebar Performance Optimization**
+   - Add virtualization for large lists
+   - Implement proper caching
+   - Optimize rendering performance
+
+7. **TODO-037: Refactor Sidebar State Management**
+   - Implement ObservableObject pattern
+   - Separate view state from business logic
+   - Improve state synchronization
+
+8. **TODO-038: Enhance Drag and Drop Functionality**
+   - Add proper synchronization for async operations
+   - Improve error handling
+   - Add visual feedback during operations
+
+### Long-Term Architectural Improvements
+9. **TODO-039: Implement MVVM Pattern for Sidebar**
+   - Create dedicated view models
+   - Separate business logic from UI
+   - Improve testability and maintainability
 
 ## Conclusion
 

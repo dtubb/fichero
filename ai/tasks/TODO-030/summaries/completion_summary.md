@@ -61,6 +61,10 @@ Each task includes:
 - `ai/inbox/TODO-033.md`: Unit testing task
 - `ai/inbox/TODO-034.md`: New folder functionality task
 - `ai/inbox/TODO-035.md`: Error handling improvement task
+- `ai/inbox/TODO-036.md`: Performance optimization task
+- `ai/inbox/TODO-037.md`: State management refactoring task
+- `ai/inbox/TODO-038.md`: Drag and drop enhancement task
+- `ai/inbox/TODO-039.md`: MVVM pattern implementation task
 
 ## Technical Details
 
@@ -97,14 +101,17 @@ Type Body Length: 1 (serious)
 2. **TODO-032**: Refactor component structure to reduce file size
 3. **TODO-034**: Implement new folder functionality (existing TODOs)
 
-### Medium-Term Priorities
+### Quality Assurance
 4. **TODO-033**: Implement unit tests for better test coverage
 5. **TODO-035**: Improve error handling patterns
 
+### Performance and Architecture
+6. **TODO-036**: Improve performance optimization (virtualization, caching)
+7. **TODO-037**: Refactor state management (ObservableObject pattern)
+8. **TODO-038**: Enhance drag and drop functionality
+
 ### Long-Term Architectural Improvements
-- Implement MVVM pattern for better separation of concerns
-- Modularize components for improved reusability
-- Add performance optimization for large datasets
+9. **TODO-039**: Implement MVVM pattern for better separation of concerns
 
 ## Impact Assessment
 

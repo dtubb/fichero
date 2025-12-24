@@ -77,6 +77,14 @@
   - Depends on: None
 - [ ] TODO-035: Improve Sidebar Error Handling (P2, Medium)
   - Depends on: None
+- [ ] TODO-036: Improve Sidebar Performance Optimization (P2, Medium)
+  - Depends on: TODO-032
+- [ ] TODO-037: Refactor Sidebar State Management (P2, Medium)
+  - Depends on: TODO-032
+- [ ] TODO-038: Enhance Drag and Drop Functionality (P2, Medium)
+  - Depends on: None
+- [ ] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
+  - Depends on: TODO-032, TODO-037
 
 ### Enhanced Features
 - [ ] TODO-007: Enhance Search Functionality (P2, High)
