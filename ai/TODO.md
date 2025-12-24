@@ -1,44 +1,66 @@
 # Fichero Development Tasks (Implementation Order)
 
+**See README.md for usage instructions**
+
 ## Legend
 - `[ ]` = Available (ready for implementation)
 - `[>]` = In Progress (currently being worked on)
-- `[x]` = Completed (done)
+- `[x]` = Completed (done - keep for reference)
+- `[!]` = Blocked (dependent on other tasks)
 
-## How to Use
-1. **Check Current Tasks**: Look for `[>]` (in progress) first
-2. **Pick Next Task**: If no `[>]`, pick first `[ ]` from top
-3. **Mark In Progress**: Update `[ ]` to `[>]` when starting
-4. **Navigate to Task**: `cd ai/tasks/[feature]/TODO-XXX/`
-5. **Read Files**: `task.md`, `context.md`, `workflow.md`
-6. **Implement**: Follow workflow instructions
-   - Take notes in `notes.md` (create if needed)
-   - Break down steps in `task.md` checklist
-   - Update files as you progress
-7. **Complete**: Update `[>]` to `[x]` and move to completed
+## Priority Levels
+- `P0` = Critical path, must be done immediately
+- `P1` = High priority, should be done soon
+- `P2` = Medium priority, can wait
+- `P3` = Low priority, nice to have
 
-## 1. Backend API (Foundation - Must be done first)
-- [ ] TODO-004: Complete File Import Endpoint
-- [ ] TODO-005: Complete Document Move Endpoint
+## Task Categories
+- `Backend`: Backend API and services
+- `Frontend`: UI and user interaction
+- `AI`: Machine learning and workflows
+- `Infrastructure`: Cross-cutting concerns
+- `Documentation`: Documentation improvements
 
-## 2. Frontend Features (Built on backend)
-- [ ] TODO-001: Complete Inline Rename Functionality
-- [ ] TODO-002: Complete New Folder Creation
-- [ ] TODO-003: Enhance Drag and Drop Visual Feedback
-- [x] TODO-008: Add keyboard shortcuts for CRUD operations
-- [x] TODO-009: Create inline rename and new folder dialogs
-- [ ] TODO-010: Add Batch Operations
-- [ ] TODO-011: Enhance Search Functionality
+## 1. Backend API (Foundation) [P0]
 
-## 3. AI & Workflow (Depends on backend + frontend)
-- [ ] TODO-006: Implement AI-Powered Document Analysis
-- [ ] TODO-007: Complete Workflow Engine
+### File Management
+- [ ] TODO-004: Complete File Import Endpoint (P1, Medium)
+  - Depends on: None
+- [ ] TODO-005: Complete Document Move Endpoint (P1, Medium)
+  - Depends on: TODO-004
 
-## 4. Infrastructure (Can be done in parallel)
-- [ ] TODO-012: Improve Error Handling
-- [ ] TODO-013: Add Comprehensive Logging
-- [x] TODO-014: Fix compilation errors and warnings
-- [x] TODO-015: Update development process documentation
+## 2. Frontend Features (Built on backend) [P1]
 
-## 5. Foundational (Already completed)
+### Core UI Functionality
+- [ ] TODO-001: Complete Inline Rename Functionality (P1, High)
+  - Depends on: TODO-005
+- [ ] TODO-002: Complete New Folder Creation (P1, Medium)
+  - Depends on: TODO-005
+
+### Enhanced Features
+- [ ] TODO-003: Enhance Drag and Drop Visual Feedback (P2, Medium)
+  - Depends on: TODO-001, TODO-002
+- [x] TODO-008: Add keyboard shortcuts for CRUD operations (P2, Low)
+- [x] TODO-009: Create inline rename and new folder dialogs (P2, Medium)
+- [ ] TODO-010: Add Batch Operations (P2, High)
+  - Depends on: TODO-001, TODO-002
+- [ ] TODO-011: Enhance Search Functionality (P2, High)
+  - Depends on: Backend search API
+
+## 3. AI & Workflow (Depends on backend + frontend) [P2]
+
+- [ ] TODO-006: Implement AI-Powered Document Analysis (P1, High)
+  - Depends on: TODO-004, TODO-011
+- [ ] TODO-007: Complete Workflow Engine (P1, High)
+  - Depends on: TODO-006
+
+## 4. Infrastructure (Can be done in parallel) [P2]
+
+- [ ] TODO-012: Improve Error Handling (P1, Medium)
+- [ ] TODO-013: Add Comprehensive Logging (P1, Medium)
+- [x] TODO-014: Fix compilation errors and warnings (P0, Low)
+- [x] TODO-015: Update development process documentation (P0, Medium)
+
+## 5. Foundational (Already completed) [P3]
+
 - [x] TODO-000: Implement comprehensive drag and drop functionality
