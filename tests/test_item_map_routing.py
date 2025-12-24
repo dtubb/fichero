@@ -122,14 +122,15 @@ class TestItemMapRouting(unittest.TestCase):
         default_item_id = "folder-123"
         collection_id = self.collection.id
 
-        # ACT: Resolve item_id for file-level output
+        # ACT: Resolve item_id for file-level output with explicit output_scope="file"
         target_item_id = self.integration._resolve_target_item_id(
             source="document2.jpg",
-            step_name="transcribe_qwen_max_direct",
+            step_name="transcribe_qwen_ocr",
             output_type="transcription",
             default_item_id=default_item_id,
             item_map=item_map,
-            collection_id=collection_id
+            collection_id=collection_id,
+            output_scope="file"  # Explicit file-level routing
         )
 
         # ASSERT: Should resolve to specific file item, NOT folder
@@ -143,66 +144,106 @@ class TestItemMapRouting(unittest.TestCase):
         collection_id = self.collection.id
 
         # ACT: Resolve item_id for file-level output WITHOUT item_map
+        # Even with output_scope="file", without item_map, falls back to folder
         target_item_id = self.integration._resolve_target_item_id(
             source="document2.jpg",
-            step_name="transcribe_qwen_max_direct",
+            step_name="transcribe_qwen_ocr",
             output_type="transcription",
             default_item_id=default_item_id,
-            item_map=None,  # This was the bug!
-            collection_id=collection_id
+            item_map=None,  # No item_map available
+            collection_id=collection_id,
+            output_scope="file"  # Even with file scope, no item_map means fallback
         )
 
         # ASSERT: Without item_map, should fallback to default (folder)
-        # This demonstrates the bug - but now we have fallback creation
+        # Fallback creation may attempt to find/create file item, but without item_map
+        # and without existing file in DB, it falls back to folder
         self.assertEqual(target_item_id, default_item_id,
-                        "Without item_map, falls back to folder (but fallback should try to create file item)")
+                        "Without item_map, falls back to folder")
 
     def test_resolve_target_item_id_collection_level(self):
-        """Test that collection-level outputs always use default_item_id"""
+        """Test that collection-level outputs always use default_item_id when output_scope='folder'"""
         # ARRANGE
         item_map = {"document1.jpg": "file-001"}
         default_item_id = "folder-123"
         collection_id = self.collection.id
 
-        # ACT: Resolve item_id for collection-level output
+        # ACT: Resolve item_id for collection-level output with output_scope="folder"
         target_item_id = self.integration._resolve_target_item_id(
             source="document1.jpg",  # Even with matching source
             step_name="catalogue_folder",
             output_type="catalogue",
             default_item_id=default_item_id,
             item_map=item_map,
-            collection_id=collection_id
+            collection_id=collection_id,
+            output_scope="folder"  # Explicit folder-level routing
         )
 
         # ASSERT: Collection-level should always use folder/collection item_id
         self.assertEqual(target_item_id, default_item_id,
                         "Collection-level output should route to folder")
 
-    def test_is_output_collection_level_detection(self):
-        """Test detection of collection-level vs file-level outputs"""
-        # Collection-level patterns
-        self.assertTrue(
-            self.integration._is_output_collection_level("catalogue_folder", "catalogue"),
-            "catalogue_folder should be collection-level"
+    def test_output_scope_routing(self):
+        """Test that output_scope parameter controls routing behavior"""
+        # ARRANGE: Create folder and file item
+        folder_item = CollectionItem(
+            id="folder-test",
+            collection_id=self.collection.id,
+            type="folder",
+            name="test_folder",
+            source_path=str(self.test_dir / "test_folder"),
+            storage_type="external"
         )
-        self.assertTrue(
-            self.integration._is_output_collection_level("collection_summary", "summary"),
-            "collection_summary should be collection-level"
-        )
-        self.assertTrue(
-            self.integration._is_output_collection_level("batch_process", "batch"),
-            "batch_process should be collection-level"
-        )
+        self.storage.add_collection_item(folder_item)
 
-        # File-level patterns
-        self.assertFalse(
-            self.integration._is_output_collection_level("transcribe_qwen_max", "transcription"),
-            "transcribe_qwen_max should be file-level"
+        file_item = CollectionItem(
+            id="file-test",
+            collection_id=self.collection.id,
+            type="file",
+            name="doc.jpg",
+            parent_id=folder_item.id,
+            source_path=str(self.test_dir / "test_folder" / "doc.jpg"),
+            storage_type="external"
         )
-        self.assertFalse(
-            self.integration._is_output_collection_level("enhance_image", "enhanced_image"),
-            "enhance_image should be file-level"
+        self.storage.add_collection_item(file_item)
+
+        item_map = {"doc.jpg": "file-test"}
+
+        # TEST: output_scope="folder" routes to folder
+        target_id = self.integration._resolve_target_item_id(
+            source="doc.jpg",
+            step_name="catalogue",
+            output_type="catalogue",
+            default_item_id=folder_item.id,
+            item_map=item_map,
+            collection_id=self.collection.id,
+            output_scope="folder"
         )
+        self.assertEqual(target_id, folder_item.id, "Folder scope should route to folder")
+
+        # TEST: output_scope="file" routes to file
+        target_id = self.integration._resolve_target_item_id(
+            source="doc.jpg",
+            step_name="transcribe",
+            output_type="transcription",
+            default_item_id=folder_item.id,
+            item_map=item_map,
+            collection_id=self.collection.id,
+            output_scope="file"
+        )
+        self.assertEqual(target_id, "file-test", "File scope should route to file item")
+
+        # TEST: output_scope=None (no scope defined) defaults to folder (safe fallback)
+        target_id = self.integration._resolve_target_item_id(
+            source="doc.jpg",
+            step_name="unknown_step",
+            output_type="unknown",
+            default_item_id=folder_item.id,
+            item_map=item_map,
+            collection_id=self.collection.id,
+            output_scope=None
+        )
+        self.assertEqual(target_id, folder_item.id, "No scope should default to folder (safe fallback)")
 
     def test_find_or_create_file_item_finds_existing(self):
         """Test that _find_or_create_file_item finds existing file items"""
@@ -288,7 +329,7 @@ class TestItemMapRouting(unittest.TestCase):
         # ACT: Try to resolve for document2 (not in map)
         target_item_id = self.integration._resolve_target_item_id(
             source="document2.jpg",  # Not in item_map!
-            step_name="transcribe_qwen_max",
+            step_name="transcribe_qwen_ocr",
             output_type="transcription",
             default_item_id=default_item_id,
             item_map=item_map,
@@ -305,14 +346,15 @@ class TestItemMapRouting(unittest.TestCase):
         # ARRANGE: item_map with just filename
         item_map = {"document.jpg": "file-001"}
 
-        # Test with full path
+        # Test with full path - requires output_scope="file" for file-level routing
         target_id = self.integration._resolve_target_item_id(
             source="/full/path/to/document.jpg",  # Full path
-            step_name="transcribe_qwen_max",
+            step_name="transcribe_qwen_ocr",
             output_type="transcription",
             default_item_id="folder-123",
             item_map=item_map,
-            collection_id=self.collection.id
+            collection_id=self.collection.id,
+            output_scope="file"  # Explicit file-level routing
         )
 
         # ASSERT: Should extract filename and match
@@ -351,15 +393,17 @@ class TestItemMapRouting(unittest.TestCase):
         item_map = {filename: file_id for file_id, filename in test_files}
 
         # ACT: Resolve item_ids for multiple transcriptions
+        # Note: output_scope="file" is required for file-level routing
         resolved_ids = []
         for _, filename in test_files:
             target_id = self.integration._resolve_target_item_id(
                 source=filename,
-                step_name="transcribe_qwen_max",
+                step_name="transcribe_qwen_ocr",
                 output_type="transcription",
                 default_item_id=folder_item.id,
                 item_map=item_map,
-                collection_id=self.collection.id
+                collection_id=self.collection.id,
+                output_scope="file"  # Explicit file-level routing
             )
             resolved_ids.append(target_id)
 

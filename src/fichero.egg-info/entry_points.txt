@@ -1,0 +1,3 @@
+[console_scripts]
+fichero-cli = fichero.cli:main
+fichero-gui = fichero.app:main

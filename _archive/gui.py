@@ -1,0 +1,759 @@
+"""
+Fichero GUI Application
+
+Main entry point for the Fichero GUI application.
+Uses Toga for cross-platform GUI framework.
+"""
+
+import toga
+import sys
+import os
+import logging
+
+# Enable Toga debug layout mode to visualize containers (PHASE 3.2 - disabled by default)
+# toga.Widget.DEBUG_LAYOUT_ENABLED = True
+
+from pathlib import Path
+import gettext
+import locale
+from typing import Optional
+
+# Install basic gettext for now - proper translation setup happens after Toga app creation
+gettext.install('fichero')
+
+# MenuManager import removed - using CommandManager now
+# Document model removed - using library approach instead
+from fichero.core.app_initializer import initialize_gui_app
+from fichero.core.error_handler import create_gui_error_handler
+from fichero import __version__
+# OLD LIBRARY SYSTEM - DISABLED (using new db.py/models.py instead)
+# from fichero.library.library_manager import LibraryManager
+# from fichero.windows.main.services.library_service import LibraryService
+
+logger = logging.getLogger(__name__)
+
+
+class FicheroApp(toga.App):
+    """Thin wrapper GUI application - delegates all business logic to shared systems"""
+    
+    # Application metadata
+    formal_name = "Fichero"
+    app_id = "ca.tubb.fichero"
+    description = "Multi-Step Document Processing"
+    author = "Daniel Tubb"
+    version = __version__
+    home_page = "https://www.tubb.ca/fichero/"
+    
+    def _setup_translations_early(self):
+        """Setup translations immediately after app creation, before UI imports"""
+        try:
+            from fichero.ui.i18n import setup_translations
+            if setup_translations(self):
+                print("✅ Translations loaded successfully")
+            else:
+                print("⚠️ Using fallback translations")
+        except Exception as e:
+            print(f"❌ Translation setup failed: {e}")
+            # Ensure fallback is installed
+            gettext.install('fichero')
+    
+    def startup(self):
+        """Initialize the app - delegates to shared initialization system"""
+        # Enable Toga debug layout mode if TOGA_DEBUG_LAYOUT is set
+        import os
+        if os.environ.get('TOGA_DEBUG_LAYOUT') == '1':
+            toga.Widget.DEBUG_LAYOUT_ENABLED = True
+            logger.info("🎨 Toga debug layout mode enabled")
+
+        # Check if running as bundled GUI app (minimize console output)
+        is_gui_only = self._is_gui_only_mode()
+
+        if not is_gui_only:
+            print("🚀 Fichero GUI starting up...")
+        logger.info("Fichero GUI starting up")
+
+        # Setup translations immediately after app creation, before importing UI modules
+        self._setup_translations_early()
+        
+        # Import UI modules after translations are set up  
+        
+        # Set app icon first
+        try:
+            self.icon = toga.Icon("resources/icons/fichero.png")
+            if not is_gui_only:
+                print("✅ App icon loaded")
+            logger.info("App icon loaded")
+        except Exception as e:
+            if not is_gui_only:
+                print(f"⚠️ Warning: Could not load app icon: {e}")
+            logger.warning(f"Could not load app icon: {e}")
+        
+        # Initialize components immediately
+        try:
+            self.components, self.initializer = initialize_gui_app(app_context=self)
+            
+            # Extract initialized components (same as CLI gets, plus GUI-specific)
+            # Set director first since document system depends on it
+            self.director = self.components['director']
+            self.settings = self.components['settings']
+            # Document system components removed - using library approach
+            
+            # OLD LIBRARY SYSTEM - DISABLED
+            # self.library_manager = LibraryManager(self)
+            # logger.info("Library manager initialized at app level")
+            self.library_manager = None  # Placeholder for compatibility
+
+            # Initialize state manager for session persistence
+            from fichero.config.core.state_manager import StateManager
+            self.state_manager = StateManager(self)
+            logger.info("State manager initialized at app level")
+
+            # Initialize window state tracker for native macOS window state tracking
+            from fichero.shared.utils.window_state_tracker import WindowStateTracker
+            self.window_state_tracker = WindowStateTracker(self.state_manager)
+            logger.info("Window state tracker initialized at app level")
+
+            # Initialize SelectionManager
+            from fichero.shared.selection import SelectionManager
+            self.selection_manager = SelectionManager()
+            logger.info("SelectionManager initialized")
+
+            # OLD LIBRARY SERVICE - DISABLED
+            # self.library_service = LibraryService(self.library_manager)
+            # logger.info("Library service initialized at app level")
+            self.library_service = None  # Placeholder for compatibility
+
+            # OLD WORKFLOW CHAINER - DISABLED (uses old library)
+            # from fichero.library.workflow_chainer import WorkflowChainer
+            # self.workflow_chainer = WorkflowChainer(
+            #     config_manager=self.settings
+            # )
+            # logger.info("Workflow chainer initialized at app level")
+            self.workflow_chainer = None  # Placeholder
+
+            # OLD DIRECTOR INTEGRATION - DISABLED (uses old library_manager)
+            # from fichero.library.director_integration import DirectorIntegrationService
+            # self.director_integration = DirectorIntegrationService(
+            #     app=self,
+            #     library_manager=self.library_manager,
+            #     director=self.director
+            # )
+            # logger.info("Director integration service initialized at app level")
+            self.director_integration = None  # Placeholder
+
+            # Initialize simple view integration for event-driven navigation
+            from fichero.shared.navigation.view_integration import ViewIntegration
+            self.view_integration = ViewIntegration(self)
+            if self.view_integration.initialize():
+                logger.info("View integration initialized successfully")
+            else:
+                logger.warning("View integration initialization failed, using fallback")
+                self.view_integration = None
+
+            # Detect platform once and set as app property FIRST
+            self.is_mobile = self._detect_platform_simple()
+            logger.info(f"Platform detection complete: is_mobile={self.is_mobile}")
+
+            # Initialize unified window/view manager (after mobile detection)
+            
+            if not is_gui_only:
+                print("✅ Fichero components initialized")
+            logger.info("Fichero components initialized")
+            
+        except Exception as e:
+            error_msg = f"Failed to initialize Fichero: {e}"
+            logger.error(error_msg)
+            
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                print("Cannot continue without core services.")
+                import traceback
+                traceback.print_exc()
+                print("The application will now exit.")
+            
+            # For iOS, don't exit - create a minimal app instead
+            if is_gui_only:
+                logger.warning("Running in GUI-only mode, creating minimal app without core services")
+                self.director = None
+                self.settings = None
+                self.components = {}
+            else:
+                # Exit cleanly without showing dialog during startup
+                self.exit()
+                return
+        
+        # Initialize GUI-specific systems
+        try:
+            self._setup_gui_interface()
+            
+            # Register on_exit handler to save state when app closes
+            # This is CRITICAL - without this, finalize() is never called and state is never saved
+            self.on_exit = self._handle_exit
+            logger.info("Exit handler registered for state persistence")
+
+            if not is_gui_only:
+                print("✨ Fichero GUI ready!")
+            logger.info("Fichero GUI ready")
+        except Exception as e:
+            error_msg = f"GUI interface setup failed: {e}"
+            logger.error(error_msg)
+            
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                print("Cannot continue without GUI interface.")
+                import traceback
+                traceback.print_exc()
+                print("The application will now exit.")
+            
+            # Exit cleanly
+            self.exit()
+            return
+    
+    def _is_gui_only_mode(self):
+        """Detect if running as bundled GUI app (minimize console output)"""
+        # Check if running as bundled app
+        is_bundled = getattr(sys, 'frozen', False) or hasattr(sys, '_MEIPASS')
+        
+        # Check if stdout is not connected to terminal (GUI app)
+        is_gui_app = not sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else True
+        
+        # Check if running via briefcase (look for app bundle structure)
+        is_briefcase_app = 'Contents/MacOS' in str(sys.executable) if sys.executable else False
+        
+        return is_bundled or is_briefcase_app or (is_gui_app and not os.environ.get('TERM'))
+
+    def _detect_platform_simple(self):
+        """Simple platform detection using environment variables and Toga"""
+        try:
+            # First check for environment variable override (for testing)
+            import os
+            env_mobile = os.environ.get('FORCE_MOBILE_UI')
+            if env_mobile is not None:
+                is_mobile = env_mobile.lower() in ('true', '1', 'yes', 'on')
+                logger.info(f"Using environment variable FORCE_MOBILE_UI: {is_mobile}")
+                return is_mobile
+            
+            # Use Toga's platform detection
+            import toga.platform
+            current_platform = toga.platform.current_platform
+            is_mobile = current_platform in ['iOS', 'android']
+            
+            logger.info(f"Platform detection: {current_platform} -> mobile={is_mobile}")
+            return is_mobile
+                
+        except Exception as e:
+            logger.error(f"Platform detection failed: {e}, assuming desktop")
+            return False
+
+    def about(self):
+        """Override Toga's default About dialog with custom About window"""
+        self.show_about()
+
+    def preferences(self):
+        """Override Toga's default Preferences dialog with custom Settings window"""
+        self.show_settings()
+
+    def _setup_gui_interface(self):
+        """Set up GUI-specific interface elements"""
+        print("🔍 Starting _setup_gui_interface...")
+        is_gui_only = self._is_gui_only_mode()
+        
+        try:
+            # Check if this is a desktop platform
+            import toga.platform
+            current_platform = toga.platform.current_platform
+            is_desktop = current_platform not in ['iOS', 'android']
+            
+            # Native menu and toolbar are now managed by main_window.py using
+            # windows/main/menu.py and windows/main/toolbar.py directly.
+            self.command_manager = None  # Legacy reference for compatibility
+            
+            # Create main window for collection library view (only once)
+            print("🔍 Creating MainWindow...")
+            # MainWindow moved to app/ package (old location: fichero.windows.main)
+            # Use factory function to choose between Toga and native window based on feature flag
+            from fichero.app.main_window import create_main_window, USE_NATIVE_WINDOW
+            print(f"🔍 USE_NATIVE_WINDOW = {USE_NATIVE_WINDOW}")
+            self.main_window_wrapper = create_main_window(self)
+            print("✅ MainWindow created successfully")
+            
+            if not is_gui_only:
+                print("✅ Main window configured for collection library")
+            logger.info("Main window configured for collection library")
+            
+            # Show the main window on startup (this creates the Toga window)
+            print("🔍 About to show main window...")
+            try:
+                self.main_window_wrapper.show()
+                print("✅ Main window shown successfully")
+            except Exception as e:
+                print(f"❌ Failed to show main window: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
+
+            # Set the Toga main_window property
+            if not USE_NATIVE_WINDOW:
+                self.main_window = self.main_window_wrapper.window
+            else:
+                # For native window, Toga still requires a main_window to be set
+                # Create a hidden placeholder window to satisfy Toga's requirements
+                # The actual UI is managed by our native MainWindowController
+                print("🔍 Using native window - creating hidden Toga placeholder")
+                self._toga_placeholder = toga.MainWindow(title="Fichero", size=(1, 1))
+                self._toga_placeholder.content = toga.Box()
+                self.main_window = self._toga_placeholder
+                # Hide the placeholder immediately after Toga sees it
+                # The native window is already visible from show() above
+
+            # Build menu/toolbar after app is running
+            # This ensures all commands are registered and window is fully loaded
+            # NOTE: Window position/size is now set during window creation in _create_window()
+            if is_desktop:
+                async def build_menu_toolbar_when_ready(app, **kwargs):
+                    """Build menu/toolbar after app is fully running"""
+                    import asyncio
+                    await asyncio.sleep(0.1)  # Brief delay to ensure everything is initialized
+
+                    # Check if using native window mode
+                    from fichero.app.main_window import USE_NATIVE_WINDOW, USE_NATIVE_MENU_TOOLBAR
+
+                    if USE_NATIVE_WINDOW:
+                        # Native window mode - rebuild menu/toolbar after Toga's setup
+                        # Toga's MainWindow creation overwrites our menu, so rebuild it now
+                        print("🔍 Native window mode - rebuilding menu/toolbar after Toga init")
+                        if hasattr(self, 'main_window_wrapper') and hasattr(self.main_window_wrapper, '_native_menu'):
+                            self.main_window_wrapper._native_menu.build()
+                            print("✅ Native menu rebuilt")
+                        # Hide the placeholder Toga window now that we're running
+                        if hasattr(self, '_toga_placeholder') and self._toga_placeholder:
+                            try:
+                                # Hide by making it tiny and offscreen
+                                self._toga_placeholder._impl.native.orderOut_(None)
+                                print("✅ Toga placeholder window hidden")
+                            except Exception as e:
+                                print(f"⚠️ Could not hide placeholder: {e}")
+                    elif USE_NATIVE_MENU_TOOLBAR:
+                        print("🔍 Setting up native menu/toolbar (app is now running)...")
+                        # Re-set the native menu after Toga's menu is built
+                        if hasattr(self.main_window_wrapper, '_native_menu'):
+                            self.main_window_wrapper._native_menu.build()
+                            print("✅ Native menu set successfully")
+                        # Attach toolbar to window
+                        if hasattr(self.main_window_wrapper, '_native_toolbar'):
+                            self.main_window_wrapper._native_toolbar.attach_to_window(
+                                self.main_window_wrapper.window
+                            )
+                            print("✅ Native toolbar attached successfully")
+                    else:
+                        print("🔍 Building legacy toolbar (app is now running)...")
+                        self.main_window_wrapper._update_toolbar_for_library_view(context='normal')
+                        print("✅ Legacy toolbar built successfully")
+
+                self.on_running = build_menu_toolbar_when_ready
+
+            # Inspector is now integrated into the main window (Info pane)
+            self.inspector_window = None
+
+        except Exception as e:
+            error_msg = f"GUI interface setup failed: {e}"
+            logger.error(error_msg)
+            if not is_gui_only:
+                print(f"❌ Error: {error_msg}")
+                import traceback
+                traceback.print_exc()
+            # Exit the app if GUI setup fails
+            self.exit()
+
+    # Activity Monitor Management
+    def show_activity_monitor(self):
+        """Show the activity monitor window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_activity_monitor()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show activity monitor: {e}")
+            return False
+
+    def close_activity_monitor(self):
+        """Close the activity monitor window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close activity monitor: {e}")
+            return False
+
+    # Inspector Window Management
+    def show_inspector(self):
+        """Show the inspector window (desktop only)"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                self.inspector_window.show()
+                logger.info("Inspector window shown")
+                return True
+            else:
+                logger.warning("Inspector window not available (mobile platform or not initialized)")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to show inspector: {e}")
+            return False
+
+    def hide_inspector(self):
+        """Hide the inspector window"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                self.inspector_window.hide()
+                logger.info("Inspector window hidden")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to hide inspector: {e}")
+            return False
+
+    def toggle_inspector(self):
+        """Toggle inspector window visibility"""
+        try:
+            if hasattr(self, 'inspector_window') and self.inspector_window:
+                if self.inspector_window.is_visible:
+                    self.hide_inspector()
+                else:
+                    self.show_inspector()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to toggle inspector: {e}")
+            return False
+
+    def show_settings(self):
+        """Show the settings window or view"""
+        try:
+            logger.info("=== show_settings() called ===")
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_settings()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show settings: {e}")
+            return False
+
+    def close_settings(self):
+        """Close the settings window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close settings: {e}")
+            return False
+
+    def show_plans(self):
+        """Show the plans window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_plans()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show plans: {e}")
+            return False
+
+    def close_plans(self):
+        """Close the plans window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close plans: {e}")
+            return False
+
+    def show_prompts(self):
+        """Show the prompts window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_prompts()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show prompts: {e}")
+            return False
+
+    def close_prompts(self):
+        """Close the prompts window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close prompts: {e}")
+            return False
+
+    def show_processing(self):
+        """Show the processing window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_processing()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show processing: {e}")
+            return False
+
+    def close_processing(self):
+        """Close the processing window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close processing: {e}")
+            return False
+
+    def show_preview(self, file_path=None, **kwargs):
+        """Show the preview window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller and file_path:
+                    return navigation_controller.navigate_to_preview(file_path, kwargs)
+
+            logger.error("NavigationController not available or no file path provided")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show preview: {e}")
+            return False
+
+    def close_preview(self):
+        """Close the preview window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close preview: {e}")
+            return False
+
+    def show_about(self):
+        """Show the about window - uses NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_about()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show about: {e}")
+            return False
+
+    def show_add_url(self):
+        """Show the add URL dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_url()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add URL: {e}")
+            return False
+
+    def show_add_camera(self):
+        """Show the add camera dialog"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_to_add_camera()
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to show add camera: {e}")
+            return False
+
+    def show_add_dialog(self, option_id: Optional[str] = None):
+        """Legacy method - redirects to specific add methods"""
+        try:
+            # Map legacy option_id to new specific methods
+            if option_id == "url":
+                return self.show_add_url()
+            elif option_id == "camera":
+                return self.show_add_camera()
+            else:
+                # Default to URL for backward compatibility
+                return self.show_add_url()
+        except Exception as e:
+            logger.error(f"Failed to show add dialog: {e}")
+            return False
+
+    def close_about(self):
+        """Close the about window - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    return navigation_controller.navigate_back()
+
+            logger.error("NavigationController not available")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to close about: {e}")
+            return False
+
+    def close_all_windows(self):
+        """Close all secondary windows - handled by NavigationController"""
+        try:
+            if hasattr(self, 'view_integration') and self.view_integration:
+                navigation_controller = self.view_integration.get_navigation_controller()
+                if navigation_controller:
+                    # Navigate back to library to close all modals
+                    navigation_controller.navigate_to_library()
+                    logger.info("All secondary windows/views closed")
+                else:
+                    logger.error("NavigationController not available")
+            else:
+                logger.error("Navigation integration not available")
+        except Exception as e:
+            logger.error(f"Failed to close all windows: {e}")
+
+    # Document operations removed - using library approach instead
+
+    def _handle_exit(self, app, **kwargs):
+        """
+        Toga on_exit handler - called when user tries to quit the app.
+
+        We save state, then use os._exit(0) for immediate termination.
+        This bypasses all Python cleanup handlers to avoid GIL crashes
+        from rubicon ObjC threading issues during shutdown.
+
+        Args:
+            app: The Toga app instance
+            **kwargs: Additional kwargs passed by Toga
+
+        Returns:
+            Never returns - exits via os._exit(0)
+        """
+        # Prevent double finalize if called multiple times
+        if hasattr(self, '_exiting') and self._exiting:
+            import os
+            os._exit(0)
+        self._exiting = True
+
+        logger.info("Exiting - saving state...")
+        try:
+            self.finalize()
+        except Exception as e:
+            logger.error(f"Error during finalize: {e}")
+
+        # Immediate termination - bypasses Python cleanup and rubicon callbacks
+        import os
+        os._exit(0)
+
+    def finalize(self):
+        """Clean up when app closes - delegates to shared cleanup system"""
+        is_gui_only = self._is_gui_only_mode()
+        if not is_gui_only:
+            print("🔄 Fichero GUI closing...")
+        logger.info("Fichero GUI closing")
+
+        try:
+            # Save main window layout/pane visibility state (CRITICAL: before cleanup)
+            if hasattr(self, 'main_window_wrapper') and self.main_window_wrapper:
+                logger.info("Saving main window layout state...")
+                try:
+                    self.main_window_wrapper._save_window_state()
+                except Exception as e:
+                    logger.warning(f"Could not save main window layout state: {e}")
+
+            # Save window positions via native tracker (CRITICAL: must happen before cleanup)
+            if hasattr(self, 'window_state_tracker') and self.window_state_tracker:
+                logger.info("Saving all window positions...")
+                self.window_state_tracker.save_all_states()
+
+            # Write state to disk (CRITICAL: state_manager.set_* only updates memory)
+            if hasattr(self, 'state_manager') and self.state_manager:
+                logger.info("Persisting state to disk...")
+                self.state_manager.save_state_sync()
+
+            # Close all secondary windows
+            self.close_all_windows()
+
+            # Clean up window state tracker observers
+            if hasattr(self, 'window_state_tracker') and self.window_state_tracker:
+                self.window_state_tracker.cleanup()
+
+            # Use shared cleanup wrapper (same pattern as CLI)
+            if hasattr(self, 'initializer') and self.initializer:
+                self.initializer.cleanup()
+        except Exception as e:
+            error_msg = f"Error during cleanup: {e}"
+            logger.error(error_msg)
+            is_gui_only = self._is_gui_only_mode()
+            if not is_gui_only:
+                print(f"❌ {error_msg}")
+                import traceback
+                traceback.print_exc()
+
+
+def main():
+    """Main entry point - delegates to shared error handling"""
+    error_handler = create_gui_error_handler()
+    
+    def run_app():
+        app = FicheroApp(
+            formal_name="Fichero",
+            app_id="ca.tubb.fichero"
+        )
+        app.main_loop()
+    
+    wrapped_app = error_handler.wrap_main_function(run_app, "GUI application")
+    wrapped_app()
+
+
+if __name__ == "__main__":
+    main()

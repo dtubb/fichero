@@ -20,7 +20,7 @@ workflows:
   Quotations:
     - build_documents_manifest
     - prepare_images
-    - transcribe_qwen_max_direct
+    - transcribe_qwen_ocr
     - extract_quotations
     - convert_to_word
     - quotations_to_word
@@ -30,6 +30,7 @@ commands:
     worker_type: "io"
     help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    output_scope: "folder"  # Manifest is folder-level
     args:
       source_folder: "documents"
       output_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -40,6 +41,7 @@ commands:
     worker_type: "io"
     help: "Prepare images (apply EXIF rotation and compress them) for better processing"
     function: "fichero.tools.prepare_images.prepare_images_batch"
+    output_scope: "file"  # Each output corresponds to a source file
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -50,10 +52,11 @@ commands:
       - "assets/prepared"
       - "assets/prepared/prepare_images_manifest.jsonl"
 
-  - name: transcribe_qwen_max_direct
+  - name: transcribe_qwen_ocr
     worker_type: "io"
-    help: "Transcribe prepared documents using Qwen VL Max model"
+    help: "Transcribe prepared documents using Qwen VL OCR model"
     function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
     args:
       source_folder: "assets/prepared/documents"
       source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
@@ -68,6 +71,7 @@ commands:
     worker_type: "io"
     help: "Extract quotations, testimony, and statements by specific people from transcribed documents"
     function: "fichero.tools.llm_process.process_documents_batch"
+    output_scope: "folder"  # Quotations extraction is folder-level
     args:
       source_folder: "assets/transcriptions"
       source_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"
@@ -81,8 +85,9 @@ commands:
     worker_type: "io"
     help: "Convert prepared documents and transcriptions to Word documents with side-by-side layout"
     function: "fichero.tools.convert_to_word.convert_to_word_batch"
+    output_scope: "folder"  # Word doc combines all transcriptions - folder level
     depends_on:
-      - "transcribe_qwen_max_direct"  # For transcriptions
+      - "transcribe_qwen_ocr"  # For transcriptions
     args:
       images_folder: "assets/prepared"           # ← Use prepared documents as images
       transcription_manifest: "assets/transcriptions/transcriptions_manifest.jsonl"  # ← From transcribe step
@@ -94,6 +99,7 @@ commands:
     worker_type: "io"
     help: "Convert quotations JSON files to Word documents"
     function: "fichero.tools.json_to_word.json_to_word_batch"
+    output_scope: "folder"  # Quotations Word doc is folder-level
     args:
       source_folder: "assets/quotations"
       source_manifest: "assets/quotations/llm_process_manifest.jsonl"

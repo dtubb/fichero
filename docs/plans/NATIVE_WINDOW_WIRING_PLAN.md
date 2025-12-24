@@ -1,167 +1,151 @@
 # Native Window Wiring Plan
 
-## Current State
+## Goal
 
-### Old System (Toga-based)
-- `gui.py` - FicheroApp creates MainWindow
-- `app/main_window/__init__.py` - MainWindow using Toga SplitContainers
-- Uses `LibraryManager` (old library system)
-- Event-driven via NavigationController + NavigationEventBus
-- Feature flag `USE_NATIVE_MENU_TOOLBAR = True` for native menu/toolbar
+Wire up the native macOS window components so they work together:
+- Sidebar → Browser → Editor → Inspector
+- Toolbar Search → db.search() → Browser results
+- Fix sidebar crash on folder expansion
 
-### New System (Native AppKit)
-- `app/main_window/sidebar.py` - SourceList (NSOutlineView) ✅
-- `app/main_window/browser.py` - Browser (NSCollectionView) ✅
-- `app/main_window/editor.py` - EditorContainer (ImageViewer, TableViewer, TextViewer) ✅
-- `app/main_window/inspector.py` - Inspector (metadata + info) ✅
-- `app/main_window/window.py` - MainWindowController (4-pane NSSplitView) ✅
-- `app/main_window/menu.py` - AppMenu (NSMenu) ✅
-- `app/main_window/toolbar.py` - AppToolbar (NSToolbar) ✅
+## Design Principles
 
-### Data Layer
-- `db.py` - Database (DuckDB) ✅
-- `models.py` - Pydantic models (Document, Artifact, etc.) ✅
+1. **Pythonic** - Simple functions, clear data flow, no over-abstraction
+2. **Pydantic + DuckDB + LanceDB** - Single source of truth for data
+3. **Views are dumb** - Components receive data, don't query database
+4. **Window controller orchestrates** - All data flow through MainWindowController
 
-## Architecture Clarification
+## Architecture
 
 ```
-┌──────────┬─────────────────────┬──────────────────┬──────────┐
-│ SIDEBAR  │      BROWSER        │      EDITOR      │INSPECTOR │
-│          │                     │                  │          │
-│ Sections:│ Grid of thumbnails  │ Swappable:       │ Metadata │
-│ - Library│ from current        │ - ImageViewer    │ + Info   │
-│ - Workflows│ selection         │ - TableViewer    │ + AI out │
-│ - Search │                     │ - TextViewer     │          │
-│ - Tags   │                     │ - WorkflowEditor │          │
-│          │                     │   (future)       │          │
-└──────────┴─────────────────────┴──────────────────┴──────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    MainWindowController                          │
+│  (window.py - orchestrates all data flow)                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
+│  │ Sidebar  │───▶│ Browser  │───▶│  Editor  │    │Inspector │  │
+│  │          │    │          │    │          │    │          │  │
+│  │ on_select│    │ on_select│    │ .load()  │    │ .load()  │  │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
+│       │                │               ▲              ▲         │
+│       │                │               │              │         │
+│       ▼                ▼               │              │         │
+│  ┌─────────────────────────────────────┴──────────────┘         │
+│  │              Data Layer (db.py)                              │
+│  │  db.query(Document, parent_id=...) → [Document, ...]         │
+│  │  db.search(query) → [SearchResult, ...]                      │
+│  │  db.get(Document, id) → Document                             │
+│  └──────────────────────────────────────────────────────────────┘
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key insight**: Editor is JUST for viewing/editing content. Could be:
-- Image viewer (with zoom/pan)
-- Table view (for lists)
-- Text viewer (for transcriptions)
-- Workflow editor (future - for editing workflow steps)
-- Preview + something else stacked (future)
+## Current Issues (2025-12-11)
 
-## Wiring Strategy
+### 1. Sidebar Crash on Folder Expansion
 
-### Phase 1: Feature Flag + Parallel Systems
+**Problem:** Recursive `_load_document_children()` can crash due to:
+- Deep recursion on large hierarchies
+- DuckDB concurrency issues
+- KVO notifications during tree modification
 
-Add feature flag in `app/main_window/__init__.py`:
-```python
-USE_NATIVE_WINDOW = False  # Set True to use new NSSplitView system
+**Solution:** Limit recursion depth, add error handling.
+
+### 2. Toolbar Search Not Connected
+
+**Problem:** `AppToolbar` has `on_search` parameter but it's never passed.
+
+**Solution:** Pass callback in `_setup_menu_toolbar()`.
+
+### 3. Search Results Display
+
+**Problem:** No way to show search results in browser.
+
+**Solution:** Search results update `browser.items` directly.
+
+## Implementation Plan
+
+### Phase 1: Fix Sidebar (Prevent Crash)
+
+File: `sidebar_native.py`
+
+1. Add max depth limit to `_load_document_children()`
+2. Wrap db calls in try/except
+3. Add logging for debugging
+
+### Phase 2: Wire Toolbar Search
+
+File: `window.py`
+
+1. Add `_on_toolbar_search()` method
+2. Pass it to AppToolbar via `on_search` parameter
+3. Search calls `db.search()` and updates browser
+
+### Phase 3: Add Logging
+
+Files: `window.py`, `sidebar_native.py`, `browser.py`
+
+1. Add info-level logging at key data flow points
+2. Makes debugging easier
+
+## Data Flow After Fix
+
+```
+User clicks folder in Sidebar
+         │
+         ▼
+sidebar.on_select("doc:abc123")
+         │
+         ▼
+window._on_sidebar_select("doc:abc123")
+         │
+         ├─▶ Strip prefix: "abc123"
+         ├─▶ db.get(Document, "abc123") → doc
+         ├─▶ db.query(Document, parent_id="abc123") → children
+         └─▶ browser.items = children
+                   │
+                   ▼
+         Browser shows thumbnails
+
+
+User types in search bar
+         │
+         ▼
+toolbar.on_search("query")
+         │
+         ▼
+window._on_toolbar_search("query")
+         │
+         ├─▶ db.search("query") → [SearchResult, ...]
+         ├─▶ Convert to Documents
+         └─▶ browser.items = docs
 ```
 
-When `USE_NATIVE_WINDOW = True`:
-- Create `MainWindowController` instead of Toga MainWindow
-- Use new native components
-- Wire to new `db.py` data layer
+## Files to Modify
 
-When `USE_NATIVE_WINDOW = False`:
-- Existing Toga MainWindow (current behavior)
-- Uses LibraryManager
+| File | Changes |
+|------|---------|
+| `sidebar_native.py` | Add depth limit, error handling |
+| `window.py` | Add `_on_toolbar_search()`, wire to toolbar |
 
-### Phase 2: Data Source Wiring
+## Testing
 
-**Sidebar → Database**
-```python
-# In MainWindowController.__init__
-from fichero.models import Document, DocType
-from fichero.db import db
+1. Launch app: `PYTHONPATH=src .venv/bin/python -m fichero.gui`
+2. Click folders in sidebar - should not crash
+3. Type in search bar - should show results in browser
+4. Click search result - should show in editor/inspector
 
-# Load collections
-collections = db.query(Document, doc_type=DocType.collection)
-self.load_sidebar(collections)
-```
+---
 
-**Sidebar Selection → Browser**
-```python
-def _on_sidebar_select(self, item):
-    doc = item.data  # Document stored in SourceListItem.data
-    if doc.doc_type == DocType.collection:
-        # Load children into browser
-        items = db.query(Document, parent_id=doc.id)
-        self.browser.items = items
-```
+## Future: Local OCR Providers
 
-**Browser Selection → Editor + Inspector**
-```python
-def _on_browser_select(self, docs: list[Document]):
-    if docs:
-        doc = docs[0]
-        self.editor.load(doc)      # Auto-selects ImageViewer/TableViewer
-        self.inspector.load(doc)   # Shows metadata
-```
+For image text extraction without API calls, add local OCR as providers:
 
-### Phase 3: Menu/Toolbar Integration
+| Library | Notes |
+|---------|-------|
+| **kreuzberg** | In pyproject.toml. Multi-format extraction |
+| **rapidocr** | Installed. Pure Python, fast |
+| **ocrmac** | Installed. Native macOS Vision framework (best for Mac) |
+| **pytesseract** | In pyproject.toml. Tesseract wrapper |
 
-The menu/toolbar handlers need to work with new components:
-
-```python
-# In menu.py or MainWindowController
-
-def _on_new_collection(self):
-    # Create new collection
-    collection = Document(name="New Collection", doc_type=DocType.collection)
-    db.save(collection)
-    # Refresh sidebar
-    self.reload_sidebar()
-
-def _on_import_folder(self):
-    # Show folder picker, create collection, import files
-    pass
-```
-
-### Phase 4: Migration Path
-
-1. **Start with feature flag OFF** - Old system works as before
-2. **Turn ON for testing** - New native window appears
-3. **Wire incrementally** - One pane at a time
-4. **Test thoroughly** - Both systems should be functional
-5. **Remove old code** - When new system is stable
-
-## Implementation Order
-
-1. **Add feature flag** to `app/main_window/__init__.py`
-2. **Create MainWindowController factory** that returns old or new based on flag
-3. **Wire sidebar** to db.query for collections
-4. **Wire browser** to show documents when collection selected
-5. **Wire editor** to show content when document selected
-6. **Wire inspector** to show metadata
-7. **Update menu handlers** to work with new system
-8. **Test with real data**
-
-## Integration Points
-
-### From Old System (need to support both)
-- `app.library_manager` - Old LibraryManager
-- `app.director` - Processing pipeline
-- `app.state_manager` - Session persistence
-- `app.selection_manager` - Selection tracking
-
-### For New System
-- `db` - New DuckDB database
-- `Document`, `Artifact` - Pydantic models
-- Direct queries, no intermediate layer
-
-### Bridging (temporary)
-During transition, may need to sync between old LibraryManager and new db.py.
-Could be done via:
-- Import/export scripts
-- Dual-write (write to both)
-- One-way sync on startup
-
-## File Changes Required
-
-1. `app/main_window/__init__.py` - Add USE_NATIVE_WINDOW flag, factory function
-2. `app/main_window/window.py` - Wire callbacks to db queries
-3. `gui.py` - Use factory function instead of direct MainWindow import
-
-## Testing Plan
-
-1. Unit tests for each component (already done)
-2. Integration test: sidebar → browser flow
-3. Integration test: browser → editor flow
-4. Manual test: full app with feature flag ON
-5. Performance test: large collections
+Implementation: Add as providers in transcription system, no API key needed.

@@ -1,0 +1,117 @@
+# Fichero
+
+Document management and AI processing for macOS.
+
+## Architecture
+
+```
+┌─────────────────┐         ┌─────────────────┐        ┌─────────────────┐
+│  Swift UI App   │────────▶│  Python API     │        │    LiteLLM      │
+│  library/browser│         │  (FastAPI)      │        │(prices/models/  │
+│  metadata/search│         └────────┬────────┘        │ provider info)  │
+│  chat/workflows │                  │                 └─────────────────┘
+│  activity/compare│                 │
+└─────────────────┘                  │
+        ┌────────────────────────────┼────────────────────────────┐
+        │                            │                            │
+        ▼                            ▼                            ▼
+┌───────────────┐          ┌─────────────────┐          ┌─────────────────┐
+│ DuckDB+Lance  │          │    LangGraph    │          │    LangChain    │
+│ (storage)     │          │   (workflows)   │          │  (llm calls)    │
+│               │          │  visual node    │          │                 │
+│               │          │    editor       │          │                 │
+└───────┬───────┘          └────────┬────────┘          └────────┬────────┘
+        │                           │                            │
+        ▼                           ▼                            ▼
+┌───────────────┐          ┌─────────────────┐          ┌─────────────────┐
+│  FastEmbed    │          │  Tool Registry  │          │  LLM Providers  │
+│ (embeddings)  │          │ vision/transform│          ├─────────────────┤
+└───────────────┘          │ llm/convert     │          │ Local:          │
+                           │ logic/conditions│          │  Apple Vision   │
+                           └─────────────────┘          │  Ollama/LMStudio│
+                                                        │  Hugging Face   │
+                                                        ├─────────────────┤
+                                                        │ Commercial:     │
+                                                        │  OpenAI/Anthropic│
+                                                        │  Google/Groq/etc│
+                                                        └─────────────────┘
+```
+
+### Example Workflow: Catalogue
+
+```
+[Files] ──▶ [Loaders] ──▶ [Transcribe] ──▶ [Extract Entities] ──┬──▶ [Timelines]
+              pdf/img       (vision)        people/places/       │
+              docx/txt                      dates/orgs           ├──▶ [Keywords]
+                                                                 │
+                                                                 ├──▶ [Events]
+                                                                 │
+                                                                 └──▶ [Summarize]
+                                                                          │
+                                                                          ▼
+                                                                    [Catalogue]
+                                                                          │
+                                         ┌────────────────┬───────────────┼───────────────┐
+                                         ▼                ▼               ▼               ▼
+                                   [Save to         [To Word]      [To JSON]      [To PDF]
+                                    Library]
+```
+
+## Running
+
+**Start the backend:**
+```bash
+cd /Users/dtubb/code/fichero_main/fichero
+PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765
+```
+
+**Run the Swift app:**
+Open `Fichero/Fichero.xcodeproj` in Xcode and run.
+
+## Features
+
+- **Library**: Hierarchical document storage with collections
+- **Search**: Semantic search via LanceDB embeddings
+- **Chat**: RAG-based document Q&A
+- **Workflows**: Visual node editor for document processing pipelines
+
+## Project Structure
+
+### Python Backend (`src/fichero/`)
+
+```
+api/               # FastAPI routes (documents, search, chat, workflows, providers)
+workflows/         # LangGraph engine, tool registry, builder
+loaders/           # Text extraction (pdf, docx, images, etc.)
+db.py              # DuckDB + LanceDB storage
+models.py          # Pydantic models
+ingest.py          # File ingestion pipeline
+storage.py         # Thumbnails, file storage
+llm.py             # LangChain LLM interface
+providers.py       # LLM provider definitions
+keychain.py        # macOS keychain for API keys
+bookmarks.py       # macOS security-scoped bookmarks
+resources/         # Config defaults, locales
+```
+
+### Swift App (`Fichero/Fichero/`)
+
+```
+Views/
+├── ContentView.swift      # Main 3-column layout
+├── Sidebar/               # Library, search, chat, workflow sections
+├── Browser/               # Document grid/list/table views
+├── Inspector/             # Metadata, preview
+├── Chat/                  # RAG conversation UI
+└── Workflow/              # Visual node editor, canvas, inspector
+
+Services/          # API client, document store, providers
+Models/            # Swift data models
+Resources/         # Assets, config
+```
+
+## Tests
+
+```bash
+PYTHONPATH=src .venv/bin/pytest tests/unit/ --ignore=tests/unit/_archived
+```

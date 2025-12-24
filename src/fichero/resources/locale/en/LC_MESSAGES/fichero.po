@@ -526,8 +526,98 @@ msgstr "Auto Calculate"
 msgid "preferences_auto_calculate_help"
 msgstr "Automatically calculate optimal number of workers"
 
+msgid "preferences_api_rate_limits_title"
+msgstr "API Rate Limits"
+
+msgid "preferences_api_rate_limits_description"
+msgstr "Control concurrent API calls to prevent rate limit errors"
+
+msgid "preferences_global_max_concurrent"
+msgstr "Global Max Concurrent"
+
+msgid "preferences_global_max_concurrent_help"
+msgstr "Maximum concurrent API calls across all folders (default: 30)"
+
+msgid "preferences_dashscope_max_concurrent"
+msgstr "DashScope Max Concurrent"
+
+msgid "preferences_dashscope_max_concurrent_help"
+msgstr "Maximum concurrent calls to Alibaba DashScope API (qwen models)"
+
+msgid "preferences_max_retries"
+msgstr "Max Retries"
+
+msgid "preferences_max_retries_help"
+msgstr "Maximum retry attempts on rate limit (429) errors"
+
+msgid "preferences_retry_on_429"
+msgstr "Auto-Retry on Rate Limit"
+
+msgid "preferences_retry_on_429_help"
+msgstr "Automatically retry when API returns rate limit error (429)"
+
 msgid "preferences_ai_title"
 msgstr "AI Configuration"
+
+msgid "preferences_ai_defaults_title"
+msgstr "Default AI Providers"
+
+msgid "preferences_ai_defaults_description"
+msgstr "Choose your default AI providers and models for transcription and text processing"
+
+msgid "preferences_transcription_provider"
+msgstr "Transcription Provider"
+
+msgid "preferences_transcription_provider_help"
+msgstr "Default provider for image-to-text transcription (OCR)"
+
+msgid "preferences_transcription_model"
+msgstr "Transcription Model"
+
+msgid "preferences_transcription_model_help"
+msgstr "Model to use for transcription (e.g., qwen-vl-max, gpt-4-vision)"
+
+msgid "preferences_llm_provider"
+msgstr "LLM Provider"
+
+msgid "preferences_llm_provider_help"
+msgstr "Default provider for text-to-text processing"
+
+msgid "preferences_llm_model"
+msgstr "LLM Model"
+
+msgid "preferences_llm_model_help"
+msgstr "Model to use for text processing (e.g., qwen-max, gpt-4)"
+
+msgid "option_dashscope"
+msgstr "DashScope (Qwen)"
+
+msgid "option_qwen"
+msgstr "Qwen"
+
+msgid "option_openai"
+msgstr "OpenAI"
+
+msgid "option_claude"
+msgstr "Claude"
+
+msgid "option_ollama"
+msgstr "Ollama (Local)"
+
+msgid "option_lmstudio"
+msgstr "LM Studio (Local)"
+
+msgid "option_huggingface"
+msgstr "Hugging Face"
+
+msgid "option_deepseek"
+msgstr "DeepSeek"
+
+msgid "option_groq"
+msgstr "Groq"
+
+msgid "option_together"
+msgstr "Together AI"
 
 msgid "preferences_openai_title"
 msgstr "OpenAI"
@@ -575,7 +665,28 @@ msgid "preferences_huggingface_title"
 msgstr "Hugging Face"
 
 msgid "preferences_huggingface_api_key_help"
-msgstr "Your Hugging Face API key"
+msgstr "Your Hugging Face API token (starts with hf_)"
+
+msgid "preferences_huggingface_url_help"
+msgstr "Hugging Face Inference Endpoint URL (or leave default for Inference API)"
+
+msgid "preferences_deepseek_title"
+msgstr "DeepSeek"
+
+msgid "preferences_deepseek_api_key_help"
+msgstr "Your DeepSeek API key"
+
+msgid "preferences_groq_title"
+msgstr "Groq"
+
+msgid "preferences_groq_api_key_help"
+msgstr "Your Groq API key (get one at console.groq.com)"
+
+msgid "preferences_together_title"
+msgstr "Together AI"
+
+msgid "preferences_together_api_key_help"
+msgstr "Your Together AI API key"
 
 msgid "workflow_selector_label"
 msgstr "Select workflow:"
@@ -1739,3 +1850,190 @@ msgstr "Success"
 
 msgid "collection_deleted_success"
 msgstr "Collection '{name}' has been deleted."
+
+# AI Global Settings
+msgid "preferences_ai_global_title"
+msgstr "Global AI Settings"
+
+msgid "preferences_ai_global_description"
+msgstr "Default settings that apply to all AI operations unless overridden"
+
+msgid "preferences_temperature"
+msgstr "Temperature"
+
+msgid "preferences_temperature_help"
+msgstr "Controls randomness: 0 = deterministic, 1 = creative, 2 = very random"
+
+msgid "preferences_max_tokens"
+msgstr "Max Tokens"
+
+msgid "preferences_max_tokens_help"
+msgstr "Maximum tokens in AI response (256-16384)"
+
+msgid "preferences_timeout"
+msgstr "Timeout (seconds)"
+
+msgid "preferences_timeout_help"
+msgstr "Maximum wait time for API response (30-600 seconds)"
+
+# Transcription Settings
+msgid "preferences_transcription_title"
+msgstr "Transcription (OCR)"
+
+msgid "preferences_transcription_description"
+msgstr "Settings for image-to-text transcription"
+
+msgid "preferences_transcription_temperature_help"
+msgstr "Temperature for transcription (0 recommended for accuracy)"
+
+msgid "preferences_transcription_max_tokens_help"
+msgstr "Maximum tokens for transcription output"
+
+# LLM Settings
+msgid "preferences_llm_title"
+msgstr "Text Processing (LLM)"
+
+msgid "preferences_llm_description"
+msgstr "Settings for text-to-text processing"
+
+msgid "preferences_llm_temperature_help"
+msgstr "Temperature for text processing"
+
+msgid "preferences_llm_max_tokens_help"
+msgstr "Maximum tokens for text processing output"
+
+# Describe Settings
+msgid "preferences_describe_title"
+msgstr "Image Description"
+
+msgid "preferences_describe_description"
+msgstr "Settings for generating image descriptions"
+
+msgid "preferences_describe_provider"
+msgstr "Description Provider"
+
+msgid "preferences_describe_provider_help"
+msgstr "Default provider for generating image descriptions"
+
+msgid "preferences_describe_model"
+msgstr "Description Model"
+
+msgid "preferences_describe_model_help"
+msgstr "Model to use for image descriptions"
+
+msgid "preferences_describe_temperature_help"
+msgstr "Temperature for descriptions (0.3 recommended for creative but accurate)"
+
+msgid "preferences_describe_max_tokens_help"
+msgstr "Maximum tokens for description output"
+
+# Rate Limits - Per Provider
+msgid "preferences_max_concurrent"
+msgstr "Max Concurrent"
+
+msgid "preferences_dashscope_rate_limits_title"
+msgstr "DashScope Rate Limits"
+
+msgid "preferences_dashscope_rate_limits_description"
+msgstr "Rate limiting for Alibaba DashScope (Qwen) API"
+
+msgid "preferences_openai_rate_limits_title"
+msgstr "OpenAI Rate Limits"
+
+msgid "preferences_openai_rate_limits_description"
+msgstr "Rate limiting for OpenAI API"
+
+msgid "preferences_openai_max_concurrent_help"
+msgstr "Maximum concurrent calls to OpenAI API"
+
+msgid "preferences_claude_rate_limits_title"
+msgstr "Claude Rate Limits"
+
+msgid "preferences_claude_rate_limits_description"
+msgstr "Rate limiting for Anthropic Claude API"
+
+msgid "preferences_claude_max_concurrent_help"
+msgstr "Maximum concurrent calls to Claude API (lower due to stricter limits)"
+
+# Apple Vision Provider
+msgid "option_apple"
+msgstr "Apple Vision (On-Device)"
+
+msgid "preferences_apple_title"
+msgstr "Apple Vision"
+
+msgid "preferences_apple_help"
+msgstr "Use Apple's on-device Vision framework for OCR (macOS/iOS only, no API key needed)"
+
+# Settings Tab Titles (New tabs for reorganized settings)
+msgid "preferences_ai_providers_title"
+msgstr "AI Providers"
+
+msgid "preferences_ai_providers_description"
+msgstr "Select which AI services to use for different tasks"
+
+msgid "preferences_api_keys_title"
+msgstr "API Keys"
+
+msgid "preferences_api_keys_description"
+msgstr "Configure your API credentials for each provider"
+
+msgid "preferences_ai_advanced_title"
+msgstr "AI Settings"
+
+msgid "preferences_ai_advanced_description"
+msgstr "Advanced AI configuration options"
+
+# Library tab - Storage settings
+msgid "preferences_library_storage_title"
+msgstr "Storage Locations"
+
+msgid "preferences_library_storage_description"
+msgstr "Configure where Fichero stores your files"
+
+msgid "preferences_processing_output_path"
+msgstr "Processing Output"
+
+msgid "preferences_processing_output_path_help"
+msgstr "Where to save processed files"
+
+msgid "preferences_library_reset_paths_to_default"
+msgstr "Reset Paths"
+
+msgid "preferences_library_reset_paths_to_default_help"
+msgstr "Reset all paths to their default locations"
+
+# Image Size Settings
+msgid "preferences_image_size"
+msgstr "Image Size"
+
+msgid "preferences_image_size_help"
+msgstr "Maximum image dimension sent to AI for transcription. Larger = better quality, smaller = faster/cheaper."
+
+msgid "option_image_original"
+msgstr "Original (no resize)"
+
+msgid "option_image_gigantic"
+msgstr "Gigantic (4096px)"
+
+msgid "option_image_extra_large"
+msgstr "Extra Large (2048px)"
+
+msgid "option_image_large"
+msgstr "Large (1536px)"
+
+msgid "option_image_medium"
+msgstr "Medium (1024px)"
+
+msgid "option_image_small"
+msgstr "Small (768px)"
+
+# Sidebar section headers
+msgid "sidebar_library"
+msgstr "Library"
+
+msgid "sidebar_searches"
+msgstr "Searches"
+
+msgid "sidebar_workflows"
+msgstr "Workflows"

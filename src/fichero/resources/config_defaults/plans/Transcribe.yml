@@ -20,6 +20,7 @@ commands:
     worker_type: "io"
     help: "Generate the documents manifest listing"
     function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    output_scope: "folder"  # Manifest is folder-level
     args:
       source_folder: "documents"
       output_manifest: "assets/manifests/documents_manifest.jsonl"
@@ -30,12 +31,13 @@ commands:
     worker_type: "io"
     help: "Transcribe images using AI models with async DashScope (file-based)"
     function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
     args:
       source_folder: "documents"
       source_manifest: "assets/manifests/documents_manifest.jsonl"
       output_folder: "assets/transcriptions"
       provider: "dashscope"
-      model: "qwen-vl-max"
+      model: "qwen-vl-ocr"
       use_async: true
       max_concurrent: 15
     outputs:

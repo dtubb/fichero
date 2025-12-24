@@ -4,6 +4,7 @@ import asyncio
 import tempfile
 import shutil
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from fichero.library.library_manager import LibraryManager
 from fichero.library.storage import LibraryStorage
@@ -20,9 +21,11 @@ async def test_inbox():
         print(f"Database path: {db_path}")
         print(f"Database exists before: {db_path.exists()}")
 
-        # Create manager
+        # Create manager with proper isolation
         storage = LibraryStorage(str(db_path))
-        manager = LibraryManager(storage)
+        mock_app = Mock()
+        with patch('fichero.library.path_resolver.get_library_database_path', return_value=db_path):
+            manager = LibraryManager(app=mock_app)
 
         print(f"Database exists after init: {db_path.exists()}")
 

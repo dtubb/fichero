@@ -956,6 +956,31 @@ Note: LangGraph executor is **separate** - will be done later by hand.
 
 ---
 
+---
+
+## Future: Local OCR Providers
+
+For image text extraction without API calls, add local OCR as providers in the transcription system:
+
+| Library | Notes |
+|---------|-------|
+| **kreuzberg** | Already in pyproject.toml. Multi-format extraction, uses Tesseract or native OCR |
+| **rapidocr** | Already installed. Pure Python, no Tesseract dependency, fast |
+| **ocrmac** | Already installed. Native macOS Vision framework OCR (best for Mac) |
+| **pytesseract** | In pyproject.toml. Tesseract wrapper (requires Tesseract binary) |
+| **docling** | Already installed. Has OCR for PDFs, could extend to images |
+
+**Implementation approach:**
+1. Add `ProviderType.local_ocr` to models.py
+2. Create `src/fichero/tools/transcribe_providers/local_ocr_provider.py`
+3. Support multiple backends: `ocrmac` (Mac), `rapidocr` (cross-platform), `tesseract` (fallback)
+4. No API key needed - appears in provider dropdown as "Local OCR"
+5. User can choose which local backend in model dropdown
+
+This allows offline OCR for images without hitting cloud APIs.
+
+---
+
 ## Summary
 
 This plan creates a Mac Mail-style provider setup flow integrated with LangGraph workflow execution:

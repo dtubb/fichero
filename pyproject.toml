@@ -46,6 +46,7 @@ requires = [
 test_requires = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",  # For FastAPI TestClient
     #"openai>=1.86.0,<2.0.0",
     #"pathvalidate>=3.2.3,<4.0.0",
     #"cryptography>=45.0.0,<46.0.0",
@@ -54,15 +55,17 @@ test_requires = [
 # Platform-specific configurations for GUI
 [tool.briefcase.app.fichero.macOS]
 universal_build = false  # ARM64 only - opencv-python lacks x86_64 wheels for latest versions
+min_os_version = "14.0"  # Sonoma+ required for docling-parse wheels
+requirement_installer_args = ["--platform", "macosx_14_0_arm64"]
 requires = [
     "toga-cocoa>=0.5.1,<0.6.0",
     "toga>=0.5.1,<0.6.0",
     "std-nslog~=1.0.3",
-    "pyobjc-core>=11.1,<12.0",  # Core PyObjC support
-    "pyobjc-framework-Cocoa>=11.1,<12.0",  # macOS system icons and UI integration
+    "pyobjc-core>=11.1",  # Core PyObjC support
+    "pyobjc-framework-Cocoa>=11.1",  # macOS system icons and UI integration
     "rubicon-objc>=0.4.0,<1.0.0",  # Objective-C bridge for NSOutlineView sidebar
     # CLI dependencies for macOS
-    "typer>=0.16.0,<1.0.0",
+    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",
     "tqdm>=4.67.1,<5.0.0",
@@ -87,6 +90,9 @@ requires = [
     "lancedb>=0.25.0,<1.0.0",  # Vector DB with native Pydantic support
     # Document extraction (PDFs, Office docs, EPUBs)
     "kreuzberg>=0.5.0",  # Multi-format document extraction
+    "docling>=2.0.0",  # IBM structured document parser
+    # Embeddings for semantic search (ONNX-based, no scikit-learn)
+    "fastembed>=0.4.0",
     # AI/ML dependencies inherited from main requires
 ]
 
@@ -101,7 +107,7 @@ requires = [
     "toga>=0.5.1,<0.6.0",
     "pygobject < 3.52.1",
     # CLI dependencies for Linux
-    "typer>=0.16.0,<1.0.0",
+    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",
     "tqdm>=4.67.1,<5.0.0",
@@ -119,6 +125,13 @@ requires = [
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
     "pytesseract>=0.3.13,<1.0.0",  # OCR support
+    # Data layer
+    "pydantic>=2.0.0,<3.0.0",
+    "duckdb>=1.0.0,<2.0.0",
+    "lancedb>=0.25.0,<1.0.0",
+    "kreuzberg>=0.5.0",
+    "docling>=2.0.0",  # IBM structured document parser
+    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
     # AI/ML dependencies
     "openai>=1.0.0",
     "dashscope>=1.20.0",
@@ -133,7 +146,7 @@ requires = [
     "toga-winforms>=0.5.1,<0.6.0",
     "toga>=0.5.1,<0.6.0",
     # CLI dependencies for Windows
-    "typer>=0.16.0,<1.0.0",
+    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
     "rich>=14.0.0,<15.0.0",
     "srsly>=2.5.1,<3.0.0",
     "tqdm>=4.67.1,<5.0.0",
@@ -149,6 +162,13 @@ requires = [
     "rawpy>=0.25.0,<1.0.0",  # RAW image support
     "python-magic>=0.4.27,<1.0.0",  # File type detection
     "pytesseract>=0.3.13,<1.0.0",  # OCR support
+    # Data layer
+    "pydantic>=2.0.0,<3.0.0",
+    "duckdb>=1.0.0,<2.0.0",
+    "lancedb>=0.25.0,<1.0.0",
+    "kreuzberg>=0.5.0",
+    "docling>=2.0.0",  # IBM structured document parser
+    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
     # AI/ML dependencies
     "openai>=1.0.0",
     "dashscope>=1.20.0",
@@ -237,11 +257,18 @@ dependencies = [
     "dashscope>=1.20.0",
     "toga-cocoa>=0.5.1,<0.6.0",
     "rubicon-objc>=0.4.0,<1.0.0",
-    "typer>=0.16.0,<1.0.0",
+    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
     "rich>=14.0.0,<15.0.0",
     "lancedb>=0.25.0,<1.0.0",
+    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
+    "kreuzberg>=0.5.0",
+    "docling>=2.0.0",
+    # FastAPI backend for SwiftUI frontend
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    # Unified LLM interface (100+ providers, cost tracking)
+    "litellm>=1.55.0",
 ]
 
 [project.scripts]
-fichero-cli = "fichero.cli:main"
-fichero-gui = "fichero.app:main" 
+fichero = "fichero.__main__:main" 

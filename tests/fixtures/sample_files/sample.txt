@@ -1,0 +1,6 @@
+Plain Text Sample
+
+This is a simple plain text file for testing the document loader.
+It contains multiple lines and should be read with UTF-8 encoding.
+
+Línea en español con acentos: áéíóú ñ
