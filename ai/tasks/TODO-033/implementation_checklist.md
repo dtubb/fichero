@@ -28,33 +28,33 @@
   - [x] Test validation logic
   - [x] Test error handling
 
-- [ ] SidebarItemRow tests
-  - [ ] Test initialization with different item types
-  - [ ] Test expansion/collapse behavior
-  - [ ] Test selection state
-  - [ ] Test drag and drop indicators
-  - [ ] Test context menu actions
+- [x] SidebarItemRow tests
+  - [x] Test initialization with different item types
+  - [x] Test expansion/collapse behavior
+  - [x] Test selection state
+  - [x] Test drag and drop indicators
+  - [x] Test context menu actions
 
 ### SidebarView Integration Tests
-- [ ] Test view initialization
-- [ ] Test section rendering (Library, Searches, Chat, Workflows)
-- [ ] Test item selection behavior
-- [ ] Test expansion state management
-- [ ] Test new folder creation flow
-- [ ] Test rename functionality
-- [ ] Test drag and drop operations
+- [x] Test view initialization
+- [x] Test section rendering (Library, Searches, Chat, Workflows)
+- [x] Test item selection behavior
+- [x] Test expansion state management
+- [x] Test new folder creation flow
+- [x] Test rename functionality
+- [x] Test drag and drop operations
 
 ### Snapshot Tests
-- [ ] Create snapshot tests for SectionHeader
-- [ ] Create snapshot tests for InlineRenameField
-- [ ] Create snapshot tests for SidebarItemRow
-- [ ] Create snapshot tests for SidebarView sections
+- [x] Create snapshot tests for SectionHeader
+- [x] Create snapshot tests for InlineRenameField
+- [x] Create snapshot tests for SidebarItemRow
+- [x] Create snapshot tests for SidebarView sections
 
 ### Error Handling Tests
-- [ ] Test invalid input handling
-- [ ] Test empty state handling
-- [ ] Test error message display
-- [ ] Test recovery from error states
+- [x] Test invalid input handling
+- [x] Test empty state handling
+- [x] Test error message display
+- [x] Test recovery from error states
 
 ## Testing Phase
 - [ ] Run all unit tests

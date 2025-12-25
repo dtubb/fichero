@@ -75,7 +75,7 @@
   - Depends on: None
 - [x] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)
   - Depends on: TODO-032
-- [>] TODO-033: Implement Unit Tests for SidebarView (P1, High)
+- [x] TODO-033: Implement Unit Tests for SidebarView (P1, High)
   - Depends on: None
 - [x] TODO-034: Implement New Folder Functionality (P1, High)
   - Depends on: None

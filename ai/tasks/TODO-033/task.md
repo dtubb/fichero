@@ -7,9 +7,9 @@ Create comprehensive unit tests for SidebarView and its components to improve te
 - [x] Step 1: Analyze current SidebarView architecture for testability
 - [x] Step 2: Create testable view models for SidebarView components
 - [x] Step 3: Write unit tests for core functionality (rendering, state management)
-- [ ] Step 4: Add snapshot tests for UI components
-- [ ] Step 5: Test drag and drop operations
-- [ ] Step 6: Test error handling scenarios and edge cases
+- [x] Step 4: Add snapshot tests for UI components
+- [x] Step 5: Test drag and drop operations
+- [x] Step 6: Test error handling scenarios and edge cases
 - [ ] Step 7: Implement continuous integration testing
 
 ## Files
