@@ -16,6 +16,7 @@ struct SidebarView: View {
     @EnvironmentObject private var errorService: ErrorService
     @EnvironmentObject private var performanceService: PerformanceService
     @EnvironmentObject private var cacheModel: CacheModel
+    @EnvironmentObject private var dragDropModel: DragDropModel
 
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
@@ -42,21 +43,30 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        // Inject dependencies from environment
-        let _ = viewModel.injectDependencies(
-            documentStore: documentStore,
-            searchService: searchService,
-            conversationService: conversationService,
-            workflowService: workflowService,
-            documentService: documentService,
-            errorService: errorService,
-            performanceService: performanceService
-        )
-        
-        // Set the callback
-        let _ = { viewModel.onCreateChatWithDocuments = onCreateChatWithDocuments }()
-
-        return mainContent
+        mainContent
+            .onAppear {
+                // Inject dependencies from environment
+                viewModel.injectDependencies(
+                    documentStore: documentStore,
+                    searchService: searchService,
+                    conversationService: conversationService,
+                    workflowService: workflowService,
+                    documentService: documentService,
+                    errorService: errorService,
+                    performanceService: performanceService,
+                    dragDropModel: dragDropModel
+                )
+                
+                // Set the callback
+                viewModel.onCreateChatWithDocuments = onCreateChatWithDocuments
+                
+                // Start performance monitoring
+                viewModel.startPerformanceMonitoring()
+            }
+            .onDisappear {
+                // Stop performance monitoring when sidebar disappears
+                viewModel.stopPerformanceMonitoring()
+            }
     }
     
     private var mainContent: some View {
@@ -91,20 +101,12 @@ struct SidebarView: View {
             }
         }
         .frame(minWidth: 200, maxWidth: .infinity)
-        .background(Color(.sidebarBackgroundColor))
+        .background(Color(nsColor: .controlBackgroundColor))
         .sheet(isPresented: Binding(
             get: { viewModel.state.showingNewFolderDialog },
             set: { viewModel.state.showingNewFolderDialog = $0 }
         )) {
             newFolderDialog
-        }
-        .onAppear {
-            // Start performance monitoring when sidebar appears
-            viewModel.startPerformanceMonitoring()
-        }
-        .onDisappear {
-            // Stop performance monitoring when sidebar disappears
-            viewModel.stopPerformanceMonitoring()
         }
     }
     
@@ -454,13 +456,32 @@ struct SidebarSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Section Header
-            SectionHeader(
-                title: title,
-                icon: icon,
-                isExpanded: $isExpanded,
-                showNewItemButton: showNewItemButton,
-                newItemAction: newItemAction
-            )
+            HStack {
+                Button(action: { isExpanded.toggle() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                        
+                        Label(title, systemImage: icon)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
+                
+                if showNewItemButton, let action = newItemAction {
+                    Button(action: action) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             
