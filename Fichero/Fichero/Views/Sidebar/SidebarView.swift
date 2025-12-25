@@ -42,6 +42,9 @@ struct SidebarView: View {
     @State private var newFolderName = ""
     @State private var newFolderErrorMessage: String?
     @State private var isCreatingFolder = false
+    
+    // Inline folder creation state
+    @State private var creatingFolderInlineId: String?
 
     var body: some View {
         List(selection: $selectedItem) {
@@ -53,6 +56,7 @@ struct SidebarView: View {
                         section: .library,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        creatingFolderInlineId: $creatingFolderInlineId,
                         showingNewFolderDialog: $showingNewFolderDialog,
                         newFolderParentId: $newFolderParentId,
                         newFolderSection: $newFolderSection,
@@ -76,6 +80,7 @@ struct SidebarView: View {
                         section: .searches,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        creatingFolderInlineId: $creatingFolderInlineId,
                         showingNewFolderDialog: $showingNewFolderDialog,
                         newFolderParentId: $newFolderParentId,
                         newFolderSection: $newFolderSection,
@@ -106,6 +111,7 @@ struct SidebarView: View {
                         section: .chat,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        creatingFolderInlineId: $creatingFolderInlineId,
                         showingNewFolderDialog: $showingNewFolderDialog,
                         newFolderParentId: $newFolderParentId,
                         newFolderSection: $newFolderSection,
@@ -146,6 +152,7 @@ struct SidebarView: View {
                         section: .workflows,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
+                        creatingFolderInlineId: $creatingFolderInlineId,
                         showingNewFolderDialog: $showingNewFolderDialog,
                         newFolderParentId: $newFolderParentId,
                         newFolderSection: $newFolderSection,
@@ -399,13 +406,12 @@ struct SidebarView: View {
         var handled = false
 
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, _) in
-                    DispatchQueue.main.async {
-                        if let urlData = urlData as? Data,
-                           let url = URL(dataRepresentation: urlData, relativeTo: nil) {
-                            self.handleFileDropOnLibrary(url: url)
-                            handled = true
-                        }
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, _) in
+                DispatchQueue.main.async {
+                    if let urlData = urlData as? Data,
+                       let url = URL(dataRepresentation: urlData, relativeTo: nil) {
+                        self.handleFileDropOnLibrary(url: url)
+                        handled = true
                     }
                 }
             }
