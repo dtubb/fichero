@@ -97,6 +97,9 @@
 
 ## AI & Workflow (Backend First then Frontend) [P2]
 
+- [ ] TODO-042: Plan Workflow Engine Development (P1, High)
+  - Depends on: None
+
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)
   - Depends on: None
