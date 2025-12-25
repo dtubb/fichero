@@ -4,14 +4,14 @@
 Create the tool registry system for workflow tools with port definitions and discovery API
 
 ## Steps
-- [ ] Step 1: Create ToolRegistry class in src/fichero/workflows/registry.py
-- [ ] Step 2: Implement tool registration with input/output port definitions
-- [ ] Step 3: Register existing tools with proper port configurations
-- [ ] Step 4: Create tool discovery API endpoints in src/fichero/api/routes/workflows.py
-- [ ] Step 5: Implement tool validation and type checking
-- [ ] Step 6: Add tool documentation and metadata support
-- [ ] Step 7: Create unit tests for tool registry functionality
-- [ ] Step 8: Test tool discovery through API endpoints
+- [x] Step 1: Create ToolRegistry class in src/fichero/workflows/registry.py
+- [x] Step 2: Implement tool registration with input/output port definitions
+- [x] Step 3: Register existing tools with proper port configurations
+- [x] Step 4: Create tool discovery API endpoints in src/fichero/api/routes/workflows.py
+- [x] Step 5: Implement tool validation and type checking
+- [x] Step 6: Add tool documentation and metadata support
+- [x] Step 7: Create unit tests for tool registry functionality
+- [x] Step 8: Test tool discovery through API endpoints
 
 ## Files
 - File to create: src/fichero/workflows/registry.py (tool registry system)

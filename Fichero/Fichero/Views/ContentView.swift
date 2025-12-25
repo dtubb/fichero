@@ -224,33 +224,40 @@ struct ContentView: View {
 
     /// Main app content (when backend is connected)
     private var mainContentView: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            // Sidebar with Library, Searches, Chat, Workflows sections
-            SidebarView(
-                viewMode: $viewMode,
-                selectedItem: $selectedSidebarItem,
-                libraryItems: libraryItems,
-                searchItems: searchItems,
-                chatItems: chatItems,
-                workflowItems: workflowItems,
-                onCreateChatWithDocuments: { documentIds in
-                    // Add dropped documents to chat scope
-                    chatSelectedDocuments = Set(documentIds)
-            .environmentObject(savedSearchService)
-            .environmentObject(conversationService)
-            .environmentObject(workflowService)
-            .environmentObject(ErrorService.shared)
-            .environmentObject(performanceService)
-            .environmentObject(cacheModel)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-        } content: {
-            // Content area - changes based on view mode
-            contentView
-                .navigationSplitViewColumnWidth(min: 300, ideal: 450, max: .infinity)
-        } detail: {
-            // Detail area - changes based on view mode
-            detailView
-        }
+        NavigationSplitView(
+            columnVisibility: $columnVisibility,
+            sidebar: {
+                // Sidebar with Library, Searches, Chat, Workflows sections
+                SidebarView(
+                    viewMode: $viewMode,
+                    selectedItem: $selectedSidebarItem,
+                    libraryItems: libraryItems,
+                    searchItems: searchItems,
+                    chatItems: chatItems,
+                    workflowItems: workflowItems,
+                    onCreateChatWithDocuments: { documentIds in
+                        // Add dropped documents to chat scope
+                        chatSelectedDocuments = Set(documentIds)
+                    }
+                )
+                .environmentObject(savedSearchService)
+                .environmentObject(conversationService)
+                .environmentObject(workflowService)
+                .environmentObject(ErrorService.shared)
+                .environmentObject(performanceService)
+                .environmentObject(cacheModel)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+            },
+            content: {
+                // Content area - changes based on view mode
+                contentView
+                    .navigationSplitViewColumnWidth(min: 300, ideal: 450, max: .infinity)
+            },
+            detail: {
+                // Detail area - changes based on view mode
+                detailView
+            }
+        )
         .navigationTitle(navigationTitle)
         .task {
             // Load collections from backend
@@ -360,7 +367,7 @@ struct ContentView: View {
     // MARK: - Content View (Middle Column)
 
     @ViewBuilder
-    private var contentView: some View {
+    var contentView: some View {
         switch viewMode {
         case .library:
             // Library browser with multiple view modes
@@ -400,7 +407,7 @@ struct ContentView: View {
     // MARK: - Detail View (Right Column)
 
     @ViewBuilder
-    private var detailView: some View {
+    var detailView: some View {
         switch viewMode {
         case .library, .search:
             // Layout based on preview mode
@@ -424,7 +431,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var libraryDetailView: some View {
+    var libraryDetailView: some View {
         switch viewSettings.previewMode {
         case .none:
             // No preview - just the editor
@@ -467,7 +474,7 @@ struct ContentView: View {
     // MARK: - Toolbar (for Library/Search mode)
 
     @ToolbarContentBuilder
-    private var libraryToolbar: some ToolbarContent {
+    var libraryToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             // View mode picker
             Picker("View", selection: $viewSettings.browserViewMode) {
@@ -496,7 +503,7 @@ struct ContentView: View {
     // MARK: - Breadcrumb
 
     @ViewBuilder
-    private func breadcrumbView(for doc: Document) -> some View {
+    func breadcrumbView(for doc: Document) -> some View {
         // TODO: Load ancestors from API via documentStore
         HStack(spacing: 4) {
             Text(doc.name)
@@ -506,7 +513,7 @@ struct ContentView: View {
 
     // MARK: - Actions
 
-    private func toggleSidebar() {
+    func toggleSidebar() {
         withAnimation {
             if columnVisibility == .all {
                 columnVisibility = .doubleColumn
@@ -517,7 +524,7 @@ struct ContentView: View {
     }
 
     /// Add a node from a tool definition to the current workflow
-    private func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {
+    func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {
         let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
         editingWorkflow.nodes.append(newNode)
         NSLog("[ContentView] Added node '\(tool.displayName)' at (\(position.x), \(position.y))")
@@ -525,14 +532,14 @@ struct ContentView: View {
 
     // MARK: - Navigation
 
-    private func navigateToDocument(_ doc: Document) {
+    func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
         if let item = findSidebarItem(for: doc, in: libraryItems) {
             selectedSidebarItem = item
         }
     }
 
-    private func findSidebarItem(for doc: Document, in items: [SidebarItem]) -> SidebarItem? {
+    func findSidebarItem(for doc: Document, in items: [SidebarItem]) -> SidebarItem? {
         for item in items {
             if case .document(let itemDoc) = item.itemType, itemDoc.id == doc.id {
                 return item
@@ -547,7 +554,7 @@ struct ContentView: View {
 
     // MARK: - Conversations
 
-    private func refreshConversations() {
+    func refreshConversations() {
         Task {
             do {
                 let updated = try await conversationService.getConversationsForSidebar()
@@ -562,7 +569,7 @@ struct ContentView: View {
 
     // MARK: - Saved Searches
 
-    private func refreshSavedSearches() {
+    func refreshSavedSearches() {
         Task {
             do {
                 let updated = try await savedSearchService.getSavedSearchesForSidebar()
@@ -581,5 +588,6 @@ struct ContentView: View {
 #Preview("Library Mode") {
     ContentView()
         .environmentObject(ViewSettings())
+        .environmentObject(AppState())
         .frame(width: 1200, height: 700)
 }

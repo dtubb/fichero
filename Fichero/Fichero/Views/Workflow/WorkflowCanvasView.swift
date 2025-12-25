@@ -26,31 +26,61 @@ struct WorkflowCanvasView: View {
     // Canvas size (large enough to scroll around)
     private let canvasSize: CGSize = CGSize(width: 2000, height: 1500)
 
+    // Zoom and pan state
+    @State private var scale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastScale: CGFloat = 1.0
+    @State private var lastOffset: CGSize = .zero
+    @State private var isPanning: Bool = false
+
+    // Grid snapping
+    @State private var snapToGrid: Bool = true
+    private let gridSpacing: CGFloat = 20
+    private let snapThreshold: CGFloat = 10
+
     var body: some View {
-        ScrollView([.horizontal, .vertical], showsIndicators: true) {
-            ZStack(alignment: .topLeading) {
-                // Layer 1: Grid background (decorative, no interaction)
-                GridPattern()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                    .allowsHitTesting(false)
+        ZStack(alignment: .topLeading) {
+            // Layer 1: Grid background (decorative, no interaction)
+            GridPattern()
+                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                .allowsHitTesting(false)
 
-                // Layer 2: Interactive background (tap-to-deselect)
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedNodeIds.removeAll()
-                        selectedEdgeId = nil
-                        editingNodeId = nil
-                        isCanvasFocused = true  // Re-focus for keyboard commands
-                    }
+            // Layer 2: Interactive background (tap-to-deselect)
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    selectedNodeIds.removeAll()
+                    selectedEdgeId = nil
+                    editingNodeId = nil
+                    isCanvasFocused = true  // Re-focus for keyboard commands
+                }
 
-                // Layer 3: Canvas content (nodes and edges)
-                canvasContent
-            }
-            .frame(width: canvasSize.width, height: canvasSize.height)
-            .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
-                handleDrop(providers: providers, at: location)
-            }
+            // Layer 3: Canvas content (nodes and edges)
+            canvasContent
+        }
+        .frame(width: canvasSize.width, height: canvasSize.height)
+        .scaleEffect(scale)
+        .offset(offset)
+        .gesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    handleZoom(value: value)
+                }
+                .onEnded { value in
+                    handleZoomEnded(value: value)
+                }
+        )
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    handlePan(value: value)
+                }
+                .onEnded { _ in
+                    isPanning = false
+                }
+        )
+        .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+            handleDrop(providers: providers, at: location)
         }
         .background(Color(.textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -60,6 +90,25 @@ struct WorkflowCanvasView: View {
         .onAppear { isCanvasFocused = true }
         .onDeleteCommand {
             deleteSelection()
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack {
+                    Text("Zoom: \(Int(scale * 100))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                    
+                    Button(action: resetZoom) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Reset Zoom")
+                    
+                    Toggle("Snap", isOn: $snapToGrid)
+                        .toggleStyle(.button)
+                        .buttonStyle(.bordered)
+                        .help("Toggle Grid Snapping")
+                }
+            }
         }
     }
 
@@ -82,6 +131,48 @@ struct WorkflowCanvasView: View {
             }
             selectedNodeIds.removeAll()
             editingNodeId = nil
+        }
+    }
+
+    // MARK: - Zoom and Pan
+
+    private func handleZoom(value: CGFloat) {
+        // Calculate new scale with constraints (10% to 400%)
+        let newScale = lastScale * value
+        let constrainedScale = max(0.1, min(4.0, newScale))
+        
+        // Only update if within bounds
+        if constrainedScale != scale {
+            scale = constrainedScale
+        }
+    }
+
+    private func handleZoomEnded(value: CGFloat) {
+        lastScale = scale
+    }
+
+    private func handlePan(value: DragGesture.Value) {
+        if !isPanning {
+            // Start panning - store initial offset
+            lastOffset = offset
+            isPanning = true
+        }
+        
+        // Calculate new offset based on drag translation
+        let newOffset = CGSize(
+            width: lastOffset.width + value.translation.width,
+            height: lastOffset.height + value.translation.height
+        )
+        
+        offset = newOffset
+    }
+
+    private func resetZoom() {
+        withAnimation {
+            scale = 1.0
+            offset = .zero
+            lastScale = 1.0
+            lastOffset = .zero
         }
     }
 
@@ -250,14 +341,32 @@ struct WorkflowCanvasView: View {
 
         // Move node relative to start position
         if let startPos = nodeDragStartPosition {
-            let newX = startPos.x + value.translation.width
-            let newY = startPos.y + value.translation.height
+            var newX = startPos.x + value.translation.width
+            var newY = startPos.y + value.translation.height
+
+            // Apply grid snapping if enabled
+            if snapToGrid {
+                newX = snapToGridValue(newX)
+                newY = snapToGridValue(newY)
+            }
 
             workflow.nodes[index].positionX = newX
             workflow.nodes[index].positionY = newY
 
             // Push other nodes out of the way if they would overlap
             resolveCollisions(for: index)
+        }
+    }
+
+    /// Snap a value to the nearest grid line
+    private func snapToGridValue(_ value: CGFloat) -> CGFloat {
+        let gridSize = gridSpacing / scale  // Adjust grid size based on zoom level
+        let remainder = value.truncatingRemainder(dividingBy: gridSize)
+        
+        if abs(remainder) < snapThreshold / scale {
+            return value - remainder  // Snap to grid
+        } else {
+            return value  // Keep original position
         }
     }
 
@@ -615,6 +724,12 @@ struct WorkflowCanvasView: View {
                 }
             }
             if !hasOverlap { break }
+        }
+
+        // Apply grid snapping to final position
+        if snapToGrid {
+            adjusted.x = snapToGridValue(adjusted.x)
+            adjusted.y = snapToGridValue(adjusted.y)
         }
 
         return adjusted

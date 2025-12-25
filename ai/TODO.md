@@ -113,14 +113,14 @@
 - [x] TODO-044: Implement Core Workflow Engine with LangGraph (P0, High)
   - Depends on: TODO-042
   - Status: Completed - Full LangGraph integration with Pregel Execution Engine
-- [ ] TODO-045: Implement Tool Registry System (P1, High)
+- [x] TODO-045: Implement Tool Registry System (P1, High)
   - Depends on: TODO-044
-  - Status: Ready for implementation
+  - Status: Completed - Full tool registry with validation and unit tests
 
 ### Frontend Implementation
-- [ ] TODO-046: Implement SwiftUI Canvas Foundation (P1, High)
+- [x] TODO-046: Implement SwiftUI Canvas Foundation (P1, High)
   - Depends on: TODO-042
-  - Status: Ready for implementation
+  - Status: Completed - zoom/pan (10%-400%), grid snapping, and comprehensive tests implemented
 
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)

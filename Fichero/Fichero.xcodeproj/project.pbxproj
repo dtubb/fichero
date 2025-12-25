@@ -55,7 +55,7 @@
 		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
-		A10521A02EFDB18700B28C3E /* Fichero.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = A105219F2EFC860E00B28C3E /* Fichero.xctestplan */; };
+		A10521A22EFDB2E800B28C3E /* Fichero.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -109,7 +109,7 @@
 		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
 		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
-		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = SOURCE_ROOT; };
+		A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,9 +124,9 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A105219F2EFC860E00B28C3E /* Fichero.xctestplan */,
 				410 /* Fichero */,
 				420 /* Products */,
+				A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */,
 			);
 			sourceTree = "<group>";
 		};
@@ -353,7 +353,7 @@
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
-				A10521A02EFDB18700B28C3E /* Fichero.xctestplan in Resources */,
+				A10521A22EFDB2E800B28C3E /* Fichero.xctestplan in Resources */,
 				009 /* Assets.xcassets in Resources */,
 			);
 		};

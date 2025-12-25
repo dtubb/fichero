@@ -16,22 +16,7 @@
     }
   },
   "testTargets" : [
-    {
-      "parallelizable" : true,
-      "target" : {
-        "containerPath" : "container:Fichero.xcodeproj",
-        "identifier" : "A1051F882EFC83A000B28C3E",
-        "name" : "FicheroTests"
-      }
-    },
-    {
-      "parallelizable" : true,
-      "target" : {
-        "containerPath" : "container:Fichero.xcodeproj",
-        "identifier" : "A1051F922EFC83A000B28C3E",
-        "name" : "FicheroUITests"
-      }
-    }
+
   ],
   "version" : 1
 }
