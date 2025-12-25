@@ -100,7 +100,7 @@
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)
   - Depends on: None
   - Completed: Added python-multipart dependency and fixed database migration
-- [ ] TODO-026: Replace Empty Test Files with Real Sample Files (P1, High)
+- [x] TODO-026: Replace Empty Test Files with Real Sample Files (P1, High)
   - Depends on: None
 - [ ] TODO-027: Test Proper Ingest Pipeline with Real Workflow (P1, High)
   - Depends on: None
