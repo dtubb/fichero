@@ -41,6 +41,8 @@
 - [x] TODO-016: Implement ai folder with TODO.md, README.md, and WORKFLOW.md
 - [x] TODO-020: Review and improve AI context documents organization (P2, Medium)
   - Depends on: None
+- [ ] TODO-048: Explore MCP (Multi-Context Processing) tool capabilities and conduit functionality (P1, High)
+  - Depends on: None
 
 ## Backend API (Foundation) [P0]
 
