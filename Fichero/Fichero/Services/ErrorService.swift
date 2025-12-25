@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import AppKit
 
 /// Service for centralized error handling and management
 class ErrorService: ObservableObject {
@@ -39,7 +40,7 @@ class ErrorService: ObservableObject {
         
         // Show user feedback if requested
         if showUserFeedback {
-            showUserFeedback(for: errorModel)
+            self.showUserFeedback(for: errorModel)
         }
         
         // Call completion handler
@@ -62,7 +63,7 @@ class ErrorService: ObservableObject {
         
         // Show user feedback if requested
         if showUserFeedback {
-            showUserFeedback(for: errorModel)
+            self.showUserFeedback(for: errorModel)
         }
     }
     

@@ -12,6 +12,7 @@ class DragDropService: ObservableObject {
     
     // MARK: - State
     private let dragDropModel: DragDropModel
+    private var benchmark: PerformanceBenchmark?
     
     // MARK: - Initialization
     init(dragDropModel: DragDropModel) {
@@ -32,7 +33,7 @@ class DragDropService: ObservableObject {
     // MARK: - Chat Drop Handling
     func handleChatDrop(providers: [NSItemProvider], completion: @escaping ([String]) -> Void) {
         dragDropModel.startProcessing()
-        performanceService?.startOperation("chat_drop")
+        self.benchmark = performanceService?.startBenchmark("chat_drop")
         
         var documentIds: [String] = []
         let operationCount = providers.count
@@ -60,7 +61,7 @@ class DragDropService: ObservableObject {
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
-                            self.performanceService?.endOperation("chat_drop")
+                            self.benchmark?.end()
                             
                             if !documentIds.isEmpty {
                                 completion(documentIds)
@@ -106,7 +107,7 @@ class DragDropService: ObservableObject {
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
-                            self.performanceService?.endOperation("chat_drop")
+                            self.benchmark?.end()
                             
                             if !documentIds.isEmpty {
                                 completion(documentIds)
@@ -140,9 +141,8 @@ class DragDropService: ObservableObject {
     
     // MARK: - Library Drop Handling
     func handleLibrarySectionDrop(providers: [NSItemProvider], completion: @escaping (Bool) -> Void) {
-        dragDropModel.startProcessing()
-        performanceService?.startOperation("library_drop")
-        
+        self.benchmark = performanceService?.startBenchmark("library_drop")
+        let benchmark = performanceService?.startBenchmark("library_drop")
         var handled = false
         let operationCount = providers.count
         let completedOperations = AtomicInt(value: 0)
@@ -165,7 +165,7 @@ class DragDropService: ObservableObject {
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
-                            self.performanceService?.endOperation("library_drop")
+                            self.benchmark?.end()
                             completion(handled)
                         }
                     }
@@ -205,20 +205,18 @@ class DragDropService: ObservableObject {
         // If no providers were processed, complete immediately
         if providers.isEmpty {
             dragDropModel.endProcessing()
-            performanceService?.endOperation("library_drop")
+            benchmark?.end()
             completion(false)
         }
     }
     
     // MARK: - File Drop Handling
     private func handleFileDropOnLibrary(url: URL, completion: @escaping (Bool) -> Void) {
-        errorService?.logger.info("[DragDropService] File dropped on Library section: %@", url.path)
         
         Task {
             do {
                 // Import file as a top-level document (no parent)
                 if let importedDoc = try await documentStore?.importFile(at: url, parentId: nil) {
-                    errorService?.logger.info("[DragDropService] Successfully imported file to library: %@", importedDoc.name)
                     
                     // Show success feedback
                     showImportSuccessAlert(documentName: importedDoc.name)

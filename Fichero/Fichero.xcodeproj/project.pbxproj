@@ -46,6 +46,15 @@
 		833 /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463 /* SectionHeader.swift */; };
 		834 /* InlineRenameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464 /* InlineRenameField.swift */; };
 		835 /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465 /* SidebarItemRow.swift */; };
+		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
+		837 /* InlineFolderCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4120 /* InlineFolderCreation.swift */; };
+		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
+		839 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4122 /* SidebarViewModel.swift */; };
+		840 /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123 /* ErrorService.swift */; };
+		841 /* ErrorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124 /* ErrorModel.swift */; };
+		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
+		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
+		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -86,11 +95,20 @@
 		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
+		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
+		4120 /* InlineFolderCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineFolderCreation.swift; sourceTree = "<group>"; };
+		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
+		4122 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
+		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
+		4124 /* ErrorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorModel.swift; sourceTree = "<group>"; };
+		4125 /* SidebarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarState.swift; sourceTree = "<group>"; };
+		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
+		4127 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
 		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
-		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = "<group>"; };
+		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +138,7 @@
 				411 /* Views */,
 				412 /* Models */,
 				413 /* Services */,
+				4110 /* ViewModels */,
 				414 /* Resources */,
 				202 /* Fichero.entitlements */,
 			);
@@ -143,6 +162,14 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		4110 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				4122 /* SidebarViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 		4111 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
@@ -150,6 +177,7 @@
 				463 /* SectionHeader.swift */,
 				464 /* InlineRenameField.swift */,
 				465 /* SidebarItemRow.swift */,
+				4120 /* InlineFolderCreation.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -228,6 +256,10 @@
 				462 /* Workflow.swift */,
 				135 /* WorkflowStore.swift */,
 				136 /* WorkflowExporter.swift */,
+				4119 /* CacheModel.swift */,
+				4124 /* ErrorModel.swift */,
+				4125 /* SidebarState.swift */,
+				4126 /* DragDropModel.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -244,6 +276,9 @@
 				125 /* ProviderService.swift */,
 				126 /* WorkflowService.swift */,
 				127 /* ModelService.swift */,
+				4121 /* PerformanceService.swift */,
+				4123 /* ErrorService.swift */,
+				4127 /* DragDropService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -338,10 +373,19 @@
 				003 /* Document.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
 				013 /* Provider.swift in Sources */,
+				836 /* CacheModel.swift in Sources */,
 				005 /* SidebarView.swift in Sources */,
 				833 /* SectionHeader.swift in Sources */,
 				834 /* InlineRenameField.swift in Sources */,
 				835 /* SidebarItemRow.swift in Sources */,
+				837 /* InlineFolderCreation.swift in Sources */,
+				838 /* PerformanceService.swift in Sources */,
+				839 /* SidebarViewModel.swift in Sources */,
+				840 /* ErrorService.swift in Sources */,
+				841 /* ErrorModel.swift in Sources */,
+				842 /* SidebarState.swift in Sources */,
+				843 /* DragDropModel.swift in Sources */,
+				844 /* DragDropService.swift in Sources */,
 				006 /* BrowserView.swift in Sources */,
 				007 /* InspectorView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,

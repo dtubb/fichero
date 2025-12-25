@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Represents the complete state of the sidebar
-struct SidebarState: Equatable {
+struct SidebarState {
     // Expansion state
     var expandedItems: Set<String> = []
     var libraryExpanded: Bool = true

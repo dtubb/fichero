@@ -11,7 +11,7 @@ class CacheModel: ObservableObject {
     
     /// Get or create a cached system image
     func cachedSystemImage(named name: String, color: Color? = nil) -> Image {
-        let cacheKey = "system:{"name}:{"color?.description ?? "default"}"
+        let cacheKey = "system:\\(name):\(color?.description ?? "default")"
         
         if let cachedImage = iconCache.object(forKey: cacheKey as NSString) {
             return Image(nsImage: cachedImage)
@@ -19,7 +19,7 @@ class CacheModel: ObservableObject {
         
         // Create new image
         let systemName = name
-        let nsColor = color?.nsColor ?? NSColor.systemBlue
+        let nsColor = color.map { NSColor($0) } ?? NSColor.systemBlue
         
         let image = NSImage(systemSymbolName: systemName, accessibilityDescription: nil) ?? 
                    NSImage(systemSymbolName: "doc", accessibilityDescription: nil) ?? 
@@ -74,14 +74,7 @@ class CacheModel: ObservableObject {
             self?.handleMemoryPressure()
         }
         
-        // Observe memory warnings
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleMemoryPressure()
-        }
+
     }
     
     private func handleMemoryPressure() {

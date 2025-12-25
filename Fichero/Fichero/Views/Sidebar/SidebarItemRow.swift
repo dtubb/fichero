@@ -45,34 +45,36 @@ struct SidebarItemRow: View {
     }
 
     var body: some View {
-        if let children = item.children, !children.isEmpty {
-            DisclosureGroup(isExpanded: isExpanded) {
-                ForEach(children) { child in
-                    SidebarItemRow(
-                        item: child,
-                        section: section,  // Pass same section to children
-                        expandedItems: $expandedItems,
-                        renamingItemId: $renamingItemId,
-                        creatingFolderInlineId: $creatingFolderInlineId,
-                        showingNewFolderDialog: $showingNewFolderDialog,
-                        newFolderParentId: $newFolderParentId,
-                        newFolderSection: $newFolderSection,
-                        viewMode: $viewMode,
-                        selectedItem: $selectedItem
-                    )
-                    .tag(child)
+        Group {
+            if let children = item.children, !children.isEmpty {
+                DisclosureGroup(isExpanded: isExpanded) {
+                    ForEach(children) { child in
+                        SidebarItemRow(
+                            item: child,
+                            section: section,  // Pass same section to children
+                            expandedItems: $expandedItems,
+                            renamingItemId: $renamingItemId,
+                            creatingFolderInlineId: $creatingFolderInlineId,
+                            showingNewFolderDialog: $showingNewFolderDialog,
+                            newFolderParentId: $newFolderParentId,
+                            newFolderSection: $newFolderSection,
+                            viewMode: $viewMode,
+                            selectedItem: $selectedItem
+                        )
+                        .tag(child)
+                    }
+                } label: {
+                    itemLabel
                 }
-            } label: {
-                itemLabel
-            }
-            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers -> Bool in
-                handleDrop(providers: providers)
-            }
-        } else {
-            itemLabel
                 .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers -> Bool in
                     handleDrop(providers: providers)
                 }
+            } else {
+                itemLabel
+                    .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers -> Bool in
+                        handleDrop(providers: providers)
+                    }
+            }
         }
         .overlay(
             // Visual indicator for drop targeting - section-specific feedback

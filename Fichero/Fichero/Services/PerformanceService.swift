@@ -1,8 +1,10 @@
 import Foundation
 import os.log
+import Combine
+import QuartzCore
 
 /// Performance monitoring and benchmarking service
-class PerformanceService {
+class PerformanceService: ObservableObject {
     
     private let logger = Logger(subsystem: "com.fichero.performance", category: "monitoring")
     private var benchmarks: [String: [TimeInterval]] = [:]

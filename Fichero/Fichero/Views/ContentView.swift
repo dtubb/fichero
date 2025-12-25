@@ -236,11 +236,6 @@ struct ContentView: View {
                 onCreateChatWithDocuments: { documentIds in
                     // Add dropped documents to chat scope
                     chatSelectedDocuments = Set(documentIds)
-                    ErrorService.shared.logger.info("[ContentView] Created chat with %d documents in scope", documentIds.count)
-                }
-            )
-            .environmentObject(documentStore)
-            .environmentObject(documentService)
             .environmentObject(savedSearchService)
             .environmentObject(conversationService)
             .environmentObject(workflowService)

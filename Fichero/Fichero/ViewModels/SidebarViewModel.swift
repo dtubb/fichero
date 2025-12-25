@@ -18,6 +18,10 @@ class SidebarViewModel: ObservableObject {
     weak var errorService: ErrorService?
     weak var performanceService: PerformanceService?
     
+    // MARK: - Drag and Drop
+    @Published var dragDropModel: DragDropModel
+    @Published var dragDropService: DragDropService
+    
     // MARK: - Bindings
     @Binding var viewMode: AppViewMode
     @Binding var selectedItem: SidebarItem?
@@ -39,7 +43,7 @@ class SidebarViewModel: ObservableObject {
         searchItems: [SidebarItem],
         chatItems: [SidebarItem],
         workflowItems: [SidebarItem],
-        dragDropModel: DragDropModel = DragDropModel(),
+        dragDropModel: DragDropModel,
         documentStore: DocumentStore? = nil,
         searchService: SavedSearchService? = nil,
         conversationService: ConversationService? = nil,
@@ -186,7 +190,7 @@ class SidebarViewModel: ObservableObject {
     }
     
     // MARK: - Folder Creation
-    func createNewFolder(name: String) async throws {
+    func createNewFolder(name: String) async throws -> Document {
         guard let section = state.newFolderSection else {
             throw NSError(domain: "com.fichero.sidebar",
                          code: 1,
@@ -197,16 +201,16 @@ class SidebarViewModel: ObservableObject {
         let newFolder: Document
         switch section {
         case .library:
-            newFolder = try await documentService?.createFolder(name: name, parentId: state.newFolderParentId) ?? Document(id: UUID().uuidString, name: name, type: .folder)
+            newFolder = try await documentService!.createFolder(name: name, parentId: state.newFolderParentId)
         case .searches:
             // For searches, we'll create a folder in the searches section
-            newFolder = try await documentService?.createFolder(name: name, parentId: state.newFolderParentId) ?? Document(id: UUID().uuidString, name: name, type: .folder)
+            newFolder = try await documentService!.createFolder(name: name, parentId: state.newFolderParentId)
         case .chat:
             // For chat, we'll create a folder in the conversations section
-            newFolder = try await documentService?.createFolder(name: name, parentId: state.newFolderParentId) ?? Document(id: UUID().uuidString, name: name, type: .folder)
+            newFolder = try await documentService!.createFolder(name: name, parentId: state.newFolderParentId)
         case .workflows:
             // For workflows, we'll create a folder in the workflows section
-            newFolder = try await documentService?.createFolder(name: name, parentId: state.newFolderParentId) ?? Document(id: UUID().uuidString, name: name, type: .folder)
+            newFolder = try await documentService!.createFolder(name: name, parentId: state.newFolderParentId)
         }
 
         // Reset folder creation state
@@ -249,7 +253,7 @@ class SidebarViewModel: ObservableObject {
             if let window = NSApp.keyWindow {
                 let alert = NSAlert()
                 alert.messageText = "Folder Created"
-                alert.informativeText = "\"\((newFolder.name))\" was successfully created."
+                alert.informativeText = "Folder created successfully"
                 alert.addButton(withTitle: "OK")
                 alert.beginSheetModal(for: window, completionHandler: nil)
             }
@@ -292,7 +296,6 @@ class SidebarViewModel: ObservableObject {
     }
 
     func createNewChatWithDocuments(_ documentIds: [String]) {
-        errorService?.logger.info("[SidebarView] Creating new chat with %d documents", documentIds.count)
         viewMode = .chat(nil)
         onCreateChatWithDocuments?(documentIds)
     }
@@ -354,8 +357,6 @@ class SidebarViewModel: ObservableObject {
     
     func stopPerformanceMonitoring() {
         if let result = performanceService?.stopFrameRateMonitoring("sidebar") {
-            errorService?.logger.info("Sidebar frame rate: {\((result.averageFPS))} FPS over {\((result.frameCount))} frames")
         }
-        performanceService?.recordMemoryMeasurement("sidebar_final")
     }
 }
