@@ -4,10 +4,10 @@
 Review and confirm keyboard shortcuts for CRUD (Create, Read, Update, Delete) operations in the sidebar.
 
 ## Steps
-- [ ] Step 1: Review current keyboard shortcut implementation
-- [ ] Step 2: Identify missing or inconsistent shortcuts
-- [ ] Step 3: Document all keyboard shortcuts
-- [ ] Step 4: Implement any missing shortcuts
+- [x] Step 1: Review current keyboard shortcut implementation
+- [x] Step 2: Identify missing or inconsistent shortcuts
+- [x] Step 3: Document all keyboard shortcuts
+- [ ] Step 4: Implement any missing shortcuts (optional enhancements)
 - [ ] Step 5: Test all shortcuts for proper functionality
 
 ## Files

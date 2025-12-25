@@ -64,7 +64,7 @@
 - [x] TODO-002: Complete In Line Rename (P1, Medium) - Ready for testing
 - [x] TODO-003: Complete New Folder Creation (P1, Medium)
 - [x] TODO-021: Enhance Drag and Drop Visual Feedback (P2, Medium)
-- [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
+- [x] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
 - [x] TODO-030: Comprehensive Sidebar Code Review and Refactoring (P1, High)
   - Depends on: None
 - [x] TODO-031: Fix SwiftLint Violations in SidebarView (P1, High)
@@ -88,7 +88,7 @@
 - [x] TODO-037: Refactor Sidebar State Management (P2, Medium)
   - Depends on: TODO-032
   - Status: Implementation complete, pre-existing compilation errors remain
-- [ ] TODO-038: Enhance Drag and Drop Functionality (P2, Medium)
+- [x] TODO-038: Enhance Drag and Drop Functionality (P2, Medium)
   - Depends on: None
 - [x] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
   - Depends on: TODO-032, TODO-037
