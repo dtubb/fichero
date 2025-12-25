@@ -14,6 +14,7 @@ struct SidebarView: View {
     @EnvironmentObject private var conversationService: ConversationService
     @EnvironmentObject private var workflowService: WorkflowService
     @EnvironmentObject private var documentService: DocumentService
+    @EnvironmentObject private var errorService: ErrorService
 
     // Section data - injected from parent (computed in ContentView)
     let libraryItems: [SidebarItem]
@@ -340,12 +341,22 @@ struct SidebarView: View {
     /// Create a new folder inline (for the sheet dialog)
     private func createNewFolderInline() async {
         guard let section = newFolderSection else {
-            newFolderErrorMessage = "No section specified for folder creation"
+            let error = ErrorModel.validationError(
+                message: "No section specified for folder creation",
+                context: ["operation": "create_folder"]
+            )
+            errorService.reportError(error, showUserFeedback: false)
+            newFolderErrorMessage = error.message
             return
         }
 
         guard !newFolderName.isEmpty else {
-            newFolderErrorMessage = "Folder name cannot be empty"
+            let error = ErrorModel.validationError(
+                message: "Folder name cannot be empty",
+                context: ["operation": "create_folder", "section": section.rawValue]
+            )
+            errorService.reportError(error, showUserFeedback: false)
+            newFolderErrorMessage = error.message
             return
         }
 
@@ -357,7 +368,17 @@ struct SidebarView: View {
             showingNewFolderDialog = false
             newFolderName = ""
         } catch {
-            newFolderErrorMessage = error.localizedDescription
+            let errorModel = ErrorModel.fileSystemError(
+                message: "Failed to create folder: \(error.localizedDescription)",
+                context: [
+                    "operation": "create_folder",
+                    "folder_name": newFolderName,
+                    "section": section.rawValue
+                ],
+                isRecoverable: true
+            )
+            errorService.reportError(errorModel)
+            newFolderErrorMessage = errorModel.message
         }
 
         isCreatingFolder = false
@@ -396,7 +417,7 @@ struct SidebarView: View {
     }
 
     private func createNewChatWithDocuments(_ documentIds: [String]) {
-        NSLog("[SidebarView] Creating new chat with %d documents", documentIds.count)
+        errorService.logger.info("[SidebarView] Creating new chat with %d documents", documentIds.count)
         viewMode = .chat(nil)
         onCreateChatWithDocuments?(documentIds)
     }
@@ -430,7 +451,7 @@ struct SidebarView: View {
                 do {
                     // Import file as a top-level document (no parent)
                     let importedDoc = try await documentStore.importFile(at: url, parentId: nil)
-                    NSLog("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
+                    errorService.logger.info("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
 
                     // Show success alert
                     if let window = NSApp.keyWindow {
@@ -441,7 +462,16 @@ struct SidebarView: View {
                         alert.beginSheetModal(for: window, completionHandler: nil)
                     }
                 } catch {
-                    NSLog("[Sidebar] Error importing file to library: %@", String(describing: error))
+                    let errorModel = ErrorModel.fileSystemError(
+                        message: "Failed to import file: \\(error.localizedDescription)",
+                        context: [
+                            "operation": "file_import",
+                            "file_path": url.path,
+                            "file_name": url.lastPathComponent
+                        ],
+                        isRecoverable: true
+                    )
+                    errorService.reportError(errorModel)
 
                     // Show error alert
                     if let window = NSApp.keyWindow {

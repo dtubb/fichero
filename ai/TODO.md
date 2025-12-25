@@ -79,7 +79,7 @@
   - Depends on: None
 - [x] TODO-034: Implement New Folder Functionality (P1, High)
   - Depends on: None
-- [ ] TODO-035: Improve Sidebar Error Handling (P2, Medium)
+- [x] TODO-035: Improve Sidebar Error Handling (P2, Medium)
   - Depends on: None
 - [x] TODO-040: Improve Folder Creation UI to be Inline (Mac-style) (P2, Medium)
   - Depends on: TODO-034

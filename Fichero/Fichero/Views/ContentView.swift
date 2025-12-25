@@ -234,7 +234,7 @@ struct ContentView: View {
                 onCreateChatWithDocuments: { documentIds in
                     // Add dropped documents to chat scope
                     chatSelectedDocuments = Set(documentIds)
-                    NSLog("[ContentView] Created chat with %d documents in scope", documentIds.count)
+                    ErrorService.shared.logger.info("[ContentView] Created chat with %d documents in scope", documentIds.count)
                 }
             )
             .environmentObject(documentStore)
@@ -242,6 +242,7 @@ struct ContentView: View {
             .environmentObject(savedSearchService)
             .environmentObject(conversationService)
             .environmentObject(workflowService)
+            .environmentObject(ErrorService.shared)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } content: {
             // Content area - changes based on view mode
