@@ -73,9 +73,9 @@
   - Remaining: File length violations (464 lines) to be addressed in TODO-032
 - [x] TODO-032: Refactor Sidebar Component Structure (P1, High)
   - Depends on: None
-- [>] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)
+- [x] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)
   - Depends on: TODO-032
-- [ ] TODO-033: Implement Unit Tests for SidebarView (P1, High)
+- [>] TODO-033: Implement Unit Tests for SidebarView (P1, High)
   - Depends on: None
 - [x] TODO-034: Implement New Folder Functionality (P1, High)
   - Depends on: None
@@ -95,7 +95,7 @@
 ### Enhanced Features
 - [ ] TODO-007: Enhance Search Functionality (P2, High)
 
-## AI & Workflow (Depends on backend + frontend) [P2]
+## AI & Workflow (Backend First then Frontend) [P2]
 
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)
