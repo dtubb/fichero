@@ -27,6 +27,9 @@ struct SidebarItemRow: View {
     
     // Rename state
     @State private var renameError: String? = nil
+    
+    // Environment objects for caching
+    @EnvironmentObject var cacheModel: CacheModel
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -83,8 +86,7 @@ struct SidebarItemRow: View {
                             .background(Color.gray.opacity(0.2))
                             .cornerRadius(4)
                             .overlay(
-                                Image(systemName: "folder.badge.plus")
-                                    .foregroundColor(.gray)
+                                cacheModel.cachedSystemImage(named: "folder.badge.plus", color: .gray)
                                     .font(.system(size: 12))
                                     .padding(4),
                                 alignment: .trailing
@@ -96,8 +98,7 @@ struct SidebarItemRow: View {
                             .background(Color.blue.opacity(0.1))
                             .cornerRadius(4)
                             .overlay(
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.blue)
+                                cacheModel.cachedSystemImage(named: "magnifyingglass", color: .blue)
                                     .font(.system(size: 12))
                                     .padding(4),
                                 alignment: .trailing
@@ -109,8 +110,7 @@ struct SidebarItemRow: View {
                             .background(Color.green.opacity(0.1))
                             .cornerRadius(4)
                             .overlay(
-                                Image(systemName: "bubble.left.and.bubble.right")
-                                    .foregroundColor(.green)
+                                cacheModel.cachedSystemImage(named: "bubble.left.and.bubble.right", color: .green)
                                     .font(.system(size: 12))
                                     .padding(4),
                                 alignment: .trailing
@@ -122,8 +122,7 @@ struct SidebarItemRow: View {
                             .background(Color.purple.opacity(0.1))
                             .cornerRadius(4)
                             .overlay(
-                                Image(systemName: "arrow.triangle.branch")
-                                    .foregroundColor(.purple)
+                                cacheModel.cachedSystemImage(named: "arrow.triangle.branch", color: .purple)
                                     .font(.system(size: 12))
                                     .padding(4),
                                 alignment: .trailing
@@ -170,8 +169,7 @@ struct SidebarItemRow: View {
                     Text(item.name)
                         .lineLimit(1)
                 } icon: {
-                    Image(systemName: item.icon)
-                        .foregroundColor(iconColor)
+                    cacheModel.cachedSystemImage(named: item.icon, color: iconColor)
                 }
 
                 Spacer()

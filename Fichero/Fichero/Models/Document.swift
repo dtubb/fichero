@@ -221,12 +221,14 @@ struct SearchResult: Identifiable, Codable {
     let score: Double
     let contentPreview: String?
     let metadata: [String: AnyCodable]
+    let highlights: [String]?  // Highlighted text snippets
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id"
         case score
         case contentPreview = "content_preview"
         case metadata
+        case highlights
     }
 }
 
@@ -235,7 +237,25 @@ struct SearchResult: Identifiable, Codable {
 struct SearchResponse: Codable {
     let results: [SearchResult]
     let count: Int
+    let totalResults: Int
     let query: String
+    let searchType: String
+    let executionTimeMs: Double
+    let hasMore: Bool
+    let filtersApplied: [String: String]?
+    let suggestions: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case results
+        case count
+        case totalResults = "total_results"
+        case query
+        case searchType = "search_type"
+        case executionTimeMs = "execution_time_ms"
+        case hasMore = "has_more"
+        case filtersApplied = "filters_applied"
+        case suggestions
+    }
 }
 
 struct StatsResponse: Codable {

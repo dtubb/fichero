@@ -722,6 +722,9 @@ class SavedSearch(BaseModel):
     query: str                         # The search query text
     is_smart_search: bool = True       # Whether to use semantic search
     filters: dict[str, Any] | None = None  # Optional filter parameters
+    search_type: str = "hybrid"        # Type of search: semantic, fulltext, hybrid
+    sort_by: str = "relevance"        # Sort field
+    sort_order_field: str = "desc"    # Sort order direction
 
     # Organization
     folder_path: str = "/"  # Unix-style path for organization

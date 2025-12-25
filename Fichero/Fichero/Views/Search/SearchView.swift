@@ -9,8 +9,12 @@ struct SearchView: View {
 
     @State private var queryText: String = ""
     @State private var isSmartSearch: Bool = true  // Default to smart search (semantic)
+    @State private var searchType: String = "hybrid"  // "semantic", "fulltext", "hybrid"
+    @State private var sortBy: String = "relevance"  // "relevance", "date", "name"
+    @State private var sortOrder: String = "desc"    // "asc", "desc"
     @State private var filters = SearchFilters()
     @State private var searchResults: [SearchResult] = []
+    @State private var searchStats: SearchResponse? = nil
     @State private var isSearching: Bool = false
     @State private var searchError: String?
     @State private var isSaving: Bool = false
@@ -32,6 +36,8 @@ struct SearchView: View {
                 queryText = search.query
                 filters = search.filters
                 isSmartSearch = search.isSmartSearch
+                // Note: searchType, sortBy, sortOrder would need to be added to SavedSearch model
+                // For now, use defaults
                 performSearch()
             }
         }
@@ -63,6 +69,40 @@ struct SearchView: View {
 
                     Toggle("Smart Search (AI)", isOn: $isSmartSearch)
                         .font(.caption)
+                }
+
+                // Search Type
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Search Type")
+                        .font(.headline)
+
+                    Picker("Search Type", selection: $searchType) {
+                        Text("Hybrid").tag("hybrid")
+                        Text("Semantic").tag("semantic")
+                        Text("Full-Text").tag("fulltext")
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Divider()
+
+                // Sort Options
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Sort By")
+                        .font(.headline)
+
+                    Picker("Sort Field", selection: $sortBy) {
+                        Text("Relevance").tag("relevance")
+                        Text("Date").tag("date")
+                        Text("Name").tag("name")
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Order", selection: $sortOrder) {
+                        Text("Descending").tag("desc")
+                        Text("Ascending").tag("asc")
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 Divider()
@@ -291,26 +331,51 @@ struct SearchView: View {
     private func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
             searchResults = []
+            searchStats = nil
             searchError = nil
             return
         }
 
-        NSLog("[SearchView] Starting search for: %@", queryText)
+        NSLog("[SearchView] Starting enhanced search for: %@", queryText)
         isSearching = true
         searchError = nil
 
         Task {
             do {
-                NSLog("[SearchView] Calling searchService.search...")
+                NSLog("[SearchView] Calling searchService.search with enhanced parameters...")
+                
+                // Convert filters to dictionary for API
+                var filterDict: [String: String] = [:]
+                if let docTypes = filters.docTypes, !docTypes.isEmpty {
+                    filterDict["doc_type"] = docTypes.map { $0.rawValue }.joined(separator: ",")
+                }
+                if let fileTypes = filters.fileTypes, !fileTypes.isEmpty {
+                    filterDict["file_type"] = fileTypes.map { $0.rawValue }.joined(separator: ",")
+                }
+                if let statuses = filters.statuses, !statuses.isEmpty {
+                    filterDict["status"] = statuses.map { $0.rawValue }.joined(separator: ",")
+                }
+                if let hasContent = filters.hasContent {
+                    filterDict["has_content"] = hasContent ? "true" : "false"
+                }
+
                 let response = try await searchService.search(
                     query: queryText,
                     limit: 50,
-                    minScore: 0.0
+                    minScore: 0.0,
+                    searchType: searchType,
+                    filters: filterDict.isEmpty ? nil : filterDict,
+                    sortBy: sortBy,
+                    sortOrder: sortOrder,
+                    offset: 0,
+                    useFuzzyMatch: false,
+                    highlightResults: true
                 )
 
-                NSLog("[SearchView] Got %d results", response.results.count)
+                NSLog("[SearchView] Got %d results (total: %d)", response.count, response.totalResults)
                 await MainActor.run {
                     searchResults = response.results
+                    searchStats = response
                     isSearching = false
                 }
             } catch {
@@ -318,6 +383,7 @@ struct SearchView: View {
                 await MainActor.run {
                     searchError = error.localizedDescription
                     searchResults = []
+                    searchStats = nil
                     isSearching = false
                 }
             }
@@ -332,7 +398,10 @@ struct SearchView: View {
             do {
                 _ = try await savedSearchService.saveSearch(
                     query: queryText,
-                    isSmartSearch: isSmartSearch
+                    isSmartSearch: isSmartSearch,
+                    searchType: searchType,
+                    sortBy: sortBy,
+                    sortOrder: sortOrder
                 )
                 await MainActor.run {
                     isSaving = false
@@ -389,8 +458,17 @@ struct SearchResultRowFromAPI: View {
                         .cornerRadius(4)
                 }
 
-                // Content preview
-                if let contentPreview = result.contentPreview, !contentPreview.isEmpty {
+                // Content preview or highlights
+                if let highlights = result.highlights, !highlights.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(highlights.prefix(2), id: \.self) { highlight in
+                            Text(highlight)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                } else if let contentPreview = result.contentPreview, !contentPreview.isEmpty {
                     Text(contentPreview)
                         .font(.caption)
                         .foregroundColor(.secondary)

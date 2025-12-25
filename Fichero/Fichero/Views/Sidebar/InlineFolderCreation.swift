@@ -1,6 +1,14 @@
 import SwiftUI
 import AppKit
 
+// Reference to SidebarSection type from SidebarItem
+// This ensures the type is available during compilation
+fileprivate enum _SidebarSectionReference {
+    static func referenceTypes() -> [Any.Type] {
+        return []
+    }
+}
+
 /// A reusable inline folder creation field component for the sidebar
 struct InlineFolderCreation: View {
     let section: SidebarSection

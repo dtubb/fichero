@@ -40,6 +40,8 @@ struct ContentView: View {
     @StateObject private var savedSearchService = SavedSearchService()
     @StateObject private var documentService = DocumentService()
     @StateObject private var workflowService = WorkflowService()
+    @StateObject private var performanceService = PerformanceService()
+    @StateObject private var cacheModel = CacheModel()
 
     // MARK: - Sidebar Data
 
@@ -243,6 +245,8 @@ struct ContentView: View {
             .environmentObject(conversationService)
             .environmentObject(workflowService)
             .environmentObject(ErrorService.shared)
+            .environmentObject(performanceService)
+            .environmentObject(cacheModel)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } content: {
             // Content area - changes based on view mode

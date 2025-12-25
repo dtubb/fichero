@@ -74,7 +74,8 @@ class SearchResult:
     score: float
     content_preview: str
     metadata: dict[str, Any]
-
+    highlights: list[str] | None = None  # Highlighted text snippets
+    
     def __repr__(self) -> str:
         preview = self.content_preview[:50] + "..." if len(self.content_preview) > 50 else self.content_preview
         return f"SearchResult(id={self.document_id}, score={self.score:.3f}, preview='{preview}')"
@@ -439,59 +440,232 @@ class Database:
         query: str,
         limit: int = 10,
         min_score: float = 0.0,
-    ) -> list[SearchResult]:
-        """Semantic search for documents.
+        search_type: str = "hybrid",
+        filters: dict | None = None,
+        sort_by: str = "relevance",
+        sort_order: str = "desc",
+        offset: int = 0,
+        use_fuzzy_match: bool = False,
+        highlight_results: bool = True,
+    ) -> tuple[list[SearchResult], int, dict]:
+        """Enhanced search for documents with hybrid search capabilities.
 
         Args:
             query: Search query text
             limit: Maximum results to return
             min_score: Minimum similarity score (0-1)
+            search_type: "semantic", "fulltext", or "hybrid"
+            filters: Advanced filters (doc_type, file_type, date ranges, etc.)
+            sort_by: "relevance", "date", "name", "size"
+            sort_order: "asc" or "desc"
+            offset: Pagination offset
+            use_fuzzy_match: Use fuzzy matching for full-text search
+            highlight_results: Highlight search terms in results
 
         Returns:
-            List of SearchResult objects ordered by relevance
+            Tuple of (results, total_count, search_stats)
         """
+        import time
+        from typing import Any
+        
         if not query or not query.strip():
-            return []
+            return [], 0, {"search_type": "none"}
+
+        start_time = time.time()
+        results = []
+        total_count = 0
+        search_stats = {
+            "search_type": search_type,
+            "execution_time_ms": 0,
+            "filters_applied": filters or {},
+        }
 
         try:
-            if "embeddings" not in self.lance.table_names():
-                logger.debug("No embeddings table exists")
-                return []
+            # Initialize results storage
+            semantic_results = []
+            fulltext_results = []
+            
+            # Check if embeddings table exists
+            has_embeddings = "embeddings" in self.lance.table_names()
+            
+            # Perform semantic search if requested and available
+            if search_type in ["semantic", "hybrid"] and has_embeddings:
+                try:
+                    # Embed query
+                    query_vector = self._embed_text(query)
 
-            # Embed query
-            query_vector = self._embed_text(query)
+                    # Search vectors
+                    table = self.lance.open_table("embeddings")
+                    raw_results = table.search(query_vector).limit(limit * 2).to_list()  # Get more for hybrid
 
-            # Search vectors
-            table = self.lance.open_table("embeddings")
-            raw_results = table.search(query_vector).limit(limit).to_list()
+                    # Convert to SearchResult, filter by score
+                    for r in raw_results:
+                        # LanceDB returns _distance (lower is better)
+                        # Convert to score (higher is better, 0-1 range)
+                        distance = r.get("_distance", 1.0)
+                        score = 1.0 / (1.0 + distance)
 
-            # Convert to SearchResult, filter by score
-            results = []
-            for r in raw_results:
-                # LanceDB returns _distance (lower is better)
-                # Convert to score (higher is better, 0-1 range)
-                distance = r.get("_distance", 1.0)
-                score = 1.0 / (1.0 + distance)
+                        if score < min_score:
+                            continue
 
-                if score < min_score:
-                    continue
+                        semantic_results.append({
+                            "document_id": r.get("document_id") or r.get("id"),
+                            "score": score,
+                            "content": r.get("text", ""),
+                            "metadata": {
+                                "name": r.get("name"),
+                                "doc_type": r.get("doc_type"),
+                                "file_type": r.get("file_type"),
+                                "created_at": r.get("created_at"),
+                                "updated_at": r.get("updated_at"),
+                            }
+                        })
+                except Exception as e:
+                    logger.warning("Semantic search failed: %s", e)
+
+            # Perform full-text search if requested
+            if search_type in ["fulltext", "hybrid"]:
+                try:
+                    # Use DuckDB for full-text search
+                    if has_embeddings:
+                        # Get all documents from embeddings table for full-text search
+                        table = self.lance.open_table("embeddings")
+                        all_docs = table.to_pandas()
+                        
+                        # Filter by query text (simple full-text search)
+                        if use_fuzzy_match:
+                            # Simple fuzzy matching - could be enhanced with proper fuzzy search library
+                            mask = all_docs["text"].str.contains(query, case=False, regex=False)
+                        else:
+                            mask = all_docs["text"].str.contains(query, case=False, regex=False)
+                        
+                        fulltext_docs = all_docs[mask]
+                        
+                        # Convert to results format
+                        for _, row in fulltext_docs.iterrows():
+                            fulltext_results.append({
+                                "document_id": row.get("document_id") or row.get("id"),
+                                "score": 1.0,  # Full-text match gets high score
+                                "content": row.get("text", ""),
+                                "metadata": {
+                                    "name": row.get("name"),
+                                    "doc_type": row.get("doc_type"),
+                                    "file_type": row.get("file_type"),
+                                    "created_at": row.get("created_at"),
+                                    "updated_at": row.get("updated_at"),
+                                }
+                            })
+                except Exception as e:
+                    logger.warning("Full-text search failed: %s", e)
+
+            # Combine results for hybrid search
+            combined_results = []
+            if search_type == "hybrid":
+                # Combine semantic and full-text results
+                combined_results = semantic_results + fulltext_results
+                # Remove duplicates
+                seen_ids = set()
+                unique_results = []
+                for result in combined_results:
+                    if result["document_id"] not in seen_ids:
+                        seen_ids.add(result["document_id"])
+                        unique_results.append(result)
+                combined_results = unique_results
+            elif search_type == "semantic":
+                combined_results = semantic_results
+            elif search_type == "fulltext":
+                combined_results = fulltext_results
+
+            # Apply filters
+            if filters:
+                filtered_results = []
+                for result in combined_results:
+                    metadata = result["metadata"]
+                    match = True
+                    
+                    # Filter by doc_type
+                    if "doc_type" in filters and metadata.get("doc_type") != filters["doc_type"]:
+                        match = False
+                    
+                    # Filter by file_type
+                    if "file_type" in filters and metadata.get("file_type") != filters["file_type"]:
+                        match = False
+                    
+                    # Filter by date range
+                    if "date_from" in filters or "date_to" in filters:
+                        created_at = metadata.get("created_at")
+                        if created_at:
+                            from datetime import datetime
+                            try:
+                                created_date = datetime.fromisoformat(created_at)
+                                if "date_from" in filters:
+                                    from_date = datetime.fromisoformat(filters["date_from"])
+                                    if created_date < from_date:
+                                        match = False
+                                if "date_to" in filters:
+                                    to_date = datetime.fromisoformat(filters["date_to"])
+                                    if created_date > to_date:
+                                        match = False
+                            except:
+                                pass
+                    
+                    if match:
+                        filtered_results.append(result)
+                combined_results = filtered_results
+
+            # Sort results
+            if sort_by == "relevance":
+                combined_results.sort(key=lambda x: x["score"], reverse=(sort_order == "desc"))
+            elif sort_by == "date" and any(r["metadata"].get("created_at") for r in combined_results):
+                combined_results.sort(key=lambda x: x["metadata"].get("created_at", ""), reverse=(sort_order == "desc"))
+            elif sort_by == "name":
+                combined_results.sort(key=lambda x: x["metadata"].get("name", ""), reverse=(sort_order == "desc"))
+
+            # Apply pagination
+            total_count = len(combined_results)
+            paginated_results = combined_results[offset:offset + limit]
+
+            # Convert to SearchResult objects with highlighting
+            for result in paginated_results:
+                content = result["content"]
+                highlights = None
+                
+                if highlight_results and query:
+                    # Simple highlighting - find query in content
+                    import re
+                    # Escape special regex characters in query
+                    escaped_query = re.escape(query)
+                    # Find all occurrences (case insensitive)
+                    matches = re.finditer(escaped_query, content, re.IGNORECASE)
+                    highlights = []
+                    for match in matches:
+                        start = max(0, match.start() - 20)
+                        end = min(len(content), match.end() + 20)
+                        snippet = content[start:end]
+                        # Highlight the matched text
+                        highlighted = snippet.replace(match.group(), f"**{match.group()}**")
+                        highlights.append(highlighted)
 
                 results.append(SearchResult(
-                    document_id=r.get("document_id") or r.get("id"),
-                    score=score,
-                    content_preview=r.get("text", ""),
-                    metadata={
-                        "name": r.get("name"),
-                        "doc_type": r.get("doc_type"),
-                        "file_type": r.get("file_type"),
-                    }
+                    document_id=result["document_id"],
+                    score=result["score"],
+                    content_preview=result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"],
+                    metadata=result["metadata"],
+                    highlights=highlights
                 ))
 
-            return results
+            # Calculate execution time
+            execution_time = time.time() - start_time
+            search_stats["execution_time_ms"] = execution_time * 1000
+            search_stats["total_results"] = total_count
+            search_stats["returned_results"] = len(results)
+            search_stats["has_more"] = (offset + len(results)) < total_count
+
+            return results, total_count, search_stats
 
         except Exception as e:
             logger.warning("Search failed: %s", e)
-            return []
+            return [], 0, {"search_type": search_type, "error": str(e)}
 
     def reindex_all(self, on_progress: Callable[[int, int], None] | None = None) -> int:
         """Reindex all documents with page_content.

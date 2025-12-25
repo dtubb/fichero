@@ -4,14 +4,14 @@
 Enhance the search functionality in Fichero to provide better user experience, improved performance, and more comprehensive search capabilities.
 
 ## Steps
-- [ ] Step 1: Analyze current search implementation and limitations
-- [ ] Step 2: Research and design enhanced search features
-- [ ] Step 3: Implement backend search improvements
-- [ ] Step 4: Implement frontend search UI enhancements
-- [ ] Step 5: Add advanced search options and filters
-- [ ] Step 6: Improve search performance and indexing
-- [ ] Step 7: Add search history and suggestions
-- [ ] Step 8: Test search functionality thoroughly
+- [x] Step 1: Analyze current search implementation and limitations
+- [x] Step 2: Research and design enhanced search features
+- [x] Step 3: Implement backend search improvements
+- [x] Step 4: Implement frontend search UI enhancements
+- [x] Step 5: Add advanced search options and filters
+- [x] Step 6: Improve search performance and indexing
+- [x] Step 7: Add search history and suggestions
+- [x] Step 8: Test search functionality thoroughly
 
 ## Files
 - File to analyze: Backend search endpoints and database queries

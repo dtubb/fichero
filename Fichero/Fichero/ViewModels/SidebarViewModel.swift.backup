@@ -39,7 +39,6 @@ class SidebarViewModel: ObservableObject {
         searchItems: [SidebarItem],
         chatItems: [SidebarItem],
         workflowItems: [SidebarItem],
-        dragDropModel: DragDropModel = DragDropModel(),
         documentStore: DocumentStore? = nil,
         searchService: SavedSearchService? = nil,
         conversationService: ConversationService? = nil,
@@ -61,14 +60,6 @@ class SidebarViewModel: ObservableObject {
         self.documentService = documentService
         self.errorService = errorService
         self.performanceService = performanceService
-        self.dragDropModel = dragDropModel
-        self.dragDropService = DragDropService(dragDropModel: dragDropModel)
-        self.searchService = searchService
-        self.conversationService = conversationService
-        self.workflowService = workflowService
-        self.documentService = documentService
-        self.errorService = errorService
-        self.performanceService = performanceService
         
         setupSubscriptions()
     }
@@ -83,27 +74,6 @@ class SidebarViewModel: ObservableObject {
                 self?.handleDocumentChange(change)
             }
             .store(in: &cancellables)
-        
-        // Subscribe to drag and drop state changes
-        setupDragDropSubscriptions()
-    }
-    
-    private func setupDragDropSubscriptions() {
-        // Subscribe to drag and drop model changes
-        dragDropModel.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.syncDragDropState()
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func syncDragDropState() {
-        state.isProcessingDrop = dragDropModel.isProcessingDrop
-        state.dropProgress = dragDropModel.dropProgress
-        state.dropErrorMessage = dragDropModel.dropError?.message
-        state.dropSuccessCount = dragDropModel.dropSuccessCount
-        state.dropFailureCount = dragDropModel.dropFailureCount
     }
     
     // MARK: - Dependency Injection
@@ -123,13 +93,6 @@ class SidebarViewModel: ObservableObject {
         self.documentService = documentService
         self.errorService = errorService
         self.performanceService = performanceService
-        
-        // Inject dependencies into drag and drop service
-        dragDropService.injectDependencies(
-            documentStore: documentStore,
-            errorService: errorService,
-            performanceService: performanceService
-        )
         
         // Re-setup subscriptions with new dependencies
         setupSubscriptions()
@@ -285,8 +248,33 @@ class SidebarViewModel: ObservableObject {
     
     // MARK: - Drop Handling
     func handleChatDrop(providers: [NSItemProvider]) -> Bool {
-        dragDropService.handleChatDrop(providers: providers) { documentIds in
-            self.createNewChatWithDocuments(documentIds)
+        var documentIds: [String] = []
+
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
+                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            documentIds.append(docId)
+                            // After processing all providers, create the chat
+                            if documentIds.count == providers.count {
+                                self.createNewChatWithDocuments(documentIds)
+                            }
+                        }
+                    }
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
+                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            documentIds.append(docId)
+                            if documentIds.count == providers.count {
+                                self.createNewChatWithDocuments(documentIds)
+                            }
+                        }
+                    }
+                }
+            }
         }
         return true
     }
@@ -300,12 +288,67 @@ class SidebarViewModel: ObservableObject {
     /// Handle drop on Library section (create new collection with imported files)
     func handleLibrarySectionDrop(providers: [NSItemProvider]) -> Bool {
         var handled = false
-        dragDropService.handleLibrarySectionDrop(providers: providers) { success in
-            handled = success
+
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, _) in
+                DispatchQueue.main.async {
+                    if let urlData = urlData as? Data,
+                       let url = URL(dataRepresentation: urlData, relativeTo: nil) {
+                        self.handleFileDropOnLibrary(url: url)
+                        handled = true
+                    }
+                }
+            }
         }
+
         return handled
     }
     
+    /// Handle file dropped on Library section
+    func handleFileDropOnLibrary(url: URL) {
+        NSLog("[Sidebar] File dropped on Library section: %@", url.path)
+
+        // Defer the import operation to avoid layout recursion
+        DispatchQueue.main.async {
+            Task {
+                do {
+                    // Import file as a top-level document (no parent)
+                    if let importedDoc = try await self.documentStore?.importFile(at: url, parentId: nil) {
+                        self.errorService?.logger.info("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
+
+                        // Show success alert
+                        if let window = NSApp.keyWindow {
+                            let alert = NSAlert()
+                            alert.messageText = "File Imported"
+                            alert.informativeText = "\"\((importedDoc.name))\" was successfully imported to your library."
+                            alert.addButton(withTitle: "OK")
+                            alert.beginSheetModal(for: window, completionHandler: nil)
+                        }
+                    }
+                } catch {
+                    let errorModel = ErrorModel.fileSystemError(
+                        message: "Failed to import file: \\((error.localizedDescription))",
+                        context: [
+                            "operation": "file_import",
+                            "file_path": url.path,
+                            "file_name": url.lastPathComponent
+                        ],
+                        isRecoverable: true
+                    )
+                    self.errorService?.reportError(errorModel)
+
+                    // Show error alert
+                    if let window = NSApp.keyWindow {
+                        let alert = NSAlert()
+                        alert.messageText = "Import Failed"
+                        alert.informativeText = "Failed to import file: \((error.localizedDescription))"
+                        alert.addButton(withTitle: "OK")
+                        alert.beginSheetModal(for: window, completionHandler: nil)
+                    }
+                }
+            }
+        }
+    }
     
     // MARK: - Expansion State Management
     func toggleSectionExpansion(_ section: SidebarSection) {

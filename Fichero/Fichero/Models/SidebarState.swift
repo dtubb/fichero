@@ -11,6 +11,7 @@ struct SidebarState: Equatable {
     
     // UI state
     var isChatDropTargeted: Bool = false
+    var isLibraryDropTargeted: Bool = false
     var renamingItemId: String? = nil
     var showingNewFolderDialog: Bool = false
     var newFolderParentId: String? = nil
@@ -19,6 +20,13 @@ struct SidebarState: Equatable {
     var newFolderErrorMessage: String? = nil
     var isCreatingFolder: Bool = false
     var creatingFolderInlineId: String? = nil
+    
+    // Drag and drop state
+    var isProcessingDrop: Bool = false
+    var dropProgress: Double = 0.0
+    var dropErrorMessage: String? = nil
+    var dropSuccessCount: Int = 0
+    var dropFailureCount: Int = 0
     
     // Performance
     var scrollViewProxy: ScrollViewProxy? = nil
@@ -31,6 +39,7 @@ struct SidebarState: Equatable {
         chatExpanded = true
         workflowsExpanded = true
         isChatDropTargeted = false
+        isLibraryDropTargeted = false
         renamingItemId = nil
         showingNewFolderDialog = false
         newFolderParentId = nil
@@ -39,6 +48,14 @@ struct SidebarState: Equatable {
         newFolderErrorMessage = nil
         isCreatingFolder = false
         creatingFolderInlineId = nil
+        
+        // Drag and drop state
+        isProcessingDrop = false
+        dropProgress = 0.0
+        dropErrorMessage = nil
+        dropSuccessCount = 0
+        dropFailureCount = 0
+        
         scrollViewProxy = nil
     }
     

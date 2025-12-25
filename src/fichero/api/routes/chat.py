@@ -238,11 +238,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
                             relevance_score=1.0,
                         ))
         else:
-            # Semantic search for relevant documents
-            search_results = db.search(
+            # Enhanced search for relevant documents
+            search_results, _, _ = db.search(
                 query=request.message,
                 limit=request.max_sources,
                 min_score=0.0,
+                search_type="hybrid",  # Use hybrid search for better results
             )
 
             for result in search_results:

@@ -7,8 +7,8 @@ class SavedSearchService: ObservableObject {
     private let api = APIClient.shared
 
     /// Save a search.
-    func saveSearch(query: String, isSmartSearch: Bool = true) async throws -> SavedSearchAPI {
-        let request = SaveSearchRequest(query: query, isSmartSearch: isSmartSearch)
+    func saveSearch(query: String, isSmartSearch: Bool = true, searchType: String = "hybrid", sortBy: String = "relevance", sortOrder: String = "desc") async throws -> SavedSearchAPI {
+        let request = SaveSearchRequest(query: query, isSmartSearch: isSmartSearch, searchType: searchType, sortBy: sortBy, sortOrder: sortOrder)
         return try await api.post("/search/saved", body: request)
     }
 
@@ -59,10 +59,24 @@ class SavedSearchService: ObservableObject {
 struct SaveSearchRequest: Encodable {
     let query: String
     let isSmartSearch: Bool
+    let searchType: String
+    let sortBy: String
+    let sortOrder: String
 
     enum CodingKeys: String, CodingKey {
         case query
         case isSmartSearch = "is_smart_search"
+        case searchType = "search_type"
+        case sortBy = "sort_by"
+        case sortOrder = "sort_order"
+    }
+
+    init(query: String, isSmartSearch: Bool = true, searchType: String = "hybrid", sortBy: String = "relevance", sortOrder: String = "desc") {
+        self.query = query
+        self.isSmartSearch = isSmartSearch
+        self.searchType = searchType
+        self.sortBy = sortBy
+        self.sortOrder = sortOrder
     }
 }
 
@@ -87,6 +101,9 @@ struct SavedSearchAPI: Codable, Identifiable {
     let query: String
     let isSmartSearch: Bool
     let filters: [String: String]?
+    let searchType: String
+    let sortBy: String
+    let sortOrder: String
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -94,6 +111,9 @@ struct SavedSearchAPI: Codable, Identifiable {
         case query
         case isSmartSearch = "is_smart_search"
         case filters
+        case searchType = "search_type"
+        case sortBy = "sort_by"
+        case sortOrder = "sort_order"
         case createdAt = "created_at"
     }
 }

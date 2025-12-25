@@ -59,6 +59,8 @@ struct SidebarView: View {
 
         return ScrollView {
             ScrollViewReader { proxy in
+                ZStack {
+                    // Main content
                 LazyVStack(spacing: 0) {
                     // LIBRARY section
                     SidebarSectionView(
@@ -106,13 +108,13 @@ struct SidebarView: View {
                             viewModel.handleLibrarySectionDrop(providers: providers)
                         },
                         isDropTargeted: Binding(
-                            get: { viewModel.state.isChatDropTargeted },
-                            set: { viewModel.state.isChatDropTargeted = $0 }
+                            get: { viewModel.state.isLibraryDropTargeted },
+                            set: { viewModel.state.isLibraryDropTargeted = $0 }
                         )
                     )
                     .onDrop(of: [.fileURL], isTargeted: Binding(
-                        get: { viewModel.state.isChatDropTargeted },
-                        set: { viewModel.state.isChatDropTargeted = $0 }
+                        get: { viewModel.state.isLibraryDropTargeted },
+                        set: { viewModel.state.isLibraryDropTargeted = $0 }
                     )) { providers -> Bool in
                         viewModel.handleLibrarySectionDrop(providers: providers)
                     }
@@ -271,6 +273,39 @@ struct SidebarView: View {
                         showNewItemButton: true,
                         newItemAction: { viewModel.createNewWorkflow() }
                     )
+                }
+                
+                // Drag and drop overlay
+                if viewModel.state.isProcessingDrop {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                        .overlay(
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(1.5)
+                                
+                                Text("Processing Drop...")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                
+                                if viewModel.state.dropProgress > 0 {
+                                    ProgressView(value: viewModel.state.dropProgress)
+                                        .progressViewStyle(LinearProgressViewStyle(tint: .white))
+                                        .frame(width: 150)
+                                }
+                                
+                                if let errorMessage = viewModel.state.dropErrorMessage {
+                                    Text(errorMessage)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.top, 4)
+                                }
+                            }
+                        )
+                        .transition(.opacity)
+                }
                 }
                 .background(
                     // Handle selection by detecting taps on items
