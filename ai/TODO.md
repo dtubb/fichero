@@ -73,7 +73,7 @@
   - Remaining: File length violations (464 lines) to be addressed in TODO-032
 - [x] TODO-032: Refactor Sidebar Component Structure (P1, High)
   - Depends on: None
-- [ ] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)
+- [>] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)
   - Depends on: TODO-032
 - [ ] TODO-033: Implement Unit Tests for SidebarView (P1, High)
   - Depends on: None
@@ -96,7 +96,6 @@
 - [ ] TODO-007: Enhance Search Functionality (P2, High)
 
 ## AI & Workflow (Depends on backend + frontend) [P2]
-- [ ] TODO-007: Plan Workflow Engine (P1, High)
 
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)
@@ -104,11 +103,11 @@
   - Completed: Added python-multipart dependency and fixed database migration
 - [x] TODO-026: Replace Empty Test Files with Real Sample Files (P1, High)
   - Depends on: None
-- [ ] TODO-027: Test Proper Ingest Pipeline with Real Workflow (P1, High)
+- [x] TODO-027: Test Proper Ingest Pipeline with Real Workflow (P1, High)
   - Depends on: None
 - [ ] TODO-028: Write Comprehensive Ingest Documentation (P2, Medium)
   - Depends on: None
-- [ ] TODO-029: Test Text Extraction from Documents (P1, High)
+- [x] TODO-029: Test Text Extraction from Documents (P1, High)
   - Depends on: None
 - [ ] TODO-012: Improve Error Handling (P1, Medium)
 - [ ] TODO-013: Add Comprehensive Logging (P1, Medium)

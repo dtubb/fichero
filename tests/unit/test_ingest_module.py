@@ -1077,6 +1077,252 @@ class TestIntegration:
                 assert "Test content for extraction" in result.page_content
 
 
+class TestTextExtraction:
+    """Comprehensive tests for text extraction functionality."""
+
+    def test_text_extraction_from_txt_file(self):
+        """Should extract text from TXT files using real sample."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.txt"
+                assert doc.file_type == FileType.text
+                assert doc.metadata.get("text_extracted") == True
+                assert "Plain Text Sample" in doc.page_content
+                assert "Línea en español" in doc.page_content
+                assert len(doc.page_content) > 50  # Should have substantial content
+
+    def test_text_extraction_from_md_file(self):
+        """Should extract text from Markdown files using real sample."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.md"
+                assert doc.file_type == FileType.text
+                assert doc.metadata.get("text_extracted") == True
+                assert "Sample Document" in doc.page_content
+                assert "Fichero loaders" in doc.page_content
+                assert "Sección 2" in doc.page_content
+                assert "Algo de texto en español" in doc.page_content
+                assert len(doc.page_content) > 100  # Should have substantial content
+
+    def test_text_extraction_from_docx_file(self):
+        """Should extract text from DOCX files using real sample."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.docx"
+                assert doc.file_type == FileType.word
+                assert doc.metadata.get("text_extracted") == True
+                assert len(doc.page_content) > 0  # Should have some content
+                # Check for expected content from the DOCX file
+                assert "Sample" in doc.page_content or "Document" in doc.page_content
+
+    def test_text_extraction_from_epub_file(self):
+        """Should extract text from EPUB files using real sample."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.epub"
+                assert doc.file_type == FileType.epub
+                
+                # Check if Kreuzberg is available for EPUB extraction
+                try:
+                    import kreuzberg
+                    # If Kreuzberg is available, text extraction should work
+                    assert doc.metadata.get("text_extracted") == True
+                    assert len(doc.page_content) > 0  # Should have some content
+                except ImportError:
+                    # If Kreuzberg is not available, text extraction should fail gracefully
+                    assert doc.metadata.get("text_extracted") == False
+                    assert doc.page_content is None or len(doc.page_content) == 0
+
+    def test_text_extraction_from_pdf_file(self):
+        """Should extract text from PDF files using real sample."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.pdf"
+                assert doc.file_type == FileType.pdf
+                assert doc.metadata.get("text_extracted") == True
+                assert len(doc.page_content) > 0  # Should have some content
+
+    def test_text_extraction_disabled(self):
+        """Should not extract text when extract_text=False."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=False)
+                
+                assert doc.name == "sample.txt"
+                assert doc.file_type == FileType.text
+                # Should not have text extraction metadata
+                assert doc.metadata.get("text_extracted") != True
+                # Should not have page_content
+                assert doc.page_content is None or len(doc.page_content) == 0
+
+    def test_text_extraction_metadata(self):
+        """Should populate text extraction metadata correctly."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.txt"
+                assert doc.file_type == FileType.text
+                assert doc.metadata.get("text_extracted") == True
+                assert "text_length" in doc.metadata
+                assert doc.metadata["text_length"] > 0
+                assert doc.metadata["text_length"] == len(doc.page_content)
+
+    def test_text_extraction_multilingual(self):
+        """Should handle multilingual text content."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.txt"
+                assert doc.file_type == FileType.text
+                assert doc.metadata.get("text_extracted") == True
+                # Check for Spanish text with accents
+                assert "Línea en español con acentos" in doc.page_content
+                assert "áéíóú" in doc.page_content
+                assert "ñ" in doc.page_content
+
+    def test_text_extraction_unsupported_format(self):
+        """Should handle unsupported formats gracefully."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        # Create a file with unsupported format
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                
+                assert doc.name == "sample.jpg"
+                assert doc.file_type == FileType.image
+                # Should not have text extraction for images
+                assert doc.metadata.get("text_extracted") != True
+                assert doc.page_content is None or len(doc.page_content) == 0
+
+    def test_text_extraction_error_handling(self):
+        """Should handle text extraction errors gracefully."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType
+        
+        # Create a corrupted file
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        
+        with patch("fichero.db.db") as mock_db:
+            mock_db.save.return_value = None
+            mock_db.get.return_value = None
+            
+            with patch("fichero.bookmarks.create_bookmark") as mock_bookmark:
+                mock_bookmark.return_value = None
+                
+                # Mock the loader to raise an exception
+                with patch("fichero.loaders.load_media") as mock_load:
+                    mock_load.side_effect = Exception("Loader error")
+                    
+                    doc = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True)
+                    
+                    assert doc.name == "sample.txt"
+                    assert doc.file_type == FileType.text
+                    # Should handle error gracefully
+                    assert doc.metadata.get("text_extracted") == False
+                    assert doc.page_content is None or len(doc.page_content) == 0
+
+
 class TestPerformance:
     """Performance tests for ingestion operations."""
 

@@ -43,6 +43,9 @@
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
+		833 /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463 /* SectionHeader.swift */; };
+		834 /* InlineRenameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464 /* InlineRenameField.swift */; };
+		835 /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465 /* SidebarItemRow.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -84,6 +87,9 @@
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
+		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
+		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
 		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -141,6 +147,9 @@
 			isa = PBXGroup;
 			children = (
 				105 /* SidebarView.swift */,
+				463 /* SectionHeader.swift */,
+				464 /* InlineRenameField.swift */,
+				465 /* SidebarItemRow.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -330,6 +339,9 @@
 				010 /* SidebarItem.swift in Sources */,
 				013 /* Provider.swift in Sources */,
 				005 /* SidebarView.swift in Sources */,
+				833 /* SectionHeader.swift in Sources */,
+				834 /* InlineRenameField.swift in Sources */,
+				835 /* SidebarItemRow.swift in Sources */,
 				006 /* BrowserView.swift in Sources */,
 				007 /* InspectorView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,
