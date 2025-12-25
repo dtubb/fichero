@@ -24,7 +24,7 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
    
 12. **Do not Request human review of task files**.
 13. **UNDER NO CIRCUMSTANCES PROCEED TO IMPLEMENT TASK, UNLESS REQUESTED. ONCE POSTED TO GIT GO BACK TO AI_README.md to continue.**
-14. **DO NOT STOP. GO BAKC TO AI_README.md**
+14. **DO NOT STOP THOUGH, GO BACK TO AI_README.md**
 
 
 ## Rules

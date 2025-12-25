@@ -19,13 +19,13 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
       - Ask for human input.
       - Review `human_note.md` for human requirements, if it exists.
       - Review `context.md` for background context, if it does not exist. write it.
-      - Ask human if anything is unclear
+      - Do not ask human if anything is unclear
    - If it does not exist: 
       - if does not exist go to INBOX_WORFKLOW.md and follow its insturctions to create relevent task folder. 
          - Create `task.md` following `ai\templates\todo\tasks.md` ask for human input.
          - `context.md` for background context, if it does not exist. write it.
          - Ask human if anything is unclear.
-         - Once step is defined. STOP.
+         - Once step is defined. Go to next step.
 
 3. **Create or Copy relevant workflow checklist**
    - Determine task type (API endpoint, feature, bug fix, view, etc.)
@@ -58,7 +58,7 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
    - Create summary of changes in `summaries/` folder
 
 7. **Do not do Human review**
-   - Present completed work to human in clear file
+   - Present completed work in clear file
    - Show files changed and decisions made
    - Show completed checklist with all items checked
    - Continue
@@ -69,7 +69,8 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
     - Run `git add .` to stage all changes
     - Run `git commit -m "<descriptive commit message>"` to commit
     - Run `git push` if ready to push to remote
-9. Go back to AI_README.md to proceed to next step. Do not stop. Continue.
+
+9. **Go back to AI_README.md to proceed to next step. Do not stop. Continue.**
 
 ## Task Structure
 

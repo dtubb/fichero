@@ -50,6 +50,7 @@ struct SidebarView: View {
                 ForEach(libraryItems) { item in
                     SidebarItemRow(
                         item: item,
+                        section: .library,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
                         showingNewFolderDialog: $showingNewFolderDialog,
@@ -72,6 +73,7 @@ struct SidebarView: View {
                 ForEach(searchItems) { item in
                     SidebarItemRow(
                         item: item,
+                        section: .searches,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
                         showingNewFolderDialog: $showingNewFolderDialog,
@@ -101,6 +103,7 @@ struct SidebarView: View {
                 ForEach(chatItems) { item in
                     SidebarItemRow(
                         item: item,
+                        section: .chat,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
                         showingNewFolderDialog: $showingNewFolderDialog,
@@ -140,6 +143,7 @@ struct SidebarView: View {
                 ForEach(workflowItems) { item in
                     SidebarItemRow(
                         item: item,
+                        section: .workflows,
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
                         showingNewFolderDialog: $showingNewFolderDialog,

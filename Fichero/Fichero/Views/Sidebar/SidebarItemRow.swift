@@ -6,6 +6,7 @@ import Combine
 /// A reusable sidebar item row component
 struct SidebarItemRow: View {
     let item: SidebarItem
+    let section: SidebarSection  // Add section parameter
     @Binding var expandedItems: Set<String>
     @Binding var renamingItemId: String?
     @Binding var showingNewFolderDialog: Bool
@@ -45,6 +46,7 @@ struct SidebarItemRow: View {
                 ForEach(children) { child in
                     SidebarItemRow(
                         item: child,
+                        section: section,  // Pass same section to children
                         expandedItems: $expandedItems,
                         renamingItemId: $renamingItemId,
                         showingNewFolderDialog: $showingNewFolderDialog,
@@ -67,6 +69,67 @@ struct SidebarItemRow: View {
                     handleDrop(providers: providers)
                 }
         }
+        .overlay(
+            // Visual indicator for drop targeting - section-specific feedback
+            Group {
+                if isDropTargeted {
+                    switch section {
+                    case .library:
+                        // Grey highlight for library (adding to collection)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.gray.opacity(0.6), lineWidth: 2)
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(4)
+                            .overlay(
+                                Image(systemName: "folder.badge.plus")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 12))
+                                    .padding(4),
+                                alignment: .trailing
+                            )
+                    case .searches:
+                        // Blue highlight for searches (searching within)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.blue.opacity(0.6), lineWidth: 2)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(4)
+                            .overlay(
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.blue)
+                                    .font(.system(size: 12))
+                                    .padding(4),
+                                alignment: .trailing
+                            )
+                    case .chat:
+                        // Green highlight for chat (adding to chat)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.green.opacity(0.6), lineWidth: 2)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(4)
+                            .overlay(
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 12))
+                                    .padding(4),
+                                alignment: .trailing
+                            )
+                    case .workflows:
+                        // Purple highlight for workflows (adding to workflow canvas)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.purple.opacity(0.6), lineWidth: 2)
+                            .background(Color.purple.opacity(0.1))
+                            .cornerRadius(4)
+                            .overlay(
+                                Image(systemName: "arrow.triangle.branch")
+                                    .foregroundColor(.purple)
+                                    .font(.system(size: 12))
+                                    .padding(4),
+                                alignment: .trailing
+                            )
+                    }
+                }
+            }
+        )
     }
 
     private var itemLabel: some View {
