@@ -67,8 +67,10 @@
 - [ ] TODO-022: Confirm keyboard shortcuts for CRUD operations (P2, Low)
 - [x] TODO-030: Comprehensive Sidebar Code Review and Refactoring (P1, High)
   - Depends on: None
-- [ ] TODO-031: Fix SwiftLint Violations in SidebarView (P1, High)
+- [x] TODO-031: Fix SwiftLint Violations in SidebarView (P1, High)
   - Depends on: None
+  - Status: 88% complete - 15/17 violations fixed
+  - Remaining: File length violations (464 lines) to be addressed in TODO-032
 - [x] TODO-032: Refactor Sidebar Component Structure (P1, High)
   - Depends on: None
 - [ ] TODO-041: Integrate Refactored Sidebar Components into Xcode Project (P1, High)

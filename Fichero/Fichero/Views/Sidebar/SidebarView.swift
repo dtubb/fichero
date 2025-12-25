@@ -31,16 +31,16 @@ struct SidebarView: View {
     @State private var chatExpanded = true
     @State private var workflowsExpanded = true
     @State private var isChatDropTargeted = false
-    
+
     // Rename state
-    @State private var renamingItemId: String? = nil
+    @State private var renamingItemId: String?
 
     // New folder state
     @State private var showingNewFolderDialog = false
-    @State private var newFolderParentId: String? = nil
-    @State private var newFolderSection: SidebarSection? = nil
+    @State private var newFolderParentId: String?
+    @State private var newFolderSection: SidebarSection?
     @State private var newFolderName = ""
-    @State private var newFolderErrorMessage: String? = nil
+    @State private var newFolderErrorMessage: String?
     @State private var isCreatingFolder = false
 
     var body: some View {
@@ -173,7 +173,7 @@ struct SidebarView: View {
         .onChange(of: selectedItem) { _, newItem in
             handleSelection(newItem)
         }
-        .onReceive(documentStore.documentChangePublisher.catch { error in
+        .onReceive(documentStore.documentChangePublisher.catch { _ in
             Empty(completeImmediately: true)
         }.receive(on: DispatchQueue.main)) { change in
             handleDocumentChange(change)
@@ -236,7 +236,7 @@ struct SidebarView: View {
     /// Handle document change events from the publisher
     private func handleDocumentChange(_ change: DocumentChange) {
         switch change {
-        case .collectionsUpdated(_):
+        case .collectionsUpdated:
             // Update handled by parent view recomputing libraryItems
             break
 
@@ -246,17 +246,16 @@ struct SidebarView: View {
                 selectedItem = item
             }
 
-        case .documentsUpdated(_):
+        case .documentsUpdated:
             // Update handled by parent view
             break
 
-        case .documentDeleted(_):
+        case .documentDeleted:
             // Remove deleted document from UI
             // Note: The parent view will recompute libraryItems, but we can also handle it here
             // for immediate feedback
             break
-
-        case .documentCreated(_):
+        case .documentCreated:
             // New document created - parent view will recompute libraryItems
             break
         }
@@ -295,7 +294,9 @@ struct SidebarView: View {
     /// Create a new folder in the specified section
     private func createNewFolder(name: String) async throws {
         guard let section = newFolderSection else {
-            throw NSError(domain: "com.fichero.sidebar", code: 1, userInfo: [NSLocalizedDescriptionKey: "No section specified for folder creation"])
+            throw NSError(domain: "com.fichero.sidebar",
+                         code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "No section specified for folder creation"])
         }
 
         // Create the folder using the appropriate service based on section
@@ -397,9 +398,8 @@ struct SidebarView: View {
     private func handleLibrarySectionDrop(providers: [NSItemProvider]) -> Bool {
         var handled = false
 
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, error) in
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, _) in
                     DispatchQueue.main.async {
                         if let urlData = urlData as? Data,
                            let url = URL(dataRepresentation: urlData, relativeTo: nil) {
@@ -425,7 +425,7 @@ struct SidebarView: View {
                     // Import file as a top-level document (no parent)
                     let importedDoc = try await documentStore.importFile(at: url, parentId: nil)
                     NSLog("[Sidebar] Successfully imported file to library: %@", importedDoc.name)
-                    
+
                     // Show success alert
                     if let window = NSApp.keyWindow {
                         let alert = NSAlert()
@@ -436,7 +436,7 @@ struct SidebarView: View {
                     }
                 } catch {
                     NSLog("[Sidebar] Error importing file to library: %@", String(describing: error))
-                    
+
                     // Show error alert
                     if let window = NSApp.keyWindow {
                         let alert = NSAlert()
