@@ -6,83 +6,119 @@
 	objectVersion = 56;
 	objects = {
 
- /* Begin PBXBuildFile section */
- 		001 /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
- 		002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
- 		003 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
- 		005 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105 /* SidebarView.swift */; };
- 		006 /* BrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106 /* BrowserView.swift */; };
- 		007 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107 /* InspectorView.swift */; };
- 		008 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
- 		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
- 		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
- 		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
- 		012 /* WorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111 /* WorkflowView.swift */; };
- 		013 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112 /* Provider.swift */; };
- 		015 /* WorkflowCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114 /* WorkflowCanvasView.swift */; };
- 		016 /* WorkflowInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115 /* WorkflowInspectorView.swift */; };
- 		017 /* WorkflowOutputLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116 /* WorkflowOutputLog.swift */; };
- 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
- 		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
- 		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
- 		021 /* DocumentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 120 /* DocumentService.swift */; };
- 		022 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121 /* SearchService.swift */; };
- 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
- 		024 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123 /* ConversationService.swift */; };
- 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
- 		026 /* ProviderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125 /* ProviderService.swift */; };
- 		027 /* WorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126 /* WorkflowService.swift */; };
- 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
- 		029 /* ModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128 /* ModelBrowserView.swift */; };
- 		030 /* EdgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129 /* EdgeView.swift */; };
- 		031 /* PortView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130 /* PortView.swift */; };
- 		032 /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131 /* CanvasHelpers.swift */; };
- 		033 /* WorkflowNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 132 /* WorkflowNodeView.swift */; };
- 		034 /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133 /* NodePopover.swift */; };
- 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
- 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
- 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
- /* End PBXBuildFile section */
+/* Begin PBXBuildFile section */
+		001 /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
+		002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
+		003 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
+		005 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105 /* SidebarView.swift */; };
+		006 /* BrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106 /* BrowserView.swift */; };
+		007 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107 /* InspectorView.swift */; };
+		008 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
+		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
+		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
+		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
+		012 /* WorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111 /* WorkflowView.swift */; };
+		013 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112 /* Provider.swift */; };
+		015 /* WorkflowCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114 /* WorkflowCanvasView.swift */; };
+		016 /* WorkflowInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115 /* WorkflowInspectorView.swift */; };
+		017 /* WorkflowOutputLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116 /* WorkflowOutputLog.swift */; };
+		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
+		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
+		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
+		021 /* DocumentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 120 /* DocumentService.swift */; };
+		022 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121 /* SearchService.swift */; };
+		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
+		024 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123 /* ConversationService.swift */; };
+		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
+		026 /* ProviderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125 /* ProviderService.swift */; };
+		027 /* WorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126 /* WorkflowService.swift */; };
+		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
+		029 /* ModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128 /* ModelBrowserView.swift */; };
+		030 /* EdgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129 /* EdgeView.swift */; };
+		031 /* PortView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130 /* PortView.swift */; };
+		032 /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131 /* CanvasHelpers.swift */; };
+		033 /* WorkflowNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 132 /* WorkflowNodeView.swift */; };
+		034 /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133 /* NodePopover.swift */; };
+		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
+		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
+		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
+		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
+		833 /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463 /* SectionHeader.swift */; };
+		834 /* InlineRenameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464 /* InlineRenameField.swift */; };
+		835 /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465 /* SidebarItemRow.swift */; };
+		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
+		837 /* InlineFolderCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4120 /* InlineFolderCreation.swift */; };
+		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
+		839 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4122 /* SidebarViewModel.swift */; };
+		840 /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123 /* ErrorService.swift */; };
+		841 /* ErrorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124 /* ErrorModel.swift */; };
+		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
+		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
+		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
+/* End PBXBuildFile section */
 
- /* Begin PBXFileReference section */
- 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
- 		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
- 		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
- 		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
- 		105 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
- 		106 /* BrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserView.swift; sourceTree = "<group>"; };
- 		107 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
- 		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
- 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
- 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
- 		111 /* WorkflowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowView.swift; sourceTree = "<group>"; };
- 		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
- 		114 /* WorkflowCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowCanvasView.swift; sourceTree = "<group>"; };
- 		115 /* WorkflowInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowInspectorView.swift; sourceTree = "<group>"; };
- 		116 /* WorkflowOutputLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowOutputLog.swift; sourceTree = "<group>"; };
- 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
- 		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
- 		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
- 		120 /* DocumentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentService.swift; sourceTree = "<group>"; };
- 		121 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchService.swift; sourceTree = "<group>"; };
- 		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
- 		123 /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
- 		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
- 		125 /* ProviderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderService.swift; sourceTree = "<group>"; };
- 		126 /* WorkflowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowService.swift; sourceTree = "<group>"; };
- 		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
- 		128 /* ModelBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelBrowserView.swift; sourceTree = "<group>"; };
- 		129 /* EdgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeView.swift; sourceTree = "<group>"; };
- 		130 /* PortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortView.swift; sourceTree = "<group>"; };
- 		131 /* CanvasHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasHelpers.swift; sourceTree = "<group>"; };
- 		132 /* WorkflowNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeView.swift; sourceTree = "<group>"; };
- 		133 /* NodePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePopover.swift; sourceTree = "<group>"; };
- 		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
- 		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
- 		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
- 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
- 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
- /* End PBXFileReference section */
+/* Begin PBXFileReference section */
+		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
+		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
+		105 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		106 /* BrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserView.swift; sourceTree = "<group>"; };
+		107 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
+		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
+		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		111 /* WorkflowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowView.swift; sourceTree = "<group>"; };
+		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
+		114 /* WorkflowCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowCanvasView.swift; sourceTree = "<group>"; };
+		115 /* WorkflowInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowInspectorView.swift; sourceTree = "<group>"; };
+		116 /* WorkflowOutputLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowOutputLog.swift; sourceTree = "<group>"; };
+		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
+		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		120 /* DocumentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentService.swift; sourceTree = "<group>"; };
+		121 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchService.swift; sourceTree = "<group>"; };
+		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		123 /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
+		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
+		125 /* ProviderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderService.swift; sourceTree = "<group>"; };
+		126 /* WorkflowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowService.swift; sourceTree = "<group>"; };
+		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
+		128 /* ModelBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelBrowserView.swift; sourceTree = "<group>"; };
+		129 /* EdgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeView.swift; sourceTree = "<group>"; };
+		130 /* PortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortView.swift; sourceTree = "<group>"; };
+		131 /* CanvasHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasHelpers.swift; sourceTree = "<group>"; };
+		132 /* WorkflowNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeView.swift; sourceTree = "<group>"; };
+		133 /* NodePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePopover.swift; sourceTree = "<group>"; };
+		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
+		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
+		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
+		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
+		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
+		4120 /* InlineFolderCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineFolderCreation.swift; sourceTree = "<group>"; };
+		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
+		4122 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
+		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
+		4124 /* ErrorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorModel.swift; sourceTree = "<group>"; };
+		4125 /* SidebarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarState.swift; sourceTree = "<group>"; };
+		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
+		4127 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
+		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
+		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
+		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
+		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = SOURCE_ROOT; };
+		A1051F882EFC83A000B28C3E /* FicheroTests */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; name = FicheroTests.xctest; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1051F922EFC83A000B28C3E /* FicheroUITests */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; name = FicheroUITests.xctest; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4128 /* FicheroTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroTests.swift; sourceTree = "<group>"; };
+		4129 /* SidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarTests.swift; sourceTree = "<group>"; };
+		4130 /* SidebarItemRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRowTests.swift; sourceTree = "<group>"; };
+		4131 /* SectionHeaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeaderTests.swift; sourceTree = "<group>"; };
+		4132 /* InlineRenameFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameFieldTests.swift; sourceTree = "<group>"; };
+		4133 /* FicheroUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroUITests.swift; sourceTree = "<group>"; };
+		4134 /* FicheroUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroUITestsLaunchTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		300 /* Frameworks */ = {
@@ -98,6 +134,7 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
+				A105219F2EFC860E00B28C3E /* Fichero.xctestplan */,
 				410 /* Fichero */,
 				420 /* Products */,
 			);
@@ -110,6 +147,7 @@
 				411 /* Views */,
 				412 /* Models */,
 				413 /* Services */,
+				4110 /* ViewModels */,
 				414 /* Resources */,
 				202 /* Fichero.entitlements */,
 			);
@@ -133,10 +171,22 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		4110 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				4122 /* SidebarViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 		4111 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
 				105 /* SidebarView.swift */,
+				463 /* SectionHeader.swift */,
+				464 /* InlineRenameField.swift */,
+				465 /* SidebarItemRow.swift */,
+				4120 /* InlineFolderCreation.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -173,14 +223,6 @@
 			path = Search;
 			sourceTree = "<group>";
 		};
-		4118 /* Chat */ = {
-			isa = PBXGroup;
-			children = (
-				117 /* ChatView.swift */,
-			);
-			path = Chat;
-			sourceTree = "<group>";
-		};
 		4116 /* Workflow */ = {
 			isa = PBXGroup;
 			children = (
@@ -204,20 +246,33 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
- 		412 /* Models */ = {
- 			isa = PBXGroup;
- 			children = (
- 				103 /* Document.swift */,
- 				109 /* SidebarItem.swift */,
- 				112 /* Provider.swift */,
- 				118 /* DocumentStore.swift */,
- 				134 /* WorkflowTypes.swift */,
- 				135 /* WorkflowStore.swift */,
- 				136 /* WorkflowExporter.swift */,
- 			);
- 			path = Models;
- 			sourceTree = "<group>";
- 		};
+		4118 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				117 /* ChatView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		412 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				103 /* Document.swift */,
+				109 /* SidebarItem.swift */,
+				112 /* Provider.swift */,
+				118 /* DocumentStore.swift */,
+				134 /* WorkflowTypes.swift */,
+				462 /* Workflow.swift */,
+				135 /* WorkflowStore.swift */,
+				136 /* WorkflowExporter.swift */,
+				4119 /* CacheModel.swift */,
+				4124 /* ErrorModel.swift */,
+				4125 /* SidebarState.swift */,
+				4126 /* DragDropModel.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		413 /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -230,6 +285,9 @@
 				125 /* ProviderService.swift */,
 				126 /* WorkflowService.swift */,
 				127 /* ModelService.swift */,
+				4121 /* PerformanceService.swift */,
+				4123 /* ErrorService.swift */,
+				4127 /* DragDropService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -246,8 +304,31 @@
 			isa = PBXGroup;
 			children = (
 				100 /* Fichero.app */,
+				A1051F882EFC83A000B28C3E /* FicheroTests.xctest */,
+				A1051F922EFC83A000B28C3E /* FicheroUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4135 /* FicheroTests */ = {
+			isa = PBXGroup;
+			children = (
+				4128 /* FicheroTests.swift */,
+				4129 /* SidebarTests.swift */,
+				4130 /* SidebarItemRowTests.swift */,
+				4131 /* SectionHeaderTests.swift */,
+				4132 /* InlineRenameFieldTests.swift */,
+			);
+			name = FicheroTests;
+			sourceTree = "<group>";
+		};
+		4136 /* FicheroUITests */ = {
+			isa = PBXGroup;
+			children = (
+				4133 /* FicheroUITests.swift */,
+				4134 /* FicheroUITestsLaunchTests.swift */,
+			);
+			name = FicheroUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -314,49 +395,62 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
- /* Begin PBXSourcesBuildPhase section */
- 		510 /* Sources */ = {
- 			isa = PBXSourcesBuildPhase;
- 			buildActionMask = 2147483647;
- 			files = (
- 				001 /* FicheroApp.swift in Sources */,
- 				002 /* ContentView.swift in Sources */,
- 				003 /* Document.swift in Sources */,
- 				010 /* SidebarItem.swift in Sources */,
- 				013 /* Provider.swift in Sources */,
- 				005 /* SidebarView.swift in Sources */,
- 				006 /* BrowserView.swift in Sources */,
- 				007 /* InspectorView.swift in Sources */,
- 				008 /* EditorView.swift in Sources */,
- 				011 /* SearchView.swift in Sources */,
- 				012 /* WorkflowView.swift in Sources */,
- 				015 /* WorkflowCanvasView.swift in Sources */,
- 				016 /* WorkflowInspectorView.swift in Sources */,
- 				017 /* WorkflowOutputLog.swift in Sources */,
- 				018 /* ChatView.swift in Sources */,
- 				019 /* DocumentStore.swift in Sources */,
- 				020 /* APIClient.swift in Sources */,
- 				021 /* DocumentService.swift in Sources */,
- 				022 /* SearchService.swift in Sources */,
- 				023 /* ChatService.swift in Sources */,
- 				024 /* ConversationService.swift in Sources */,
- 				025 /* SavedSearchService.swift in Sources */,
- 				026 /* ProviderService.swift in Sources */,
- 				027 /* WorkflowService.swift in Sources */,
- 				028 /* ModelService.swift in Sources */,
- 				029 /* ModelBrowserView.swift in Sources */,
- 				030 /* EdgeView.swift in Sources */,
- 				031 /* PortView.swift in Sources */,
- 				032 /* CanvasHelpers.swift in Sources */,
- 				033 /* WorkflowNodeView.swift in Sources */,
- 				034 /* NodePopover.swift in Sources */,
- 				035 /* WorkflowTypes.swift in Sources */,
- 				036 /* WorkflowStore.swift in Sources */,
- 				037 /* WorkflowExporter.swift in Sources */,
- 			);
- 			runOnlyForDeploymentPostprocessing = 0;
- 		};
- /* End PBXSourcesBuildPhase section */
+/* Begin PBXSourcesBuildPhase section */
+		510 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				001 /* FicheroApp.swift in Sources */,
+				002 /* ContentView.swift in Sources */,
+				003 /* Document.swift in Sources */,
+				010 /* SidebarItem.swift in Sources */,
+				013 /* Provider.swift in Sources */,
+				836 /* CacheModel.swift in Sources */,
+				005 /* SidebarView.swift in Sources */,
+				833 /* SectionHeader.swift in Sources */,
+				834 /* InlineRenameField.swift in Sources */,
+				835 /* SidebarItemRow.swift in Sources */,
+				837 /* InlineFolderCreation.swift in Sources */,
+				838 /* PerformanceService.swift in Sources */,
+				839 /* SidebarViewModel.swift in Sources */,
+				840 /* ErrorService.swift in Sources */,
+				841 /* ErrorModel.swift in Sources */,
+				842 /* SidebarState.swift in Sources */,
+				843 /* DragDropModel.swift in Sources */,
+				844 /* DragDropService.swift in Sources */,
+				006 /* BrowserView.swift in Sources */,
+				007 /* InspectorView.swift in Sources */,
+				008 /* EditorView.swift in Sources */,
+				011 /* SearchView.swift in Sources */,
+				012 /* WorkflowView.swift in Sources */,
+				015 /* WorkflowCanvasView.swift in Sources */,
+				016 /* WorkflowInspectorView.swift in Sources */,
+				017 /* WorkflowOutputLog.swift in Sources */,
+				018 /* ChatView.swift in Sources */,
+				019 /* DocumentStore.swift in Sources */,
+				020 /* APIClient.swift in Sources */,
+				021 /* DocumentService.swift in Sources */,
+				022 /* SearchService.swift in Sources */,
+				023 /* ChatService.swift in Sources */,
+				024 /* ConversationService.swift in Sources */,
+				025 /* SavedSearchService.swift in Sources */,
+				026 /* ProviderService.swift in Sources */,
+				027 /* WorkflowService.swift in Sources */,
+				028 /* ModelService.swift in Sources */,
+				029 /* ModelBrowserView.swift in Sources */,
+				030 /* EdgeView.swift in Sources */,
+				031 /* PortView.swift in Sources */,
+				032 /* CanvasHelpers.swift in Sources */,
+				033 /* WorkflowNodeView.swift in Sources */,
+				034 /* NodePopover.swift in Sources */,
+				035 /* WorkflowTypes.swift in Sources */,
+				832 /* Workflow.swift in Sources */,
+				036 /* WorkflowStore.swift in Sources */,
+				037 /* WorkflowExporter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		800 /* Debug */ = {
@@ -484,6 +578,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = Fichero/Fichero.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -513,6 +608,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = Fichero/Fichero.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;

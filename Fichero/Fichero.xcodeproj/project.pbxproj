@@ -319,6 +319,45 @@
 			productReference = 100 /* Fichero.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+		A1051F882EFC83A000B28C3E /* FicheroTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
+			buildPhases = (
+			);
+			buildRules = (
+			);
+			dependencies = (
+				{
+					isa = PBXTargetDependency;
+					target = 500 /* Fichero */;
+					targetProxy = A1051F892EFC83A000B28C3E /* PBXContainerItemProxy */;
+				},
+			);
+			name = FicheroTests;
+			productName = FicheroTests;
+			productReference = A1051F882EFC83A000B28C3E /* FicheroTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A1051F922EFC83A000B28C3E /* FicheroUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
+			buildPhases = (
+			);
+			buildRules = (
+			);
+			dependencies = (
+				{
+					isa = PBXTargetDependency;
+					target = 500 /* Fichero */;
+					targetProxy = A1051F932EFC83A000B28C3E /* PBXContainerItemProxy */;
+				},
+			);
+			name = FicheroUITests;
+			productName = FicheroUITests;
+			productReference = A1051F922EFC83A000B28C3E /* FicheroUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -350,6 +389,23 @@
 				500 /* Fichero */,
 			);
 		};
+
+/* Begin PBXContainerItemProxy section */
+		A1051F892EFC83A000B28C3E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
+		A1051F932EFC83A000B28C3E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
+/* End PBXContainerItemProxy section */
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */

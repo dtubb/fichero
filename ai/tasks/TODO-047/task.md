@@ -4,11 +4,11 @@
 Investigate and fix the XCTestPlan configuration to ensure FicheroTests and FicheroUITests are properly connected to the Xcode project.
 
 ## Steps
-- [ ] Step 1: Open Fichero.xctestplan in Xcode and identify the issue
-- [ ] Step 2: Check if test targets are properly configured in the Xcode project
-- [ ] Step 3: Verify test bundle identifiers and configurations
-- [ ] Step 4: Fix any missing references or incorrect settings
-- [ ] Step 5: Test that the test plan works correctly
+- [x] Step 1: Open Fichero.xctestplan in Xcode and identify the issue
+- [x] Step 2: Check if test targets are properly configured in the Xcode project
+- [x] Step 3: Verify test bundle identifiers and configurations
+- [x] Step 4: Fix any missing references or incorrect settings
+- [x] Step 5: Test that the test plan works correctly
 
 ## Files
 - File to change: Fichero/Fichero.xctestplan

@@ -106,7 +106,7 @@
   - Depends on: None
 
 ## Infrastructure (Can be done in parallel) [P2]
-- [ ] TODO-047: Fix XCTestPlan Configuration (P0, High)
+- [x] TODO-047: Fix XCTestPlan Configuration (P0, High)
   - Depends on: None
 
 ### Backend Implementation
