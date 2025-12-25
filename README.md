@@ -74,6 +74,40 @@ Open `Fichero/Fichero.xcodeproj` in Xcode and run.
 - **Search**: Semantic search via LanceDB embeddings
 - **Chat**: RAG-based document Q&A
 - **Workflows**: Visual node editor for document processing pipelines
+- **Ingest**: Comprehensive file ingestion with 37+ supported formats
+
+## Ingest Module
+
+The ingest module provides powerful file import capabilities:
+
+- **Dual Modes**: LINK (bookmark-based) or COPY (file import) modes
+- **37+ File Types**: Support for documents, images, audio, video, and more
+- **Metadata Extraction**: Automatic extraction of file metadata and EXIF data
+- **Text Extraction**: Searchable text extraction from PDFs, Word docs, and more
+- **APFS Optimization**: Instant file copying using macOS APFS cloning
+- **Folder Processing**: Recursive folder ingestion with hierarchy preservation
+
+**Documentation:**
+- [Ingest Overview](docs/ingest_overview.md)
+- [Supported File Types](docs/supported_file_types.md)
+- [API Documentation](docs/ingest_api.md)
+- [Best Practices](docs/ingest_best_practices.md)
+
+**Quick Start:**
+```python
+from fichero.ingest import ingest_file, ingest_folder, IngestMode
+
+# Single file
+doc = ingest_file(Path("/path/to/document.pdf"), extract_text=True)
+
+# Folder with progress
+docs = ingest_folder(
+    Path("/path/to/folder"),
+    mode=IngestMode.COPY,
+    recursive=True,
+    on_progress=lambda current, total: print(f"{current}/{total}")
+)
+```
 
 ## Project Structure
 
