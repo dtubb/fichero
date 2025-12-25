@@ -93,7 +93,7 @@
   - Depends on: TODO-032, TODO-037
 
 ### Enhanced Features
-- [ ] TODO-007: Enhance Search Functionality (P2, High)
+- [>] TODO-007: Enhance Search Functionality (P2, High)
 
 ## AI & Workflow (Backend First then Frontend) [P2]
 
