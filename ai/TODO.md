@@ -110,7 +110,7 @@
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-047: Fix XCTestPlan Configuration (P0, High)
   - Depends on: None
-- [ ] TODO-049: Fix API pytest issues and ensure background tests run properly (P0, High)
+- [x] TODO-049: Fix API pytest issues and ensure background tests run properly (P0, High)
   - Depends on: None
 
 ### Backend Implementation

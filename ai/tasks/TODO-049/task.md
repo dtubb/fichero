@@ -4,11 +4,11 @@
 Fix database lock issues, provider naming inconsistencies, and timeout problems in API tests
 
 ## Steps
-- [ ] Step 1: Investigate and fix database lock issue preventing tests from running
-- [ ] Step 2: Resolve provider naming inconsistency (apple_vision vs apple)
-- [ ] Step 3: Fix timeout issues in API tests
-- [ ] Step 4: Ensure all API tests pass consistently
-- [ ] Step 5: Update TODO.md with task details
+- [x] Step 1: Investigate and fix database lock issue preventing tests from running
+- [x] Step 2: Resolve provider naming inconsistency (apple_vision vs apple)
+- [x] Step 3: Fix timeout issues in API tests
+- [x] Step 4: Ensure all API tests pass consistently
+- [x] Step 5: Update TODO.md with task details
 
 ## Files
 - File to change: tests/unit/test_api_providers.py
