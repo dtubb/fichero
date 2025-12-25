@@ -83,14 +83,16 @@
   - Depends on: None
 - [x] TODO-040: Improve Folder Creation UI to be Inline (Mac-style) (P2, Medium)
   - Depends on: TODO-034
-- [ ] TODO-036: Improve Sidebar Performance Optimization (P2, Medium)
+- [x] TODO-036: Improve Sidebar Performance Optimization (P2, Medium)
   - Depends on: TODO-032
-- [ ] TODO-037: Refactor Sidebar State Management (P2, Medium)
+- [x] TODO-037: Refactor Sidebar State Management (P2, Medium)
   - Depends on: TODO-032
+  - Status: Implementation complete, pre-existing compilation errors remain
 - [ ] TODO-038: Enhance Drag and Drop Functionality (P2, Medium)
   - Depends on: None
-- [ ] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
+- [x] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
   - Depends on: TODO-032, TODO-037
+  - Status: Completed as part of TODO-037 refactoring
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)
