@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -55,6 +55,7 @@
 		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
+		A10521A02EFDB18700B28C3E /* Fichero.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = A105219F2EFC860E00B28C3E /* Fichero.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -114,10 +115,8 @@
 /* Begin PBXFrameworksBuildPhase section */
 		300 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -312,51 +311,10 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = Fichero;
 			productName = Fichero;
 			productReference = 100 /* Fichero.app */;
 			productType = "com.apple.product-type.application";
-		};
-
-		A1051F882EFC83A000B28C3E /* FicheroTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
-			buildPhases = (
-			);
-			buildRules = (
-			);
-			dependencies = (
-				{
-					isa = PBXTargetDependency;
-					target = 500 /* Fichero */;
-					targetProxy = A1051F892EFC83A000B28C3E /* PBXContainerItemProxy */;
-				},
-			);
-			name = FicheroTests;
-			productName = FicheroTests;
-			productReference = A1051F882EFC83A000B28C3E /* FicheroTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		A1051F922EFC83A000B28C3E /* FicheroUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
-			buildPhases = (
-			);
-			buildRules = (
-			);
-			dependencies = (
-				{
-					isa = PBXTargetDependency;
-					target = 500 /* Fichero */;
-					targetProxy = A1051F932EFC83A000B28C3E /* PBXContainerItemProxy */;
-				},
-			);
-			name = FicheroUITests;
-			productName = FicheroUITests;
-			productReference = A1051F922EFC83A000B28C3E /* FicheroUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -374,7 +332,6 @@
 				};
 			};
 			buildConfigurationList = 710 /* Build configuration list for PBXProject "Fichero" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -382,6 +339,7 @@
 				Base,
 			);
 			mainGroup = 400;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -389,40 +347,21 @@
 				500 /* Fichero */,
 			);
 		};
-
-/* Begin PBXContainerItemProxy section */
-		A1051F892EFC83A000B28C3E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 700 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 500;
-			remoteInfo = Fichero;
-		};
-		A1051F932EFC83A000B28C3E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 700 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 500;
-			remoteInfo = Fichero;
-		};
-/* End PBXContainerItemProxy section */
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
+				A10521A02EFDB18700B28C3E /* Fichero.xctestplan in Resources */,
 				009 /* Assets.xcassets in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				001 /* FicheroApp.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
@@ -472,12 +411,11 @@
 				036 /* WorkflowStore.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug */ = {
+		800 /* Debug configuration for PBXProject "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -541,7 +479,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release */ = {
+		801 /* Release configuration for PBXProject "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -597,7 +535,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug */ = {
+		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -609,6 +547,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -627,7 +566,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release */ = {
+		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -639,6 +578,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -663,19 +603,17 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug */,
-				811 /* Release */,
+				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
+				811 /* Release configuration for PBXNativeTarget "Fichero" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		710 /* Build configuration list for PBXProject "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug */,
-				801 /* Release */,
+				800 /* Debug configuration for PBXProject "Fichero" */,
+				801 /* Release configuration for PBXProject "Fichero" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
