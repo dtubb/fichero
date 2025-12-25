@@ -5,7 +5,7 @@ Implement the core workflow executor with LangGraph integration for document pro
 
 ## Steps
 - [ ] Step 1: Create WorkflowExecutor class in src/fichero/workflows/executor.py
-- [ ] Step 2: Implement LangGraph StateGraph integration for workflow execution
+- [ ] Step 2: Implement LangGraph StateGraph integration for workflow execution BUT also use LangGraph Pregel Execution Engine. https://the-pocket.github.io/PocketFlow-Tutorial-Codebase-Knowledge/LangGraph/05_pregel_execution_engine.html
 - [ ] Step 3: Add document state management for tracking progress through workflow
 - [ ] Step 4: Implement progress event system for real-time UI updates
 - [ ] Step 5: Add error handling and retry logic for robust execution

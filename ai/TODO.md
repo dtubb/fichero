@@ -93,7 +93,7 @@
 - [x] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
   - Depends on: TODO-032, TODO-037
   - Status: Completed as part of TODO-037 refactoring
-- [ ] TODO-043: Fix Sidebar Build Errors (P0, High)
+- [x] TODO-043: Fix Sidebar Build Errors (P0, High)
   - Depends on: None
   - Status: New task created from inbox item
 
@@ -103,6 +103,10 @@
 ## AI & Workflow (Backend First then Frontend) [P2]
 
 - [x] TODO-042: Plan Workflow Engine Development (P1, High)
+  - Depends on: None
+
+## Infrastructure (Can be done in parallel) [P2]
+- [ ] TODO-047: Fix XCTestPlan Configuration (P0, High)
   - Depends on: None
 
 ### Backend Implementation
