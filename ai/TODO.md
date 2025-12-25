@@ -93,6 +93,9 @@
 - [x] TODO-039: Implement MVVM Pattern for Sidebar (P3, Medium)
   - Depends on: TODO-032, TODO-037
   - Status: Completed as part of TODO-037 refactoring
+- [ ] TODO-043: Fix Sidebar Build Errors (P0, High)
+  - Depends on: None
+  - Status: New task created from inbox item
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)
@@ -101,6 +104,19 @@
 
 - [x] TODO-042: Plan Workflow Engine Development (P1, High)
   - Depends on: None
+
+### Backend Implementation
+- [ ] TODO-044: Implement Core Workflow Engine with LangGraph (P0, High)
+  - Depends on: TODO-042
+  - Status: Ready for implementation
+- [ ] TODO-045: Implement Tool Registry System (P1, High)
+  - Depends on: TODO-044
+  - Status: Ready for implementation
+
+### Frontend Implementation
+- [ ] TODO-046: Implement SwiftUI Canvas Foundation (P1, High)
+  - Depends on: TODO-042
+  - Status: Ready for implementation
 
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-023: Fix Backend Launch Issues (P0, High)
