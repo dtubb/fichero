@@ -43,6 +43,14 @@ import logging
 import re
 import duckdb
 from pydantic import BaseModel
+from fichero.errors import (
+    DatabaseError, 
+    FileSystemError, 
+    ErrorCategory,
+    handle_error,
+    log_and_recover,
+    retry_on_failure
+)
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +366,14 @@ class Database:
             table = self.lance.open_table("embeddings")
             table.delete(f"id = '{safe_id}'")
             return True
-        except Exception:
+        except Exception as e:
+            error = handle_error(
+                e,
+                default_message=f"Failed to delete embedding for document {doc_id}",
+                category=ErrorCategory.DATABASE,
+                context={"document_id": doc_id}
+            )
+            logger.warning("Embedding deletion failed: %s", error.message)
             return False
 
     def has_embedding(self, doc_id: str) -> bool:
@@ -783,6 +798,7 @@ class Database:
         """Close database connection."""
         self.conn.close()
     
+    @retry_on_failure(max_attempts=2, delay_seconds=0.5)
     def _migrate_workflow_table(self) -> None:
         """Migrate workflows table to new schema if needed."""
         try:
@@ -861,8 +877,14 @@ class Database:
                 logger.info("Workflows table migration completed")
                 
         except Exception as e:
-            # Table might not exist or other issue
-            logger.warning(f"Migration check failed: {e}")
+            error = handle_error(
+                e,
+                default_message="Workflow table migration failed",
+                category=ErrorCategory.DATABASE,
+                context={"operation": "workflow_table_migration"}
+            )
+            logger.warning("Migration failed: %s", error.message)
+            raise  # Re-raise to trigger retry
 
     def _migrate_saved_search_table(self) -> None:
         """Migrate saved_searches table to add missing columns."""
