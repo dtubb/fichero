@@ -101,7 +101,7 @@
 - [ ] TODO-050: Comprehensive Sidebar Improvements Plan (P1, High)
   - Depends on: None
   - Status: Planning task to break down sidebar fixes into focused tasks
-- [ ] TODO-051: Remove "Move to Folder" from Context Menu (P1, Medium)
+- [x] TODO-051: Remove "Move to Folder" from Context Menu (P1, Medium)
   - Depends on: None
 - [ ] TODO-052: Fix Inline Rename to Use SwiftUI Default Pattern (P1, High)
   - Depends on: None

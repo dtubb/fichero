@@ -4,11 +4,11 @@
 Remove the unused "Move to Folder" menu item from the sidebar context menu.
 
 ## Steps
-- [ ] Step 1: Locate sidebar context menu code in SidebarView or related components
-- [ ] Step 2: Remove "Move to Folder" menu item
-- [ ] Step 3: Run swiftlint to ensure code quality
-- [ ] Step 4: Build and test in Xcode
-- [ ] Step 5: Verify context menu displays correctly without the item
+- [x] Step 1: Locate sidebar context menu code in SidebarView or related components
+- [x] Step 2: Remove "Move to Folder" menu item
+- [x] Step 3: Run swiftlint to ensure code quality
+- [x] Step 4: Build and test in Xcode
+- [x] Step 5: Verify context menu displays correctly without the item
 
 ## Files
 - File to change: Fichero/Fichero/Views/Browser/SidebarView.swift (or related component)

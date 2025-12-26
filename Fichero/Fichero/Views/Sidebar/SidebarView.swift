@@ -334,11 +334,6 @@ struct SidebarItemContextMenu: View {
 
             Divider()
 
-            Button(action: { moveItemToFolder(item) }, label: {
-                Label("Move to Folder", systemImage: "folder.badge.plus")
-            })
-            .disabled(!item.itemType.canBeMoved)
-
             Button(action: { duplicateItem(item) }, label: {
                 Label("Duplicate", systemImage: "doc.on.doc")
             })
@@ -358,11 +353,6 @@ struct SidebarItemContextMenu: View {
         // This would trigger the rename functionality
         NSLog("[SidebarItemContextMenu] Rename item: \(item.name)")
         // In a real implementation, this would communicate back to the parent view
-    }
-
-    private func moveItemToFolder(_ item: SidebarItem) {
-        // This would move the item to a folder
-        NSLog("[SidebarItemContextMenu] Move item to folder: \(item.name)")
     }
 
     private func duplicateItem(_ item: SidebarItem) {
@@ -410,15 +400,6 @@ struct SidebarItemDragData: Transferable {
 
 extension SidebarItem.ItemType {
     var canBeRenamed: Bool {
-        switch self {
-        case .document, .savedSearch, .conversation, .workflow:
-            return true
-        case .sectionHeader:
-            return false
-        }
-    }
-
-    var canBeMoved: Bool {
         switch self {
         case .document, .savedSearch, .conversation, .workflow:
             return true
