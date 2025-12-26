@@ -4,15 +4,15 @@
 Implement external drag and drop from macOS Finder to ingest files and folders into Fichero.
 
 ## Steps
-- [ ] Step 1: Review sample_code/AdoptingDragAndDropUsingSwiftUI for external drag
-- [ ] Step 2: Add .dropDestination accepting file URLs from external sources
-- [ ] Step 3: Handle dropped file/folder URLs
-- [ ] Step 4: Call backend file import API endpoint
-- [ ] Step 5: Show progress indicator during import
-- [ ] Step 6: Update sidebar to show newly imported items
-- [ ] Step 7: Handle errors (unsupported file types, import failures)
-- [ ] Step 8: Run swiftlint
-- [ ] Step 9: Test dragging various file types from Finder
+- [x] Step 1: Review sample_code/AdoptingDragAndDropUsingSwiftUI for external drag
+- [x] Step 2: Add .dropDestination accepting file URLs from external sources
+- [x] Step 3: Handle dropped file/folder URLs
+- [x] Step 4: Call backend file import API endpoint
+- [x] Step 5: Show progress indicator during import
+- [x] Step 6: Update sidebar to show newly imported items
+- [x] Step 7: Handle errors (unsupported file types, import failures)
+- [x] Step 8: Run swiftlint
+- [ ] Step 9: Test dragging various file types from Finder (requires manual testing after fixing build)
 
 ## Files
 - File to change: Fichero/Fichero/Views/Browser/SidebarView.swift (or main window view)

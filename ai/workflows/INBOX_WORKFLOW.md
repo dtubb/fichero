@@ -17,11 +17,8 @@ Capture new ideas from the inbox and file them as tasks, ensuring organized work
 8. **Add** copy of `ai/templates/todo/task.md` as `task.md` to task folder. Review `ai/contexts` as needed to update tasks.md note.
 9. **Add** copy of `ai/templates/context.md` as `context.md`to task folder. Review `ai/contexts` and tasks.md as needed to update context.md note.
 9. **Do not request human review of `tasks.md`** and `context.md`. Make best guess and proceed.
-11. **Commit changes to Git** with clear commit message following the format in `ai/templates//git_update_template.md`:
-    - Run `git add .` to stage all changes
-    - Run `git commit -m "<descriptive commit message>"` to commit
-    - Run `git push` if ready to push to remote
-   
+11. **Commit changes to GitHub** with clear commit message following the format in `ai/templates//git_update_template.md`:
+12. **Don't forget to commit to GitHub.**
 12. **Do not Request human review of task files**.
 13. **UNDER NO CIRCUMSTANCES PROCEED TO IMPLEMENT TASK, UNLESS REQUESTED. ONCE POSTED TO GIT GO BACK TO AI_README.md to continue.**
 14. **STOP WHEN TASK IS DONE**

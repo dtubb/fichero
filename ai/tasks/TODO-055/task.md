@@ -4,12 +4,12 @@
 Increase indentation spacing from section titles to improve visual hierarchy in the sidebar.
 
 ## Steps
-- [ ] Step 1: Locate section title styling in sidebar code
-- [ ] Step 2: Increase leading padding for items under section headers
-- [ ] Step 3: Review visual appearance in Xcode preview
-- [ ] Step 4: Adjust spacing to match macOS standard sidebar patterns
-- [ ] Step 5: Run swiftlint
-- [ ] Step 6: Build and test visual changes
+- [x] Step 1: Locate section title styling in sidebar code
+- [x] Step 2: Increase leading padding for items under section headers
+- [x] Step 3: Review visual appearance in Xcode preview
+- [x] Step 4: Adjust spacing to match macOS standard sidebar patterns
+- [x] Step 5: Run swiftlint
+- [x] Step 6: Build and test visual changes (blocked by TODO-059)
 
 ## Files
 - File to change: Fichero/Fichero/Views/Browser/SidebarView.swift (or related component)

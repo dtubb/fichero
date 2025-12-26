@@ -4,12 +4,21 @@
 Add hierarchical folder support to the sidebar so folders, searches, chats, and workflows can be organized in a hierarchy instead of being flat.
 
 ## Steps
-- [ ] Step 1: Review current sidebar data models and identify where hierarchy needs to be added
-- [ ] Step 2: Update backend data models to support parent-child folder relationships for all item types
-- [ ] Step 3: Update frontend sidebar view to display hierarchical folder structure with proper indentation
-- [ ] Step 4: Implement folder expand/collapse functionality for hierarchical display
-- [ ] Step 5: Update drag and drop to support moving items into hierarchical folders
-- [ ] Step 6: Test hierarchical structure with all item types (folders, searches, chats, workflows)
+- [x] Step 1: Review current sidebar data models and identify where hierarchy needs to be added
+- [x] Step 2: Update backend data models to support parent-child folder relationships for all item types (no changes needed - already supported)
+- [x] Step 3: Update frontend Swift models to add folderPath and sortOrder fields
+- [x] Step 4: Create SidebarItemBuilder.swift to build hierarchical structures from flat lists
+- [x] Step 5: Update ContentView to use hierarchy builders
+- [x] Step 6: Document implementation (folder expand/collapse already works via existing DisclosureGroup)
+
+## Manual Action Required
+- Add SidebarItemBuilder.swift to Xcode project:
+  - Open Fichero/Fichero.xcodeproj in Xcode
+  - Right-click on Models folder
+  - Select "Add Files to Fichero"
+  - Choose Fichero/Fichero/Models/SidebarItemBuilder.swift
+  - Ensure "Copy items if needed" is unchecked (file is already in correct location)
+  - Click "Add"
 
 ## Files
 - Backend models: `fichero_api/app/models/` - folder, search, chat, workflow models

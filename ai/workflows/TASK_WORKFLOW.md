@@ -66,11 +66,10 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
 8. **Finalize and commit**
    - Update task status to `[x]` in TODO.md
    - **Commit changes to Git** with clear commit message following the format in `ai/templates/git_update_template.md`:
-    - Run `git add .` to stage all changes
-    - Run `git commit -m "<descriptive commit message>"` to commit
-    - Run `git push` if ready to push to remote
 
-9. **STOP WHEN TASK IS DONE**
+9. **Don't forget to commit to GitHub.**
+
+10. **STOP WHEN TASK IS DONE**
 
 ## Task Structure
 

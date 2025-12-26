@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Main content view with three-column navigation
 /// Switches between Library, Search, and Workflow views based on sidebar selection
@@ -43,27 +44,29 @@ struct ContentView: View {
     @StateObject private var performanceService = PerformanceService()
     @StateObject private var cacheModel = CacheModel()
 
+    // Drag and drop state
+    @State private var isDropTargeted = false
+    @State private var isImporting = false
+    @State private var importProgress: String?
+    @State private var importError: String?
+
     // MARK: - Sidebar Data
 
-    /// Build sidebar items from documentStore collections
+    /// Build sidebar items from documentStore collections with hierarchy
     private var libraryItems: [SidebarItem] {
-        return documentStore.collections.map { collection in
-            SidebarItem.fromDocument(collection)
-        }
+        return SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
     }
 
     private var searchItems: [SidebarItem] {
-        savedSearches.map { SidebarItem.fromSearch($0) }
+        return SidebarItemBuilder.buildSearchHierarchy(from: savedSearches)
     }
 
     private var chatItems: [SidebarItem] {
-        conversations.map { SidebarItem.fromConversation($0) }
+        return SidebarItemBuilder.buildChatHierarchy(from: conversations)
     }
 
     private var workflowItems: [SidebarItem] {
-        workflowStore.workflows.map { workflow in
-            SidebarItem.fromWorkflow(workflow)
-        }
+        return SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
     }
 
     // MARK: - Computed Properties
@@ -363,6 +366,48 @@ struct ContentView: View {
             ProvidersSettingsSheet()
                 .environmentObject(appState)
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            handleFileDrop(urls: urls)
+            return true
+        } isTargeted: { isTargeted in
+            self.isDropTargeted = isTargeted
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.accentColor, lineWidth: 2)
+                    .padding(4)
+                    .allowsHitTesting(false)
+            }
+        }
+        .overlay {
+            if isImporting {
+                ZStack {
+                    Color.black.opacity(0.3)
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        if let progress = importProgress {
+                            Text(progress)
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(20)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .cornerRadius(8)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .alert("Import Error", isPresented: .constant(importError != nil)) {
+            Button("OK") {
+                importError = nil
+            }
+        } message: {
+            if let error = importError {
+                Text(error)
+            }
+        }
     }
 
     // MARK: - Content View (Middle Column)
@@ -579,6 +624,70 @@ struct ContentView: View {
                 }
             } catch {
                 NSLog("[ContentView] Failed to refresh saved searches: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - File Import
+
+    /// Handle files dropped from Finder
+    func handleFileDrop(urls: [URL]) {
+        NSLog("[ContentView] Files dropped: \(urls.map { $0.lastPathComponent })")
+
+        // Determine target parent ID from current selection
+        var targetParentId: String?
+        if case .library(let doc) = viewMode {
+            targetParentId = doc?.id
+        }
+
+        Task {
+            isImporting = true
+            importError = nil
+
+            var successCount = 0
+            var failedFiles: [String] = []
+
+            for url in urls {
+                do {
+                    // Check if it's a file URL
+                    guard url.isFileURL else {
+                        NSLog("[ContentView] Skipping non-file URL: \(url)")
+                        continue
+                    }
+
+                    // Update progress
+                    await MainActor.run {
+                        importProgress = "Importing \(url.lastPathComponent)..."
+                    }
+
+                    // Import the file
+                    NSLog("[ContentView] Importing file: \(url.path)")
+                    _ = try await documentService.importFile(at: url, parentId: targetParentId)
+                    successCount += 1
+
+                } catch {
+                    NSLog("[ContentView] Failed to import \(url.lastPathComponent): \(error)")
+                    failedFiles.append(url.lastPathComponent)
+                }
+            }
+
+            // Update UI
+            await MainActor.run {
+                isImporting = false
+                importProgress = nil
+
+                if !failedFiles.isEmpty {
+                    let fileList = failedFiles.joined(separator: ", ")
+                    importError = "Failed to import \(failedFiles.count) file(s): \(fileList)"
+                }
+
+                // Refresh collections to show newly imported items
+                if successCount > 0 {
+                    Task {
+                        await documentStore.loadCollections()
+                        NSLog("[ContentView] Successfully imported \(successCount) file(s)")
+                    }
+                }
             }
         }
     }

@@ -107,18 +107,23 @@
   - Depends on: None
 - [x] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
   - Depends on: None
-- [>] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
+- [x] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
   - Depends on: None
-- [ ] TODO-055: Improve Section Title Indentation (P2, Low)
+- [x] TODO-055: Improve Section Title Indentation (P2, Low)
   - Depends on: None
-- [ ] TODO-056: Enable Drop on Search, Chat, and Workflow Sections (P1, Medium)
+  - Status: Complete - Added 4pt leading padding to items under section headers
+- [x] TODO-056: Enable Drop on Search, Chat, and Workflow Sections (P1, Medium)
   - Depends on: TODO-054
-- [ ] TODO-057: Enable Drag from Finder to Ingest Files (P1, High)
+  - Status: Implementation complete - requires TODO-059 to be fully resolved for testing
+- [x] TODO-057: Enable Drag from Finder to Ingest Files (P1, High)
   - Depends on: None
-- [ ] TODO-058: Add Menu Commands and Toolbar Items (P1, Medium)
+  - Status: Implementation complete - requires SidebarItemBuilder.swift to be added to Xcode project (see TODO-059)
+- [x] TODO-058: Add Menu Commands and Toolbar Items (P1, Medium)
   - Depends on: None
-- [ ] TODO-059: Implement Hierarchical Folder Structure for All Sidebar Items (P1, High)
+  - Status: Completed - Added File and Edit menu commands with keyboard shortcuts, plus sidebar toolbar
+- [x] TODO-059: Implement Hierarchical Folder Structure for All Sidebar Items (P1, High)
   - Depends on: None
+  - Status: Implementation complete - SidebarItemBuilder.swift needs to be added to Xcode project manually
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)

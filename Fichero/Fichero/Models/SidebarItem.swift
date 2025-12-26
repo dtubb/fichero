@@ -29,7 +29,7 @@ struct SidebarItem: Identifiable, Hashable {
     let section: SidebarSection
     let itemType: ItemType
     var children: [SidebarItem]?
-    var progress: Double? = nil  // Optional progress indicator (0.0 to 1.0)
+    var progress: Double?  // Optional progress indicator (0.0 to 1.0)
     var showProgress: Bool = false  // Whether to show the progress indicator
 
     enum ItemType: Hashable {
@@ -105,14 +105,29 @@ struct Conversation: Identifiable, Codable, Hashable {
     var title: String
     var messages: [ChatMessage]
     var documentScope: [String]  // Document IDs to search within
+    var folderPath: String
+    var sortOrder: Int
     var createdAt: Date
     var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case messages
+        case documentScope = "document_ids"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
 
     init(
         id: String = UUID().uuidString,
         title: String = "New Chat",
         messages: [ChatMessage] = [],
         documentScope: [String] = [],
+        folderPath: String = "/",
+        sortOrder: Int = 0,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -120,6 +135,8 @@ struct Conversation: Identifiable, Codable, Hashable {
         self.title = title
         self.messages = messages
         self.documentScope = documentScope
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -170,7 +187,21 @@ struct SavedSearch: Identifiable, Codable, Hashable {
     var filters: SearchFilters
     var icon: String
     var isSmartSearch: Bool
+    var folderPath: String
+    var sortOrder: Int
     var createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case query
+        case filters
+        case icon
+        case isSmartSearch = "is_smart_search"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+        case createdAt = "created_at"
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -179,6 +210,8 @@ struct SavedSearch: Identifiable, Codable, Hashable {
         filters: SearchFilters = SearchFilters(),
         icon: String = "magnifyingglass",
         isSmartSearch: Bool = false,
+        folderPath: String = "/",
+        sortOrder: Int = 0,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -187,6 +220,8 @@ struct SavedSearch: Identifiable, Codable, Hashable {
         self.filters = filters
         self.icon = icon
         self.isSmartSearch = isSmartSearch
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
         self.createdAt = createdAt
     }
 }
@@ -228,8 +263,22 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var description: String?
     var nodeCount: Int
     var isEnabled: Bool
+    var folderPath: String
+    var sortOrder: Int
     var createdAt: Date
     var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case description
+        case nodeCount = "node_count"
+        case isEnabled = "is_enabled"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -237,6 +286,8 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         description: String? = nil,
         nodeCount: Int = 0,
         isEnabled: Bool = true,
+        folderPath: String = "/",
+        sortOrder: Int = 0,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -245,6 +296,8 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.description = description
         self.nodeCount = nodeCount
         self.isEnabled = isEnabled
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

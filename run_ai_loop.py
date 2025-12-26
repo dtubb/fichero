@@ -16,6 +16,7 @@ NC = '\033[0m'
 
 TASK = "Follow instructions in @ai/AI_README.md"
 TODO_FILE = "/Users/dtubb/code/fichero_main/fichero/ai/TODO.md"
+MAX_RUNS = 10
 
 def has_unchecked_todos():
     """Check if TODO.md has any unchecked [ ] items"""
@@ -30,9 +31,9 @@ def has_unchecked_todos():
 
 run_count = 0
 
-while has_unchecked_todos():
+while has_unchecked_todos() and run_count < MAX_RUNS:
     run_count += 1
-    print(f"\n{CYAN}=== Run #{run_count} ==={NC}\n")
+    print(f"\n{CYAN}=== Run #{run_count} of {MAX_RUNS} ==={NC}\n")
     
     cmd = [
         "claude", "--print",
@@ -77,7 +78,13 @@ while has_unchecked_todos():
     time.sleep(2)
 
 print()
-print(f"{MAGENTA}╔════════════════════════════════════════╗{NC}")
-print(f"{MAGENTA}║   All TODO items completed! 🎉        ║{NC}")
-print(f"{MAGENTA}║   Total runs: {run_count:<27} ║{NC}")
-print(f"{MAGENTA}╚════════════════════════════════════════╝{NC}")
+if not has_unchecked_todos():
+    print(f"{MAGENTA}╔════════════════════════════════════════╗{NC}")
+    print(f"{MAGENTA}║   All TODO items completed! 🎉        ║{NC}")
+    print(f"{MAGENTA}║   Total runs: {run_count:<27} ║{NC}")
+    print(f"{MAGENTA}╚════════════════════════════════════════╝{NC}")
+else:
+    print(f"{YELLOW}╔════════════════════════════════════════╗{NC}")
+    print(f"{YELLOW}║   Max runs reached ({MAX_RUNS})               ║{NC}")
+    print(f"{YELLOW}║   Some TODO items remain unchecked    ║{NC}")
+    print(f"{YELLOW}╚════════════════════════════════════════╝{NC}")

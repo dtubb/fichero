@@ -44,7 +44,6 @@ io_worker.log
 /.cursor
 
 /.claude
-CLAUDE.md
 /.claude
 .aider*
 opencode.json

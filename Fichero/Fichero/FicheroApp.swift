@@ -18,6 +18,13 @@ struct FicheroApp: App {
         .commands {
             // File menu
             CommandGroup(replacing: .newItem) {
+                Button("New Folder") {
+                    NotificationCenter.default.post(name: .createNewFolder, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: [.command])
+
+                Divider()
+
                 Button("Import Files...") {
                     importFiles()
                 }
@@ -29,6 +36,21 @@ struct FicheroApp: App {
                 .keyboardShortcut("o", modifiers: [.command, .shift])
 
                 Divider()
+            }
+
+            // Edit menu
+            CommandGroup(after: .pasteboard) {
+                Divider()
+
+                Button("Rename") {
+                    NotificationCenter.default.post(name: .renameSelectedItem, object: nil)
+                }
+                .keyboardShortcut(.return, modifiers: [])
+
+                Button("Delete") {
+                    NotificationCenter.default.post(name: .deleteSelectedItem, object: nil)
+                }
+                .keyboardShortcut(.delete, modifiers: [.command])
             }
 
             // View menu - custom structure like Ulysses
@@ -1937,6 +1959,10 @@ struct ProvidersSettingsSheet: View {
 
 extension Notification.Name {
     static let toggleInspector = Notification.Name("toggleInspector")
+    static let createNewFolder = Notification.Name("createNewFolder")
+    static let renameSelectedItem = Notification.Name("renameSelectedItem")
+    static let deleteSelectedItem = Notification.Name("deleteSelectedItem")
+    static let deleteItemRequested = Notification.Name("deleteItemRequested")
 }
 
 // MARK: - Image Preview Menu Commands

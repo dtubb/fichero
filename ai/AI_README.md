@@ -18,10 +18,12 @@ ls ai/inbox/
 **Option 1: Inbox Mode**
 1. Follow `ai/workflows/INBOX_WORKFLOW.md` completely. Process only one inbox idea at a timer.
 2. Stop when inbox processing is done. 
+3. Commit to GitHub, if not alrady commited. Use the template `ai/templates/git_update_template.md`
 
 **Option 2: Task Mode**
 1. Follow `ai/workflows/TASK_WORKFLOW.md` completely. Complete only one task.
 2. Stop when task is done.
+3. Commit to GitHub, if not alrady commited. Use the template `ai/templates/git_update_template.md`
 
 ### Key Principles
 - **Save context** - Only enter Inbox Mode if items exist
