@@ -98,7 +98,7 @@
 - [x] TODO-043: Fix Sidebar Build Errors (P0, High)
   - Depends on: None
   - Status: New task created from inbox item
-- [ ] TODO-050: Comprehensive Sidebar Improvements Plan (P1, High)
+- [x] TODO-050: Comprehensive Sidebar Improvements Plan (P1, High)
   - Depends on: None
   - Status: Planning task to break down sidebar fixes into focused tasks
 - [x] TODO-051: Remove "Move to Folder" from Context Menu (P1, Medium)
@@ -107,7 +107,7 @@
   - Depends on: None
 - [x] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
   - Depends on: None
-- [ ] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
+- [>] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
   - Depends on: None
 - [ ] TODO-055: Improve Section Title Indentation (P2, Low)
   - Depends on: None
