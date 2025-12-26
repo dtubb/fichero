@@ -98,6 +98,25 @@
 - [x] TODO-043: Fix Sidebar Build Errors (P0, High)
   - Depends on: None
   - Status: New task created from inbox item
+- [ ] TODO-050: Comprehensive Sidebar Improvements Plan (P1, High)
+  - Depends on: None
+  - Status: Planning task to break down sidebar fixes into focused tasks
+- [ ] TODO-051: Remove "Move to Folder" from Context Menu (P1, Medium)
+  - Depends on: None
+- [ ] TODO-052: Fix Inline Rename to Use SwiftUI Default Pattern (P1, High)
+  - Depends on: None
+- [ ] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
+  - Depends on: None
+- [ ] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
+  - Depends on: None
+- [ ] TODO-055: Improve Section Title Indentation (P2, Low)
+  - Depends on: None
+- [ ] TODO-056: Enable Drop on Search, Chat, and Workflow Sections (P1, Medium)
+  - Depends on: TODO-054
+- [ ] TODO-057: Enable Drag from Finder to Ingest Files (P1, High)
+  - Depends on: None
+- [ ] TODO-058: Add Menu Commands and Toolbar Items (P1, Medium)
+  - Depends on: None
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)
