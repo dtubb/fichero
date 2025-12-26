@@ -6,22 +6,6 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
-      <BuildActionEntries>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "500"
-               BuildableName = "Fichero.app"
-               BlueprintName = "Fichero"
-               ReferencedContainer = "container:Fichero.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-      </BuildActionEntries>
    </BuildAction>
    <TestAction
       buildConfiguration = "Debug"
@@ -30,8 +14,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Fichero.xctestplan"
-            default = "YES">
+            reference = "container:TestPlan.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>
@@ -43,17 +26,6 @@
                BlueprintIdentifier = "A10521A82EFDC92400B28C3E"
                BuildableName = "FicheroTests.xctest"
                BlueprintName = "FicheroTests"
-               ReferencedContainer = "container:Fichero.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A10521C02EFDC94100B28C3E"
-               BuildableName = "FicheroUITests.xctest"
-               BlueprintName = "FicheroUITests"
                ReferencedContainer = "container:Fichero.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -69,16 +41,6 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "500"
-            BuildableName = "Fichero.app"
-            BlueprintName = "Fichero"
-            ReferencedContainer = "container:Fichero.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -86,16 +48,6 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "500"
-            BuildableName = "Fichero.app"
-            BlueprintName = "Fichero"
-            ReferencedContainer = "container:Fichero.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

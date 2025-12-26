@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "8D7DF735-5C5B-4EB5-950F-15129379C5F7",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Fichero.xcodeproj",
+        "identifier" : "A10521A82EFDC92400B28C3E",
+        "name" : "FicheroTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Fichero.xcodeproj",
+        "identifier" : "A10521C02EFDC94100B28C3E",
+        "name" : "FicheroUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -55,6 +55,7 @@
 		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
+		A10521A22EFDB2E800B28C3E /* Fichero.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -108,25 +109,14 @@
 		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
 		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
-		A105219F2EFC860E00B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = SOURCE_ROOT; };
-		A1051F882EFC83A000B28C3E /* FicheroTests */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; name = FicheroTests.xctest; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1051F922EFC83A000B28C3E /* FicheroUITests */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; name = FicheroUITests.xctest; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4128 /* FicheroTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroTests.swift; sourceTree = "<group>"; };
-		4129 /* SidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarTests.swift; sourceTree = "<group>"; };
-		4130 /* SidebarItemRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRowTests.swift; sourceTree = "<group>"; };
-		4131 /* SectionHeaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeaderTests.swift; sourceTree = "<group>"; };
-		4132 /* InlineRenameFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameFieldTests.swift; sourceTree = "<group>"; };
-		4133 /* FicheroUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroUITests.swift; sourceTree = "<group>"; };
-		4134 /* FicheroUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fichero.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		300 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -134,9 +124,9 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A105219F2EFC860E00B28C3E /* Fichero.xctestplan */,
 				410 /* Fichero */,
 				420 /* Products */,
+				A10521A12EFDB2E800B28C3E /* Fichero.xctestplan */,
 			);
 			sourceTree = "<group>";
 		};
@@ -304,31 +294,8 @@
 			isa = PBXGroup;
 			children = (
 				100 /* Fichero.app */,
-				A1051F882EFC83A000B28C3E /* FicheroTests.xctest */,
-				A1051F922EFC83A000B28C3E /* FicheroUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		4135 /* FicheroTests */ = {
-			isa = PBXGroup;
-			children = (
-				4128 /* FicheroTests.swift */,
-				4129 /* SidebarTests.swift */,
-				4130 /* SidebarItemRowTests.swift */,
-				4131 /* SectionHeaderTests.swift */,
-				4132 /* InlineRenameFieldTests.swift */,
-			);
-			name = FicheroTests;
-			sourceTree = "<group>";
-		};
-		4136 /* FicheroUITests */ = {
-			isa = PBXGroup;
-			children = (
-				4133 /* FicheroUITests.swift */,
-				4134 /* FicheroUITestsLaunchTests.swift */,
-			);
-			name = FicheroUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -343,8 +310,6 @@
 				520 /* Resources */,
 			);
 			buildRules = (
-			);
-			dependencies = (
 			);
 			name = Fichero;
 			productName = Fichero;
@@ -367,7 +332,6 @@
 				};
 			};
 			buildConfigurationList = 710 /* Build configuration list for PBXProject "Fichero" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -375,6 +339,7 @@
 				Base,
 			);
 			mainGroup = 400;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -387,18 +352,16 @@
 /* Begin PBXResourcesBuildPhase section */
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
+				A10521A22EFDB2E800B28C3E /* Fichero.xctestplan in Resources */,
 				009 /* Assets.xcassets in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				001 /* FicheroApp.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
@@ -448,12 +411,11 @@
 				036 /* WorkflowStore.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug */ = {
+		800 /* Debug configuration for PBXProject "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -517,7 +479,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release */ = {
+		801 /* Release configuration for PBXProject "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -573,7 +535,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug */ = {
+		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -585,6 +547,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -603,7 +566,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release */ = {
+		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -615,6 +578,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -639,19 +603,17 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug */,
-				811 /* Release */,
+				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
+				811 /* Release configuration for PBXNativeTarget "Fichero" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		710 /* Build configuration list for PBXProject "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug */,
-				801 /* Release */,
+				800 /* Debug configuration for PBXProject "Fichero" */,
+				801 /* Release configuration for PBXProject "Fichero" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

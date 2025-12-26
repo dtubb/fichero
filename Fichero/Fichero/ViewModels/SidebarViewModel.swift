@@ -143,7 +143,7 @@ class SidebarViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Document Change Handling
-    private func handleDocumentChange(_ change: DocumentChange) {
+    func handleDocumentChange(_ change: DocumentChange) {
         switch change {
         case .collectionsUpdated:
             // Update handled by parent view recomputing libraryItems

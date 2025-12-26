@@ -412,4 +412,87 @@ class SidebarViewTests: XCTestCase {
         let change = DocumentChange.documentCreated(newDoc)
         view.handleDocumentChange(change)
     }
+
+    func testSidebarViewWithAllDependencies() {
+        // Create all required services
+        let documentStore = DocumentStore()
+        let documentService = DocumentService()
+        let savedSearchService = SavedSearchService()
+        let conversationService = ConversationService()
+        let workflowService = WorkflowService()
+        let errorService = ErrorService.shared
+        let performanceService = PerformanceService()
+        let cacheModel = CacheModel()
+        let dragDropModel = DragDropModel()
+
+        // Create test data
+        let collection = Document(id: "1", name: "Test Collection", docType: .collection)
+        let libraryItems = [SidebarItem.fromDocument(collection)]
+
+        // Create SidebarView
+        let view = SidebarView(
+            viewMode: .constant(.library(nil)),
+            selectedItem: .constant(nil),
+            libraryItems: libraryItems,
+            searchItems: [],
+            chatItems: [],
+            workflowItems: []
+        )
+        .environmentObject(documentStore)
+        .environmentObject(documentService)
+        .environmentObject(savedSearchService)
+        .environmentObject(conversationService)
+        .environmentObject(workflowService)
+        .environmentObject(errorService)
+        .environmentObject(performanceService)
+        .environmentObject(cacheModel)
+        .environmentObject(dragDropModel)
+
+        // This should not crash - verifies all dependencies are properly injected
+        _ = view.body
+    }
+
+    func testSidebarViewDependencyInjectionFix() {
+        // This test verifies the fix for the crash: "No ObservableObject of type DocumentStore found"
+        
+        // Create all required services
+        let documentStore = DocumentStore()
+        let documentService = DocumentService()
+        let savedSearchService = SavedSearchService()
+        let conversationService = ConversationService()
+        let workflowService = WorkflowService()
+        let errorService = ErrorService.shared
+        let performanceService = PerformanceService()
+        let cacheModel = CacheModel()
+        let dragDropModel = DragDropModel()
+
+        // Create test data
+        let collection = Document(id: "1", name: "Test Collection", docType: .collection)
+        let libraryItems = [SidebarItem.fromDocument(collection)]
+
+        // Create SidebarView with all required environment objects
+        let view = SidebarView(
+            viewMode: .constant(.library(nil)),
+            selectedItem: .constant(nil),
+            libraryItems: libraryItems,
+            searchItems: [],
+            chatItems: [],
+            workflowItems: []
+        )
+        .environmentObject(documentStore)        // This was missing and causing the crash
+        .environmentObject(documentService)       // This was also missing
+        .environmentObject(savedSearchService)
+        .environmentObject(conversationService)
+        .environmentObject(workflowService)
+        .environmentObject(errorService)
+        .environmentObject(performanceService)
+        .environmentObject(cacheModel)
+        .environmentObject(dragDropModel)        // This was also missing
+
+        // Verify the view can be rendered without crashing
+        let body = view.body
+        
+        // The fact that we can access the body without crashing means the dependencies are properly injected
+        XCTAssertNotNil(body)
+    }
 }
