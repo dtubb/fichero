@@ -54,3 +54,9 @@ Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserI
 .briefcase 
 sample_code
 /Fichero/derived_data
+.briefcase
+.build
+.vscode
+.gitignore
+sample_code
+ai
