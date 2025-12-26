@@ -117,6 +117,8 @@
   - Depends on: None
 - [ ] TODO-058: Add Menu Commands and Toolbar Items (P1, Medium)
   - Depends on: None
+- [ ] TODO-059: Implement Hierarchical Folder Structure for All Sidebar Items (P1, High)
+  - Depends on: None
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)
