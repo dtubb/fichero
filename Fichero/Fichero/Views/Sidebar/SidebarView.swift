@@ -1,266 +1,151 @@
+// swiftlint:disable file_length
 import SwiftUI
 import UniformTypeIdentifiers
-import AppKit
-import Combine
 
-/// Simple, SwiftUI-native sidebar with Library, Searches, Chat, and Workflows sections
+/// Sidebar with Library, Searches, Chat, and Workflows sections
 struct SidebarView: View {
-    // MARK: - Bindings from parent
     @Binding var viewMode: AppViewMode
     @Binding var selectedItem: SidebarItem?
-    
-    // MARK: - Data from parent (computed properties in ContentView)
+
+    // Section data
     let libraryItems: [SidebarItem]
-    let searchItems: [SidebarItem] 
+    let searchItems: [SidebarItem]
     let chatItems: [SidebarItem]
     let workflowItems: [SidebarItem]
-    
-    // MARK: - Environment objects
-    @EnvironmentObject var documentStore: DocumentStore
-    @EnvironmentObject var documentService: DocumentService
-    @EnvironmentObject var searchService: SavedSearchService
-    @EnvironmentObject var conversationService: ConversationService
-    @EnvironmentObject var workflowService: WorkflowService
-    @EnvironmentObject var errorService: ErrorService
-    
-    // MARK: - Callback
+
+    // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
-    
-    // MARK: - Local state
-    @State private var expandedSections: Set<SidebarSection> = [.library, .searches, .chat, .workflows]
+
+    // Expansion state
+    @State private var expandedItems: Set<String> = []
+    @State private var libraryExpanded = true
+    @State private var searchesExpanded = true
+    @State private var chatExpanded = true
+    @State private var workflowsExpanded = true
     @State private var isChatDropTargeted = false
-    @State private var isLibraryDropTargeted = false
-    @State private var showingNewFolderDialog = false
-    @State private var newFolderName = ""
-    @State private var newFolderError: String?
-    @State private var isCreatingFolder = false
-    @State private var newFolderSection: SidebarSection?
-    @State private var newFolderParentId: String?
-    
+
     var body: some View {
         List(selection: $selectedItem) {
             // LIBRARY section
-            librarySection
-            
-            // SEARCHES section  
-            searchesSection
-            
-            // CHAT section
-            chatSection
-            
+            Section(isExpanded: $libraryExpanded) {
+                ForEach(libraryItems) { item in
+                    SidebarItemRow(
+                        item: item,
+                        expandedItems: $expandedItems
+                    )
+                    .tag(item)
+                    .contextMenu {
+                        SidebarItemContextMenu(item: item)
+                    }
+                }
+                .onMove(perform: { _, _ in
+                    // Handle reordering of library items
+                    // This would require updating the backend collection order
+                })
+            } header: {
+                SectionHeader(title: "Library", icon: "folder")
+            }
+
+            // SEARCHES section
+            Section(isExpanded: $searchesExpanded) {
+                ForEach(searchItems) { item in
+                    SidebarItemRow(
+                        item: item,
+                        expandedItems: $expandedItems
+                    )
+                    .tag(item)
+                    .contextMenu {
+                        SidebarItemContextMenu(item: item)
+                    }
+                }
+                .onMove(perform: { _, _ in
+                    // Handle reordering of search items
+                })
+
+                // New Search button
+                Button(action: { createNewSearch() }, label: {
+                    Label("New Search...", systemImage: "plus")
+                        .foregroundColor(.secondary)
+                })
+                .buttonStyle(.plain)
+            } header: {
+                SectionHeader(title: "Searches", icon: "magnifyingglass")
+            }
+
+            // CHAT section - supports dropping documents to create new chat
+            Section(isExpanded: $chatExpanded) {
+                ForEach(chatItems) { item in
+                    SidebarItemRow(
+                        item: item,
+                        expandedItems: $expandedItems
+                    )
+                    .tag(item)
+                    .contextMenu {
+                        SidebarItemContextMenu(item: item)
+                    }
+                }
+                .onMove(perform: { _, _ in
+                    // Handle reordering of chat items
+                })
+
+                // New Chat button with drop support
+                Button(action: { createNewChat() }, label: {
+                    HStack {
+                        Label("New Chat...", systemImage: "plus")
+                            .foregroundColor(isChatDropTargeted ? .accentColor : .secondary)
+                        if isChatDropTargeted {
+                            Spacer()
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                })
+                .buttonStyle(.plain)
+                .onDrop(of: [.text, .plainText], isTargeted: $isChatDropTargeted) { providers in
+                    handleChatDrop(providers: providers)
+                }
+            } header: {
+                SectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
+            }
+
             // WORKFLOWS section
-            workflowsSection
+            Section(isExpanded: $workflowsExpanded) {
+                ForEach(workflowItems) { item in
+                    SidebarItemRow(
+                        item: item,
+                        expandedItems: $expandedItems
+                    )
+                    .tag(item)
+                    .contextMenu {
+                        SidebarItemContextMenu(item: item)
+                    }
+                }
+                .onMove(perform: { _, _ in
+                    // Handle reordering of workflow items
+                })
+
+                // New Workflow button
+                Button(action: { createNewWorkflow() }, label: {
+                    Label("New Workflow...", systemImage: "plus")
+                        .foregroundColor(.secondary)
+                })
+                .buttonStyle(.plain)
+            } header: {
+                SectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
+            }
         }
         .listStyle(.sidebar)
-        .frame(minWidth: 200, idealWidth: 240)
+        .frame(minWidth: 200)
         .onChange(of: selectedItem) { _, newItem in
             handleSelection(newItem)
         }
-        .onReceive(documentStore.documentChangePublisher.catch { _ in
-            Empty(completeImmediately: true)
-        }.receive(on: DispatchQueue.main)) { change in
-            handleDocumentChange(change)
-        }
-        .sheet(isPresented: $showingNewFolderDialog) {
-            newFolderDialog
-        }
     }
-    
-    // MARK: - Sections
-    
-    @ViewBuilder
-    private var librarySection: some View {
-        Section(isExpanded: Binding(
-            get: { expandedSections.contains(.library) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedSections.insert(.library)
-                } else {
-                    expandedSections.remove(.library)
-                }
-            }
-        )) {
-            ForEach(libraryItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    section: .library,
-                    viewMode: $viewMode,
-                    selectedItem: $selectedItem
-                )
-                .tag(item)
-            }
-        } header: {
-            SectionHeader(title: "Library", icon: "folder")
-        }
-        .onDrop(of: [.fileURL], isTargeted: $isLibraryDropTargeted) { providers -> Bool in
-            handleLibraryDrop(providers: providers)
-        }
-    }
-    
-    @ViewBuilder  
-    private var searchesSection: some View {
-        Section(isExpanded: Binding(
-            get: { expandedSections.contains(.searches) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedSections.insert(.searches)
-                } else {
-                    expandedSections.remove(.searches)
-                }
-            }
-        )) {
-            ForEach(searchItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    section: .searches,
-                    viewMode: $viewMode,
-                    selectedItem: $selectedItem
-                )
-                .tag(item)
-            }
-            
-            // New Search button
-            Button(action: createNewSearch) {
-                Label("New Search...", systemImage: "plus")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        } header: {
-            SectionHeader(title: "Searches", icon: "magnifyingglass")
-        }
-    }
-    
-    @ViewBuilder
-    private var chatSection: some View {
-        Section(isExpanded: Binding(
-            get: { expandedSections.contains(.chat) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedSections.insert(.chat)
-                } else {
-                    expandedSections.remove(.chat)
-                }
-            }
-        )) {
-            ForEach(chatItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    section: .chat,
-                    viewMode: $viewMode,
-                    selectedItem: $selectedItem
-                )
-                .tag(item)
-            }
-            
-            // New Chat button with drop support
-            newChatButton
-        } header: {
-            SectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
-        }
-    }
-    
-    @ViewBuilder
-    private var workflowsSection: some View {
-        Section(isExpanded: Binding(
-            get: { expandedSections.contains(.workflows) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedSections.insert(.workflows)
-                } else {
-                    expandedSections.remove(.workflows)
-                }
-            }
-        )) {
-            ForEach(workflowItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    section: .workflows,
-                    viewMode: $viewMode,
-                    selectedItem: $selectedItem
-                )
-                .tag(item)
-            }
-            
-            // New Workflow button
-            Button(action: createNewWorkflow) {
-                Label("New Workflow...", systemImage: "plus")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        } header: {
-            SectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
-        }
-    }
-    
-    @ViewBuilder
-    private var newChatButton: some View {
-        Button(action: createNewChat) {
-            HStack {
-                Label("New Chat...", systemImage: "plus")
-                    .foregroundColor(isChatDropTargeted ? .accentColor : .secondary)
-                
-                if isChatDropTargeted {
-                    Spacer()
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.accentColor)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .onDrop(of: [.text, .plainText], isTargeted: $isChatDropTargeted) { providers in
-            handleChatDrop(providers: providers)
-        }
-    }
-    
-    @ViewBuilder
-    private var newFolderDialog: some View {
-        VStack(spacing: 16) {
-            Text("New Folder")
-                .font(.headline)
-            
-            TextField("Enter folder name", text: $newFolderName)
-                .textFieldStyle(.roundedBorder)
-                .disableAutocorrection(true)
-            
-            if let newFolderError = newFolderError {
-                Text(newFolderError)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            
-            HStack {
-                Button("Cancel") {
-                    showingNewFolderDialog = false
-                    newFolderName = ""
-                    newFolderError = nil
-                }
-                .keyboardShortcut(.cancelAction)
-                
-                Spacer()
-                
-                Button("Create") {
-                    Task { await createNewFolder() }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(newFolderName.isEmpty || isCreatingFolder)
-                .overlay {
-                    if isCreatingFolder {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                    }
-                }
-            }
-        }
-        .padding()
-        .frame(width: 300)
-    }
-    
+
     // MARK: - Actions
-    
+
     private func handleSelection(_ item: SidebarItem?) {
         guard let item = item else { return }
-        
+
         switch item.itemType {
         case .document(let doc):
             viewMode = .library(doc)
@@ -274,47 +159,43 @@ struct SidebarView: View {
             break
         }
     }
-    
-    private func handleDocumentChange(_ change: DocumentChange) {
-        // Handle document changes - view will automatically update since libraryItems
-        // is passed from parent and will be recomputed when documentStore changes
-        switch change {
-        case .collectionsUpdated:
-            // Collections updated - parent will recompute libraryItems
-            break
-        case .collectionSelected(let collection):
-            // Auto-select the collection if it exists in our items
-            if let item = libraryItems.first(where: { $0.id == collection.id }) {
-                selectedItem = item
-            }
-        case .documentsUpdated, .documentDeleted, .documentCreated:
-            // Document changes - parent will handle refresh
-            break
-        }
-    }
-    
+
     private func createNewSearch() {
         viewMode = .search(nil)
     }
-    
+
     private func createNewChat() {
         viewMode = .chat(nil)
     }
-    
+
     private func createNewWorkflow() {
         viewMode = .workflow(nil)
     }
-    
+
     private func handleChatDrop(providers: [NSItemProvider]) -> Bool {
         var documentIds: [String] = []
-        
+
         for provider in providers {
-            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
-                if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                    DispatchQueue.main.async {
-                        documentIds.append(docId)
-                        if documentIds.count == providers.count {
-                            self.createNewChatWithDocuments(documentIds)
+            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
+                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            documentIds.append(docId)
+                            // After processing all providers, create the chat
+                            if documentIds.count == providers.count {
+                                createNewChatWithDocuments(documentIds)
+                            }
+                        }
+                    }
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
+                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            documentIds.append(docId)
+                            if documentIds.count == providers.count {
+                                createNewChatWithDocuments(documentIds)
+                            }
                         }
                     }
                 }
@@ -322,109 +203,245 @@ struct SidebarView: View {
         }
         return true
     }
-    
+
     private func createNewChatWithDocuments(_ documentIds: [String]) {
+        NSLog("[SidebarView] Creating new chat with %d documents", documentIds.count)
         viewMode = .chat(nil)
         onCreateChatWithDocuments?(documentIds)
     }
-    
-    private func handleLibraryDrop(providers: [NSItemProvider]) -> Bool {
-        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (urlData, _) in
-                DispatchQueue.main.async {
-                    if let urlData = urlData as? Data,
-                       let url = URL(dataRepresentation: urlData, relativeTo: nil) {
-                        self.importFile(url: url)
-                    }
-                }
-            }
-        }
-        return true
-    }
-    
-    private func importFile(url: URL) {
-        Task {
-            do {
-                let importedDoc = try await documentService.importFile(at: url, parentId: nil)
-                print("[Sidebar] Imported file: \(importedDoc.name)")
-                
-                // Show success feedback
-                if let window = NSApp.keyWindow {
-                    let alert = NSAlert()
-                    alert.messageText = "File Imported"
-                    alert.informativeText = "\"\\{importedDoc.name}\" was successfully imported."
-                    alert.addButton(withTitle: "OK")
-                    alert.beginSheetModal(for: window, completionHandler: nil)
-                }
-            } catch {
-                errorService.reportError(ErrorModel.fileSystemError(
-                    message: "Failed to import file: \\{error.localizedDescription)",
-                    context: ["operation": "file_import", "file_path": url.path],
-                    isRecoverable: true
-                ))
-            }
-        }
-    }
-    
-    private func createNewFolder() async {
-        guard let section = newFolderSection else {
-            newFolderError = "No section specified"
-            return
-        }
-        
-        guard !newFolderName.isEmpty else {
-            newFolderError = "Folder name cannot be empty"
-            return
-        }
-        
-        isCreatingFolder = true
-        newFolderError = nil
-        
-        do {
-            let newFolder = try await documentService.createFolder(
-                name: newFolderName,
-                parentId: newFolderParentId
-            )
-            
-            showingNewFolderDialog = false
-            newFolderName = ""
-            newFolderParentId = nil
-            newFolderSection = nil
-            
-            // Show success feedback
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = "Folder Created"
-                alert.informativeText = "\"\\{newFolder.name}\" was successfully created."
-                alert.addButton(withTitle: "OK")
-                alert.beginSheetModal(for: window, completionHandler: nil)
-            }
-        } catch {
-            newFolderError = "Failed to create folder: \\{error.localizedDescription)"
-            errorService.reportError(ErrorModel.fileSystemError(
-                message: "Failed to create folder",
-                context: ["operation": "create_folder", "error": error.localizedDescription],
-                isRecoverable: true
-            ))
-        }
-        
-        isCreatingFolder = false
+}
+
+// MARK: - Section Header
+struct SectionHeader: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.secondary)
     }
 }
 
-// Preview
-struct SidebarView_Previews: PreviewProvider {
-    static var previews: some View {
-        SidebarView(
-            viewMode: .constant(.library(nil)),
-            selectedItem: .constant(nil),
-            libraryItems: [
-                SidebarItem(id: "1", name: "Documents", icon: "doc", section: .library, itemType: .sectionHeader)
-            ],
-            searchItems: [],
-            chatItems: [],
-            workflowItems: []
+// MARK: - Sidebar Item Row
+struct SidebarItemRow: View {
+    let item: SidebarItem
+    @Binding var expandedItems: Set<String>
+
+    private var isExpanded: Binding<Bool> {
+        Binding(
+            get: { expandedItems.contains(item.id) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedItems.insert(item.id)
+                } else {
+                    expandedItems.remove(item.id)
+                }
+            }
         )
-        .frame(width: 250, height: 400)
+    }
+
+    var body: some View {
+        if let children = item.children, !children.isEmpty {
+            DisclosureGroup(isExpanded: isExpanded) {
+                ForEach(children) { child in
+                    SidebarItemRow(item: child, expandedItems: $expandedItems)
+                        .tag(child)
+                        .draggable(SidebarItemDragData(itemID: child.id))
+                        .contextMenu {
+                            SidebarItemContextMenu(item: child)
+                        }
+                        .dropDestination(for: SidebarItemDragData.self) { items, _ in
+                            // Handle dropping items into this folder
+                            handleDropIntoFolder(items: items, targetFolder: child)
+                            return true
+                        }
+                }
+                .onMove(perform: { _, _ in
+                    // Handle reordering of child items within the folder
+                    // This would require updating the backend
+                })
+            } label: {
+                itemLabel
+                    .draggable(SidebarItemDragData(itemID: item.id))
+                    .dropDestination(for: SidebarItemDragData.self) { items, _ in
+                        // Handle dropping items into this folder
+                        handleDropIntoFolder(items: items, targetFolder: item)
+                        return true
+                    }
+            }
+        } else {
+            itemLabel
+                .draggable(SidebarItemDragData(itemID: item.id))
+                .dropDestination(for: SidebarItemDragData.self) { items, _ in
+                    // Handle dropping items onto this item
+                    handleDropOntoItem(items: items, targetItem: item)
+                    return true
+                }
+                .contextMenu {
+                    SidebarItemContextMenu(item: item)
+                }
+        }
+    }
+
+    private func handleDropIntoFolder(items: [SidebarItemDragData], targetFolder: SidebarItem) {
+        // This would call backend to move items into the folder
+        NSLog("[SidebarView] Dropping \(items.count) items into folder: \(targetFolder.name)")
+    }
+
+    private func handleDropOntoItem(items: [SidebarItemDragData], targetItem: SidebarItem) {
+        // This would call backend to handle dropping items onto an item
+        NSLog("[SidebarView] Dropping \(items.count) items onto item: \(targetItem.name)")
+    }
+
+    private var itemLabel: some View {
+        Label {
+            Text(item.name)
+                .lineLimit(1)
+        } icon: {
+            Image(systemName: item.icon)
+                .foregroundColor(iconColor)
+        }
+    }
+
+    private var iconColor: Color {
+        switch item.section {
+        case .library:
+            return .accentColor
+        case .searches:
+            return .orange
+        case .chat:
+            return .green
+        case .workflows:
+            return .purple
+        }
+    }
+}
+
+// MARK: - Sidebar Item Context Menu
+struct SidebarItemContextMenu: View {
+    let item: SidebarItem
+    // Context menu actions would be handled by the parent view
+    // Using action closures or by calling environment objects from the parent view
+
+    var body: some View {
+        Group {
+            Button(action: { renameItem(item) }, label: {
+                Label("Rename", systemImage: "pencil")
+            })
+            .disabled(!item.itemType.canBeRenamed)
+
+            Divider()
+
+            Button(action: { moveItemToFolder(item) }, label: {
+                Label("Move to Folder", systemImage: "folder.badge.plus")
+            })
+            .disabled(!item.itemType.canBeMoved)
+
+            Button(action: { duplicateItem(item) }, label: {
+                Label("Duplicate", systemImage: "doc.on.doc")
+            })
+            .disabled(!item.itemType.canBeDuplicated)
+
+            Divider()
+
+            Button(action: { deleteItem(item) }, label: {
+                Label("Delete", systemImage: "trash")
+                    .foregroundColor(.red)
+            })
+            .disabled(!item.itemType.canBeDeleted)
+        }
+    }
+
+    private func renameItem(_ item: SidebarItem) {
+        // This would trigger the rename functionality
+        NSLog("[SidebarItemContextMenu] Rename item: \(item.name)")
+        // In a real implementation, this would communicate back to the parent view
+    }
+
+    private func moveItemToFolder(_ item: SidebarItem) {
+        // This would move the item to a folder
+        NSLog("[SidebarItemContextMenu] Move item to folder: \(item.name)")
+    }
+
+    private func duplicateItem(_ item: SidebarItem) {
+        // This would duplicate the item
+        NSLog("[SidebarItemContextMenu] Duplicate item: \(item.name)")
+    }
+
+    private func deleteItem(_ item: SidebarItem) {
+        // This would delete the item
+        NSLog("[SidebarItemContextMenu] Delete item: \(item.name)")
+    }
+}
+
+// MARK: - Drag Data Structure
+struct SidebarItemDragData: Transferable {
+    let itemID: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation {
+            $0.itemID
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    let emptyLibraryItems: [SidebarItem] = []
+    let emptySearchItems: [SidebarItem] = []
+    let emptyChatItems: [SidebarItem] = []
+    let emptyWorkflowItems: [SidebarItem] = []
+
+    SidebarView(
+        viewMode: .constant(AppViewMode.library(nil)),
+        selectedItem: .constant(nil),
+        libraryItems: emptyLibraryItems,
+        searchItems: emptySearchItems,
+        chatItems: emptyChatItems,
+        workflowItems: emptyWorkflowItems
+    )
+    .frame(width: 250, height: 500)
+}
+
+// MARK: - Extensions to add capability checks to ItemType
+
+extension SidebarItem.ItemType {
+    var canBeRenamed: Bool {
+        switch self {
+        case .document, .savedSearch, .conversation, .workflow:
+            return true
+        case .sectionHeader:
+            return false
+        }
+    }
+
+    var canBeMoved: Bool {
+        switch self {
+        case .document, .savedSearch, .conversation, .workflow:
+            return true
+        case .sectionHeader:
+            return false
+        }
+    }
+
+    var canBeDuplicated: Bool {
+        switch self {
+        case .document:
+            return true
+        case .savedSearch, .conversation, .workflow, .sectionHeader:
+            return false
+        }
+    }
+
+    var canBeDeleted: Bool {
+        switch self {
+        case .document, .savedSearch, .conversation, .workflow:
+            return true
+        case .sectionHeader:
+            return false
+        }
     }
 }

@@ -43,11 +43,7 @@
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
-		833 /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463 /* SectionHeader.swift */; };
-		834 /* InlineRenameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464 /* InlineRenameField.swift */; };
-		835 /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465 /* SidebarItemRow.swift */; };
 		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
-		837 /* InlineFolderCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4120 /* InlineFolderCreation.swift */; };
 		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
 		839 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4122 /* SidebarViewModel.swift */; };
 		840 /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123 /* ErrorService.swift */; };
@@ -113,7 +109,6 @@
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
-		4120 /* InlineFolderCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineFolderCreation.swift; sourceTree = "<group>"; };
 		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
 		4122 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
 		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
@@ -122,9 +117,6 @@
 		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
 		4127 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
-		463 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
-		464 /* InlineRenameField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineRenameField.swift; sourceTree = "<group>"; };
-		465 /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
@@ -220,10 +212,6 @@
 			isa = PBXGroup;
 			children = (
 				105 /* SidebarView.swift */,
-				463 /* SectionHeader.swift */,
-				464 /* InlineRenameField.swift */,
-				465 /* SidebarItemRow.swift */,
-				4120 /* InlineFolderCreation.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -480,10 +468,6 @@
 				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
 				005 /* SidebarView.swift in Sources */,
-				833 /* SectionHeader.swift in Sources */,
-				834 /* InlineRenameField.swift in Sources */,
-				835 /* SidebarItemRow.swift in Sources */,
-				837 /* InlineFolderCreation.swift in Sources */,
 				838 /* PerformanceService.swift in Sources */,
 				839 /* SidebarViewModel.swift in Sources */,
 				840 /* ErrorService.swift in Sources */,
