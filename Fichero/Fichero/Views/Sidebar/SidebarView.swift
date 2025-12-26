@@ -24,6 +24,9 @@ struct SidebarView: View {
     @State private var workflowsExpanded = true
     @State private var isChatDropTargeted = false
 
+    // Rename state
+    @StateObject private var renameState = RenameStateManager()
+
     var body: some View {
         List(selection: $selectedItem) {
             // LIBRARY section
@@ -31,11 +34,12 @@ struct SidebarView: View {
                 ForEach(libraryItems) { item in
                     SidebarItemRow(
                         item: item,
-                        expandedItems: $expandedItems
+                        expandedItems: $expandedItems,
+                        renameState: renameState
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item)
+                        SidebarItemContextMenu(item: item, renameState: renameState)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -51,11 +55,12 @@ struct SidebarView: View {
                 ForEach(searchItems) { item in
                     SidebarItemRow(
                         item: item,
-                        expandedItems: $expandedItems
+                        expandedItems: $expandedItems,
+                        renameState: renameState
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item)
+                        SidebarItemContextMenu(item: item, renameState: renameState)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -77,11 +82,12 @@ struct SidebarView: View {
                 ForEach(chatItems) { item in
                     SidebarItemRow(
                         item: item,
-                        expandedItems: $expandedItems
+                        expandedItems: $expandedItems,
+                        renameState: renameState
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item)
+                        SidebarItemContextMenu(item: item, renameState: renameState)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -113,11 +119,12 @@ struct SidebarView: View {
                 ForEach(workflowItems) { item in
                     SidebarItemRow(
                         item: item,
-                        expandedItems: $expandedItems
+                        expandedItems: $expandedItems,
+                        renameState: renameState
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item)
+                        SidebarItemContextMenu(item: item, renameState: renameState)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -228,6 +235,7 @@ struct SectionHeader: View {
 struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
+    @ObservedObject var renameState: RenameStateManager
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -246,11 +254,11 @@ struct SidebarItemRow: View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 ForEach(children) { child in
-                    SidebarItemRow(item: child, expandedItems: $expandedItems)
+                    SidebarItemRow(item: child, expandedItems: $expandedItems, renameState: renameState)
                         .tag(child)
                         .draggable(SidebarItemDragData(itemID: child.id))
                         .contextMenu {
-                            SidebarItemContextMenu(item: child)
+                            SidebarItemContextMenu(item: child, renameState: renameState)
                         }
                         .dropDestination(for: SidebarItemDragData.self) { items, _ in
                             // Handle dropping items into this folder
@@ -280,7 +288,7 @@ struct SidebarItemRow: View {
                     return true
                 }
                 .contextMenu {
-                    SidebarItemContextMenu(item: item)
+                    SidebarItemContextMenu(item: item, renameState: renameState)
                 }
         }
     }
@@ -297,11 +305,60 @@ struct SidebarItemRow: View {
 
     private var itemLabel: some View {
         Label {
-            Text(item.name)
-                .lineLimit(1)
+            if renameState.renamingItemId == item.id {
+                TextField("Name", text: $renameState.editingName, onCommit: {
+                    commitRename()
+                })
+                .textFieldStyle(.plain)
+                .onExitCommand {
+                    renameState.cancelRename()
+                }
+            } else {
+                Text(item.name)
+                    .lineLimit(1)
+            }
         } icon: {
             Image(systemName: item.icon)
                 .foregroundColor(iconColor)
+        }
+    }
+
+    private func commitRename() {
+        let newName = renameState.editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Validate name
+        guard !newName.isEmpty else {
+            renameState.cancelRename()
+            return
+        }
+
+        guard newName.count <= 255 else {
+            renameState.cancelRename()
+            return
+        }
+
+        // Call backend to rename
+        Task {
+            await performRename(itemId: item.id, newName: newName)
+            renameState.cancelRename()
+        }
+    }
+
+    private func performRename(itemId: String, newName: String) async {
+        // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
+        let actualId: String
+        if itemId.contains(":") {
+            actualId = String(itemId.split(separator: ":")[1])
+        } else {
+            actualId = itemId
+        }
+
+        do {
+            let documentService = DocumentService()
+            _ = try await documentService.renameDocument(actualId, newName: newName)
+            NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
+        } catch {
+            NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
         }
     }
 
@@ -322,8 +379,7 @@ struct SidebarItemRow: View {
 // MARK: - Sidebar Item Context Menu
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
-    // Context menu actions would be handled by the parent view
-    // Using action closures or by calling environment objects from the parent view
+    @ObservedObject var renameState: RenameStateManager
 
     var body: some View {
         Group {
@@ -350,9 +406,7 @@ struct SidebarItemContextMenu: View {
     }
 
     private func renameItem(_ item: SidebarItem) {
-        // This would trigger the rename functionality
-        NSLog("[SidebarItemContextMenu] Rename item: \(item.name)")
-        // In a real implementation, this would communicate back to the parent view
+        renameState.startRename(itemId: item.id, currentName: item.name)
     }
 
     private func duplicateItem(_ item: SidebarItem) {
@@ -363,6 +417,22 @@ struct SidebarItemContextMenu: View {
     private func deleteItem(_ item: SidebarItem) {
         // This would delete the item
         NSLog("[SidebarItemContextMenu] Delete item: \(item.name)")
+    }
+}
+
+// MARK: - Rename State Manager
+class RenameStateManager: ObservableObject {
+    @Published var renamingItemId: String?
+    @Published var editingName: String = ""
+
+    func startRename(itemId: String, currentName: String) {
+        renamingItemId = itemId
+        editingName = currentName
+    }
+
+    func cancelRename() {
+        renamingItemId = nil
+        editingName = ""
     }
 }
 
