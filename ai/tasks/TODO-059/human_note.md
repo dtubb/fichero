@@ -1,0 +1,1 @@
+updaet sidebar with hierarhcial for folders for all folderrs, searches. chats, and workflows. right now, htere are no hirehrac.y we want each items otb e in a folder, to be able to be in a hierahcy. 
