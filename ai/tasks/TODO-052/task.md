@@ -4,13 +4,13 @@
 Implement native SwiftUI inline editing for folder and file rename functionality using standard macOS patterns.
 
 ## Steps
-- [ ] Step 1: Review current rename implementation in sidebar
-- [ ] Step 2: Check sample_code for SwiftUI TextField inline editing patterns
-- [ ] Step 3: Implement inline rename using TextField with .onSubmit
-- [ ] Step 4: Add proper keyboard handling (Enter to confirm, Escape to cancel)
-- [ ] Step 5: Update backend API call to persist rename
-- [ ] Step 6: Run swiftlint and fix violations
-- [ ] Step 7: Test rename with various file and folder names
+- [x] Step 1: Review current rename implementation in sidebar
+- [x] Step 2: Check sample_code for SwiftUI TextField inline editing patterns
+- [x] Step 3: Implement inline rename using TextField with .onSubmit
+- [x] Step 4: Add proper keyboard handling (Enter to confirm, Escape to cancel)
+- [x] Step 5: Update backend API call to persist rename
+- [x] Step 6: Run swiftlint and fix violations
+- [x] Step 7: Test rename with various file and folder names
 
 ## Files
 - File to change: Fichero/Fichero/Views/Browser/SidebarView.swift (or related component)

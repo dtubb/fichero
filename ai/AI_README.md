@@ -18,12 +18,10 @@ ls ai/inbox/
 **Option 1: Inbox Mode**
 1. Follow `ai/workflows/INBOX_WORKFLOW.md` completely. Process only one inbox idea at a timer.
 2. Stop when inbox processing is done. 
-3. Go back to begining of AI_Readme.md at start over.
 
 **Option 2: Task Mode**
 1. Follow `ai/workflows/TASK_WORKFLOW.md` completely. Complete only one task.
 2. Stop when task is done.
-3. Go back to to begining of AI_Readme.md at start over.
 
 ### Key Principles
 - **Save context** - Only enter Inbox Mode if items exist

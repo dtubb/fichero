@@ -238,7 +238,8 @@ struct ContentView: View {
                     onCreateChatWithDocuments: { documentIds in
                         // Add dropped documents to chat scope
                         chatSelectedDocuments = Set(documentIds)
-                    }
+                    },
+                    documentStore: documentStore
                 )
                 .environmentObject(savedSearchService)
                 .environmentObject(conversationService)

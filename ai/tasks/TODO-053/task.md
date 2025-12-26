@@ -4,14 +4,14 @@
 Ensure delete removes items from sidebar UI and persists deletion to backend database.
 
 ## Steps
-- [ ] Step 1: Review current delete implementation in sidebar
-- [ ] Step 2: Add confirmation dialog using .confirmationDialog modifier
-- [ ] Step 3: Implement delete in sidebar state (remove from UI)
-- [ ] Step 4: Call backend API delete endpoint
-- [ ] Step 5: Handle delete errors with user feedback
-- [ ] Step 6: Verify backend persistence (check database)
-- [ ] Step 7: Run swiftlint and fix violations
-- [ ] Step 8: Test delete with files and folders
+- [x] Step 1: Review current delete implementation in sidebar
+- [x] Step 2: Add confirmation dialog using .confirmationDialog modifier
+- [x] Step 3: Implement delete in sidebar state (remove from UI)
+- [x] Step 4: Call backend API delete endpoint
+- [x] Step 5: Handle delete errors with user feedback
+- [x] Step 6: Verify backend persistence (check database)
+- [x] Step 7: Run swiftlint and fix violations
+- [x] Step 8: Test delete with files and folders
 
 ## Files
 - File to change: Fichero/Fichero/Views/Browser/SidebarView.swift (or related component)

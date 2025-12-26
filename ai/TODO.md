@@ -103,9 +103,9 @@
   - Status: Planning task to break down sidebar fixes into focused tasks
 - [x] TODO-051: Remove "Move to Folder" from Context Menu (P1, Medium)
   - Depends on: None
-- [>] TODO-052: Fix Inline Rename to Use SwiftUI Default Pattern (P1, High)
+- [x] TODO-052: Fix Inline Rename to Use SwiftUI Default Pattern (P1, High)
   - Depends on: None
-- [ ] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
+- [x] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
   - Depends on: None
 - [ ] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)
   - Depends on: None

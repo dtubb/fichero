@@ -16,6 +16,9 @@ struct SidebarView: View {
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
 
+    // Document store for CRUD operations
+    var documentStore: DocumentStore?
+
     // Expansion state
     @State private var expandedItems: Set<String> = []
     @State private var libraryExpanded = true
@@ -39,7 +42,7 @@ struct SidebarView: View {
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState)
+                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -60,7 +63,7 @@ struct SidebarView: View {
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState)
+                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -87,7 +90,7 @@ struct SidebarView: View {
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState)
+                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -124,7 +127,7 @@ struct SidebarView: View {
                     )
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState)
+                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -236,6 +239,7 @@ struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
     @ObservedObject var renameState: RenameStateManager
+    var documentStore: DocumentStore?
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -254,11 +258,16 @@ struct SidebarItemRow: View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 ForEach(children) { child in
-                    SidebarItemRow(item: child, expandedItems: $expandedItems, renameState: renameState)
+                    SidebarItemRow(
+                        item: child,
+                        expandedItems: $expandedItems,
+                        renameState: renameState,
+                        documentStore: documentStore
+                    )
                         .tag(child)
                         .draggable(SidebarItemDragData(itemID: child.id))
                         .contextMenu {
-                            SidebarItemContextMenu(item: child, renameState: renameState)
+                            SidebarItemContextMenu(item: child, renameState: renameState, documentStore: documentStore)
                         }
                         .dropDestination(for: SidebarItemDragData.self) { items, _ in
                             // Handle dropping items into this folder
@@ -288,7 +297,7 @@ struct SidebarItemRow: View {
                     return true
                 }
                 .contextMenu {
-                    SidebarItemContextMenu(item: item, renameState: renameState)
+                    SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
                 }
         }
     }
@@ -380,6 +389,8 @@ struct SidebarItemRow: View {
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
     @ObservedObject var renameState: RenameStateManager
+    @StateObject private var deleteState = DeleteStateManager()
+    var documentStore: DocumentStore?
 
     var body: some View {
         Group {
@@ -401,7 +412,29 @@ struct SidebarItemContextMenu: View {
                 Label("Delete", systemImage: "trash")
                     .foregroundColor(.red)
             })
+            .keyboardShortcut(.delete, modifiers: .command)
             .disabled(!item.itemType.canBeDeleted)
+        }
+        .confirmationDialog(
+            "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
+            isPresented: $deleteState.showingDeleteConfirmation,
+            presenting: deleteState.itemToDelete
+        ) { itemToDelete in
+            Button("Delete", role: .destructive) {
+                Task {
+                    await performDelete(itemToDelete)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                deleteState.cancelDelete()
+            }
+        } message: { _ in
+            Text("This action cannot be undone.")
+        }
+        .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteState.deleteErrorMessage)
         }
     }
 
@@ -415,8 +448,40 @@ struct SidebarItemContextMenu: View {
     }
 
     private func deleteItem(_ item: SidebarItem) {
-        // This would delete the item
-        NSLog("[SidebarItemContextMenu] Delete item: \(item.name)")
+        deleteState.showDeleteConfirmation(for: item)
+    }
+
+    private func performDelete(_ item: SidebarItem) async {
+        // For documents, use documentStore to ensure UI refresh
+        if case .document(let document) = item.itemType, let store = documentStore {
+            do {
+                try await store.deleteDocument(document)
+                NSLog("[SidebarItemContextMenu] Deleted document \(document.id)")
+                deleteState.cancelDelete()
+            } catch {
+                NSLog("[SidebarItemContextMenu] Failed to delete document: \(error.localizedDescription)")
+                deleteState.showError(message: error.localizedDescription)
+            }
+        } else {
+            // For non-document items (searches, chats, workflows), use direct API call
+            // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
+            let actualId: String
+            if item.id.contains(":") {
+                actualId = String(item.id.split(separator: ":")[1])
+            } else {
+                actualId = item.id
+            }
+
+            do {
+                let documentService = DocumentService()
+                try await documentService.deleteDocument(actualId)
+                NSLog("[SidebarItemContextMenu] Deleted item \(actualId)")
+                deleteState.cancelDelete()
+            } catch {
+                NSLog("[SidebarItemContextMenu] Failed to delete item: \(error.localizedDescription)")
+                deleteState.showError(message: error.localizedDescription)
+            }
+        }
     }
 }
 
@@ -433,6 +498,31 @@ class RenameStateManager: ObservableObject {
     func cancelRename() {
         renamingItemId = nil
         editingName = ""
+    }
+}
+
+// MARK: - Delete State Manager
+class DeleteStateManager: ObservableObject {
+    @Published var showingDeleteConfirmation = false
+    @Published var showingDeleteError = false
+    @Published var itemToDelete: SidebarItem?
+    @Published var deleteErrorMessage = ""
+
+    func showDeleteConfirmation(for item: SidebarItem) {
+        itemToDelete = item
+        showingDeleteConfirmation = true
+    }
+
+    func cancelDelete() {
+        showingDeleteConfirmation = false
+        itemToDelete = nil
+        deleteErrorMessage = ""
+    }
+
+    func showError(message: String) {
+        deleteErrorMessage = message
+        showingDeleteError = true
+        showingDeleteConfirmation = false
     }
 }
 
