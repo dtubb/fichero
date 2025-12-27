@@ -21,12 +21,15 @@ Manual UI testing and verification of all sidebar improvements from TODO-051 thr
 ## TODO-052: Inline Rename Functionality ⚠️ BUG FIXED - RETEST
 **Fix Applied**: Replaced deprecated `onCommit` with `.onSubmit`, added `@FocusState` for auto-focus, fixed validation bug
 
-- [ ] Select a document in Library section
-- [ ] Choose "Rename" from context menu (or press Return)
-- [ ] **Critical**: Verify TextField appears inline with current name selected
-- [ ] **Critical**: Verify TextField automatically receives focus (cursor should be blinking)
-- [ ] Type a new name and press Enter
+- [X] Select a document in Library section
+- [X] Choose "Rename" from context menu (or press Return)
+- [X] **Critical**: Verify TextField appears inline with current name selected
+- [X] **Critical**: Verify TextField automatically receives focus (cursor should be blinking)
+IT works.
+- [X] Type a new name and press Enter
+Ot wprls.
 - [ ] Confirm name updates in UI immediately
+Does not update im UI, and not sure if backend also updates.
 - [ ] Refresh/restart app - verify rename persisted to backend
 - [ ] Test: Click outside TextField while renaming - should cancel
 - [ ] Test: Press Escape while renaming - should cancel
@@ -201,11 +204,12 @@ If you're short on time, test these critical paths:
 ---
 
 ## Bug Fixes Applied During Testing
-- [x] **TODO-052 Critical Fix**: Fixed missing `return` in empty name validation (SidebarView.swift:586-588)
-- [x] **TODO-052 Critical Fix**: Replaced deprecated `onCommit` with modern `.onSubmit` modifier
-- [x] **TODO-052 Critical Fix**: Added `@FocusState` for automatic TextField focus when rename starts
-- [x] **TODO-052 Critical Fix**: Added `.task` modifier to set focus automatically
-- [x] **TODO-052 Critical Fix**: Added `.onChange(of: focus)` to cancel rename if user clicks away
+- [x] **TODO-052 Critical Fix #1**: Fixed missing `return` in empty name validation (SidebarView.swift:586-588)
+- [x] **TODO-052 Critical Fix #2**: Replaced deprecated `onCommit` with modern `.onSubmit` modifier
+- [x] **TODO-052 Critical Fix #3**: Added `@FocusState` for automatic TextField focus when rename starts
+- [x] **TODO-052 Critical Fix #4**: Added `.task` modifier to set focus automatically
+- [x] **TODO-052 Critical Fix #5**: Added `.onChange(of: focus)` to cancel rename if user clicks away
+- [x] **TODO-052 Critical Fix #6**: Added `documentStore.refresh()` to update UI after rename (SidebarView.swift:632-634)
 
 ---
 

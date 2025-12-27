@@ -32,6 +32,9 @@ claude mcp add --scope local sequential-thinking -- npx -y @modelcontextprotocol
 # Add memory server - local
 claude mcp add --scope local memory -- npx -y @modelcontextprotocol/server-memory
 
+# Add Ref Tools - local
+claude mcp add --transport http Ref https://api.ref.tools/mcp --header "x-ref-api-key: ref-b8d8241e123fdba3f75a"
+
 echo "MCP servers added. Restart Claude Code to use them."
 echo "Verify with: claude mcp list"
 echo ""

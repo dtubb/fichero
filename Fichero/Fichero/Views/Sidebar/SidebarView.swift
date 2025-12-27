@@ -627,6 +627,11 @@ struct SidebarItemRow: View {
             let documentService = DocumentService()
             _ = try await documentService.renameDocument(actualId, newName: newName)
             NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
+
+            // Refresh UI if documentStore is available
+            if let store = documentStore {
+                await store.refresh()
+            }
         } catch {
             NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
         }
