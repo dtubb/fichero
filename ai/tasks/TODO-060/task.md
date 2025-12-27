@@ -204,12 +204,16 @@ If you're short on time, test these critical paths:
 ---
 
 ## Bug Fixes Applied During Testing
-- [x] **TODO-052 Critical Fix #1**: Fixed missing `return` in empty name validation (SidebarView.swift:586-588)
-- [x] **TODO-052 Critical Fix #2**: Replaced deprecated `onCommit` with modern `.onSubmit` modifier
-- [x] **TODO-052 Critical Fix #3**: Added `@FocusState` for automatic TextField focus when rename starts
-- [x] **TODO-052 Critical Fix #4**: Added `.task` modifier to set focus automatically
-- [x] **TODO-052 Critical Fix #5**: Added `.onChange(of: focus)` to cancel rename if user clicks away
-- [x] **TODO-052 Critical Fix #6**: Added `documentStore.refresh()` to update UI after rename (SidebarView.swift:632-634)
+- [x] **TODO-052 Fix #1**: Fixed missing `return` in empty name validation (SidebarView.swift:586-588)
+- [x] **TODO-052 Fix #2**: Replaced deprecated `onCommit` with modern `.onSubmit` modifier
+- [x] **TODO-052 Fix #3**: Added `@FocusState` for automatic TextField focus when rename starts
+- [x] **TODO-052 Fix #4**: Added `.task` modifier to set focus automatically
+- [x] **TODO-052 Fix #5**: Added `.onChange(of: focus)` to cancel rename if user clicks away
+- [x] **TODO-052 Fix #6**: Added `documentStore.refresh()` to update UI after rename (SidebarView.swift:632-634)
+- [x] **TODO-052/053 CRITICAL Fix #7**: Added `.id(refreshCounter)` to SidebarView to force refresh (ContentView.swift:247)
+  - This fixes BOTH rename and delete not updating UI
+  - Root cause: refreshCounter incremented but never used to trigger re-render
+  - Impact: All CRUD operations now update UI immediately
 
 ---
 

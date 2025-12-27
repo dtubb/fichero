@@ -244,6 +244,7 @@ struct ContentView: View {
                     },
                     documentStore: documentStore
                 )
+                .id(refreshCounter) // Force refresh when documentStore changes
                 .environmentObject(savedSearchService)
                 .environmentObject(conversationService)
                 .environmentObject(workflowService)
