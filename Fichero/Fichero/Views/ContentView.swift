@@ -12,7 +12,7 @@ struct ContentView: View {
     // MARK: - State
 
     @State private var viewMode: AppViewMode = .library(nil)
-    @State private var selectedSidebarItem: SidebarItem?
+    @State private var selectedSidebarItemId: String?
     @State private var browserSelection: Set<String> = []
     @State private var detailDocument: Document?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -44,6 +44,34 @@ struct ContentView: View {
     @State private var importError: String?
 
     // MARK: - Computed Properties
+
+    /// Derive the selected SidebarItem from the ID
+    private var selectedSidebarItem: SidebarItem? {
+        guard let id = selectedSidebarItemId else { return nil }
+
+        // Build all sidebar items
+        let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
+        let searchItems = SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
+        let chatItems = SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
+        let workflowItems = SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
+
+        let allItems = libraryItems + searchItems + chatItems + workflowItems
+        return findItemById(id, in: allItems)
+    }
+
+    /// Recursively find an item by ID
+    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
+        for item in items {
+            if item.id == id {
+                return item
+            }
+            if let children = item.children,
+               let found = findItemById(id, in: children) {
+                return found
+            }
+        }
+        return nil
+    }
 
     /// Documents for the browser based on current library selection
     private var selectedDocuments: [Document] {
@@ -79,10 +107,7 @@ struct ContentView: View {
 
         case .collectionSelected(let collection):
             // Update selection if needed
-            let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-            if let item = libraryItems.first(where: { $0.id == collection.id }) {
-                selectedSidebarItem = item
-            }
+            selectedSidebarItemId = collection.id
 
         case .documentsUpdated:
             // SwiftUI automatically updates when @Published currentDocuments change
@@ -206,7 +231,7 @@ struct ContentView: View {
                 // Sidebar with Library, Searches, Chat, Workflows sections
                 SidebarView(
                     viewMode: $viewMode,
-                    selectedItem: $selectedSidebarItem,
+                    selectedItemId: $selectedSidebarItemId,
                     documentStore: documentStore,
                     savedSearchService: savedSearchService,
                     conversationService: conversationService,
@@ -260,7 +285,7 @@ struct ContentView: View {
             if case .library(nil) = viewMode {
                 let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
                 if let firstItem = libraryItems.first {
-                    selectedSidebarItem = firstItem
+                    selectedSidebarItemId = firstItem.id
                     if case .document(let doc) = firstItem.itemType {
                         viewMode = .library(doc)
                         await documentStore.selectCollection(doc)
@@ -554,23 +579,7 @@ struct ContentView: View {
 
     func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
-        let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-        if let item = findSidebarItem(for: doc, in: libraryItems) {
-            selectedSidebarItem = item
-        }
-    }
-
-    func findSidebarItem(for doc: Document, in items: [SidebarItem]) -> SidebarItem? {
-        for item in items {
-            if case .document(let itemDoc) = item.itemType, itemDoc.id == doc.id {
-                return item
-            }
-            if let children = item.children,
-               let found = findSidebarItem(for: doc, in: children) {
-                return found
-            }
-        }
-        return nil
+        selectedSidebarItemId = doc.id
     }
 
     // MARK: - Conversations

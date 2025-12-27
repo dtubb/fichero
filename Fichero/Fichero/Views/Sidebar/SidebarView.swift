@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// Sidebar with Library, Searches, Chat, and Workflows sections
 struct SidebarView: View {
     @Binding var viewMode: AppViewMode
-    @Binding var selectedItem: SidebarItem?
+    @Binding var selectedItemId: String?
 
     // Observable stores - automatically trigger UI updates when @Published properties change
     @ObservedObject var documentStore: DocumentStore
@@ -33,6 +33,27 @@ struct SidebarView: View {
         SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
     }
 
+    /// Derive the selected SidebarItem from the ID
+    private var selectedItem: SidebarItem? {
+        guard let id = selectedItemId else { return nil }
+        let allItems = libraryItems + searchItems + chatItems + workflowItems
+        return findItemById(id, in: allItems)
+    }
+
+    /// Recursively find an item by ID
+    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
+        for item in items {
+            if item.id == id {
+                return item
+            }
+            if let children = item.children,
+               let found = findItemById(id, in: children) {
+                return found
+            }
+        }
+        return nil
+    }
+
     // Expansion state
     @State private var expandedItems: Set<String> = []
     @State private var libraryExpanded = true
@@ -50,25 +71,20 @@ struct SidebarView: View {
     @StateObject private var renameState = RenameStateManager()
     @StateObject private var deleteState = DeleteStateManager()
 
-    // Track pending selection restoration to avoid flash
-    @State private var pendingSelectionId: String?
-
     var body: some View {
-        List(selection: $selectedItem) {
+        List(selection: $selectedItemId) {
             // LIBRARY section
             Section(isExpanded: $libraryExpanded) {
                 ForEach(libraryItems) { item in
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        selectedItem: $selectedItem,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore,
-                        onRenameComplete: restoreSelectionAfterRename
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
-                    .tag(item)
+                    .tag(item.id)
                     .contextMenu {
                         SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
@@ -87,14 +103,12 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        selectedItem: $selectedItem,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore,
-                        onRenameComplete: restoreSelectionAfterRename
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
-                    .tag(item)
+                    .tag(item.id)
                     .contextMenu {
                         SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
@@ -127,14 +141,12 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        selectedItem: $selectedItem,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore,
-                        onRenameComplete: restoreSelectionAfterRename
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
-                    .tag(item)
+                    .tag(item.id)
                     .contextMenu {
                         SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
@@ -177,14 +189,12 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        selectedItem: $selectedItem,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore,
-                        onRenameComplete: restoreSelectionAfterRename
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
-                    .tag(item)
+                    .tag(item.id)
                     .contextMenu {
                         SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
@@ -240,12 +250,6 @@ struct SidebarView: View {
         }
         .onChange(of: selectedItem) { _, newItem in
             handleSelection(newItem)
-        }
-        .onChange(of: libraryItems) { _, _ in
-            // When tree rebuilds, restore selection if pending
-            if pendingSelectionId != nil {
-                restorePendingSelection()
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
             handleCreateNewFolder()
@@ -456,42 +460,6 @@ struct SidebarView: View {
         onCreateChatWithDocuments?(documentIds)
     }
 
-    // MARK: - Selection Restoration
-
-    /// Restore selection after rename completes and tree rebuilds
-    private func restoreSelectionAfterRename(itemId: String) {
-        // Store the ID for restoration on next view update
-        pendingSelectionId = itemId
-        restorePendingSelection()
-    }
-
-    /// Actually perform the selection restoration
-    private func restorePendingSelection() {
-        guard let itemId = pendingSelectionId else { return }
-
-        // Search through all sections to find the item with matching ID
-        let allItems = libraryItems + searchItems + chatItems + workflowItems
-
-        if let foundItem = findItemById(itemId, in: allItems) {
-            selectedItem = foundItem
-            pendingSelectionId = nil // Clear after successful restoration
-            NSLog("[SidebarView] Restored selection to renamed item: \(foundItem.name)")
-        }
-    }
-
-    /// Recursively search for item by ID
-    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
-        for item in items {
-            if item.id == id {
-                return item
-            }
-            if let children = item.children, let found = findItemById(id, in: children) {
-                return found
-            }
-        }
-        return nil
-    }
-
     // MARK: - Section Header Drop Handlers
 
     private func handleSearchHeaderDrop(items: [SidebarItemDragData]) -> Bool {
@@ -558,11 +526,9 @@ struct SectionHeader: View {
 struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
-    @Binding var selectedItem: SidebarItem?
     @ObservedObject var renameState: RenameStateManager
     @ObservedObject var deleteState: DeleteStateManager
     @ObservedObject var documentStore: DocumentStore
-    var onRenameComplete: ((String) -> Void)?  // Callback with item ID to restore selection
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
@@ -587,13 +553,11 @@ struct SidebarItemRow: View {
                     SidebarItemRow(
                         item: child,
                         expandedItems: $expandedItems,
-                        selectedItem: $selectedItem,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore,
-                        onRenameComplete: onRenameComplete
+                        documentStore: documentStore
                     )
-                        .tag(child)
+                        .tag(child.id)
                         .contextMenu {
                             SidebarItemContextMenu(item: child, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                         }
@@ -747,13 +711,8 @@ struct SidebarItemRow: View {
                 let updated = try await documentStore.renameDocument(document, to: newName)
                 NSLog("[SidebarItemRow] Renamed document to '\(updated.name)'")
                 // DocumentStore.renameDocument already updates @Published collections
-                // SwiftUI will automatically rebuild the tree
-                // No manual refresh needed - but selection might be lost during rebuild
-
-                // Notify parent to restore selection after tree rebuild
-                await MainActor.run {
-                    onRenameComplete?(itemId)
-                }
+                // SwiftUI will automatically rebuild the tree and maintain selection via ID
+                // No manual restoration needed!
             } catch {
                 NSLog("[SidebarItemRow] Failed to rename document: \(error.localizedDescription)")
             }
@@ -773,11 +732,7 @@ struct SidebarItemRow: View {
 
                 // For non-documents, we need to refresh to get updated data
                 await documentStore.refresh()
-
-                // Notify parent to restore selection
-                await MainActor.run {
-                    onRenameComplete?(itemId)
-                }
+                // SwiftUI maintains selection via ID automatically
             } catch {
                 NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
             }
@@ -892,7 +847,7 @@ extension UTType {
 #Preview {
     SidebarView(
         viewMode: .constant(AppViewMode.library(nil)),
-        selectedItem: .constant(nil),
+        selectedItemId: .constant(nil),
         documentStore: DocumentStore.preview,
         savedSearchService: SavedSearchService(),
         conversationService: ConversationService(),
