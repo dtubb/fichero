@@ -18,7 +18,7 @@ enum DocumentChange {
 @MainActor
 class DocumentStore: ObservableObject {
     // MARK: - Private Properties
-    
+
     /// Publisher for document changes.
     private let documentChanges = PassthroughSubject<DocumentChange, Error>()
     private var cancellables = Set<AnyCancellable>()
@@ -54,7 +54,7 @@ class DocumentStore: ObservableObject {
     // MARK: - Private
 
     private let service = DocumentService()
-    
+
     /// Publish a document change event.
     private func publish(_ change: DocumentChange) {
         documentChanges.send(change)
@@ -166,12 +166,10 @@ class DocumentStore: ObservableObject {
     func deleteDocument(_ document: Document) async throws {
         try await service.deleteDocument(document.id)
 
-        // Remove from local state
-        collections.removeAll { $0.id == document.id }
-        currentDocuments.removeAll { $0.id == document.id }
-        childrenCache.removeValue(forKey: document.id)
+        // Remove from local state - recursively removes item and all descendants
+        removeDocumentRecursively(document.id)
 
-        // Publish change
+        // Publish change - this triggers @Published update
         publish(.documentDeleted(document))
 
         // If this was the selected item, clear selection
@@ -180,6 +178,35 @@ class DocumentStore: ObservableObject {
             if let selected = selectedCollection {
                 await loadChildren(of: selected)
             }
+        }
+    }
+
+    /// Recursively remove a document and all its descendants from the collections array
+    private func removeDocumentRecursively(_ documentId: String) {
+        // Find and collect all descendant IDs
+        var toRemove: Set<String> = [documentId]
+        var queue = [documentId]
+
+        while !queue.isEmpty {
+            let parentId = queue.removeFirst()
+
+            // Find all children of this parent in the flat collections array
+            let children = collections.filter { $0.parentId == parentId }
+            for child in children {
+                toRemove.insert(child.id)
+                queue.append(child.id)
+            }
+        }
+
+        // Remove all collected IDs from collections array (triggers @Published update)
+        collections.removeAll { toRemove.contains($0.id) }
+
+        // Also remove from currentDocuments if present
+        currentDocuments.removeAll { toRemove.contains($0.id) }
+
+        // Clear from cache
+        for id in toRemove {
+            childrenCache.removeValue(forKey: id)
         }
     }
 
@@ -200,7 +227,7 @@ class DocumentStore: ObservableObject {
     /// Import a file into a specific location.
     func importFile(at url: URL, parentId: String? = nil) async throws -> Document {
         let document = try await service.importFile(at: url, parentId: parentId)
-        
+
         // If this is a top-level import (no parent), add to collections
         if parentId == nil {
             collections.append(document)
@@ -219,11 +246,11 @@ class DocumentStore: ObservableObject {
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
         let document = try await service.moveDocument(documentId, toParent: parentId)
-        
+
         // Remove from current location
         collections.removeAll { $0.id == documentId }
         currentDocuments.removeAll { $0.id == documentId }
-        
+
         // Add to new location if it's a top-level collection
         if parentId == nil {
             collections.append(document)

@@ -46,8 +46,12 @@ struct SidebarView: View {
     @State private var isChatHeaderDropTargeted = false
     @State private var isWorkflowHeaderDropTargeted = false
 
-    // Rename state
+    // Rename and delete state
     @StateObject private var renameState = RenameStateManager()
+    @StateObject private var deleteState = DeleteStateManager()
+
+    // Track pending selection restoration to avoid flash
+    @State private var pendingSelectionId: String?
 
     var body: some View {
         List(selection: $selectedItem) {
@@ -57,13 +61,16 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
+                        selectedItem: $selectedItem,
                         renameState: renameState,
-                        documentStore: documentStore
+                        deleteState: deleteState,
+                        documentStore: documentStore,
+                        onRenameComplete: restoreSelectionAfterRename
                     )
                     .padding(.leading, 4)
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
+                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -80,13 +87,16 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
+                        selectedItem: $selectedItem,
                         renameState: renameState,
-                        documentStore: documentStore
+                        deleteState: deleteState,
+                        documentStore: documentStore,
+                        onRenameComplete: restoreSelectionAfterRename
                     )
                     .padding(.leading, 4)
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
+                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -117,13 +127,16 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
+                        selectedItem: $selectedItem,
                         renameState: renameState,
-                        documentStore: documentStore
+                        deleteState: deleteState,
+                        documentStore: documentStore,
+                        onRenameComplete: restoreSelectionAfterRename
                     )
                     .padding(.leading, 4)
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
+                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -164,13 +177,16 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
+                        selectedItem: $selectedItem,
                         renameState: renameState,
-                        documentStore: documentStore
+                        deleteState: deleteState,
+                        documentStore: documentStore,
+                        onRenameComplete: restoreSelectionAfterRename
                     )
                     .padding(.leading, 4)
                     .tag(item)
                     .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, documentStore: documentStore)
+                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                     }
                 }
                 .onMove(perform: { _, _ in
@@ -225,6 +241,12 @@ struct SidebarView: View {
         .onChange(of: selectedItem) { _, newItem in
             handleSelection(newItem)
         }
+        .onChange(of: libraryItems) { _, _ in
+            // When tree rebuilds, restore selection if pending
+            if pendingSelectionId != nil {
+                restorePendingSelection()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
             handleCreateNewFolder()
         }
@@ -233,6 +255,27 @@ struct SidebarView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .deleteSelectedItem)) { _ in
             handleDeleteSelectedItem()
+        }
+        .confirmationDialog(
+            "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
+            isPresented: $deleteState.showingDeleteConfirmation,
+            presenting: deleteState.itemToDelete
+        ) { itemToDelete in
+            Button("Delete", role: .destructive) {
+                Task {
+                    await performDelete(itemToDelete)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                deleteState.cancelDelete()
+            }
+        } message: { _ in
+            Text("This action cannot be undone.")
+        }
+        .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteState.deleteErrorMessage)
         }
     }
 
@@ -335,13 +378,43 @@ struct SidebarView: View {
         }
 
         if selected.itemType.canBeDeleted {
-            // Trigger delete using the context menu's delete logic
-            // We need to show confirmation dialog, so we'll post notification
-            // that the context menu can observe
-            NotificationCenter.default.post(
-                name: .deleteItemRequested,
-                object: selected
-            )
+            deleteState.showDeleteConfirmation(for: selected)
+        }
+    }
+
+    private func performDelete(_ item: SidebarItem) async {
+        NSLog("[SidebarView] performDelete called for: \(item.name) (id: \(item.id))")
+        // For documents, use documentStore to ensure UI refresh
+        if case .document(let document) = item.itemType {
+            do {
+                try await documentStore.deleteDocument(document)
+                NSLog("[SidebarView] Deleted document \(document.id)")
+                // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
+                deleteState.cancelDelete()
+            } catch {
+                NSLog("[SidebarView] Failed to delete document: \(error.localizedDescription)")
+                deleteState.showError(message: error.localizedDescription)
+            }
+        } else {
+            // For non-document items (searches, chats, workflows), use direct API call
+            // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
+            let actualId: String
+            if item.id.contains(":") {
+                actualId = String(item.id.split(separator: ":")[1])
+            } else {
+                actualId = item.id
+            }
+
+            do {
+                let documentService = DocumentService()
+                try await documentService.deleteDocument(actualId)
+                NSLog("[SidebarView] Deleted item \(actualId)")
+                // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
+                deleteState.cancelDelete()
+            } catch {
+                NSLog("[SidebarView] Failed to delete item: \(error.localizedDescription)")
+                deleteState.showError(message: error.localizedDescription)
+            }
         }
     }
 
@@ -381,6 +454,42 @@ struct SidebarView: View {
         NSLog("[SidebarView] Creating new chat with %d documents", documentIds.count)
         viewMode = .chat(nil)
         onCreateChatWithDocuments?(documentIds)
+    }
+
+    // MARK: - Selection Restoration
+
+    /// Restore selection after rename completes and tree rebuilds
+    private func restoreSelectionAfterRename(itemId: String) {
+        // Store the ID for restoration on next view update
+        pendingSelectionId = itemId
+        restorePendingSelection()
+    }
+
+    /// Actually perform the selection restoration
+    private func restorePendingSelection() {
+        guard let itemId = pendingSelectionId else { return }
+
+        // Search through all sections to find the item with matching ID
+        let allItems = libraryItems + searchItems + chatItems + workflowItems
+
+        if let foundItem = findItemById(itemId, in: allItems) {
+            selectedItem = foundItem
+            pendingSelectionId = nil // Clear after successful restoration
+            NSLog("[SidebarView] Restored selection to renamed item: \(foundItem.name)")
+        }
+    }
+
+    /// Recursively search for item by ID
+    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
+        for item in items {
+            if item.id == id {
+                return item
+            }
+            if let children = item.children, let found = findItemById(id, in: children) {
+                return found
+            }
+        }
+        return nil
     }
 
     // MARK: - Section Header Drop Handlers
@@ -449,8 +558,11 @@ struct SectionHeader: View {
 struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
+    @Binding var selectedItem: SidebarItem?
     @ObservedObject var renameState: RenameStateManager
+    @ObservedObject var deleteState: DeleteStateManager
     @ObservedObject var documentStore: DocumentStore
+    var onRenameComplete: ((String) -> Void)?  // Callback with item ID to restore selection
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
@@ -475,12 +587,15 @@ struct SidebarItemRow: View {
                     SidebarItemRow(
                         item: child,
                         expandedItems: $expandedItems,
+                        selectedItem: $selectedItem,
                         renameState: renameState,
-                        documentStore: documentStore
+                        deleteState: deleteState,
+                        documentStore: documentStore,
+                        onRenameComplete: onRenameComplete
                     )
                         .tag(child)
                         .contextMenu {
-                            SidebarItemContextMenu(item: child, renameState: renameState, documentStore: documentStore)
+                            SidebarItemContextMenu(item: child, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
                         }
                 }
                 .onMove(perform: { _, _ in
@@ -626,23 +741,46 @@ struct SidebarItemRow: View {
     }
 
     private func performRename(itemId: String, newName: String) async {
-        // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
-        let actualId: String
-        if itemId.contains(":") {
-            actualId = String(itemId.split(separator: ":")[1])
+        // For document items, use DocumentStore which updates local state properly
+        if case .document(let document) = item.itemType {
+            do {
+                let updated = try await documentStore.renameDocument(document, to: newName)
+                NSLog("[SidebarItemRow] Renamed document to '\(updated.name)'")
+                // DocumentStore.renameDocument already updates @Published collections
+                // SwiftUI will automatically rebuild the tree
+                // No manual refresh needed - but selection might be lost during rebuild
+
+                // Notify parent to restore selection after tree rebuild
+                await MainActor.run {
+                    onRenameComplete?(itemId)
+                }
+            } catch {
+                NSLog("[SidebarItemRow] Failed to rename document: \(error.localizedDescription)")
+            }
         } else {
-            actualId = itemId
-        }
+            // For non-document items (searches, chats, workflows), use direct API call
+            let actualId: String
+            if itemId.contains(":") {
+                actualId = String(itemId.split(separator: ":")[1])
+            } else {
+                actualId = itemId
+            }
 
-        do {
-            let documentService = DocumentService()
-            _ = try await documentService.renameDocument(actualId, newName: newName)
-            NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
+            do {
+                let documentService = DocumentService()
+                _ = try await documentService.renameDocument(actualId, newName: newName)
+                NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
 
-            // Refresh UI
-            await documentStore.refresh()
-        } catch {
-            NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
+                // For non-documents, we need to refresh to get updated data
+                await documentStore.refresh()
+
+                // Notify parent to restore selection
+                await MainActor.run {
+                    onRenameComplete?(itemId)
+                }
+            } catch {
+                NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -664,7 +802,7 @@ struct SidebarItemRow: View {
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
     @ObservedObject var renameState: RenameStateManager
-    @StateObject private var deleteState = DeleteStateManager()
+    @ObservedObject var deleteState: DeleteStateManager
     @ObservedObject var documentStore: DocumentStore
 
     var body: some View {
@@ -676,13 +814,6 @@ struct SidebarItemContextMenu: View {
 
             Divider()
 
-            Button(action: { duplicateItem(item) }, label: {
-                Label("Duplicate", systemImage: "doc.on.doc")
-            })
-            .disabled(!item.itemType.canBeDuplicated)
-
-            Divider()
-
             Button(action: { deleteItem(item) }, label: {
                 Label("Delete", systemImage: "trash")
                     .foregroundColor(.red)
@@ -690,79 +821,15 @@ struct SidebarItemContextMenu: View {
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(!item.itemType.canBeDeleted)
         }
-        .confirmationDialog(
-            "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
-            isPresented: $deleteState.showingDeleteConfirmation,
-            presenting: deleteState.itemToDelete
-        ) { itemToDelete in
-            Button("Delete", role: .destructive) {
-                Task {
-                    await performDelete(itemToDelete)
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                deleteState.cancelDelete()
-            }
-        } message: { _ in
-            Text("This action cannot be undone.")
-        }
-        .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(deleteState.deleteErrorMessage)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .deleteItemRequested)) { notification in
-            if let requestedItem = notification.object as? SidebarItem,
-               requestedItem.id == item.id {
-                deleteItem(item)
-            }
-        }
     }
 
     private func renameItem(_ item: SidebarItem) {
         renameState.startRename(itemId: item.id, currentName: item.name)
     }
 
-    private func duplicateItem(_ item: SidebarItem) {
-        // This would duplicate the item
-        NSLog("[SidebarItemContextMenu] Duplicate item: \(item.name)")
-    }
-
     private func deleteItem(_ item: SidebarItem) {
+        NSLog("[SidebarItemContextMenu] deleteItem called for: \(item.name) (id: \(item.id))")
         deleteState.showDeleteConfirmation(for: item)
-    }
-
-    private func performDelete(_ item: SidebarItem) async {
-        // For documents, use documentStore to ensure UI refresh
-        if case .document(let document) = item.itemType {
-            do {
-                try await documentStore.deleteDocument(document)
-                NSLog("[SidebarItemContextMenu] Deleted document \(document.id)")
-                deleteState.cancelDelete()
-            } catch {
-                NSLog("[SidebarItemContextMenu] Failed to delete document: \(error.localizedDescription)")
-                deleteState.showError(message: error.localizedDescription)
-            }
-        } else {
-            // For non-document items (searches, chats, workflows), use direct API call
-            // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
-            let actualId: String
-            if item.id.contains(":") {
-                actualId = String(item.id.split(separator: ":")[1])
-            } else {
-                actualId = item.id
-            }
-
-            do {
-                let documentService = DocumentService()
-                try await documentService.deleteDocument(actualId)
-                NSLog("[SidebarItemContextMenu] Deleted item \(actualId)")
-                deleteState.cancelDelete()
-            } catch {
-                NSLog("[SidebarItemContextMenu] Failed to delete item: \(error.localizedDescription)")
-                deleteState.showError(message: error.localizedDescription)
-            }
-        }
     }
 }
 
@@ -842,15 +909,6 @@ extension SidebarItem.ItemType {
         case .document, .savedSearch, .conversation, .workflow:
             return true
         case .sectionHeader:
-            return false
-        }
-    }
-
-    var canBeDuplicated: Bool {
-        switch self {
-        case .document:
-            return true
-        case .savedSearch, .conversation, .workflow, .sectionHeader:
             return false
         }
     }
