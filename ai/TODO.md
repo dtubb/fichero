@@ -105,6 +105,7 @@
   - Depends on: None
 - [x] TODO-052: Fix Inline Rename to Use SwiftUI Default Pattern (P1, High)
   - Depends on: None
+  - Status: Bug fix applied 2025-12-27 - replaced deprecated onCommit with onSubmit, added @FocusState for auto-focus - ready for manual testing
 - [x] TODO-053: Fix Delete Functionality in Sidebar and Backend (P1, High)
   - Depends on: None
 - [x] TODO-054: Fix Drag and Drop Folder Hierarchy (P1, High)

@@ -190,6 +190,162 @@ ai/
 - `P2` = Medium priority, can wait
 - `P3` = Low priority, nice to have
 
+## Available MCP Tools for Claude Code
+
+This project has the following MCP (Model Context Protocol) servers configured:
+
+### Xcode Development (3 servers)
+
+**1. XcodeBuildMCP** (`npx -y xcodebuildmcp@latest`) - Primary Xcode automation:
+
+- **Project Discovery**: `discover_projs` - Find .xcodeproj and .xcworkspace files
+- **Scheme Management**: `list_schemes` - List available build schemes
+- **Build Settings**: `show_build_settings` - View xcodebuild configuration
+
+**Building & Running:**
+- `build_macos` - Build macOS app
+- `build_run_macos` - Build and run macOS app
+- `build_sim` - Build for iOS Simulator
+- `build_run_sim` - Build and run on iOS Simulator
+- `build_device` - Build for physical device
+- `clean` - Clean build artifacts
+
+**Testing:**
+- `test_macos` - Run macOS tests
+- `test_sim` - Run iOS Simulator tests
+- `test_device` - Run tests on physical device
+
+**Simulator Management:**
+- `list_sims` - List available simulators
+- `boot_sim` - Boot a simulator
+- `open_sim` - Open Simulator.app
+- `erase_sims` - Reset simulator state
+- `screenshot` - Capture simulator screenshot
+- `record_sim_video` - Record simulator video
+
+**Simulator Interaction:**
+- `describe_ui` - Get UI hierarchy with coordinates (use before UI automation)
+- `tap` - Tap at coordinates or by accessibility id/label
+- `swipe` - Swipe between coordinates
+- `type_text` - Type text into focused field
+- `button` - Press hardware buttons (home, lock, siri, etc.)
+- `gesture` - Perform preset gestures (scroll, swipe from edge)
+- `set_sim_appearance` - Toggle dark/light mode
+- `set_sim_location` - Set GPS coordinates
+
+**App Management:**
+- `get_mac_bundle_id` / `get_app_bundle_id` - Extract bundle identifier
+- `launch_mac_app` / `launch_app_sim` - Launch applications
+- `stop_mac_app` / `stop_app_sim` - Stop running apps
+- `install_app_sim` - Install app on simulator
+
+**Device Support:**
+- `list_devices` - List connected physical devices
+- `run_on_device` - Build and run on physical device
+- `install_app_device` - Install app on device
+- `launch_app_device` - Launch app on device
+
+**Logging:**
+- `start_sim_log_cap` / `stop_sim_log_cap` - Capture simulator logs
+- `start_device_log_cap` / `stop_device_log_cap` - Capture device logs
+
+**Swift Package Manager:**
+- `swift_package_build` - Build Swift packages
+- `swift_package_run` - Run executable targets
+- `swift_package_test` - Run package tests
+- `swift_package_clean` - Clean package artifacts
+
+**Project Scaffolding:**
+- `scaffold_ios_project` - Create new iOS project from templates
+- `scaffold_macos_project` - Create new macOS project from templates
+
+**Session Management:**
+- `session-set-defaults` - Configure default project/workspace, scheme, simulator
+- `session-show-defaults` - View current session settings
+- `session-clear-defaults` - Clear session configuration
+
+**2. xcode-mcp** (`npx -y @devyhan/xcode-mcp`) - Additional Xcode utilities:
+- `xcode-project-info` - Get project/workspace information
+- `xcode-build` - Build with custom configurations
+- `xcode-test` - Run tests with advanced options
+- `xcode-archive` - Create archives and export IPAs
+- `xcode-codesign-info` - View code signing details
+- `xcode-list-schemes` - List available schemes
+- `swift-package-manager` - SPM commands (init, update, resolve, reset, clean)
+- `simctl-manager` - Direct simulator control (list, create, boot, shutdown, erase, install, launch, delete)
+- `run-on-device` - Comprehensive device deployment with environment variables and logging
+
+**3. sosumi** (`https://sosumi.ai/mcp`) - Official Apple documentation:
+- `searchAppleDocumentation` - Search Apple Developer docs
+- `fetchAppleDocumentation` - Fetch docs by path (Swift, SwiftUI, HIG)
+
+### App Store & Distribution
+
+**app-store-connect** (`npx -y appstore-connect-mcp-server`) - App Store Connect integration:
+- Manage app metadata, builds, and releases
+- Access TestFlight and App Store submission workflows
+- Query app analytics and sales data
+
+### File System Operations
+
+**filesystem** (`@modelcontextprotocol/server-filesystem`) - Scoped to `/Users/dtubb/code/fichero_main/fichero/`:
+- `read_text_file` - Read file contents (supports head/tail)
+- `read_multiple_files` - Read multiple files efficiently
+- `write_file` - Create or overwrite files
+- `edit_file` - Line-based edits with diff preview
+- `create_directory` - Create directories
+- `list_directory` - List directory contents
+- `directory_tree` - Recursive JSON tree view
+- `search_files` - Glob pattern file search
+- `get_file_info` - File metadata and stats
+- `move_file` - Move or rename files
+
+### Knowledge Management
+
+**memory** (`@modelcontextprotocol/server-memory`) - Persistent knowledge graph:
+- `create_entities` - Store project entities (people, concepts, patterns)
+- `create_relations` - Link related concepts with typed relationships
+- `add_observations` - Add details and notes to existing entities
+- `delete_entities` / `delete_relations` / `delete_observations` - Remove outdated info
+- `search_nodes` - Search knowledge graph by query
+- `open_nodes` - Retrieve specific entities by name
+- `read_graph` - View entire knowledge graph
+- **Use for**: Remembering architectural decisions, user preferences, recurring patterns
+
+### AI & Reasoning
+
+**sequential-thinking** (`@modelcontextprotocol/server-sequential-thinking`) - Advanced problem-solving:
+- `sequentialthinking` - Break down complex problems with iterative reasoning
+- Supports branching, revision, hypothesis generation/verification
+- **Use for**: Multi-step technical analysis, debugging complex issues, architectural planning
+
+### Utilities
+
+**time-server** (`python -m mcp_server_time`) - Configured for America/Halifax timezone:
+- `get_current_time` - Get current time in any IANA timezone
+- `convert_time` - Convert times between timezones
+
+### Reference Documentation
+
+The `docs/` folder contains detailed API documentation:
+- `ingest_api.md` - File ingestion API reference
+- `ingest_best_practices.md` - Ingestion patterns and recommendations
+- `ingest_overview.md` - High-level system overview
+- `supported_file_types.md` - Complete list of supported file formats
+
+### Disconnected Servers
+
+- **github** - Currently not connected (authentication required)
+
+### Typical Swift Development Workflow
+
+1. **Session setup**: `session-set-defaults` with projectPath, scheme, simulatorName
+2. **Build**: `build_sim` or `build_macos`
+3. **Run**: `build_run_sim` or `build_run_macos`
+4. **Test**: `test_sim` or `test_macos`
+5. **UI automation**: `describe_ui` → `tap`/`swipe`/`type_text`
+6. **Debug**: `start_sim_log_cap` → reproduce issue → `stop_sim_log_cap`
+
 ## Common Pitfalls
 
 - **Port conflicts**: Backend must run on port 8765 (hardcoded in Swift app)
@@ -198,3 +354,5 @@ ai/
 - **SwiftUI state**: Use `@MainActor` for view models that update UI state
 - **Workflow parameters**: Always validate parameter types match tool expectations
 - **TODO.md updates**: Never rewrite the entire file - use targeted edits only
+- **Session defaults**: Set project/workspace and scheme with `session-set-defaults` before using build tools
+- **UI automation**: Always use `describe_ui` to get precise coordinates - never guess from screenshots

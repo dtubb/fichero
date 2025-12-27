@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Add sosumi MCP server (HTTP) - local
+claude mcp add --transport http --scope local sosumi https://sosumi.ai/mcp
+
+# Add xcode-mcp - local
+claude mcp add --scope local xcode-mcp -- npx -y @devyhan/xcode-mcp
+
+# Add XcodeBuildMCP - local
+claude mcp add --scope local XcodeBuildMCP -- npx -y xcodebuildmcp@latest
+
+# Add GitHub MCP server (replace YOUR_GITHUB_PAT with your actual token) - local
+# claude mcp add --transport http --scope local github https://api.githubcopilot.com/mcp/ -H "Authorization: Bearer YOUR_GITHUB_PAT"
+
+# Add filesystem MCP server (replace paths with your actual allowed directories) - local
+claude mcp add --scope local filesystem -- npx -y @modelcontextprotocol/server-filesystem /Users/dtubb/Desktop /Users/dtubb/Documents
+
+# Add App Store Connect MCP server (replace all placeholder values) - local
+# claude mcp add --scope local app-store-connect \
+#  -e APP_STORE_CONNECT_KEY_ID=YOUR_KEY_ID \
+#  -e APP_STORE_CONNECT_ISSUER_ID=YOUR_ISSUER_ID \
+#  -e APP_STORE_CONNECT_P8_PATH=/path/to/your/auth-key.p8 \
+#  -e APP_STORE_CONNECT_VENDOR_NUMBER=YOUR_VENDOR_NUMBER_OPTIONAL \
+#  -- npx -y appstore-connect-mcp-server
+
+# Add time server with Atlantic timezone - USER LEVEL (available everywhere)
+claude mcp add --scope user time-server -- python -m mcp_server_time --local-timezone=America/Halifax
+
+# Add sequential thinking server - local
+claude mcp add --scope local sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
+
+# Add memory server - local
+claude mcp add --scope local memory -- npx -y @modelcontextprotocol/server-memory
+
+echo "MCP servers added. Restart Claude Code to use them."
+echo "Verify with: claude mcp list"
+echo ""
+echo "Note: Make sure mcp-server-time is installed: pip install mcp-server-time"
+echo "Time server is available at USER level (all projects)"
+echo "All other servers are LOCAL to this project only"

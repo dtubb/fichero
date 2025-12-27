@@ -440,6 +440,7 @@ struct SidebarItemRow: View {
     var documentStore: DocumentStore?
 
     @State private var isDropTargeted = false
+    @FocusState private var isRenameFocused: Bool
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -562,13 +563,26 @@ struct SidebarItemRow: View {
     private var itemLabel: some View {
         Label {
             if renameState.renamingItemId == item.id {
-                TextField("Name", text: $renameState.editingName, onCommit: {
-                    commitRename()
-                })
-                .textFieldStyle(.plain)
-                .onExitCommand {
-                    renameState.cancelRename()
-                }
+                TextField("Name", text: $renameState.editingName)
+                    .textFieldStyle(.plain)
+                    .focused($isRenameFocused)
+                    .onSubmit {
+                        commitRename()
+                    }
+                    .onExitCommand {
+                        renameState.cancelRename()
+                        isRenameFocused = false
+                    }
+                    .onChange(of: isRenameFocused) { _, newValue in
+                        if !newValue && renameState.renamingItemId == item.id {
+                            // Focus was lost without submitting, cancel rename
+                            renameState.cancelRename()
+                        }
+                    }
+                    .task {
+                        // Automatically focus the TextField when rename starts
+                        isRenameFocused = true
+                    }
             } else {
                 Text(item.name)
                     .lineLimit(1)
