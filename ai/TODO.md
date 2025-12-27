@@ -125,6 +125,12 @@
 - [x] TODO-059: Implement Hierarchical Folder Structure for All Sidebar Items (P1, High)
   - Depends on: None
   - Status: Implementation complete - SidebarItemBuilder.swift needs to be added to Xcode project manually
+- [x] TODO-060: Human UI Testing Checklist for TODO-050 through TODO-059 (P0, High)
+  - Depends on: TODO-051 through TODO-059
+  - Status: In progress - manual testing by human
+- [x] TODO-061: Refactor to Proper SwiftUI Observable Pattern (P0, Critical)
+  - Depends on: None
+  - Status: Complete - implemented @ObservedObject pattern per Apple docs, eliminates manual refresh hacks
 
 ### Enhanced Features
 - [x] TODO-007: Enhance Search Functionality (P2, High)

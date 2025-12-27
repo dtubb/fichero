@@ -6,6 +6,11 @@ import Combine
 class ConversationService: ObservableObject {
     private let api = APIClient.shared
 
+    // MARK: - Published State
+
+    /// All conversations loaded from backend
+    @Published var conversations: [Conversation] = []
+
     // MARK: - List Conversations
 
     /// List all conversations.
@@ -26,6 +31,19 @@ class ConversationService: ObservableObject {
     /// Duplicate a conversation.
     func duplicateConversation(_ id: String) async throws -> ConversationAPI {
         return try await api.post("/chat/conversations/\(id)/duplicate")
+    }
+
+    /// Load conversations from backend and update @Published property
+    func loadConversations() async throws {
+        let summaries = try await listConversations()
+        conversations = summaries.map { summary in
+            Conversation(
+                id: summary.id,
+                title: summary.title,
+                messages: [],  // Messages loaded on demand
+                documentScope: []
+            )
+        }
     }
 
     /// Convert API summaries to local Conversation models for sidebar.
@@ -50,7 +68,7 @@ class ConversationService: ObservableObject {
     /// Reorder conversations.
     func reorderConversations(_ conversationIds: [String], folderPath: String = "/") async throws {
         let request: ConversationReorderRequest = ConversationReorderRequest(
-            conversationIds: conversationIds, 
+            conversationIds: conversationIds,
             folderPath: folderPath
         )
         try await api.postVoid("/chat/conversations/reorder", body: request)

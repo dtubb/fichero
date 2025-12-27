@@ -19,9 +19,6 @@ struct ContentView: View {
 
     // Document store - connects to Python backend
     @StateObject private var documentStore = DocumentStore()
-    
-    // Force UI refresh counter
-    @State private var refreshCounter = 0
 
     // Workflow store - manages workflow persistence
     @StateObject private var workflowStore = WorkflowStore()
@@ -31,10 +28,6 @@ struct ContentView: View {
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State private var chatSelectedDocuments: Set<String> = []
-    @State private var conversations: [Conversation] = []
-
-    // Search state
-    @State private var savedSearches: [SavedSearch] = []
 
     // Services - as StateObjects for EnvironmentObject injection
     @StateObject private var conversationService = ConversationService()
@@ -49,25 +42,6 @@ struct ContentView: View {
     @State private var isImporting = false
     @State private var importProgress: String?
     @State private var importError: String?
-
-    // MARK: - Sidebar Data
-
-    /// Build sidebar items from documentStore collections with hierarchy
-    private var libraryItems: [SidebarItem] {
-        return SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-    }
-
-    private var searchItems: [SidebarItem] {
-        return SidebarItemBuilder.buildSearchHierarchy(from: savedSearches)
-    }
-
-    private var chatItems: [SidebarItem] {
-        return SidebarItemBuilder.buildChatHierarchy(from: conversations)
-    }
-
-    private var workflowItems: [SidebarItem] {
-        return SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
-    }
 
     // MARK: - Computed Properties
 
@@ -99,19 +73,20 @@ struct ContentView: View {
     /// Handle document changes on main thread
     private func handleDocumentChangeOnMain(_ change: DocumentChange) {
         switch change {
-        case .collectionsUpdated(_):
-            // Force UI refresh by updating state
-            refreshCounter += 1
-            
+        case .collectionsUpdated:
+            // SwiftUI automatically updates when @Published collections change
+            break
+
         case .collectionSelected(let collection):
             // Update selection if needed
+            let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
             if let item = libraryItems.first(where: { $0.id == collection.id }) {
                 selectedSidebarItem = item
             }
 
-        case .documentsUpdated(_):
-            // Force UI refresh for document updates
-            refreshCounter += 1
+        case .documentsUpdated:
+            // SwiftUI automatically updates when @Published currentDocuments change
+            break
 
         case .documentDeleted(let document):
             // Remove deleted document from selection
@@ -119,12 +94,10 @@ struct ContentView: View {
             if detailDocument?.id == document.id {
                 detailDocument = nil
             }
-            // Force UI refresh
-            refreshCounter += 1
 
-        case .documentCreated(_):
-            // Force UI refresh for new documents
-            refreshCounter += 1
+        case .documentCreated:
+            // SwiftUI automatically updates when @Published collections change
+            break
         }
     }
 
@@ -234,17 +207,15 @@ struct ContentView: View {
                 SidebarView(
                     viewMode: $viewMode,
                     selectedItem: $selectedSidebarItem,
-                    libraryItems: libraryItems,
-                    searchItems: searchItems,
-                    chatItems: chatItems,
-                    workflowItems: workflowItems,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore,
                     onCreateChatWithDocuments: { documentIds in
                         // Add dropped documents to chat scope
                         chatSelectedDocuments = Set(documentIds)
-                    },
-                    documentStore: documentStore
+                    }
                 )
-                .id(refreshCounter) // Force refresh when documentStore changes
                 .environmentObject(savedSearchService)
                 .environmentObject(conversationService)
                 .environmentObject(workflowService)
@@ -273,25 +244,27 @@ struct ContentView: View {
 
             // Load conversations from backend
             do {
-                conversations = try await conversationService.getConversationsForSidebar()
+                try await conversationService.loadConversations()
             } catch {
                 NSLog("[ContentView] Failed to load conversations: %@", error.localizedDescription)
             }
 
             // Load saved searches from backend
             do {
-                savedSearches = try await savedSearchService.getSavedSearchesForSidebar()
+                try await savedSearchService.loadSavedSearches()
             } catch {
                 NSLog("[ContentView] Failed to load saved searches: %@", error.localizedDescription)
             }
 
             // Auto-select first library item
-            if case .library(nil) = viewMode,
-               let firstItem = libraryItems.first {
-                selectedSidebarItem = firstItem
-                if case .document(let doc) = firstItem.itemType {
-                    viewMode = .library(doc)
-                    await documentStore.selectCollection(doc)
+            if case .library(nil) = viewMode {
+                let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
+                if let firstItem = libraryItems.first {
+                    selectedSidebarItem = firstItem
+                    if case .document(let doc) = firstItem.itemType {
+                        viewMode = .library(doc)
+                        await documentStore.selectCollection(doc)
+                    }
                 }
             }
         }
@@ -581,6 +554,7 @@ struct ContentView: View {
 
     func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
+        let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
         if let item = findSidebarItem(for: doc, in: libraryItems) {
             selectedSidebarItem = item
         }
@@ -604,10 +578,7 @@ struct ContentView: View {
     func refreshConversations() {
         Task {
             do {
-                let updated = try await conversationService.getConversationsForSidebar()
-                await MainActor.run {
-                    conversations = updated
-                }
+                try await conversationService.loadConversations()
             } catch {
                 NSLog("[ContentView] Failed to refresh conversations: %@", error.localizedDescription)
             }
@@ -619,10 +590,7 @@ struct ContentView: View {
     func refreshSavedSearches() {
         Task {
             do {
-                let updated = try await savedSearchService.getSavedSearchesForSidebar()
-                await MainActor.run {
-                    savedSearches = updated
-                }
+                try await savedSearchService.loadSavedSearches()
             } catch {
                 NSLog("[ContentView] Failed to refresh saved searches: %@", error.localizedDescription)
             }

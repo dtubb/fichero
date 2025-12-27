@@ -6,9 +6,26 @@ import Combine
 class SavedSearchService: ObservableObject {
     private let api = APIClient.shared
 
+    // MARK: - Published State
+
+    /// All saved searches loaded from backend
+    @Published var savedSearches: [SavedSearch] = []
+
     /// Save a search.
-    func saveSearch(query: String, isSmartSearch: Bool = true, searchType: String = "hybrid", sortBy: String = "relevance", sortOrder: String = "desc") async throws -> SavedSearchAPI {
-        let request = SaveSearchRequest(query: query, isSmartSearch: isSmartSearch, searchType: searchType, sortBy: sortBy, sortOrder: sortOrder)
+    func saveSearch(
+        query: String,
+        isSmartSearch: Bool = true,
+        searchType: String = "hybrid",
+        sortBy: String = "relevance",
+        sortOrder: String = "desc"
+    ) async throws -> SavedSearchAPI {
+        let request = SaveSearchRequest(
+            query: query,
+            isSmartSearch: isSmartSearch,
+            searchType: searchType,
+            sortBy: sortBy,
+            sortOrder: sortOrder
+        )
         return try await api.post("/search/saved", body: request)
     }
 
@@ -25,6 +42,20 @@ class SavedSearchService: ObservableObject {
     /// Duplicate a saved search.
     func duplicateSavedSearch(_ id: String) async throws -> SavedSearchAPI {
         return try await api.post("/search/saved/\(id)/duplicate")
+    }
+
+    /// Load saved searches from backend and update @Published property
+    func loadSavedSearches() async throws {
+        let apiSearches = try await listSavedSearches()
+        savedSearches = apiSearches.map { api in
+            SavedSearch(
+                id: api.id,
+                name: api.query,  // Use query as display name
+                query: api.query,
+                filters: SearchFilters(),  // TODO: Parse filters from API
+                isSmartSearch: api.isSmartSearch
+            )
+        }
     }
 
     /// Convert API responses to local SavedSearch models for sidebar.
@@ -49,7 +80,10 @@ class SavedSearchService: ObservableObject {
 
     /// Reorder saved searches.
     func reorderSavedSearches(_ searchIds: [String], folderPath: String = "/") async throws {
-        let request: SavedSearchReorderRequest = SavedSearchReorderRequest(searchIds: searchIds, folderPath: folderPath)
+        let request: SavedSearchReorderRequest = SavedSearchReorderRequest(
+            searchIds: searchIds,
+            folderPath: folderPath
+        )
         try await api.postVoid("/search/saved/reorder", body: request)
     }
 }

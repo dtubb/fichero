@@ -7,17 +7,31 @@ struct SidebarView: View {
     @Binding var viewMode: AppViewMode
     @Binding var selectedItem: SidebarItem?
 
-    // Section data
-    let libraryItems: [SidebarItem]
-    let searchItems: [SidebarItem]
-    let chatItems: [SidebarItem]
-    let workflowItems: [SidebarItem]
+    // Observable stores - automatically trigger UI updates when @Published properties change
+    @ObservedObject var documentStore: DocumentStore
+    @ObservedObject var savedSearchService: SavedSearchService
+    @ObservedObject var conversationService: ConversationService
+    @ObservedObject var workflowStore: WorkflowStore
 
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
 
-    // Document store for CRUD operations
-    var documentStore: DocumentStore?
+    // Computed properties - SwiftUI automatically re-evaluates when dependencies change
+    private var libraryItems: [SidebarItem] {
+        SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
+    }
+
+    private var searchItems: [SidebarItem] {
+        SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
+    }
+
+    private var chatItems: [SidebarItem] {
+        SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
+    }
+
+    private var workflowItems: [SidebarItem] {
+        SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
+    }
 
     // Expansion state
     @State private var expandedItems: Set<String> = []
@@ -43,7 +57,8 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        renameState: renameState
+                        renameState: renameState,
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
                     .tag(item)
@@ -65,7 +80,8 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        renameState: renameState
+                        renameState: renameState,
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
                     .tag(item)
@@ -101,7 +117,8 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        renameState: renameState
+                        renameState: renameState,
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
                     .tag(item)
@@ -147,7 +164,8 @@ struct SidebarView: View {
                     SidebarItemRow(
                         item: item,
                         expandedItems: $expandedItems,
-                        renameState: renameState
+                        renameState: renameState,
+                        documentStore: documentStore
                     )
                     .padding(.leading, 4)
                     .tag(item)
@@ -277,17 +295,12 @@ struct SidebarView: View {
                     }
                 }
                 // Refresh collections after import
-                await documentStore?.loadCollections()
+                await documentStore.loadCollections()
             }
         }
     }
 
     private func handleCreateNewFolder() {
-        guard let store = documentStore else {
-            NSLog("[SidebarView] Cannot create folder - documentStore is nil")
-            return
-        }
-
         // Create new folder as child of currently selected item
         var parentId: String?
         if let selected = selectedItem, case .document(let doc) = selected.itemType {
@@ -296,7 +309,7 @@ struct SidebarView: View {
 
         Task {
             do {
-                _ = try await store.createCollection(name: "New Folder")
+                _ = try await documentStore.createCollection(name: "New Folder")
                 NSLog("[SidebarView] Created new folder")
             } catch {
                 NSLog("[SidebarView] Failed to create folder: \(error)")
@@ -437,7 +450,7 @@ struct SidebarItemRow: View {
     let item: SidebarItem
     @Binding var expandedItems: Set<String>
     @ObservedObject var renameState: RenameStateManager
-    var documentStore: DocumentStore?
+    @ObservedObject var documentStore: DocumentStore
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
@@ -544,10 +557,8 @@ struct SidebarItemRow: View {
             _ = try await documentService.moveDocument(actualItemId, toParent: actualTargetId)
             NSLog("[SidebarView] Moved item \(actualItemId) to folder \(actualTargetId)")
 
-            // Refresh UI if documentStore is available
-            if let store = documentStore {
-                await store.refresh()
-            }
+            // Refresh UI
+            await documentStore.refresh()
         } catch {
             NSLog("[SidebarView] Failed to move item: \(error.localizedDescription)")
         }
@@ -628,10 +639,8 @@ struct SidebarItemRow: View {
             _ = try await documentService.renameDocument(actualId, newName: newName)
             NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
 
-            // Refresh UI if documentStore is available
-            if let store = documentStore {
-                await store.refresh()
-            }
+            // Refresh UI
+            await documentStore.refresh()
         } catch {
             NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
         }
@@ -656,7 +665,7 @@ struct SidebarItemContextMenu: View {
     let item: SidebarItem
     @ObservedObject var renameState: RenameStateManager
     @StateObject private var deleteState = DeleteStateManager()
-    var documentStore: DocumentStore?
+    @ObservedObject var documentStore: DocumentStore
 
     var body: some View {
         Group {
@@ -725,9 +734,9 @@ struct SidebarItemContextMenu: View {
 
     private func performDelete(_ item: SidebarItem) async {
         // For documents, use documentStore to ensure UI refresh
-        if case .document(let document) = item.itemType, let store = documentStore {
+        if case .document(let document) = item.itemType {
             do {
-                try await store.deleteDocument(document)
+                try await documentStore.deleteDocument(document)
                 NSLog("[SidebarItemContextMenu] Deleted document \(document.id)")
                 deleteState.cancelDelete()
             } catch {
@@ -814,18 +823,13 @@ extension UTType {
 // MARK: - Preview
 
 #Preview {
-    let emptyLibraryItems: [SidebarItem] = []
-    let emptySearchItems: [SidebarItem] = []
-    let emptyChatItems: [SidebarItem] = []
-    let emptyWorkflowItems: [SidebarItem] = []
-
     SidebarView(
         viewMode: .constant(AppViewMode.library(nil)),
         selectedItem: .constant(nil),
-        libraryItems: emptyLibraryItems,
-        searchItems: emptySearchItems,
-        chatItems: emptyChatItems,
-        workflowItems: emptyWorkflowItems
+        documentStore: DocumentStore.preview,
+        savedSearchService: SavedSearchService(),
+        conversationService: ConversationService(),
+        workflowStore: WorkflowStore()
     )
     .frame(width: 250, height: 500)
 }
