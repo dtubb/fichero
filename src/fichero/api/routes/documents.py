@@ -76,8 +76,8 @@ async def list_documents(
 
 @router.get("/collections")
 async def list_collections() -> list[Document]:
-    """List all collections (top-level documents)."""
-    return list(db.query(Document, doc_type=DocType.collection))
+    """List all root-level items (documents without parents)."""
+    return list(db.query(Document, parent_id=None))
 
 
 @router.get("/roots")
@@ -164,6 +164,13 @@ async def update_document(doc_id: str, update: DocumentUpdate) -> Document:
 
     # Apply updates
     update_data = update.model_dump(exclude_unset=True)
+
+    # Validate parent exists if parent_id is being updated
+    if "parent_id" in update_data and update_data["parent_id"] is not None:
+        parent = db.get(Document, update_data["parent_id"])
+        if not parent:
+            raise HTTPException(status_code=400, detail=f"Parent not found: {update_data['parent_id']}")
+
     for field, value in update_data.items():
         setattr(doc, field, value)
 

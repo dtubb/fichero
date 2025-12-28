@@ -128,8 +128,8 @@ struct SidebarView: View {
                 SectionHeader(title: "Searches", icon: "magnifyingglass")
                     .background(isSearchHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
                     .cornerRadius(4)
-                    .dropDestination(for: SidebarItemDragData.self) { items, _ in
-                        handleSearchHeaderDrop(items: items)
+                    .dropDestination(for: String.self) { itemIDs, _ in
+                        handleSearchHeaderDrop(itemIDs: itemIDs)
                     } isTargeted: { isTargeted in
                         isSearchHeaderDropTargeted = isTargeted
                     }
@@ -169,15 +169,17 @@ struct SidebarView: View {
                 })
                 .buttonStyle(.plain)
                 .padding(.leading, 4)
-                .onDrop(of: [.text, .plainText], isTargeted: $isChatDropTargeted) { providers in
-                    handleChatDrop(providers: providers)
+                .dropDestination(for: String.self) { itemIDs, _ in
+                    handleChatButtonDrop(itemIDs: itemIDs)
+                } isTargeted: { isTargeted in
+                    isChatDropTargeted = isTargeted
                 }
             } header: {
                 SectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
                     .background(isChatHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
                     .cornerRadius(4)
-                    .dropDestination(for: SidebarItemDragData.self) { items, _ in
-                        handleChatHeaderDrop(items: items)
+                    .dropDestination(for: String.self) { itemIDs, _ in
+                        handleChatHeaderDrop(itemIDs: itemIDs)
                     } isTargeted: { isTargeted in
                         isChatHeaderDropTargeted = isTargeted
                     }
@@ -214,8 +216,8 @@ struct SidebarView: View {
                 SectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
                     .background(isWorkflowHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
                     .cornerRadius(4)
-                    .dropDestination(for: SidebarItemDragData.self) { items, _ in
-                        handleWorkflowHeaderDrop(items: items)
+                    .dropDestination(for: String.self) { itemIDs, _ in
+                        handleWorkflowHeaderDrop(itemIDs: itemIDs)
                     } isTargeted: { isTargeted in
                         isWorkflowHeaderDropTargeted = isTargeted
                     }
@@ -260,22 +262,25 @@ struct SidebarView: View {
         .onReceive(NotificationCenter.default.publisher(for: .deleteSelectedItem)) { _ in
             handleDeleteSelectedItem()
         }
-        .confirmationDialog(
+        .alert(
             "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
             isPresented: $deleteState.showingDeleteConfirmation,
-            presenting: deleteState.itemToDelete
-        ) { itemToDelete in
-            Button("Delete", role: .destructive) {
-                Task {
-                    await performDelete(itemToDelete)
+            presenting: deleteState.itemToDelete,
+            actions: { itemToDelete in
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await performDelete(itemToDelete)
+                    }
                 }
+                .keyboardShortcut(.defaultAction)
+                Button("Cancel", role: .cancel) {
+                    deleteState.cancelDelete()
+                }
+            },
+            message: { _ in
+                Text("This action cannot be undone.")
             }
-            Button("Cancel", role: .cancel) {
-                deleteState.cancelDelete()
-            }
-        } message: { _ in
-            Text("This action cannot be undone.")
-        }
+        )
         .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -388,11 +393,21 @@ struct SidebarView: View {
 
     private func performDelete(_ item: SidebarItem) async {
         NSLog("[SidebarView] performDelete called for: \(item.name) (id: \(item.id))")
+
+        // Find the next item to select before deletion
+        let nextItemId = findNextItemAfterDelete(item)
+
         // For documents, use documentStore to ensure UI refresh
         if case .document(let document) = item.itemType {
             do {
                 try await documentStore.deleteDocument(document)
                 NSLog("[SidebarView] Deleted document \(document.id)")
+
+                // Select the next item
+                await MainActor.run {
+                    selectedItemId = nextItemId
+                }
+
                 // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
                 deleteState.cancelDelete()
             } catch {
@@ -413,6 +428,12 @@ struct SidebarView: View {
                 let documentService = DocumentService()
                 try await documentService.deleteDocument(actualId)
                 NSLog("[SidebarView] Deleted item \(actualId)")
+
+                // Select the next item
+                await MainActor.run {
+                    selectedItemId = nextItemId
+                }
+
                 // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
                 deleteState.cancelDelete()
             } catch {
@@ -422,35 +443,47 @@ struct SidebarView: View {
         }
     }
 
-    private func handleChatDrop(providers: [NSItemProvider]) -> Bool {
-        var documentIds: [String] = []
+    /// Find the next item to select after deleting the given item
+    private func findNextItemAfterDelete(_ itemToDelete: SidebarItem) -> String? {
+        // Get all items in a flat list
+        let allItems = libraryItems + searchItems + chatItems + workflowItems
 
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
-                            documentIds.append(docId)
-                            // After processing all providers, create the chat
-                            if documentIds.count == providers.count {
-                                createNewChatWithDocuments(documentIds)
-                            }
-                        }
-                    }
-                }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
-                            documentIds.append(docId)
-                            if documentIds.count == providers.count {
-                                createNewChatWithDocuments(documentIds)
-                            }
-                        }
-                    }
+        // Flatten the tree to find the item's position
+        var flatList: [SidebarItem] = []
+        func flatten(_ items: [SidebarItem]) {
+            for item in items {
+                flatList.append(item)
+                if let children = item.children {
+                    flatten(children)
                 }
             }
         }
+        flatten(allItems)
+
+        // Find the index of the item to delete
+        guard let index = flatList.firstIndex(where: { $0.id == itemToDelete.id }) else {
+            return nil
+        }
+
+        // Try to select the next item, or previous if last
+        if index + 1 < flatList.count {
+            return flatList[index + 1].id
+        } else if index > 0 {
+            return flatList[index - 1].id
+        } else {
+            return nil
+        }
+    }
+
+    private func handleChatButtonDrop(itemIDs: [String]) -> Bool {
+        let documentIds = itemIDs.map { itemID in
+            // Extract actual ID (strip prefix like "doc:")
+            if itemID.contains(":") {
+                return String(itemID.split(separator: ":")[1])
+            }
+            return itemID
+        }
+        createNewChatWithDocuments(documentIds)
         return true
     }
 
@@ -462,9 +495,9 @@ struct SidebarView: View {
 
     // MARK: - Section Header Drop Handlers
 
-    private func handleSearchHeaderDrop(items: [SidebarItemDragData]) -> Bool {
+    private func handleSearchHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
-        let documentIds = items.map { $0.itemID }
+        let documentIds = itemIDs
 
         NSLog("[SidebarView] Dropped %d items on Search section", documentIds.count)
 
@@ -476,13 +509,13 @@ struct SidebarView: View {
         return true
     }
 
-    private func handleChatHeaderDrop(items: [SidebarItemDragData]) -> Bool {
+    private func handleChatHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
-        let documentIds = items.map { itemId in
-            if itemId.itemID.contains(":") {
-                return String(itemId.itemID.split(separator: ":")[1])
+        let documentIds = itemIDs.map { itemID in
+            if itemID.contains(":") {
+                return String(itemID.split(separator: ":")[1])
             }
-            return itemId.itemID
+            return itemID
         }
 
         NSLog("[SidebarView] Dropped %d items on Chat section", documentIds.count)
@@ -494,9 +527,9 @@ struct SidebarView: View {
         return true
     }
 
-    private func handleWorkflowHeaderDrop(items: [SidebarItemDragData]) -> Bool {
+    private func handleWorkflowHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
-        let documentIds = items.map { $0.itemID }
+        let documentIds = itemIDs
 
         NSLog("[SidebarView] Dropped %d items on Workflow section", documentIds.count)
 
@@ -532,6 +565,7 @@ struct SidebarItemRow: View {
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
+    @State private var isCommittingRename = false
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -547,6 +581,14 @@ struct SidebarItemRow: View {
     }
 
     var body: some View {
+        // Check if this is a folder type (collection or folder)
+        let isFolder: Bool = {
+            if case .document(let doc) = item.itemType {
+                return doc.docType == .collection || doc.docType == .folder
+            }
+            return false
+        }()
+
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 ForEach(children) { child in
@@ -568,52 +610,77 @@ struct SidebarItemRow: View {
                 })
             } label: {
                 itemLabel
-                    .background(isDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .cornerRadius(4)
             }
-            .draggable(SidebarItemDragData(itemID: item.id))
-            .dropDestination(for: SidebarItemDragData.self) { items, _ in
-                handleDropIntoFolder(items: items, targetFolder: item)
+            .listRowBackground(isDropTargeted ? Color.accentColor : Color.clear)
+            .draggable(item.id)
+            .dropDestination(for: String.self) { droppedIDs, _ in
+                handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
             } isTargeted: { isTargeted in
                 isDropTargeted = isTargeted
             }
-        } else {
+        } else if isFolder {
+            // Empty folder - still needs to accept drops
             itemLabel
-                .draggable(SidebarItemDragData(itemID: item.id))
+                .listRowBackground(isDropTargeted ? Color.accentColor : Color.clear)
+                .draggable(item.id)
+                .dropDestination(for: String.self) { droppedIDs, _ in
+                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                } isTargeted: { isTargeted in
+                    isDropTargeted = isTargeted
+                }
+        } else {
+            // Regular document - can be dragged but not a drop target
+            itemLabel
+                .draggable(item.id)
         }
     }
 
-    private func handleDropIntoFolder(items: [SidebarItemDragData], targetFolder: SidebarItem) -> Bool {
+    private func handleDropIntoFolder(itemIDs: [String], targetFolder: SidebarItem) -> Bool {
+        NSLog("[SidebarView] ========== DROP STARTED ==========")
+        NSLog("[SidebarView] handleDropIntoFolder called with \(itemIDs.count) items onto \(targetFolder.name)")
+        NSLog("[SidebarView] Item IDs: \(itemIDs)")
+        NSLog("[SidebarView] Target folder ID: \(targetFolder.id)")
+        NSLog("[SidebarView] Target folder itemType: \(targetFolder.itemType)")
+
         // Validate that target is actually a folder
         guard case .document(let targetDoc) = targetFolder.itemType,
               targetDoc.docType == .folder || targetDoc.docType == .collection else {
-            NSLog("[SidebarView] Drop rejected: target is not a folder")
+            NSLog("[SidebarView] ❌ Drop rejected: target \(targetFolder.name) is not a folder (type: \(targetFolder.itemType))")
             return false
         }
 
+        NSLog("[SidebarView] ✅ Target \(targetFolder.name) is valid folder (docType: \(targetDoc.docType))")
+        NSLog("[SidebarView] Target document ID from doc: \(targetDoc.id)")
+
         // Move each dropped item
-        for dragData in items {
+        for itemID in itemIDs {
+            NSLog("[SidebarView] Processing drop of item ID: \(itemID)")
+
             // Prevent dropping item onto itself
-            guard dragData.itemID != targetFolder.id else {
-                NSLog("[SidebarView] Drop rejected: cannot drop item onto itself")
+            guard itemID != targetFolder.id else {
+                NSLog("[SidebarView] ⚠️ Drop rejected: cannot drop item onto itself")
                 continue
             }
 
             // Validate circular reference: cannot drop folder into its own child
-            if isDescendant(targetFolder.id, of: dragData.itemID) {
-                NSLog("[SidebarView] Drop rejected: circular reference detected")
+            if isDescendant(targetFolder.id, of: itemID) {
+                NSLog("[SidebarView] ⚠️ Drop rejected: circular reference detected")
                 continue
             }
 
             // Call backend to update parent
+            NSLog("[SidebarView] ✅ Validation passed, calling moveItemToFolder")
+            NSLog("[SidebarView]    Source ID: \(itemID)")
+            NSLog("[SidebarView]    Target ID: \(targetFolder.id)")
             Task {
-                await moveItemToFolder(itemId: dragData.itemID, targetFolderId: targetFolder.id)
+                await moveItemToFolder(itemId: itemID, targetFolderId: targetFolder.id)
             }
         }
+        NSLog("[SidebarView] ========== DROP COMPLETED ==========")
         return true
     }
 
-    private func handleDropOntoItem(items: [SidebarItemDragData], targetItem: SidebarItem) -> Bool {
+    private func handleDropOntoItem(itemIDs: [String], targetItem: SidebarItem) -> Bool {
         // For non-folder items, we don't support dropping onto them
         NSLog("[SidebarView] Drop onto non-folder item not supported")
         return false
@@ -627,19 +694,19 @@ struct SidebarItemRow: View {
     }
 
     private func moveItemToFolder(itemId: String, targetFolderId: String) async {
+        NSLog("[SidebarView] moveItemToFolder: \(itemId) → \(targetFolderId)")
+
         // Extract actual IDs (strip prefix like "doc:")
         let actualItemId = extractActualId(from: itemId)
         let actualTargetId = extractActualId(from: targetFolderId)
 
         do {
-            let documentService = DocumentService()
-            _ = try await documentService.moveDocument(actualItemId, toParent: actualTargetId)
-            NSLog("[SidebarView] Moved item \(actualItemId) to folder \(actualTargetId)")
+            // Use documentStore (same pattern as rename/delete) - no refresh() needed!
+            _ = try await documentStore.moveDocument(actualItemId, toParent: actualTargetId)
+            NSLog("[SidebarView] ✅ Move successful - UI updates automatically via @Published")
 
-            // Refresh UI
-            await documentStore.refresh()
         } catch {
-            NSLog("[SidebarView] Failed to move item: \(error.localizedDescription)")
+            NSLog("[SidebarView] ❌ Move failed: \(error.localizedDescription)")
         }
     }
 
@@ -656,6 +723,8 @@ struct SidebarItemRow: View {
                 TextField("Name", text: $renameState.editingName)
                     .textFieldStyle(.plain)
                     .focused($isRenameFocused)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .onSubmit {
                         commitRename()
                     }
@@ -664,7 +733,7 @@ struct SidebarItemRow: View {
                         isRenameFocused = false
                     }
                     .onChange(of: isRenameFocused) { _, newValue in
-                        if !newValue && renameState.renamingItemId == item.id {
+                        if !newValue && renameState.renamingItemId == item.id && !isCommittingRename {
                             // Focus was lost without submitting, cancel rename
                             renameState.cancelRename()
                         }
@@ -697,10 +766,16 @@ struct SidebarItemRow: View {
             return
         }
 
+        // Mark that we're committing to prevent onChange from canceling
+        isCommittingRename = true
+
         // Call backend to rename
         Task {
             await performRename(itemId: item.id, newName: newName)
-            renameState.cancelRename()
+            await MainActor.run {
+                renameState.cancelRename()
+                isCommittingRename = false
+            }
         }
     }
 
@@ -827,19 +902,6 @@ class DeleteStateManager: ObservableObject {
         showingDeleteError = true
         showingDeleteConfirmation = false
     }
-}
-
-// MARK: - Drag Data Structure
-struct SidebarItemDragData: Codable, Transferable {
-    let itemID: String
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .ficheroItem)
-    }
-}
-
-extension UTType {
-    static let ficheroItem = UTType(exportedAs: "ca.tubb.fichero.item")
 }
 
 // MARK: - Preview

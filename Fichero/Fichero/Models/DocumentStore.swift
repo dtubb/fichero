@@ -78,29 +78,31 @@ class DocumentStore: ObservableObject {
 
     // MARK: - Loading Collections
 
-    /// Load all collections from the backend.
+    /// Load all documents from the backend to build full tree.
     func loadCollections() async {
         isLoading = true
         error = nil
 
         do {
-            NSLog("[DocumentStore] Loading collections...")
-            collections = try await service.getCollections()
+            NSLog("[DocumentStore] Loading all documents for tree building...")
+            // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
+            collections = try await service.listDocuments(limit: 10000)
             isConnected = true
-            NSLog("[DocumentStore] Loaded %d collections", collections.count)
-            for collection in collections {
-                NSLog("[DocumentStore]   - %@ (id: %@)", collection.name, collection.id)
-            }
+            NSLog("[DocumentStore] Loaded %d documents total", collections.count)
+
+            let rootCount = collections.filter { $0.parentId == nil }.count
+            let childCount = collections.count - rootCount
+            NSLog("[DocumentStore]   - %d root items, %d nested items", rootCount, childCount)
 
             // Publish change
             publish(.collectionsUpdated(collections))
 
-            // Auto-select first collection if none selected
-            if selectedCollection == nil, let first = collections.first {
+            // Auto-select first root collection if none selected
+            if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {
                 await selectCollection(first)
             }
         } catch {
-            NSLog("[DocumentStore] ERROR loading collections: %@", String(describing: error))
+            NSLog("[DocumentStore] ERROR loading documents: %@", String(describing: error))
             self.error = error
             isConnected = false
         }
@@ -245,24 +247,29 @@ class DocumentStore: ObservableObject {
 
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
-        let document = try await service.moveDocument(documentId, toParent: parentId)
+        let updated = try await service.moveDocument(documentId, toParent: parentId)
 
-        // Remove from current location
-        collections.removeAll { $0.id == documentId }
-        currentDocuments.removeAll { $0.id == documentId }
+        // Update in-place (same pattern as renameDocument)
+        updateLocal(updated)
 
-        // Add to new location if it's a top-level collection
-        if parentId == nil {
-            collections.append(document)
-        } else {
-            // Refresh the parent's children
-            if let parent = collections.first(where: { $0.id == parentId }) {
-                await loadChildren(of: parent)
-            }
+        // If the document changed parent_id, update collections array structure
+        // Moving TO root (parent_id becomes nil)
+        if updated.parentId == nil && !collections.contains(where: { $0.id == updated.id }) {
+            collections.append(updated)
+            NSLog("[DocumentStore] Moved document to root: \(updated.name)")
         }
 
-        publish(.documentsUpdated(currentDocuments))
-        return document
+        // Moving FROM root to a parent (parent_id was nil, now has value)
+        if let index = collections.firstIndex(where: { $0.id == updated.id }),
+           updated.parentId != nil {
+            collections.remove(at: index)
+            NSLog("[DocumentStore] Moved document from root to parent: \(updated.name)")
+        }
+
+        // Publish change - this triggers @Published update and SwiftUI rebuild
+        publish(.documentsUpdated(collections))
+
+        return updated
     }
 
     // MARK: - Helpers

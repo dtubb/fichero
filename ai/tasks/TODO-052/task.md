@@ -15,7 +15,8 @@ Implement native SwiftUI inline editing for folder and file rename functionality
 - [x] Step 9: Run SwiftLint and fix any violations
 - [x] Step 10: Build with Xcode to verify compilation
 - [x] Step 11: Write Xcode unit tests for rename functionality
-- [ ] Step 12: Manual testing - verify TextField appears, accepts input, submits on Return
+- [X]  Step 12: Manual testing - verify TextField appears, accepts input, submits on Return
+Works
 
 ## Files
 - File to change: Fichero/Fichero/Views/Sidebar/SidebarView.swift

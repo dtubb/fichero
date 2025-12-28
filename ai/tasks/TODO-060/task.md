@@ -18,39 +18,77 @@ Manual UI testing and verification of all sidebar improvements from TODO-051 thr
 
 ---
 
-## TODO-052: Inline Rename Functionality ⚠️ BUG FIXED - RETEST
-**Fix Applied**: Replaced deprecated `onCommit` with `.onSubmit`, added `@FocusState` for auto-focus, fixed validation bug
+## TODO-052: Inline Rename Functionality ✅ COMPLETED + ENHANCED
+**Fixes Applied**:
+1. Replaced deprecated `onCommit` with `.onSubmit`
+2. Added `@FocusState` for auto-focus
+3. Fixed validation bug
+4. **ID-based selection** (TODO-062) - selection persists without flash
+5. Fixed race condition - TextField exits after rename completes
+6. Single-line TextField with horizontal scroll (Finder-style)
 
+### Basic Rename Tests:
 - [X] Select a document in Library section
 - [X] Choose "Rename" from context menu (or press Return)
 - [X] **Critical**: Verify TextField appears inline with current name selected
 - [X] **Critical**: Verify TextField automatically receives focus (cursor should be blinking)
-IT works.
 - [X] Type a new name and press Enter
-Ot wprls.
-- [ ] Confirm name updates in UI immediately
-Does not update im UI, and not sure if backend also updates.
-- [ ] Refresh/restart app - verify rename persisted to backend
-- [ ] Test: Click outside TextField while renaming - should cancel
-- [ ] Test: Press Escape while renaming - should cancel
-- [ ] Test: Try empty name (just spaces) - should reject and cancel
-- [ ] Test: Try name over 255 characters - should reject and cancel
-- [ ] Test: Rename on double-click (if supported)
-- [ ] Test rename on: searches, chats, workflows (may not work - needs backend support)
-- [ ] **Notes:**
+- [X] **New**: Confirm TextField stays visible until rename completes (no premature exit)
+- [X] **New**: Confirm item stays selected after rename (no flash)
+- [X] **New**: Confirm TextField width matches text length (not full width)
+- [X] **New**: For long names, verify TextField scrolls horizontally (stays single-line)
+- [X] Confirm name updates in UI immediately
+- [X] Refresh/restart app - verify rename persisted to backend
+
+### Cancel/Error Tests:
+- [x] Test: Click outside TextField while renaming - should cancel
+- [X] Test: Press Escape while renaming - should cancel
+- [X] Test: Try empty name (just spaces) - should reject and cancel
+- [X] Test: Try name over 255 characters - should reject and cancel
+
+### Multi-section Tests:
+- [ ] Test rename on: searches, chats, workflows - **BLOCKED: Backend support not implemented**
+- [ ] Test rename on nested document (inside folder) - selection should persist - **BLOCKED: Cannot create test data**
+
+### Automated Tests:
+- [X] Swift unit tests created: `FicheroTests/SidebarTests/StateManagerTests.swift`
+  - RenameStateManager: initialization, startRename, cancelRename
+  - DeleteStateManager: initialization, showConfirmation, cancelDelete, error handling
+- [ ] Run tests in Xcode or via: `xcodebuild test -project Fichero.xcodeproj -scheme Fichero`
+- [ ] **Note**: Old tests deleted due to incompatibility with SwiftUI Observable refactor 
+
+### **Notes:**
+**Major Enhancement**: Implemented Apple's recommended ID-based selection pattern (TODO-062). This eliminated ~50 lines of complex manual selection restoration code and provides smooth, flash-free rename experience.
 
 ---
 
-## TODO-053: Delete Functionality
-- [ ] Right-click a document in Library
-- [ ] Select "Delete" from context menu
-- [ ] Confirm confirmation dialog appears
-- [ ] Click "Delete" and verify item disappears from UI
-- [ ] Test: Press Cmd+Delete on selected item - should show same dialog
-- [ ] Verify deleted items don't reappear after app restart
-- [ ] Test deleting: searches, chats, workflows
-- [ ] Verify error alert appears if deletion fails
-- [ ] **Notes:**
+## TODO-053: Delete Functionality ✅ COMPLETED + ENHANCED
+**Enhancements Applied**:
+1. Delete button is now default (responds to Return/Space after Cmd+Delete)
+2. Auto-selects next item after deletion for smooth workflow
+3. Proper alert with destructive styling
+
+### Basic Delete Tests:
+- [X] Right-click a document in Library
+- [X] Select "Delete" from context menu
+- [X] Confirm confirmation dialog appears with Delete as default button
+- [X] Click "Delete" and verify item disappears from UI
+- [X] Test: Press Cmd+Delete on selected item - should show same dialog
+- [X] Test: Cmd+Delete then Space - should delete (Delete is default)
+- [X] Verify next item is automatically selected after deletion
+- [ ] Verify deleted items don't reappear after app restart - **NEEDS MANUAL VERIFICATION**
+
+### Multi-section Tests:
+- [ ] Test deleting: searches, chats, workflows - **BLOCKED: Backend support not implemented**
+
+### Error Handling:
+- [ ] Verify error alert appears if deletion fails - **CANNOT TEST: No known failure case**
+
+### Automated Tests:
+- [X] Covered in TODO-052 automated tests (StateManagerTests.swift)
+- [ ] Run tests in Xcode or via: `xcodebuild test -project Fichero.xcodeproj -scheme Fichero`
+
+### **Notes:**
 
 ---
 
@@ -58,6 +96,7 @@ Does not update im UI, and not sure if backend also updates.
 **Critical**: Must do Product > Clean Build Folder first!
 
 - [ ] Create test folder structure (Folder A, Folder B inside A, Folder C)
+I made folder a, b and c. I cannot drag one into the other. So I cannto make the hierarhcy.
 - [ ] Drag Folder C and hover over Folder A
 - [ ] Verify visual feedback: accent color highlight at 20% opacity on drop target
 - [ ] Drop Folder C onto Folder A

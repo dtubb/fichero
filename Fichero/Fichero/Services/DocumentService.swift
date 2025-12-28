@@ -176,6 +176,8 @@ class DocumentService: ObservableObject {
 
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
+        // Use the general update endpoint to change parent_id
+        // The backend validates and updates the document
         let update = DocumentUpdateRequest(parentId: parentId)
         return try await updateDocument(documentId, update)
     }
