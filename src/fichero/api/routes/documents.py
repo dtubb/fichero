@@ -171,11 +171,14 @@ async def update_document(doc_id: str, update: DocumentUpdate) -> Document:
     # Apply updates
     update_data = update.model_dump(exclude_unset=True)
 
-    # Validate parent exists if parent_id is being updated
-    if "parent_id" in update_data and update_data["parent_id"] is not None:
-        parent = db.get(Document, update_data["parent_id"])
-        if not parent:
-            raise HTTPException(status_code=400, detail=f"Parent not found: {update_data['parent_id']}")
+    # Validate parent exists if parent_id is being updated to a non-null value
+    # Allow parent_id=None to move to root
+    if "parent_id" in update_data:
+        if update_data["parent_id"] is not None:
+            parent = db.get(Document, update_data["parent_id"])
+            if not parent:
+                raise HTTPException(status_code=400, detail=f"Parent not found: {update_data['parent_id']}")
+        # parent_id=None is allowed (moves to root)
 
     for field, value in update_data.items():
         setattr(doc, field, value)

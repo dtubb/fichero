@@ -67,13 +67,7 @@ struct SidebarItemRow: View {
                         deleteState: deleteState
                     )
                     .tag(child.id)
-                    .contextMenu {
-                        SidebarItemContextMenu(
-                            item: child,
-                            renameState: renameState,
-                            deleteState: deleteState
-                        )
-                    }
+                    // No context menu here - child SidebarItemRow renders its own
                 }
             } label: {
                 itemLabel
@@ -311,35 +305,15 @@ struct SidebarItemRow: View {
 
     // MARK: - Item Label
 
+    /// Label with name (text or rename field) and icon.
+    ///
+    /// Shows TextField when this specific row is being renamed, otherwise shows static Text.
+    /// The condition check happens for every row on state changes, but only one TextField
+    /// is actually created.
     private var itemLabel: some View {
         Label {
             if renameState.renamingItemId == item.id {
-                let _ = NSLog("[SidebarItemRow.itemLabel] SHOWING TextField for: \(item.name) (id: \(item.id))")
-                let _ = NSLog(
-                    "[SidebarItemRow.itemLabel]   - renameState.renamingItemId: \(renameState.renamingItemId ?? "nil")"
-                )
-                TextField("Name", text: $renameState.editingName)
-                    .textFieldStyle(.plain)
-                    .focused($isRenameFocused)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .onSubmit {
-                        commitRename()
-                    }
-                    .onExitCommand {
-                        renameState.cancelRename()
-                        isRenameFocused = false
-                    }
-                    .onChange(of: isRenameFocused) { _, newValue in
-                        if !newValue && renameState.renamingItemId == item.id && !isCommittingRename {
-                            // Focus was lost without submitting, cancel rename
-                            renameState.cancelRename()
-                        }
-                    }
-                    .task {
-                        // Automatically focus the TextField when rename starts
-                        isRenameFocused = true
-                    }
+                renameField
             } else {
                 Text(item.name)
                     .lineLimit(1)
@@ -350,14 +324,48 @@ struct SidebarItemRow: View {
         }
     }
 
+    /// TextField for inline renaming with focus management and validation.
+    private var renameField: some View {
+        TextField("Name", text: $renameState.editingName)
+            .textFieldStyle(.plain)
+            .focused($isRenameFocused)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .onSubmit {
+                commitRename()
+            }
+            .onExitCommand {
+                renameState.cancelRename()
+                isRenameFocused = false
+            }
+            .onChange(of: isRenameFocused) { _, newValue in
+                if !newValue && renameState.renamingItemId == item.id && !isCommittingRename {
+                    // Focus was lost without submitting, cancel rename
+                    renameState.cancelRename()
+                }
+            }
+            .task {
+                // Automatically focus the TextField when rename starts
+                isRenameFocused = true
+            }
+    }
+
     // MARK: - Rename
 
     private func commitRename() {
         let newName = renameState.editingName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        NSLog("[SidebarItemRow.commitRename] Committing rename for item: \(item.name) (id: \(item.id))")
-        NSLog("[SidebarItemRow.commitRename]   - New name: \(newName)")
-        NSLog("[SidebarItemRow.commitRename]   - renameState.renamingItemId: \(renameState.renamingItemId ?? "nil")")
+        // CRITICAL: Use renamingItemId from renameState, NOT item.id
+        // item.id might be wrong in nested hierarchies due to recursive rendering
+        guard let itemIdToRename = renameState.renamingItemId else {
+            logger.warning("commitRename called but no item is being renamed")
+            renameState.cancelRename()
+            return
+        }
+
+        logger.debug("Committing rename for item ID: \(itemIdToRename), new name: \(newName)")
+        logger.debug("  - Current row's item: \(item.name) (id: \(item.id))")
+        logger.debug("  - renameState.renamingItemId: \(itemIdToRename)")
 
         // Validate name
         guard !newName.isEmpty else {
@@ -373,9 +381,9 @@ struct SidebarItemRow: View {
         // Mark that we're committing to prevent onChange from canceling
         isCommittingRename = true
 
-        // Call backend to rename
+        // Call backend to rename - use the ID from renameState, not item.id!
         Task {
-            await performRename(itemId: item.id, newName: newName)
+            await performRename(itemId: itemIdToRename, newName: newName)
             await MainActor.run {
                 renameState.cancelRename()
                 isCommittingRename = false
@@ -384,13 +392,21 @@ struct SidebarItemRow: View {
     }
 
     private func performRename(itemId: String, newName: String) async {
-        NSLog("[SidebarItemRow.performRename] Called with itemId: \(itemId), newName: \(newName)")
-        NSLog("[SidebarItemRow.performRename]   - Current row's item: \(item.name) (id: \(item.id))")
-        NSLog("[SidebarItemRow.performRename]   - item.itemType: \(item.itemType)")
+        logger.debug("performRename called with itemId: \(itemId), newName: \(newName)")
+        logger.debug("  - Current row's item: \(item.name) (id: \(item.id))")
+
+        // CRITICAL: Find the actual item being renamed from allCachedItems
+        // Don't use `item` from current row - it might be wrong due to recursive rendering
+        guard let itemToRename = findItemById(itemId, in: allCachedItems) else {
+            logger.warning("⚠️ Could not find item with ID \(itemId) in cached items")
+            return
+        }
+
+        logger.debug("  - Found item to rename: \(itemToRename.name) (id: \(itemToRename.id))")
 
         // For document items, use DocumentStore which updates local state properly
-        if case .document(let document) = item.itemType {
-            NSLog("[SidebarItemRow.performRename]   - Renaming document: \(document.name) (id: \(document.id))")
+        if case .document(let document) = itemToRename.itemType {
+            logger.debug("  - Renaming document: \(document.name) (id: \(document.id))")
             guard let documentStore = documentStore else { return }
             do {
                 let updated = try await documentStore.renameDocument(document, to: newName)
@@ -412,7 +428,7 @@ struct SidebarItemRow: View {
 
             do {
                 // Use the correct service based on item type
-                switch item.itemType {
+                switch itemToRename.itemType {
                 case .savedSearch:
                     guard let savedSearchService = savedSearchService else { return }
                     _ = try await savedSearchService.renameSavedSearch(actualId, newName: newName)

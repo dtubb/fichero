@@ -579,15 +579,37 @@ private extension SidebarView {
 
     private func moveItemToRoot(itemId: String) async {
         logger.info("moveItemToRoot: \(itemId)")
+        NSLog("[SidebarView.moveItemToRoot] START: \(itemId)")
 
         let actualItemId = extractActualId(from: itemId)
 
         do {
             // Move to root by setting parent to nil
-            _ = try await documentStore.moveDocument(actualItemId, toParent: nil)
-            logger.info("Move to root successful - UI updates automatically via @Published")
+            NSLog("[SidebarView.moveItemToRoot] Calling documentStore.moveDocument")
+            let movedDoc = try await documentStore.moveDocument(actualItemId, toParent: nil)
+            NSLog("[SidebarView.moveItemToRoot] moveDocument returned: \(movedDoc.name), parent: \(movedDoc.parentId ?? "nil")")
+
+            logger.info("Move to root successful - rebuilding caches")
+            NSLog("[SidebarView.moveItemToRoot] About to rebuild caches")
+
+            // Explicitly rebuild caches to ensure UI updates
+            await MainActor.run {
+                NSLog("[SidebarView.moveItemToRoot] Inside MainActor.run, calling rebuildCaches()")
+                rebuildCaches()
+                NSLog("[SidebarView.moveItemToRoot] rebuildCaches() completed")
+
+                let rootItems = cachedLibraryItems.filter { item in
+                    if case .document(let doc) = item.itemType {
+                        return doc.parentId == nil
+                    }
+                    return false
+                }
+                NSLog("[SidebarView.moveItemToRoot] Root-level items: \(rootItems.map { $0.name })")
+            }
+            NSLog("[SidebarView.moveItemToRoot] END - all done")
 
         } catch {
+            NSLog("[SidebarView.moveItemToRoot] ERROR: \(error.localizedDescription)")
             logger.error("Move to root failed: \(error.localizedDescription)")
         }
     }
