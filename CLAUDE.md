@@ -96,10 +96,24 @@ See `docs/ingest_api.md` for detailed API documentation.
 
 ### Swift
 
+**⚠️ CRITICAL: 100% SwiftUI - NO AppKit**
+
+- **Pure SwiftUI Only**: Do NOT use AppKit views, NSView wrapping, or AppKit controls
+- **Before using AppKit**: Check Sosumi MCP for SwiftUI equivalent, verify it's truly unavoidable
+- **Use MCP Tools for Documentation**:
+  - `sosumi.searchAppleDocumentation()` - Official Apple SwiftUI docs
+  - `ref.searchDocumentation()` - Swift language reference
+- **No NotificationCenter**: Use `@FocusedValue` for menu commands (see `ai/contexts/frontend/SWIFTUI_PRINCIPLES.md`)
+- **Cache Expensive Work**: Don't rebuild hierarchies on every view update
+- **Handle Cancellation**: All `.task {}` blocks must check `Task.isCancelled`
 - **SwiftLint is configured and required** - run before committing Swift changes
-- Follow existing patterns in `SidebarView.swift` for hierarchical UI components
 - Use `@StateObject` for view models, `@EnvironmentObject` for app-wide state
+- Use `@MainActor` for UI updates (not `DispatchQueue.main`)
+- Keep view files < 300 lines, use `@ViewBuilder` on computed views
+- Use OSLog for logging (not NSLog or print)
 - Keyboard shortcuts follow Ulysses-style conventions (⌃⌘1-5 for sidebar modes, ⌘1-4 for view modes)
+
+**Required Reading**: `ai/contexts/frontend/SWIFTUI_PRINCIPLES.md` - Mandatory SwiftUI patterns
 
 ### Python
 
@@ -279,6 +293,13 @@ This project has the following MCP (Model Context Protocol) servers configured:
 - `searchAppleDocumentation` - Search Apple Developer docs
 - `fetchAppleDocumentation` - Fetch docs by path (Swift, SwiftUI, HIG)
 
+**IMPORTANT**: Use Sosumi MCP BEFORE implementing custom SwiftUI solutions!
+Examples:
+- Finding SwiftUI drag & drop APIs: `searchAppleDocumentation("swiftui drag drop")`
+- Learning NavigationSplitView: `searchAppleDocumentation("NavigationSplitView")`
+- Checking HIG guidelines: `searchAppleDocumentation("human interface guidelines color")`
+- Then fetch full doc: `fetchAppleDocumentation("path/from/search/result")`
+
 ### App Store & Distribution
 
 **app-store-connect** (`npx -y appstore-connect-mcp-server`) - App Store Connect integration:
@@ -325,7 +346,18 @@ This project has the following MCP (Model Context Protocol) servers configured:
 - `get_current_time` - Get current time in any IANA timezone
 - `convert_time` - Convert times between timezones
 
-### Reference Documentation
+### Reference Documentation (MCP)
+
+**Ref** - Search documentation from web, GitHub, private resources:
+- `ref_search_documentation` - Search for docs (include language/framework in query)
+- `ref_read_url` - Read documentation page as markdown
+
+**Examples:**
+- Swift language features: `ref_search_documentation("Swift @Observable macro")`
+- SwiftUI patterns: `ref_search_documentation("SwiftUI MVVM pattern")`
+- Third-party libraries: `ref_search_documentation("Swift Combine framework")`
+
+### Local Documentation
 
 The `docs/` folder contains detailed API documentation:
 - `ingest_api.md` - File ingestion API reference

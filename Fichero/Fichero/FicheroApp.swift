@@ -1,5 +1,43 @@
 import SwiftUI
 
+// MARK: - Focused Values for Menu Commands
+
+/// Actions that can be performed on the sidebar selection
+struct SidebarActions {
+    let createFolder: () -> Void
+    let renameItem: () -> Void
+    let deleteItem: () -> Void
+}
+
+/// Information about the current sidebar selection
+struct SidebarSelectionInfo {
+    let selectedItem: SidebarItem?
+    let canRename: Bool
+    let canDelete: Bool
+}
+
+/// FocusedValue key for sidebar actions
+struct SidebarActionsKey: FocusedValueKey {
+    typealias Value = SidebarActions
+}
+
+/// FocusedValue key for sidebar selection info
+struct SidebarSelectionInfoKey: FocusedValueKey {
+    typealias Value = SidebarSelectionInfo
+}
+
+extension FocusedValues {
+    var sidebarActions: SidebarActionsKey.Value? {
+        get { self[SidebarActionsKey.self] }
+        set { self[SidebarActionsKey.self] = newValue }
+    }
+
+    var sidebarSelectionInfo: SidebarSelectionInfoKey.Value? {
+        get { self[SidebarSelectionInfoKey.self] }
+        set { self[SidebarSelectionInfoKey.self] = newValue }
+    }
+}
+
 @main
 struct FicheroApp: App {
     // Backend connection state - will manage Python subprocess
@@ -18,10 +56,7 @@ struct FicheroApp: App {
         .commands {
             // File menu
             CommandGroup(replacing: .newItem) {
-                Button("New Folder") {
-                    NotificationCenter.default.post(name: .createNewFolder, object: nil)
-                }
-                .keyboardShortcut("n", modifiers: [.command])
+                FocusedNewFolderButton()
 
                 Divider()
 
@@ -42,15 +77,11 @@ struct FicheroApp: App {
             CommandGroup(after: .pasteboard) {
                 Divider()
 
-                Button("Rename") {
-                    NotificationCenter.default.post(name: .renameSelectedItem, object: nil)
-                }
-                .keyboardShortcut(.return, modifiers: [])
+                FocusedRenameButton()
+                    .keyboardShortcut(.return, modifiers: [])
 
-                Button("Delete") {
-                    NotificationCenter.default.post(name: .deleteSelectedItem, object: nil)
-                }
-                .keyboardShortcut(.delete, modifiers: [.command])
+                FocusedDeleteButton()
+                    .keyboardShortcut(.delete, modifiers: [.command])
             }
 
             // View menu - custom structure like Ulysses
@@ -1955,14 +1986,45 @@ struct ProvidersSettingsSheet: View {
     }
 }
 
-// MARK: - Notifications
+// MARK: - Focused Command Buttons
 
-extension Notification.Name {
-    static let toggleInspector = Notification.Name("toggleInspector")
-    static let createNewFolder = Notification.Name("createNewFolder")
-    static let renameSelectedItem = Notification.Name("renameSelectedItem")
-    static let deleteSelectedItem = Notification.Name("deleteSelectedItem")
-    static let deleteItemRequested = Notification.Name("deleteItemRequested")
+/// Button that calls the focused sidebar's createFolder action
+struct FocusedNewFolderButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Folder") {
+            sidebarActions?.createFolder()
+        }
+        .keyboardShortcut("n", modifiers: .command)
+        .disabled(sidebarActions == nil)
+    }
+}
+
+/// Button that calls the focused sidebar's renameItem action
+struct FocusedRenameButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+    @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
+
+    var body: some View {
+        Button("Rename") {
+            sidebarActions?.renameItem()
+        }
+        .disabled(!(selectionInfo?.canRename ?? false))
+    }
+}
+
+/// Button that calls the focused sidebar's deleteItem action
+struct FocusedDeleteButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+    @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
+
+    var body: some View {
+        Button("Delete") {
+            sidebarActions?.deleteItem()
+        }
+        .disabled(!(selectionInfo?.canDelete ?? false))
+    }
 }
 
 // MARK: - Image Preview Menu Commands

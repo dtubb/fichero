@@ -59,7 +59,7 @@ class TestIngestPipelineIntegration:
                     # Verify collection was created
                     collection_calls = [
                         call for call in mock_db.save.call_args_list
-                        if call.args[0].doc_type == DocType.collection
+                        if call.args[0].doc_type == DocType.folder
                     ]
                     assert len(collection_calls) == 1
                     
@@ -159,7 +159,7 @@ class TestIngestPipelineIntegration:
                 # Verify collection was created
                 collection_calls = [
                     call for call in mock_db.save.call_args_list
-                    if call.args[0].doc_type == DocType.collection
+                    if call.args[0].doc_type == DocType.folder
                 ]
                 assert len(collection_calls) == 1
                 collection_id = collection_calls[0].args[0].id
@@ -346,7 +346,7 @@ class TestIngestPipelineIntegration:
                 # Verify collection was saved
                 collection_saves = [
                     call for call in mock_db.save.call_args_list
-                    if call.args[0].doc_type == DocType.collection
+                    if call.args[0].doc_type == DocType.folder
                 ]
                 assert len(collection_saves) == 1
                 

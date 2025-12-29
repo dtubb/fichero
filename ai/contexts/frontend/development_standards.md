@@ -1,24 +1,57 @@
 # Frontend Development Standards
 
+**⚠️ IMPORTANT**: Fichero is **100% SwiftUI**. See `SWIFTUI_PRINCIPLES.md` for mandatory guidelines.
+
+## SwiftUI-Only Policy
+
+**NO AppKit** - We use pure SwiftUI except in absolutely unavoidable cases:
+- ❌ No NSView wrapping
+- ❌ No AppKit controls
+- ❌ No manual layout constraints
+- ❌ No NotificationCenter for app logic
+
+**Before using AppKit:**
+1. Look in demo code: `/Users/dtubb/code/fichero_main/fichero/sample_code` and `/Users/dtubb/code/fichero_main/fichero/sample_code/FoodTruckBuildingASwiftUIMultiplatformApp`
+2. Check `Sosumi MCP Tool` for SwiftUI equivalent
+3. Search Ref MCP Tool for documentation
+4. Verify there's no SwiftUI-native solution
+
 ## Best Practices
 
-### SwiftUI Development
-- **Declarative Syntax**: Use SwiftUI's declarative approach
-- **View Composition**: Break complex views into smaller, reusable components
-- **State Management**: Use @State for local state, @Observable for shared state
-- **Accessibility**: Add accessibility modifiers and labels
+### SwiftUI Development (Mandatory)
+- **100% SwiftUI**: No AppKit unless absolutely unavoidable
+- **@FocusedValue for Menus**: Never use NotificationCenter (see SWIFTUI_PRINCIPLES.md)
+- **Cache Computations**: Don't rebuild hierarchies on every view update
+- **Handle Cancellation**: All .task {} blocks must check Task.isCancelled
+- **View Composition**: Break complex views into < 300 line files
+- **@ViewBuilder**: Use on all computed view properties
+- **OSLog**: Use structured logging, not NSLog or print
+- **State Management**: @StateObject, @ObservedObject, @EnvironmentObject, @State
+- **Accessibility**: Add labels and modifiers to all interactive elements
+
+### MCP Tools for SwiftUI
+- **Sosumi (`sosumi.ai/mcp`)**: Official Apple SwiftUI documentation
+  - `searchAppleDocumentation("swiftui drag drop")`
+  - `fetchAppleDocumentation("path/to/doc")`
+- **Ref (`ref`)**: Swift language and library docs
+  - `searchDocumentation("Swift @Observable")`
+  - `readUrl("url/from/search")`
+
+Use these BEFORE implementing custom solutions!
 
 ### Code Quality
+- **SwiftLint**: Required before committing (catches AppKit usage)
 - **Naming Conventions**: Follow Swift API Design Guidelines
 - **Type Safety**: Use strong typing and optionals appropriately
 - **Error Handling**: Use Result type and proper error propagation
 - **Documentation**: Use /// docstrings for public APIs
 
 ### Architecture
+- **Pure SwiftUI**: No AppKit view hierarchy
 - **MVVM Pattern**: Separate Views, ViewModels, and Models
-- **Dependency Injection**: Use @EnvironmentObject for service dependencies
-- **Reactive Programming**: Use Combine for complex state management
-- **Thread Safety**: Use @MainActor for UI updates
+- **Dependency Injection**: Use @EnvironmentObject for services (never create in views)
+- **Reactive Programming**: Use @Observable (iOS 17+) or Combine
+- **Thread Safety**: Use @MainActor for UI updates (not DispatchQueue.main)
 
 ## Testing Standards
 

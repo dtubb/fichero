@@ -53,9 +53,9 @@ class TestModels:
         """Collection-type documents."""
         collection = Document(
             name="Archive 2024",
-            doc_type=DocType.collection,
+            doc_type=DocType.folder,
         )
-        assert collection.doc_type == DocType.collection
+        assert collection.doc_type == DocType.folder
 
     def test_artifact_creation(self):
         """Artifact should link to document."""
@@ -125,7 +125,7 @@ class TestDatabase:
     def test_query_with_filters(self, test_db):
         """Query with equality filters."""
         # Create parent
-        parent = Document(name="Archive", doc_type=DocType.collection)
+        parent = Document(name="Archive", doc_type=DocType.folder)
         test_db.save(parent)
 
         # Create children
@@ -144,14 +144,14 @@ class TestDatabase:
 
     def test_query_by_doctype(self, test_db):
         """Query by enum value."""
-        coll1 = Document(name="Collection 1", doc_type=DocType.collection)
-        coll2 = Document(name="Collection 2", doc_type=DocType.collection)
+        coll1 = Document(name="Collection 1", doc_type=DocType.folder)
+        coll2 = Document(name="Collection 2", doc_type=DocType.folder)
         file1 = Document(name="file.jpg", doc_type=DocType.file)
         test_db.save(coll1)
         test_db.save(coll2)
         test_db.save(file1)
 
-        collections = test_db.query(Document, doc_type=DocType.collection)
+        collections = test_db.query(Document, doc_type=DocType.folder)
         assert len(collections) == 2
 
         files = test_db.query(Document, doc_type=DocType.file)
@@ -237,7 +237,7 @@ class TestDocumentHierarchy:
         # Collection
         collection = Document(
             name="Historical Archive",
-            doc_type=DocType.collection
+            doc_type=DocType.folder
         )
         test_db.save(collection)
 
@@ -266,7 +266,7 @@ class TestDocumentHierarchy:
         test_db.save(file2)
 
         # Query: get all collections
-        collections = test_db.query(Document, doc_type=DocType.collection)
+        collections = test_db.query(Document, doc_type=DocType.folder)
         assert len(collections) == 1
 
         # Query: get folders in collection

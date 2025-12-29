@@ -17,7 +17,7 @@ Usage:
     from fichero.db import db
 
     # Query
-    collections = db.query(Document, doc_type=DocType.collection)
+    folders = db.query(Document, doc_type=DocType.folder)
     doc = db.get(Document, "abc123")
 
     # Create and save
@@ -48,8 +48,7 @@ def _new_id() -> str:
 
 class DocType(str, Enum):
     """Type of document node in the hierarchy."""
-    collection = "collection"  # Top-level project/archive
-    folder = "folder"          # Organizational grouping (box, series)
+    folder = "folder"          # Organizational grouping (can be nested at any level)
     group = "group"            # Logical document (letter = multiple pages)
     file = "file"              # Actual file (image, PDF, audio)
     page = "page"              # Page within a multi-page document

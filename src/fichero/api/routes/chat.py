@@ -475,8 +475,8 @@ async def extract_text(request: ExtractTextRequest) -> ExtractTextResponse:
             skipped += 1
             continue
 
-        # Skip folders and collections
-        if doc.doc_type in (DocType.folder, DocType.collection):
+        # Skip folders
+        if doc.doc_type == DocType.folder:
             skipped += 1
             continue
 

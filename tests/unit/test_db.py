@@ -51,14 +51,14 @@ class TestDocumentCRUD:
 
     def test_save_and_get(self, temp_db):
         """Test saving and retrieving a document."""
-        doc = Document(name="Test Collection", path="/test/path", doc_type=DocType.collection)
+        doc = Document(name="Test Collection", path="/test/path", doc_type=DocType.folder)
         temp_db.save(doc)
 
         retrieved = temp_db.get(Document, doc.id)
         assert retrieved is not None
         assert retrieved.name == "Test Collection"
         assert retrieved.path == "/test/path"
-        assert retrieved.doc_type == DocType.collection
+        assert retrieved.doc_type == DocType.folder
 
     def test_get_nonexistent(self, temp_db):
         """Test getting a nonexistent document."""
@@ -125,7 +125,7 @@ class TestDocumentCRUD:
     def test_document_hierarchy(self, temp_db):
         """Test document parent-child relationships."""
         # Create collection
-        collection = Document(name="Archive", doc_type=DocType.collection)
+        collection = Document(name="Archive", doc_type=DocType.folder)
         temp_db.save(collection)
 
         # Create folder in collection
@@ -804,8 +804,8 @@ class TestParquet:
 
     def test_export_import_roundtrip(self, temp_db):
         """Test exporting and importing via Parquet."""
-        temp_db.save(Document(name="A", path="/a", doc_type=DocType.collection))
-        temp_db.save(Document(name="B", path="/b", doc_type=DocType.collection))
+        temp_db.save(Document(name="A", path="/a", doc_type=DocType.folder))
+        temp_db.save(Document(name="B", path="/b", doc_type=DocType.folder))
 
         parquet_path = temp_db.path.parent / "documents.parquet"
         temp_db.export_parquet(Document, parquet_path)

@@ -49,7 +49,7 @@ async def list_documents(
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
     status: Optional[Status] = Query(None, description="Filter by status"),
-    limit: int = Query(100, ge=1, le=1000, description="Max results"),
+    limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
 ) -> list[Document]:
     """List documents with optional filters."""
@@ -70,8 +70,11 @@ async def list_documents(
     else:
         docs = list(db.all(Document))
 
-    # Apply pagination
-    return docs[offset : offset + limit]
+    # Apply pagination (if limit is specified)
+    if limit is not None:
+        return docs[offset : offset + limit]
+    else:
+        return docs[offset:]
 
 
 @router.get("/collections")
@@ -98,7 +101,7 @@ async def get_document(doc_id: str) -> Document:
 @router.get("/{doc_id}/children")
 async def get_children(
     doc_id: str,
-    limit: int = Query(100, ge=1, le=1000),
+    limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
 ) -> list[Document]:
     """Get child documents."""
     # Verify parent exists
@@ -107,7 +110,10 @@ async def get_children(
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
     children = list(db.query(Document, parent_id=doc_id))
-    return children[:limit]
+    if limit is not None:
+        return children[:limit]
+    else:
+        return children
 
 
 @router.get("/{doc_id}/ancestors")

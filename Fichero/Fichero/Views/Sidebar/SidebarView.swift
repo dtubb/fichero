@@ -2,6 +2,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// swiftlint:disable:next type_body_length
 /// Sidebar with Library, Searches, Chat, and Workflows sections
 struct SidebarView: View {
     @Binding var viewMode: AppViewMode
@@ -16,28 +17,29 @@ struct SidebarView: View {
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
 
-    // Computed properties - SwiftUI automatically re-evaluates when dependencies change
-    private var libraryItems: [SidebarItem] {
-        SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
+    // Cache for sidebar items - rebuilt only when source data changes
+    @State private var cachedLibraryItems: [SidebarItem] = []
+    @State private var cachedSearchItems: [SidebarItem] = []
+    @State private var cachedChatItems: [SidebarItem] = []
+    @State private var cachedWorkflowItems: [SidebarItem] = []
+
+    /// All cached items combined (for circular reference checks)
+    private var allCachedItems: [SidebarItem] {
+        cachedLibraryItems + cachedSearchItems + cachedChatItems + cachedWorkflowItems
     }
 
-    private var searchItems: [SidebarItem] {
-        SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
-    }
-
-    private var chatItems: [SidebarItem] {
-        SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
-    }
-
-    private var workflowItems: [SidebarItem] {
-        SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
-    }
-
-    /// Derive the selected SidebarItem from the ID
+    /// Derive the selected SidebarItem from the ID (uses cached items)
     private var selectedItem: SidebarItem? {
         guard let id = selectedItemId else { return nil }
-        let allItems = libraryItems + searchItems + chatItems + workflowItems
-        return findItemById(id, in: allItems)
+        return findItemById(id, in: allCachedItems)
+    }
+
+    /// Rebuild all sidebar item caches from source data
+    private func rebuildCaches() {
+        cachedLibraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
+        cachedSearchItems = SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
+        cachedChatItems = SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
+        cachedWorkflowItems = SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
     }
 
     /// Recursively find an item by ID
@@ -72,219 +74,243 @@ struct SidebarView: View {
     @StateObject private var deleteState = DeleteStateManager()
 
     var body: some View {
+        sidebarContent
+            .modifier(SidebarStyleModifiers())
+            .modifier(SidebarToolbarModifiers(
+                selectedItem: selectedItem,
+                handleCreateNewFolder: handleCreateNewFolder,
+                importFiles: importFiles,
+                handleRenameSelectedItem: handleRenameSelectedItem,
+                handleDeleteSelectedItem: handleDeleteSelectedItem
+            ))
+            .modifier(SidebarCacheModifiers(
+                rebuildCaches: rebuildCaches,
+                documentStore: documentStore,
+                savedSearchService: savedSearchService,
+                conversationService: conversationService,
+                workflowStore: workflowStore,
+                selectedItem: selectedItem,
+                handleSelection: handleSelection
+            ))
+            .modifier(SidebarFocusedValueModifiers(
+                selectedItem: selectedItem,
+                handleCreateNewFolder: handleCreateNewFolder,
+                handleRenameSelectedItem: handleRenameSelectedItem,
+                handleDeleteSelectedItem: handleDeleteSelectedItem
+            ))
+            .modifier(SidebarDeleteAlertModifiers(
+                deleteState: deleteState,
+                performDelete: performDelete
+            ))
+    }
+
+    // MARK: - Sidebar Content
+
+    @ViewBuilder
+    private var sidebarContent: some View {
         List(selection: $selectedItemId) {
-            // LIBRARY section
-            Section(isExpanded: $libraryExpanded) {
-                ForEach(libraryItems) { item in
-                    SidebarItemRow(
-                        item: item,
-                        expandedItems: $expandedItems,
-                        renameState: renameState,
-                        deleteState: deleteState,
-                        documentStore: documentStore
-                    )
-                    .padding(.leading, 4)
-                    .tag(item.id)
-                    .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
-                    }
-                }
-                .onMove(perform: { _, _ in
-                    // Handle reordering of library items
-                    // This would require updating the backend collection order
-                })
-            } header: {
-                SectionHeader(title: "Library", icon: "folder")
-            }
+            librarySectionView
+            searchesSectionView
+            chatSectionView
+            workflowsSectionView
+        }
+    }
 
-            // SEARCHES section
-            Section(isExpanded: $searchesExpanded) {
-                ForEach(searchItems) { item in
-                    SidebarItemRow(
-                        item: item,
-                        expandedItems: $expandedItems,
-                        renameState: renameState,
-                        deleteState: deleteState,
-                        documentStore: documentStore
-                    )
-                    .padding(.leading, 4)
-                    .tag(item.id)
-                    .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
-                    }
-                }
-                .onMove(perform: { _, _ in
-                    // Handle reordering of search items
-                })
-
-                // New Search button
-                Button(action: { createNewSearch() }, label: {
-                    Label("New Search...", systemImage: "plus")
-                        .foregroundColor(.secondary)
-                })
-                .buttonStyle(.plain)
+    @ViewBuilder
+    private var librarySectionView: some View {
+        Section(isExpanded: $libraryExpanded) {
+            ForEach(cachedLibraryItems) { item in
+                SidebarItemRow(
+                    item: item,
+                    allCachedItems: allCachedItems,
+                    expandedItems: $expandedItems,
+                    renameState: renameState,
+                    deleteState: deleteState,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore
+                )
                 .padding(.leading, 4)
-            } header: {
-                SectionHeader(title: "Searches", icon: "magnifyingglass")
-                    .background(isSearchHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .cornerRadius(4)
-                    .dropDestination(for: String.self) { itemIDs, _ in
-                        handleSearchHeaderDrop(itemIDs: itemIDs)
-                    } isTargeted: { isTargeted in
-                        isSearchHeaderDropTargeted = isTargeted
-                    }
-            }
-
-            // CHAT section - supports dropping documents to create new chat
-            Section(isExpanded: $chatExpanded) {
-                ForEach(chatItems) { item in
-                    SidebarItemRow(
+                .tag(item.id)
+                .contextMenu {
+                    SidebarItemContextMenu(
                         item: item,
-                        expandedItems: $expandedItems,
                         renameState: renameState,
                         deleteState: deleteState,
                         documentStore: documentStore
                     )
-                    .padding(.leading, 4)
-                    .tag(item.id)
-                    .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
-                    }
                 }
-                .onMove(perform: { _, _ in
-                    // Handle reordering of chat items
-                })
+            }
+            .onMove(perform: { _, _ in
+                // Handle reordering of library items
+                // This would require updating the backend collection order
+            })
+        } header: {
+            SectionHeader(
+                title: "Library",
+                icon: "folder",
+                onDrop: handleDropToRootLevel
+            )
+        }
+    }
 
-                // New Chat button with drop support
-                Button(action: { createNewChat() }, label: {
-                    HStack {
-                        Label("New Chat...", systemImage: "plus")
-                            .foregroundColor(isChatDropTargeted ? .accentColor : .secondary)
-                        if isChatDropTargeted {
-                            Spacer()
-                            Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                })
-                .buttonStyle(.plain)
+    @ViewBuilder
+    private var searchesSectionView: some View {
+        Section(isExpanded: $searchesExpanded) {
+            ForEach(cachedSearchItems) { item in
+                SidebarItemRow(
+                    item: item,
+                    allCachedItems: allCachedItems,
+                    expandedItems: $expandedItems,
+                    renameState: renameState,
+                    deleteState: deleteState,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore
+                )
                 .padding(.leading, 4)
+                .tag(item.id)
+                .contextMenu {
+                    SidebarItemContextMenu(
+                        item: item,
+                        renameState: renameState,
+                        deleteState: deleteState,
+                        documentStore: documentStore
+                    )
+                }
+            }
+            .onMove(perform: { _, _ in
+                // Handle reordering of search items
+            })
+
+            // New Search button
+            Button(action: { createNewSearch() }, label: {
+                Label("New Search...", systemImage: "plus")
+                    .foregroundColor(.secondary)
+            })
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+        } header: {
+            SectionHeader(title: "Searches", icon: "magnifyingglass")
+                .background(isSearchHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
+                .cornerRadius(4)
                 .dropDestination(for: String.self) { itemIDs, _ in
-                    handleChatButtonDrop(itemIDs: itemIDs)
+                    handleSearchHeaderDrop(itemIDs: itemIDs)
                 } isTargeted: { isTargeted in
-                    isChatDropTargeted = isTargeted
+                    isSearchHeaderDropTargeted = isTargeted
                 }
-            } header: {
-                SectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
-                    .background(isChatHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .cornerRadius(4)
-                    .dropDestination(for: String.self) { itemIDs, _ in
-                        handleChatHeaderDrop(itemIDs: itemIDs)
-                    } isTargeted: { isTargeted in
-                        isChatHeaderDropTargeted = isTargeted
-                    }
-            }
+        }
+    }
 
-            // WORKFLOWS section
-            Section(isExpanded: $workflowsExpanded) {
-                ForEach(workflowItems) { item in
-                    SidebarItemRow(
+    @ViewBuilder
+    private var chatSectionView: some View {
+        Section(isExpanded: $chatExpanded) {
+            ForEach(cachedChatItems) { item in
+                SidebarItemRow(
+                    item: item,
+                    allCachedItems: allCachedItems,
+                    expandedItems: $expandedItems,
+                    renameState: renameState,
+                    deleteState: deleteState,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore
+                )
+                .padding(.leading, 4)
+                .tag(item.id)
+                .contextMenu {
+                    SidebarItemContextMenu(
                         item: item,
-                        expandedItems: $expandedItems,
                         renameState: renameState,
                         deleteState: deleteState,
                         documentStore: documentStore
                     )
-                    .padding(.leading, 4)
-                    .tag(item.id)
-                    .contextMenu {
-                        SidebarItemContextMenu(item: item, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
+                }
+            }
+            .onMove(perform: { _, _ in
+                // Handle reordering of chat items
+            })
+
+            // New Chat button with drop support
+            Button(action: { createNewChat() }, label: {
+                HStack {
+                    Label("New Chat...", systemImage: "plus")
+                        .foregroundColor(isChatDropTargeted ? .accentColor : .secondary)
+                    if isChatDropTargeted {
+                        Spacer()
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundColor(.accentColor)
                     }
                 }
-                .onMove(perform: { _, _ in
-                    // Handle reordering of workflow items
-                })
+            })
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+            .dropDestination(for: String.self) { itemIDs, _ in
+                handleChatButtonDrop(itemIDs: itemIDs)
+            } isTargeted: { isTargeted in
+                isChatDropTargeted = isTargeted
+            }
+        } header: {
+            SectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
+                .background(isChatHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
+                .cornerRadius(4)
+                .dropDestination(for: String.self) { itemIDs, _ in
+                    handleChatHeaderDrop(itemIDs: itemIDs)
+                } isTargeted: { isTargeted in
+                    isChatHeaderDropTargeted = isTargeted
+                }
+        }
+    }
 
-                // New Workflow button
-                Button(action: { createNewWorkflow() }, label: {
-                    Label("New Workflow...", systemImage: "plus")
-                        .foregroundColor(.secondary)
-                })
-                .buttonStyle(.plain)
+    @ViewBuilder
+    private var workflowsSectionView: some View {
+        Section(isExpanded: $workflowsExpanded) {
+            ForEach(cachedWorkflowItems) { item in
+                SidebarItemRow(
+                    item: item,
+                    allCachedItems: allCachedItems,
+                    expandedItems: $expandedItems,
+                    renameState: renameState,
+                    deleteState: deleteState,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore
+                )
                 .padding(.leading, 4)
-            } header: {
-                SectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
-                    .background(isWorkflowHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .cornerRadius(4)
-                    .dropDestination(for: String.self) { itemIDs, _ in
-                        handleWorkflowHeaderDrop(itemIDs: itemIDs)
-                    } isTargeted: { isTargeted in
-                        isWorkflowHeaderDropTargeted = isTargeted
-                    }
+                .tag(item.id)
+                .contextMenu {
+                    SidebarItemContextMenu(
+                        item: item,
+                        renameState: renameState,
+                        deleteState: deleteState,
+                        documentStore: documentStore
+                    )
+                }
             }
-        }
-        .listStyle(.sidebar)
-        .frame(minWidth: 200)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: { handleCreateNewFolder() }) {
-                    Image(systemName: "folder.badge.plus")
-                }
-                .help("New Folder")
+            .onMove(perform: { _, _ in
+                // Handle reordering of workflow items
+            })
 
-                Button(action: { importFiles() }) {
-                    Image(systemName: "square.and.arrow.down")
+            // New Workflow button
+            Button(action: { createNewWorkflow() }, label: {
+                Label("New Workflow...", systemImage: "plus")
+                    .foregroundColor(.secondary)
+            })
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+        } header: {
+            SectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
+                .background(isWorkflowHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
+                .cornerRadius(4)
+                .dropDestination(for: String.self) { itemIDs, _ in
+                    handleWorkflowHeaderDrop(itemIDs: itemIDs)
+                } isTargeted: { isTargeted in
+                    isWorkflowHeaderDropTargeted = isTargeted
                 }
-                .help("Import Files")
-
-                Button(action: { handleRenameSelectedItem() }) {
-                    Image(systemName: "pencil")
-                }
-                .help("Rename")
-                .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeRenamed ?? false))
-
-                Button(action: { handleDeleteSelectedItem() }) {
-                    Image(systemName: "trash")
-                }
-                .help("Delete")
-                .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeDeleted ?? false))
-            }
-        }
-        .onChange(of: selectedItem) { _, newItem in
-            handleSelection(newItem)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .createNewFolder)) { _ in
-            handleCreateNewFolder()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .renameSelectedItem)) { _ in
-            handleRenameSelectedItem()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .deleteSelectedItem)) { _ in
-            handleDeleteSelectedItem()
-        }
-        .alert(
-            "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
-            isPresented: $deleteState.showingDeleteConfirmation,
-            presenting: deleteState.itemToDelete,
-            actions: { itemToDelete in
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await performDelete(itemToDelete)
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                Button("Cancel", role: .cancel) {
-                    deleteState.cancelDelete()
-                }
-            },
-            message: { _ in
-                Text("This action cannot be undone.")
-            }
-        )
-        .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(deleteState.deleteErrorMessage)
         }
     }
 
@@ -319,9 +345,14 @@ struct SidebarView: View {
         viewMode = .workflow(nil)
     }
 
+}
+
+// MARK: - SidebarView Action Handlers
+
+private extension SidebarView {
     // MARK: - Menu Command Handlers
 
-    private func importFiles() {
+    func importFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
@@ -337,39 +368,42 @@ struct SidebarView: View {
 
             // Import files
             Task {
-                let documentService = DocumentService()
                 for url in panel.urls {
                     do {
-                        _ = try await documentService.importFile(at: url, parentId: parentId)
+                        _ = try await documentStore.importFile(at: url, parentId: parentId)
                         NSLog("[SidebarView] Imported: \(url.lastPathComponent)")
                     } catch {
                         NSLog("[SidebarView] Failed to import \(url.lastPathComponent): \(error)")
                     }
                 }
-                // Refresh collections after import
-                await documentStore.loadCollections()
+                // UI updates automatically via @Published collections
             }
         }
     }
 
-    private func handleCreateNewFolder() {
-        // Create new folder as child of currently selected item
-        var parentId: String?
-        if let selected = selectedItem, case .document(let doc) = selected.itemType {
+    func handleCreateNewFolder() {
+        // Create new folder
+        // If an item is selected, create as its child; otherwise create at root
+        let parentId: String?
+        if let selected = selectedItem,
+           case .document(let doc) = selected.itemType,
+           doc.docType == .folder {
             parentId = doc.id
+        } else {
+            parentId = nil
         }
 
         Task {
             do {
-                _ = try await documentStore.createCollection(name: "New Folder")
-                NSLog("[SidebarView] Created new folder")
+                _ = try await documentStore.createFolder(name: "New Folder", parentId: parentId)
+                NSLog("[SidebarView] Created new folder with parent: \(parentId ?? "root")")
             } catch {
                 NSLog("[SidebarView] Failed to create folder: \(error)")
             }
         }
     }
 
-    private func handleRenameSelectedItem() {
+    func handleRenameSelectedItem() {
         guard let selected = selectedItem else {
             NSLog("[SidebarView] No item selected for rename")
             return
@@ -380,7 +414,7 @@ struct SidebarView: View {
         }
     }
 
-    private func handleDeleteSelectedItem() {
+    func handleDeleteSelectedItem() {
         guard let selected = selectedItem else {
             NSLog("[SidebarView] No item selected for delete")
             return
@@ -391,7 +425,7 @@ struct SidebarView: View {
         }
     }
 
-    private func performDelete(_ item: SidebarItem) async {
+    func performDelete(_ item: SidebarItem) async {
         NSLog("[SidebarView] performDelete called for: \(item.name) (id: \(item.id))")
 
         // Find the next item to select before deletion
@@ -415,8 +449,8 @@ struct SidebarView: View {
                 deleteState.showError(message: error.localizedDescription)
             }
         } else {
-            // For non-document items (searches, chats, workflows), use direct API call
-            // Extract the actual ID from the prefixed ID format (e.g., "doc:123" -> "123")
+            // For non-document items (searches, chats, workflows)
+            // Extract the actual ID from the prefixed ID format (e.g., "search:123" -> "123")
             let actualId: String
             if item.id.contains(":") {
                 actualId = String(item.id.split(separator: ":")[1])
@@ -425,9 +459,20 @@ struct SidebarView: View {
             }
 
             do {
-                let documentService = DocumentService()
-                try await documentService.deleteDocument(actualId)
-                NSLog("[SidebarView] Deleted item \(actualId)")
+                // Use the correct service based on item type
+                switch item.itemType {
+                case .savedSearch:
+                    try await savedSearchService.deleteSavedSearch(actualId)
+                    NSLog("[SidebarView] Deleted saved search \(actualId)")
+                case .conversation:
+                    try await conversationService.deleteConversation(actualId)
+                    NSLog("[SidebarView] Deleted conversation \(actualId)")
+                case .workflow:
+                    try await workflowStore.deleteWorkflow(actualId)
+                    NSLog("[SidebarView] Deleted workflow \(actualId)")
+                default:
+                    NSLog("[SidebarView] ⚠️ Unknown item type for deletion")
+                }
 
                 // Select the next item
                 await MainActor.run {
@@ -444,9 +489,9 @@ struct SidebarView: View {
     }
 
     /// Find the next item to select after deleting the given item
-    private func findNextItemAfterDelete(_ itemToDelete: SidebarItem) -> String? {
+    func findNextItemAfterDelete(_ itemToDelete: SidebarItem) -> String? {
         // Get all items in a flat list
-        let allItems = libraryItems + searchItems + chatItems + workflowItems
+        let allItems = cachedLibraryItems + cachedSearchItems + cachedChatItems + cachedWorkflowItems
 
         // Flatten the tree to find the item's position
         var flatList: [SidebarItem] = []
@@ -475,7 +520,7 @@ struct SidebarView: View {
         }
     }
 
-    private func handleChatButtonDrop(itemIDs: [String]) -> Bool {
+    func handleChatButtonDrop(itemIDs: [String]) -> Bool {
         let documentIds = itemIDs.map { itemID in
             // Extract actual ID (strip prefix like "doc:")
             if itemID.contains(":") {
@@ -487,7 +532,7 @@ struct SidebarView: View {
         return true
     }
 
-    private func createNewChatWithDocuments(_ documentIds: [String]) {
+    func createNewChatWithDocuments(_ documentIds: [String]) {
         NSLog("[SidebarView] Creating new chat with %d documents", documentIds.count)
         viewMode = .chat(nil)
         onCreateChatWithDocuments?(documentIds)
@@ -495,7 +540,7 @@ struct SidebarView: View {
 
     // MARK: - Section Header Drop Handlers
 
-    private func handleSearchHeaderDrop(itemIDs: [String]) -> Bool {
+    func handleSearchHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
         let documentIds = itemIDs
 
@@ -509,7 +554,7 @@ struct SidebarView: View {
         return true
     }
 
-    private func handleChatHeaderDrop(itemIDs: [String]) -> Bool {
+    func handleChatHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
         let documentIds = itemIDs.map { itemID in
             if itemID.contains(":") {
@@ -527,7 +572,7 @@ struct SidebarView: View {
         return true
     }
 
-    private func handleWorkflowHeaderDrop(itemIDs: [String]) -> Bool {
+    func handleWorkflowHeaderDrop(itemIDs: [String]) -> Bool {
         // Extract document IDs from dropped items
         let documentIds = itemIDs
 
@@ -540,28 +585,89 @@ struct SidebarView: View {
 
         return true
     }
+
+    func handleDropToRootLevel(itemIDs: [String]) -> Bool {
+        NSLog("[SidebarView] ========== DROP TO ROOT STARTED ==========")
+        NSLog("[SidebarView] Moving \(itemIDs.count) items to root level (parent_id = nil)")
+
+        Task {
+            for itemID in itemIDs {
+                NSLog("[SidebarView] Moving item \(itemID) to root")
+                await moveItemToRoot(itemId: itemID)
+            }
+            NSLog("[SidebarView] ========== DROP TO ROOT COMPLETED ==========")
+        }
+
+        return true
+    }
+
+    private func moveItemToRoot(itemId: String) async {
+        NSLog("[SidebarView] moveItemToRoot: \(itemId)")
+
+        let actualItemId = extractActualId(from: itemId)
+
+        do {
+            // Move to root by setting parent to nil
+            _ = try await documentStore.moveDocument(actualItemId, toParent: nil)
+            NSLog("[SidebarView] ✅ Move to root successful - UI updates automatically via @Published")
+
+        } catch {
+            NSLog("[SidebarView] ❌ Move to root failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func extractActualId(from prefixedId: String) -> String {
+        if prefixedId.contains(":") {
+            return String(prefixedId.split(separator: ":")[1])
+        }
+        return prefixedId
+    }
 }
 
 // MARK: - Section Header
 struct SectionHeader: View {
     let title: String
     let icon: String
+    let onDrop: (([String]) -> Bool)?
+
+    @State private var isDropTargeted = false
+
+    init(title: String, icon: String, onDrop: (([String]) -> Bool)? = nil) {
+        self.title = title
+        self.icon = icon
+        self.onDrop = onDrop
+    }
 
     var body: some View {
         Label(title, systemImage: icon)
             .font(.subheadline)
             .fontWeight(.semibold)
             .foregroundColor(.secondary)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isDropTargeted ? Color.accentColor.opacity(0.3) : Color.clear)
+            )
+            .dropDestination(for: String.self) { droppedIDs, _ in
+                onDrop?(droppedIDs) ?? false
+            } isTargeted: { isTargeted in
+                isDropTargeted = isTargeted
+            }
     }
 }
 
 // MARK: - Sidebar Item Row
 struct SidebarItemRow: View {
     let item: SidebarItem
+    let allCachedItems: [SidebarItem]
     @Binding var expandedItems: Set<String>
-    @ObservedObject var renameState: RenameStateManager
-    @ObservedObject var deleteState: DeleteStateManager
+    @ObservedObject fileprivate var renameState: RenameStateManager
+    @ObservedObject fileprivate var deleteState: DeleteStateManager
     @ObservedObject var documentStore: DocumentStore
+    @ObservedObject var savedSearchService: SavedSearchService
+    @ObservedObject var conversationService: ConversationService
+    @ObservedObject var workflowStore: WorkflowStore
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
@@ -581,10 +687,10 @@ struct SidebarItemRow: View {
     }
 
     var body: some View {
-        // Check if this is a folder type (collection or folder)
+        // Check if this is a folder type
         let isFolder: Bool = {
             if case .document(let doc) = item.itemType {
-                return doc.docType == .collection || doc.docType == .folder
+                return doc.docType == .folder
             }
             return false
         }()
@@ -594,45 +700,131 @@ struct SidebarItemRow: View {
                 ForEach(children) { child in
                     SidebarItemRow(
                         item: child,
+                        allCachedItems: allCachedItems,
                         expandedItems: $expandedItems,
                         renameState: renameState,
                         deleteState: deleteState,
-                        documentStore: documentStore
+                        documentStore: documentStore,
+                        savedSearchService: savedSearchService,
+                        conversationService: conversationService,
+                        workflowStore: workflowStore
                     )
-                        .tag(child.id)
-                        .contextMenu {
-                            SidebarItemContextMenu(item: child, renameState: renameState, deleteState: deleteState, documentStore: documentStore)
-                        }
+                    .tag(child.id)
+                    .contextMenu {
+                        SidebarItemContextMenu(
+                            item: child,
+                            renameState: renameState,
+                            deleteState: deleteState,
+                            documentStore: documentStore
+                        )
+                    }
                 }
-                .onMove(perform: { _, _ in
-                    // Handle reordering of child items within the folder
-                    // This would require updating the backend
-                })
             } label: {
                 itemLabel
+                    .listRowBackground(isDropTargeted ? Color.accentColor : Color.clear)
+                    .draggable(item.id)
+                    .dropDestination(for: String.self) { droppedIDs, _ in
+                        handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                    } isTargeted: { isTargeted in
+                        isDropTargeted = isTargeted
+                    }
             }
-            .listRowBackground(isDropTargeted ? Color.accentColor : Color.clear)
-            .draggable(item.id)
-            .dropDestination(for: String.self) { droppedIDs, _ in
-                handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
-            } isTargeted: { isTargeted in
-                isDropTargeted = isTargeted
+            .contextMenu {
+                SidebarItemContextMenu(
+                    item: item,
+                    renameState: renameState,
+                    deleteState: deleteState,
+                    documentStore: documentStore
+                )
             }
         } else if isFolder {
             // Empty folder - still needs to accept drops
             itemLabel
-                .listRowBackground(isDropTargeted ? Color.accentColor : Color.clear)
+                .listRowBackground(
+                    isDropTargeted ? Color.accentColor : Color.clear
+                )
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
-                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                    handleDropIntoFolder(
+                        itemIDs: droppedIDs,
+                        targetFolder: item
+                    )
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }
+                .contextMenu {
+                    SidebarItemContextMenu(
+                        item: item,
+                        renameState: renameState,
+                        deleteState: deleteState,
+                        documentStore: documentStore
+                    )
+                }
         } else {
-            // Regular document - can be dragged but not a drop target
+            // Regular document - can be dragged and can accept drops to become siblings
             itemLabel
+                .listRowBackground(
+                    isDropTargeted ? Color.accentColor.opacity(0.3) : Color.clear
+                )
                 .draggable(item.id)
+                .dropDestination(for: String.self) { droppedIDs, _ in
+                    handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+                } isTargeted: { isTargeted in
+                    isDropTargeted = isTargeted
+                }
+                .contextMenu {
+                    SidebarItemContextMenu(
+                        item: item,
+                        renameState: renameState,
+                        deleteState: deleteState,
+                        documentStore: documentStore
+                    )
+                }
         }
+    }
+
+    private func handleDropBesideItem(itemIDs: [String], targetItem: SidebarItem) -> Bool {
+        NSLog("[SidebarView] ========== DROP BESIDE STARTED ==========")
+        NSLog("[SidebarView] handleDropBesideItem called with \(itemIDs.count) items beside \(targetItem.name)")
+
+        // Get the target item's parent (to make dropped items siblings of target)
+        let targetParentId: String?
+        if case .document(let targetDoc) = targetItem.itemType {
+            targetParentId = targetDoc.parentId
+            NSLog("[SidebarView] Target parent ID: \(targetParentId ?? "root")")
+        } else {
+            NSLog("[SidebarView] ⚠️ Target item is not a document, cannot determine parent")
+            return false
+        }
+
+        // Move each dropped item to the same parent as the target
+        for itemID in itemIDs {
+            NSLog("[SidebarView] Moving item \(itemID) to be sibling of \(targetItem.name)")
+
+            // Prevent dropping item onto itself
+            guard itemID != targetItem.id else {
+                NSLog("[SidebarView] ⚠️ Drop rejected: cannot drop item onto itself")
+                continue
+            }
+
+            Task {
+                if let parentId = targetParentId {
+                    await moveItemToFolder(itemId: itemID, targetFolderId: parentId)
+                } else {
+                    // Move to root by setting parent to nil
+                    let actualItemId = extractActualId(from: itemID)
+                    do {
+                        _ = try await documentStore.moveDocument(actualItemId, toParent: nil)
+                        NSLog("[SidebarItemRow] ✅ Move to root successful")
+                    } catch {
+                        NSLog("[SidebarItemRow] ❌ Move to root failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+
+        NSLog("[SidebarView] ========== DROP BESIDE COMPLETED ==========")
+        return true
     }
 
     private func handleDropIntoFolder(itemIDs: [String], targetFolder: SidebarItem) -> Bool {
@@ -644,8 +836,11 @@ struct SidebarItemRow: View {
 
         // Validate that target is actually a folder
         guard case .document(let targetDoc) = targetFolder.itemType,
-              targetDoc.docType == .folder || targetDoc.docType == .collection else {
-            NSLog("[SidebarView] ❌ Drop rejected: target \(targetFolder.name) is not a folder (type: \(targetFolder.itemType))")
+              targetDoc.docType == .folder else {
+            NSLog(
+                "[SidebarView] ❌ Drop rejected: target \(targetFolder.name) " +
+                "is not a folder (type: \(targetFolder.itemType))"
+            )
             return false
         }
 
@@ -687,10 +882,54 @@ struct SidebarItemRow: View {
     }
 
     private func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
-        // Simple check: traverse children to see if ancestorId is anywhere in potentialDescendant's tree
-        // This is a simplistic implementation - in production, you'd query the backend or use cached hierarchy
-        // For now, we'll just prevent the obvious case and let backend validation catch edge cases
+        // Check if potentialDescendant is a child/grandchild/etc of ancestorId
+        // This prevents circular references (e.g., dragging a folder into its own child)
+
+        // Find the ancestor item in cached items
+        guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {
+            return false
+        }
+
+        // Recursively check if potentialDescendant is in ancestorItem's children tree
+        return containsDescendant(potentialDescendant, in: ancestorItem)
+    }
+
+    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
+        for item in items {
+            if item.id == id {
+                return item
+            }
+            if let children = item.children,
+               let found = findItemById(id, in: children) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private func containsDescendant(_ targetId: String, in item: SidebarItem) -> Bool {
+        // Check if this item is the target
+        if item.id == targetId {
+            return true
+        }
+
+        // Recursively check children
+        if let children = item.children {
+            for child in children {
+                if containsDescendant(targetId, in: child) {
+                    return true
+                }
+            }
+        }
+
         return false
+    }
+
+    private func extractActualId(from prefixedId: String) -> String {
+        if prefixedId.contains(":") {
+            return String(prefixedId.split(separator: ":")[1])
+        }
+        return prefixedId
     }
 
     private func moveItemToFolder(itemId: String, targetFolderId: String) async {
@@ -710,16 +949,11 @@ struct SidebarItemRow: View {
         }
     }
 
-    private func extractActualId(from prefixedId: String) -> String {
-        if prefixedId.contains(":") {
-            return String(prefixedId.split(separator: ":")[1])
-        }
-        return prefixedId
-    }
-
     private var itemLabel: some View {
         Label {
             if renameState.renamingItemId == item.id {
+                let _ = NSLog("[SidebarItemRow.itemLabel] SHOWING TextField for: \(item.name) (id: \(item.id))")
+                let _ = NSLog("[SidebarItemRow.itemLabel]   - renameState.renamingItemId: \(renameState.renamingItemId ?? "nil")")
                 TextField("Name", text: $renameState.editingName)
                     .textFieldStyle(.plain)
                     .focused($isRenameFocused)
@@ -755,6 +989,10 @@ struct SidebarItemRow: View {
     private func commitRename() {
         let newName = renameState.editingName.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        NSLog("[SidebarItemRow.commitRename] Committing rename for item: \(item.name) (id: \(item.id))")
+        NSLog("[SidebarItemRow.commitRename]   - New name: \(newName)")
+        NSLog("[SidebarItemRow.commitRename]   - renameState.renamingItemId: \(renameState.renamingItemId ?? "nil")")
+
         // Validate name
         guard !newName.isEmpty else {
             renameState.cancelRename()
@@ -780,8 +1018,13 @@ struct SidebarItemRow: View {
     }
 
     private func performRename(itemId: String, newName: String) async {
+        NSLog("[SidebarItemRow.performRename] Called with itemId: \(itemId), newName: \(newName)")
+        NSLog("[SidebarItemRow.performRename]   - Current row's item: \(item.name) (id: \(item.id))")
+        NSLog("[SidebarItemRow.performRename]   - item.itemType: \(item.itemType)")
+
         // For document items, use DocumentStore which updates local state properly
         if case .document(let document) = item.itemType {
+            NSLog("[SidebarItemRow.performRename]   - Renaming document: \(document.name) (id: \(document.id))")
             do {
                 let updated = try await documentStore.renameDocument(document, to: newName)
                 NSLog("[SidebarItemRow] Renamed document to '\(updated.name)'")
@@ -792,7 +1035,7 @@ struct SidebarItemRow: View {
                 NSLog("[SidebarItemRow] Failed to rename document: \(error.localizedDescription)")
             }
         } else {
-            // For non-document items (searches, chats, workflows), use direct API call
+            // For non-document items (searches, chats, workflows)
             let actualId: String
             if itemId.contains(":") {
                 actualId = String(itemId.split(separator: ":")[1])
@@ -801,13 +1044,21 @@ struct SidebarItemRow: View {
             }
 
             do {
-                let documentService = DocumentService()
-                _ = try await documentService.renameDocument(actualId, newName: newName)
-                NSLog("[SidebarItemRow] Renamed item \(actualId) to '\(newName)'")
-
-                // For non-documents, we need to refresh to get updated data
-                await documentStore.refresh()
-                // SwiftUI maintains selection via ID automatically
+                // Use the correct service based on item type
+                switch item.itemType {
+                case .savedSearch:
+                    _ = try await savedSearchService.renameSavedSearch(actualId, newName: newName)
+                    NSLog("[SidebarItemRow] Renamed saved search \(actualId) to '\(newName)'")
+                case .conversation:
+                    _ = try await conversationService.renameConversation(actualId, newTitle: newName)
+                    NSLog("[SidebarItemRow] Renamed conversation \(actualId) to '\(newName)'")
+                case .workflow:
+                    _ = try await workflowStore.renameWorkflow(actualId, to: newName)
+                    NSLog("[SidebarItemRow] Renamed workflow \(actualId) to '\(newName)'")
+                default:
+                    NSLog("[SidebarItemRow] ⚠️ Unknown item type for rename")
+                }
+                // UI updates automatically via @Published collections
             } catch {
                 NSLog("[SidebarItemRow] Failed to rename item: \(error.localizedDescription)")
             }
@@ -831,8 +1082,8 @@ struct SidebarItemRow: View {
 // MARK: - Sidebar Item Context Menu
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
-    @ObservedObject var renameState: RenameStateManager
-    @ObservedObject var deleteState: DeleteStateManager
+    @ObservedObject fileprivate var renameState: RenameStateManager
+    @ObservedObject fileprivate var deleteState: DeleteStateManager
     @ObservedObject var documentStore: DocumentStore
 
     var body: some View {
@@ -854,53 +1105,15 @@ struct SidebarItemContextMenu: View {
     }
 
     private func renameItem(_ item: SidebarItem) {
+        NSLog("[SidebarItemContextMenu] renameItem called for: \(item.name) (id: \(item.id))")
         renameState.startRename(itemId: item.id, currentName: item.name)
+        NSLog("[SidebarItemContextMenu]   - Set renameState.renamingItemId to: \(item.id)")
     }
 
     private func deleteItem(_ item: SidebarItem) {
         NSLog("[SidebarItemContextMenu] deleteItem called for: \(item.name) (id: \(item.id))")
         deleteState.showDeleteConfirmation(for: item)
-    }
-}
-
-// MARK: - Rename State Manager
-class RenameStateManager: ObservableObject {
-    @Published var renamingItemId: String?
-    @Published var editingName: String = ""
-
-    func startRename(itemId: String, currentName: String) {
-        renamingItemId = itemId
-        editingName = currentName
-    }
-
-    func cancelRename() {
-        renamingItemId = nil
-        editingName = ""
-    }
-}
-
-// MARK: - Delete State Manager
-class DeleteStateManager: ObservableObject {
-    @Published var showingDeleteConfirmation = false
-    @Published var showingDeleteError = false
-    @Published var itemToDelete: SidebarItem?
-    @Published var deleteErrorMessage = ""
-
-    func showDeleteConfirmation(for item: SidebarItem) {
-        itemToDelete = item
-        showingDeleteConfirmation = true
-    }
-
-    func cancelDelete() {
-        showingDeleteConfirmation = false
-        itemToDelete = nil
-        deleteErrorMessage = ""
-    }
-
-    func showError(message: String) {
-        deleteErrorMessage = message
-        showingDeleteError = true
-        showingDeleteConfirmation = false
+        NSLog("[SidebarItemContextMenu]   - Set deleteState.itemToDelete to: \(item.name)")
     }
 }
 
@@ -937,5 +1150,182 @@ extension SidebarItem.ItemType {
         case .sectionHeader:
             return false
         }
+    }
+}
+
+// MARK: - State Managers
+
+// swiftlint:disable:next private_over_fileprivate
+fileprivate class RenameStateManager: ObservableObject {
+    @Published var renamingItemId: String?
+    @Published var editingName: String = ""
+
+    func startRename(itemId: String, currentName: String) {
+        renamingItemId = itemId
+        editingName = currentName
+    }
+
+    func cancelRename() {
+        renamingItemId = nil
+        editingName = ""
+    }
+}
+
+// swiftlint:disable:next private_over_fileprivate
+fileprivate class DeleteStateManager: ObservableObject {
+    @Published var showingDeleteConfirmation = false
+    @Published var showingDeleteError = false
+    @Published var itemToDelete: SidebarItem?
+    @Published var deleteErrorMessage = ""
+
+    func showDeleteConfirmation(for item: SidebarItem) {
+        itemToDelete = item
+        showingDeleteConfirmation = true
+    }
+
+    func cancelDelete() {
+        showingDeleteConfirmation = false
+        itemToDelete = nil
+        deleteErrorMessage = ""
+    }
+
+    func showError(message: String) {
+        deleteErrorMessage = message
+        showingDeleteError = true
+        showingDeleteConfirmation = false
+    }
+}
+
+// MARK: - View Modifiers
+
+private struct SidebarStyleModifiers: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listStyle(.sidebar)
+            .frame(minWidth: 200)
+    }
+}
+
+private struct SidebarToolbarModifiers: ViewModifier {
+    let selectedItem: SidebarItem?
+    let handleCreateNewFolder: () -> Void
+    let importFiles: () -> Void
+    let handleRenameSelectedItem: () -> Void
+    let handleDeleteSelectedItem: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button(action: handleCreateNewFolder) {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                    .help("New Folder")
+
+                    Button(action: importFiles) {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .help("Import Files")
+
+                    Button(action: handleRenameSelectedItem) {
+                        Image(systemName: "pencil")
+                    }
+                    .help("Rename")
+                    .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeRenamed ?? false))
+
+                    Button(action: handleDeleteSelectedItem) {
+                        Image(systemName: "trash")
+                    }
+                    .help("Delete")
+                    .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeDeleted ?? false))
+                }
+            }
+    }
+}
+
+private struct SidebarCacheModifiers: ViewModifier {
+    let rebuildCaches: () -> Void
+    @ObservedObject var documentStore: DocumentStore
+    @ObservedObject var savedSearchService: SavedSearchService
+    @ObservedObject var conversationService: ConversationService
+    @ObservedObject var workflowStore: WorkflowStore
+    let selectedItem: SidebarItem?
+    let handleSelection: (SidebarItem?) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                // Build initial caches when view appears
+                rebuildCaches()
+            }
+            .onChange(of: documentStore.collections) { _, _ in
+                rebuildCaches()
+            }
+            .onChange(of: savedSearchService.savedSearches) { _, _ in
+                rebuildCaches()
+            }
+            .onChange(of: conversationService.conversations) { _, _ in
+                rebuildCaches()
+            }
+            .onChange(of: workflowStore.workflows) { _, _ in
+                rebuildCaches()
+            }
+            .onChange(of: selectedItem) { _, newItem in
+                handleSelection(newItem)
+            }
+    }
+}
+
+private struct SidebarFocusedValueModifiers: ViewModifier {
+    let selectedItem: SidebarItem?
+    let handleCreateNewFolder: () -> Void
+    let handleRenameSelectedItem: () -> Void
+    let handleDeleteSelectedItem: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .focusedValue(\.sidebarActions, SidebarActions(
+                createFolder: handleCreateNewFolder,
+                renameItem: handleRenameSelectedItem,
+                deleteItem: handleDeleteSelectedItem
+            ))
+            .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
+                selectedItem: selectedItem,
+                canRename: selectedItem?.itemType.canBeRenamed ?? false,
+                canDelete: selectedItem?.itemType.canBeDeleted ?? false
+            ))
+    }
+}
+
+private struct SidebarDeleteAlertModifiers: ViewModifier {
+    @ObservedObject var deleteState: DeleteStateManager
+    let performDelete: (SidebarItem) async -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
+                isPresented: $deleteState.showingDeleteConfirmation,
+                presenting: deleteState.itemToDelete,
+                actions: { itemToDelete in
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await performDelete(itemToDelete)
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    Button("Cancel", role: .cancel) {
+                        deleteState.cancelDelete()
+                    }
+                },
+                message: { _ in
+                    Text("This action cannot be undone.")
+                }
+            )
+            .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteState.deleteErrorMessage)
+            }
     }
 }

@@ -32,7 +32,6 @@ struct ContentView: View {
     // Services - as StateObjects for EnvironmentObject injection
     @StateObject private var conversationService = ConversationService()
     @StateObject private var savedSearchService = SavedSearchService()
-    @StateObject private var documentService = DocumentService()
     @StateObject private var workflowService = WorkflowService()
     @StateObject private var performanceService = PerformanceService()
     @StateObject private var cacheModel = CacheModel()
@@ -45,18 +44,23 @@ struct ContentView: View {
 
     // MARK: - Computed Properties
 
-    /// Derive the selected SidebarItem from the ID
+    // Cache for sidebar items - rebuilt only when source data changes
+    @State private var cachedSidebarItems: [SidebarItem] = []
+
+    /// Derive the selected SidebarItem from the ID (uses cached items)
     private var selectedSidebarItem: SidebarItem? {
         guard let id = selectedSidebarItemId else { return nil }
+        return findItemById(id, in: cachedSidebarItems)
+    }
 
-        // Build all sidebar items
+    /// Rebuild the sidebar item cache from all sources
+    private func rebuildSidebarCache() {
         let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
         let searchItems = SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
         let chatItems = SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
         let workflowItems = SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
 
-        let allItems = libraryItems + searchItems + chatItems + workflowItems
-        return findItemById(id, in: allItems)
+        cachedSidebarItems = libraryItems + searchItems + chatItems + workflowItems
     }
 
     /// Recursively find an item by ID
@@ -151,6 +155,36 @@ struct ContentView: View {
         return false
     }
 
+    // MARK: - View Helpers
+
+    @ViewBuilder
+    private var sidebarContent: some View {
+        SidebarView(
+            viewMode: $viewMode,
+            selectedItemId: $selectedSidebarItemId,
+            documentStore: documentStore,
+            savedSearchService: savedSearchService,
+            conversationService: conversationService,
+            workflowStore: workflowStore,
+            onCreateChatWithDocuments: { documentIds in
+                chatSelectedDocuments = Set(documentIds)
+            }
+        )
+        .environmentObject(savedSearchService)
+        .environmentObject(conversationService)
+        .environmentObject(workflowService)
+        .environmentObject(ErrorService.shared)
+        .environmentObject(performanceService)
+        .environmentObject(cacheModel)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+    }
+
+    @ViewBuilder
+    private var centerContent: some View {
+        contentView
+            .navigationSplitViewColumnWidth(min: 300, ideal: 450, max: .infinity)
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -200,7 +234,6 @@ struct ContentView: View {
                             .cornerRadius(4)
                     }
 
-                    
                     HStack(spacing: 16) {
                         Button("Retry") {
                             Task {
@@ -224,191 +257,42 @@ struct ContentView: View {
     }
 
     /// Main app content (when backend is connected)
+    @ViewBuilder
     private var mainContentView: some View {
         NavigationSplitView(
             columnVisibility: $columnVisibility,
-            sidebar: {
-                // Sidebar with Library, Searches, Chat, Workflows sections
-                SidebarView(
-                    viewMode: $viewMode,
-                    selectedItemId: $selectedSidebarItemId,
-                    documentStore: documentStore,
-                    savedSearchService: savedSearchService,
-                    conversationService: conversationService,
-                    workflowStore: workflowStore,
-                    onCreateChatWithDocuments: { documentIds in
-                        // Add dropped documents to chat scope
-                        chatSelectedDocuments = Set(documentIds)
-                    }
-                )
-                .environmentObject(savedSearchService)
-                .environmentObject(conversationService)
-                .environmentObject(workflowService)
-                .environmentObject(ErrorService.shared)
-                .environmentObject(performanceService)
-                .environmentObject(cacheModel)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-            },
-            content: {
-                // Content area - changes based on view mode
-                contentView
-                    .navigationSplitViewColumnWidth(min: 300, ideal: 450, max: .infinity)
-            },
-            detail: {
-                // Detail area - changes based on view mode
-                detailView
-            }
+            sidebar: { sidebarContent },
+            content: { centerContent },
+            detail: { detailView }
         )
         .navigationTitle(navigationTitle)
-        .task {
-            // Load collections from backend
-            await documentStore.loadCollections()
-
-            // Load workflows from backend
-            await workflowStore.loadWorkflows()
-
-            // Load conversations from backend
-            do {
-                try await conversationService.loadConversations()
-            } catch {
-                NSLog("[ContentView] Failed to load conversations: %@", error.localizedDescription)
-            }
-
-            // Load saved searches from backend
-            do {
-                try await savedSearchService.loadSavedSearches()
-            } catch {
-                NSLog("[ContentView] Failed to load saved searches: %@", error.localizedDescription)
-            }
-
-            // Auto-select first library item
-            if case .library(nil) = viewMode {
-                let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-                if let firstItem = libraryItems.first {
-                    selectedSidebarItemId = firstItem.id
-                    if case .document(let doc) = firstItem.itemType {
-                        viewMode = .library(doc)
-                        await documentStore.selectCollection(doc)
-                    }
-                }
-            }
-        }
-         .onChange(of: viewMode) { _, newMode in
-             // Load workflow from API when workflow mode changes
-             if case .workflow(let workflowItem) = newMode, let item = workflowItem {
-                 // Load full workflow from API using item.id
-                 Task {
-                     do {
-                         let fullWorkflow = try await workflowStore.getWorkflow(item.id)
-                         // Convert from API response to local Workflow type
-                         editingWorkflow = Workflow(
-                             id: fullWorkflow.id,
-                             name: fullWorkflow.name,
-                             description: fullWorkflow.description
-                         )
-                     } catch {
-                         NSLog("[ContentView] Failed to load workflow: %@", error.localizedDescription)
-                         // Fallback to creating new workflow with matching name
-                         editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
-                     }
-                 }
-             }
-            // Load children from backend when library item selected
-            if case .library(let doc) = newMode, let document = doc {
-                Task {
-                    await documentStore.selectCollection(document)
-                }
-            }
-            // Always show all 3 columns
-            columnVisibility = .all
-        }
-        .onChange(of: viewSettings.sidebarMode) { _, newMode in
-            // Respond to sidebar menu changes
-            switch newMode {
-            case .navigate:
-                if case .library = viewMode { return }
-                viewMode = .library(nil)
-            case .search:
-                viewMode = .search(nil)
-            case .chat:
-                viewMode = .chat(nil)
-            case .workflows:
-                viewMode = .workflow(nil)
-            case .activity:
-                // TODO: Add activity view
-                break
-            }
-        }
-        .onChange(of: browserSelection) { _, newSelection in
-            // Update preview when selection changes (single click)
-            if let firstId = newSelection.first,
-               let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
-                detailDocument = doc
-            } else if newSelection.isEmpty {
-                detailDocument = nil
-            }
-        }
-        .onReceive(documentStore.documentChangePublisher.replaceError(with: DocumentChange.collectionsUpdated([]))) { change in
-            handleDocumentChange(change)
-        }
-        // Provider sheets (triggered from app menu or first launch)
-        .sheet(isPresented: $appState.showAddProvider) {
-            AddProviderSheet(
-                onAdd: {
-                    await appState.loadProviders()
-                    appState.isFirstLaunchProviderSetup = false
-                },
-                isFirstLaunch: appState.isFirstLaunchProviderSetup
+        .modifier(
+            MainContentModifiers(
+                documentStore: documentStore,
+                workflowStore: workflowStore,
+                conversationService: conversationService,
+                savedSearchService: savedSearchService,
+                appState: appState,
+                viewSettings: viewSettings,
+                viewMode: $viewMode,
+                selectedSidebarItemId: $selectedSidebarItemId,
+                browserSelection: $browserSelection,
+                detailDocument: $detailDocument,
+                columnVisibility: $columnVisibility,
+                editingWorkflow: $editingWorkflow,
+                isDropTargeted: $isDropTargeted,
+                isImporting: $isImporting,
+                importProgress: $importProgress,
+                importError: $importError,
+                rebuildCache: rebuildSidebarCache,
+                handleDocumentChange: handleDocumentChange,
+                handleFileDrop: handleFileDrop
             )
-        }
-        .sheet(isPresented: $appState.showProvidersSettings) {
-            ProvidersSettingsSheet()
-                .environmentObject(appState)
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            handleFileDrop(urls: urls)
-            return true
-        } isTargeted: { isTargeted in
-            self.isDropTargeted = isTargeted
-        }
-        .overlay {
-            if isDropTargeted {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.accentColor, lineWidth: 2)
-                    .padding(4)
-                    .allowsHitTesting(false)
-            }
-        }
-        .overlay {
-            if isImporting {
-                ZStack {
-                    Color.black.opacity(0.3)
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        if let progress = importProgress {
-                            Text(progress)
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(20)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
-                }
-                .allowsHitTesting(false)
-            }
-        }
-        .alert("Import Error", isPresented: .constant(importError != nil)) {
-            Button("OK") {
-                importError = nil
-            }
-        } message: {
-            if let error = importError {
-                Text(error)
-            }
-        }
+        )
     }
+}
 
+extension ContentView {
     // MARK: - Content View (Middle Column)
 
     @ViewBuilder
@@ -640,7 +524,7 @@ struct ContentView: View {
 
                     // Import the file
                     NSLog("[ContentView] Importing file: \(url.path)")
-                    _ = try await documentService.importFile(at: url, parentId: targetParentId)
+                    _ = try await documentStore.importFile(at: url, parentId: targetParentId)
                     successCount += 1
 
                 } catch {
@@ -667,6 +551,271 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - View Modifiers
+
+/// Data loading modifiers (initial task + cache rebuilding)
+struct DataLoadingModifiers: ViewModifier {
+    let documentStore: DocumentStore
+    let workflowStore: WorkflowStore
+    let conversationService: ConversationService
+    let savedSearchService: SavedSearchService
+    let rebuildCache: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        guard !Task.isCancelled else { return }
+                        await documentStore.loadCollections()
+                    }
+                    group.addTask {
+                        guard !Task.isCancelled else { return }
+                        await workflowStore.loadWorkflows()
+                    }
+                    group.addTask {
+                        guard !Task.isCancelled else { return }
+                        try? await conversationService.loadConversations()
+                    }
+                    group.addTask {
+                        guard !Task.isCancelled else { return }
+                        try? await savedSearchService.loadSavedSearches()
+                    }
+                }
+                rebuildCache()
+            }
+            .onChange(of: documentStore.collections) { _, _ in rebuildCache() }
+            .onChange(of: savedSearchService.savedSearches) { _, _ in rebuildCache() }
+            .onChange(of: conversationService.conversations) { _, _ in rebuildCache() }
+            .onChange(of: workflowStore.workflows) { _, _ in rebuildCache() }
+    }
+}
+
+/// Change handler modifiers (view mode, sidebar mode, browser selection)
+struct ChangeHandlerModifiers: ViewModifier {
+    let documentStore: DocumentStore
+    @Binding var viewMode: AppViewMode
+    let viewSettings: ViewSettings
+    @Binding var browserSelection: Set<String>
+    @Binding var detailDocument: Document?
+
+    let handleViewModeChange: (AppViewMode) -> Void
+    let handleSidebarModeChange: (SidebarMode) -> Void
+    let handleBrowserSelectionChange: (Set<String>) -> Void
+    let handleDocumentChange: (DocumentChange) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: viewMode) { _, newMode in
+                handleViewModeChange(newMode)
+            }
+            .onChange(of: viewSettings.sidebarMode) { _, newMode in
+                handleSidebarModeChange(newMode)
+            }
+            .onChange(of: browserSelection) { _, newSelection in
+                handleBrowserSelectionChange(newSelection)
+            }
+            .onReceive(
+                documentStore.documentChangePublisher
+                    .replaceError(with: DocumentChange.collectionsUpdated([]))
+            ) { change in
+                handleDocumentChange(change)
+            }
+    }
+}
+
+/// Sheet modifiers (provider sheets)
+struct SheetModifiers: ViewModifier {
+    let appState: AppState
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: Binding(
+                get: { appState.showAddProvider },
+                set: { appState.showAddProvider = $0 }
+            )) {
+                AddProviderSheet(
+                    onAdd: {
+                        await appState.loadProviders()
+                        appState.isFirstLaunchProviderSetup = false
+                    },
+                    isFirstLaunch: appState.isFirstLaunchProviderSetup
+                )
+            }
+            .sheet(isPresented: Binding(
+                get: { appState.showProvidersSettings },
+                set: { appState.showProvidersSettings = $0 }
+            )) {
+                ProvidersSettingsSheet()
+                    .environmentObject(appState)
+            }
+    }
+}
+
+/// Drop target and import overlays
+struct DropTargetModifiers: ViewModifier {
+    @Binding var isDropTargeted: Bool
+    @Binding var isImporting: Bool
+    @Binding var importProgress: String?
+    @Binding var importError: String?
+    let handleFileDrop: ([URL]) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .dropDestination(for: URL.self) { urls, _ in
+                handleFileDrop(urls)
+                return true
+            } isTargeted: { isTargeted in
+                self.isDropTargeted = isTargeted
+            }
+            .overlay {
+                if isDropTargeted {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                        .padding(4)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay {
+                if isImporting {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            if let progress = importProgress {
+                                Text(progress)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(20)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(8)
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .alert("Import Error", isPresented: .constant(importError != nil)) {
+                Button("OK") {
+                    importError = nil
+                }
+            } message: {
+                if let error = importError {
+                    Text(error)
+                }
+            }
+    }
+}
+
+/// Splits mainContentView modifiers into a separate struct to avoid compiler timeout
+struct MainContentModifiers: ViewModifier {
+    let documentStore: DocumentStore
+    let workflowStore: WorkflowStore
+    let conversationService: ConversationService
+    let savedSearchService: SavedSearchService
+    let appState: AppState
+    let viewSettings: ViewSettings
+
+    @Binding var viewMode: AppViewMode
+    @Binding var selectedSidebarItemId: String?
+    @Binding var browserSelection: Set<String>
+    @Binding var detailDocument: Document?
+    @Binding var columnVisibility: NavigationSplitViewVisibility
+    @Binding var editingWorkflow: Workflow
+    @Binding var isDropTargeted: Bool
+    @Binding var isImporting: Bool
+    @Binding var importProgress: String?
+    @Binding var importError: String?
+
+    let rebuildCache: () -> Void
+    let handleDocumentChange: (DocumentChange) -> Void
+    let handleFileDrop: ([URL]) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(DataLoadingModifiers(
+                documentStore: documentStore,
+                workflowStore: workflowStore,
+                conversationService: conversationService,
+                savedSearchService: savedSearchService,
+                rebuildCache: rebuildCache
+            ))
+            .modifier(ChangeHandlerModifiers(
+                documentStore: documentStore,
+                viewMode: $viewMode,
+                viewSettings: viewSettings,
+                browserSelection: $browserSelection,
+                detailDocument: $detailDocument,
+                handleViewModeChange: handleViewModeChange,
+                handleSidebarModeChange: handleSidebarModeChange,
+                handleBrowserSelectionChange: handleBrowserSelectionChange,
+                handleDocumentChange: handleDocumentChange
+            ))
+            .modifier(SheetModifiers(appState: appState))
+            .modifier(DropTargetModifiers(
+                isDropTargeted: $isDropTargeted,
+                isImporting: $isImporting,
+                importProgress: $importProgress,
+                importError: $importError,
+                handleFileDrop: handleFileDrop
+            ))
+    }
+
+    private func handleViewModeChange(_ newMode: AppViewMode) {
+        // Load workflow from API when workflow mode changes
+        if case .workflow(let workflowItem) = newMode, let item = workflowItem {
+            Task {
+                do {
+                    let fullWorkflow = try await workflowStore.getWorkflow(item.id)
+                    editingWorkflow = Workflow(
+                        id: fullWorkflow.id,
+                        name: fullWorkflow.name,
+                        description: fullWorkflow.description
+                    )
+                } catch {
+                    NSLog("[ContentView] Failed to load workflow: %@", error.localizedDescription)
+                    editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
+                }
+            }
+        }
+
+        // Load children from backend when library item selected
+        if case .library(let doc) = newMode, let document = doc {
+            Task {
+                await documentStore.selectCollection(document)
+            }
+        }
+
+        // Always show all 3 columns
+        columnVisibility = .all
+    }
+
+    private func handleSidebarModeChange(_ newMode: SidebarMode) {
+        switch newMode {
+        case .navigate:
+            if case .library = viewMode { return }
+            viewMode = .library(nil)
+        case .search:
+            viewMode = .search(nil)
+        case .chat:
+            viewMode = .chat(nil)
+        case .workflows:
+            viewMode = .workflow(nil)
+        case .activity:
+            break
+        }
+    }
+
+    private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
+        if let firstId = newSelection.first,
+           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+            detailDocument = doc
+        } else if newSelection.isEmpty {
+            detailDocument = nil
         }
     }
 }

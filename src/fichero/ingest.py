@@ -24,9 +24,9 @@ Usage:
     # Batch import folder
     docs = ingest_folder(Path("/path/to/folder"), mode=IngestMode.LINK)
 
-    # Ingest with specific parent collection
-    collection = db.query(Document, doc_type=DocType.collection)[0]
-    doc = ingest_file(path, parent_id=collection.id)
+    # Ingest with specific parent folder
+    folder = db.query(Document, doc_type=DocType.folder)[0]
+    doc = ingest_file(path, parent_id=folder.id)
 """
 
 from __future__ import annotations
@@ -430,18 +430,18 @@ def ingest_folder(
     if not folder.is_dir():
         raise ValueError(f"Not a folder: {folder}")
 
-    # Create collection if requested
-    collection_id = parent_id
+    # Create folder if requested
+    folder_id = parent_id
     if create_collection and not parent_id:
-        collection = Document(
+        folder_doc = Document(
             name=folder.name,
             path=str(folder),
-            doc_type=DocType.collection,
+            doc_type=DocType.folder,
             status=Status.completed,
         )
-        db.save(collection)
-        collection_id = collection.id
-        logger.info(f"Created collection: {folder.name}")
+        db.save(folder_doc)
+        folder_id = folder_doc.id
+        logger.info(f"Created folder: {folder.name}")
 
     # Gather files
     if recursive:
@@ -458,12 +458,12 @@ def ingest_folder(
     for i, file_path in enumerate(files):
         try:
             # For recursive, create subfolder structure
-            subfolder_id = collection_id
+            subfolder_id = folder_id
             if recursive and file_path.parent != folder:
                 subfolder_id = _ensure_folder_hierarchy(
                     file_path.parent,
                     folder,
-                    collection_id,
+                    folder_id,
                 )
 
             doc = ingest_file(

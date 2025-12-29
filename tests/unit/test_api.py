@@ -48,7 +48,7 @@ def sample_collection():
     return Document(
         id="coll123",
         name="Test Collection",
-        doc_type=DocType.collection,
+        doc_type=DocType.folder,
         status=Status.completed,
     )
 

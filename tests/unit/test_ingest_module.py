@@ -457,7 +457,7 @@ class TestIngestFolder:
         # Should have saved collection
         calls = mock_db.save.call_args_list
         collection_saved = any(
-            call.args[0].doc_type == DocType.collection
+            call.args[0].doc_type == DocType.folder
             for call in calls
         )
         assert collection_saved

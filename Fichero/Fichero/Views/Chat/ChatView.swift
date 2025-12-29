@@ -440,7 +440,6 @@ struct ChatInspectorView: View {
     @State private var isExtracting: Bool = false
     @State private var extractionResult: String?
 
-    private let documentService = DocumentService()
     private let chatService = ChatService()
 
     var body: some View {

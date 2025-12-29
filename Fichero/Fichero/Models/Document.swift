@@ -4,7 +4,6 @@ import Foundation
 
 /// Document type enum matching Python DocType
 enum DocType: String, Codable, CaseIterable {
-    case collection
     case folder
     case group
     case file
@@ -13,7 +12,6 @@ enum DocType: String, Codable, CaseIterable {
 
     var icon: String {
         switch self {
-        case .collection: return "folder.fill"
         case .folder: return "folder"
         case .group: return "rectangle.stack"
         case .file: return "doc"
