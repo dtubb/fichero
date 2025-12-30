@@ -343,8 +343,13 @@ class DocumentStore: ObservableObject {
 
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
-        let update = DocumentUpdateRequest(parentId: parentId)
-        let updated: Document = try await api.put("/documents/\(documentId)", body: update)
+        NSLog("[DocumentStore.moveDocument] Moving \(documentId) to parent: \(parentId ?? "nil (root)")")
+
+        // Use dedicated /move endpoint with proper query parameter handling
+        let query: [String: String] = parentId == nil ? [:] : ["parent_id": parentId!]
+        let updated: Document = try await api.put("/documents/\(documentId)/move", query: query)
+
+        NSLog("[DocumentStore.moveDocument] Response: \(updated.name), parent_id: \(updated.parentId ?? "nil")")
 
         // Update in-place (updates the document in collections, cache, etc.)
         updateLocal(updated)

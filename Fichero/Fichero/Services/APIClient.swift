@@ -167,6 +167,26 @@ class APIClient: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
 
+    /// PUT request with query parameters (no body)
+    func put<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+        var urlComponents = URLComponents(string: baseURL.appendingPathComponent(path).absoluteString)!
+        if !query.isEmpty {
+            urlComponents.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+
+        guard let url = urlComponents.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response, data: data)
+        return try decoder.decode(T.self, from: data)
+    }
+
     func delete(_ path: String) async throws {
         let url = baseURL.appendingPathComponent(path)
 
