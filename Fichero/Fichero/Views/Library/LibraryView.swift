@@ -116,10 +116,14 @@ struct LibraryView: View {
         .frame(minWidth: 400)
         .searchable(text: $searchText, prompt: "Search documents")
     }
+}
 
+// MARK: - View Components & Helpers
+
+extension LibraryView {
     // MARK: - Column Management
 
-    private func resetColumns() {
+    func resetColumns() {
         showName = true
         showStatus = true
         showProgress = true

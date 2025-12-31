@@ -72,8 +72,12 @@ struct ChatView: View {
             await loadProviders()
         }
     }
+}
 
-    private func loadConversation(_ id: String) async {
+// MARK: - View Components & Loading
+
+extension ChatView {
+    func loadConversation(_ id: String) async {
         do {
             let detail = try await chatService.getConversation(id)
             await MainActor.run {
@@ -294,10 +298,12 @@ struct ChatView: View {
         .padding()
         .background(Color(.windowBackgroundColor))
     }
+}
 
-    // MARK: - Actions
+// MARK: - Actions
 
-    private func sendMessage() {
+extension ChatView {
+    func sendMessage() {
         guard !inputText.isEmpty else { return }
 
         let userMessage = ChatMessage(role: .user, content: inputText)

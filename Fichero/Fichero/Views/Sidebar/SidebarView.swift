@@ -127,11 +127,15 @@ struct SidebarView: View {
                 performDelete: performDelete
             )
     }
+}
 
+// MARK: - View Components
+
+extension SidebarView {
     // MARK: - Sidebar Content
 
     @ViewBuilder
-    private var sidebarContent: some View {
+    var sidebarContent: some View {
         List(selection: $selectedItemId) {
             openLibrariesSectionView
             librarySectionView

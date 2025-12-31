@@ -50,10 +50,14 @@ struct SearchView: View {
             }
         }
     }
+}
 
+// MARK: - View Components
+
+extension SearchView {
     // MARK: - Filters Panel
 
-    private var filtersPanel: some View {
+    var filtersPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Search query
@@ -246,10 +250,12 @@ struct SearchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    // MARK: - Helpers
+// MARK: - Helpers
 
-    private var hasActiveFilters: Bool {
+extension SearchView {
+    var hasActiveFilters: Bool {
         filters.docTypes != nil ||
         filters.fileTypes != nil ||
         filters.statuses != nil ||
@@ -323,20 +329,7 @@ struct SearchView: View {
         Task {
             do {
                 NSLog("[SearchView] Calling searchService.search with enhanced parameters...")
-                // Convert filters to dictionary for API
-                var filterDict: [String: String] = [:]
-                if let docTypes = filters.docTypes, !docTypes.isEmpty {
-                    filterDict["doc_type"] = docTypes.map { $0.rawValue }.joined(separator: ",")
-                }
-                if let fileTypes = filters.fileTypes, !fileTypes.isEmpty {
-                    filterDict["file_type"] = fileTypes.map { $0.rawValue }.joined(separator: ",")
-                }
-                if let statuses = filters.statuses, !statuses.isEmpty {
-                    filterDict["status"] = statuses.map { $0.rawValue }.joined(separator: ",")
-                }
-                if let hasContent = filters.hasContent {
-                    filterDict["has_content"] = hasContent ? "true" : "false"
-                }
+                let filterDict = buildFilterDictionary()
 
                 let response = try await searchService.search(
                     query: queryText,
@@ -367,6 +360,23 @@ struct SearchView: View {
                 }
             }
         }
+    }
+
+    private func buildFilterDictionary() -> [String: String] {
+        var filterDict: [String: String] = [:]
+        if let docTypes = filters.docTypes, !docTypes.isEmpty {
+            filterDict["doc_type"] = docTypes.map { $0.rawValue }.joined(separator: ",")
+        }
+        if let fileTypes = filters.fileTypes, !fileTypes.isEmpty {
+            filterDict["file_type"] = fileTypes.map { $0.rawValue }.joined(separator: ",")
+        }
+        if let statuses = filters.statuses, !statuses.isEmpty {
+            filterDict["status"] = statuses.map { $0.rawValue }.joined(separator: ",")
+        }
+        if let hasContent = filters.hasContent {
+            filterDict["has_content"] = hasContent ? "true" : "false"
+        }
+        return filterDict
     }
 
     private func saveSearch() {
