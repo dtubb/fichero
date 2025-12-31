@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentTabView")
 
 /// Main view for a document tab/window
 /// Switches between different view modes based on document state
@@ -67,7 +70,10 @@ struct DocumentTabView: View {
         .task {
             // Library path is already set in LibraryManager when library was opened
             if let apiClient = apiClient {
-                NSLog("[DocumentTabView] Using library \(libraryId) with APIClient-\(ObjectIdentifier(apiClient)), path: \(apiClient.currentLibraryPath ?? "none")")
+                let clientIdString = String(describing: ObjectIdentifier(apiClient))
+                let pathString = apiClient.currentLibraryPath ?? "none"
+                let libraryIdString = String(describing: libraryId)
+                logger.info("Using library \(libraryIdString) with APIClient-\(clientIdString), path: \(pathString)")
             }
 
             // Load data for this tab's context

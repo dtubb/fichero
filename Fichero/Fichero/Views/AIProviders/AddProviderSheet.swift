@@ -233,10 +233,12 @@ struct AddProviderSheet: View {
             .padding(.vertical, 12)
         }
     }
+}
 
-    // MARK: - Helpers
+// MARK: - Helpers
 
-    private func defaultServerUrl(for type: String) -> String {
+extension AddProviderSheet {
+    func defaultServerUrl(for type: String) -> String {
         switch type {
         case "ollama": return "http://localhost:11434"
         case "lmstudio": return "http://localhost:1234"

@@ -255,10 +255,7 @@ extension SidebarItemRow {
         // Validate that target is actually a folder
         guard case .document(let targetDoc) = targetFolder.itemType,
               targetDoc.docType == .folder else {
-            NSLog(
-                "[SidebarView] ❌ Drop rejected: target \(targetFolder.name) " +
-                "is not a folder (type: \(targetFolder.itemType))"
-            )
+            logger.warning("❌ Drop rejected: target \(targetFolder.name) is not a folder")
             return false
         }
 

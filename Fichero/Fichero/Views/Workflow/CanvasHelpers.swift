@@ -13,18 +13,18 @@ struct GridPattern: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
-        var x: CGFloat = 0
-        while x < rect.width {
-            path.move(to: CGPoint(x: x, y: 0))
-            path.addLine(to: CGPoint(x: x, y: rect.height))
-            x += spacing
+        var gridX: CGFloat = 0
+        while gridX < rect.width {
+            path.move(to: CGPoint(x: gridX, y: 0))
+            path.addLine(to: CGPoint(x: gridX, y: rect.height))
+            gridX += spacing
         }
 
-        var y: CGFloat = 0
-        while y < rect.height {
-            path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: rect.width, y: y))
-            y += spacing
+        var gridY: CGFloat = 0
+        while gridY < rect.height {
+            path.move(to: CGPoint(x: 0, y: gridY))
+            path.addLine(to: CGPoint(x: rect.width, y: gridY))
+            gridY += spacing
         }
 
         return path

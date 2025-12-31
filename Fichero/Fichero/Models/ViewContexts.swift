@@ -76,9 +76,9 @@ struct WorkflowContext: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         workflowId = try container.decodeIfPresent(String.self, forKey: .workflowId)
-        let x = try container.decode(Double.self, forKey: .canvasPositionX)
-        let y = try container.decode(Double.self, forKey: .canvasPositionY)
-        canvasPosition = CGPoint(x: x, y: y)
+        let positionX = try container.decode(Double.self, forKey: .canvasPositionX)
+        let positionY = try container.decode(Double.self, forKey: .canvasPositionY)
+        canvasPosition = CGPoint(x: positionX, y: positionY)
         zoom = try container.decode(CGFloat.self, forKey: .zoom)
         selectedNodeIds = try container.decode(Set<String>.self, forKey: .selectedNodeIds)
         showInspector = try container.decode(Bool.self, forKey: .showInspector)

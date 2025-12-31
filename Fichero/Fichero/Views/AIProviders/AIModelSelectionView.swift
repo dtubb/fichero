@@ -67,9 +67,9 @@ struct AIModelSelectionView: View {
         // Apply sorting
         switch sortOrder {
         case .recommended:
-            result.sort { a, b in
-                if a.isRecommended != b.isRecommended { return a.isRecommended }
-                return a.modelId.localizedCaseInsensitiveCompare(b.modelId) == .orderedAscending
+            result.sort { model1, model2 in
+                if model1.isRecommended != model2.isRecommended { return model1.isRecommended }
+                return model1.modelId.localizedCaseInsensitiveCompare(model2.modelId) == .orderedAscending
             }
         case .name:
             result.sort { $0.modelId.localizedCaseInsensitiveCompare($1.modelId) == .orderedAscending }

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import OSLog
 
 /// Store for managing workflows with backend persistence
 @MainActor
@@ -11,6 +12,7 @@ class WorkflowStore: ObservableObject {
     @Published var isConnected = false
     @Published var error: Error?
 
+    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowStore")
     private let workflowService: WorkflowService
 
     init(apiClient: APIClient) {
@@ -48,7 +50,7 @@ class WorkflowStore: ObservableObject {
             }
         } catch {
             self.error = error
-            NSLog("[WorkflowStore] Failed to load workflows: \(error)")
+            logger.error("Failed to load workflows: \(String(describing: error))")
         }
         
         isLoading = false

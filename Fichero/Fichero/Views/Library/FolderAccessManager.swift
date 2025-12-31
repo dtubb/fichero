@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import OSLog
 
 /// Manages folder access permissions using security-scoped bookmarks
 ///
@@ -8,6 +9,7 @@ import AppKit
 class FolderAccessManager: ObservableObject {
     static let shared = FolderAccessManager()
 
+    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FolderAccess")
     private let bookmarksKey = "FolderAccessBookmarks"
     @Published private(set) var accessedFolders: [URL] = []
 
@@ -92,11 +94,11 @@ class FolderAccessManager: ObservableObject {
                 accessedFolders.append(url)
             }
 
-            NSLog("[FolderAccess] Saved bookmark for: %@", url.path)
+            logger.info("Saved bookmark for: \(url.path)")
 
             // Don't stop accessing - we need it throughout the app session
         } catch {
-            NSLog("[FolderAccess] Failed to save bookmark: %@", error.localizedDescription)
+            logger.error("Failed to save bookmark: \(error.localizedDescription)")
         }
     }
 
@@ -121,14 +123,14 @@ class FolderAccessManager: ObservableObject {
 
                 if isStale {
                     // Bookmark is stale, try to refresh it
-                    NSLog("[FolderAccess] Stale bookmark for: %@, refreshing...", path)
+                    logger.info("Stale bookmark for: \(path), refreshing...")
                     saveBookmark(for: url)
                 } else if didStart {
                     accessedFolders.append(url)
-                    NSLog("[FolderAccess] Restored access to: %@", url.path)
+                    logger.info("Restored access to: \(url.path)")
                 }
             } catch {
-                NSLog("[FolderAccess] Failed to restore bookmark for %@: %@", path, error.localizedDescription)
+                logger.error("Failed to restore bookmark for \(path): \(error.localizedDescription)")
             }
         }
     }

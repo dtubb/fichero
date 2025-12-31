@@ -75,9 +75,9 @@ struct ProvidersView: View {
 
     /// Providers sorted: Apple, Ollama, LM Studio, HuggingFace, then rest alphabetically
     private var sortedProviders: [ProviderResponse] {
-        providers.sorted { a, b in
-            let orderA = sortOrder(a.providerType)
-            let orderB = sortOrder(b.providerType)
+        providers.sorted { provider1, provider2 in
+            let orderA = sortOrder(provider1.providerType)
+            let orderB = sortOrder(provider2.providerType)
             // If both have explicit order, use that
             if orderA < 100 && orderB < 100 {
                 return orderA < orderB
@@ -86,7 +86,7 @@ struct ProvidersView: View {
             if orderA < 100 { return true }
             if orderB < 100 { return false }
             // Otherwise sort alphabetically
-            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            return provider1.name.localizedCaseInsensitiveCompare(provider2.name) == .orderedAscending
         }
     }
 

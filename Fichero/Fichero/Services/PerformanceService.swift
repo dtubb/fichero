@@ -5,11 +5,19 @@ import QuartzCore
 
 /// Performance monitoring and benchmarking service
 class PerformanceService: ObservableObject {
-    
+
+    /// Container for benchmark statistics
+    struct BenchmarkStatistics {
+        let count: Int
+        let average: TimeInterval
+        let min: TimeInterval
+        let max: TimeInterval
+    }
+
     private let logger = Logger(subsystem: "com.fichero.performance", category: "monitoring")
     private var benchmarks: [String: [TimeInterval]] = [:]
     private var memoryMeasurements: [String: [Int64]] = [:]
-    
+
     // MARK: - Benchmarking
     
     /// Start a performance benchmark
@@ -35,15 +43,20 @@ class PerformanceService: ObservableObject {
     }
     
     /// Get benchmark statistics
-    func benchmarkStatistics(for name: String) -> (count: Int, average: TimeInterval, min: TimeInterval, max: TimeInterval)? {
+    func benchmarkStatistics(for name: String) -> BenchmarkStatistics? {
         guard let durations = benchmarks[name], !durations.isEmpty else { return nil }
-        
+
         let count = durations.count
         let average = durations.reduce(0, +) / TimeInterval(count)
         let minDuration = durations.min() ?? 0
         let maxDuration = durations.max() ?? 0
-        
-        return (count, average, minDuration, maxDuration)
+
+        return BenchmarkStatistics(
+            count: count,
+            average: average,
+            min: minDuration,
+            max: maxDuration
+        )
     }
     
     // MARK: - Memory Monitoring

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import OSLog
 
 /// Document change types for reactive updates.
 enum DocumentChange {
@@ -18,6 +19,8 @@ enum DocumentChange {
 @MainActor
 class DocumentStore: ObservableObject {
     // MARK: - Private Properties
+
+    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentStore")
 
     /// Publisher for document changes.
     private let documentChanges = PassthroughSubject<DocumentChange, Error>()
@@ -91,17 +94,17 @@ class DocumentStore: ObservableObject {
         error = nil
 
         do {
-            NSLog("[DocumentStore] Loading all documents for tree building...")
+            logger.info("Loading all documents for tree building...")
             // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
             // No limit - load everything for complete tree structure
             let query = ["offset": "0"]
             collections = try await api.get("/documents", query: query)
             isConnected = true
-            NSLog("[DocumentStore] Loaded %d documents total", collections.count)
+            logger.info("Loaded \(self.collections.count) documents total")
 
-            let rootCount = collections.filter { $0.parentId == nil }.count
-            let childCount = collections.count - rootCount
-            NSLog("[DocumentStore]   - %d root items, %d nested items", rootCount, childCount)
+            let rootCount = self.collections.filter { $0.parentId == nil }.count
+            let childCount = self.collections.count - rootCount
+            logger.info("  - \(rootCount) root items, \(childCount) nested items")
 
             // Publish change
             publish(.collectionsUpdated(collections))
@@ -111,7 +114,7 @@ class DocumentStore: ObservableObject {
                 await selectCollection(first)
             }
         } catch {
-            NSLog("[DocumentStore] ERROR loading documents: %@", String(describing: error))
+            logger.error("ERROR loading documents: \(String(describing: error))")
             self.error = error
             isConnected = false
         }
@@ -280,20 +283,29 @@ class DocumentStore: ObservableObject {
     func importFolder(at url: URL, parentId: String? = nil) async throws {
         struct IngestFolderRequest: Encodable {
             let path: String
-            let parent_id: String?
-            let copy_mode: Bool
+            let parentId: String?
+            let copyMode: Bool
             let recursive: Bool
-            let extract_text: Bool
-            let auto_embed: Bool
+            let extractText: Bool
+            let autoEmbed: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case path
+                case parentId = "parent_id"
+                case copyMode = "copy_mode"
+                case recursive
+                case extractText = "extract_text"
+                case autoEmbed = "auto_embed"
+            }
         }
 
         let request = IngestFolderRequest(
             path: url.path,
-            parent_id: parentId,
-            copy_mode: true,  // Copy files into library
+            parentId: parentId,
+            copyMode: true,  // Copy files into library
             recursive: true,  // Include subdirectories
-            extract_text: true,  // Extract text for search
-            auto_embed: true  // Create embeddings
+            extractText: true,  // Extract text for search
+            autoEmbed: true  // Create embeddings
         )
 
         // Call the ingest/folder endpoint (returns task_id for async processing)
@@ -319,9 +331,9 @@ class DocumentStore: ObservableObject {
         // Add library path header for multi-library support
         if let libraryPath = api.currentLibraryPath {
             request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            NSLog("[DocumentStore] Importing to library: %@", libraryPath)
+            logger.info("Importing to library: \(libraryPath)")
         } else {
-            NSLog("[DocumentStore] WARNING: No library path set for import!")
+            logger.warning("WARNING: No library path set for import!")
         }
 
         var body = Data()
@@ -381,13 +393,13 @@ class DocumentStore: ObservableObject {
 
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
-        NSLog("[DocumentStore.moveDocument] Moving \(documentId) to parent: \(parentId ?? "nil (root)")")
+        logger.info("Moving \(documentId) to parent: \(parentId ?? "nil (root)")")
 
         // Use dedicated /move endpoint with proper query parameter handling
         let query: [String: String] = parentId == nil ? [:] : ["parent_id": parentId!]
         let updated: Document = try await api.put("/documents/\(documentId)/move", query: query)
 
-        NSLog("[DocumentStore.moveDocument] Response: \(updated.name), parent_id: \(updated.parentId ?? "nil")")
+        logger.info("Response: \(updated.name), parent_id: \(updated.parentId ?? "nil")")
 
         // Update in-place (updates the document in collections, cache, etc.)
         updateLocal(updated)
@@ -395,7 +407,7 @@ class DocumentStore: ObservableObject {
         // Force @Published trigger by creating new array reference
         // This ensures SwiftUI detects the change even for folder-to-folder moves
         collections = collections.map { $0 }
-        NSLog("[DocumentStore] Moved document: \(updated.name) to parent: \(parentId ?? "root")")
+        logger.info("Moved document: \(updated.name) to parent: \(parentId ?? "root")")
 
         // Publish change - this triggers PassthroughSubject for any subscribers
         publish(.documentsUpdated(collections))

@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "APIClient")
 
 /// HTTP client for communicating with the Fichero Python backend.
 ///
@@ -105,15 +108,15 @@ class APIClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         configureRequest(&request)
 
-        NSLog("[APIClient] GET %@", url.absoluteString)
+        logger.info("GET \(url.absoluteString)")
 
         do {
             let (data, response) = try await session.data(for: request)
-            NSLog("[APIClient] Response received, %d bytes", data.count)
+            logger.info("Response received, \(data.count) bytes")
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
-            NSLog("[APIClient] Error: %@", String(describing: error))
+            logger.error("Error: \(String(describing: error))")
             throw error
         }
     }
@@ -128,21 +131,21 @@ class APIClient: ObservableObject {
         request.httpBody = try encoder.encode(body)
         configureRequest(&request)
 
-        NSLog("[APIClient] POST %@", url.absoluteString)
+        logger.info("POST \(url.absoluteString)")
         if let bodyData = request.httpBody, let bodyString = String(data: bodyData, encoding: .utf8) {
-            NSLog("[APIClient] Body: %@", bodyString)
+            logger.info("Body: \(bodyString)")
         }
 
         do {
             let (data, response) = try await session.data(for: request)
-            NSLog("[APIClient] Response received, %d bytes", data.count)
+            logger.info("Response received, \(data.count) bytes")
             if let responseString = String(data: data, encoding: .utf8)?.prefix(500) {
-                NSLog("[APIClient] Response: %@", String(responseString))
+                logger.info("Response: \(String(responseString))")
             }
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
-            NSLog("[APIClient] POST Error: %@", String(describing: error))
+            logger.error("POST Error: \(String(describing: error))")
             throw error
         }
     }
@@ -156,18 +159,18 @@ class APIClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         configureRequest(&request)
 
-        NSLog("[APIClient] POST %@ (no body)", url.absoluteString)
+        logger.info("POST \(url.absoluteString) (no body)")
 
         do {
             let (data, response) = try await session.data(for: request)
-            NSLog("[APIClient] Response received, %d bytes", data.count)
+            logger.info("Response received, \(data.count) bytes")
             if let responseString = String(data: data, encoding: .utf8)?.prefix(500) {
-                NSLog("[APIClient] Response: %@", String(responseString))
+                logger.info("Response: \(String(responseString))")
             }
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
-            NSLog("[APIClient] POST Error: %@", String(describing: error))
+            logger.error("POST Error: \(String(describing: error))")
             throw error
         }
     }
@@ -279,7 +282,7 @@ extension APIClient {
         request.httpBody = try encoder.encode(body)
         configureRequest(&request)
 
-        NSLog("[APIClient] PATCH %@", url.absoluteString)
+        logger.info("PATCH \(url.absoluteString)")
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -292,7 +295,8 @@ extension APIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: String(data: data, encoding: .utf8) ?? "Unknown")
+            let message = String(data: data, encoding: .utf8) ?? "Unknown"
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: message)
         }
 
         let decoder = JSONDecoder()
@@ -310,10 +314,10 @@ extension APIClient {
         request.httpBody = try encoder.encode(body)
         configureRequest(&request)
 
-        NSLog("[APIClient] POST %@ (no response)", url.absoluteString)
+        logger.info("POST \(url.absoluteString) (no response)")
 
         let (data, response) = try await session.data(for: request)
-        NSLog("[APIClient] Response received, %d bytes", data.count)
+        logger.info("Response received, \(data.count) bytes")
         try validateResponse(response, data: data)
     }
 }

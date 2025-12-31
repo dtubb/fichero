@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatInspector")
 
 /// Inspector panel for managing chat document scope
 struct ChatInspector: View {
@@ -383,7 +386,7 @@ extension ChatInspector {
                 isSearching = false
             }
         } catch {
-            NSLog("[ChatInspector] Search error: %@", error.localizedDescription)
+            logger.error("Search error: \(error.localizedDescription)")
             await MainActor.run {
                 searchResults = []
                 isSearching = false
@@ -398,7 +401,7 @@ extension ChatInspector {
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
                             selectedDocuments.insert(docId)
-                            NSLog("[ChatInspector] Added document via drop: %@", docId)
+                            logger.info("Added document via drop: \(docId)")
                         }
                     }
                 }
@@ -407,7 +410,7 @@ extension ChatInspector {
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
                             selectedDocuments.insert(docId)
-                            NSLog("[ChatInspector] Added document via drop: %@", docId)
+                            logger.info("Added document via drop: \(docId)")
                         }
                     }
                 }
@@ -430,7 +433,7 @@ extension ChatInspector {
                 let doc: Document = try await APIClient().get("/documents/\(docId)")
                 loadedDocs.append(doc)
             } catch {
-                NSLog("[ChatInspector] Failed to load doc %@: %@", docId, error.localizedDescription)
+                logger.error("Failed to load doc \(docId): \(error.localizedDescription)")
             }
         }
 

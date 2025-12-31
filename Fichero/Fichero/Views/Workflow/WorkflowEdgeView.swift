@@ -198,17 +198,17 @@ struct PortPositionCalculator {
             // Input ports on left side
             let inputSpacing = nodeSize.height / CGFloat(node.inputPorts.count + 1)
             for (index, port) in node.inputPorts.enumerated() {
-                let y = nodePosition.y - nodeSize.height / 2 + inputSpacing * CGFloat(index + 1)
-                let x = nodePosition.x - nodeSize.width / 2 - 6  // Offset for port circle
-                positions["\(node.id):\(port.id)"] = CGPoint(x: x, y: y)
+                let portY = nodePosition.y - nodeSize.height / 2 + inputSpacing * CGFloat(index + 1)
+                let portX = nodePosition.x - nodeSize.width / 2 - 6  // Offset for port circle
+                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
             }
 
             // Output ports on right side
             let outputSpacing = nodeSize.height / CGFloat(node.outputPorts.count + 1)
             for (index, port) in node.outputPorts.enumerated() {
-                let y = nodePosition.y - nodeSize.height / 2 + outputSpacing * CGFloat(index + 1)
-                let x = nodePosition.x + nodeSize.width / 2 + 6  // Offset for port circle
-                positions["\(node.id):\(port.id)"] = CGPoint(x: x, y: y)
+                let portY = nodePosition.y - nodeSize.height / 2 + outputSpacing * CGFloat(index + 1)
+                let portX = nodePosition.x + nodeSize.width / 2 + 6  // Offset for port circle
+                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
             }
         }
 

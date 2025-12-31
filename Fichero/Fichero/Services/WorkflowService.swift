@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowService")
 
 /// Service for managing workflow tools and execution via the backend API.
 @MainActor
@@ -85,7 +88,7 @@ class WorkflowService: ObservableObject {
                     outputPorts = toolInfo.outputPorts
                 } catch {
                     // If tool not found, use empty ports
-                    NSLog("[WorkflowService] Failed to fetch tool info for \(tool): \(error)")
+                    logger.warning("Failed to fetch tool info for \(tool): \(String(describing: error))")
                 }
             }
 

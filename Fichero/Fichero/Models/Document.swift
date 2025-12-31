@@ -191,10 +191,10 @@ struct AnyCodable: Codable, Hashable {
     static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
         // Simple equality for basic types
         switch (lhs.value, rhs.value) {
-        case let (l as Bool, r as Bool): return l == r
-        case let (l as Int, r as Int): return l == r
-        case let (l as Double, r as Double): return l == r
-        case let (l as String, r as String): return l == r
+        case let (left as Bool, right as Bool): return left == right
+        case let (left as Int, right as Int): return left == right
+        case let (left as Double, right as Double): return left == right
+        case let (left as String, right as String): return left == right
         default: return false
         }
     }

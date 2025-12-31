@@ -116,10 +116,12 @@ struct WorkflowCanvasView: View {
             editingNodeId = nil
         }
     }
+}
 
-    // MARK: - Zoom and Pan
+// MARK: - Zoom and Pan
 
-    private func handleZoom(value: CGFloat) {
+extension WorkflowCanvasView {
+    func handleZoom(value: CGFloat) {
         // Calculate new scale with constraints (10% to 400%)
         let newScale = lastScale * value
         let constrainedScale = max(0.1, min(4.0, newScale))
@@ -149,11 +151,13 @@ struct WorkflowCanvasView: View {
 
         offset = newOffset
     }
+}
 
-    // MARK: - Canvas Content
+// MARK: - Canvas Content
 
+extension WorkflowCanvasView {
     @ViewBuilder
-    private var canvasContent: some View {
+    var canvasContent: some View {
         ZStack {
             // Edges layer (behind nodes)
             edgesLayer
@@ -167,11 +171,13 @@ struct WorkflowCanvasView: View {
             nodesLayer
         }
     }
+}
 
-    // MARK: - Edges Layer
+// MARK: - Edges Layer
 
+extension WorkflowCanvasView {
     @ViewBuilder
-    private var edgesLayer: some View {
+    var edgesLayer: some View {
         let portPositions = calculatePortPositions()
 
         ForEach(workflow.edges) { edge in
@@ -201,11 +207,13 @@ struct WorkflowCanvasView: View {
             }
         }
     }
+}
 
-    // MARK: - Nodes Layer
+// MARK: - Nodes Layer
 
+extension WorkflowCanvasView {
     @ViewBuilder
-    private var nodesLayer: some View {
+    var nodesLayer: some View {
         ForEach(Array(workflow.nodes.enumerated()), id: \.element.id) { index, node in
             nodeView(for: node, at: index)
         }
@@ -300,10 +308,12 @@ struct WorkflowCanvasView: View {
             }
         }
     }
+}
 
-    // MARK: - Node Interaction
+// MARK: - Node Interaction
 
-    private func handleNodeDrag(value: DragGesture.Value, index: Int) {
+extension WorkflowCanvasView {
+    func handleNodeDrag(value: DragGesture.Value, index: Int) {
         // On first drag event, store starting position
         if nodeDragStartPosition == nil {
             nodeDragStartPosition = CGPoint(
@@ -349,26 +359,26 @@ struct WorkflowCanvasView: View {
         let draggedNode = workflow.nodes[draggedIndex]
         let minDistance: CGFloat = nodeWidth + 20  // Minimum space between node centers
 
-        for i in workflow.nodes.indices where i != draggedIndex {
-            let otherNode = workflow.nodes[i]
-            let dx = otherNode.positionX - draggedNode.positionX
-            let dy = otherNode.positionY - draggedNode.positionY
-            let distance = hypot(dx, dy)
+        for index in workflow.nodes.indices where index != draggedIndex {
+            let otherNode = workflow.nodes[index]
+            let deltaX = otherNode.positionX - draggedNode.positionX
+            let deltaY = otherNode.positionY - draggedNode.positionY
+            let distance = hypot(deltaX, deltaY)
 
             // If nodes are too close, push the other node away with animation
             if distance < minDistance && distance > 0 {
                 let overlap = minDistance - distance
-                let pushX = (dx / distance) * overlap
-                let pushY = (dy / distance) * overlap
+                let pushX = (deltaX / distance) * overlap
+                let pushY = (deltaY / distance) * overlap
 
                 withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
-                    workflow.nodes[i].positionX += pushX
-                    workflow.nodes[i].positionY += pushY
+                    workflow.nodes[index].positionX += pushX
+                    workflow.nodes[index].positionY += pushY
                 }
             } else if distance == 0 {
                 // Exactly same position - push right
                 withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
-                    workflow.nodes[i].positionX += minDistance
+                    workflow.nodes[index].positionX += minDistance
                 }
             }
         }
@@ -401,11 +411,13 @@ struct WorkflowCanvasView: View {
         workflow.nodes.insert(duplicate, at: index + 1)
         editingNodeId = duplicate.id
     }
+}
 
-    // MARK: - Edge Connection
+// MARK: - Edge Connection
 
+extension WorkflowCanvasView {
     /// Check if two port types are compatible for connection
-    private func canConnect(outputType: String, inputType: String) -> Bool {
+    func canConnect(outputType: String, inputType: String) -> Bool {
         // "any" accepts everything
         if inputType == "any" || outputType == "any" { return true }
         // Same type always compatible
@@ -546,10 +558,12 @@ struct WorkflowCanvasView: View {
         workflow.edges.append(newEdge)
         endEdgeDrag()
     }
+}
 
-    // MARK: - Port Positions
+// MARK: - Port Positions
 
-    private func calculatePortPositions() -> [String: CGPoint] {
+extension WorkflowCanvasView {
+    func calculatePortPositions() -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
 
         for node in workflow.nodes {
@@ -559,18 +573,18 @@ struct WorkflowCanvasView: View {
             let inputCount = max(node.inputPorts.count, 1)
             let inputSpacing = nodeHeight / CGFloat(inputCount + 1)
             for (index, port) in node.inputPorts.enumerated() {
-                let y = nodePosition.y - nodeHeight / 2 + inputSpacing * CGFloat(index + 1)
-                let x = nodePosition.x - nodeWidth / 2
-                positions["\(node.id):\(port.id)"] = CGPoint(x: x, y: y)
+                let portY = nodePosition.y - nodeHeight / 2 + inputSpacing * CGFloat(index + 1)
+                let portX = nodePosition.x - nodeWidth / 2
+                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
             }
 
             // Output ports on right side
             let outputCount = max(node.outputPorts.count, 1)
             let outputSpacing = nodeHeight / CGFloat(outputCount + 1)
             for (index, port) in node.outputPorts.enumerated() {
-                let y = nodePosition.y - nodeHeight / 2 + outputSpacing * CGFloat(index + 1)
-                let x = nodePosition.x + nodeWidth / 2
-                positions["\(node.id):\(port.id)"] = CGPoint(x: x, y: y)
+                let portY = nodePosition.y - nodeHeight / 2 + outputSpacing * CGFloat(index + 1)
+                let portX = nodePosition.x + nodeWidth / 2
+                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
             }
         }
 
@@ -581,13 +595,15 @@ struct WorkflowCanvasView: View {
         Set(workflow.edges.filter { $0.targetNodeId == nodeId }.map { $0.targetPortId })
     }
 
-    private func connectedOutputPorts(for nodeId: String) -> Set<String> {
+    func connectedOutputPorts(for nodeId: String) -> Set<String> {
         Set(workflow.edges.filter { $0.sourceNodeId == nodeId }.map { $0.sourcePortId })
     }
+}
 
-    // MARK: - Drop Handling
+// MARK: - Drop Handling
 
-    private func handleDrop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
+extension WorkflowCanvasView {
+    func handleDrop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         for provider in providers {
             provider.loadObject(ofClass: NSString.self) { item, _ in
                 if let jsonString = item as? String {
@@ -682,16 +698,16 @@ struct WorkflowCanvasView: View {
         for _ in 0..<10 {  // Max 10 iterations
             var hasOverlap = false
             for node in workflow.nodes {
-                let dx = node.positionX - adjusted.x
-                let dy = node.positionY - adjusted.y
-                let distance = hypot(dx, dy)
+                let deltaX = node.positionX - adjusted.x
+                let deltaY = node.positionY - adjusted.y
+                let distance = hypot(deltaX, deltaY)
 
                 if distance < minDistance {
                     hasOverlap = true
                     // Move position away from the overlapping node
                     if distance > 0 {
-                        adjusted.x -= (dx / distance) * (minDistance - distance + 10)
-                        adjusted.y -= (dy / distance) * (minDistance - distance + 10)
+                        adjusted.x -= (deltaX / distance) * (minDistance - distance + 10)
+                        adjusted.y -= (deltaY / distance) * (minDistance - distance + 10)
                     } else {
                         adjusted.x += minDistance
                     }

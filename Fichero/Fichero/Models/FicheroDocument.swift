@@ -153,16 +153,19 @@ struct FicheroDocument: FileDocument, Codable {
 
     // MARK: - Package Path Helpers
 
+    /// Container for package document paths
+    struct PackagePaths {
+        let databasePath: URL
+        let lanceDBPath: URL
+        let storagePath: URL
+        let filesPath: URL
+    }
+
     /// Get paths within the package document
     /// - Parameter packageURL: URL of the .fichero package (the document's file URL)
-    /// - Returns: Tuple of paths for database, lance, storage, and files directories
-    func packagePaths(for packageURL: URL) -> (
-        databasePath: URL,
-        lanceDBPath: URL,
-        storagePath: URL,
-        filesPath: URL
-    ) {
-        return (
+    /// - Returns: Paths for database, lance, storage, and files directories
+    func packagePaths(for packageURL: URL) -> PackagePaths {
+        return PackagePaths(
             databasePath: packageURL.appendingPathComponent("fichero.duckdb"),
             lanceDBPath: packageURL.appendingPathComponent("lance"),
             storagePath: packageURL.appendingPathComponent("storage"),
