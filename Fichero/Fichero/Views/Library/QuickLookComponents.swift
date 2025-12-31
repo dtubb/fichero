@@ -1,6 +1,9 @@
 import SwiftUI
 import Quartz
 import AppKit
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "QuickLookComponents")
 
 // MARK: - Quick Look Components
 
@@ -176,14 +179,14 @@ struct QuickLookDownloadView: View {
             }
             try FileManager.default.moveItem(at: tempURL, to: destURL)
 
-            NSLog("[QuickLook] Downloaded to: %@", destURL.path)
+            logger.info("Downloaded to: \(destURL.path)")
 
             await MainActor.run {
                 self.fileURL = destURL
                 self.isLoading = false
             }
         } catch {
-            NSLog("[QuickLook] Download error: %@", error.localizedDescription)
+            logger.error("Download error: \(error.localizedDescription)")
             await MainActor.run {
                 self.error = "Failed to load: \(error.localizedDescription)"
                 self.isLoading = false

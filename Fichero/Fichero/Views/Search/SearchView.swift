@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SearchView")
 
 /// Search view with query input, filters, and results
 struct SearchView: View {
@@ -227,7 +230,7 @@ extension SearchView {
                     detailDocument = doc
                 }
             } catch {
-                NSLog("[SearchView] Failed to load document: %@", error.localizedDescription)
+                logger.error("Failed to load document: \(error.localizedDescription)")
             }
         }
     }
@@ -322,13 +325,13 @@ extension SearchView {
             return
         }
 
-        NSLog("[SearchView] Starting enhanced search for: %@", queryText)
+        logger.info("Starting enhanced search for: \(queryText)")
         isSearching = true
         searchError = nil
 
         Task {
             do {
-                NSLog("[SearchView] Calling searchService.search with enhanced parameters...")
+                logger.info("Calling searchService.search with enhanced parameters...")
                 let filterDict = buildFilterDictionary()
 
                 let response = try await searchService.search(
@@ -344,14 +347,14 @@ extension SearchView {
                     highlightResults: true
                 )
 
-                NSLog("[SearchView] Got %d results (total: %d)", response.count, response.totalResults)
+                logger.info("Got \(response.count) results (total: \(response.totalResults))")
                 await MainActor.run {
                     searchResults = response.results
                     searchStats = response
                     isSearching = false
                 }
             } catch {
-                NSLog("[SearchView] Search error: %@", String(describing: error))
+                logger.error("Search error: \(String(describing: error))")
                 await MainActor.run {
                     searchError = error.localizedDescription
                     searchResults = []
@@ -397,7 +400,7 @@ extension SearchView {
                     onSearchSaved?()
                 }
             } catch {
-                NSLog("[SearchView] Failed to save search: %@", error.localizedDescription)
+                logger.error("Failed to save search: \(error.localizedDescription)")
                 await MainActor.run {
                     isSaving = false
                 }

@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AddProviderSheet")
 
 struct AddProviderSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -126,13 +129,13 @@ struct AddProviderSheet: View {
                 .disabled(isFirstLaunch && catalog.isEmpty)
 
                 Button(selectedEntry?.isBuiltin == true ? "Add" : "Continue") {
-                    NSLog("[AddProvider] Button tapped, selectedEntry=\(selectedEntry?.type ?? "nil"), isBuiltin=\(selectedEntry?.isBuiltin ?? false)")
+                    logger.info("Button tapped, selectedEntry=\(selectedEntry?.type ?? "nil"), isBuiltin=\(selectedEntry?.isBuiltin ?? false)")
                     // For built-in providers, add directly without config step
                     if let entry = selectedEntry, entry.isBuiltin {
-                        NSLog("[AddProvider] isBuiltin=true, calling addProvider()")
+                        logger.info("isBuiltin=true, calling addProvider()")
                         addProvider()
                     } else {
-                        NSLog("[AddProvider] isBuiltin=false, going to step 2")
+                        logger.info("isBuiltin=false, going to step 2")
                         step = 2
                     }
                 }
@@ -223,7 +226,7 @@ struct AddProviderSheet: View {
                 Spacer()
 
                 Button("Add") {
-                    NSLog("[AddProvider] Step 2 Add button tapped")
+                    logger.info("Step 2 Add button tapped")
                     addProvider()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -264,14 +267,14 @@ extension AddProviderSheet {
                 selectedType = first.type
             }
         } catch {
-            NSLog("[AddProvider] Load catalog failed: \(error)")
+            logger.error("Load catalog failed: \(String(describing: error))")
         }
     }
 
     private func addProvider() {
-        NSLog("[AddProvider] addProvider() called, selectedType=\(selectedType ?? "nil")")
+        logger.info("addProvider() called, selectedType=\(selectedType ?? "nil")")
         guard let type = selectedType else {
-            NSLog("[AddProvider] selectedType is nil, returning early")
+            logger.warning("selectedType is nil, returning early")
             return
         }
         isAdding = true
@@ -279,14 +282,14 @@ extension AddProviderSheet {
         Task { @MainActor in
             do {
                 let apiBase = serverUrl.isEmpty ? nil : serverUrl
-                NSLog("[AddProvider] Creating provider type=\(type), apiBase=\(apiBase ?? "nil")")
+                logger.info("Creating provider type=\(type), apiBase=\(apiBase ?? "nil")")
 
                 let result = try await providerService.createProvider(
                     providerType: type,
                     apiBase: apiBase,
                     apiKey: apiKey.isEmpty ? nil : apiKey
                 )
-                NSLog("[AddProvider] Provider created: \(result.id)")
+                logger.info("Provider created: \(result.id)")
                 await onAdd()
                 isAdding = false
 
@@ -294,7 +297,7 @@ extension AddProviderSheet {
                 addedProvider = result
                 step = 3
             } catch {
-                NSLog("[AddProvider] Add failed: \(error)")
+                logger.error("Add failed: \(String(describing: error))")
                 isAdding = false
             }
         }
@@ -370,7 +373,7 @@ extension AddProviderSheet {
                 selectedModelForStep3 = nil
                 isAddingModel = false
             } catch {
-                NSLog("[AddProvider] Add model failed: \(error)")
+                logger.error("Add model failed: \(String(describing: error))")
                 isAddingModel = false
             }
         }

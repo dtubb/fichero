@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
 
 /// Popover for configuring a workflow node
 struct NodePopover: View {
@@ -288,7 +291,7 @@ struct NodePopover: View {
                 node.modelName = selectedModelId
             }
         } catch {
-            NSLog("[NodePopover] Failed to load providers: \(error)")
+            logger.error("Failed to load providers: \(String(describing: error))")
         }
     }
 }

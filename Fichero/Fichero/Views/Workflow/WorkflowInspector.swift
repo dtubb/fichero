@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowInspector")
 
 /// Inspector panel for workflow editor - shows available blocks to drag onto canvas
 struct WorkflowInspector: View {
@@ -40,9 +43,9 @@ struct WorkflowInspector: View {
             let response = try await workflowService.listToolsGrouped()
             toolCategories = response.categories
             let totalTools = response.categories.reduce(0) { $0 + $1.tools.count }
-            NSLog("[WorkflowInspector] Loaded \(totalTools) tools in \(response.categories.count) categories")
+            logger.info("Loaded \(totalTools) tools in \(response.categories.count) categories")
         } catch {
-            NSLog("[WorkflowInspector] Failed to load tools: \(error)")
+            logger.error("Failed to load tools: \(String(describing: error))")
             // Fall back to empty - UI will show placeholder
         }
     }

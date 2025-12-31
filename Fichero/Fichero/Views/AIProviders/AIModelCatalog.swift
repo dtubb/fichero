@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIModelCatalog")
 
 /// AI model catalog for discovering Hugging Face models
 /// Features: search, filter by task, sort, pagination
@@ -210,7 +213,7 @@ struct AIModelCatalog: View {
             }
             hasMore = response.hasMore
         } catch {
-            NSLog("[ModelBrowser] Search failed: \(error)")
+            logger.error("Search failed: \(String(describing: error))")
         }
     }
 

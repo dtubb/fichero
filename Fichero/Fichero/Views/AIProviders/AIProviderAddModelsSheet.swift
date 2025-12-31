@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIProviderAddModelsSheet")
 
 /// Sheet for adding models to a provider (uses shared AIModelSelectionView)
 struct AIProviderAddModelsSheet: View {
@@ -86,7 +89,7 @@ struct AIProviderAddModelsSheet: View {
                 await onAdd()
                 dismiss()
             } catch {
-                NSLog("[ModelBrowser] Add model failed: \(error)")
+                logger.error("Add model failed: \(String(describing: error))")
             }
             isAdding = false
         }

@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
 
 /// Main content view with three-column navigation
 /// Switches between Library, Search, and Workflow views based on sidebar selection
@@ -434,7 +437,7 @@ extension ContentView {
     func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {
         let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
         editingWorkflow.nodes.append(newNode)
-        NSLog("[ContentView] Added node '\(tool.displayName)' at (\(position.x), \(position.y))")
+        logger.info("Added node '\(tool.displayName)' at (\(position.x), \(position.y))")
     }
 
     // MARK: - Navigation
@@ -451,7 +454,7 @@ extension ContentView {
             do {
                 try await conversationService.loadConversations()
             } catch {
-                NSLog("[ContentView] Failed to refresh conversations: %@", error.localizedDescription)
+                logger.error("Failed to refresh conversations: \(error.localizedDescription)")
             }
         }
     }
@@ -463,7 +466,7 @@ extension ContentView {
             do {
                 try await savedSearchService.loadSavedSearches()
             } catch {
-                NSLog("[ContentView] Failed to refresh saved searches: %@", error.localizedDescription)
+                logger.error("Failed to refresh saved searches: \(error.localizedDescription)")
             }
         }
     }
@@ -472,7 +475,7 @@ extension ContentView {
 
     /// Handle files dropped from Finder
     func handleFileDrop(urls: [URL]) {
-        NSLog("[ContentView] Files dropped: \(urls.map { $0.lastPathComponent })")
+        logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
 
         // Determine target parent ID from current selection
         var targetParentId: String?
@@ -491,7 +494,7 @@ extension ContentView {
                 do {
                     // Check if it's a file URL
                     guard url.isFileURL else {
-                        NSLog("[ContentView] Skipping non-file URL: \(url)")
+                        logger.warning("Skipping non-file URL: \(url)")
                         continue
                     }
 
@@ -501,12 +504,12 @@ extension ContentView {
                     }
 
                     // Import the file
-                    NSLog("[ContentView] Importing file: \(url.path)")
+                    logger.info("Importing file: \(url.path)")
                     _ = try await documentStore.importFile(at: url, parentId: targetParentId)
                     successCount += 1
 
                 } catch {
-                    NSLog("[ContentView] Failed to import \(url.lastPathComponent): \(error)")
+                    logger.error("Failed to import \(url.lastPathComponent): \(String(describing: error))")
                     failedFiles.append(url.lastPathComponent)
                 }
             }
@@ -525,7 +528,7 @@ extension ContentView {
                 if successCount > 0 {
                     Task {
                         await documentStore.loadCollections()
-                        NSLog("[ContentView] Successfully imported \(successCount) file(s)")
+                        logger.info("Successfully imported \(successCount) file(s)")
                     }
                 }
             }
@@ -755,7 +758,7 @@ struct MainContentModifiers: ViewModifier {
                         description: fullWorkflow.description
                     )
                 } catch {
-                    NSLog("[ContentView] Failed to load workflow: %@", error.localizedDescription)
+                    logger.error("Failed to load workflow: \(error.localizedDescription)")
                     editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
                 }
             }

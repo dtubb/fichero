@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIModelSelectionView")
 
 /// Selection mode for model browser
 enum ModelSelectionMode {
@@ -234,7 +237,7 @@ struct AIModelSelectionView: View {
         do {
             models = try await providerService.listAvailableModels(providerType: providerType)
         } catch {
-            NSLog("[ModelBrowser] Load models failed: \(error)")
+            logger.error("Load models failed: \(String(describing: error))")
         }
     }
 
@@ -249,7 +252,7 @@ struct AIModelSelectionView: View {
                 )
                 onModelAdded()
             } catch {
-                NSLog("[ModelBrowser] Add model failed: \(error)")
+                logger.error("Add model failed: \(String(describing: error))")
             }
         }
     }

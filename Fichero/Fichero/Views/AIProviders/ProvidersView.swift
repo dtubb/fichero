@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ProvidersView")
 
 /// Providers management view - manage LLM providers and their models
 struct ProvidersView: View {
@@ -109,7 +112,7 @@ struct ProvidersView: View {
             providers = try await providerService.listProviders()
             catalog = try await providerService.listCatalog()
         } catch {
-            NSLog("[ProvidersSettings] Failed to load: \(error)")
+            logger.error("Failed to load: \(String(describing: error))")
         }
     }
 
@@ -121,7 +124,7 @@ struct ProvidersView: View {
                 selectedProvider = nil
                 await loadProviders()
             } catch {
-                NSLog("[ProvidersSettings] Delete failed: \(error)")
+                logger.error("Delete failed: \(String(describing: error))")
             }
         }
     }
@@ -408,7 +411,7 @@ struct ProviderDetailView: View {
                 testResult = try await providerService.testConnection(providerType: provider.providerType)
             } catch {
                 testError = error.localizedDescription
-                NSLog("[ProviderDetail] Test connection failed: \(error)")
+                logger.error("Test connection failed: \(String(describing: error))")
             }
             isTesting = false
         }
@@ -422,7 +425,7 @@ struct ProviderDetailView: View {
         do {
             userModels = try await providerService.listProviderModels(providerId: provider.id)
         } catch {
-            NSLog("[ProviderDetail] Load models failed: \(error)")
+            logger.error("Load models failed: \(String(describing: error))")
         }
     }
 
@@ -434,7 +437,7 @@ struct ProviderDetailView: View {
                 apiKey = ""
                 await onUpdate()
             } catch {
-                NSLog("[ProviderDetail] Save key failed: \(error)")
+                logger.error("Save key failed: \(String(describing: error))")
             }
             isSaving = false
         }
@@ -446,7 +449,7 @@ struct ProviderDetailView: View {
                 try await providerService.deleteAPIKey(providerType: provider.providerType)
                 await onUpdate()
             } catch {
-                NSLog("[ProviderDetail] Remove key failed: \(error)")
+                logger.error("Remove key failed: \(String(describing: error))")
             }
         }
     }
@@ -458,7 +461,7 @@ struct ProviderDetailView: View {
                 try await providerService.removeModel(providerId: provider.id, modelId: model.id)
                 await loadModels()
             } catch {
-                NSLog("[ProviderDetail] Delete model failed: \(error)")
+                logger.error("Delete model failed: \(String(describing: error))")
             }
         }
     }
