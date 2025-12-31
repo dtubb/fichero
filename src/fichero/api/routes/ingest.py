@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel
 
 from fichero.models import Document
+from fichero.db import Database
+from fichero.api.main import get_library_database
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,7 +65,11 @@ class IngestTaskStatus(BaseModel):
 # Routes
 
 @router.post("/file")
-async def ingest_file(request: IngestFileRequest) -> Document:
+async def ingest_file(
+    request: IngestFileRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+) -> Document:
     """
     Ingest a single file into the library.
 
@@ -79,6 +85,7 @@ async def ingest_file(request: IngestFileRequest) -> Document:
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
     mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    package_path = Path(x_fichero_library_path)
 
     try:
         doc = do_ingest(
@@ -87,6 +94,8 @@ async def ingest_file(request: IngestFileRequest) -> Document:
             parent_id=request.parent_id,
             extract_text=request.extract_text,
             auto_embed=request.auto_embed,
+            db=db,
+            package_path=package_path,
         )
         logger.info(f"Ingested file: {path.name} -> {doc.id}")
         return doc
@@ -99,6 +108,8 @@ async def ingest_file(request: IngestFileRequest) -> Document:
 async def ingest_folder(
     request: IngestFolderRequest,
     background_tasks: BackgroundTasks,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> IngestTaskResponse:
     """
     Ingest a folder into the library.
@@ -117,6 +128,7 @@ async def ingest_folder(
     # Create task
     task_id = uuid4().hex[:12]
     total = count_files(path, recursive=request.recursive)
+    package_path = Path(x_fichero_library_path)
 
     _tasks[task_id] = {
         "status": "pending",
@@ -128,7 +140,7 @@ async def ingest_folder(
         "document_ids": [],
     }
 
-    # Background ingest
+    # Background ingest (capture db and package_path for use in background task)
     def do_background_ingest():
         mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
 
@@ -146,6 +158,8 @@ async def ingest_folder(
                 extract_text=request.extract_text,
                 auto_embed=request.auto_embed,
                 on_progress=on_progress,
+                db=db,
+                package_path=package_path,
             )
             _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["progress"] = 1.0

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Workflow editor content view - canvas with optional output log
-/// This view goes in the content column, with WorkflowInspectorView in the detail column
-struct WorkflowView: View {
+/// This view goes in the content column, with WorkflowInspector in the detail column
+struct WorkflowEditor: View {
     /// Reference to the selected workflow from sidebar (for display info)
     let selectedWorkflow: WorkflowSidebarItem?
 
@@ -14,7 +14,11 @@ struct WorkflowView: View {
     @State private var showOutputLog: Bool = false
     @State private var executionState: WorkflowExecutionState?
 
-    @StateObject private var workflowStore = WorkflowStore()
+    // Canvas state (passed to WorkflowCanvasView)
+    @State private var scale: CGFloat = 1.0
+    @State private var snapToGrid: Bool = true
+
+    @StateObject private var workflowStore = WorkflowStore(apiClient: APIClient())
 
     init(
         workflow: WorkflowSidebarItem?,
@@ -25,74 +29,50 @@ struct WorkflowView: View {
     }
 
     var body: some View {
-        VSplitView {
-            // Main canvas area
-            WorkflowCanvasView(
-                workflow: $editingWorkflow
+        VStack(spacing: 0) {
+            // Workflow toolbar at top
+            WorkflowToolbar(
+                isRunning: $isRunning,
+                showOutputLog: $showOutputLog,
+                canRun: !editingWorkflow.nodes.isEmpty,
+                scale: $scale,
+                snapToGrid: $snapToGrid,
+                onRun: runWorkflow,
+                onSave: saveWorkflow,
+                onExport: exportWorkflow,
+                onResetZoom: resetZoom
             )
-            .frame(minHeight: 200)
 
-            // Output log (collapsible, only during/after run)
-            if showOutputLog {
-                WorkflowOutputLog(
-                    workflow: editingWorkflow,
-                    executionState: executionState
+            // Canvas and output log
+            VSplitView {
+                // Main canvas area
+                WorkflowCanvasView(
+                    workflow: $editingWorkflow,
+                    scale: $scale,
+                    snapToGrid: $snapToGrid
                 )
-                .frame(minHeight: 100, maxHeight: 250)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar {
-            workflowToolbar
-        }
-    }
+                .frame(minHeight: 200)
 
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var workflowToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            // Toggle output log
-            Button(action: { showOutputLog.toggle() }) {
-                Image(systemName: showOutputLog ? "rectangle.bottomhalf.filled" : "rectangle.bottomhalf.inset.filled")
-            }
-            .help(showOutputLog ? "Hide Output Log" : "Show Output Log")
-
-            Divider()
-
-            // Save
-            Button(action: {
-                Task {
-                    await saveWorkflow()
-                }
-            }) {
-                Image(systemName: "square.and.arrow.down")
-            }
-            .help("Save Workflow")
-
-            // Export
-            Button(action: exportWorkflow) {
-                Image(systemName: "square.and.arrow.up")
-            }
-            .help("Export Workflow")
-
-            // Run button
-            Button(action: runWorkflow) {
-                if isRunning {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                } else {
-                    Image(systemName: "play.fill")
+                // Output log (collapsible, only during/after run)
+                if showOutputLog {
+                    WorkflowOutputLog(
+                        workflow: editingWorkflow,
+                        executionState: executionState
+                    )
+                    .frame(minHeight: 100, maxHeight: 250)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .disabled(isRunning || editingWorkflow.nodes.isEmpty)
-            .help(isRunning ? "Running..." : "Run Workflow")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     // MARK: - Actions
+
+    private func resetZoom() {
+        withAnimation {
+            scale = 1.0
+        }
+    }
 
     private func runWorkflow() {
         isRunning = true
@@ -128,7 +108,6 @@ struct WorkflowView: View {
             // } else {
             //     _ = try await workflowStore.saveWorkflow(apiWorkflow)
             // }
-            
         } catch {
             print("Failed to save workflow: \(error)")
         }
@@ -152,12 +131,12 @@ struct WorkflowView: View {
                 Text("Sidebar")
                     .frame(width: 200)
             } content: {
-                WorkflowView(
+                WorkflowEditor(
                     workflow: nil,  // No sidebar selection in preview
                     editingWorkflow: $workflow
                 )
             } detail: {
-                WorkflowInspectorView(
+                WorkflowInspector(
                     workflow: $workflow,
                     onAddNode: { tool, position in
                         let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)

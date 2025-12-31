@@ -4,16 +4,23 @@ import Foundation
 ///
 /// Uses Swift concurrency (async/await) for all network operations.
 /// The backend runs on localhost:8765 when started with `fichero serve`.
+///
+/// **Per-Window Instance**: Each DocumentTabView creates its own APIClient instance
+/// with its own currentLibraryPath. This ensures operations in one window don't
+/// affect other windows operating on different .fichero libraries.
 @MainActor
 class APIClient: ObservableObject {
-    static let shared = APIClient()
-
     private let baseURL: URL
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    private init() {
+    /// Current library path - set by DocumentTabView when a library is loaded
+    /// Sent as "X-Fichero-Library-Path" header with every request
+    /// This is the path to the .fichero package document (e.g., "/Users/name/Documents/MyLibrary.fichero")
+    @Published var currentLibraryPath: String?
+
+    init() {
         self.baseURL = URL(string: "http://127.0.0.1:8765/api")!
 
         // Configure session
@@ -67,6 +74,15 @@ class APIClient: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
     }
 
+    // MARK: - Request Configuration
+
+    /// Add library path header to request if currentLibraryPath is set
+    private func configureRequest(_ request: inout URLRequest) {
+        if let libraryPath = currentLibraryPath {
+            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        }
+    }
+
     // MARK: - Health Check
 
     func healthCheck() async throws -> HealthResponse {
@@ -87,6 +103,7 @@ class APIClient: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        configureRequest(&request)
 
         NSLog("[APIClient] GET %@", url.absoluteString)
 
@@ -109,6 +126,7 @@ class APIClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try encoder.encode(body)
+        configureRequest(&request)
 
         NSLog("[APIClient] POST %@", url.absoluteString)
         if let bodyData = request.httpBody, let bodyString = String(data: bodyData, encoding: .utf8) {
@@ -136,6 +154,7 @@ class APIClient: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        configureRequest(&request)
 
         NSLog("[APIClient] POST %@ (no body)", url.absoluteString)
 
@@ -161,6 +180,7 @@ class APIClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try encoder.encode(body)
+        configureRequest(&request)
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
@@ -181,6 +201,7 @@ class APIClient: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        configureRequest(&request)
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
@@ -192,6 +213,7 @@ class APIClient: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        configureRequest(&request)
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
@@ -255,6 +277,7 @@ extension APIClient {
 
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(body)
+        configureRequest(&request)
 
         NSLog("[APIClient] PATCH %@", url.absoluteString)
 
@@ -285,6 +308,7 @@ extension APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try encoder.encode(body)
+        configureRequest(&request)
 
         NSLog("[APIClient] POST %@ (no response)", url.absoluteString)
 

@@ -5,7 +5,11 @@ import Combine
 /// Supports Hugging Face model discovery with search and filtering.
 @MainActor
 class ModelService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Hugging Face Models
 

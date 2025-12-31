@@ -4,7 +4,11 @@ import Combine
 /// Service for search operations via the Fichero backend.
 @MainActor
 class SearchService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Semantic Search
 
@@ -83,7 +87,18 @@ struct SearchRequest: Codable {
         case highlightResults = "highlight_results"
     }
 
-    init(query: String, limit: Int = 10, minScore: Double = 0.0, searchType: String = "hybrid", filters: [String: String]? = nil, sortBy: String = "relevance", sortOrder: String = "desc", offset: Int = 0, useFuzzyMatch: Bool = false, highlightResults: Bool = true) {
+    init(
+        query: String,
+        limit: Int = 10,
+        minScore: Double = 0.0,
+        searchType: String = "hybrid",
+        filters: [String: String]? = nil,
+        sortBy: String = "relevance",
+        sortOrder: String = "desc",
+        offset: Int = 0,
+        useFuzzyMatch: Bool = false,
+        highlightResults: Bool = true
+    ) {
         self.query = query
         self.limit = limit
         self.minScore = minScore

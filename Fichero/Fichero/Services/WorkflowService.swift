@@ -4,7 +4,11 @@ import Combine
 /// Service for managing workflow tools and execution via the backend API.
 @MainActor
 class WorkflowService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Tools
 

@@ -10,8 +10,12 @@ class WorkflowStore: ObservableObject {
     @Published var isSaving = false
     @Published var isConnected = false
     @Published var error: Error?
-    
-    private let workflowService = WorkflowService()
+
+    private let workflowService: WorkflowService
+
+    init(apiClient: APIClient) {
+        self.workflowService = WorkflowService(apiClient: apiClient)
+    }
     
     func checkConnection() async {
         do {

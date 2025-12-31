@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Visual representation of a node port (input or output connection point)
-struct PortView: View {
+struct WorkflowPortView: View {
     let port: PortInfo
     let isConnected: Bool
     let nodeColor: Color
@@ -106,7 +106,7 @@ struct PortView: View {
 }
 
 /// Draggable port for creating new edges
-struct DraggablePortView: View {
+struct DraggableWorkflowPortView: View {
     let port: PortInfo
     let nodeId: String
     let nodeColor: Color
@@ -118,7 +118,7 @@ struct DraggablePortView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        PortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
+        WorkflowPortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
             .frame(width: 18, height: 18)
             .contentShape(Circle())
             .highPriorityGesture(
@@ -140,7 +140,7 @@ struct DraggablePortView: View {
 }
 
 /// Input port that can receive edge connections and be dragged to detach
-struct DroppablePortView: View {
+struct DroppableWorkflowPortView: View {
     let port: PortInfo
     let nodeId: String
     let nodeColor: Color
@@ -153,7 +153,7 @@ struct DroppablePortView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        PortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
+        WorkflowPortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
             .frame(width: 18, height: 18)
             .contentShape(Circle())
             // Show hover state when edge drag is in progress
@@ -195,7 +195,7 @@ struct InputPortsView: View {
         VStack(spacing: 8) {
             ForEach(ports) { port in
                 HStack(spacing: 4) {
-                    DroppablePortView(
+                    DroppableWorkflowPortView(
                         port: port,
                         nodeId: nodeId,
                         nodeColor: nodeColor,
@@ -234,7 +234,7 @@ struct OutputPortsView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
 
-                    DraggablePortView(
+                    DraggableWorkflowPortView(
                         port: port,
                         nodeId: nodeId,
                         nodeColor: nodeColor,
@@ -255,17 +255,17 @@ struct OutputPortsView: View {
     HStack(spacing: 20) {
         VStack(spacing: 8) {
             Text("Input Ports").font(.caption).foregroundColor(.secondary)
-            PortView(
+            WorkflowPortView(
                 port: PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "Input files"),
                 isConnected: false,
                 nodeColor: .blue
             )
-            PortView(
+            WorkflowPortView(
                 port: PortInfo(id: "text", name: "Text", portType: "input", dataType: "text", required: true, description: ""),
                 isConnected: true,
                 nodeColor: .blue
             )
-            PortView(
+            WorkflowPortView(
                 port: PortInfo(id: "json", name: "Data", portType: "input", dataType: "json", required: false, description: ""),
                 isConnected: false,
                 nodeColor: .purple
@@ -274,12 +274,12 @@ struct OutputPortsView: View {
 
         VStack(spacing: 8) {
             Text("Output Ports").font(.caption).foregroundColor(.secondary)
-            PortView(
+            WorkflowPortView(
                 port: PortInfo(id: "output", name: "Output", portType: "output", dataType: "text", required: true, description: ""),
                 isConnected: true,
                 nodeColor: .green
             )
-            PortView(
+            WorkflowPortView(
                 port: PortInfo(id: "any", name: "Any", portType: "output", dataType: "any", required: true, description: ""),
                 isConnected: false,
                 nodeColor: .orange

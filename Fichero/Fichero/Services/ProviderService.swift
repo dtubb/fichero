@@ -5,7 +5,11 @@ import SwiftUI
 /// API keys are stored in macOS Keychain via the Python backend.
 @MainActor
 class ProviderService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Catalog (read-only provider info)
 

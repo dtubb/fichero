@@ -31,7 +31,11 @@ struct SidebarSectionHeader: View {
             .padding(.horizontal, SidebarConstants.sectionHeaderHorizontalPadding)
             .background(
                 RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(isDropTargeted ? Color.accentColor.opacity(SidebarConstants.sectionDropTargetOpacity) : Color.clear)
+                    .fill(
+                        isDropTargeted
+                            ? Color.accentColor.opacity(SidebarConstants.sectionDropTargetOpacity)
+                            : Color.clear
+                    )
             )
             .dropDestination(for: String.self) { droppedIDs, _ in
                 onDrop?(droppedIDs) ?? false

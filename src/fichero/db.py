@@ -1101,7 +1101,74 @@ class Database:
             logger.warning(f"Saved searches migration check failed: {e}")
 
 
-# Global instance - can be overridden for testing
-db = Database()
-db._migrate_workflow_table()
-db._migrate_saved_search_table()
+# Multi-library database manager for package documents
+class DatabaseManager:
+    """Manages multiple Database instances for package documents.
+
+    Each .fichero package contains its own database files:
+    - MyLibrary.fichero/fichero.duckdb
+    - MyLibrary.fichero/lance/
+
+    The manager maintains a pool of open Database connections.
+    """
+
+    def __init__(self):
+        self._databases: dict[str, Database] = {}
+        self._lock = __import__('threading').Lock()
+        logger.info("DatabaseManager initialized")
+
+    def get_database(self, package_path: str | Path) -> Database:
+        """Get or create Database instance for a package.
+
+        Args:
+            package_path: Path to the .fichero package directory
+                         (e.g., /Users/name/Documents/MyLibrary.fichero)
+
+        Returns:
+            Database instance for this package
+        """
+        package_path = Path(package_path)
+        package_str = str(package_path)
+
+        with self._lock:
+            if package_str not in self._databases:
+                # Create new database connection for this package
+                db_path = package_path / "fichero.duckdb"
+
+                logger.info(f"Creating database connection for package: {package_str}")
+
+                # Create the database instance
+                db = Database(path=db_path)
+
+                # Run migrations
+                db._migrate_workflow_table()
+                db._migrate_saved_search_table()
+
+                self._databases[package_str] = db
+                logger.info(f"Database connection created: {db_path}")
+
+            return self._databases[package_str]
+
+    def close_database(self, package_path: str | Path):
+        """Close database connection for a package."""
+        package_str = str(Path(package_path))
+
+        with self._lock:
+            if package_str in self._databases:
+                db = self._databases[package_str]
+                db.conn.close()
+                del self._databases[package_str]
+                logger.info(f"Closed database connection: {package_str}")
+
+    def close_all(self):
+        """Close all database connections."""
+        with self._lock:
+            for package_path, db in list(self._databases.items()):
+                db.conn.close()
+                logger.info(f"Closed database: {package_path}")
+            self._databases.clear()
+            logger.info("All database connections closed")
+
+
+# Global database manager for package documents
+db_manager = DatabaseManager()

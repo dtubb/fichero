@@ -20,7 +20,7 @@ struct ChatInspector: View {
     @State private var isExtracting: Bool = false
     @State private var extractionResult: String?
 
-    private let chatService = ChatService()
+    private let chatService = ChatService(apiClient: APIClient())
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -54,14 +54,18 @@ struct ChatInspector: View {
                 dropOverlay
             }
         }
-        .onChange(of: selectedDocuments) { _, newValue in
+        .onChange(of: selectedDocuments) { _, _ in
             Task { await loadScopedDocuments() }
         }
         .task {
             await loadScopedDocuments()
         }
     }
+}
 
+// MARK: - View Components
+
+extension ChatInspector {
     // MARK: - Header
 
     private var headerView: some View {
@@ -321,24 +325,6 @@ struct ChatInspector: View {
         .padding()
     }
 
-    private func extractAllText() async {
-        isExtracting = true
-        extractionResult = nil
-
-        do {
-            let response = try await chatService.extractText(documentIds: nil, force: false)
-            await MainActor.run {
-                extractionResult = "Done: \(response.extracted) extracted, \(response.skipped) skipped"
-                isExtracting = false
-            }
-        } catch {
-            await MainActor.run {
-                extractionResult = "Error: \(error.localizedDescription)"
-                isExtracting = false
-            }
-        }
-    }
-
     // MARK: - Loading
 
     private var loadingView: some View {
@@ -368,10 +354,12 @@ struct ChatInspector: View {
         .cornerRadius(8)
         .padding(4)
     }
+}
 
-    // MARK: - Actions
+// MARK: - Actions
 
-    private func removeSelectedFromScope() {
+extension ChatInspector {
+    func removeSelectedFromScope() {
         for id in listSelection {
             selectedDocuments.remove(id)
         }
@@ -385,7 +373,7 @@ struct ChatInspector: View {
 
         do {
             // Search documents by name (simple filter for now)
-            let allDocs: [Document] = try await APIClient.shared.get("/documents", query: ["limit": "100"])
+            let allDocs: [Document] = try await APIClient().get("/documents", query: ["limit": "100"])
             let filtered = allDocs.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) &&
                 $0.docType == .file
@@ -439,7 +427,7 @@ struct ChatInspector: View {
 
         for docId in selectedDocuments {
             do {
-                let doc: Document = try await APIClient.shared.get("/documents/\(docId)")
+                let doc: Document = try await APIClient().get("/documents/\(docId)")
                 loadedDocs.append(doc)
             } catch {
                 NSLog("[ChatInspector] Failed to load doc %@: %@", docId, error.localizedDescription)
@@ -450,6 +438,24 @@ struct ChatInspector: View {
             scopedDocuments = loadedDocs.sorted { $0.name < $1.name }
             isLoading = false
             listSelection = listSelection.intersection(selectedDocuments)
+        }
+    }
+
+    func extractAllText() async {
+        isExtracting = true
+        extractionResult = nil
+
+        do {
+            let response = try await chatService.extractText(documentIds: nil, force: false)
+            await MainActor.run {
+                extractionResult = "Done: \(response.extracted) extracted, \(response.skipped) skipped"
+                isExtracting = false
+            }
+        } catch {
+            await MainActor.run {
+                extractionResult = "Error: \(error.localizedDescription)"
+                isExtracting = false
+            }
         }
     }
 }

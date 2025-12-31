@@ -156,27 +156,21 @@ class Document(BaseModel):
 
     @property
     def thumbnail_path(self) -> str | None:
-        """Path to thumbnail image.
+        """Path to thumbnail image (package-relative).
 
-        Returns the computed storage path if it exists,
-        otherwise falls back to metadata.
+        Returns the expected package-relative path.
+        Use storage.get_thumbnail(doc, package_path) to check if it exists.
         """
-        # Prefer computed path (storage module) if file exists
-        if self.expected_thumbnail_path.exists():
-            return str(self.expected_thumbnail_path)
-        # Fallback to metadata
-        return self.metadata.get("thumbnail_path")
+        return self.expected_thumbnail_path
 
     @property
     def display_path(self) -> str | None:
-        """Path to display-size image.
+        """Path to display-size image (package-relative).
 
-        Returns the computed storage path if it exists,
-        otherwise falls back to metadata.
+        Returns the expected package-relative path.
+        Use storage.get_display(doc, package_path) to check if it exists.
         """
-        if self.expected_display_path.exists():
-            return str(self.expected_display_path)
-        return self.metadata.get("display_path")
+        return self.expected_display_path
 
     @property
     def full_path(self) -> str | None:
@@ -229,33 +223,49 @@ class Document(BaseModel):
 
     @computed_field
     @property
-    def expected_thumbnail_path(self) -> Path:
-        """Expected thumbnail path (may not exist yet).
+    def expected_thumbnail_path(self) -> str:
+        """Expected thumbnail path relative to package (may not exist yet).
 
-        Uses sharded storage for scale:
-        thumbnails/{id[:2]}/{id}.jpg
+        Returns package-relative path for multi-library support:
+        storage/thumbnails/{id[:2]}/{id}.jpg
+
+        For actual file access, use storage.get_thumbnail(doc, package_path).
         """
-        from fichero.storage import settings
         prefix = self.id[:2].lower()
-        return settings.thumb_dir / prefix / f"{self.id}.jpg"
+        return f"storage/thumbnails/{prefix}/{self.id}.jpg"
 
     @computed_field
     @property
-    def expected_display_path(self) -> Path:
-        """Expected display-size image path (may not exist yet)."""
-        from fichero.storage import settings
+    def expected_display_path(self) -> str:
+        """Expected display-size image path relative to package (may not exist yet).
+
+        Returns package-relative path for multi-library support:
+        storage/thumbnails/{id[:2]}/{id}_display.jpg
+
+        For actual file access, use storage.get_display(doc, package_path).
+        """
         prefix = self.id[:2].lower()
-        return settings.thumb_dir / prefix / f"{self.id}_display.jpg"
+        return f"storage/thumbnails/{prefix}/{self.id}_display.jpg"
 
     @property
     def has_thumbnail(self) -> bool:
-        """Check if thumbnail exists on disk."""
-        return self.expected_thumbnail_path.exists()
+        """Check if thumbnail exists on disk.
+
+        NOTE: In multi-library mode, this always returns False.
+        Use storage.has_thumbnail(doc.id, package_path) instead.
+        """
+        # Cannot check existence without package_path in multi-library architecture
+        return False
 
     @property
     def has_display(self) -> bool:
-        """Check if display image exists on disk."""
-        return self.expected_display_path.exists()
+        """Check if display image exists on disk.
+
+        NOTE: In multi-library mode, this always returns False.
+        Use storage.has_display(doc.id, package_path) instead.
+        """
+        # Cannot check existence without package_path in multi-library architecture
+        return False
 
     # =========================================================================
     # macOS bookmark support (for external file tracking)

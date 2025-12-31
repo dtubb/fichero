@@ -4,7 +4,11 @@ import Combine
 /// Service for RAG chat operations via the Fichero backend.
 @MainActor
 class ChatService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Chat
 

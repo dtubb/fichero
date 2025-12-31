@@ -1,23 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Browser view modes
-enum BrowserViewMode: String, CaseIterable {
-    case icons = "Icons"
-    case list = "List"
-    case table = "Table"
-    case map = "Map"
-
-    var icon: String {
-        switch self {
-        case .icons: return "square.grid.2x2"
-        case .list: return "list.bullet"
-        case .table: return "tablecells"
-        case .map: return "rectangle.3.group"
-        }
-    }
-}
-
 /// Column definition for table view
 struct ColumnDefinition: Identifiable, Hashable {
     let id: String
@@ -35,16 +18,16 @@ struct ColumnDefinition: Identifiable, Hashable {
         ColumnDefinition(id: "path", title: "Path", defaultVisible: false, minWidth: 100, idealWidth: 150),
         ColumnDefinition(id: "createdDate", title: "Created", defaultVisible: true, minWidth: 80, idealWidth: 100),
         ColumnDefinition(id: "modifiedDate", title: "Modified", defaultVisible: false, minWidth: 80, idealWidth: 100),
-        ColumnDefinition(id: "size", title: "Size", defaultVisible: false, minWidth: 60, idealWidth: 80),
+        ColumnDefinition(id: "size", title: "Size", defaultVisible: false, minWidth: 60, idealWidth: 80)
     ]
 }
 
 /// Grid/List/Table/Map view of documents
-struct BrowserView: View {
+struct LibraryView: View {
     let documents: [Document]
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
-    var viewMode: BrowserViewMode = .icons
+    @Binding var viewMode: LibraryLayout
 
     @State private var searchText: String = ""
     @State private var sortOrder: [KeyPathComparator<Document>] = [
@@ -98,6 +81,23 @@ struct BrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // View-specific toolbar at top
+            LibraryViewToolbar(
+                viewMode: $viewMode,
+                showColumnConfig: true,
+                showName: $showName,
+                showStatus: $showStatus,
+                showProgress: $showProgress,
+                showOutput: $showOutput,
+                showFileType: $showFileType,
+                showPath: $showPath,
+                showCreatedDate: $showCreatedDate,
+                showModifiedDate: $showModifiedDate,
+                showSize: $showSize,
+                onResetColumns: resetColumns
+            )
+
+            // Main content
             if filteredDocuments.isEmpty {
                 emptyState
             } else {
@@ -114,47 +114,48 @@ struct BrowserView: View {
             }
         }
         .frame(minWidth: 400)
-        .toolbar {
-            toolbarContent
-        }
         .searchable(text: $searchText, prompt: "Search documents")
     }
 
-    // MARK: - Toolbar
+    // MARK: - Column Management
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        // Column visibility menu (only for table view)
-        ToolbarItem(placement: .automatic) {
-            if viewMode == .table {
-                Menu {
-                    Text("Show Columns")
-                        .font(.caption)
-
-                    Divider()
-
-                    Toggle("Name", isOn: $showName)
-                    Toggle("Status", isOn: $showStatus)
-                    Toggle("Progress", isOn: $showProgress)
-                    Toggle("Output", isOn: $showOutput)
-                    Toggle("Type", isOn: $showFileType)
-                    Toggle("Path", isOn: $showPath)
-                    Toggle("Created", isOn: $showCreatedDate)
-                    Toggle("Modified", isOn: $showModifiedDate)
-                    Toggle("Size", isOn: $showSize)
-
-                    Divider()
-
-                    Button("Reset to Default") {
-                        resetColumnVisibility()
-                    }
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-                .help("Configure Columns")
-            }
-        }
+    private func resetColumns() {
+        showName = true
+        showStatus = true
+        showProgress = true
+        showOutput = true
+        showFileType = true
+        showPath = false
+        showCreatedDate = true
+        showModifiedDate = false
+        showSize = false
     }
+
+    // MARK: - Old Toolbar (being removed)
+    //
+    // The toolbar content has been moved to LibraryViewToolbar.swift
+    // This section can be deleted - keeping temporarily for reference
+    //
+    // @ToolbarContentBuilder
+    // private var toolbarContent: some ToolbarContent {
+    //     ToolbarItem(placement: .automatic) {
+    //         if viewMode == .table {
+    //             Menu {
+    //                 Text("Show Columns")
+    //
+    //                 Divider()
+    //
+    //                 Toggle("Name", isOn: $showName)
+    //                 ...
+    //                     resetColumnVisibility()
+    //                 }
+    //             } label: {
+    //                 Image(systemName: "slider.horizontal.3")
+    //             }
+    //             .help("Configure Columns")
+    //         }
+    //     }
+    // }
 
     // MARK: - Icons View (Grid)
 
@@ -257,24 +258,22 @@ struct BrowserView: View {
 
     private func initializeMapPositions() {
         // Only initialize if not already set
-        for (index, doc) in filteredDocuments.enumerated() {
-            if mapPositions[doc.id] == nil {
-                let row = index / 4
-                let col = index % 4
-                mapPositions[doc.id] = CGPoint(
-                    x: 100 + CGFloat(col) * 200,
-                    y: 100 + CGFloat(row) * 150
-                )
-            }
+        for (index, doc) in filteredDocuments.enumerated() where mapPositions[doc.id] == nil {
+            let row = index / 4
+            let col = index % 4
+            mapPositions[doc.id] = CGPoint(
+                x: 100 + CGFloat(col) * 200,
+                y: 100 + CGFloat(row) * 150
+            )
         }
     }
 
     private func randomPosition(for doc: Document, in size: CGSize) -> CGPoint {
         // Generate consistent position based on document id hash
         let hash = doc.id.hashValue
-        let x = CGFloat(abs(hash % 1000)) / 1000 * (size.width - 200) + 100
-        let y = CGFloat(abs((hash / 1000) % 1000)) / 1000 * (size.height - 150) + 75
-        return CGPoint(x: x, y: y)
+        let xPos = CGFloat(abs(hash % 1000)) / 1000 * (size.width - 200) + 100
+        let yPos = CGFloat(abs((hash / 1000) % 1000)) / 1000 * (size.height - 150) + 75
+        return CGPoint(x: xPos, y: yPos)
     }
 
     // MARK: - Table Cell View
@@ -457,27 +456,10 @@ struct MapCard: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.windowBackgroundColor))
 
-                // Load thumbnail from backend API
-                AsyncImage(url: APIClient.shared.thumbnailURL(for: document.id)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .clipped()
-                    case .failure:
-                        Image(systemName: document.fileType?.icon ?? "doc")
-                            .font(.system(size: 32))
-                            .foregroundColor(.secondary)
-                    @unknown default:
-                        Image(systemName: document.fileType?.icon ?? "doc")
-                            .font(.system(size: 32))
-                            .foregroundColor(.secondary)
-                    }
-                }
+                // Load thumbnail from backend API with library path header
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .clipped()
 
                 // Status indicator overlay
                 VStack {
@@ -538,19 +520,19 @@ struct MapGridBackground: View {
             // Draw grid
             let path = Path { path in
                 // Vertical lines
-                var x: CGFloat = 0
-                while x < size.width {
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: size.height))
-                    x += gridSpacing
+                var xPos: CGFloat = 0
+                while xPos < size.width {
+                    path.move(to: CGPoint(x: xPos, y: 0))
+                    path.addLine(to: CGPoint(x: xPos, y: size.height))
+                    xPos += gridSpacing
                 }
 
                 // Horizontal lines
-                var y: CGFloat = 0
-                while y < size.height {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: size.width, y: y))
-                    y += gridSpacing
+                var yPos: CGFloat = 0
+                while yPos < size.height {
+                    path.move(to: CGPoint(x: 0, y: yPos))
+                    path.addLine(to: CGPoint(x: size.width, y: yPos))
+                    yPos += gridSpacing
                 }
             }
 
@@ -613,28 +595,10 @@ struct DocumentThumbnailView: View {
                     .fill(Color(.windowBackgroundColor))
                     .aspectRatio(1, contentMode: .fit)
 
-                // Load thumbnail from backend API
-                AsyncImage(url: APIClient.shared.thumbnailURL(for: document.id)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .clipped()
-                    case .failure:
-                        // Fallback to icon on error
-                        Image(systemName: document.fileType?.icon ?? "doc")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary)
-                    @unknown default:
-                        Image(systemName: document.fileType?.icon ?? "doc")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary)
-                    }
-                }
+                // Load thumbnail from backend API with library path header
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .clipped()
 
                 VStack {
                     Spacer()
@@ -687,43 +651,14 @@ struct DocumentThumbnailView: View {
     }
 }
 
-// MARK: - Status Badge
-
-struct StatusBadge: View {
-    let status: Status
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-
-            Text(status.rawValue.capitalized)
-                .font(.caption2)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(statusColor.opacity(0.15))
-        .cornerRadius(10)
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .pending: return .gray
-        case .processing: return .blue
-        case .completed: return .green
-        case .failed: return .red
-        }
-    }
-}
-
 // MARK: - Previews
 
 #Preview("Empty") {
-    BrowserView(
+    LibraryView(
         documents: [],
         selection: .constant(Set<String>()),
-        detailDocument: .constant(nil)
+        detailDocument: .constant(nil),
+        viewMode: .constant(.icons)
     )
     .frame(width: 600, height: 500)
 }

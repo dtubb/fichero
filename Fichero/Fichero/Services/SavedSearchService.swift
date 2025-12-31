@@ -4,7 +4,11 @@ import Combine
 /// Service for managing saved searches via the backend API.
 @MainActor
 class SavedSearchService: ObservableObject {
-    private let api = APIClient.shared
+    private let api: APIClient
+
+    init(apiClient: APIClient) {
+        self.api = apiClient
+    }
 
     // MARK: - Published State
 

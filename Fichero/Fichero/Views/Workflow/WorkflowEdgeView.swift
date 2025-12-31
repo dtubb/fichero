@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Visual representation of an edge (connection between ports)
-struct EdgeView: View {
+struct WorkflowEdgeView: View {
     let edge: WorkflowEdge
     let sourcePoint: CGPoint
     let targetPoint: CGPoint
@@ -135,7 +135,7 @@ struct EdgeView: View {
 }
 
 /// Edge being actively dragged from a port
-struct DraggingEdgeView: View {
+struct DraggingWorkflowEdgeView: View {
     let startPoint: CGPoint
     let currentPoint: CGPoint
 
@@ -166,7 +166,7 @@ struct EdgesView: View {
         ForEach(edges) { edge in
             if let sourcePoint = getPortPosition(nodeId: edge.sourceNodeId, portId: edge.sourcePortId, isOutput: true),
                let targetPoint = getPortPosition(nodeId: edge.targetNodeId, portId: edge.targetPortId, isOutput: false) {
-                EdgeView(
+                WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,
                     targetPoint: targetPoint,
@@ -221,7 +221,7 @@ struct PortPositionCalculator {
 #Preview("Edge Styles") {
     ZStack {
         // Normal edge
-        EdgeView(
+        WorkflowEdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
                 targetNodeId: "b",
@@ -235,7 +235,7 @@ struct PortPositionCalculator {
         )
 
         // Selected edge
-        EdgeView(
+        WorkflowEdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
                 targetNodeId: "c",
@@ -249,7 +249,7 @@ struct PortPositionCalculator {
         )
 
         // Conditional edge
-        EdgeView(
+        WorkflowEdgeView(
             edge: WorkflowEdge(
                 sourceNodeId: "a",
                 targetNodeId: "d",
@@ -265,7 +265,7 @@ struct PortPositionCalculator {
         )
 
         // Dragging edge
-        DraggingEdgeView(
+        DraggingWorkflowEdgeView(
             startPoint: CGPoint(x: 50, y: 350),
             currentPoint: CGPoint(x: 200, y: 380)
         )

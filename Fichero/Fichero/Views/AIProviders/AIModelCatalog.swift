@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Model browser for discovering Hugging Face models
+/// AI model catalog for discovering Hugging Face models
 /// Features: search, filter by task, sort, pagination
-struct ModelBrowserView: View {
+struct AIModelCatalog: View {
     @State private var models: [HFModelInfo] = []
     @State private var tasks: [HFTaskCategory] = []
     @State private var selectedTask: HFTaskCategory?
@@ -15,7 +15,7 @@ struct ModelBrowserView: View {
     @Binding var selectedModel: HFModelInfo?
     let onModelSelected: ((HFModelInfo) -> Void)?
 
-    private let modelService = ModelService()
+    private let modelService = ModelService(apiClient: APIClient())
     private let pageSize = 20
 
     init(selectedModel: Binding<HFModelInfo?> = .constant(nil), onModelSelected: ((HFModelInfo) -> Void)? = nil) {
@@ -302,7 +302,7 @@ struct TagView: View {
 
 // MARK: - Preview
 
-#Preview("Model Browser") {
-    ModelBrowserView()
+#Preview("AI Model Catalog") {
+    AIModelCatalog()
         .frame(width: 500, height: 600)
 }

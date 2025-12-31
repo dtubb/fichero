@@ -1,0 +1,77 @@
+import SwiftUI
+
+/// Image view that loads from backend with proper library path headers
+/// Replacement for AsyncImage which doesn't support custom headers
+struct LibraryImageView: View {
+    enum ImageType {
+        case thumbnail
+        case display
+    }
+
+    let documentId: String
+    let imageType: ImageType
+
+    // Access the shared DocumentStore which has the correctly configured APIClient
+    @EnvironmentObject var documentStore: DocumentStore
+
+    @State private var image: Image?
+    @State private var isLoading = false
+    @State private var loadError: Error?
+
+    var body: some View {
+        Group {
+            if let image = image {
+                image
+                    .resizable()
+            } else if isLoading {
+                ProgressView()
+                    .scaleEffect(0.6)
+            } else if loadError != nil {
+                Image(systemName: "photo")
+                    .foregroundColor(.secondary)
+            } else {
+                Color.clear
+            }
+        }
+        .task {
+            await loadImage()
+        }
+    }
+
+    private func loadImage() async {
+        guard image == nil else { return }
+
+        isLoading = true
+        loadError = nil
+
+        do {
+            // Use the DocumentStore's APIClient which has the library path set
+            let storageService = StorageService(apiClient: documentStore.api)
+
+            switch imageType {
+            case .thumbnail:
+                image = try await storageService.getThumbnail(documentId)
+            case .display:
+                image = try await storageService.getDisplayImage(documentId)
+            }
+        } catch {
+            loadError = error
+            // Silently fail - will show placeholder icon
+        }
+
+        isLoading = false
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    VStack(spacing: 20) {
+        LibraryImageView(documentId: "test-id", imageType: .thumbnail)
+            .frame(width: 100, height: 100)
+
+        LibraryImageView(documentId: "test-id", imageType: .display)
+            .frame(width: 300, height: 400)
+    }
+    .padding()
+}

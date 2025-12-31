@@ -9,10 +9,11 @@ import os
 from typing import Optional, List
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from fichero.db import db
+from fichero.db import Database
+from fichero.api.main import get_library_database
 from fichero.models import Document, Provider as ProviderModel, Model as ModelModel
 from fichero.keychain import has_api_key
 from fichero.providers import PROVIDERS as PROVIDER_CATALOG, get_provider_info
@@ -108,7 +109,7 @@ _conversations: dict[str, dict] = {}
 # Note: Providers and models now come from the database (configured via Providers UI)
 
 
-def _get_langchain_llm(provider: str = None, model: str = None):
+def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     """Get LangChain LLM instance for the specified provider/model.
 
     Uses the unified llm.py interface which supports all providers via LiteLLM.
@@ -186,7 +187,10 @@ Provide a helpful, accurate answer based on the documents above. Be concise but 
 
 
 @router.post("")
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: Database = Depends(get_library_database),
+) -> ChatResponse:
     """
     Send a message and get a response with RAG.
 
@@ -270,7 +274,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     # Generate response with LangChain LLM
     # Pass through request values - _get_langchain_llm handles None by looking up configured providers
     try:
-        llm = _get_langchain_llm(provider=request.provider, model=request.model)
+        llm = _get_langchain_llm(db, provider=request.provider, model=request.model)
         # Build model_used string for response
         provider = request.provider or "auto"
         model = request.model or "auto"
@@ -390,7 +394,9 @@ async def reorder_conversations(conversation_ids: list[str], folder_path: str = 
 
 
 @router.get("/providers")
-async def list_providers() -> List[ProviderInfo]:
+async def list_providers(
+    db: Database = Depends(get_library_database),
+) -> List[ProviderInfo]:
     """List available LLM providers and their models from user configuration."""
     result = []
 
@@ -446,7 +452,10 @@ class ExtractTextResponse(BaseModel):
 
 
 @router.post("/extract-text")
-async def extract_text(request: ExtractTextRequest) -> ExtractTextResponse:
+async def extract_text(
+    request: ExtractTextRequest,
+    db: Database = Depends(get_library_database),
+) -> ExtractTextResponse:
     """
     Extract text content from documents.
 

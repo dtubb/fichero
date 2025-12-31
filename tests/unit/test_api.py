@@ -9,23 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import tempfile
 
-from fastapi.testclient import TestClient
-
-from fichero.api.main import app
 from fichero.models import Document, DocType, FileType, Status
-
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_db():
-    """Mock database for testing."""
-    with patch("fichero.api.routes.documents.db") as mock:
-        yield mock
 
 
 @pytest.fixture
@@ -67,51 +51,55 @@ class TestHealthEndpoint:
 class TestStatsEndpoint:
     """Tests for /api/stats endpoint."""
 
-    def test_get_stats(self, client):
+    def test_get_stats(self, client, db, sample_doc):
         """Stats endpoint returns counts."""
-        with patch("fichero.db.db") as mock_db:
-            mock_db.count.return_value = 10
-            mock_db.embedding_stats.return_value = {"indexed_count": 5}
+        # Add some test data
+        db.save(sample_doc)
 
-            response = client.get("/api/stats")
-            assert response.status_code == 200
-            data = response.json()
-            assert "documents" in data
+        response = client.get("/api/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "documents" in data
+        assert data["documents"] == 1
 
 
 class TestDocumentRoutes:
     """Tests for /api/documents endpoints."""
 
-    def test_list_documents(self, client, mock_db, sample_doc):
+    def test_list_documents(self, client, db, sample_doc):
         """List documents returns array."""
-        mock_db.all.return_value = [sample_doc]
-        mock_db.query.return_value = [sample_doc]
+        db.save(sample_doc)
 
         response = client.get("/api/documents")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+        assert len(data) == 1
 
-    def test_list_documents_with_filters(self, client, mock_db, sample_doc):
+    def test_list_documents_with_filters(self, client, db, sample_doc):
         """List documents with type filter."""
-        mock_db.query.return_value = [sample_doc]
+        db.save(sample_doc)
 
         response = client.get("/api/documents?doc_type=file")
         assert response.status_code == 200
-        mock_db.query.assert_called()
+        data = response.json()
+        assert len(data) == 1
 
-    def test_list_collections(self, client, mock_db, sample_collection):
+    def test_list_collections(self, client, db, sample_collection):
         """List collections returns only collections."""
-        mock_db.query.return_value = [sample_collection]
+        db.save(sample_collection)
 
         response = client.get("/api/documents/collections")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 0
+        assert isinstance(data, list)
+        # Should have at least our saved collection
+        assert len(data) == 1
+        assert data[0]["doc_type"] == "folder"
 
-    def test_get_document_found(self, client, mock_db, sample_doc):
+    def test_get_document_found(self, client, db, sample_doc):
         """Get document by ID returns document."""
-        mock_db.get.return_value = sample_doc
+        db.save(sample_doc)
 
         response = client.get(f"/api/documents/{sample_doc.id}")
         assert response.status_code == 200
@@ -119,28 +107,25 @@ class TestDocumentRoutes:
         assert data["id"] == sample_doc.id
         assert data["name"] == sample_doc.name
 
-    def test_get_document_not_found(self, client, mock_db):
+    def test_get_document_not_found(self, client, db):
         """Get document returns 404 if not found."""
-        mock_db.get.return_value = None
-
         response = client.get("/api/documents/nonexistent")
         assert response.status_code == 404
 
-    def test_get_children(self, client, mock_db, sample_doc, sample_collection):
+    def test_get_children(self, client, db, sample_doc, sample_collection):
         """Get children of a document."""
-        mock_db.get.return_value = sample_collection
-        mock_db.query.return_value = [sample_doc]
+        db.save(sample_collection)
+        sample_doc.parent_id = sample_collection.id
+        db.save(sample_doc)
 
         response = client.get(f"/api/documents/{sample_collection.id}/children")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+        assert len(data) == 1
 
-    def test_create_document(self, client, mock_db):
+    def test_create_document(self, client, db):
         """Create document returns new document."""
-        mock_db.save.return_value = None
-        mock_db.get.return_value = None  # No parent check
-
         response = client.post("/api/documents", json={
             "name": "new_doc.jpg",
             "doc_type": "file",
@@ -149,12 +134,10 @@ class TestDocumentRoutes:
         assert response.status_code == 201
         data = response.json()
         assert data["name"] == "new_doc.jpg"
-        mock_db.save.assert_called_once()
 
-    def test_create_document_with_parent(self, client, mock_db, sample_collection):
+    def test_create_document_with_parent(self, client, db, sample_collection):
         """Create document with parent ID verifies parent exists."""
-        mock_db.get.return_value = sample_collection
-        mock_db.save.return_value = None
+        db.save(sample_collection)
 
         response = client.post("/api/documents", json={
             "name": "child_doc.jpg",
@@ -163,10 +146,8 @@ class TestDocumentRoutes:
         })
         assert response.status_code == 201
 
-    def test_create_document_invalid_parent(self, client, mock_db):
+    def test_create_document_invalid_parent(self, client, db):
         """Create document with invalid parent returns 400."""
-        mock_db.get.return_value = None  # Parent not found
-
         response = client.post("/api/documents", json={
             "name": "orphan_doc.jpg",
             "parent_id": "nonexistent",
@@ -174,10 +155,9 @@ class TestDocumentRoutes:
         })
         assert response.status_code == 400
 
-    def test_update_document(self, client, mock_db, sample_doc):
+    def test_update_document(self, client, db, sample_doc):
         """Update document modifies fields."""
-        mock_db.get.return_value = sample_doc
-        mock_db.save.return_value = None
+        db.save(sample_doc)
 
         response = client.put(f"/api/documents/{sample_doc.id}", json={
             "name": "renamed.jpg",
@@ -186,28 +166,22 @@ class TestDocumentRoutes:
         data = response.json()
         assert data["name"] == "renamed.jpg"
 
-    def test_update_document_not_found(self, client, mock_db):
+    def test_update_document_not_found(self, client, db):
         """Update nonexistent document returns 404."""
-        mock_db.get.return_value = None
-
         response = client.put("/api/documents/nonexistent", json={
             "name": "renamed.jpg",
         })
         assert response.status_code == 404
 
-    def test_delete_document(self, client, mock_db, sample_doc):
+    def test_delete_document(self, client, db, sample_doc):
         """Delete document removes it."""
-        mock_db.get.return_value = sample_doc
-        mock_db.delete.return_value = None
+        db.save(sample_doc)
 
         response = client.delete(f"/api/documents/{sample_doc.id}")
         assert response.status_code == 204
-        mock_db.delete.assert_called_once()
 
-    def test_delete_document_not_found(self, client, mock_db):
+    def test_delete_document_not_found(self, client, db):
         """Delete nonexistent document returns 404."""
-        mock_db.get.return_value = None
-
         response = client.delete("/api/documents/nonexistent")
         assert response.status_code == 404
 
@@ -215,27 +189,20 @@ class TestDocumentRoutes:
 class TestSearchRoutes:
     """Tests for /api/search endpoints."""
 
-    def test_semantic_search(self, client):
+    def test_semantic_search(self, client, db, sample_doc):
         """Semantic search returns results."""
-        with patch("fichero.api.routes.search.db") as mock_db:
-            from fichero.db import SearchResult
-            mock_db.search.return_value = [
-                SearchResult(
-                    document_id="doc1",
-                    score=0.95,
-                    content_preview="test content",
-                    metadata={"name": "test.jpg"},
-                )
-            ]
+        # Add doc with page_content for search
+        sample_doc.page_content = "test content for searching"
+        db.save(sample_doc)
 
-            response = client.post("/api/search", json={
-                "query": "test query",
-                "limit": 10,
-            })
-            assert response.status_code == 200
-            data = response.json()
-            assert "results" in data
-            assert data["count"] >= 0
+        response = client.post("/api/search", json={
+            "query": "test query",
+            "limit": 10,
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        assert "count" in data
 
     def test_search_empty_query(self, client):
         """Search with empty query returns 400."""
@@ -245,18 +212,12 @@ class TestSearchRoutes:
         })
         assert response.status_code == 400
 
-    def test_search_stats(self, client):
+    def test_search_stats(self, client, db):
         """Search stats returns embedding info."""
-        with patch("fichero.api.routes.search.db") as mock_db:
-            mock_db.embedding_stats.return_value = {
-                "indexed_count": 100,
-                "table_exists": True,
-            }
-
-            response = client.get("/api/search/stats")
-            assert response.status_code == 200
-            data = response.json()
-            assert "indexed_count" in data
+        response = client.get("/api/search/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "indexed_count" in data
 
 
 class TestIngestRoutes:
@@ -623,22 +584,15 @@ class TestStorageRoutes:
 
     def test_storage_stats(self, client):
         """Storage stats returns info."""
-        with patch("fichero.storage.stats") as mock_stats:
-            mock_stats.return_value = {
-                "count": 10,
-                "size_mb": 5.5,
-            }
+        response = client.get("/api/storage/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, dict)
 
-            response = client.get("/api/storage/stats")
-            assert response.status_code == 200
-
-    def test_get_thumbnail_not_found(self, client):
+    def test_get_thumbnail_not_found(self, client, db):
         """Get thumbnail for nonexistent doc returns 404."""
-        with patch("fichero.api.routes.storage.db") as mock_db:
-            mock_db.get.return_value = None
-
-            response = client.get("/api/storage/thumbnail/nonexistent")
-            assert response.status_code == 404
+        response = client.get("/api/storage/thumbnail/nonexistent")
+        assert response.status_code == 404
 
 
 class TestDocumentHierarchy:

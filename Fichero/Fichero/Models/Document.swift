@@ -280,12 +280,12 @@ struct EmbeddingStats: Codable {
 
 struct HealthResponse: Codable {
     let status: String
-    let database: String
-    let documentCount: Int
+    let backendVersion: String
+    let activeLibraries: Int
 
     enum CodingKeys: String, CodingKey {
         case status
-        case database
-        case documentCount = "document_count"
+        case backendVersion = "backend_version"
+        case activeLibraries = "active_libraries"
     }
 }

@@ -9,9 +9,11 @@ import logging
 from typing import Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
+from fichero.db import Database
+from fichero.api.main import get_library_database
 from fichero.workflows.types import (
     ToolDef,
     PortDef,
@@ -273,11 +275,12 @@ async def run_workflow_inline(
 # =============================================================================
 
 @router.post("")
-async def create_workflow(workflow: WorkflowDef) -> WorkflowResponse:
+async def create_workflow(
+    workflow: WorkflowDef,
+    db: Database = Depends(get_library_database),
+) -> WorkflowResponse:
     """Create and save a workflow definition."""
     try:
-        # Import here to avoid circular imports
-        from fichero.db import db
         from fichero.models import Workflow
 
         # Convert LangGraph workflow to database model
@@ -312,11 +315,11 @@ async def create_workflow(workflow: WorkflowDef) -> WorkflowResponse:
 async def import_workflow(
     name: str = "",
     description: str = "",
-    workflow_data: dict = {}
+    workflow_data: dict = {},
+    db: Database = Depends(get_library_database),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
         from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef, PortDef
 
@@ -358,10 +361,12 @@ async def import_workflow(
 
 
 @router.get("/{workflow_id}/export")
-async def export_workflow(workflow_id: str) -> dict:
+async def export_workflow(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Export a workflow as JSON data for sharing/importing."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
 
         workflow = db.get(Workflow, workflow_id)
@@ -389,11 +394,11 @@ async def export_workflow(workflow_id: str) -> dict:
 
 @router.get("")
 async def list_workflows(
-    folder_path: str = "/"
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
 ) -> list[WorkflowResponse]:
     """List saved workflows, optionally filtered by folder."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
         
         # Query workflows from database
@@ -417,10 +422,12 @@ async def list_workflows(
 
 
 @router.get("/{workflow_id}")
-async def get_workflow(workflow_id: str) -> WorkflowResponse:
+async def get_workflow(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> WorkflowResponse:
     """Get a saved workflow by ID."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
         
         workflow = db.get(Workflow, workflow_id)
@@ -447,10 +454,10 @@ async def get_workflow(workflow_id: str) -> WorkflowResponse:
 async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
+    db: Database = Depends(get_library_database),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
         
         # Get existing workflow
@@ -488,10 +495,12 @@ async def update_workflow(
 
 
 @router.delete("/{workflow_id}")
-async def delete_workflow(workflow_id: str):
+async def delete_workflow(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+):
     """Delete a saved workflow."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
 
         workflow = db.get(Workflow, workflow_id)
@@ -510,10 +519,12 @@ async def delete_workflow(workflow_id: str):
 
 
 @router.post("/{workflow_id}/duplicate")
-async def duplicate_workflow(workflow_id: str) -> WorkflowResponse:
+async def duplicate_workflow(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> WorkflowResponse:
     """Duplicate a workflow with a new ID and modified name."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
 
         # Get the original workflow
@@ -554,10 +565,13 @@ async def duplicate_workflow(workflow_id: str) -> WorkflowResponse:
 
 
 @router.post("/reorder")
-async def reorder_workflows(workflow_ids: list[str], folder_path: str = "/") -> dict:
+async def reorder_workflows(
+    workflow_ids: list[str],
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Reorder workflows within a folder."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
 
         # Update sort_order for each workflow
@@ -582,10 +596,10 @@ async def reorder_workflows(workflow_ids: list[str], folder_path: str = "/") -> 
 async def run_saved_workflow(
     workflow_id: str,
     request: WorkflowRunRequest,
+    db: Database = Depends(get_library_database),
 ) -> WorkflowRunResponse:
     """Run a saved workflow."""
     try:
-        from fichero.db import db
         from fichero.models import Workflow
         
         # Load workflow from database

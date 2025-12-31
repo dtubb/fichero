@@ -1,13 +1,16 @@
 import Foundation
 import os.log
-import AppKit
 
 /// Service for centralized error handling and management
+@MainActor
 class ErrorService: ObservableObject {
-    
+
     // Singleton instance
     static let shared = ErrorService()
-    
+
+    // Current alert to show (for SwiftUI .alert() modifier)
+    @Published var currentAlert: ErrorModel?
+
     // Error history for debugging and analytics
     @Published private(set) var errorHistory: [ErrorModel] = []
     
@@ -164,99 +167,21 @@ class ErrorService: ObservableObject {
     /// Add an error to the error history
     /// - Parameter errorModel: The error to add
     private func addToErrorHistory(_ errorModel: ErrorModel) {
-        DispatchQueue.main.async {
-            self.errorHistory.insert(errorModel, at: 0)
-            
-            // Trim history if it exceeds maximum count
-            if self.errorHistory.count > self.maxErrorHistoryCount {
-                self.errorHistory.removeLast()
-            }
+        errorHistory.insert(errorModel, at: 0)
+
+        // Trim history if it exceeds maximum count
+        if errorHistory.count > maxErrorHistoryCount {
+            errorHistory.removeLast()
         }
     }
     
     /// Show user feedback for an error
     /// - Parameter errorModel: The error to show feedback for
     private func showUserFeedback(for errorModel: ErrorModel) {
-        // For now, just log that we would show user feedback
-        // In a real implementation, this would show alerts, toasts, etc.
         logger.info("Showing user feedback for error: \(errorModel.title, privacy: .public)")
-        
-        // Show alert based on severity
-        switch errorModel.severity {
-        case .critical, .high:
-            showCriticalErrorAlert(errorModel)
-        case .medium:
-            showMediumErrorAlert(errorModel)
-        case .low, .info:
-            showLowErrorAlert(errorModel)
-        }
-    }
-    
-    /// Show alert for critical/high severity errors
-    /// - Parameter errorModel: The error to show
-    private func showCriticalErrorAlert(_ errorModel: ErrorModel) {
-        DispatchQueue.main.async {
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = errorModel.title
-                alert.informativeText = errorModel.message
-                
-                if let suggestion = errorModel.recoverySuggestion {
-                    alert.informativeText += "\n\n\(suggestion)"
-                }
-                
-                alert.addButton(withTitle: "OK")
-                
-                if errorModel.isRecoverable {
-                    alert.addButton(withTitle: "Retry")
-                }
-                
-                let response = alert.runModal()
-                
-                if response == .alertSecondButtonReturn && errorModel.isRecoverable {
-                    // User wants to retry - this would be handled by the calling code
-                    self.logger.info("User requested retry for error: \(errorModel.id.uuidString, privacy: .public)")
-                }
-            }
-        }
-    }
-    
-    /// Show alert for medium severity errors
-    /// - Parameter errorModel: The error to show
-    private func showMediumErrorAlert(_ errorModel: ErrorModel) {
-        DispatchQueue.main.async {
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = errorModel.title
-                alert.informativeText = errorModel.message
-                
-                if let suggestion = errorModel.recoverySuggestion {
-                    alert.informativeText += "\n\n\(suggestion)"
-                }
-                
-                alert.addButton(withTitle: "OK")
-                
-                if errorModel.isRecoverable {
-                    alert.addButton(withTitle: "Retry")
-                }
-                
-                alert.runModal()
-            }
-        }
-    }
-    
-    /// Show alert for low severity errors (toast-style)
-    /// - Parameter errorModel: The error to show
-    private func showLowErrorAlert(_ errorModel: ErrorModel) {
-        DispatchQueue.main.async {
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = errorModel.title
-                alert.informativeText = errorModel.message
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
-        }
+
+        // Set current alert - SwiftUI views will observe this and show .alert() modifier
+        currentAlert = errorModel
     }
     
     /// Get recent errors for debugging purposes
@@ -268,9 +193,7 @@ class ErrorService: ObservableObject {
     
     /// Clear error history
     func clearErrorHistory() {
-        DispatchQueue.main.async {
-            self.errorHistory.removeAll()
-        }
+        errorHistory.removeAll()
     }
     
     /// Handle error recovery attempt

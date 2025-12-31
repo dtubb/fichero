@@ -3,16 +3,17 @@ import SwiftUI
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
-    /// Applies standard sidebar styling (list style and minimum width).
+    /// Applies standard sidebar styling (list style, transparency, and minimum width).
     func sidebarStyle() -> some View {
         self
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)  // Transparent sidebar background
             .frame(minWidth: SidebarConstants.minimumWidth)
     }
 }
 
 extension View {
-    /// Adds sidebar toolbar with actions for creating, importing, renaming, and deleting items.
+    /// Adds sidebar toolbar with minimal actions.
     func sidebarToolbar(
         selectedItem: SidebarItem?,
         createFolder: @escaping () -> Void,
@@ -21,63 +22,58 @@ extension View {
         deleteItem: @escaping () -> Void
     ) -> some View {
         self.toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
+            ToolbarItem(placement: .automatic) {
                 Button(action: createFolder) {
                     Image(systemName: "folder.badge.plus")
                 }
-                .help("New Folder")
+                .help("New Folder (⌘⇧N)")
+            }
 
+            ToolbarItem(placement: .automatic) {
                 Button(action: importFiles) {
                     Image(systemName: "square.and.arrow.down")
                 }
-                .help("Import Files")
-
-                Button(action: renameItem) {
-                    Image(systemName: "pencil")
-                }
-                .help("Rename")
-                .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeRenamed ?? false))
-
-                Button(action: deleteItem) {
-                    Image(systemName: "trash")
-                }
-                .help("Delete")
-                .disabled(selectedItem == nil || !(selectedItem?.itemType.canBeDeleted ?? false))
+                .help("Import Files or Folders (⌘I)")
             }
         }
     }
 }
 
+/// Configuration for sidebar cache monitoring
+struct SidebarCacheMonitoringConfig {
+    let rebuildCaches: () -> Void
+    let documentStore: DocumentStore
+    let savedSearchService: SavedSearchService
+    let conversationService: ConversationService
+    let workflowStore: WorkflowStore
+    let selectedItem: SidebarItem?
+    let handleSelection: (SidebarItem?) -> Void
+}
+
 extension View {
     /// Monitors data sources and rebuilds sidebar caches when they change.
     func sidebarCacheMonitoring(
-        rebuildCaches: @escaping () -> Void,
-        documentStore: DocumentStore,
-        savedSearchService: SavedSearchService,
-        conversationService: ConversationService,
-        workflowStore: WorkflowStore,
-        selectedItem: SidebarItem?,
-        handleSelection: @escaping (SidebarItem?) -> Void
+        config: SidebarCacheMonitoringConfig
     ) -> some View {
         self
             .task {
                 // Build initial caches when view appears
-                rebuildCaches()
+                config.rebuildCaches()
             }
-            .onChange(of: documentStore.collections) { _, _ in
-                rebuildCaches()
+            .onChange(of: config.documentStore.collections) { _, _ in
+                config.rebuildCaches()
             }
-            .onChange(of: savedSearchService.savedSearches) { _, _ in
-                rebuildCaches()
+            .onChange(of: config.savedSearchService.savedSearches) { _, _ in
+                config.rebuildCaches()
             }
-            .onChange(of: conversationService.conversations) { _, _ in
-                rebuildCaches()
+            .onChange(of: config.conversationService.conversations) { _, _ in
+                config.rebuildCaches()
             }
-            .onChange(of: workflowStore.workflows) { _, _ in
-                rebuildCaches()
+            .onChange(of: config.workflowStore.workflows) { _, _ in
+                config.rebuildCaches()
             }
-            .onChange(of: selectedItem) { _, newItem in
-                handleSelection(newItem)
+            .onChange(of: config.selectedItem) { _, newItem in
+                config.handleSelection(newItem)
             }
     }
 }
@@ -87,12 +83,14 @@ extension View {
     func sidebarFocusedValues(
         selectedItem: SidebarItem?,
         createFolder: @escaping () -> Void,
+        importFiles: @escaping () -> Void,
         renameItem: @escaping () -> Void,
         deleteItem: @escaping () -> Void
     ) -> some View {
         self
             .focusedValue(\.sidebarActions, SidebarActions(
                 createFolder: createFolder,
+                importFiles: importFiles,
                 renameItem: renameItem,
                 deleteItem: deleteItem
             ))

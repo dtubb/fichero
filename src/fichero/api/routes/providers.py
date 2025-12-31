@@ -9,10 +9,11 @@ import time
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
-from fichero.db import db
+from fichero.db import Database
+from fichero.api.main import get_library_database
 from fichero.models import Provider as ProviderModel, Model as ModelModel, ProviderType
 from fichero.providers import PROVIDERS, get_provider_info, list_providers as list_catalog_providers
 from fichero.keychain import get_api_key, set_api_key, delete_api_key, has_api_key, is_available as keychain_available
@@ -545,7 +546,9 @@ async def list_models_for_provider(
 # =============================================================================
 
 @router.get("")
-async def list_providers() -> list[ProviderResponse]:
+async def list_providers(
+    db: Database = Depends(get_library_database),
+) -> list[ProviderResponse]:
     """List user's configured providers."""
     providers = db.all(ProviderModel)
     return [
@@ -564,7 +567,10 @@ async def list_providers() -> list[ProviderResponse]:
 
 
 @router.post("")
-async def create_provider(request: ProviderCreate) -> ProviderResponse:
+async def create_provider(
+    request: ProviderCreate,
+    db: Database = Depends(get_library_database),
+) -> ProviderResponse:
     """Create a new provider configuration."""
     # Validate provider type
     try:
@@ -602,7 +608,10 @@ async def create_provider(request: ProviderCreate) -> ProviderResponse:
 
 
 @router.get("/{provider_id}")
-async def get_provider(provider_id: str) -> ProviderResponse:
+async def get_provider(
+    provider_id: str,
+    db: Database = Depends(get_library_database),
+) -> ProviderResponse:
     """Get a specific provider configuration."""
     provider = db.get(ProviderModel, provider_id)
     if not provider:
@@ -621,7 +630,11 @@ async def get_provider(provider_id: str) -> ProviderResponse:
 
 
 @router.patch("/{provider_id}")
-async def update_provider(provider_id: str, request: ProviderUpdate) -> ProviderResponse:
+async def update_provider(
+    provider_id: str,
+    request: ProviderUpdate,
+    db: Database = Depends(get_library_database),
+) -> ProviderResponse:
     """Update a provider configuration."""
     provider = db.get(ProviderModel, provider_id)
     if not provider:
@@ -658,7 +671,10 @@ async def update_provider(provider_id: str, request: ProviderUpdate) -> Provider
 
 
 @router.delete("/{provider_id}")
-async def delete_provider(provider_id: str):
+async def delete_provider(
+    provider_id: str,
+    db: Database = Depends(get_library_database),
+):
     """Delete a provider and optionally its API key."""
     provider = db.get(ProviderModel, provider_id)
     if not provider:
@@ -1059,7 +1075,10 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
 # =============================================================================
 
 @router.get("/{provider_id}/models")
-async def list_provider_models(provider_id: str) -> list[UserModelResponse]:
+async def list_provider_models(
+    provider_id: str,
+    db: Database = Depends(get_library_database),
+) -> list[UserModelResponse]:
     """List user's configured models for a provider."""
     provider = db.get(ProviderModel, provider_id)
     if not provider:
@@ -1083,7 +1102,11 @@ async def list_provider_models(provider_id: str) -> list[UserModelResponse]:
 
 
 @router.post("/{provider_id}/models")
-async def add_model_to_provider(provider_id: str, request: ModelCreate) -> UserModelResponse:
+async def add_model_to_provider(
+    provider_id: str,
+    request: ModelCreate,
+    db: Database = Depends(get_library_database),
+) -> UserModelResponse:
     """Add a model configuration to a provider."""
     provider = db.get(ProviderModel, provider_id)
     if not provider:
@@ -1118,7 +1141,11 @@ async def add_model_to_provider(provider_id: str, request: ModelCreate) -> UserM
 
 
 @router.delete("/{provider_id}/models/{model_id}")
-async def remove_model_from_provider(provider_id: str, model_id: str):
+async def remove_model_from_provider(
+    provider_id: str,
+    model_id: str,
+    db: Database = Depends(get_library_database),
+):
     """Remove a model from a provider."""
     model = db.get(ModelModel, model_id)
     if not model or model.provider_id != provider_id:

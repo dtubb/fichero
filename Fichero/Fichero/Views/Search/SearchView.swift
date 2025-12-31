@@ -14,13 +14,13 @@ struct SearchView: View {
     @State private var sortOrder: String = "desc"    // "asc", "desc"
     @State private var filters = SearchFilters()
     @State private var searchResults: [SearchResult] = []
-    @State private var searchStats: SearchResponse? = nil
+    @State private var searchStats: SearchResponse?
     @State private var isSearching: Bool = false
     @State private var searchError: String?
     @State private var isSaving: Bool = false
 
-    private let searchService = SearchService()
-    private let savedSearchService = SavedSearchService()
+    private let searchService = SearchService(apiClient: APIClient())
+    private let savedSearchService = SavedSearchService(apiClient: APIClient())
 
     var body: some View {
         HSplitView {
@@ -184,35 +184,15 @@ struct SearchView: View {
 
     private var resultsPanel: some View {
         VStack(spacing: 0) {
-            // Results header
-            HStack {
-                if isSearching {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Searching...")
-                        .foregroundColor(.secondary)
-                } else if let error = searchError {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.orange)
-                    Text(error)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text("\(searchResults.count) results")
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                if !queryText.isEmpty || hasActiveFilters {
-                    Button("Save Search") {
-                        saveSearch()
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.windowBackgroundColor))
+            // View-specific toolbar at top
+            SearchViewToolbar(
+                isSearching: isSearching,
+                searchError: searchError,
+                resultsCount: searchResults.count,
+                hasQuery: !queryText.isEmpty,
+                hasActiveFilters: hasActiveFilters,
+                onSaveSearch: saveSearch
+            )
 
             Divider()
 
@@ -238,7 +218,7 @@ struct SearchView: View {
     private func loadDocument(_ id: String) {
         Task {
             do {
-                let doc: Document = try await APIClient.shared.get("/documents/\(id)")
+                let doc: Document = try await APIClient().get("/documents/\(id)")
                 await MainActor.run {
                     detailDocument = doc
                 }
@@ -343,7 +323,6 @@ struct SearchView: View {
         Task {
             do {
                 NSLog("[SearchView] Calling searchService.search with enhanced parameters...")
-                
                 // Convert filters to dictionary for API
                 var filterDict: [String: String] = [:]
                 if let docTypes = filters.docTypes, !docTypes.isEmpty {

@@ -11,7 +11,7 @@ struct WorkflowNodeView: View {
     let onPortDragChanged: (CGSize) -> Void  // Translation, not absolute position
     let onPortDragEnded: () -> Void
     let onPortDropReceived: (PortInfo, String) -> Void
-    var onInputPortDetach: ((PortInfo, String) -> Void)? = nil  // Detach from connected input
+    var onInputPortDetach: ((PortInfo, String) -> Void)?  // Detach from connected input
 
     private let width: CGFloat = 140
     private let height: CGFloat = 100
@@ -108,64 +108,77 @@ struct WorkflowNodeView: View {
 
     // MARK: - Static Helpers (reusable by other views)
 
+    private static let toolIcons: [String: String] = [
+        "files": "doc.on.doc",
+        "collection": "folder",
+        "search": "magnifyingglass",
+        "transcribe": "text.viewfinder",
+        "describe": "eye",
+        "analyze": "doc.text.magnifyingglass",
+        "enhance": "wand.and.stars",
+        "crop": "crop",
+        "rotate": "rotate.right",
+        "segment": "rectangle.split.3x1",
+        "summarize": "text.quote",
+        "translate": "globe",
+        "extract_entities": "person.text.rectangle",
+        "classify": "tag",
+        "custom_llm": "text.bubble",
+        "if": "arrow.triangle.branch",
+        "switch": "arrow.triangle.swap",
+        "loop": "repeat",
+        "filter": "line.3.horizontal.decrease.circle",
+        "merge": "arrow.triangle.merge",
+        "to_pdf": "doc.richtext",
+        "to_word": "doc.text",
+        "to_excel": "tablecells",
+        "to_json": "curlybraces",
+        "save_to_library": "square.and.arrow.down",
+        "export": "folder.badge.plus"
+    ]
+
+    private static let toolColors: [String: Color] = [
+        // Sources (green)
+        "files": .green,
+        "collection": .green,
+        "search": .green,
+        // Vision (blue)
+        "transcribe": .blue,
+        "describe": .blue,
+        "analyze": .blue,
+        // Transform (pink)
+        "enhance": .pink,
+        "crop": .pink,
+        "rotate": .pink,
+        "segment": .pink,
+        // LLM (purple)
+        "summarize": .purple,
+        "translate": .purple,
+        "extract_entities": .purple,
+        "classify": .purple,
+        "custom_llm": .purple,
+        // Logic (yellow)
+        "if": .yellow,
+        "switch": .yellow,
+        "loop": .yellow,
+        "filter": .yellow,
+        "merge": .yellow,
+        // Convert (orange)
+        "to_pdf": .orange,
+        "to_word": .orange,
+        "to_excel": .orange,
+        "to_json": .orange,
+        // Sink (red)
+        "save_to_library": .red,
+        "export": .red
+    ]
+
     static func iconForTool(_ tool: String) -> String {
-        switch tool {
-        case "files": return "doc.on.doc"
-        case "collection": return "folder"
-        case "search": return "magnifyingglass"
-        case "transcribe": return "text.viewfinder"
-        case "describe": return "eye"
-        case "analyze": return "doc.text.magnifyingglass"
-        case "enhance": return "wand.and.stars"
-        case "crop": return "crop"
-        case "rotate": return "rotate.right"
-        case "segment": return "rectangle.split.3x1"
-        case "summarize": return "text.quote"
-        case "translate": return "globe"
-        case "extract_entities": return "person.text.rectangle"
-        case "classify": return "tag"
-        case "custom_llm": return "text.bubble"
-        case "if": return "arrow.triangle.branch"
-        case "switch": return "arrow.triangle.swap"
-        case "loop": return "repeat"
-        case "filter": return "line.3.horizontal.decrease.circle"
-        case "merge": return "arrow.triangle.merge"
-        case "to_pdf": return "doc.richtext"
-        case "to_word": return "doc.text"
-        case "to_excel": return "tablecells"
-        case "to_json": return "curlybraces"
-        case "save_to_library": return "square.and.arrow.down"
-        case "export": return "folder.badge.plus"
-        default: return "gearshape"
-        }
+        return toolIcons[tool] ?? "gearshape"
     }
 
     static func colorForTool(_ tool: String) -> Color {
-        switch tool {
-        // Sources (green)
-        case "files", "collection", "search":
-            return .green
-        // Vision (blue)
-        case "transcribe", "describe", "analyze":
-            return .blue
-        // Transform (pink)
-        case "enhance", "crop", "rotate", "segment":
-            return .pink
-        // LLM (purple)
-        case "summarize", "translate", "extract_entities", "classify", "custom_llm":
-            return .purple
-        // Logic (yellow)
-        case "if", "switch", "loop", "filter", "merge":
-            return .yellow
-        // Convert (orange)
-        case "to_pdf", "to_word", "to_excel", "to_json":
-            return .orange
-        // Sink (red)
-        case "save_to_library", "export":
-            return .red
-        default:
-            return .gray
-        }
+        return toolColors[tool] ?? .gray
     }
 }
 

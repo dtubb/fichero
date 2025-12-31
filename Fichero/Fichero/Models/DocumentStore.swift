@@ -53,7 +53,7 @@ class DocumentStore: ObservableObject {
 
     // MARK: - Private
 
-    private let api = APIClient.shared
+    let api: APIClient  // Internal access for LibraryImageView and other components
 
     /// Publish a document change event.
     private func publish(_ change: DocumentChange) {
@@ -65,8 +65,10 @@ class DocumentStore: ObservableObject {
 
     // MARK: - Initialization
 
-    init() {
-        // Initial connection check will happen on first load
+    /// Initialize with a per-window APIClient instance.
+    /// This ensures operations in one window don't affect other windows.
+    init(apiClient: APIClient) {
+        self.api = apiClient
     }
 
     // MARK: - Connection
@@ -184,8 +186,12 @@ class DocumentStore: ObservableObject {
             docType: .folder
         )
         let folder: Document = try await api.post("/documents", body: doc)
-        collections.append(folder)
-        publish(.documentCreated(folder))
+
+        // Reload collections to show the newly created folder
+        // This handles both root-level folders and nested folders
+        await loadCollections()
+        publish(.collectionsUpdated(collections))
+
         return folder
     }
 
@@ -270,6 +276,37 @@ class DocumentStore: ObservableObject {
         return updated
     }
 
+    /// Import a folder recursively.
+    func importFolder(at url: URL, parentId: String? = nil) async throws {
+        struct IngestFolderRequest: Encodable {
+            let path: String
+            let parent_id: String?
+            let copy_mode: Bool
+            let recursive: Bool
+            let extract_text: Bool
+            let auto_embed: Bool
+        }
+
+        let request = IngestFolderRequest(
+            path: url.path,
+            parent_id: parentId,
+            copy_mode: true,  // Copy files into library
+            recursive: true,  // Include subdirectories
+            extract_text: true,  // Extract text for search
+            auto_embed: true  // Create embeddings
+        )
+
+        // Call the ingest/folder endpoint (returns task_id for async processing)
+        let _: [String: String] = try await api.post("/ingest/folder", body: request)
+
+        // Reload collections to show the imported folder
+        // The backend processes the folder in the background
+        // We reload immediately to show the folder structure
+        try await Task.sleep(nanoseconds: 500_000_000)  // Wait 0.5s for initial folder creation
+        await loadCollections()
+        publish(.collectionsUpdated(collections))
+    }
+
     /// Import a file into a specific location.
     func importFile(at url: URL, parentId: String? = nil) async throws -> Document {
         // Create form data for file upload
@@ -278,6 +315,14 @@ class DocumentStore: ObservableObject {
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        // Add library path header for multi-library support
+        if let libraryPath = api.currentLibraryPath {
+            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            NSLog("[DocumentStore] Importing to library: %@", libraryPath)
+        } else {
+            NSLog("[DocumentStore] WARNING: No library path set for import!")
+        }
 
         var body = Data()
 
@@ -313,17 +358,10 @@ class DocumentStore: ObservableObject {
 
         let document = try JSONDecoder().decode(Document.self, from: data)
 
-        // If this is a top-level import (no parent), add to collections
-        if parentId == nil {
-            collections.append(document)
-            publish(.collectionsUpdated(collections))
-        } else {
-            // Refresh the parent's children
-            if let parent = collections.first(where: { $0.id == parentId }) {
-                await loadChildren(of: parent)
-            }
-            publish(.documentsUpdated(currentDocuments))
-        }
+        // Reload collections to show the newly imported file
+        // This handles both root-level imports and imports into nested folders
+        await loadCollections()
+        publish(.collectionsUpdated(collections))
 
         return document
     }
@@ -471,7 +509,7 @@ struct DocumentHierarchy {
 extension DocumentStore {
     /// Create a store with empty data for previews.
     static var preview: DocumentStore {
-        let store = DocumentStore()
+        let store = DocumentStore(apiClient: APIClient())
         store.collections = []
         return store
     }

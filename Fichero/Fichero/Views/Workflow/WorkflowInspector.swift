@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Inspector panel for workflow editor - shows available blocks to drag onto canvas
-struct WorkflowInspectorView: View {
+struct WorkflowInspector: View {
     @Binding var workflow: Workflow
     let onAddNode: (ToolInfo, CGPoint) -> Void
 
@@ -11,7 +11,7 @@ struct WorkflowInspectorView: View {
     @State private var toolCategories: [CategoryTools] = []
     @State private var isLoadingTools: Bool = false
 
-    private let workflowService = WorkflowService()
+    private let workflowService = WorkflowService(apiClient: APIClient())
 
     var body: some View {
         ScrollView {
@@ -196,7 +196,7 @@ struct ToolBlockView: View {
 // MARK: - Preview
 
 #Preview {
-    WorkflowInspectorView(
+    WorkflowInspector(
         workflow: .constant(Workflow(name: "Test", description: "")),
         onAddNode: { tool, position in
             print("Add node: \(tool.name) at \(position)")

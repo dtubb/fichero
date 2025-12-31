@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import SwiftUI
 import UniformTypeIdentifiers
 import OSLog
@@ -7,7 +6,6 @@ import OSLog
 /// Uses subsystem for organization and category for filtering.
 private let logger = Logger(subsystem: "com.fichero.app", category: "Sidebar")
 
-// swiftlint:disable:next type_body_length
 /// Sidebar with Library, Searches, Chat, and Workflows sections
 struct SidebarView: View {
     @Binding var viewMode: AppViewMode
@@ -18,6 +16,15 @@ struct SidebarView: View {
     @ObservedObject var savedSearchService: SavedSearchService
     @ObservedObject var conversationService: ConversationService
     @ObservedObject var workflowStore: WorkflowStore
+
+    // WindowState to access library information (optional - may not be set in all contexts)
+    var windowState: WindowState?
+
+    // LibraryManager for showing all open libraries
+    @ObservedObject var libraryManager: LibraryManager = LibraryManager.shared
+
+    // Callback when user switches to a different library
+    var onSwitchLibrary: ((UUID) -> Void)?
 
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
@@ -65,6 +72,7 @@ struct SidebarView: View {
 
     // Expansion state
     @State private var expandedItems: Set<String> = []
+    @State private var openLibrariesExpanded = true
     @State private var libraryExpanded = true
     @State private var searchesExpanded = true
     @State private var chatExpanded = true
@@ -97,17 +105,20 @@ struct SidebarView: View {
                 deleteItem: handleDeleteSelectedItem
             )
             .sidebarCacheMonitoring(
-                rebuildCaches: rebuildCaches,
-                documentStore: documentStore,
-                savedSearchService: savedSearchService,
-                conversationService: conversationService,
-                workflowStore: workflowStore,
-                selectedItem: selectedItem,
-                handleSelection: handleSelection
+                config: SidebarCacheMonitoringConfig(
+                    rebuildCaches: rebuildCaches,
+                    documentStore: documentStore,
+                    savedSearchService: savedSearchService,
+                    conversationService: conversationService,
+                    workflowStore: workflowStore,
+                    selectedItem: selectedItem,
+                    handleSelection: handleSelection
+                )
             )
             .sidebarFocusedValues(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,
+                importFiles: importFiles,
                 renameItem: handleRenameSelectedItem,
                 deleteItem: handleDeleteSelectedItem
             )
@@ -122,10 +133,33 @@ struct SidebarView: View {
     @ViewBuilder
     private var sidebarContent: some View {
         List(selection: $selectedItemId) {
+            openLibrariesSectionView
             librarySectionView
             searchesSectionView
             chatSectionView
             workflowsSectionView
+        }
+    }
+
+    // MARK: - Open Libraries Section (DEVONthink-style)
+
+    @ViewBuilder
+    private var openLibrariesSectionView: some View {
+        Section(isExpanded: $openLibrariesExpanded) {
+            ForEach(libraryManager.openLibraries) { library in
+                LibraryRow(
+                    library: library,
+                    isCurrentLibrary: library.id == windowState?.libraryId,
+                    onSelect: {
+                        onSwitchLibrary?(library.id)
+                    }
+                )
+            }
+        } header: {
+            SidebarSectionHeader(
+                title: "Open Libraries",
+                icon: "books.vertical"
+            )
         }
     }
 
@@ -149,7 +183,7 @@ struct SidebarView: View {
             })
         } header: {
             SidebarSectionHeader(
-                title: "Library",
+                title: windowState?.library?.displayName ?? "Library",
                 icon: "folder",
                 onDrop: handleDropToRootLevel
             )
@@ -325,23 +359,36 @@ private extension SidebarView {
     func importFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true  // Allow selecting folders
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.image, .pdf, .plainText, .data]
+        panel.message = "Select files or folders to import"
 
         if panel.runModal() == .OK {
-            // Get parent ID from selected item
+            // Get parent ID from selected item - only use folders as parents
             var parentId: String?
-            if let selected = selectedItem, case .document(let doc) = selected.itemType {
+            if let selected = selectedItem,
+               case .document(let doc) = selected.itemType,
+               doc.docType == .folder {
                 parentId = doc.id
             }
 
-            // Import files
+            // Import files and folders
             Task {
                 for url in panel.urls {
                     do {
-                        _ = try await documentStore.importFile(at: url, parentId: parentId)
-                        logger.info("Imported: \(url.lastPathComponent)")
+                        var isDirectory: ObjCBool = false
+                        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+                        if isDirectory.boolValue {
+                            // Import folder recursively
+                            try await documentStore.importFolder(at: url, parentId: parentId)
+                            logger.info("Imported folder: \(url.lastPathComponent)")
+                        } else {
+                            // Import single file
+                            _ = try await documentStore.importFile(at: url, parentId: parentId)
+                            logger.info("Imported file: \(url.lastPathComponent)")
+                        }
                     } catch {
                         logger.error("Failed to import \(url.lastPathComponent): \(error)")
                     }
@@ -587,7 +634,10 @@ private extension SidebarView {
             // Move to root by setting parent to nil
             NSLog("[SidebarView.moveItemToRoot] Calling documentStore.moveDocument")
             let movedDoc = try await documentStore.moveDocument(actualItemId, toParent: nil)
-            NSLog("[SidebarView.moveItemToRoot] moveDocument returned: \(movedDoc.name), parent: \(movedDoc.parentId ?? "nil")")
+            NSLog(
+                "[SidebarView.moveItemToRoot] moveDocument returned: \(movedDoc.name), " +
+                "parent: \(movedDoc.parentId ?? "nil")"
+            )
 
             logger.info("Move to root successful - rebuilding caches")
             NSLog("[SidebarView.moveItemToRoot] About to rebuild caches")
@@ -622,6 +672,20 @@ private extension SidebarView {
     }
 }
 
-// MARK: - Section Header
-// MARK: - View Modifiers
+// MARK: - Library Row (for Open Libraries section)
 
+/// Row displaying a single library in the Open Libraries section
+/// Simple single-line style matching the rest of the sidebar
+struct LibraryRow: View {
+    let library: LibraryManager.LibraryReference
+    let isCurrentLibrary: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            Label(library.displayName, systemImage: "book.closed")
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(isCurrentLibrary ? .accentColor : .primary)
+    }
+}

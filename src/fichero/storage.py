@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import logging
 import shutil
+import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
@@ -116,22 +117,39 @@ settings = StorageSettings()
 # Path Helpers
 # =============================================================================
 
-def _thumb_path(doc_id: str) -> Path:
+def _thumb_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get sharded thumbnail path.
 
     Uses first 2 chars of ID for sharding:
     thumbnails/a1/a1b2c3d4-e5f6-...jpg
 
     256 possible buckets = ~234 files each for 60k images.
+
+    Args:
+        doc_id: Document ID
+        package_path: Path to .fichero package (if None, uses global base_path)
     """
     prefix = doc_id[:2].lower()
-    return settings.thumb_dir / prefix / f"{doc_id}.jpg"
+    if package_path:
+        thumb_dir = package_path / "storage" / "thumbnails"
+    else:
+        thumb_dir = settings.thumb_dir
+    return thumb_dir / prefix / f"{doc_id}.jpg"
 
 
-def _display_path(doc_id: str) -> Path:
-    """Get path for display-size image."""
+def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
+    """Get path for display-size image.
+
+    Args:
+        doc_id: Document ID
+        package_path: Path to .fichero package (if None, uses global base_path)
+    """
     prefix = doc_id[:2].lower()
-    return settings.thumb_dir / prefix / f"{doc_id}_display.jpg"
+    if package_path:
+        thumb_dir = package_path / "storage" / "thumbnails"
+    else:
+        thumb_dir = settings.thumb_dir
+    return thumb_dir / prefix / f"{doc_id}_display.jpg"
 
 
 # =============================================================================
@@ -197,12 +215,13 @@ def _get_bookmark(doc: "Document") -> bytes | None:
 # Thumbnail Generation
 # =============================================================================
 
-def ensure_thumbnail(doc: "Document", force: bool = False) -> Path | None:
+def ensure_thumbnail(doc: "Document", force: bool = False, package_path: Path | None = None) -> Path | None:
     """Generate thumbnail if needed.
 
     Args:
         doc: Document to generate thumbnail for
         force: If True, regenerate even if exists
+        package_path: Path to .fichero package (if None, uses global base_path)
 
     Returns:
         Path to thumbnail, or None on failure
@@ -211,7 +230,7 @@ def ensure_thumbnail(doc: "Document", force: bool = False) -> Path | None:
         logger.error("Pillow not installed - cannot generate thumbnails")
         return None
 
-    path = _thumb_path(doc.id)
+    path = _thumb_path(doc.id, package_path)
     source = resolve_source(doc)
 
     if not source:
@@ -229,12 +248,13 @@ def ensure_thumbnail(doc: "Document", force: bool = False) -> Path | None:
     return _generate_image(source, path, settings.thumb_size)
 
 
-def ensure_display(doc: "Document", force: bool = False) -> Path | None:
+def ensure_display(doc: "Document", force: bool = False, package_path: Path | None = None) -> Path | None:
     """Generate display-size image if needed.
 
     Args:
         doc: Document to generate display image for
         force: If True, regenerate even if exists
+        package_path: Path to .fichero package (if None, uses global base_path)
 
     Returns:
         Path to display image, or None on failure
@@ -242,7 +262,7 @@ def ensure_display(doc: "Document", force: bool = False) -> Path | None:
     if Image is None:
         return None
 
-    path = _display_path(doc.id)
+    path = _display_path(doc.id, package_path)
     source = resolve_source(doc)
 
     if not source:
@@ -439,13 +459,21 @@ def clear_all() -> int:
 # Stats
 # =============================================================================
 
-def stats() -> dict:
+def stats(package_path: Path | None = None) -> dict:
     """Get storage statistics.
+
+    Args:
+        package_path: Package path for library-specific stats.
+                     If None, uses global thumb_dir (backward compat).
 
     Returns:
         Dict with count, size_mb, shards
     """
-    thumb_dir = settings.thumb_dir
+    if package_path:
+        thumb_dir = package_path / "storage" / "thumbnails"
+    else:
+        thumb_dir = settings.thumb_dir
+
     if not thumb_dir.exists():
         return {"count": 0, "size_mb": 0.0, "shards": 0}
 
@@ -463,6 +491,47 @@ def stats() -> dict:
     }
 
 
+async def save_uploaded_file(file) -> Path:
+    """Save an uploaded FastAPI file to a temporary location.
+
+    Args:
+        file: FastAPI UploadFile object
+
+    Returns:
+        Path to saved temporary file
+
+    Note:
+        The caller is responsible for cleanup of the temp file.
+        Use this with ingest_file(mode=IngestMode.COPY) which will
+        copy the file to library storage.
+    """
+    # Create temp file with same extension as uploaded file
+    suffix = Path(file.filename).suffix if file.filename else ""
+
+    # Create temp file (not auto-deleted, caller must clean up)
+    fd, temp_path = tempfile.mkstemp(suffix=suffix, prefix="fichero_upload_")
+    temp_path = Path(temp_path)
+
+    try:
+        # Read uploaded file content
+        content = await file.read()
+
+        # Write to temp file
+        with open(fd, 'wb') as f:
+            f.write(content)
+
+        logger.debug(f"Saved upload to temp: {temp_path}")
+        return temp_path
+
+    except Exception as e:
+        # Clean up on error
+        try:
+            temp_path.unlink()
+        except:
+            pass
+        raise e
+
+
 def shutdown() -> None:
     """Shutdown background executor. Call on app exit."""
     global _executor
@@ -476,36 +545,81 @@ def shutdown() -> None:
 # Convenience - Document Path Properties
 # =============================================================================
 
-def expected_thumbnail_path(doc_id: str) -> Path:
-    """Get expected thumbnail path (may not exist yet)."""
-    return _thumb_path(doc_id)
+def expected_thumbnail_path(doc_id: str, package_path: Path | None = None) -> Path:
+    """Get expected thumbnail path (may not exist yet).
+
+    Args:
+        doc_id: Document ID
+        package_path: Package path for library-specific path.
+                     If None, uses global thumb_dir (backward compat).
+
+    Returns:
+        Path to expected thumbnail location
+    """
+    return _thumb_path(doc_id, package_path)
 
 
-def expected_display_path(doc_id: str) -> Path:
-    """Get expected display image path (may not exist yet)."""
-    return _display_path(doc_id)
+def expected_display_path(doc_id: str, package_path: Path | None = None) -> Path:
+    """Get expected display image path (may not exist yet).
+
+    Args:
+        doc_id: Document ID
+        package_path: Package path for library-specific path.
+                     If None, uses global thumb_dir (backward compat).
+
+    Returns:
+        Path to expected display image location
+    """
+    return _display_path(doc_id, package_path)
 
 
-def has_thumbnail(doc_id: str) -> bool:
-    """Check if thumbnail exists on disk."""
-    return _thumb_path(doc_id).exists()
+def has_thumbnail(doc_id: str, package_path: Path | None = None) -> bool:
+    """Check if thumbnail exists on disk.
+
+    Args:
+        doc_id: Document ID
+        package_path: Package path for library-specific check.
+                     If None, uses global thumb_dir (backward compat).
+
+    Returns:
+        True if thumbnail file exists
+    """
+    return _thumb_path(doc_id, package_path).exists()
 
 
-def has_display(doc_id: str) -> bool:
-    """Check if display image exists on disk."""
-    return _display_path(doc_id).exists()
+def has_display(doc_id: str, package_path: Path | None = None) -> bool:
+    """Check if display image exists on disk.
+
+    Args:
+        doc_id: Document ID
+        package_path: Package path for library-specific check.
+                     If None, uses global thumb_dir (backward compat).
+
+    Returns:
+        True if display image file exists
+    """
+    return _display_path(doc_id, package_path).exists()
 
 
-def get_thumbnail(doc: "Document") -> Path | None:
+def get_thumbnail(doc: "Document", package_path: Path | None = None) -> Path | None:
     """Get thumbnail path if it exists, else None.
 
     Does NOT generate - use ensure_thumbnail() for that.
+
+    Args:
+        doc: Document to get thumbnail for
+        package_path: Path to .fichero package (if None, uses global base_path)
     """
-    path = _thumb_path(doc.id)
+    path = _thumb_path(doc.id, package_path)
     return path if path.exists() else None
 
 
-def get_display(doc: "Document") -> Path | None:
-    """Get display image path if it exists, else None."""
-    path = _display_path(doc.id)
+def get_display(doc: "Document", package_path: Path | None = None) -> Path | None:
+    """Get display image path if it exists, else None.
+
+    Args:
+        doc: Document to get display image for
+        package_path: Path to .fichero package (if None, uses global base_path)
+    """
+    path = _display_path(doc.id, package_path)
     return path if path.exists() else None

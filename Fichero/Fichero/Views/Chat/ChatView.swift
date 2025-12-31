@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
 
 /// RAG-style chat view for conversing with documents
 struct ChatView: View {
@@ -18,9 +19,14 @@ struct ChatView: View {
     @State private var selectedProvider: String = ""
     @State private var selectedModel: String = ""
 
-    private let chatService = ChatService()
+    private let chatService = ChatService(apiClient: APIClient())
+    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatView")
 
-    init(conversation: Conversation?, selectedDocuments: Binding<Set<String>>, onConversationUpdated: (() -> Void)? = nil) {
+    init(
+        conversation: Conversation?,
+        selectedDocuments: Binding<Set<String>>,
+        onConversationUpdated: (() -> Void)? = nil
+    ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
         self.onConversationUpdated = onConversationUpdated
@@ -29,8 +35,15 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
-            chatToolbar
+            // View-specific toolbar at top
+            ChatViewToolbar(
+                selectedDocumentsCount: selectedDocuments.count,
+                onClearDocuments: { selectedDocuments.removeAll() },
+                providers: providers,
+                selectedProvider: $selectedProvider,
+                selectedModel: $selectedModel,
+                onNewChat: startNewChat
+            )
 
             Divider()
 
@@ -55,6 +68,8 @@ struct ChatView: View {
             if let conv = conversation, conv.messages.isEmpty {
                 await loadConversation(conv.id)
             }
+            // Load providers
+            await loadProviders()
         }
     }
 
@@ -70,95 +85,11 @@ struct ChatView: View {
                 )
             }
         } catch {
-            NSLog("[ChatView] Failed to load conversation %@: %@", id, error.localizedDescription)
+            Self.logger.error("Failed to load conversation \(id): \(error.localizedDescription)")
         }
     }
 
-    // MARK: - Toolbar
-
-    private var chatToolbar: some View {
-        HStack {
-            // Document scope indicator
-            if selectedDocuments.isEmpty {
-                Label("All documents", systemImage: "doc.on.doc")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                Label("\(selectedDocuments.count) documents", systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundColor(.green)
-
-                Button("Clear") {
-                    selectedDocuments.removeAll()
-                }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundColor(.accentColor)
-            }
-
-            Spacer()
-
-            // Model picker
-            modelPicker
-
-            // New Chat button
-            Button(action: startNewChat) {
-                Label("New Chat", systemImage: "plus.bubble")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(.windowBackgroundColor))
-        .onAppear {
-            Task { await loadProviders() }
-        }
-    }
-
-    private var modelPicker: some View {
-        Menu {
-            ForEach(providers) { provider in
-                if provider.available {
-                    Section(provider.name) {
-                        ForEach(provider.models, id: \.self) { model in
-                            Button {
-                                selectedProvider = provider.id
-                                selectedModel = model
-                            } label: {
-                                HStack {
-                                    Text(model)
-                                    if selectedProvider == provider.id && selectedModel == model {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Section {
-                        Text("\(provider.name) (not configured)")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                Text(selectedModel.isEmpty ? "Select Model" : selectedModel)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-            }
-            .font(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(6)
-        }
-        .menuStyle(.borderlessButton)
-        .disabled(providers.isEmpty)
-    }
+    // MARK: - Provider Management
 
     private func loadProviders() async {
         do {
@@ -174,7 +105,7 @@ struct ChatView: View {
                 }
             }
         } catch {
-            NSLog("[ChatView] Failed to load providers: %@", error.localizedDescription)
+            Self.logger.error("Failed to load providers: \(error.localizedDescription)")
             // Keep whatever providers we have - don't override with hardcoded fallback
         }
     }
@@ -205,7 +136,7 @@ struct ChatView: View {
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
                             selectedDocuments.insert(docId)
-                            NSLog("[ChatView] Added document via drop: %@", docId)
+                            Self.logger.info("Added document via drop: \(docId)")
                         }
                     }
                 }
@@ -214,7 +145,7 @@ struct ChatView: View {
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
                             selectedDocuments.insert(docId)
-                            NSLog("[ChatView] Added document via drop: %@", docId)
+                            Self.logger.info("Added document via drop: \(docId)")
                         }
                     }
                 }
@@ -230,7 +161,7 @@ struct ChatView: View {
         selectedDocuments.removeAll()
         inputText = ""
         errorMessage = nil
-        NSLog("[ChatView] Started new chat")
+        Self.logger.info("Started new chat")
     }
 
     // MARK: - Messages View
@@ -325,7 +256,7 @@ struct ChatView: View {
         [
             "What are the main themes in these documents?",
             "Summarize the key points from the letters",
-            "Find mentions of specific people or places",
+            "Find mentions of specific people or places"
         ]
     }
 
@@ -378,7 +309,7 @@ struct ChatView: View {
 
         Task {
             do {
-                NSLog("[ChatView] Sending message: %@", query)
+                Self.logger.info("Sending message: \(query)")
 
                 // Call the RAG API
                 let response = try await chatService.chat(
@@ -391,7 +322,7 @@ struct ChatView: View {
                     model: selectedModel
                 )
 
-                NSLog("[ChatView] Got response with %d sources", response.sources.count)
+                Self.logger.info("Got response with \(response.sources.count) sources")
 
                 // Convert API sources to local model
                 let sources = response.sources.map { $0.toDocumentSource() }
@@ -410,497 +341,13 @@ struct ChatView: View {
                     onConversationUpdated?()
                 }
             } catch {
-                NSLog("[ChatView] Error: %@", error.localizedDescription)
+                Self.logger.error("Error: \(error.localizedDescription)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     isLoading = false
                 }
             }
         }
-    }
-}
-
-// MARK: - Chat Inspector View (Document Scope)
-
-struct ChatInspectorView: View {
-    @Binding var selectedDocuments: Set<String>
-
-    @State private var scopedDocuments: [Document] = []  // Documents in scope with full info
-    @State private var listSelection: Set<String> = []   // Selection within the list
-    @State private var isLoading: Bool = false
-    @State private var isDropTargeted: Bool = false
-
-    // Search state
-    @State private var searchText: String = ""
-    @State private var searchResults: [Document] = []
-    @State private var isSearching: Bool = false
-    @State private var showSearchResults: Bool = false
-
-    // Text extraction state
-    @State private var isExtracting: Bool = false
-    @State private var extractionResult: String?
-
-    private let chatService = ChatService()
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header with actions
-            headerView
-
-            Divider()
-
-            // Search bar to find documents
-            searchBarView
-
-            Divider()
-
-            // Main content: search results or scoped documents
-            if showSearchResults && !searchText.isEmpty {
-                searchResultsView
-            } else if selectedDocuments.isEmpty {
-                emptyStateView
-            } else if isLoading {
-                loadingView
-            } else {
-                scopedDocumentsView
-            }
-        }
-        .background(Color(.windowBackgroundColor))
-        .onDrop(of: [.text, .plainText], isTargeted: $isDropTargeted) { providers in
-            handleDrop(providers: providers)
-        }
-        .overlay {
-            if isDropTargeted {
-                dropOverlay
-            }
-        }
-        .onChange(of: selectedDocuments) { _, newValue in
-            Task { await loadScopedDocuments() }
-        }
-        .task {
-            await loadScopedDocuments()
-        }
-    }
-
-    // MARK: - Header
-
-    private var headerView: some View {
-        HStack {
-            Text("Chat Scope")
-                .font(.headline)
-
-            Spacer()
-
-            if !selectedDocuments.isEmpty {
-                // Select All button
-                Button {
-                    listSelection = selectedDocuments
-                } label: {
-                    Text("Select All")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut("a", modifiers: .command)
-
-                // Remove selected button
-                Button {
-                    removeSelectedFromScope()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .disabled(listSelection.isEmpty)
-                .keyboardShortcut(.delete, modifiers: [])
-
-                // Clear all button
-                Button {
-                    selectedDocuments.removeAll()
-                    listSelection.removeAll()
-                } label: {
-                    Text("Clear")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding()
-        .background(Color(.windowBackgroundColor))
-    }
-
-    // MARK: - Search Bar
-
-    private var searchBarView: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-
-            TextField("Search documents to add...", text: $searchText)
-                .textFieldStyle(.plain)
-                .onSubmit {
-                    Task { await performSearch() }
-                }
-                .onChange(of: searchText) { _, newValue in
-                    if newValue.isEmpty {
-                        showSearchResults = false
-                        searchResults = []
-                    } else {
-                        showSearchResults = true
-                        // Debounced search
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            if searchText == newValue {
-                                await performSearch()
-                            }
-                        }
-                    }
-                }
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                    showSearchResults = false
-                    searchResults = []
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(8)
-        .background(Color(.controlBackgroundColor))
-    }
-
-    // MARK: - Search Results
-
-    private var searchResultsView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Results header
-            HStack {
-                Text(isSearching ? "Searching..." : "\(searchResults.count) results")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button("Add All") {
-                    for doc in searchResults {
-                        selectedDocuments.insert(doc.id)
-                    }
-                    searchText = ""
-                    showSearchResults = false
-                }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .disabled(searchResults.isEmpty)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .background(Color(.controlBackgroundColor).opacity(0.5))
-
-            if isSearching {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if searchResults.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No documents found")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(searchResults) { doc in
-                        HStack {
-                            Image(systemName: doc.fileType?.icon ?? "doc")
-                                .foregroundColor(.secondary)
-                            Text(doc.name)
-                                .lineLimit(1)
-                            Spacer()
-                            if selectedDocuments.contains(doc.id) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            } else {
-                                Button {
-                                    selectedDocuments.insert(doc.id)
-                                } label: {
-                                    Image(systemName: "plus.circle")
-                                        .foregroundColor(.accentColor)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if !selectedDocuments.contains(doc.id) {
-                                selectedDocuments.insert(doc.id)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-    }
-
-    // MARK: - Scoped Documents View
-
-    private var scopedDocumentsView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Scope info bar
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-
-                Text("\(selectedDocuments.count) in scope")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                if !listSelection.isEmpty {
-                    Text("• \(listSelection.count) selected")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .background(Color(.controlBackgroundColor).opacity(0.5))
-
-            // Document list
-            List(selection: $listSelection) {
-                ForEach(scopedDocuments) { doc in
-                    ScopedDocumentRow(document: doc)
-                        .tag(doc.id)
-                }
-                .onDelete { indexSet in
-                    let idsToRemove = indexSet.map { scopedDocuments[$0].id }
-                    for id in idsToRemove {
-                        selectedDocuments.remove(id)
-                    }
-                }
-            }
-            .listStyle(.plain)
-        }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "plus.rectangle.on.folder")
-                .font(.system(size: 36))
-                .foregroundColor(.secondary)
-
-            Text("No documents in scope")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            Text("Search above or drag documents from Library to focus your chat.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Divider()
-                .padding(.vertical, 8)
-
-            // Extract Text section
-            VStack(spacing: 8) {
-                Text("Document Maintenance")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                if isExtracting {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Extracting text...")
-                            .font(.caption)
-                    }
-                } else {
-                    Button {
-                        Task { await extractAllText() }
-                    } label: {
-                        Label("Extract Text from All Documents", systemImage: "doc.text.magnifyingglass")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                if let result = extractionResult {
-                    Text(result)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    private func extractAllText() async {
-        isExtracting = true
-        extractionResult = nil
-
-        do {
-            let response = try await chatService.extractText(documentIds: nil, force: false)
-            await MainActor.run {
-                extractionResult = "Done: \(response.extracted) extracted, \(response.skipped) skipped"
-                isExtracting = false
-            }
-        } catch {
-            await MainActor.run {
-                extractionResult = "Error: \(error.localizedDescription)"
-                isExtracting = false
-            }
-        }
-    }
-
-    // MARK: - Loading
-
-    private var loadingView: some View {
-        VStack {
-            ProgressView()
-            Text("Loading...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Drop Overlay
-
-    private var dropOverlay: some View {
-        ZStack {
-            Color.accentColor.opacity(0.15)
-            VStack(spacing: 8) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.accentColor)
-                Text("Drop to add to scope")
-                    .font(.subheadline)
-                    .foregroundColor(.accentColor)
-            }
-        }
-        .cornerRadius(8)
-        .padding(4)
-    }
-
-    // MARK: - Actions
-
-    private func removeSelectedFromScope() {
-        for id in listSelection {
-            selectedDocuments.remove(id)
-        }
-        listSelection.removeAll()
-    }
-
-    private func performSearch() async {
-        guard !searchText.isEmpty else { return }
-
-        isSearching = true
-
-        do {
-            // Search documents by name (simple filter for now)
-            let allDocs: [Document] = try await APIClient.shared.get("/documents", query: ["limit": "100"])
-            let filtered = allDocs.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText) &&
-                $0.docType == .file
-            }
-            await MainActor.run {
-                searchResults = filtered
-                isSearching = false
-            }
-        } catch {
-            NSLog("[ChatInspectorView] Search error: %@", error.localizedDescription)
-            await MainActor.run {
-                searchResults = []
-                isSearching = false
-            }
-        }
-    }
-
-    private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
-                            selectedDocuments.insert(docId)
-                            NSLog("[ChatInspectorView] Added document via drop: %@", docId)
-                        }
-                    }
-                }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
-                            selectedDocuments.insert(docId)
-                            NSLog("[ChatInspectorView] Added document via drop: %@", docId)
-                        }
-                    }
-                }
-            }
-        }
-        return true
-    }
-
-    private func loadScopedDocuments() async {
-        guard !selectedDocuments.isEmpty else {
-            await MainActor.run { scopedDocuments = [] }
-            return
-        }
-
-        isLoading = true
-        var loadedDocs: [Document] = []
-
-        for docId in selectedDocuments {
-            do {
-                let doc: Document = try await APIClient.shared.get("/documents/\(docId)")
-                loadedDocs.append(doc)
-            } catch {
-                NSLog("[ChatInspectorView] Failed to load doc %@: %@", docId, error.localizedDescription)
-            }
-        }
-
-        await MainActor.run {
-            scopedDocuments = loadedDocs.sorted { $0.name < $1.name }
-            isLoading = false
-            listSelection = listSelection.intersection(selectedDocuments)
-        }
-    }
-}
-
-// MARK: - Scoped Document Row
-
-struct ScopedDocumentRow: View {
-    let document: Document
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: document.fileType?.icon ?? "doc")
-                .foregroundColor(.secondary)
-                .frame(width: 16)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(document.name)
-                    .font(.subheadline)
-                    .lineLimit(1)
-
-                if let fileType = document.fileType {
-                    Text(fileType.rawValue.capitalized)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
     }
 }
 

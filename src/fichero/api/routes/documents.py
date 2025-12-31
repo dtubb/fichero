@@ -7,14 +7,18 @@ CRUD operations for Document model.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile
+from fastapi import APIRouter, HTTPException, Query, UploadFile, Depends
 from pydantic import BaseModel
 
-from fichero.db import db
+from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Import the get_library_database dependency
+from fichero.api.main import get_library_database
 
 
 # Request/Response models
@@ -51,8 +55,9 @@ async def list_documents(
     status: Optional[Status] = Query(None, description="Filter by status"),
     limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Database = Depends(get_library_database),
 ) -> list[Document]:
-    """List documents with optional filters."""
+    """List documents with optional filters from the current library."""
     # Build filter kwargs
     filters = {}
     if parent_id is not None:
@@ -78,19 +83,19 @@ async def list_documents(
 
 
 @router.get("/collections")
-async def list_collections() -> list[Document]:
+async def list_collections(db: Database = Depends(get_library_database)) -> list[Document]:
     """List all root-level items (documents without parents)."""
     return list(db.query(Document, parent_id=None))
 
 
 @router.get("/roots")
-async def list_roots() -> list[Document]:
+async def list_roots(db: Database = Depends(get_library_database)) -> list[Document]:
     """List root documents (no parent)."""
     return list(db.query(Document, parent_id=None))
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: str) -> Document:
+async def get_document(doc_id: str, db: Database = Depends(get_library_database)) -> Document:
     """Get a single document by ID."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -102,6 +107,7 @@ async def get_document(doc_id: str) -> Document:
 async def get_children(
     doc_id: str,
     limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
+    db: Database = Depends(get_library_database),
 ) -> list[Document]:
     """Get child documents."""
     # Verify parent exists
@@ -117,7 +123,7 @@ async def get_children(
 
 
 @router.get("/{doc_id}/ancestors")
-async def get_ancestors(doc_id: str) -> list[Document]:
+async def get_ancestors(doc_id: str, db: Database = Depends(get_library_database)) -> list[Document]:
     """Get all ancestors (parent chain) of a document."""
     ancestors = []
     current = db.get(Document, doc_id)
@@ -137,7 +143,7 @@ async def get_ancestors(doc_id: str) -> list[Document]:
 
 
 @router.post("", status_code=201)
-async def create_document(doc: DocumentCreate) -> Document:
+async def create_document(doc: DocumentCreate, db: Database = Depends(get_library_database)) -> Document:
     """Create a new document."""
     # Create document from request
     new_doc = Document(
@@ -162,7 +168,7 @@ async def create_document(doc: DocumentCreate) -> Document:
 
 
 @router.put("/{doc_id}")
-async def update_document(doc_id: str, update: DocumentUpdate) -> Document:
+async def update_document(doc_id: str, update: DocumentUpdate, db: Database = Depends(get_library_database)) -> Document:
     """Update an existing document."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -193,7 +199,7 @@ async def update_document(doc_id: str, update: DocumentUpdate) -> Document:
 
 
 @router.delete("/{doc_id}", status_code=204)
-async def delete_document(doc_id: str):
+async def delete_document(doc_id: str, db: Database = Depends(get_library_database)):
     """Delete a document."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -204,7 +210,7 @@ async def delete_document(doc_id: str):
 
 
 @router.post("/reorder")
-async def reorder_documents(doc_ids: list[str], folder_path: str = "/") -> dict:
+async def reorder_documents(doc_ids: list[str], folder_path: str = "/", db: Database = Depends(get_library_database)) -> dict:
     """Reorder documents within a folder."""
     # Update sort_order for each document
     for i, doc_id in enumerate(doc_ids):
@@ -224,58 +230,70 @@ async def reorder_documents(doc_ids: list[str], folder_path: str = "/") -> dict:
 async def import_file(
     file: UploadFile,
     parent_id: Optional[str] = None,
+    db: Database = Depends(get_library_database),
 ) -> Document:
     """Import a file and create a document."""
-    from fichero.ingest import ingest_file
+    from pathlib import Path
+    from fichero.ingest import ingest_file, IngestMode
     from fichero.storage import save_uploaded_file
-    
-    # Save the uploaded file
-    file_path = await save_uploaded_file(file)
-    
-    # Ingest the file to create document content
-    doc_data = await ingest_file(file_path, parent_id=parent_id)
-    
-    # Create document record
-    new_doc = Document(
-        name=doc_data.name,
-        parent_id=parent_id,
-        doc_type=doc_data.doc_type,
-        file_type=doc_data.file_type,
-        path=file_path,
-        page_content=doc_data.page_content,
-        metadata=doc_data.metadata,
-    )
-    
-    db.save(new_doc)
-    logger.info(f"Imported document: {new_doc.id} ({new_doc.name})")
-    
-    return new_doc
+
+    # Save the uploaded file to temp location
+    temp_path = await save_uploaded_file(file)
+
+    try:
+        # Get library package path from database path
+        # db.path is like /path/to/Library.fichero/fichero.duckdb
+        # package_path should be /path/to/Library.fichero
+        package_path = Path(db.path).parent
+
+        # Ingest the file (copies to library storage and saves to database)
+        doc = ingest_file(
+            path=temp_path,
+            mode=IngestMode.COPY,  # Copy file into library
+            parent_id=parent_id,
+            extract_metadata=True,  # Extract file metadata
+            extract_text=True,      # Extract text for search
+            save=True,              # Save to database
+            db=db,                  # Database instance
+            package_path=package_path,  # Library package path
+        )
+
+        logger.info(f"Imported document: {doc.id} ({doc.name})")
+        return doc
+
+    finally:
+        # Clean up temp file
+        try:
+            temp_path.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
 
 
 @router.put("/{doc_id}/move")
 async def move_document(
     doc_id: str,
     parent_id: Optional[str] = None,
+    db: Database = Depends(get_library_database),
 ) -> Document:
     """Move a document to a new parent location."""
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-    
+
     # Verify new parent exists if specified
     if parent_id:
         parent = db.get(Document, parent_id)
         if not parent:
             raise HTTPException(status_code=400, detail=f"Parent not found: {parent_id}")
-    
+
     # Update parent
     doc.parent_id = parent_id
-    
+
     # Update timestamp
     from datetime import datetime
     doc.updated_at = datetime.now()
-    
+
     db.save(doc)
     logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
-    
+
     return doc

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Inspector panel showing document metadata and details
-struct InspectorView: View {
+struct DocumentInspector: View {
     let document: Document?
 
     var body: some View {
@@ -55,27 +55,10 @@ struct InspectorView: View {
                     .fill(Color(.windowBackgroundColor))
                     .frame(width: 80, height: 100)
 
-                AsyncImage(url: APIClient.shared.thumbnailURL(for: doc.id)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 80, height: 100)
-                            .clipped()
-                    case .failure:
-                        Image(systemName: doc.fileType?.icon ?? doc.docType.icon)
-                            .font(.system(size: 36))
-                            .foregroundColor(.accentColor)
-                    @unknown default:
-                        Image(systemName: doc.fileType?.icon ?? doc.docType.icon)
-                            .font(.system(size: 36))
-                            .foregroundColor(.accentColor)
-                    }
-                }
+                LibraryImageView(documentId: doc.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 80, height: 100)
+                    .clipped()
             }
             .frame(width: 80, height: 100)
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -183,9 +166,12 @@ struct InspectorView: View {
 
                 Spacer()
 
-                Button(action: { copyToClipboard(content) }) {
-                    Image(systemName: "doc.on.doc")
-                }
+                Button(
+                    action: { copyToClipboard(content) },
+                    label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                )
                 .buttonStyle(.plain)
                 .help("Copy to clipboard")
             }
@@ -232,6 +218,6 @@ struct InspectorView: View {
 // MARK: - Preview
 
 #Preview("Empty") {
-    InspectorView(document: nil)
+    DocumentInspector(document: nil)
         .frame(width: 280, height: 400)
 }

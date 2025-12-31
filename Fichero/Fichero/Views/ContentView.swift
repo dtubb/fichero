@@ -8,6 +8,11 @@ struct ContentView: View {
 
     @EnvironmentObject var viewSettings: ViewSettings
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var apiClient: APIClient
+    @EnvironmentObject var documentStore: DocumentStore
+    @EnvironmentObject var conversationService: ConversationService
+    @EnvironmentObject var importService: ImportService
+    @EnvironmentObject var windowState: WindowState
 
     // MARK: - State
 
@@ -17,11 +22,8 @@ struct ContentView: View {
     @State private var detailDocument: Document?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    // Document store - connects to Python backend
-    @StateObject private var documentStore = DocumentStore()
-
-    // Workflow store - manages workflow persistence
-    @StateObject private var workflowStore = WorkflowStore()
+    // Workflow store - manages workflow persistence (TODO: move to DocumentTabView)
+    @StateObject private var workflowStore = WorkflowStore(apiClient: APIClient())
 
     // Workflow state
     @State private var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
@@ -29,12 +31,14 @@ struct ContentView: View {
     // Chat state (shared between ChatView and ChatInspectorView)
     @State private var chatSelectedDocuments: Set<String> = []
 
-    // Services - as StateObjects for EnvironmentObject injection
-    @StateObject private var conversationService = ConversationService()
-    @StateObject private var savedSearchService = SavedSearchService()
-    @StateObject private var workflowService = WorkflowService()
+    // Services - as StateObjects for EnvironmentObject injection (TODO: move to DocumentTabView and inject apiClient)
+    // TEMP: Creating with temporary APIClient instances - these should be passed from DocumentTabView
+    @StateObject private var savedSearchService = SavedSearchService(apiClient: APIClient())
+    @StateObject private var workflowService = WorkflowService(apiClient: APIClient())
     @StateObject private var performanceService = PerformanceService()
-    @StateObject private var cacheModel = CacheModel()
+
+    // Error service (using singleton pattern)
+    @ObservedObject private var errorService = ErrorService.shared
 
     // Drag and drop state
     @State private var isDropTargeted = false
@@ -130,25 +134,6 @@ struct ContentView: View {
         }
     }
 
-    /// Navigation title based on current mode
-    private var navigationTitle: String {
-        switch viewMode {
-        case .library(let doc):
-            return doc?.name ?? "Library"
-        case .search(let search):
-            return search?.name ?? "Search"
-        case .chat(let conversation):
-            return conversation?.title ?? "Chat"
-        case .workflow(let sidebarWorkflow):
-            // If we have a specific workflow, show its name
-            if let workflow = sidebarWorkflow {
-                return workflow.name
-            }
-            // Otherwise check if we're editing one
-            return editingWorkflow.name
-        }
-    }
-
     /// Whether we're in workflow mode
     private var isWorkflowMode: Bool {
         if case .workflow = viewMode { return true }
@@ -166,6 +151,10 @@ struct ContentView: View {
             savedSearchService: savedSearchService,
             conversationService: conversationService,
             workflowStore: workflowStore,
+            windowState: windowState,
+            onSwitchLibrary: { libraryId in
+                windowState.libraryId = libraryId
+            },
             onCreateChatWithDocuments: { documentIds in
                 chatSelectedDocuments = Set(documentIds)
             }
@@ -175,7 +164,6 @@ struct ContentView: View {
         .environmentObject(workflowService)
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
-        .environmentObject(cacheModel)
         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
     }
 
@@ -254,6 +242,26 @@ struct ContentView: View {
                 mainContentView
             }
         }
+        .alert(item: $errorService.currentAlert) { errorModel in
+            let message = errorModel.recoverySuggestion != nil ?
+                "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :
+                errorModel.message
+
+            return Alert(
+                title: Text(errorModel.title),
+                message: Text(message),
+                primaryButton: .default(Text("OK")) {
+                    errorService.currentAlert = nil
+                },
+                secondaryButton: errorModel.isRecoverable ?
+                    .default(Text("Retry")) {
+                        // User requested retry - could trigger recovery action
+                        errorService.currentAlert = nil
+                    } : .cancel(Text("Dismiss")) {
+                        errorService.currentAlert = nil
+                    }
+            )
+        }
     }
 
     /// Main app content (when backend is connected)
@@ -265,7 +273,15 @@ struct ContentView: View {
             content: { centerContent },
             detail: { detailView }
         )
-        .navigationTitle(navigationTitle)
+        .toolbar {
+            // Stable main toolbar - never changes across views
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { viewSettings.showInspector.toggle() }) {
+                    Image(systemName: "sidebar.right")
+                }
+                .help(viewSettings.showInspector ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+            }
+        }
         .modifier(
             MainContentModifiers(
                 documentStore: documentStore,
@@ -300,11 +316,11 @@ extension ContentView {
         switch viewMode {
         case .library:
             // Library browser with multiple view modes
-            BrowserView(
+            LibraryView(
                 documents: selectedDocuments,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                viewMode: viewSettings.browserViewMode
+                viewMode: $viewSettings.libraryLayout
             )
 
         case .search(let savedSearch):
@@ -326,7 +342,7 @@ extension ContentView {
 
          case .workflow(let workflow):
             // Workflow canvas + output log (inspector is in detail column)
-            WorkflowView(
+            WorkflowEditor(
                 workflow: workflow,
                 editingWorkflow: $editingWorkflow
             )
@@ -344,12 +360,12 @@ extension ContentView {
 
         case .chat:
             // Document scope inspector for chat
-            ChatInspectorView(selectedDocuments: $chatSelectedDocuments)
+            ChatInspector(selectedDocuments: $chatSelectedDocuments)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
 
         case .workflow:
             // Workflow inspector with blocks to drag onto canvas
-            WorkflowInspectorView(
+            WorkflowInspector(
                 workflow: $editingWorkflow,
                 onAddNode: { tool, position in
                     addNodeFromTool(tool, at: position)
@@ -365,9 +381,6 @@ extension ContentView {
         case .none:
             // No preview - just the editor
             EditorView(document: detailDocument)
-                .toolbar {
-                    libraryToolbar
-                }
 
         case .standard:
             // Side by side (horizontal) - Editor + Inspector
@@ -376,11 +389,8 @@ extension ContentView {
 
                 if viewSettings.showInspector {
                     Divider()
-                    InspectorView(document: inspectorDocument)
+                    DocumentInspector(document: inspectorDocument)
                 }
-            }
-            .toolbar {
-                libraryToolbar
             }
 
         case .widescreen:
@@ -390,42 +400,10 @@ extension ContentView {
                     .frame(minHeight: 200)
 
                 if viewSettings.showInspector {
-                    InspectorView(document: inspectorDocument)
+                    DocumentInspector(document: inspectorDocument)
                         .frame(minHeight: 150)
                 }
             }
-            .toolbar {
-                libraryToolbar
-            }
-        }
-    }
-
-    // MARK: - Toolbar (for Library/Search mode)
-
-    @ToolbarContentBuilder
-    var libraryToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            // View mode picker
-            Picker("View", selection: $viewSettings.browserViewMode) {
-                Image(systemName: "square.grid.2x2")
-                    .tag(BrowserViewMode.icons)
-                Image(systemName: "list.bullet")
-                    .tag(BrowserViewMode.list)
-                Image(systemName: "tablecells")
-                    .tag(BrowserViewMode.table)
-                Image(systemName: "rectangle.3.group")
-                    .tag(BrowserViewMode.map)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 140)
-
-            Divider()
-
-            // Inspector toggle on the right
-            Button(action: { viewSettings.showInspector.toggle() }) {
-                Image(systemName: "sidebar.right")
-            }
-            .help(viewSettings.showInspector ? "Hide Inspector" : "Show Inspector")
         }
     }
 

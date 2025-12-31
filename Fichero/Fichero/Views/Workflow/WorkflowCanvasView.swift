@@ -4,6 +4,10 @@ import SwiftUI
 struct WorkflowCanvasView: View {
     @Binding var workflow: Workflow
 
+    // Zoom and grid settings (controlled by parent)
+    @Binding var scale: CGFloat
+    @Binding var snapToGrid: Bool
+
     // Focus state for keyboard commands
     @FocusState private var isCanvasFocused: Bool
 
@@ -26,15 +30,13 @@ struct WorkflowCanvasView: View {
     // Canvas size (large enough to scroll around)
     private let canvasSize: CGSize = CGSize(width: 2000, height: 1500)
 
-    // Zoom and pan state
-    @State private var scale: CGFloat = 1.0
+    // Pan state
     @State private var offset: CGSize = .zero
     @State private var lastScale: CGFloat = 1.0
     @State private var lastOffset: CGSize = .zero
     @State private var isPanning: Bool = false
 
-    // Grid snapping
-    @State private var snapToGrid: Bool = true
+    // Grid snapping constants
     private let gridSpacing: CGFloat = 20
     private let snapThreshold: CGFloat = 10
 
@@ -91,25 +93,6 @@ struct WorkflowCanvasView: View {
         .onDeleteCommand {
             deleteSelection()
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack {
-                    Text("Zoom: \(Int(scale * 100))%")
-                        .font(.caption)
-                        .monospacedDigit()
-                    
-                    Button(action: resetZoom) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Reset Zoom")
-                    
-                    Toggle("Snap", isOn: $snapToGrid)
-                        .toggleStyle(.button)
-                        .buttonStyle(.bordered)
-                        .help("Toggle Grid Snapping")
-                }
-            }
-        }
     }
 
     /// Delete selected edge or nodes
@@ -157,23 +140,14 @@ struct WorkflowCanvasView: View {
             lastOffset = offset
             isPanning = true
         }
-        
+
         // Calculate new offset based on drag translation
         let newOffset = CGSize(
             width: lastOffset.width + value.translation.width,
             height: lastOffset.height + value.translation.height
         )
-        
-        offset = newOffset
-    }
 
-    private func resetZoom() {
-        withAnimation {
-            scale = 1.0
-            offset = .zero
-            lastScale = 1.0
-            lastOffset = .zero
-        }
+        offset = newOffset
     }
 
     // MARK: - Canvas Content
@@ -186,7 +160,7 @@ struct WorkflowCanvasView: View {
 
             // Edge being dragged
             if let dragged = draggedEdge {
-                DraggingEdgeView(startPoint: dragged.startPoint, currentPoint: dragged.currentPoint)
+                DraggingWorkflowEdgeView(startPoint: dragged.startPoint, currentPoint: dragged.currentPoint)
             }
 
             // Nodes layer
@@ -203,7 +177,7 @@ struct WorkflowCanvasView: View {
         ForEach(workflow.edges) { edge in
             if let sourcePoint = portPositions["\(edge.sourceNodeId):\(edge.sourcePortId)"],
                let targetPoint = portPositions["\(edge.targetNodeId):\(edge.targetPortId)"] {
-                EdgeView(
+                WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,
                     targetPoint: targetPoint,
@@ -740,40 +714,51 @@ struct WorkflowCanvasView: View {
 // MARK: - Preview
 
 #Preview {
-    WorkflowCanvasView(
-        workflow: .constant(Workflow(
-            name: "Test Workflow",
-            nodes: [
-                WorkflowNode(
-                    tool: "files",
-                    label: "Input Files",
-                    positionX: 150,
-                    positionY: 200,
-                    inputPorts: [],
-                    outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
-                ),
-                WorkflowNode(
-                    tool: "transcribe",
-                    label: "Transcribe",
-                    positionX: 350,
-                    positionY: 200,
-                    inputPorts: [PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
-                    outputPorts: [
-                        PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: ""),
-                        PortInfo(id: "structured", name: "JSON", portType: "output", dataType: "json", required: true, description: "")
-                    ]
-                ),
-                WorkflowNode(
-                    tool: "to_word",
-                    label: "To Word",
-                    positionX: 550,
-                    positionY: 200,
-                    inputPorts: [PortInfo(id: "content", name: "Content", portType: "input", dataType: "any", required: true, description: "")],
-                    outputPorts: [PortInfo(id: "file", name: "File", portType: "output", dataType: "file", required: true, description: "")]
-                )
-            ],
-            edges: []
-        ))
-    )
-    .frame(width: 800, height: 500)
+    struct PreviewWrapper: View {
+        @State private var scale: CGFloat = 1.0
+        @State private var snapToGrid: Bool = true
+
+        var body: some View {
+            WorkflowCanvasView(
+                workflow: .constant(Workflow(
+                    name: "Test Workflow",
+                    nodes: [
+                        WorkflowNode(
+                            tool: "files",
+                            label: "Input Files",
+                            positionX: 150,
+                            positionY: 200,
+                            inputPorts: [],
+                            outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
+                        ),
+                        WorkflowNode(
+                            tool: "transcribe",
+                            label: "Transcribe",
+                            positionX: 350,
+                            positionY: 200,
+                            inputPorts: [PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
+                            outputPorts: [
+                                PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: ""),
+                                PortInfo(id: "structured", name: "JSON", portType: "output", dataType: "json", required: true, description: "")
+                            ]
+                        ),
+                        WorkflowNode(
+                            tool: "to_word",
+                            label: "To Word",
+                            positionX: 550,
+                            positionY: 200,
+                            inputPorts: [PortInfo(id: "content", name: "Content", portType: "input", dataType: "any", required: true, description: "")],
+                            outputPorts: [PortInfo(id: "file", name: "File", portType: "output", dataType: "file", required: true, description: "")]
+                        )
+                    ],
+                    edges: []
+                )),
+                scale: $scale,
+                snapToGrid: $snapToGrid
+            )
+            .frame(width: 800, height: 500)
+        }
+    }
+
+    return PreviewWrapper()
 }

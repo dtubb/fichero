@@ -7,13 +7,17 @@ Semantic search using LanceDB vector embeddings.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from pydantic import BaseModel
 
-from fichero.db import db, SearchResult
+from fichero.db import Database, SearchResult
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Import the get_library_database dependency
+from fichero.api.main import get_library_database
 
 
 # Request/Response models
@@ -61,7 +65,7 @@ class ReindexResponse(BaseModel):
 # Routes
 
 @router.post("")
-async def enhanced_search(request: SearchRequest) -> SearchResponse:
+async def enhanced_search(request: SearchRequest, db: Database = Depends(get_library_database)) -> SearchResponse:
     """
     Perform enhanced search over documents.
 
@@ -109,13 +113,13 @@ async def enhanced_search(request: SearchRequest) -> SearchResponse:
 
 
 @router.get("/stats")
-async def search_stats():
+async def search_stats(db: Database = Depends(get_library_database)):
     """Get embedding/search statistics."""
     return db.embedding_stats()
 
 
 @router.post("/reindex")
-async def reindex_all(background_tasks: BackgroundTasks):
+async def reindex_all(background_tasks: BackgroundTasks, db: Database = Depends(get_library_database)):
     """
     Rebuild search index for all documents.
 
@@ -137,7 +141,7 @@ async def reindex_all(background_tasks: BackgroundTasks):
 
 
 @router.post("/embed/{doc_id}")
-async def embed_document(doc_id: str):
+async def embed_document(doc_id: str, db: Database = Depends(get_library_database)):
     """Create embedding for a specific document."""
     from fichero.models import Document
 
@@ -186,7 +190,7 @@ class SavedSearchResponse(BaseModel):
 
 
 @router.post("/saved")
-async def save_search(request: SavedSearchCreate) -> SavedSearchResponse:
+async def save_search(request: SavedSearchCreate, db: Database = Depends(get_library_database)) -> SavedSearchResponse:
     """Save a search for later."""
     saved = SavedSearch(
         query=request.query,
@@ -211,7 +215,7 @@ async def save_search(request: SavedSearchCreate) -> SavedSearchResponse:
 
 
 @router.get("/saved")
-async def list_saved_searches() -> List[SavedSearchResponse]:
+async def list_saved_searches(db: Database = Depends(get_library_database)) -> List[SavedSearchResponse]:
     """List all saved searches."""
     searches = db.all(SavedSearch)
     return [
@@ -230,7 +234,7 @@ async def list_saved_searches() -> List[SavedSearchResponse]:
 
 
 @router.post("/saved/{search_id}/duplicate")
-async def duplicate_saved_search(search_id: str) -> SavedSearchResponse:
+async def duplicate_saved_search(search_id: str, db: Database = Depends(get_library_database)) -> SavedSearchResponse:
     """Duplicate a saved search with a new name."""
     original = db.get(SavedSearch, search_id)
     if not original:
@@ -264,7 +268,7 @@ async def duplicate_saved_search(search_id: str) -> SavedSearchResponse:
 
 
 @router.delete("/saved/{search_id}")
-async def delete_saved_search(search_id: str):
+async def delete_saved_search(search_id: str, db: Database = Depends(get_library_database)):
     """Delete a saved search."""
     saved = db.get(SavedSearch, search_id)
     if not saved:
@@ -275,7 +279,7 @@ async def delete_saved_search(search_id: str):
 
 
 @router.post("/saved/reorder")
-async def reorder_saved_searches(search_ids: list[str], folder_path: str = "/") -> dict:
+async def reorder_saved_searches(search_ids: list[str], folder_path: str = "/", db: Database = Depends(get_library_database)) -> dict:
     """Reorder saved searches within a folder."""
     # Update sort_order for each saved search
     for i, search_id in enumerate(search_ids):

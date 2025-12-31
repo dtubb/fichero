@@ -151,6 +151,8 @@ def ingest_file(
     extract_text: bool = False,
     auto_embed: bool = False,
     save: bool = True,
+    db: "Database | None" = None,
+    package_path: Path | None = None,
 ) -> Document:
     """Ingest a single file.
 
@@ -162,12 +164,16 @@ def ingest_file(
         extract_text: Use loaders to extract text content for search
         auto_embed: Create embedding for search after saving
         save: If True, save to database
+        db: Database instance (required if save=True)
+        package_path: Library package path for COPY mode (stores files in {package}/files/)
 
     Returns:
         Created Document
     """
-    from fichero.db import db
     from fichero.bookmarks import create_bookmark
+
+    if save and db is None:
+        raise ValueError("db parameter required when save=True")
 
     path = Path(path).resolve()
 
@@ -185,7 +191,7 @@ def ingest_file(
 
     if mode == IngestMode.COPY:
         # Copy file into library storage
-        dest = _copy_to_library(path)
+        dest = _copy_to_library(path, package_path)
         doc = Document(
             name=path.name,
             path=str(dest),
@@ -230,7 +236,7 @@ def ingest_file(
     return doc
 
 
-def _copy_to_library(source: Path) -> Path:
+def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:
     """Copy file to library storage.
 
     Uses APFS clonefile() for instant copies on same volume.
@@ -238,6 +244,8 @@ def _copy_to_library(source: Path) -> Path:
 
     Args:
         source: Source file path
+        package_path: Library package path (stores in {package}/files/)
+                     If None, falls back to global storage for backward compat
 
     Returns:
         Destination path in library
@@ -246,7 +254,14 @@ def _copy_to_library(source: Path) -> Path:
 
     # Create sharded destination directory
     shard = source.stem[:2].lower() if len(source.stem) >= 2 else "00"
-    dest_dir = settings.base_path / "imported" / shard
+
+    if package_path:
+        # Multi-library: Store in package
+        dest_dir = package_path / "files" / shard
+    else:
+        # Backward compatibility: Global storage
+        dest_dir = settings.base_path / "imported" / shard
+
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate unique filename
@@ -404,6 +419,8 @@ def ingest_folder(
     extract_text: bool = False,
     auto_embed: bool = False,
     on_progress: Callable[[int, int], None] | None = None,
+    db: "Database | None" = None,
+    package_path: Path | None = None,
 ) -> list[Document]:
     """Ingest all files from a folder.
 
@@ -416,11 +433,14 @@ def ingest_folder(
         extract_text: Extract text content using loaders
         auto_embed: Create embeddings for search
         on_progress: Progress callback (current, total)
+        db: Database instance (required)
+        package_path: Library package path for COPY mode
 
     Returns:
         List of created Documents
     """
-    from fichero.db import db
+    if db is None:
+        raise ValueError("db parameter is required")
 
     folder = Path(folder).resolve()
 
@@ -464,6 +484,7 @@ def ingest_folder(
                     file_path.parent,
                     folder,
                     folder_id,
+                    db,
                 )
 
             doc = ingest_file(
@@ -474,6 +495,8 @@ def ingest_folder(
                 extract_text=extract_text,
                 auto_embed=auto_embed,
                 save=True,
+                db=db,
+                package_path=package_path,
             )
             documents.append(doc)
 
@@ -491,12 +514,19 @@ def _ensure_folder_hierarchy(
     subfolder: Path,
     base_folder: Path,
     base_id: str,
+    db: "Database",
 ) -> str:
     """Ensure folder hierarchy exists in database.
 
-    Returns the ID of the deepest folder Document.
+    Args:
+        subfolder: Path to subfolder
+        base_folder: Base folder path
+        base_id: ID of base folder document
+        db: Database instance
+
+    Returns:
+        The ID of the deepest folder Document.
     """
-    from fichero.db import db
 
     # Get relative path
     rel_path = subfolder.relative_to(base_folder)
