@@ -1,169 +1,422 @@
 # Frontend Development Workflow Checklist
 
+**Last Updated**: December 31, 2025
+**For**: Fichero macOS App Development
+
+---
+
+## Daily Development Workflow
+
+### 1. Start Development Session
+
+**Prerequisites**:
+```bash
+# [ ] Start Python backend (REQUIRED)
+cd /Users/dtubb/code/fichero_main/fichero
+PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765
+
+# [ ] Open Xcode project
+open Fichero/Fichero.xcodeproj
+
+# [ ] Pull latest changes
+git pull origin main
+```
+
+**Check Status**:
+- [ ] Backend running on port 8765 (http://localhost:8765/docs)
+- [ ] No merge conflicts
+- [ ] Latest code from main branch
+
+---
+
+### 2. Before Writing Code
+
+**Planning**:
+- [ ] Understand the requirement/bug
+- [ ] Check `ai/TODO.md` for task details
+- [ ] Read relevant context files (`key_files.md`, `SWIFTUI_PRINCIPLES.md`)
+- [ ] Identify affected files (use `key_files.md`)
+- [ ] Check if files need splitting (> 400 lines?)
+
+**Research**:
+- [ ] Check Sosumi MCP for SwiftUI patterns
+- [ ] Check Ref MCP for Swift language features
+- [ ] Review sample code in `/sample_code` directory
+- [ ] Review similar existing implementations
+
+---
+
 ## New View Implementation
 
-### Planning Phase
-- [ ] Understand the UI/UX requirements
-- [ ] Review design mockups and specifications
-- [ ] Identify data requirements and API endpoints
-- [ ] Determine state management needs
-- [ ] Consider accessibility requirements
-- [ ] Plan for different device sizes (if applicable)
+### Planning (10-15 min)
+- [ ] Sketch the view hierarchy on paper
+- [ ] Identify state needed (`@State`, `@Observable`, `@EnvironmentObject`)
+- [ ] Plan API endpoints needed
+- [ ] Check if view can reuse existing components
+- [ ] Estimate file size (target < 400 lines)
 
-### Implementation Phase
-- [ ] Create new SwiftUI view file
-- [ ] Define view structure and layout
-- [ ] Implement state management (@State, @Observable)
-- [ ] Add data binding and event handlers
-- [ ] Implement navigation if needed
-- [ ] Add accessibility modifiers
-- [ ] Implement error handling and user feedback
-- [ ] Add loading states and indicators
+### Implementation
 
-### Styling and Layout
-- [ ] Follow established design system
-- [ ] Implement responsive layout
-- [ ] Add appropriate spacing and padding
-- [ ] Implement theming support
-- [ ] Consider dark mode compatibility
-- [ ] Add animations if appropriate
+**File Creation**:
+- [ ] Create file in correct directory (`Views/FeatureName/`)
+- [ ] Use standard file template:
+  ```swift
+  import SwiftUI
+  import OSLog
 
-### Testing Phase
-- [ ] Add PreviewProvider for visual testing
-- [ ] Test in Xcode preview canvas
-- [ ] Test on different device sizes
-- [ ] Test accessibility features
-- [ ] Test error conditions and edge cases
-- [ ] Test state management and data flow
-- [ ] Test navigation flows
+  private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FileName")
 
-### Integration Phase
-- [ ] Connect to backend API endpoints
-- [ ] Implement proper error handling
-- [ ] Add loading states
-- [ ] Implement data transformation
-- [ ] Add caching if appropriate
-- [ ] Test API integration
+  struct MyView: View {
+      // MARK: - Properties
+      // MARK: - Body
+      // MARK: - Subviews
+      // MARK: - Actions
+  }
 
-### Review Phase
-- [ ] Run SwiftLint for code style compliance
-- [ ] Build project to verify no compile errors
-- [ ] Test in Xcode preview canvas
-- [ ] Check for memory leaks
-- [ ] Verify thread safety (@MainActor)
-- [ ] Review accessibility compliance
-- [ ] Check performance in Instruments
-- [ ] Verify proper state management
-- [ ] Test on target devices
+  #Preview { MyView() }
+  ```
 
-## New Feature Implementation
+**State Management**:
+- [ ] Use `@State` for local view state
+- [ ] Use `@StateObject` for view model ownership
+- [ ] Use `@EnvironmentObject` for shared services
+- [ ] Use `@Observable` for iOS 17+ view models
+- [ ] NEVER create services in view body
 
-### Requirements Analysis
-- [ ] Understand user stories and acceptance criteria
-- [ ] Review design specifications
-- [ ] Identify impacted views and components
-- [ ] Determine data model changes needed
-- [ ] Assess API requirements
-- [ ] Consider performance implications
+**SwiftUI Compliance**:
+- [ ] 100% SwiftUI (NO AppKit unless unavoidable)
+- [ ] Use `@FocusedValue` for menu commands (NO NotificationCenter)
+- [ ] Use `@ViewBuilder` for computed views
+- [ ] Cache expensive computations
+- [ ] Handle task cancellation in `.task {}` blocks
 
-### Design Phase
-- [ ] Create UI/UX flow diagrams
-- [ ] Design data models and state management
-- [ ] Plan view hierarchy and navigation
-- [ ] Design API integration strategy
-- [ ] Consider error handling approach
-- [ ] Plan for offline capabilities if needed
+**Swift 6 Concurrency**:
+- [ ] Mark UI classes with `@MainActor`
+- [ ] Use `Task { @MainActor in ... }` for UI updates from background
+- [ ] Check `Task.isCancelled` in all `.task {}` blocks
+- [ ] No `DispatchQueue` in `@MainActor` classes
+- [ ] Make thread-safe classes conform to `Sendable`
 
-### Implementation Phase
-- [ ] Implement data models
-- [ ] Create state management classes
-- [ ] Build view components
-- [ ] Implement navigation flows
-- [ ] Add API integration
-- [ ] Implement error handling
-- [ ] Add loading states
+**Code Quality**:
+- [ ] Descriptive variable names (no `x`, `y`, `i`)
+- [ ] Functions < 50 lines
+- [ ] File < 400 lines (if larger, split immediately)
+- [ ] Use OSLog (not NSLog/print)
+- [ ] Add `#Preview` for visual testing
 
-### Testing Strategy
-- [ ] Write unit tests for view models
-- [ ] Write unit tests for services
-- [ ] Test view rendering and interactions
-- [ ] Test navigation flows
-- [ ] Test API integration
-- [ ] Test error conditions
-- [ ] Test accessibility
+### Testing
+- [ ] Test in Xcode preview (⌘⌥↩)
+- [ ] Test with sample data
+- [ ] Test loading states
+- [ ] Test error states
+- [ ] Test with no backend connection
+- [ ] Test keyboard shortcuts
+- [ ] Test accessibility (VoiceOver if possible)
 
-### Integration Testing
-- [ ] Test complete user flows
-- [ ] Test edge cases and error conditions
-- [ ] Test performance with realistic data
-- [ ] Test memory usage
-- [ ] Test on different devices
-- [ ] Test different orientations
+---
 
-### Deployment Considerations
-- [ ] Add feature flags if needed
-- [ ] Plan rollout strategy
-- [ ] Consider A/B testing
-- [ ] Add analytics tracking
-- [ ] Plan for user onboarding
-- [ ] Update App Store screenshots if needed
+## Modifying Existing Code
 
-## Bug Fix Workflow
+### Before Editing
+- [ ] Read the entire file first
+- [ ] Understand current architecture
+- [ ] Check for existing patterns to follow
+- [ ] Note file size (will edit push it over 400 lines?)
 
-### Triage
-- [ ] Reproduce the issue on device/simulator
-- [ ] Determine severity and priority
-- [ ] Identify root cause
-- [ ] Assess impact on users
-- [ ] Check if issue is device-specific
+### Making Changes
+- [ ] Keep changes minimal and focused
+- [ ] Don't refactor while fixing bugs
+- [ ] Don't add "improvements" beyond the task
+- [ ] Maintain existing code style
+- [ ] Update comments if logic changes
 
-### Fix Implementation
-- [ ] Write test that reproduces the bug
-- [ ] Implement minimal fix
-- [ ] Consider state management implications
-- [ ] Update error handling if needed
-- [ ] Add logging if helpful for debugging
+### Swift 6 Checks
+- [ ] No new concurrency warnings introduced
+- [ ] Proper actor isolation maintained
+- [ ] Task cancellation still handled
+- [ ] No `DispatchQueue` added to `@MainActor` classes
 
-### Verification
-- [ ] Verify fix resolves the issue
-- [ ] Test on different devices
-- [ ] Test different orientations
-- [ ] Test related functionality for regressions
-- [ ] Test in different languages if applicable
-- [ ] Run full test suite
+---
 
-### Post-Fix
-- [ ] Monitor for recurrence
-- [ ] Consider adding automated UI tests
-- [ ] Review similar code for same issue
-- [ ] Update documentation if needed
+## Before Committing
 
-## UI/UX Improvements
+### Code Quality Checks
 
-### Analysis Phase
-- [ ] Review current implementation
-- [ ] Understand pain points
-- [ ] Review design guidelines
-- [ ] Consider accessibility improvements
-- [ ] Assess performance impact
+**Run SwiftLint** (MANDATORY):
+```bash
+cd Fichero
+swiftlint
+```
+**Expected**: Zero errors, warnings are acceptable for TODOs
 
-### Implementation Phase
-- [ ] Implement incremental changes
-- [ ] Maintain backward compatibility
-- [ ] Update state management if needed
-- [ ] Improve accessibility
-- [ ] Optimize performance
-- [ ] Add animations if appropriate
+**Build Project** (MANDATORY):
+```bash
+xcodebuild -project Fichero.xcodeproj -scheme Fichero -configuration Debug build
+```
+**Expected**: `** BUILD SUCCEEDED **` with no Swift errors
 
-### Testing Phase
-- [ ] Test visual consistency
-- [ ] Test accessibility improvements
-- [ ] Test performance impact
-- [ ] Test on different devices
-- [ ] Get user feedback if possible
+**Check for Violations**:
+- [ ] No files > 400 lines (recommended limit)
+- [ ] No files > 1,000 lines (hard limit - MUST split)
+- [ ] No functions > 50 lines
+- [ ] No cyclomatic complexity > 10
+- [ ] No identifier names like `x`, `y`, `i`, `a`, `b`
+- [ ] No line lengths > 120 characters
 
-### Rollout Phase
-- [ ] Plan gradual rollout
-- [ ] Consider feature flags
-- [ ] Add analytics to track adoption
-- [ ] Monitor user feedback
+### Swift 6 Verification
+- [ ] No concurrency warnings in Xcode
+- [ ] All `.task {}` blocks check cancellation
+- [ ] UI updates use `@MainActor` (not DispatchQueue.main)
+- [ ] Thread-safe types are `Sendable`
+
+### SwiftUI Verification
+- [ ] No AppKit except in justified files (see `APPKIT_FINAL_AUDIT.md`)
+- [ ] No NotificationCenter for app logic
+- [ ] Using @FocusedValue for menu commands
+- [ ] All views have `#Preview`
+
+### Testing
+- [ ] Manual testing in Xcode (⌘R)
+- [ ] Test with backend running
+- [ ] Test without backend (connection error handling)
+- [ ] Preview canvas works (⌘⌥↩)
+
+---
+
+## Git Workflow
+
+### Committing
+```bash
+# [ ] Check status
+git status
+
+# [ ] Review changes
+git diff
+
+# [ ] Stage specific files (not `git add .`)
+git add Fichero/Fichero/Views/MyView.swift
+git add Fichero/Fichero/Models/MyModel.swift
+
+# [ ] Commit with descriptive message
+git commit -m "Add MyView for feature X
+
+- Implement SwiftUI view with @Observable state
+- Add API integration for endpoint Y
+- Include error handling and loading states
+- All Swift 6 concurrency checks pass
+
+🤖 Generated with Claude Code
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+**Good Commit Messages**:
+- Start with verb: "Add", "Fix", "Update", "Refactor"
+- Explain WHY, not just WHAT
+- Reference issue/task numbers if applicable
+- Include compliance notes (Swift 6, SwiftLint, etc.)
+
+**Bad Commit Messages**:
+- "Update file" (too vague)
+- "WIP" (not descriptive)
+- "asdf" (meaningless)
+
+### Pushing
+```bash
+# [ ] Pull latest first
+git pull origin main
+
+# [ ] Resolve any conflicts
+# ... fix conflicts ...
+
+# [ ] Push to remote
+git push origin feature-branch-name
+```
+
+---
+
+## File Size Management
+
+### When a File Reaches 400 Lines
+
+**Immediate Action Required**:
+1. Stop adding to the file
+2. Plan the split (by component, responsibility, or feature)
+3. Create new files with extracted code
+4. Update imports and references
+5. Add new files to Xcode project
+6. Test thoroughly
+7. Commit with message: "Refactor MyView - split into components"
+
+**Splitting Strategies**:
+- **By Component**: Extract toolbar, sidebar, inspector into separate files
+- **By Responsibility**: Extract data fetching, formatting, validation
+- **By Feature**: Extract search, filter, sort into separate files
+
+**Example**: `EditorView.swift` (1,981 lines) →
+- `EditorView.swift` (< 200 lines)
+- `EditorToolbar.swift`
+- `EditorCanvas.swift`
+- `EditorInspector.swift`
+- `EditorHelpers.swift`
+
+---
+
+## Common Tasks Quick Reference
+
+### Adding a New Feature
+1. Read `ai/TODO.md` for task details
+2. Check `key_files.md` for affected files
+3. Review `SWIFTUI_PRINCIPLES.md` for patterns
+4. Implement following workflow above
+5. Run SwiftLint and build
+6. Test manually
+7. Commit with descriptive message
+8. Update `ai/TODO.md` task status
+
+### Fixing a Bug
+1. Reproduce the bug
+2. Add logging if needed
+3. Identify root cause
+4. Make minimal fix
+5. Test fix works
+6. Test related functionality (no regressions)
+7. Run SwiftLint and build
+8. Commit with bug description
+
+### Refactoring
+1. Ensure tests pass first
+2. Make incremental changes
+3. Test after each change
+4. Don't change behavior
+5. Run SwiftLint and build
+6. Commit each logical step
+
+### Adding API Integration
+1. Review backend API docs (`/api/docs`)
+2. Add endpoint to `APIClient.swift` or relevant service
+3. Create/update data models
+4. Add error handling
+5. Add loading states
+6. Test with backend running
+7. Test without backend (error handling)
+
+---
+
+## Troubleshooting
+
+### Build Fails
+```bash
+# Clean build folder
+xcodebuild clean -project Fichero.xcodeproj -scheme Fichero
+
+# Rebuild
+xcodebuild -project Fichero.xcodeproj -scheme Fichero build
+```
+
+### SwiftLint Errors
+```bash
+# Auto-fix formatting issues
+swiftlint --fix --format
+
+# Check specific file
+swiftlint lint --path Fichero/Fichero/Views/MyView.swift
+```
+
+### Concurrency Warnings
+- Check if class needs `@MainActor`
+- Use `Task { @MainActor in ... }` for UI updates
+- Ensure thread-safe types conform to `Sendable`
+- Remove `DispatchQueue` from `@MainActor` classes
+
+### Preview Not Working
+- Ensure all dependencies are injected
+- Provide sample data in preview
+- Check for async operations in init
+- Restart Xcode if canvas is stuck
+
+---
+
+## Performance Checks
+
+### Before Committing Large Changes
+- [ ] Profile with Instruments (Time Profiler)
+- [ ] Check for memory leaks (Leaks instrument)
+- [ ] Monitor view updates (Debug Navigator)
+- [ ] Test with large datasets
+- [ ] Test scrolling performance
+
+### Optimization Checklist
+- [ ] Cache expensive computations
+- [ ] Lazy load data when possible
+- [ ] Use `LazyVStack`/`LazyHStack` for long lists
+- [ ] Minimize view updates
+- [ ] Profile before and after changes
+
+---
+
+## Documentation Updates
+
+### When to Update Docs
+- [ ] Added new major feature → Update `overview.md`
+- [ ] Added new file/module → Update `key_files.md`
+- [ ] Changed architecture → Update `overview.md`
+- [ ] New best practice → Update `SWIFTUI_PRINCIPLES.md`
+- [ ] Changed workflow → Update this file
+
+### Doc Locations
+- `ai/contexts/frontend/overview.md` - High-level architecture
+- `ai/contexts/frontend/key_files.md` - File organization
+- `ai/contexts/frontend/SWIFTUI_PRINCIPLES.md` - Code patterns
+- `ai/contexts/frontend/development_standards.md` - Standards and guidelines
+- `ai/contexts/frontend/workflow_checklist.md` - This file
+
+---
+
+## Resources
+
+### Quick Links
+- Backend API: http://localhost:8765/docs
+- Sample Code: `/Users/dtubb/code/fichero_main/fichero/sample_code`
+- Frontend Docs: `/Users/dtubb/code/fichero_main/fichero/ai/contexts/frontend/`
+- TODO List: `/Users/dtubb/code/fichero_main/fichero/ai/TODO.md`
+
+### MCP Tools
+- **Sosumi**: `searchAppleDocumentation("swiftui drag drop")`
+- **Ref**: `searchDocumentation("Swift @Observable")`
+- **Filesystem**: Read/write files in project
+- **Memory**: Store project knowledge
+
+### When Stuck
+1. Check Sosumi for SwiftUI equivalent
+2. Check Ref for Swift language features
+3. Review similar code in project
+4. Read `SWIFTUI_PRINCIPLES.md`
+5. Ask for clarification
+
+---
+
+## Summary
+
+**Daily Checklist**:
+1. ✅ Start backend
+2. ✅ Write code following SWIFTUI_PRINCIPLES.md
+3. ✅ Keep files < 400 lines
+4. ✅ Run SwiftLint (zero errors)
+5. ✅ Build succeeds
+6. ✅ Test manually
+7. ✅ Commit with good message
+
+**Quality Gates**:
+- File size < 400 lines
+- SwiftLint passes
+- Build succeeds
+- No Swift 6 concurrency warnings
+- Manual testing passes
+- Preview works
+
+**Remember**:
+- 100% SwiftUI (NO AppKit unless unavoidable)
+- Swift 6 compliant (@MainActor, Sendable, Task cancellation)
+- Small, focused files (< 400 lines)
+- Descriptive names (no `x`, `y`, `i`)
+- OSLog for logging (no NSLog/print)

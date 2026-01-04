@@ -6,6 +6,7 @@ API endpoints for managing LLM providers and models.
 
 import logging
 import time
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -13,13 +14,23 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
+from fichero.app_db import get_app_db, AppDatabase
 from fichero.api.main import get_library_database
-from fichero.models import Provider as ProviderModel, Model as ModelModel, ProviderType
+from fichero.models import Provider, Model, ProviderType
 from fichero.providers import PROVIDERS, get_provider_info, list_providers as list_catalog_providers
 from fichero.keychain import get_api_key, set_api_key, delete_api_key, has_api_key, is_available as keychain_available
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# =============================================================================
+# Dependencies
+# =============================================================================
+
+def get_app_database() -> AppDatabase:
+    """FastAPI dependency to get the app-wide database."""
+    return get_app_db()
 
 
 # =============================================================================
@@ -547,10 +558,10 @@ async def list_models_for_provider(
 
 @router.get("")
 async def list_providers(
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> list[ProviderResponse]:
-    """List user's configured providers."""
-    providers = db.all(ProviderModel)
+    """List user's configured providers (app-wide)."""
+    providers = app_db.list_providers()
     return [
         ProviderResponse(
             id=p.id,
@@ -569,9 +580,9 @@ async def list_providers(
 @router.post("")
 async def create_provider(
     request: ProviderCreate,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
-    """Create a new provider configuration."""
+    """Create a new provider configuration (app-wide)."""
     # Validate provider type
     try:
         ptype = ProviderType(request.provider_type)
@@ -583,13 +594,13 @@ async def create_provider(
         raise HTTPException(status_code=400, detail=f"Unknown provider type: {request.provider_type}")
 
     # Create provider record
-    provider = ProviderModel(
+    provider = Provider(
         name=request.name or info.name,
         provider_type=ptype,
         api_base=request.api_base,
         enabled=True,
     )
-    db.save(provider)
+    app_db.save_provider(provider)
 
     # Store API key in keychain if provided
     if request.api_key:
@@ -607,13 +618,172 @@ async def create_provider(
     )
 
 
+# =============================================================================
+# Library Provider References (Library-Specific)
+# =============================================================================
+
+
+class ProviderRefCreate(BaseModel):
+    """Request to add a provider reference to a library."""
+    provider_id: str
+
+
+class ProviderRefUpdate(BaseModel):
+    """Request to update a provider reference."""
+    enabled: bool | None = None
+    sort_order: int | None = None
+
+
+class ProviderRefResponse(BaseModel):
+    """Provider reference response with full provider details."""
+    id: str
+    provider_id: str
+    provider_name: str
+    provider_type: str
+    enabled: bool
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/refs")
+async def list_library_provider_refs(
+    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> list[ProviderRefResponse]:
+    """List all provider references for this library.
+
+    Returns references with full provider details from app database.
+    """
+    from fichero.models import ProviderRef
+
+    # Get all provider refs from library database
+    refs = db.query(ProviderRef)
+
+    # Build response with provider details from app database
+    response = []
+    for ref in refs:
+        provider = app_db.get_provider(ref.provider_id)
+        if provider:  # Only include if provider still exists
+            response.append(
+                ProviderRefResponse(
+                    id=ref.id,
+                    provider_id=ref.provider_id,
+                    provider_name=provider.name,
+                    provider_type=provider.provider_type.value,
+                    enabled=ref.enabled,
+                    sort_order=ref.sort_order,
+                    created_at=ref.created_at,
+                    updated_at=ref.updated_at,
+                )
+            )
+
+    return response
+
+
+@router.post("/refs")
+async def add_provider_ref(
+    request: ProviderRefCreate,
+    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> ProviderRefResponse:
+    """Add a provider reference to this library."""
+    from fichero.models import ProviderRef
+
+    # Verify provider exists in app database
+    provider = app_db.get_provider(request.provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Check if reference already exists
+    existing_refs = db.query(ProviderRef, provider_id=request.provider_id)
+    if existing_refs:
+        raise HTTPException(status_code=400, detail="Provider already referenced by this library")
+
+    # Create new reference
+    ref = ProviderRef(
+        provider_id=request.provider_id,
+        enabled=True,
+        sort_order=0,
+    )
+    db.save(ref)
+
+    return ProviderRefResponse(
+        id=ref.id,
+        provider_id=ref.provider_id,
+        provider_name=provider.name,
+        provider_type=provider.provider_type.value,
+        enabled=ref.enabled,
+        sort_order=ref.sort_order,
+        created_at=ref.created_at,
+        updated_at=ref.updated_at,
+    )
+
+
+@router.patch("/refs/{ref_id}")
+async def update_provider_ref(
+    ref_id: str,
+    request: ProviderRefUpdate,
+    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> ProviderRefResponse:
+    """Update a provider reference."""
+    from fichero.models import ProviderRef
+
+    # Get existing reference
+    ref = db.get(ProviderRef, ref_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="Provider reference not found")
+
+    # Update fields
+    if request.enabled is not None:
+        ref.enabled = request.enabled
+    if request.sort_order is not None:
+        ref.sort_order = request.sort_order
+
+    ref.updated_at = datetime.now()
+    db.save(ref)
+
+    # Get provider details for response
+    provider = app_db.get_provider(ref.provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Referenced provider not found")
+
+    return ProviderRefResponse(
+        id=ref.id,
+        provider_id=ref.provider_id,
+        provider_name=provider.name,
+        provider_type=provider.provider_type.value,
+        enabled=ref.enabled,
+        sort_order=ref.sort_order,
+        created_at=ref.created_at,
+        updated_at=ref.updated_at,
+    )
+
+
+@router.delete("/refs/{ref_id}")
+async def delete_provider_ref(
+    ref_id: str,
+    db: Database = Depends(get_library_database),
+):
+    """Remove a provider reference from this library."""
+    from fichero.models import ProviderRef
+
+    ref = db.get(ProviderRef, ref_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="Provider reference not found")
+
+    db.delete(ref)
+    return {"status": "deleted"}
+
+
 @router.get("/{provider_id}")
 async def get_provider(
     provider_id: str,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
-    """Get a specific provider configuration."""
-    provider = db.get(ProviderModel, provider_id)
+    """Get a specific provider configuration (app-wide)."""
+    provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
@@ -633,10 +803,10 @@ async def get_provider(
 async def update_provider(
     provider_id: str,
     request: ProviderUpdate,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
-    """Update a provider configuration."""
-    provider = db.get(ProviderModel, provider_id)
+    """Update a provider configuration (app-wide)."""
+    provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
@@ -648,7 +818,7 @@ async def update_provider(
     if request.enabled is not None:
         provider.enabled = request.enabled
 
-    db.save(provider)
+    app_db.save_provider(provider)
 
     # Update API key in keychain if provided
     if request.api_key is not None:
@@ -673,20 +843,15 @@ async def update_provider(
 @router.delete("/{provider_id}")
 async def delete_provider(
     provider_id: str,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ):
-    """Delete a provider and optionally its API key."""
-    provider = db.get(ProviderModel, provider_id)
+    """Delete a provider (app-wide). Models are cascade deleted."""
+    provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
-    # Delete associated models
-    models = db.query(ModelModel, provider_id=provider_id)
-    for model in models:
-        db.delete(model)
-
-    # Delete provider
-    db.delete(provider)
+    # Delete provider (models cascade automatically)
+    app_db.delete_provider(provider_id)
 
     return {"status": "deleted"}
 
@@ -1077,14 +1242,14 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
 @router.get("/{provider_id}/models")
 async def list_provider_models(
     provider_id: str,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> list[UserModelResponse]:
     """List user's configured models for a provider."""
-    provider = db.get(ProviderModel, provider_id)
+    provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
-    models = db.query(ModelModel, provider_id=provider_id)
+    models = app_db.list_models(provider_id)
     return [
         UserModelResponse(
             id=m.id,
@@ -1105,10 +1270,10 @@ async def list_provider_models(
 async def add_model_to_provider(
     provider_id: str,
     request: ModelCreate,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> UserModelResponse:
     """Add a model configuration to a provider."""
-    provider = db.get(ProviderModel, provider_id)
+    provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
@@ -1117,7 +1282,7 @@ async def add_model_to_provider(
 
     cost_info = get_model_cost(f"{provider.provider_type.value}/{request.model_id}")
 
-    model = ModelModel(
+    model = Model(
         provider_id=provider_id,
         name=request.name or request.model_id,
         model_id=request.model_id,
@@ -1125,7 +1290,7 @@ async def add_model_to_provider(
         input_cost=cost_info.get("input_cost_per_token") * 1_000_000 if cost_info else None,
         output_cost=cost_info.get("output_cost_per_token") * 1_000_000 if cost_info else None,
     )
-    db.save(model)
+    app_db.save_model(model)
 
     return UserModelResponse(
         id=model.id,
@@ -1144,12 +1309,17 @@ async def add_model_to_provider(
 async def remove_model_from_provider(
     provider_id: str,
     model_id: str,
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ):
     """Remove a model from a provider."""
-    model = db.get(ModelModel, model_id)
-    if not model or model.provider_id != provider_id:
+    # Get all models for this provider to verify the model exists and belongs to it
+    models = app_db.list_models(provider_id)
+    model_exists = any(m.id == model_id for m in models)
+
+    if not model_exists:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    db.delete(model)
+    app_db.delete_model(model_id)
     return {"status": "deleted"}
+
+

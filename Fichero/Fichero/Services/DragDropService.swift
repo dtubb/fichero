@@ -48,43 +48,48 @@ class DragDropService: ObservableObject {
             // Use weak self to avoid retain cycles
             provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { [weak self] data, error in
                 guard let self = self else { return }
-                
+
                 defer {
-                    self.dragDropModel.endOperation(operationId)
                     let completed = completedOperations.incrementAndGet()
-                    
-                    // Update progress
-                    let progress = Double(completed) / Double(operationCount)
-                    DispatchQueue.main.async {
-                        self.dragDropModel.updateProgress(progress)
-                        
+
+                    // Update progress on main actor
+                    Task { @MainActor in
+                        self.dragDropModel.endOperation(operationId)
+                        self.dragDropModel.updateProgress(Double(completed) / Double(operationCount))
+
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
                             self.benchmark?.end()
-                            
+
                             if !documentIds.isEmpty {
                                 completion(documentIds)
                             }
                         }
                     }
                 }
-                
+
                 if let error = error {
-                    self.handleProviderError(error, providerType: "text")
+                    Task { @MainActor in
+                        self.handleProviderError(error, providerType: "text")
+                    }
                     return
                 }
-                
+
                 guard let data = data as? Data else {
-                    self.handleInvalidDataError(providerType: "text")
+                    Task { @MainActor in
+                        self.handleInvalidDataError(providerType: "text")
+                    }
                     return
                 }
-                
+
                 guard let docId = String(data: data, encoding: .utf8) else {
-                    self.handleDecodingError(providerType: "text")
+                    Task { @MainActor in
+                        self.handleDecodingError(providerType: "text")
+                    }
                     return
                 }
-                
+
                 // Thread-safe append
                 operationQueue.async(flags: .barrier) {
                     documentIds.append(docId)
@@ -94,43 +99,48 @@ class DragDropService: ObservableObject {
             // Also check for plain text type
             provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { [weak self] data, error in
                 guard let self = self else { return }
-                
+
                 defer {
-                    self.dragDropModel.endOperation(operationId)
                     let completed = completedOperations.incrementAndGet()
-                    
-                    // Update progress
-                    let progress = Double(completed) / Double(operationCount)
-                    DispatchQueue.main.async {
-                        self.dragDropModel.updateProgress(progress)
-                        
+
+                    // Update progress on main actor
+                    Task { @MainActor in
+                        self.dragDropModel.endOperation(operationId)
+                        self.dragDropModel.updateProgress(Double(completed) / Double(operationCount))
+
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
                             self.benchmark?.end()
-                            
+
                             if !documentIds.isEmpty {
                                 completion(documentIds)
                             }
                         }
                     }
                 }
-                
+
                 if let error = error {
-                    self.handleProviderError(error, providerType: "plainText")
+                    Task { @MainActor in
+                        self.handleProviderError(error, providerType: "plainText")
+                    }
                     return
                 }
-                
+
                 guard let data = data as? Data else {
-                    self.handleInvalidDataError(providerType: "plainText")
+                    Task { @MainActor in
+                        self.handleInvalidDataError(providerType: "plainText")
+                    }
                     return
                 }
-                
+
                 guard let docId = String(data: data, encoding: .utf8) else {
-                    self.handleDecodingError(providerType: "plainText")
+                    Task { @MainActor in
+                        self.handleDecodingError(providerType: "plainText")
+                    }
                     return
                 }
-                
+
                 // Thread-safe append
                 operationQueue.async(flags: .barrier) {
                     documentIds.append(docId)
@@ -152,16 +162,15 @@ class DragDropService: ObservableObject {
             
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] (urlData, error) in
                 guard let self = self else { return }
-                
+
                 defer {
-                    self.dragDropModel.endOperation(operationId)
                     let completed = completedOperations.incrementAndGet()
-                    
-                    // Update progress
-                    let progress = Double(completed) / Double(operationCount)
-                    DispatchQueue.main.async {
-                        self.dragDropModel.updateProgress(progress)
-                        
+
+                    // Update progress on main actor
+                    Task { @MainActor in
+                        self.dragDropModel.endOperation(operationId)
+                        self.dragDropModel.updateProgress(Double(completed) / Double(operationCount))
+
                         // Check if all operations are complete
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
@@ -170,31 +179,35 @@ class DragDropService: ObservableObject {
                         }
                     }
                 }
-                
+
                 if let error = error {
-                    self.handleProviderError(error, providerType: "fileURL")
+                    Task { @MainActor in
+                        self.handleProviderError(error, providerType: "fileURL")
+                    }
                     return
                 }
-                
+
                 guard let urlData = urlData as? Data else {
-                    self.handleInvalidDataError(providerType: "fileURL")
+                    Task { @MainActor in
+                        self.handleInvalidDataError(providerType: "fileURL")
+                    }
                     return
                 }
-                
+
                 guard let url = URL(dataRepresentation: urlData, relativeTo: nil) else {
-                    self.handleInvalidURLError()
+                    Task { @MainActor in
+                        self.handleInvalidURLError()
+                    }
                     return
                 }
-                
+
                 // Handle the file drop
-                self.handleFileDropOnLibrary(url: url) { success in
-                    if success {
-                        handled = true
-                        DispatchQueue.main.async {
+                Task { @MainActor in
+                    self.handleFileDropOnLibrary(url: url) { success in
+                        if success {
+                            handled = true
                             self.dragDropModel.incrementSuccessCount()
-                        }
-                    } else {
-                        DispatchQueue.main.async {
+                        } else {
                             self.dragDropModel.incrementFailureCount()
                         }
                     }
@@ -211,8 +224,9 @@ class DragDropService: ObservableObject {
     }
     
     // MARK: - File Drop Handling
+    @MainActor
     private func handleFileDropOnLibrary(url: URL, completion: @escaping (Bool) -> Void) {
-        
+
         Task {
             do {
                 // Import file as a top-level document (no parent)
@@ -245,6 +259,7 @@ class DragDropService: ObservableObject {
     }
     
     // MARK: - Error Handling
+    @MainActor
     private func handleProviderError(_ error: Error, providerType: String) {
         let errorModel = ErrorModel.fileSystemError(
             message: "Failed to load provider data: \((error.localizedDescription))",
@@ -258,7 +273,8 @@ class DragDropService: ObservableObject {
         errorService?.reportError(errorModel)
         dragDropModel.incrementFailureCount()
     }
-    
+
+    @MainActor
     private func handleInvalidDataError(providerType: String) {
         let errorModel = ErrorModel.validationError(
             message: "Invalid data received from provider",
@@ -271,7 +287,8 @@ class DragDropService: ObservableObject {
         errorService?.reportError(errorModel)
         dragDropModel.incrementFailureCount()
     }
-    
+
+    @MainActor
     private func handleDecodingError(providerType: String) {
         let errorModel = ErrorModel.validationError(
             message: "Failed to decode provider data",
@@ -284,7 +301,8 @@ class DragDropService: ObservableObject {
         errorService?.reportError(errorModel)
         dragDropModel.incrementFailureCount()
     }
-    
+
+    @MainActor
     private func handleInvalidURLError() {
         let errorModel = ErrorModel.validationError(
             message: "Invalid URL received from provider",
@@ -324,21 +342,21 @@ class DragDropService: ObservableObject {
 }
 
 // MARK: - Atomic Counter for Thread Safety
-class AtomicInt {
+final class AtomicInt: @unchecked Sendable {
     private var value: Int
     private let lock = NSLock()
-    
+
     init(value: Int) {
         self.value = value
     }
-    
+
     func incrementAndGet() -> Int {
         lock.lock()
         defer { lock.unlock() }
         value += 1
         return value
     }
-    
+
     func get() -> Int {
         lock.lock()
         defer { lock.unlock() }

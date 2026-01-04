@@ -13,7 +13,6 @@ class DragDropModel: ObservableObject {
     
     // MARK: - Operation Tracking
     private var activeOperations: Set<UUID> = []
-    private let operationQueue = DispatchQueue(label: "com.fichero.dragdrop.operation", attributes: .concurrent)
     
     // MARK: - State Management
     func startProcessing() {
@@ -51,24 +50,16 @@ class DragDropModel: ObservableObject {
     // MARK: - Operation Tracking
     func startOperation() -> UUID {
         let operationId = UUID()
-        operationQueue.async(flags: .barrier) {
-            self.activeOperations.insert(operationId)
-        }
+        activeOperations.insert(operationId)
         return operationId
     }
-    
+
     func endOperation(_ operationId: UUID) {
-        operationQueue.async(flags: .barrier) {
-            self.activeOperations.remove(operationId)
-        }
+        activeOperations.remove(operationId)
     }
-    
+
     func getActiveOperationCount() -> Int {
-        var count = 0
-        operationQueue.sync {
-            count = activeOperations.count
-        }
-        return count
+        return activeOperations.count
     }
     
     // MARK: - Reset
@@ -78,9 +69,6 @@ class DragDropModel: ObservableObject {
         dropError = nil
         dropSuccessCount = 0
         dropFailureCount = 0
-        
-        operationQueue.async(flags: .barrier) {
-            self.activeOperations.removeAll()
-        }
+        activeOperations.removeAll()
     }
 }

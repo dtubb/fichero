@@ -28,6 +28,7 @@ struct LibraryView: View {
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
+    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State private var searchText: String = ""
     @State private var sortOrder: [KeyPathComparator<Document>] = [
@@ -66,7 +67,8 @@ struct LibraryView: View {
     }
 
     private var filteredDocuments: [Document] {
-        var docs = documents.filter { $0.docType == .file }
+        // Show both files AND folders in the gallery view
+        var docs = documents
 
         if !searchText.isEmpty {
             docs = docs.filter {
@@ -101,8 +103,8 @@ struct LibraryView: View {
             if filteredDocuments.isEmpty {
                 emptyState
             } else {
-                switch viewMode {
-                case .icons:
+                switch displayMode {
+                case .icon:
                     iconsView
                 case .list:
                     listView
@@ -113,7 +115,6 @@ struct LibraryView: View {
                 }
             }
         }
-        .frame(minWidth: 400)
         .searchable(text: $searchText, prompt: "Search documents")
     }
 }
@@ -135,39 +136,14 @@ extension LibraryView {
         showSize = false
     }
 
-    // MARK: - Old Toolbar (being removed)
-    //
-    // The toolbar content has been moved to LibraryViewToolbar.swift
-    // This section can be deleted - keeping temporarily for reference
-    //
-    // @ToolbarContentBuilder
-    // private var toolbarContent: some ToolbarContent {
-    //     ToolbarItem(placement: .automatic) {
-    //         if viewMode == .table {
-    //             Menu {
-    //                 Text("Show Columns")
-    //
-    //                 Divider()
-    //
-    //                 Toggle("Name", isOn: $showName)
-    //                 ...
-    //                     resetColumnVisibility()
-    //                 }
-    //             } label: {
-    //                 Image(systemName: "slider.horizontal.3")
-    //             }
-    //             .help("Configure Columns")
-    //         }
-    //     }
-    // }
-
     // MARK: - Icons View (Grid)
 
     private var iconsView: some View {
         ScrollView {
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 100, maximum: 140))],
-                spacing: 16
+                columns: [GridItem(.adaptive(minimum: 120, maximum: 150))],
+                alignment: .center,
+                spacing: 20
             ) {
                 ForEach(filteredDocuments) { doc in
                     DocumentThumbnailView(
@@ -184,7 +160,9 @@ extension LibraryView {
                 }
             }
             .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - List View (Mail-style compact rows)
@@ -287,9 +265,16 @@ extension LibraryView {
         switch columnId {
         case "name":
             HStack(spacing: 8) {
-                Image(systemName: doc.fileType?.icon ?? "doc")
-                    .foregroundColor(.secondary)
-                    .frame(width: 16)
+                // Show folder icon for folders, file type icon for files
+                if doc.docType == .folder {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.accentColor)
+                        .frame(width: 16)
+                } else {
+                    Image(systemName: doc.fileType?.icon ?? "doc")
+                        .foregroundColor(.secondary)
+                        .frame(width: 16)
+                }
                 Text(doc.name)
                     .lineLimit(1)
             }
@@ -304,9 +289,15 @@ extension LibraryView {
                 .lineLimit(1)
                 .help(doc.pageContent ?? "")
         case "fileType":
-            Text(doc.fileType?.rawValue.capitalized ?? "-")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if doc.docType == .folder {
+                Text("Folder")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text(doc.fileType?.rawValue.capitalized ?? "-")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         case "path":
             Text(doc.path ?? "-")
                 .font(.caption)
@@ -400,6 +391,12 @@ struct MailStyleRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Title row
                 HStack {
+                    // Folder icon for folders
+                    if document.docType == .folder {
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(.accentColor)
+                    }
+
                     Text(document.name)
                         .font(.headline)
                         .lineLimit(1)
@@ -415,7 +412,11 @@ struct MailStyleRow: View {
                 HStack(spacing: 8) {
                     StatusBadge(status: document.status)
 
-                    if let fileType = document.fileType {
+                    if document.docType == .folder {
+                        Text("Folder")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if let fileType = document.fileType {
                         Text(fileType.rawValue.capitalized)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -599,10 +600,17 @@ struct DocumentThumbnailView: View {
                     .fill(Color(.windowBackgroundColor))
                     .aspectRatio(1, contentMode: .fit)
 
-                // Load thumbnail from backend API with library path header
-                LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                    .aspectRatio(contentMode: .fill)
-                    .clipped()
+                // Show folder icon for folders, thumbnail for files
+                if document.docType == .folder {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.accentColor)
+                } else {
+                    // Load thumbnail from backend API with library path header
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fill)
+                        .clipped()
+                }
 
                 VStack {
                     Spacer()
@@ -662,7 +670,8 @@ struct DocumentThumbnailView: View {
         documents: [],
         selection: .constant(Set<String>()),
         detailDocument: .constant(nil),
-        viewMode: .constant(.icons)
+        viewMode: .constant(.icons),
+        displayMode: .icon
     )
     .frame(width: 600, height: 500)
 }

@@ -14,7 +14,7 @@ struct WorkflowInspector: View {
     @State private var toolCategories: [CategoryTools] = []
     @State private var isLoadingTools: Bool = false
 
-    private let workflowService = WorkflowService(apiClient: APIClient())
+    @EnvironmentObject var workflowService: WorkflowService
 
     var body: some View {
         ScrollView {

@@ -54,7 +54,7 @@ struct FicheroApp: App {
                 .environmentObject(appState)
                 .environmentObject(viewSettings)
                 .environmentObject(libraryManager)
-                .frame(minWidth: 800, minHeight: 500)
+                .frame(minWidth: 1000, minHeight: 600)
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
@@ -62,28 +62,37 @@ struct FicheroApp: App {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
-            // File menu
+            // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
-                Button("New Library") {
+                Button("New Database") {
                     handleNewLibrary()
                 }
                 .keyboardShortcut("n", modifiers: [.command])
+
+                FocusedOpenDatabaseButton()
+
+                Divider()
 
                 FocusedNewWindowButton()
 
                 Divider()
 
-                FocusedOpenLibraryButton()
+                FocusedSaveDatabaseButton()
+            }
 
-                Divider()
-
-                FocusedSaveLibraryButton()
-
-                Divider()
-
+            // Data menu - Item creation commands
+            CommandMenu("Data") {
                 FocusedNewFolderButton()
 
                 FocusedImportFilesButton()
+
+                Divider()
+
+                FocusedNewSearchButton()
+
+                FocusedNewChatButton()
+
+                FocusedNewWorkflowButton()
             }
 
             // Edit menu
@@ -175,9 +184,8 @@ struct LibraryWindow: View {
     }
 
     private var windowSubtitle: String {
-        guard let library = windowState.library else { return "" }
-        if libraryManager.isTemporaryLibrary(library.url) { return "" }
-        return library.url.deletingLastPathComponent().path
+        // Subtitle suppressed - toolbar already shows library name and view mode
+        return ""
     }
 
     var body: some View {
@@ -191,9 +199,22 @@ struct LibraryWindow: View {
                     ),
                     documentURL: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url
                 )
-                .id(library.id)  // Force recreation when switching libraries
+                // Note: Removed .id(library.id) to prevent sidebar flash when switching libraries
+                // Environment objects update automatically when windowState.libraryId changes
                 .environmentObject(windowState)
+                // Inject all library services (one instance per library, shared across tabs)
                 .environmentObject(library.documentStore)
+                .environmentObject(library.savedSearchService)
+                .environmentObject(library.searchService)
+                .environmentObject(library.conversationService)
+                .environmentObject(library.chatService)
+                .environmentObject(library.workflowStore)
+                .environmentObject(library.workflowService)
+                .environmentObject(library.importService)
+                .environmentObject(library.documentService)
+                .environmentObject(library.storageService)
+                .environmentObject(library.providerService)
+                .environmentObject(library.modelService)
             } else {
                 // Welcome screen - no library open yet
                 WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })

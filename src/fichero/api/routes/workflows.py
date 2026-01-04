@@ -100,6 +100,8 @@ class WorkflowResponse(BaseModel):
     model: str
     nodes: list[dict]
     edges: list[dict]
+    folder_path: str
+    sort_order: int
 
 
 class WorkflowRunRequest(BaseModel):
@@ -305,6 +307,8 @@ async def create_workflow(
             model=db_workflow.model,
             nodes=db_workflow.nodes,
             edges=db_workflow.edges,
+            folder_path=db_workflow.folder_path,
+            sort_order=db_workflow.sort_order,
         )
     except Exception as e:
         logger.exception("Failed to create workflow")
@@ -354,6 +358,8 @@ async def import_workflow(
             model=db_workflow.model,
             nodes=db_workflow.nodes,
             edges=db_workflow.edges,
+            folder_path=db_workflow.folder_path,
+            sort_order=db_workflow.sort_order,
         )
     except Exception as e:
         logger.exception("Failed to import workflow")
@@ -413,6 +419,8 @@ async def list_workflows(
                 model=workflow.model,
                 nodes=workflow.nodes,
                 edges=workflow.edges,
+                folder_path=workflow.folder_path,
+                sort_order=workflow.sort_order,
             )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]

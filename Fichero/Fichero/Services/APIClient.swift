@@ -79,10 +79,27 @@ class APIClient: ObservableObject {
 
     // MARK: - Request Configuration
 
-    /// Add library path header to request if currentLibraryPath is set
+    /// Add library path header to request if currentLibraryPath is set.
+    /// Skips the header for app-wide endpoints (health check, providers).
+    /// Provider references (/providers/refs) still get the header since they are library-specific.
     private func configureRequest(_ request: inout URLRequest) {
+        let path = request.url?.path ?? ""
+
+        // App-wide endpoints that don't need library path header
+        let isHealthEndpoint = path.contains("/health")
+        let isAppWideProviderEndpoint = path.contains("/providers") && !path.contains("/providers/refs")
+
+        // Skip header for app-wide endpoints
+        if isHealthEndpoint || isAppWideProviderEndpoint {
+            return
+        }
+
+        // Add library path header for all library-specific endpoints
         if let libraryPath = currentLibraryPath {
             request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        } else {
+            // Warning: library-specific endpoint called without library path
+            logger.warning("Request to \(path) requires library path but currentLibraryPath is nil")
         }
     }
 

@@ -20,7 +20,7 @@ struct AddProviderSheet: View {
     @State private var selectedModelForStep3: ModelInfo?  // Selected model in step 3
     @State private var isAddingModel = false
 
-    private let providerService = ProviderService(apiClient: APIClient())
+    @EnvironmentObject var providerService: ProviderService
 
     init(onAdd: @escaping () async -> Void, isFirstLaunch: Bool = false) {
         self.onAdd = onAdd

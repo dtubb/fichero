@@ -12,7 +12,7 @@ struct ProvidersView: View {
     @State private var showAddProvider = false
     @State private var selectedProvider: ProviderResponse?
 
-    private let providerService = ProviderService(apiClient: APIClient())
+    @EnvironmentObject var providerService: ProviderService
 
     var body: some View {
         HSplitView {
@@ -197,7 +197,7 @@ struct ProviderDetailView: View {
     @State private var userModels: [UserModelResponse] = []
     @State private var isLoadingModels = false
 
-    private let providerService = ProviderService(apiClient: APIClient())
+    @EnvironmentObject var providerService: ProviderService
 
     /// Whether this provider is local (no API key needed)
     private var isLocalProvider: Bool {

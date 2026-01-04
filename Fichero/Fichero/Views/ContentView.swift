@@ -16,6 +16,8 @@ struct ContentView: View {
     @EnvironmentObject var conversationService: ConversationService
     @EnvironmentObject var importService: ImportService
     @EnvironmentObject var windowState: WindowState
+    @EnvironmentObject var workflowStore: WorkflowStore
+    @EnvironmentObject var savedSearchService: SavedSearchService
 
     // MARK: - State
 
@@ -25,19 +27,31 @@ struct ContentView: View {
     @State private var detailDocument: Document?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    // Workflow store - manages workflow persistence (TODO: move to DocumentTabView)
-    @StateObject private var workflowStore = WorkflowStore(apiClient: APIClient())
-
     // Workflow state
     @State private var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State private var chatSelectedDocuments: Set<String> = []
 
-    // Services - as StateObjects for EnvironmentObject injection (TODO: move to DocumentTabView and inject apiClient)
-    // TEMP: Creating with temporary APIClient instances - these should be passed from DocumentTabView
-    @StateObject private var savedSearchService = SavedSearchService(apiClient: APIClient())
-    @StateObject private var workflowService = WorkflowService(apiClient: APIClient())
+    // Main toolbar state (per-window persistence)
+    @SceneStorage("viewDisplayMode") private var viewDisplayMode: ViewDisplayMode = .icon
+    @SceneStorage("currentLayoutMode") private var currentLayoutMode: LayoutMode = .standard
+
+    // Column visibility persistence
+    @SceneStorage("sidebarWidth") private var sidebarWidth: Double = 220
+    @SceneStorage("contentWidth") private var contentWidth: Double = 600
+    @SceneStorage("inspectorWidth") private var inspectorWidth: Double = 250
+    @SceneStorage("showSidebar") private var showSidebar: Bool = true
+    @SceneStorage("showInspectorSidebar") private var showInspectorSidebar: Bool = true
+
+    // Map view persistence (latitude, longitude, zoom)
+    @SceneStorage("mapLatitude") private var mapLatitude: Double = 0.0
+    @SceneStorage("mapLongitude") private var mapLongitude: Double = 0.0
+    @SceneStorage("mapZoom") private var mapZoom: Double = 1.0
+
+    @StateObject private var itemRegistry = ItemTypeRegistry()
+
+    // Temp services (TODO: move to DocumentTabView)
     @StateObject private var performanceService = PerformanceService()
 
     // Error service (using singleton pattern)
@@ -51,37 +65,33 @@ struct ContentView: View {
 
     // MARK: - Computed Properties
 
-    // Cache for sidebar items - rebuilt only when source data changes
-    @State private var cachedSidebarItems: [SidebarItem] = []
+    /// Toolbar title showing library name and current view
+    private var toolbarTitle: String {
+        let libraryManager = LibraryManager.shared
+        let libraryName: String
 
-    /// Derive the selected SidebarItem from the ID (uses cached items)
-    private var selectedSidebarItem: SidebarItem? {
-        guard let id = selectedSidebarItemId else { return nil }
-        return findItemById(id, in: cachedSidebarItems)
-    }
-
-    /// Rebuild the sidebar item cache from all sources
-    private func rebuildSidebarCache() {
-        let libraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-        let searchItems = SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
-        let chatItems = SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
-        let workflowItems = SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
-
-        cachedSidebarItems = libraryItems + searchItems + chatItems + workflowItems
-    }
-
-    /// Recursively find an item by ID
-    private func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
-        for item in items {
-            if item.id == id {
-                return item
-            }
-            if let children = item.children,
-               let found = findItemById(id, in: children) {
-                return found
-            }
+        if let currentId = libraryManager.currentLibraryId,
+           let library = libraryManager.openLibraries.first(where: { $0.id == currentId }) {
+            libraryName = library.displayName
+        } else {
+            libraryName = "Fichero"
         }
-        return nil
+
+        let viewName: String
+        switch viewMode {
+        case .library(let document):
+            // Show actual document name, or "Library" if browsing all documents
+            viewName = document?.name ?? "Library"
+        case .search(let savedSearch):
+            viewName = savedSearch?.name ?? "Search"
+        case .chat(let conversation):
+            // Show actual conversation title, or "Chat" if no conversation selected
+            viewName = conversation?.title ?? "Chat"
+        case .workflow(let workflow):
+            viewName = workflow?.name ?? "Workflow"
+        }
+
+        return "\(libraryName) > \(viewName)"
     }
 
     /// Documents for the browser based on current library selection
@@ -98,19 +108,8 @@ struct ContentView: View {
     }
 
     /// Handle document change events
+    @MainActor
     private func handleDocumentChange(_ change: DocumentChange) {
-        // Ensure we're on main thread for UI updates
-        if !Thread.isMainThread {
-            DispatchQueue.main.async {
-                self.handleDocumentChangeOnMain(change)
-            }
-            return
-        }
-        handleDocumentChangeOnMain(change)
-    }
-
-    /// Handle document changes on main thread
-    private func handleDocumentChangeOnMain(_ change: DocumentChange) {
         switch change {
         case .collectionsUpdated:
             // SwiftUI automatically updates when @Published collections change
@@ -150,30 +149,94 @@ struct ContentView: View {
         SidebarView(
             viewMode: $viewMode,
             selectedItemId: $selectedSidebarItemId,
-            documentStore: documentStore,
-            savedSearchService: savedSearchService,
-            conversationService: conversationService,
-            workflowStore: workflowStore,
-            windowState: windowState,
-            onSwitchLibrary: { libraryId in
-                windowState.libraryId = libraryId
-            },
+            libraryManager: LibraryManager.shared,
             onCreateChatWithDocuments: { documentIds in
                 chatSelectedDocuments = Set(documentIds)
-            }
+            },
+            itemRegistry: itemRegistry
         )
         .environmentObject(savedSearchService)
         .environmentObject(conversationService)
-        .environmentObject(workflowService)
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 300)
     }
 
     @ViewBuilder
     private var centerContent: some View {
-        contentView
-            .navigationSplitViewColumnWidth(min: 300, ideal: 450, max: .infinity)
+        switch currentLayoutMode {
+        case .none:
+            // None: Just content, no preview
+            contentView
+                .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
+
+        case .standard:
+            // Standard: Content stacked above preview (vertical split)
+            // Default: 20% content, 80% preview - emphasize document viewing
+            VSplitView {
+                contentView
+                    .frame(minHeight: 150, idealHeight: 180)
+
+                previewView
+                    .frame(minHeight: 400, idealHeight: 720)
+            }
+            .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
+
+        case .widescreen:
+            // Widescreen: Content and preview side-by-side (horizontal split)
+            // Default: 20% content, 80% preview - emphasize document viewing
+            HSplitView {
+                contentView
+                    .frame(minWidth: 200, idealWidth: 200)
+
+                previewView
+                    .frame(minWidth: 400, idealWidth: 800)
+            }
+            .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
+        }
+    }
+
+    /// Preview/editor view for selected item
+    @ViewBuilder
+    private var previewView: some View {
+        switch viewMode {
+        case .library, .search:
+            EditorView(document: detailDocument)
+
+        case .chat:
+            // Chat doesn't have a traditional preview
+            EmptyView()
+
+        case .workflow:
+            // Workflow doesn't have a traditional preview
+            EmptyView()
+        }
+    }
+
+    /// Inspector/info sidebar view (right column - fixed width)
+    @ViewBuilder
+    private var inspectorView: some View {
+        switch viewMode {
+        case .library, .search:
+            DocumentInspector(document: inspectorDocument)
+                .navigationSplitViewColumnWidth(250)
+                .frame(width: 250)
+
+        case .chat:
+            ChatInspector(selectedDocuments: $chatSelectedDocuments)
+                .navigationSplitViewColumnWidth(250)
+                .frame(width: 250)
+
+        case .workflow:
+            WorkflowInspector(
+                workflow: $editingWorkflow,
+                onAddNode: { tool, position in
+                    addNodeFromTool(tool, at: position)
+                }
+            )
+            .navigationSplitViewColumnWidth(280)
+            .frame(width: 280)
+        }
     }
 
     // MARK: - Body
@@ -276,13 +339,120 @@ struct ContentView: View {
             content: { centerContent },
             detail: { detailView }
         )
+        .navigationSplitViewStyle(.prominentDetail)
+        .navigationTitle(toolbarTitle)  // Show title in window tab and toolbar
+        .navigationSubtitle("")  // No subtitle (path suppressed)
+        .toolbar(removing: .sidebarToggle)
+        .onAppear {
+            // Initialize column visibility based on persisted inspector state
+            updateColumnVisibility()
+        }
+        .onChange(of: showInspectorSidebar) { _, _ in
+            // Update column visibility when inspector toggle changes
+            updateColumnVisibility()
+        }
         .toolbar {
-            // Stable main toolbar - never changes across views
+            // Left side: Layout picker, View mode picker, Plus button
+            ToolbarItemGroup(placement: .navigation) {
+                // Layout mode picker (None/Standard/Widescreen) with icons
+                Picker("Layout", selection: $currentLayoutMode) {
+                    ForEach(LayoutMode.allCases) { mode in
+                        Label(mode.rawValue, systemImage: mode.icon)
+                            .labelStyle(.iconOnly)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Layout: \(currentLayoutMode.rawValue)")
+                .onChange(of: currentLayoutMode) { _, newMode in
+                    withAnimation {
+                        // Sync toolbar with View menu previewMode
+                        switch newMode {
+                        case .none:
+                            viewSettings.previewMode = .none
+                        case .standard:
+                            viewSettings.previewMode = .standard
+                        case .widescreen:
+                            viewSettings.previewMode = .widescreen
+                        }
+                    }
+                }
+
+                // View mode picker (Icon/List/Table/Map)
+                Picker("View", selection: $viewDisplayMode) {
+                    ForEach(ViewDisplayMode.allCases) { mode in
+                        Label(mode.rawValue, systemImage: mode.icon)
+                            .labelStyle(.iconOnly)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("View as: \(viewDisplayMode.rawValue)")
+                .onChange(of: viewDisplayMode) { _, newMode in
+                    // Sync toolbar with View menu libraryLayout
+                    switch newMode {
+                    case .icon:
+                        viewSettings.libraryLayout = .icons
+                    case .list:
+                        viewSettings.libraryLayout = .list
+                    case .table:
+                        viewSettings.libraryLayout = .table
+                    case .map:
+                        viewSettings.libraryLayout = .map
+                    }
+                }
+
+                // Add menu (Plus button)
+                AddItemMenu(registry: itemRegistry, style: .button)
+                    .help("Add new item (⌘N)")
+            }
+
+            // Far right: Inspector toggle (after search widget, explicit trailing position)
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { viewSettings.showInspector.toggle() }) {
+                Button(action: {
+                    withAnimation {
+                        showInspectorSidebar.toggle()
+                    }
+                }) {
                     Image(systemName: "sidebar.right")
                 }
-                .help(viewSettings.showInspector ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+            }
+        }
+        .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
+            // Sync View menu changes back to toolbar layout picker
+            let newLayoutMode: LayoutMode
+            switch newPreviewMode {
+            case .none:
+                newLayoutMode = .none
+            case .standard:
+                newLayoutMode = .standard
+            case .widescreen:
+                newLayoutMode = .widescreen
+            }
+
+            if currentLayoutMode != newLayoutMode {
+                withAnimation {
+                    currentLayoutMode = newLayoutMode
+                }
+            }
+        }
+        .onChange(of: viewSettings.libraryLayout) { _, newLibraryLayout in
+            // Sync View menu changes back to toolbar view mode picker
+            let newDisplayMode: ViewDisplayMode
+            switch newLibraryLayout {
+            case .icons:
+                newDisplayMode = .icon
+            case .list:
+                newDisplayMode = .list
+            case .table:
+                newDisplayMode = .table
+            case .map:
+                newDisplayMode = .map
+            }
+
+            if viewDisplayMode != newDisplayMode {
+                viewDisplayMode = newDisplayMode
             }
         }
         .modifier(
@@ -303,7 +473,6 @@ struct ContentView: View {
                 isImporting: $isImporting,
                 importProgress: $importProgress,
                 importError: $importError,
-                rebuildCache: rebuildSidebarCache,
                 handleDocumentChange: handleDocumentChange,
                 handleFileDrop: handleFileDrop
             )
@@ -318,36 +487,40 @@ extension ContentView {
     var contentView: some View {
         switch viewMode {
         case .library:
-            // Library browser with multiple view modes
+            // Library browser with universal view modes
             LibraryView(
                 documents: selectedDocuments,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                viewMode: $viewSettings.libraryLayout
+                viewMode: $viewSettings.libraryLayout,
+                displayMode: viewDisplayMode
             )
 
         case .search(let savedSearch):
-            // Search view with API integration
+            // Search view with universal view modes
             SearchView(
                 savedSearch: savedSearch,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                onSearchSaved: { refreshSavedSearches() }
+                onSearchSaved: { refreshSavedSearches() },
+                displayMode: viewDisplayMode
             )
 
         case .chat(let conversation):
-            // RAG chat view for document conversations
+            // RAG chat view with universal view modes
             ChatView(
                 conversation: conversation,
                 selectedDocuments: $chatSelectedDocuments,
-                onConversationUpdated: { refreshConversations() }
+                onConversationUpdated: { refreshConversations() },
+                displayMode: viewDisplayMode
             )
 
          case .workflow(let workflow):
-            // Workflow canvas + output log (inspector is in detail column)
+            // Workflow canvas with universal view modes
             WorkflowEditor(
                 workflow: workflow,
-                editingWorkflow: $editingWorkflow
+                editingWorkflow: $editingWorkflow,
+                displayMode: viewDisplayMode
             )
         }
     }
@@ -356,58 +529,9 @@ extension ContentView {
 
     @ViewBuilder
     var detailView: some View {
-        switch viewMode {
-        case .library, .search:
-            // Layout based on preview mode
-            libraryDetailView
-
-        case .chat:
-            // Document scope inspector for chat
-            ChatInspector(selectedDocuments: $chatSelectedDocuments)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
-
-        case .workflow:
-            // Workflow inspector with blocks to drag onto canvas
-            WorkflowInspector(
-                workflow: $editingWorkflow,
-                onAddNode: { tool, position in
-                    addNodeFromTool(tool, at: position)
-                }
-            )
-            .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 350)
-        }
-    }
-
-    @ViewBuilder
-    var libraryDetailView: some View {
-        switch viewSettings.previewMode {
-        case .none:
-            // No preview - just the editor
-            EditorView(document: detailDocument)
-
-        case .standard:
-            // Side by side (horizontal) - Editor + Inspector
-            HStack(spacing: 0) {
-                EditorView(document: detailDocument)
-
-                if viewSettings.showInspector {
-                    Divider()
-                    DocumentInspector(document: inspectorDocument)
-                }
-            }
-
-        case .widescreen:
-            // Vertical split - Editor on top, Inspector below
-            VSplitView {
-                EditorView(document: detailDocument)
-                    .frame(minHeight: 200)
-
-                if viewSettings.showInspector {
-                    DocumentInspector(document: inspectorDocument)
-                        .frame(minHeight: 150)
-                }
-            }
-        }
+        // Detail column ALWAYS shows just the inspector, regardless of layout mode
+        // The inspector visibility is controlled by the inspector toggle button
+        inspectorView
     }
 
     // MARK: - Breadcrumb
@@ -429,6 +553,19 @@ extension ContentView {
                 columnVisibility = .doubleColumn
             } else {
                 columnVisibility = .all
+            }
+        }
+    }
+
+    /// Update column visibility based on inspector sidebar state
+    private func updateColumnVisibility() {
+        withAnimation {
+            if showInspectorSidebar {
+                // Show all three columns: sidebar, content, and inspector
+                columnVisibility = .all
+            } else {
+                // Show only sidebar and content, hide inspector
+                columnVisibility = .doubleColumn
             }
         }
     }
@@ -544,7 +681,6 @@ struct DataLoadingModifiers: ViewModifier {
     let workflowStore: WorkflowStore
     let conversationService: ConversationService
     let savedSearchService: SavedSearchService
-    let rebuildCache: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -567,12 +703,7 @@ struct DataLoadingModifiers: ViewModifier {
                         try? await savedSearchService.loadSavedSearches()
                     }
                 }
-                rebuildCache()
             }
-            .onChange(of: documentStore.collections) { _, _ in rebuildCache() }
-            .onChange(of: savedSearchService.savedSearches) { _, _ in rebuildCache() }
-            .onChange(of: conversationService.conversations) { _, _ in rebuildCache() }
-            .onChange(of: workflowStore.workflows) { _, _ in rebuildCache() }
     }
 }
 
@@ -712,7 +843,6 @@ struct MainContentModifiers: ViewModifier {
     @Binding var importProgress: String?
     @Binding var importError: String?
 
-    let rebuildCache: () -> Void
     let handleDocumentChange: (DocumentChange) -> Void
     let handleFileDrop: ([URL]) -> Void
 
@@ -722,8 +852,7 @@ struct MainContentModifiers: ViewModifier {
                 documentStore: documentStore,
                 workflowStore: workflowStore,
                 conversationService: conversationService,
-                savedSearchService: savedSearchService,
-                rebuildCache: rebuildCache
+                savedSearchService: savedSearchService
             ))
             .modifier(ChangeHandlerModifiers(
                 documentStore: documentStore,
@@ -747,6 +876,8 @@ struct MainContentModifiers: ViewModifier {
     }
 
     private func handleViewModeChange(_ newMode: AppViewMode) {
+        logger.info("handleViewModeChange called with mode: \(String(describing: newMode))")
+
         // Load workflow from API when workflow mode changes
         if case .workflow(let workflowItem) = newMode, let item = workflowItem {
             Task {
@@ -764,11 +895,22 @@ struct MainContentModifiers: ViewModifier {
             }
         }
 
-        // Load children from backend when library item selected
+        // Load children from backend when library folder selected
         if case .library(let doc) = newMode, let document = doc {
-            Task {
-                await documentStore.selectCollection(document)
+            // Only load children for folders, not files
+            if document.docType == .folder {
+                logger.info("Loading children for folder: \(document.name) (id: \(document.id))")
+                Task {
+                    await documentStore.selectCollection(document)
+                    logger.info("selectCollection completed. currentDocuments count: \(documentStore.currentDocuments.count)")
+                }
+            } else {
+                logger.info("Showing single file in gallery: \(document.name)")
+                // Show the selected file as a single item in the gallery
+                documentStore.currentDocuments = [document]
             }
+        } else if case .library(nil) = newMode {
+            logger.info("Library mode with no document selected - showing all documents")
         }
 
         // Always show all 3 columns

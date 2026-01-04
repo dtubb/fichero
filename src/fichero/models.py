@@ -688,6 +688,28 @@ class Model(BaseModel):
 
 
 # =============================================================================
+# ProviderRef - Library's Reference to App-Wide Provider
+# =============================================================================
+
+class ProviderRef(BaseModel):
+    """
+    Library's reference to an app-wide provider.
+
+    Tracks which providers this library uses, without duplicating
+    the provider configuration (which is stored app-wide in app.duckdb).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    provider_id: str                   # FK to Provider in app.duckdb
+    enabled: bool = True               # Whether this provider is enabled for this library
+    sort_order: int = 0                # Display order in this library
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# =============================================================================
 # Tool - Processing Tool Definition
 # =============================================================================
 
@@ -793,6 +815,7 @@ __all__ = [
     # New config models
     "Provider",
     "Model",
+    "ProviderRef",
     "Tool",
     "SavedSearch",
     "Conversation",

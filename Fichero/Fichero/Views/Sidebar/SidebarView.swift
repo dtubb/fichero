@@ -1,59 +1,66 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import OSLog
+import Combine
 
-/// Structured logger for sidebar operations.
-/// Uses subsystem for organization and category for filtering.
+/// Structured logger for sidebar operations
 private let logger = Logger(subsystem: "com.fichero.app", category: "Sidebar")
 
-/// Sidebar with Library, Searches, Chat, and Workflows sections
+/// Universal Sidebar showing all open libraries
+/// Each library contains all its items (documents, searches, chats, workflows)
 struct SidebarView: View {
     @Binding var viewMode: AppViewMode
     @Binding var selectedItemId: String?
 
-    // Observable stores - automatically trigger UI updates when @Published properties change
-    @ObservedObject var documentStore: DocumentStore
-    @ObservedObject var savedSearchService: SavedSearchService
-    @ObservedObject var conversationService: ConversationService
-    @ObservedObject var workflowStore: WorkflowStore
+    // LibraryManager - shows all open libraries
+    @ObservedObject var libraryManager: LibraryManager
 
-    // WindowState to access library information (optional - may not be set in all contexts)
-    var windowState: WindowState?
-
-    // LibraryManager for showing all open libraries
-    @ObservedObject var libraryManager: LibraryManager = LibraryManager.shared
-
-    // Callback when user switches to a different library
-    var onSwitchLibrary: ((UUID) -> Void)?
+    // Window state - needed to switch libraries when selecting items
+    @EnvironmentObject var windowState: WindowState
 
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
 
-    // Cache for sidebar items - rebuilt only when source data changes
-    @State private var cachedLibraryItems: [SidebarItem] = []
-    @State private var cachedSearchItems: [SidebarItem] = []
-    @State private var cachedChatItems: [SidebarItem] = []
-    @State private var cachedWorkflowItems: [SidebarItem] = []
+    // Item type registry for extensible item creation (injected from ContentView)
+    @ObservedObject var itemRegistry: ItemTypeRegistry
 
-    /// All cached items combined (for circular reference checks)
-    /// Flattened list of all sidebar items across all sections.
-    /// Used for ID-based lookups and recursive searches.
+    // SidebarState for expansion persistence
+    @StateObject private var sidebarState = SidebarState()
+
+    // Cached sidebar items - rebuilt when service data changes (via Combine observers)
+    @State private var cachedLibraryHeaders: [SidebarItem] = []
+
+    // Store Combine subscriptions
+    @State private var cancellables = Set<AnyCancellable>()
+
+    /// All cached items combined (for recursive searches)
     private var allCachedItems: [SidebarItem] {
-        cachedLibraryItems + cachedSearchItems + cachedChatItems + cachedWorkflowItems
+        cachedLibraryHeaders
     }
 
-    /// Derive the selected SidebarItem from the ID (uses cached items)
+    /// Derive the selected SidebarItem from the ID
     private var selectedItem: SidebarItem? {
         guard let id = selectedItemId else { return nil }
         return findItemById(id, in: allCachedItems)
     }
 
-    /// Rebuild all sidebar item caches from source data
+    /// Rebuild all sidebar item caches from ALL libraries
     private func rebuildCaches() {
-        cachedLibraryItems = SidebarItemBuilder.buildLibraryHierarchy(from: documentStore.collections)
-        cachedSearchItems = SidebarItemBuilder.buildSearchHierarchy(from: savedSearchService.savedSearches)
-        cachedChatItems = SidebarItemBuilder.buildChatHierarchy(from: conversationService.conversations)
-        cachedWorkflowItems = SidebarItemBuilder.buildWorkflowHierarchy(from: workflowStore.workflows)
+        var libraryHeaders: [SidebarItem] = []
+
+        for library in libraryManager.openLibraries {
+            let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library)
+            let header = SidebarItem.libraryHeader(library: library, children: libraryContent)
+            libraryHeaders.append(header)
+        }
+
+        cachedLibraryHeaders = libraryHeaders
+    }
+
+    /// Get library that owns the selected item
+    private var selectedItemLibrary: LibraryManager.LibraryReference? {
+        guard let item = selectedItem, let libraryId = item.libraryId else { return nil }
+        return libraryManager.getLibrary(id: libraryId)
     }
 
     /// Recursively find an item by ID
@@ -70,623 +77,474 @@ struct SidebarView: View {
         return nil
     }
 
-    // Expansion state
-    @State private var expandedItems: Set<String> = []
-    @State private var openLibrariesExpanded = true
-    @State private var libraryExpanded = true
-    @State private var searchesExpanded = true
-    @State private var chatExpanded = true
-    @State private var workflowsExpanded = true
-    @State private var isChatDropTargeted = false
-
-    // Drop targeting state for section headers
-    @State private var isSearchHeaderDropTargeted = false
-    @State private var isChatHeaderDropTargeted = false
-    @State private var isWorkflowHeaderDropTargeted = false
-
     // Rename and delete state
     @StateObject private var renameState = RenameStateManager()
     @StateObject private var deleteState = DeleteStateManager()
 
     var body: some View {
         sidebarContent
-            .environmentObject(SidebarServices(
-                documentStore: documentStore,
-                savedSearchService: savedSearchService,
-                conversationService: conversationService,
-                workflowStore: workflowStore
-            ))
             .sidebarStyle()
-            .sidebarToolbar(
+            .task {
+                // Check cancellation before starting
+                guard !Task.isCancelled else { return }
+
+                // Build initial caches
+                rebuildCaches()
+
+                guard !Task.isCancelled else { return }
+
+                // Subscribe to all library service changes
+                setupServiceObservers()
+
+                // Configure item registry handlers
+                setupItemRegistry()
+            }
+            .onChange(of: selectedItemId) { _, newId in
+                // Handle selection changes
+                logger.info("selectedItemId changed to: \(newId ?? "nil")")
+                if let id = newId {
+                    let item = findItemById(id, in: allCachedItems)
+                    handleSelection(item)
+                }
+            }
+            .onChange(of: libraryManager.openLibraries.count) { _, _ in
+                // Rebuild when libraries are added/removed
+                rebuildCaches()
+
+                // Resubscribe to service changes for new libraries
+                setupServiceObservers()
+            }
+            .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,
                 importFiles: importFiles,
                 renameItem: handleRenameSelectedItem,
-                deleteItem: handleDeleteSelectedItem
-            )
-            .sidebarCacheMonitoring(
-                config: SidebarCacheMonitoringConfig(
-                    rebuildCaches: rebuildCaches,
-                    documentStore: documentStore,
-                    savedSearchService: savedSearchService,
-                    conversationService: conversationService,
-                    workflowStore: workflowStore,
-                    selectedItem: selectedItem,
-                    handleSelection: handleSelection
-                )
-            )
-            .sidebarFocusedValues(
-                selectedItem: selectedItem,
-                createFolder: handleCreateNewFolder,
-                importFiles: importFiles,
-                renameItem: handleRenameSelectedItem,
-                deleteItem: handleDeleteSelectedItem
-            )
+                deleteItem: handleDeleteSelectedItem,
+                createSearch: createNewSearch,
+                createChat: createNewChat,
+                createWorkflow: createNewWorkflow
+            ))
             .sidebarDeleteAlerts(
                 deleteState: deleteState,
                 performDelete: performDelete
             )
+    }
+
+    /// Set up observers for all library services using Combine
+    private func setupServiceObservers() {
+        // Cancel existing subscriptions
+        cancellables.removeAll()
+
+        // Observe changes in all libraries' services
+        for library in libraryManager.openLibraries {
+            // Observe document changes
+            library.documentStore.objectWillChange
+                .sink { _ in
+                    Task { @MainActor in
+                        rebuildCaches()
+                    }
+                }
+                .store(in: &cancellables)
+
+            // Observe saved search changes
+            library.savedSearchService.objectWillChange
+                .sink { _ in
+                    Task { @MainActor in
+                        rebuildCaches()
+                    }
+                }
+                .store(in: &cancellables)
+
+            // Observe conversation changes
+            library.conversationService.objectWillChange
+                .sink { _ in
+                    Task { @MainActor in
+                        rebuildCaches()
+                    }
+                }
+                .store(in: &cancellables)
+
+            // Observe workflow changes
+            library.workflowStore.objectWillChange
+                .sink { _ in
+                    Task { @MainActor in
+                        rebuildCaches()
+                    }
+                }
+                .store(in: &cancellables)
+        }
+    }
+
+    /// Configure item registry handlers
+    private func setupItemRegistry() {
+        itemRegistry.createFolder = handleCreateNewFolder
+        itemRegistry.importFiles = importFiles
+        itemRegistry.createSearch = createNewSearch
+        itemRegistry.createChat = createNewChat
+        itemRegistry.createWorkflow = createNewWorkflow
     }
 }
 
 // MARK: - View Components
 
 extension SidebarView {
-    // MARK: - Sidebar Content
-
     @ViewBuilder
     var sidebarContent: some View {
-        List(selection: $selectedItemId) {
-            openLibrariesSectionView
-            librarySectionView
-            searchesSectionView
-            chatSectionView
-            workflowsSectionView
-        }
-    }
-
-    // MARK: - Open Libraries Section (DEVONthink-style)
-
-    @ViewBuilder
-    private var openLibrariesSectionView: some View {
-        Section(isExpanded: $openLibrariesExpanded) {
-            ForEach(libraryManager.openLibraries) { library in
-                LibraryRow(
-                    library: library,
-                    isCurrentLibrary: library.id == windowState?.libraryId,
-                    onSelect: {
-                        onSwitchLibrary?(library.id)
-                    }
-                )
+        VStack(spacing: 0) {
+            List(selection: $selectedItemId) {
+                // Render all library headers with their content
+                ForEach(cachedLibraryHeaders) { libraryHeader in
+                    libraryItemView(libraryHeader)
+                }
             }
-        } header: {
-            SidebarSectionHeader(
-                title: "Open Libraries",
-                icon: "books.vertical"
+
+            SidebarBottomToolbar(
+                createSearch: createNewSearch,
+                createChat: createNewChat,
+                createWorkflow: createNewWorkflow,
+                createFolder: handleCreateNewFolder,
+                importFiles: importFiles
             )
         }
     }
 
+    /// Render a library header and its contents
     @ViewBuilder
-    private var librarySectionView: some View {
-        Section(isExpanded: $libraryExpanded) {
-            ForEach(cachedLibraryItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    allCachedItems: allCachedItems,
-                    expandedItems: $expandedItems,
-                    renameState: renameState,
-                    deleteState: deleteState
-                )
-                .padding(.leading, SidebarConstants.itemLeadingPadding)
-                .tag(item.id)
+    private func libraryItemView(_ libraryHeader: SidebarItem) -> some View {
+        if let libraryId = libraryHeader.libraryId {
+            // Global library renders inline without header
+            if libraryId == LibraryManager.globalLibraryId {
+                renderLibraryItems(libraryHeader.children ?? [])
+            } else {
+                // Regular libraries use DisclosureGroup
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { sidebarState.isLibraryExpanded(libraryId) },
+                        set: { _ in sidebarState.toggleLibraryExpansion(for: libraryId) }
+                    )
+                ) {
+                    renderLibraryItems(libraryHeader.children ?? [])
+                } label: {
+                    Text(libraryHeader.name)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color(red: 0xA9/255, green: 0xA9/255, blue: 0xAC/255))
+                }
             }
-            .onMove(perform: { _, _ in
-                // Handle reordering of library items
-                // This would require updating the backend collection order
-            })
-        } header: {
-            SidebarSectionHeader(
-                title: windowState?.library?.displayName ?? "Library",
-                icon: "folder",
-                onDrop: handleDropToRootLevel
+        }
+    }
+
+    /// Render library items with separator between documents and other types
+    @ViewBuilder
+    private func renderLibraryItems(_ items: [SidebarItem]) -> some View {
+        // Separate documents/folders from searches/chats/workflows
+        let documents = items.filter { item in
+            if case .document = item.itemType { return true }
+            if case .folder = item.itemType { return true }
+            return false
+        }
+        let others = items.filter { item in
+            if case .savedSearch = item.itemType { return true }
+            if case .conversation = item.itemType { return true }
+            if case .workflow = item.itemType { return true }
+            return false
+        }
+
+        // Render documents first
+        ForEach(documents) { item in
+            SidebarItemRow(
+                item: item,
+                allCachedItems: allCachedItems,
+                expandedItems: Binding(
+                    get: { sidebarState.expandedItems },
+                    set: { sidebarState.expandedItems = $0 }
+                ),
+                renameState: renameState,
+                deleteState: deleteState,
+                libraryManager: libraryManager
             )
+            .tag(item.id)
+        }
+
+        // Add separator if we have both documents and other items
+        if !documents.isEmpty && !others.isEmpty {
+            Divider()
+                .padding(.vertical, 4)
+        }
+
+        // Render searches, chats, workflows
+        ForEach(others) { item in
+            SidebarItemRow(
+                item: item,
+                allCachedItems: allCachedItems,
+                expandedItems: Binding(
+                    get: { sidebarState.expandedItems },
+                    set: { sidebarState.expandedItems = $0 }
+                ),
+                renameState: renameState,
+                deleteState: deleteState,
+                libraryManager: libraryManager
+            )
+            .tag(item.id)
         }
     }
+}
 
-    @ViewBuilder
-    private var searchesSectionView: some View {
-        Section(isExpanded: $searchesExpanded) {
-            ForEach(cachedSearchItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    allCachedItems: allCachedItems,
-                    expandedItems: $expandedItems,
-                    renameState: renameState,
-                    deleteState: deleteState
-                )
-                .padding(.leading, SidebarConstants.itemLeadingPadding)
-                .tag(item.id)
-            }
-            .onMove(perform: { _, _ in
-                // Handle reordering of search items
-            })
+// MARK: - Selection Handling
 
-            // New Search button
-            Button(action: { createNewSearch() }, label: {
-                Label("New Search...", systemImage: "plus")
-                    .foregroundColor(.secondary)
-            })
-            .buttonStyle(.plain)
-            .padding(.leading, 4)
-        } header: {
-            SidebarSectionHeader(title: "Searches", icon: "magnifyingglass")
-                .background(isSearchHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                .cornerRadius(4)
-                .dropDestination(for: String.self) { itemIDs, _ in
-                    handleSearchHeaderDrop(itemIDs: itemIDs)
-                } isTargeted: { isTargeted in
-                    isSearchHeaderDropTargeted = isTargeted
-                }
-        }
-    }
-
-    @ViewBuilder
-    private var chatSectionView: some View {
-        Section(isExpanded: $chatExpanded) {
-            ForEach(cachedChatItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    allCachedItems: allCachedItems,
-                    expandedItems: $expandedItems,
-                    renameState: renameState,
-                    deleteState: deleteState
-                )
-                .padding(.leading, SidebarConstants.itemLeadingPadding)
-                .tag(item.id)
-            }
-            .onMove(perform: { _, _ in
-                // Handle reordering of chat items
-            })
-
-            // New Chat button with drop support
-            Button(action: { createNewChat() }, label: {
-                HStack {
-                    Label("New Chat...", systemImage: "plus")
-                        .foregroundColor(isChatDropTargeted ? .accentColor : .secondary)
-                    if isChatDropTargeted {
-                        Spacer()
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundColor(.accentColor)
-                    }
-                }
-            })
-            .buttonStyle(.plain)
-            .padding(.leading, 4)
-            .dropDestination(for: String.self) { itemIDs, _ in
-                handleChatButtonDrop(itemIDs: itemIDs)
-            } isTargeted: { isTargeted in
-                isChatDropTargeted = isTargeted
-            }
-        } header: {
-            SidebarSectionHeader(title: "Chat", icon: "bubble.left.and.bubble.right")
-                .background(isChatHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                .cornerRadius(4)
-                .dropDestination(for: String.self) { itemIDs, _ in
-                    handleChatHeaderDrop(itemIDs: itemIDs)
-                } isTargeted: { isTargeted in
-                    isChatHeaderDropTargeted = isTargeted
-                }
-        }
-    }
-
-    @ViewBuilder
-    private var workflowsSectionView: some View {
-        Section(isExpanded: $workflowsExpanded) {
-            ForEach(cachedWorkflowItems) { item in
-                SidebarItemRow(
-                    item: item,
-                    allCachedItems: allCachedItems,
-                    expandedItems: $expandedItems,
-                    renameState: renameState,
-                    deleteState: deleteState
-                )
-                .padding(.leading, SidebarConstants.itemLeadingPadding)
-                .tag(item.id)
-            }
-            .onMove(perform: { _, _ in
-                // Handle reordering of workflow items
-            })
-
-            // New Workflow button
-            Button(action: { createNewWorkflow() }, label: {
-                Label("New Workflow...", systemImage: "plus")
-                    .foregroundColor(.secondary)
-            })
-            .buttonStyle(.plain)
-            .padding(.leading, 4)
-        } header: {
-            SidebarSectionHeader(title: "Workflows", icon: "arrow.triangle.branch")
-                .background(isWorkflowHeaderDropTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
-                .cornerRadius(4)
-                .dropDestination(for: String.self) { itemIDs, _ in
-                    handleWorkflowHeaderDrop(itemIDs: itemIDs)
-                } isTargeted: { isTargeted in
-                    isWorkflowHeaderDropTargeted = isTargeted
-                }
-        }
-    }
-
-    // MARK: - Actions
-
-    /// Handles sidebar item selection and updates the view mode accordingly.
-    /// Maps each item type to its corresponding view mode.
+extension SidebarView {
+    /// Handle sidebar item selection and update view mode
     private func handleSelection(_ item: SidebarItem?) {
-        guard let item = item else { return }
+        guard let item = item else {
+            logger.info("handleSelection called with nil item")
+            return
+        }
 
+        logger.info("handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(String(describing: item.itemType)))")
+
+        // Switch window's library if the selected item belongs to a different library
+        if let itemLibraryId = item.libraryId, itemLibraryId != windowState.libraryId {
+            logger.info("Switching window from library \(windowState.libraryId) to library \(itemLibraryId)")
+            windowState.libraryId = itemLibraryId
+            // Wait for next run loop to allow SwiftUI to update environment objects
+            // This ensures the new library's services are injected before we try to use them
+        } else {
+            logger.info("Item belongs to current library: \(windowState.libraryId)")
+        }
+
+        // Update view mode based on item type
         switch item.itemType {
         case .document(let doc):
+            logger.info("Switching to library view with document: \(doc.name)")
             viewMode = .library(doc)
         case .savedSearch(let search):
+            logger.info("Switching to search view with search: \(search.name)")
             viewMode = .search(search)
         case .conversation(let conversation):
+            logger.info("Switching to chat view with conversation: \(conversation.id)")
             viewMode = .chat(conversation)
         case .workflow(let workflow):
+            logger.info("Switching to workflow view with workflow: \(workflow.name)")
             viewMode = .workflow(workflow)
-        case .sectionHeader:
+        case .folder:
+            // Check if this is a category folder (Search, Chat, Workflow)
+            // and switch to that view mode even if empty
+            logger.info("Folder clicked: category = \(item.category.rawValue)")
+            switch item.category {
+            case .search:
+                logger.info("Switching to empty search view")
+                viewMode = .search(nil)
+            case .chat:
+                logger.info("Switching to empty chat view")
+                viewMode = .chat(nil)
+            case .workflow:
+                logger.info("Switching to empty workflow view")
+                viewMode = .workflow(nil)
+            case .folder, .library:
+                // Regular folders just toggle expansion
+                logger.info("Regular folder - just toggling expansion")
+                break
+            }
+        case .libraryHeader:
+            // Library headers just toggle expansion
+            logger.info("Library header clicked - just toggling expansion")
             break
         }
     }
-
-    /// Creates a new search and switches to search view mode.
-    private func createNewSearch() {
-        viewMode = .search(nil)
-    }
-
-    /// Creates a new chat conversation and switches to chat view mode.
-    private func createNewChat() {
-        viewMode = .chat(nil)
-    }
-
-    /// Creates a new workflow and switches to workflow view mode.
-    private func createNewWorkflow() {
-        viewMode = .workflow(nil)
-    }
-
 }
 
-// MARK: - SidebarView Action Handlers
+// MARK: - Creation Methods
 
-private extension SidebarView {
-    // MARK: - Menu Command Handlers
-
-    func importFiles() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = true  // Allow selecting folders
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = [.image, .pdf, .plainText, .data]
-        panel.message = "Select files or folders to import"
-
-        if panel.runModal() == .OK {
-            // Get parent ID from selected item - only use folders as parents
-            var parentId: String?
-            if let selected = selectedItem,
-               case .document(let doc) = selected.itemType,
-               doc.docType == .folder {
-                parentId = doc.id
-            }
-
-            // Import files and folders
-            Task {
-                for url in panel.urls {
-                    do {
-                        var isDirectory: ObjCBool = false
-                        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-
-                        if isDirectory.boolValue {
-                            // Import folder recursively
-                            try await documentStore.importFolder(at: url, parentId: parentId)
-                            logger.info("Imported folder: \(url.lastPathComponent)")
-                        } else {
-                            // Import single file
-                            _ = try await documentStore.importFile(at: url, parentId: parentId)
-                            logger.info("Imported file: \(url.lastPathComponent)")
-                        }
-                    } catch {
-                        logger.error("Failed to import \(url.lastPathComponent): \(error)")
-                    }
-                }
-                // UI updates automatically via @Published collections
-            }
-        }
-    }
-
-    func handleCreateNewFolder() {
-        // Create new folder
-        // If an item is selected, create as its child; otherwise create at root
-        let parentId: String?
-        if let selected = selectedItem,
-           case .document(let doc) = selected.itemType,
-           doc.docType == .folder {
-            parentId = doc.id
-        } else {
-            parentId = nil
+extension SidebarView {
+    /// Create a new search - defaults to Global library
+    private func createNewSearch() {
+        guard let globalLibrary = libraryManager.globalLibrary else {
+            logger.error("Global library not available")
+            return
         }
 
         Task {
             do {
-                _ = try await documentStore.createFolder(name: "New Folder", parentId: parentId)
-                logger.info("Created new folder with parent: \(parentId ?? "root")")
+                // Use saveSearch API with query parameter
+                let savedSearch = try await globalLibrary.savedSearchService.saveSearch(
+                    query: "New Search",
+                    isSmartSearch: true
+                )
+
+                // Reload searches to get updated list
+                try await globalLibrary.savedSearchService.loadSavedSearches()
+                rebuildCaches()
+
+                // Select the new search
+                selectedItemId = "search:\(savedSearch.id)"
+                let newSearch = SavedSearch(
+                    id: savedSearch.id,
+                    name: savedSearch.query,
+                    query: savedSearch.query,
+                    isSmartSearch: savedSearch.isSmartSearch,
+                    folderPath: savedSearch.folderPath,
+                    sortOrder: savedSearch.sortOrderInt
+                )
+                viewMode = .search(newSearch)
             } catch {
-                logger.error("Failed to create folder: \(error)")
+                logger.error("Failed to create search: \(error.localizedDescription)")
             }
         }
     }
 
-    func handleRenameSelectedItem() {
-        guard let selected = selectedItem else {
-            logger.debug("No item selected for rename")
+    /// Create a new chat - defaults to Global library
+    private func createNewChat() {
+        guard let globalLibrary = libraryManager.globalLibrary else {
+            logger.error("Global library not available")
             return
         }
-
-        if selected.itemType.canBeRenamed {
-            renameState.startRename(itemId: selected.id, currentName: selected.name)
-        }
-    }
-
-    func handleDeleteSelectedItem() {
-        guard let selected = selectedItem else {
-            logger.debug("No item selected for delete")
-            return
-        }
-
-        if selected.itemType.canBeDeleted {
-            deleteState.showDeleteConfirmation(for: selected)
-        }
-    }
-
-    func performDelete(_ item: SidebarItem) async {
-        logger.info("performDelete called for: \(item.name) (id: \(item.id))")
-
-        // Find the next item to select before deletion
-        let nextItemId = findNextItemAfterDelete(item)
-
-        // For documents, use documentStore to ensure UI refresh
-        if case .document(let document) = item.itemType {
-            do {
-                try await documentStore.deleteDocument(document)
-                logger.info("Deleted document \(document.id)")
-
-                // Select the next item
-                await MainActor.run {
-                    selectedItemId = nextItemId
-                }
-
-                // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
-                deleteState.cancelDelete()
-            } catch {
-                logger.error("Failed to delete document: \(error.localizedDescription)")
-                deleteState.showError(message: error.localizedDescription)
-            }
-        } else {
-            // For non-document items (searches, chats, workflows)
-            // Extract the actual ID from the prefixed ID format (e.g., "search:123" -> "123")
-            let actualId: String
-            if item.id.contains(":") {
-                actualId = String(item.id.split(separator: ":")[1])
-            } else {
-                actualId = item.id
-            }
-
-            do {
-                // Use the correct service based on item type
-                switch item.itemType {
-                case .savedSearch:
-                    try await savedSearchService.deleteSavedSearch(actualId)
-                    logger.info("Deleted saved search \(actualId)")
-                case .conversation:
-                    try await conversationService.deleteConversation(actualId)
-                    logger.info("Deleted conversation \(actualId)")
-                case .workflow:
-                    try await workflowStore.deleteWorkflow(actualId)
-                    logger.info("Deleted workflow \(actualId)")
-                default:
-                    logger.warning("Unknown item type for deletion")
-                }
-
-                // Select the next item
-                await MainActor.run {
-                    selectedItemId = nextItemId
-                }
-
-                // UI updates automatically via @ObservedObject pattern - no manual refresh needed!
-                deleteState.cancelDelete()
-            } catch {
-                logger.error("Failed to delete item: \(error.localizedDescription)")
-                deleteState.showError(message: error.localizedDescription)
-            }
-        }
-    }
-
-    /// Find the next item to select after deleting the given item
-    func findNextItemAfterDelete(_ itemToDelete: SidebarItem) -> String? {
-        // Get all items in a flat list
-        let allItems = cachedLibraryItems + cachedSearchItems + cachedChatItems + cachedWorkflowItems
-
-        // Flatten the tree to find the item's position
-        var flatList: [SidebarItem] = []
-        func flatten(_ items: [SidebarItem]) {
-            for item in items {
-                flatList.append(item)
-                if let children = item.children {
-                    flatten(children)
-                }
-            }
-        }
-        flatten(allItems)
-
-        // Find the index of the item to delete
-        guard let index = flatList.firstIndex(where: { $0.id == itemToDelete.id }) else {
-            return nil
-        }
-
-        // Try to select the next item, or previous if last
-        if index + 1 < flatList.count {
-            return flatList[index + 1].id
-        } else if index > 0 {
-            return flatList[index - 1].id
-        } else {
-            return nil
-        }
-    }
-
-    /// Handles dropping documents onto the "New Chat" button.
-    /// Creates a new chat with the dropped documents as context.
-    func handleChatButtonDrop(itemIDs: [String]) -> Bool {
-        let documentIds = itemIDs.map { itemID in
-            // Extract actual ID (strip prefix like "doc:")
-            if itemID.contains(":") {
-                return String(itemID.split(separator: ":")[1])
-            }
-            return itemID
-        }
-        createNewChatWithDocuments(documentIds)
-        return true
-    }
-
-    /// Creates a new chat conversation with the specified documents.
-    /// Calls the onCreateChatWithDocuments callback to pass document IDs to ContentView.
-    func createNewChatWithDocuments(_ documentIds: [String]) {
-        logger.info("Creating new chat with \(documentIds.count) documents")
-        viewMode = .chat(nil)
-        onCreateChatWithDocuments?(documentIds)
-    }
-
-    // MARK: - Section Header Drop Handlers
-
-    /// Handles dropping items onto the Search section header.
-    /// Switches to search view with dropped items as potential search scope.
-    func handleSearchHeaderDrop(itemIDs: [String]) -> Bool {
-        // Extract document IDs from dropped items
-        let documentIds = itemIDs
-
-        logger.info("Dropped \(documentIds.count) items on Search section")
-
-        // Switch to search view with dropped items as context
-        // In a full implementation, this would pass the document IDs to the search view
-        // to use as the search scope
-        viewMode = .search(nil)
-
-        return true
-    }
-
-    func handleChatHeaderDrop(itemIDs: [String]) -> Bool {
-        // Extract document IDs from dropped items
-        let documentIds = itemIDs.map { itemID in
-            if itemID.contains(":") {
-                return String(itemID.split(separator: ":")[1])
-            }
-            return itemID
-        }
-
-        logger.info("Dropped \(documentIds.count) items on Chat section")
-
-        // Switch to chat view with dropped items as context
-        viewMode = .chat(nil)
-        onCreateChatWithDocuments?(documentIds)
-
-        return true
-    }
-
-    func handleWorkflowHeaderDrop(itemIDs: [String]) -> Bool {
-        // Extract document IDs from dropped items
-        let documentIds = itemIDs
-
-        logger.info("Dropped \(documentIds.count) items on Workflow section")
-
-        // Switch to workflow view with dropped items as inputs
-        // In a full implementation, this would pass the document IDs to the workflow editor
-        // to use as input nodes or variables
-        viewMode = .workflow(nil)
-
-        return true
-    }
-
-    func handleDropToRootLevel(itemIDs: [String]) -> Bool {
-        logger.info("========== DROP TO ROOT STARTED ==========")
-        logger.info("Moving \(itemIDs.count) items to root level (parent_id = nil)")
 
         Task {
-            for itemID in itemIDs {
-                logger.info("Moving item \(itemID) to root")
-                await moveItemToRoot(itemId: itemID)
-            }
-            logger.info("========== DROP TO ROOT COMPLETED ==========")
-        }
+            do {
+                // Create a new conversation by sending an initial message
+                // The backend will create the conversation automatically
+                let response = try await globalLibrary.chatService.chat(
+                    message: "Hello",
+                    conversationId: nil,
+                    documentIds: nil
+                )
 
-        return true
+                // Reload conversations to get the new one
+                try await globalLibrary.conversationService.loadConversations()
+                rebuildCaches()
+
+                // Find the conversation we just created
+                if let newConv = globalLibrary.conversationService.conversations.first(where: { $0.id == response.conversationId }) {
+                    selectedItemId = "conversation:\(newConv.id)"
+                    viewMode = .chat(newConv)
+                    logger.info("Created new chat: \(newConv.id)")
+                }
+            } catch {
+                logger.error("Failed to create chat: \(error.localizedDescription)")
+            }
+        }
     }
 
-    private func moveItemToRoot(itemId: String) async {
-        logger.info("moveItemToRoot: \(itemId)")
-        logger.info("START: \(itemId)")
+    /// Create a new workflow - defaults to Global library
+    private func createNewWorkflow() {
+        guard let globalLibrary = libraryManager.globalLibrary else {
+            logger.error("Global library not available")
+            return
+        }
 
-        let actualItemId = extractActualId(from: itemId)
+        Task {
+            do {
+                // Create a new empty workflow
+                let newWorkflowDef = WorkflowDefinition(
+                    id: UUID().uuidString,
+                    name: "New Workflow",
+                    description: "",
+                    provider: "",
+                    model: "",
+                    nodes: [],
+                    edges: []
+                )
+
+                let response = try await globalLibrary.workflowService.createWorkflow(newWorkflowDef)
+
+                // Reload workflows to get the new one
+                await globalLibrary.workflowStore.loadWorkflows()
+                rebuildCaches()
+
+                // Create a workflow item and select it
+                let workflowItem = WorkflowSidebarItem(
+                    id: response.id,
+                    name: response.name,
+                    description: response.description,
+                    nodeCount: response.nodes.count
+                )
+
+                selectedItemId = "workflow:\(workflowItem.id)"
+                viewMode = .workflow(workflowItem)
+                logger.info("Created new workflow: \(workflowItem.id)")
+            } catch {
+                logger.error("Failed to create workflow: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Create a new folder - defaults to Global library
+    private func handleCreateNewFolder() {
+        guard libraryManager.globalLibrary != nil else {
+            logger.error("Global library not available")
+            return
+        }
+
+        // Show folder creation dialog
+        sidebarState.showingNewFolderDialog = true
+        sidebarState.newFolderCategory = .folder
+        // Implementation would show a dialog to create folder
+    }
+}
+
+// MARK: - Import/Delete/Rename
+
+extension SidebarView {
+    /// Import files to the library that owns the selected item (or Global if none)
+    private func importFiles() {
+        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        guard let library = targetLibrary else {
+            logger.error("No library available for import")
+            return
+        }
+
+        // Implementation: Show file picker and import to library
+        logger.info("Import to library: \(library.displayName)")
+    }
+
+    /// Rename the selected item
+    private func handleRenameSelectedItem() {
+        guard let item = selectedItem else { return }
+        renameState.startRename(itemId: item.id, currentName: item.name)
+    }
+
+    /// Delete the selected item
+    private func handleDeleteSelectedItem() {
+        guard let item = selectedItem else { return }
+
+        switch item.itemType {
+        case .libraryHeader:
+            logger.warning("Cannot delete library header")
+        default:
+            deleteState.showDeleteConfirmation(for: item)
+        }
+    }
+
+    /// Perform the actual deletion
+    private func performDelete(item: SidebarItem) async {
+        guard let libraryId = item.libraryId,
+              let library = libraryManager.getLibrary(id: libraryId) else {
+            logger.error("Could not find library for deletion")
+            return
+        }
 
         do {
-            // Move to root by setting parent to nil
-            logger.info("Calling documentStore.moveDocument")
-            let movedDoc = try await documentStore.moveDocument(actualItemId, toParent: nil)
-            logger.info("moveDocument returned: \(movedDoc.name), parent: \(movedDoc.parentId ?? "nil")")
-
-            logger.info("Move to root successful - rebuilding caches")
-            logger.info("About to rebuild caches")
-
-            // Explicitly rebuild caches to ensure UI updates
-            await MainActor.run {
-                logger.info("Inside MainActor.run, calling rebuildCaches()")
-                rebuildCaches()
-                logger.info("rebuildCaches() completed")
-
-                let rootItems = cachedLibraryItems.filter { item in
-                    if case .document(let doc) = item.itemType {
-                        return doc.parentId == nil
-                    }
-                    return false
-                }
-                logger.info("Root-level items: \(rootItems.map { $0.name })")
+            switch item.itemType {
+            case .document(let doc):
+                try await library.documentStore.deleteDocument(doc)
+            case .savedSearch(let search):
+                try await library.savedSearchService.deleteSavedSearch(search.id)
+            case .conversation(let conversation):
+                try await library.conversationService.deleteConversation(conversation.id)
+            case .workflow(let workflow):
+                try await library.workflowService.deleteWorkflow(workflow.id)
+            case .folder:
+                logger.info("Folder deletion not yet implemented")
+            case .libraryHeader:
+                logger.warning("Cannot delete library header")
             }
-            logger.info("END - all done")
 
+            rebuildCaches()
+            selectedItemId = nil
         } catch {
-            logger.error("ERROR: \(error.localizedDescription)")
-            logger.error("Move to root failed: \(error.localizedDescription)")
+            logger.error("Failed to delete item: \(error.localizedDescription)")
         }
-    }
-
-    private func extractActualId(from prefixedId: String) -> String {
-        if prefixedId.contains(":") {
-            return String(prefixedId.split(separator: ":")[1])
-        }
-        return prefixedId
     }
 }
 
-// MARK: - Library Row (for Open Libraries section)
-
-/// Row displaying a single library in the Open Libraries section
-/// Simple single-line style matching the rest of the sidebar
-struct LibraryRow: View {
-    let library: LibraryManager.LibraryReference
-    let isCurrentLibrary: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            Label(library.displayName, systemImage: "book.closed")
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(isCurrentLibrary ? .accentColor : .primary)
-    }
-}
+// NOTE: RenameStateManager, DeleteStateManager, and SidebarConstants
+// are defined in separate files (SidebarStateManagers.swift, SidebarConstants.swift)

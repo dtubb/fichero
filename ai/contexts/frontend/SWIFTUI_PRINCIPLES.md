@@ -1,7 +1,7 @@
 # SwiftUI-Only Development Principles
 
-**Last Updated:** 2025-12-28
-**Status:** Mandatory Guidelines
+**Last Updated:** 2025-12-31
+**Status:** Mandatory Guidelines | ✅ Swift 6 Compatible
 
 ---
 
@@ -274,6 +274,255 @@ NSLayoutConstraint.activate(...)  // ❌ Use SwiftUI layout
 
 ---
 
+### 9. Swift 6 Concurrency Patterns
+
+**CRITICAL**: Fichero is Swift 6 compliant with strict concurrency checking enabled.
+
+#### Main Actor Isolation
+
+**Rule**: If a class is marked `@MainActor`, all its methods and properties automatically run on the main thread. Don't use dispatch queues for serialization.
+
+**✅ DO:**
+```swift
+@MainActor
+class DragDropModel: ObservableObject {
+    @Published var isProcessing: Bool = false
+    private var operations: Set<UUID> = []
+
+    func startOperation() -> UUID {
+        let id = UUID()
+        operations.insert(id)  // Already on main actor
+        return id
+    }
+
+    func endOperation(_ id: UUID) {
+        operations.remove(id)  // Already on main actor
+    }
+}
+```
+
+**❌ DON'T:**
+```swift
+@MainActor
+class DragDropModel: ObservableObject {
+    private let queue = DispatchQueue(...)  // ❌ Unnecessary!
+
+    func startOperation() -> UUID {
+        queue.async(flags: .barrier) {  // ❌ Wrong! Already on main actor
+            self.operations.insert(id)  // Will cause concurrency warning
+        }
+    }
+}
+```
+
+**Why This Matters**: `@MainActor` provides automatic serialization. Adding a dispatch queue creates an "actor hopping" problem where you're trying to access main actor state from a different execution context.
+
+---
+
+#### Calling Main Actor Methods from Background Contexts
+
+**Pattern**: Use `Task { @MainActor in ... }` to hop to the main actor from non-isolated closures.
+
+**✅ DO:**
+```swift
+// In a non-isolated closure (e.g., NSItemProvider callback)
+provider.loadItem(...) { [weak self] data, error in
+    guard let self = self else { return }
+
+    // Hop to main actor before calling main-actor-isolated methods
+    Task { @MainActor in
+        self.dragDropModel.endOperation(operationId)
+        self.dragDropModel.updateProgress(0.5)
+
+        if let error = error {
+            self.handleError(error)  // handleError is @MainActor
+        }
+    }
+}
+```
+
+**❌ DON'T:**
+```swift
+// Direct call from non-isolated context
+provider.loadItem(...) { data, error in
+    self.dragDropModel.endOperation(operationId)  // ❌ Concurrency warning!
+
+    DispatchQueue.main.async {  // ❌ Wrong pattern for Swift 6
+        self.updateUI()
+    }
+}
+```
+
+---
+
+#### Sendable Conformance
+
+**Use `@unchecked Sendable` for classes that implement their own thread safety**.
+
+**✅ DO:**
+```swift
+final class AtomicCounter: @unchecked Sendable {
+    private var value: Int
+    private let lock = NSLock()  // Provides thread safety
+
+    init(value: Int) {
+        self.value = value
+    }
+
+    func incrementAndGet() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+        return value
+    }
+
+    func get() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+```
+
+**Why `@unchecked`**: The lock provides thread safety, but Swift can't verify it statically. We use `@unchecked` to tell the compiler "trust us, this is thread-safe."
+
+**❌ DON'T:**
+```swift
+class AtomicCounter {  // ❌ Not Sendable
+    private var value: Int  // ❌ Can cause data races
+}
+```
+
+---
+
+#### Task Cancellation (MANDATORY)
+
+**All `.task {}` blocks MUST check for cancellation**.
+
+**✅ DO:**
+```swift
+.task {
+    for item in items {
+        guard !Task.isCancelled else {
+            logger.debug("Task cancelled, cleaning up...")
+            return
+        }
+        await processItem(item)
+    }
+}
+
+// Or with defer for cleanup
+.task {
+    defer {
+        if Task.isCancelled {
+            cleanup()
+        }
+    }
+
+    await loadData()
+}
+```
+
+**❌ DON'T:**
+```swift
+.task {
+    // Never checks cancellation - keeps running after view disappears!
+    await loadData()
+}
+```
+
+---
+
+#### Pattern: Background Work → Main Actor Update
+
+**Common scenario**: Load data in background, update UI on main actor.
+
+**✅ DO:**
+```swift
+func loadDocuments() {
+    Task {
+        // Background work
+        let documents = try await apiClient.fetchDocuments()
+
+        // Hop to main actor for UI update
+        await MainActor.run {
+            self.documents = documents
+            self.isLoading = false
+        }
+    }
+}
+
+// Or if the whole function is main-actor-isolated:
+@MainActor
+func loadDocuments() async {
+    // Automatically on main actor
+    let documents = try await apiClient.fetchDocuments()
+    self.documents = documents
+    self.isLoading = false
+}
+```
+
+**❌ DON'T:**
+```swift
+func loadDocuments() {
+    Task {
+        let documents = try await apiClient.fetchDocuments()
+
+        // Missing main actor isolation!
+        self.documents = documents  // ❌ Potential crash or data race
+    }
+}
+```
+
+---
+
+#### Common Concurrency Errors & Fixes
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| "Main actor-isolated property cannot be mutated from Sendable closure" | Accessing @MainActor property from background | Wrap in `Task { @MainActor in ... }` |
+| "Capture of 'self' with non-sendable type" | Using non-Sendable type in Task | Make type conform to Sendable or use `@unchecked Sendable` |
+| "Call to main actor-isolated method in synchronous nonisolated context" | Calling @MainActor method from background | Wrap in `Task { @MainActor in ... }` or mark function `@MainActor` |
+| Task keeps running after view disappears | Missing cancellation check | Add `guard !Task.isCancelled else { return }` |
+
+---
+
+#### Real Example from Fichero
+
+**Before (Swift 5 - Has concurrency warnings)**:
+```swift
+@MainActor
+class DragDropModel: ObservableObject {
+    private var activeOperations: Set<UUID> = []
+    private let operationQueue = DispatchQueue(...)  // ❌ Conflict with @MainActor
+
+    func startOperation() -> UUID {
+        let id = UUID()
+        operationQueue.async(flags: .barrier) {  // ❌ Wrong actor!
+            self.activeOperations.insert(id)  // Warning: main actor property from sendable closure
+        }
+        return id
+    }
+}
+```
+
+**After (Swift 6 - Compliant)**:
+```swift
+@MainActor
+class DragDropModel: ObservableObject {
+    private var activeOperations: Set<UUID> = []
+    // No dispatch queue needed - @MainActor provides serialization
+
+    func startOperation() -> UUID {
+        let id = UUID()
+        activeOperations.insert(id)  // ✅ Already on main actor
+        return id
+    }
+}
+```
+
+---
+
 ## MCP Tools for SwiftUI Development
 
 ### 1. Sosumi - Apple Documentation
@@ -485,16 +734,32 @@ NavigationStack(path: $navPath) {
 
 Before committing Swift code, verify:
 
+**SwiftUI Compliance**:
 - [ ] ✅ No AppKit usage (except where absolutely necessary)
 - [ ] ✅ Using @FocusedValue instead of NotificationCenter
-- [ ] ✅ Expensive computations are cached
-- [ ] ✅ Tasks handle cancellation
+- [ ] ✅ View files < 400 lines
 - [ ] ✅ Using @ViewBuilder on computed view properties
-- [ ] ✅ View files < 300 lines
+- [ ] ✅ Services injected via @EnvironmentObject (never created in views)
+
+**Performance**:
+- [ ] ✅ Expensive computations are cached
+- [ ] ✅ No view hierarchies rebuilt on every update
+- [ ] ✅ Using @StateObject (not inline object creation)
+
+**Swift 6 Concurrency**:
+- [ ] ✅ All `.task {}` blocks check `Task.isCancelled`
+- [ ] ✅ Using @MainActor for UI-related classes (not DispatchQueue.main)
+- [ ] ✅ Non-isolated closures use `Task { @MainActor in ... }` for UI updates
+- [ ] ✅ Thread-safe types conform to `Sendable` or `@unchecked Sendable`
+- [ ] ✅ No dispatch queues in @MainActor classes
+- [ ] ✅ No concurrency warnings in Xcode build
+
+**Code Quality**:
 - [ ] ✅ Using OSLog instead of NSLog/print
-- [ ] ✅ Services injected via @EnvironmentObject
-- [ ] ✅ Using @MainActor for UI updates
-- [ ] ✅ No memory leaks from uncancelled tasks
+- [ ] ✅ Descriptive variable names (no `x`, `y`, `i`, etc.)
+- [ ] ✅ Functions < 50 lines
+- [ ] ✅ Cyclomatic complexity < 10
+- [ ] ✅ SwiftLint passes with zero errors
 
 ---
 
@@ -517,11 +782,18 @@ Before committing Swift code, verify:
 **Golden Rules:**
 1. **SwiftUI-only** - Avoid AppKit unless unavoidable
 2. **Use MCP tools** - Sosumi & Ref before guessing
-3. **Proper state** - @Published, @FocusedValue, @Observable
+3. **Proper state** - @Observable, @FocusedValue, @EnvironmentObject
 4. **Cache expensive work** - Don't rebuild on every update
-5. **Handle cancellation** - Tasks must check cancellation
-6. **Small views** - Break up large files
+5. **Swift 6 concurrency** - @MainActor, Task cancellation, Sendable
+6. **Small files** - Keep views < 400 lines
 7. **OSLog** - Structured logging only
 8. **No NotificationCenter** - Use SwiftUI patterns
+9. **No DispatchQueue in @MainActor** - Main actor provides serialization
+
+**Swift 6 Quick Reference:**
+- `@MainActor` class → All access already on main thread
+- Background closure → Use `Task { @MainActor in ... }` for UI updates
+- Thread-safe class → Conform to `@unchecked Sendable`
+- `.task {}` → Always check `Task.isCancelled`
 
 When in doubt: **Check Sosumi for the SwiftUI way!**

@@ -8,6 +8,9 @@ struct SidebarActions {
     let importFiles: () -> Void
     let renameItem: () -> Void
     let deleteItem: () -> Void
+    let createSearch: () -> Void
+    let createChat: () -> Void
+    let createWorkflow: () -> Void
 }
 
 /// Information about the current sidebar selection
@@ -145,6 +148,18 @@ struct FocusedOpenLibraryButton: View {
     }
 }
 
+/// Button that triggers the focused window's open library file picker (alias for Database terminology)
+struct FocusedOpenDatabaseButton: View {
+    @FocusedValue(\.openLibraryAction) private var openLibraryAction
+
+    var body: some View {
+        Button("Open Database...") {
+            openLibraryAction?()
+        }
+        .keyboardShortcut("o", modifiers: [.command])
+    }
+}
+
 /// Button that opens a new window viewing the current library
 struct FocusedNewWindowButton: View {
     @FocusedValue(\.newWindowAction) private var newWindowAction
@@ -153,7 +168,7 @@ struct FocusedNewWindowButton: View {
         Button("New Window") {
             newWindowAction?()
         }
-        .keyboardShortcut("n", modifiers: [.command, .shift])
+        .keyboardShortcut("t", modifiers: [.command])
         .disabled(newWindowAction == nil)
     }
 }
@@ -180,5 +195,59 @@ struct FocusedSaveLibraryButton: View {
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
         .disabled(saveLibraryAction == nil)
+    }
+}
+
+/// Button that saves the current database (alias for Database terminology)
+struct FocusedSaveDatabaseButton: View {
+    @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
+
+    var body: some View {
+        Button("Save Database As...") {
+            saveLibraryAction?()
+        }
+        .keyboardShortcut("s", modifiers: [.command, .shift])
+        .disabled(saveLibraryAction == nil)
+    }
+}
+
+// MARK: - Creation Buttons
+
+/// Button that creates a new search
+struct FocusedNewSearchButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Search") {
+            sidebarActions?.createSearch()
+        }
+        .keyboardShortcut("n", modifiers: [.command, .option])
+        .disabled(sidebarActions == nil)
+    }
+}
+
+/// Button that creates a new chat
+struct FocusedNewChatButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Chat") {
+            sidebarActions?.createChat()
+        }
+        .keyboardShortcut("n", modifiers: [.command, .control])
+        .disabled(sidebarActions == nil)
+    }
+}
+
+/// Button that creates a new workflow
+struct FocusedNewWorkflowButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Workflow") {
+            sidebarActions?.createWorkflow()
+        }
+        .keyboardShortcut("n", modifiers: [.command, .control, .shift])
+        .disabled(sidebarActions == nil)
     }
 }

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
-from fichero.models import Document, Provider as ProviderModel, Model as ModelModel
+from fichero.models import Document, Provider as ProviderModel, Model as ModelModel, Conversation
 from fichero.keychain import has_api_key
 from fichero.providers import PROVIDERS as PROVIDER_CATALOG, get_provider_info
 
@@ -101,10 +101,9 @@ class ConversationHistory(BaseModel):
     messages: List[ChatMessage]
     created_at: str
     updated_at: str
+    folder_path: str = "/"
+    sort_order: int = 0
 
-
-# In-memory conversation store (would be database in production)
-_conversations: dict[str, dict] = {}
 
 # Note: Providers and models now come from the database (configured via Providers UI)
 
@@ -203,21 +202,25 @@ async def chat(
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     # Get or create conversation
-    conv_id = request.conversation_id or datetime.now().strftime("%Y%m%d%H%M%S%f")
-    if conv_id not in _conversations:
-        _conversations[conv_id] = {
-            "id": conv_id,
-            "title": request.message[:50] + "..." if len(request.message) > 50 else request.message,
-            "messages": [],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
-
-    conv = _conversations[conv_id]
+    if request.conversation_id:
+        conv = db.get(Conversation, request.conversation_id)
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+    else:
+        # Create new conversation
+        conv = Conversation(
+            title=request.message[:50] + "..." if len(request.message) > 50 else request.message,
+            messages=[],
+            provider=request.provider,
+            model=request.model,
+            document_ids=request.document_ids or [],
+            folder_path="/",
+            sort_order=0
+        )
 
     # Add user message
-    conv["messages"].append({"role": "user", "content": request.message})
-    conv["updated_at"] = datetime.now().isoformat()
+    conv.messages.append({"role": "user", "content": request.message})
+    conv.updated_at = datetime.now()
 
     # Search for relevant documents
     sources = []
@@ -292,104 +295,172 @@ async def chat(
     except Exception as e:
         logger.error(f"LLM generation failed: {e}")
         response_text = f"I apologize, but I encountered an error while processing your request. Please try again. (Error: {str(e)[:100]})"
+        model_used = "error"
 
     # Add assistant message
-    conv["messages"].append({"role": "assistant", "content": response_text})
+    conv.messages.append({"role": "assistant", "content": response_text})
+    conv.updated_at = datetime.now()
+
+    # Save conversation to database
+    db.save(conv)
 
     return ChatResponse(
         message=response_text,
         sources=sources,
-        conversation_id=conv_id,
+        conversation_id=conv.id,
         model_used=model_used,
     )
 
 
 @router.get("/conversations")
 async def list_conversations(
-    folder_path: str = "/"
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
 ) -> List[dict]:
     """List all conversations, optionally filtered by folder."""
-    # For now, return in-memory conversations
-    # In the future, this could query from the database
+    # Query conversations from database
+    convs = db.query(Conversation, folder_path=folder_path)
+
     result = []
-    for conv in _conversations.values():
+    for conv in convs:
         result.append({
-            "id": conv["id"],
-            "title": conv["title"],
-            "message_count": len(conv["messages"]),
-            "created_at": conv["created_at"],
-            "updated_at": conv["updated_at"],
-            # For now, assume all conversations are in root folder
-            "folder_path": "/",
-            "sort_order": 0
+            "id": conv.id,
+            "title": conv.title,
+            "message_count": len(conv.messages),
+            "created_at": conv.created_at.isoformat(),
+            "updated_at": conv.updated_at.isoformat(),
+            "folder_path": conv.folder_path,
+            "sort_order": conv.sort_order
         })
+
+    # Sort by sort_order, then by updated_at descending
+    result.sort(key=lambda x: (x["sort_order"], x["updated_at"]), reverse=False)
+
     return result
 
 
 @router.get("/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str) -> ConversationHistory:
+async def get_conversation(
+    conversation_id: str,
+    db: Database = Depends(get_library_database),
+) -> ConversationHistory:
     """Get a specific conversation with full history."""
-    if conversation_id not in _conversations:
+    conv = db.get(Conversation, conversation_id)
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    conv = _conversations[conversation_id]
     return ConversationHistory(
-        id=conv["id"],
-        title=conv["title"],
-        messages=[ChatMessage(**m) for m in conv["messages"]],
-        created_at=conv["created_at"],
-        updated_at=conv["updated_at"],
+        id=conv.id,
+        title=conv.title,
+        messages=[ChatMessage(**m) for m in conv.messages],
+        created_at=conv.created_at.isoformat(),
+        updated_at=conv.updated_at.isoformat(),
+        folder_path=conv.folder_path,
+        sort_order=conv.sort_order
+    )
+
+
+class ConversationUpdate(BaseModel):
+    """Request to update conversation properties."""
+    title: Optional[str] = None
+    folder_path: Optional[str] = None
+
+
+@router.put("/conversations/{conversation_id}")
+async def update_conversation(
+    conversation_id: str,
+    request: ConversationUpdate,
+    db: Database = Depends(get_library_database),
+) -> ConversationHistory:
+    """Update conversation title and/or folder_path."""
+    conv = db.get(Conversation, conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Update fields
+    if request.title is not None:
+        conv.title = request.title
+    if request.folder_path is not None:
+        conv.folder_path = request.folder_path
+
+    conv.updated_at = datetime.now()
+    db.save(conv)
+
+    return ConversationHistory(
+        id=conv.id,
+        title=conv.title,
+        messages=[ChatMessage(**m) for m in conv.messages],
+        created_at=conv.created_at.isoformat(),
+        updated_at=conv.updated_at.isoformat(),
+        folder_path=conv.folder_path,
+        sort_order=conv.sort_order
     )
 
 
 @router.post("/conversations/{conversation_id}/duplicate")
-async def duplicate_conversation(conversation_id: str) -> dict:
+async def duplicate_conversation(
+    conversation_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Duplicate a conversation with a new ID."""
-    if conversation_id not in _conversations:
+    original = db.get(Conversation, conversation_id)
+    if not original:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    original_conv = _conversations[conversation_id]
+    # Create new conversation with copied properties
+    new_conv = Conversation(
+        title=f"{original.title} (Copy)",
+        messages=original.messages[:],  # Copy the messages
+        provider=original.provider,
+        model=original.model,
+        document_ids=original.document_ids[:],
+        folder_path=original.folder_path,
+        sort_order=original.sort_order
+    )
 
-    # Create a new conversation with a new ID and modified title
-    new_conv_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    new_title = f"{original_conv['title']} (Copy)"
-
-    new_conv = {
-        "id": new_conv_id,
-        "title": new_title,
-        "messages": original_conv["messages"][:],  # Copy the messages
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    }
-
-    _conversations[new_conv_id] = new_conv
+    db.save(new_conv)
 
     return {
-        "id": new_conv_id,
-        "title": new_title,
-        "message_count": len(new_conv["messages"]),
-        "created_at": new_conv["created_at"],
-        "updated_at": new_conv["updated_at"],
-        "folder_path": "/",
-        "sort_order": 0
+        "id": new_conv.id,
+        "title": new_conv.title,
+        "message_count": len(new_conv.messages),
+        "created_at": new_conv.created_at.isoformat(),
+        "updated_at": new_conv.updated_at.isoformat(),
+        "folder_path": new_conv.folder_path,
+        "sort_order": new_conv.sort_order
     }
 
 
 @router.delete("/conversations/{conversation_id}")
-async def delete_conversation(conversation_id: str):
+async def delete_conversation(
+    conversation_id: str,
+    db: Database = Depends(get_library_database),
+):
     """Delete a conversation."""
-    if conversation_id not in _conversations:
+    conv = db.get(Conversation, conversation_id)
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    del _conversations[conversation_id]
+    db.delete(conv)
     return {"status": "deleted"}
 
 
 @router.post("/conversations/reorder")
-async def reorder_conversations(conversation_ids: list[str], folder_path: str = "/") -> dict:
+async def reorder_conversations(
+    conversation_ids: list[str],
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Reorder conversations within a folder."""
-    # For now, since conversations are in-memory, we'll just return a success status
-    # In a real implementation with database persistence, we'd update the sort_order field
+    for index, conversation_id in enumerate(conversation_ids):
+        conv = db.get(Conversation, conversation_id)
+        if not conv:
+            raise HTTPException(status_code=404, detail=f"Conversation not found: {conversation_id}")
+
+        conv.sort_order = index
+        conv.updated_at = datetime.now()
+        db.save(conv)
+
     return {"status": "reordered", "count": len(conversation_ids), "folder_path": folder_path}
 
 

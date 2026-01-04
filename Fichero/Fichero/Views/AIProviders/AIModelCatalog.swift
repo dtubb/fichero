@@ -18,7 +18,7 @@ struct AIModelCatalog: View {
     @Binding var selectedModel: HFModelInfo?
     let onModelSelected: ((HFModelInfo) -> Void)?
 
-    private let modelService = ModelService(apiClient: APIClient())
+    @EnvironmentObject var modelService: ModelService
     private let pageSize = 20
 
     init(selectedModel: Binding<HFModelInfo?> = .constant(nil), onModelSelected: ((HFModelInfo) -> Void)? = nil) {

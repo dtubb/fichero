@@ -40,7 +40,7 @@ struct AIModelSelectionView: View {
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
 
-    private let providerService = ProviderService(apiClient: APIClient())
+    @EnvironmentObject var providerService: ProviderService
 
     private var filteredModels: [ModelInfo] {
         var result = models

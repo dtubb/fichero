@@ -9,6 +9,8 @@ struct WorkflowEditor: View {
     /// The actual workflow being edited
     @Binding var editingWorkflow: Workflow
 
+    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
+
     @State private var isRunning: Bool = false
     @State private var isSaving: Bool = false
     @State private var showOutputLog: Bool = false
@@ -18,14 +20,16 @@ struct WorkflowEditor: View {
     @State private var scale: CGFloat = 1.0
     @State private var snapToGrid: Bool = true
 
-    @StateObject private var workflowStore = WorkflowStore(apiClient: APIClient())
+    @EnvironmentObject var workflowStore: WorkflowStore
 
     init(
         workflow: WorkflowSidebarItem?,
-        editingWorkflow: Binding<Workflow>
+        editingWorkflow: Binding<Workflow>,
+        displayMode: ViewDisplayMode = .icon
     ) {
         self.selectedWorkflow = workflow
         self._editingWorkflow = editingWorkflow
+        self.displayMode = displayMode
     }
 
     var body: some View {
@@ -45,12 +49,20 @@ struct WorkflowEditor: View {
 
             // Canvas and output log
             VSplitView {
-                // Main canvas area
-                WorkflowCanvasView(
-                    workflow: $editingWorkflow,
-                    scale: $scale,
-                    snapToGrid: $snapToGrid
-                )
+                // Main content area (adapts to displayMode)
+                Group {
+                    switch displayMode {
+                    case .table:
+                        workflowNodesTableView
+                    default:
+                        // Icon, List, Map all show canvas
+                        WorkflowCanvasView(
+                            workflow: $editingWorkflow,
+                            scale: $scale,
+                            snapToGrid: $snapToGrid
+                        )
+                    }
+                }
                 .frame(minHeight: 200)
 
                 // Output log (collapsible, only during/after run)
@@ -96,27 +108,64 @@ struct WorkflowEditor: View {
 
     @MainActor
     private func saveWorkflow() async {
-        do {
-            // Convert local workflow to API format and save to backend via WorkflowStore
-            // TODO: Implement with proper workflow type once files are added to Xcode project
-            print("Save workflow: \(editingWorkflow.name)")
-            
-            // Placeholder for actual implementation
-            // let apiWorkflow = editingWorkflow.toAPIFormat()
-            // if selectedWorkflow != nil {
-            //     _ = try await workflowStore.updateWorkflow(apiWorkflow)
-            // } else {
-            //     _ = try await workflowStore.saveWorkflow(apiWorkflow)
-            // }
-        } catch {
-            print("Failed to save workflow: \(error)")
-        }
+        // Convert local workflow to API format and save to backend via WorkflowStore
+        // TODO: Implement with proper workflow type once files are added to Xcode project
+        print("Save workflow: \(editingWorkflow.name)")
+
+        // Placeholder for actual implementation:
+        // do {
+        //     let apiWorkflow = editingWorkflow.toAPIFormat()
+        //     if selectedWorkflow != nil {
+        //         _ = try await workflowStore.updateWorkflow(apiWorkflow)
+        //     } else {
+        //         _ = try await workflowStore.saveWorkflow(apiWorkflow)
+        //     }
+        // } catch {
+        //     print("Failed to save workflow: \(error)")
+        // }
     }
 
     private func exportWorkflow() {
         // TODO: Implement export when workflow type is available
         print("Export workflow: \(editingWorkflow.name)")
         // Will export workflow definition as JSON using WorkflowExporter
+    }
+
+    // MARK: - Views
+
+    private var workflowNodesTableView: some View {
+        Table(editingWorkflow.nodes) {
+            TableColumn("Tool") { node in
+                Text(node.tool)
+                    .font(.body)
+            }
+            .width(min: 100, ideal: 150)
+
+            TableColumn("Label") { node in
+                Text(node.label ?? "—")
+                    .foregroundColor(.secondary)
+            }
+            .width(min: 100, ideal: 150)
+
+            TableColumn("Position") { node in
+                Text("(\(Int(node.positionX)), \(Int(node.positionY)))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .width(min: 80, ideal: 100)
+
+            TableColumn("Inputs") { (node: WorkflowNode) in
+                if node.inputMappings.isEmpty {
+                    Text("—")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("\(node.inputMappings.count) input(s)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .width(min: 80, ideal: 100)
+        }
     }
 }
 

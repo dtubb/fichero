@@ -17,7 +17,7 @@ struct NodePopover: View {
     @State private var selectedProviderId: String = ""
     @State private var selectedModelId: String = ""
 
-    private let chatService = ChatService(apiClient: APIClient())
+    @EnvironmentObject var chatService: ChatService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

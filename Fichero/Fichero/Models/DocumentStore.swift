@@ -3,6 +3,8 @@ import SwiftUI
 import Combine
 import OSLog
 
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentStore")
+
 /// Document change types for reactive updates.
 enum DocumentChange {
     case collectionsUpdated([Document])
@@ -139,16 +141,20 @@ class DocumentStore: ObservableObject {
     func loadChildren(of document: Document) async {
         isLoadingChildren = true
 
+        logger.info("loadChildren called for document: \(document.id), library path: \(self.api.currentLibraryPath ?? "nil")")
+
         do {
-            let children: [Document] = try await api.get("/documents/\(document.id)/children")
-            childrenCache[document.id] = children
-            currentDocuments = children
+            let children: [Document] = try await self.api.get("/documents/\(document.id)/children")
+            self.childrenCache[document.id] = children
+            self.currentDocuments = children
+            logger.info("loadChildren succeeded, got \(children.count) children")
         } catch {
+            logger.error("loadChildren failed: \(error.localizedDescription)")
             self.error = error
-            currentDocuments = []
+            self.currentDocuments = []
         }
 
-        isLoadingChildren = false
+        self.isLoadingChildren = false
     }
 
     /// Get cached children or load from backend.

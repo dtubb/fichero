@@ -22,15 +22,19 @@ struct SidebarItemRow: View {
     @Binding var expandedItems: Set<String>
     @ObservedObject var renameState: RenameStateManager
     @ObservedObject var deleteState: DeleteStateManager
+    @ObservedObject var libraryManager: LibraryManager
 
-    // Access shared services via environment (reduces 9 parameters → 5)
-    @EnvironmentObject private var services: SidebarServices
+    // Get services from the item's library
+    private var library: LibraryManager.LibraryReference? {
+        guard let libraryId = item.libraryId else { return nil }
+        return libraryManager.getLibrary(id: libraryId)
+    }
 
-    // Convenience accessors for services
-    private var documentStore: DocumentStore? { services.documentStore }
-    private var savedSearchService: SavedSearchService? { services.savedSearchService }
-    private var conversationService: ConversationService? { services.conversationService }
-    private var workflowStore: WorkflowStore? { services.workflowStore }
+    // Convenience accessors for services from item's library
+    private var documentStore: DocumentStore? { library?.documentStore }
+    private var savedSearchService: SavedSearchService? { library?.savedSearchService }
+    private var conversationService: ConversationService? { library?.conversationService }
+    private var workflowStore: WorkflowStore? { library?.workflowStore }
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
@@ -64,7 +68,8 @@ struct SidebarItemRow: View {
                         allCachedItems: allCachedItems,
                         expandedItems: $expandedItems,
                         renameState: renameState,
-                        deleteState: deleteState
+                        deleteState: deleteState,
+                        libraryManager: libraryManager
                     )
                     .tag(child.id)
                     // No context menu here - child SidebarItemRow renders its own
@@ -184,15 +189,17 @@ struct SidebarItemRow: View {
     }
 
     private var iconColor: Color {
-        switch item.section {
-        case .library:
+        switch item.category {
+        case .folder:
             return .accentColor
-        case .searches:
+        case .search:
             return .orange
         case .chat:
             return .green
-        case .workflows:
+        case .workflow:
             return .purple
+        case .library:
+            return .blue
         }
     }
 }

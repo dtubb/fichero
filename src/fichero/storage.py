@@ -89,8 +89,20 @@ class StorageSettings(BaseSettings):
     @computed_field
     @property
     def db_path(self) -> Path:
-        """Path to DuckDB database."""
+        """Path to DuckDB database (legacy - per library)."""
         return self.base_path / "library.duckdb"
+
+    @computed_field
+    @property
+    def app_db_path(self) -> Path:
+        """Path to app-wide DuckDB database (providers, app settings)."""
+        return self.base_path / "app.duckdb"
+
+    @computed_field
+    @property
+    def global_library_path(self) -> Path:
+        """Path to global library database (cross-library searches/chats/workflows)."""
+        return self.base_path / "global.fichero"
 
     @computed_field
     @property

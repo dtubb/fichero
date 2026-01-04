@@ -11,8 +11,8 @@ struct LibraryImageView: View {
     let documentId: String
     let imageType: ImageType
 
-    // Access the shared DocumentStore which has the correctly configured APIClient
-    @EnvironmentObject var documentStore: DocumentStore
+    // Access the shared services from the current library
+    @EnvironmentObject var storageService: StorageService
 
     @State private var image: Image?
     @State private var isLoading = false
@@ -45,9 +45,6 @@ struct LibraryImageView: View {
         loadError = nil
 
         do {
-            // Use the DocumentStore's APIClient which has the library path set
-            let storageService = StorageService(apiClient: documentStore.api)
-
             switch imageType {
             case .thumbnail:
                 image = try await storageService.getThumbnail(documentId)

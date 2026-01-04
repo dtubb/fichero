@@ -115,10 +115,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     @Previewable @State var searchText: String = ""
 
     let registry = ItemTypeRegistry()
-    registry.createFolder = { print("Create folder") }
-    registry.createSearch = { print("Create search") }
 
-    return MainToolbar(
+    MainToolbar(
         viewMode: $viewMode,
         layoutMode: $layoutMode,
         showSidebar: $showSidebar,
@@ -126,4 +124,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         searchText: $searchText
     )
     .frame(height: 44)
+    .onAppear {
+        registry.createFolder = { print("Create folder") }
+        registry.createSearch = { print("Create search") }
+    }
 }

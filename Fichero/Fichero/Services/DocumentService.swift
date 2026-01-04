@@ -33,7 +33,7 @@ class DocumentService: ObservableObject {
         let request = CreateDocumentRequest(
             name: name,
             parentId: parentId,
-            docType: "collection"
+            docType: "folder"  // Use "folder" to match DocType enum
         )
 
         let document: Document = try await api.post("/documents", body: request)

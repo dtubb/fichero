@@ -293,27 +293,27 @@ class TestProviderAPIRoutes:
 
     def test_create_provider(self, client):
         """Test POST /api/providers"""
-        with patch("fichero.api.routes.providers.db") as mock_db:
-            with patch("fichero.api.routes.providers.set_api_key") as mock_set_key:
-                mock_db.save = MagicMock()
-                mock_set_key.return_value = True
+        with patch("fichero.api.routes.providers.set_api_key") as mock_set_key:
+            mock_set_key.return_value = True
 
-                response = client.post(
-                    "/api/providers",
-                    json={
-                        "provider_type": "openai",
-                        "name": "My OpenAI",
-                        "api_key": "sk-test",
-                    }
-                )
+            response = client.post(
+                "/api/providers",
+                json={
+                    "provider_type": "openai",
+                    "name": "My OpenAI",
+                    "api_key": "sk-test",
+                }
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["name"] == "My OpenAI"
-                assert data["provider_type"] == "openai"
+            assert response.status_code == 200
+            data = response.json()
+            assert data["name"] == "My OpenAI"
+            assert data["provider_type"] == "openai"
+            assert data["enabled"] is True
+            assert "id" in data
+            assert "created_at" in data
 
-                mock_db.save.assert_called_once()
-                mock_set_key.assert_called_once_with("openai", "sk-test")
+            mock_set_key.assert_called_once_with("openai", "sk-test")
 
     def test_create_provider_invalid_type(self, client):
         """Test POST /api/providers with invalid type"""
@@ -383,3 +383,337 @@ class TestProviderIntegration:
         assert provider.id is not None
         assert provider.name == "Test OpenAI"
         assert provider.provider_type == ProviderType.openai
+
+
+# =============================================================================
+# AppDatabase Tests - App-Wide Provider Storage
+# =============================================================================
+
+class TestAppDatabase:
+    """Test app-wide database for providers and models."""
+
+    def test_create_app_database(self, app_db):
+        """Test app database initialization."""
+        assert app_db is not None
+        assert app_db.path.exists()
+        assert app_db.conn is not None
+
+    def test_save_and_get_provider(self, app_db):
+        """Test saving and retrieving a provider."""
+        from fichero.models import Provider, ProviderType
+
+        provider = Provider(
+            name="OpenAI",
+            provider_type=ProviderType.openai,
+            api_base="https://api.openai.com",
+            enabled=True,
+            sort_order=0,
+        )
+
+        # Save
+        app_db.save_provider(provider)
+
+        # Retrieve
+        retrieved = app_db.get_provider(provider.id)
+        assert retrieved is not None
+        assert retrieved.id == provider.id
+        assert retrieved.name == "OpenAI"
+        assert retrieved.provider_type == ProviderType.openai
+        assert retrieved.enabled is True
+
+    def test_list_providers(self, app_db):
+        """Test listing all providers."""
+        from fichero.models import Provider, ProviderType
+
+        # Create multiple providers
+        provider1 = Provider(
+            name="OpenAI",
+            provider_type=ProviderType.openai,
+            sort_order=1,
+        )
+        provider2 = Provider(
+            name="Anthropic",
+            provider_type=ProviderType.anthropic,
+            sort_order=0,
+        )
+
+        app_db.save_provider(provider1)
+        app_db.save_provider(provider2)
+
+        # List should return both, sorted by sort_order
+        providers = app_db.list_providers()
+        assert len(providers) == 2
+        assert providers[0].name == "Anthropic"  # sort_order=0
+        assert providers[1].name == "OpenAI"     # sort_order=1
+
+    def test_delete_provider(self, app_db):
+        """Test deleting a provider."""
+        from fichero.models import Provider, ProviderType
+
+        provider = Provider(
+            name="OpenAI",
+            provider_type=ProviderType.openai,
+        )
+        app_db.save_provider(provider)
+
+        # Delete
+        app_db.delete_provider(provider.id)
+
+        # Verify deletion
+        retrieved = app_db.get_provider(provider.id)
+        assert retrieved is None
+
+    def test_delete_provider_deletes_models(self, app_db):
+        """Test that deleting a provider also deletes its models."""
+        from fichero.models import Provider, Model, ProviderType
+
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        # Create two models
+        model1 = Model(provider_id=provider.id, name="GPT-4o", model_id="gpt-4o")
+        model2 = Model(provider_id=provider.id, name="GPT-4", model_id="gpt-4")
+        app_db.save_model(model1)
+        app_db.save_model(model2)
+
+        # Delete provider
+        app_db.delete_provider(provider.id)
+
+        # Verify models are also deleted
+        models = app_db.list_models(provider.id)
+        assert len(models) == 0
+
+    def test_save_and_get_model(self, app_db):
+        """Test saving and retrieving a model."""
+        from fichero.models import Provider, Model, ProviderType
+
+        # First create a provider
+        provider = Provider(
+            name="OpenAI",
+            provider_type=ProviderType.openai,
+        )
+        app_db.save_provider(provider)
+
+        # Create a model
+        model = Model(
+            provider_id=provider.id,
+            name="GPT-4o",
+            model_id="gpt-4o",
+            capabilities=["vision", "function_calling"],
+            is_default=True,
+            enabled=True,
+            input_cost=2.50,
+            output_cost=10.00,
+        )
+
+        # Save
+        app_db.save_model(model)
+
+        # Retrieve via list_models
+        models = app_db.list_models(provider.id)
+        assert len(models) == 1
+        assert models[0].id == model.id
+        assert models[0].name == "GPT-4o"
+        assert models[0].model_id == "gpt-4o"
+        assert models[0].capabilities == ["vision", "function_calling"]
+        assert models[0].is_default is True
+        assert models[0].input_cost == 2.50
+        assert models[0].output_cost == 10.00
+
+
+# =============================================================================
+# Library Database Provider References Tests
+# =============================================================================
+
+class TestProviderRefs:
+    """Test library-specific provider references."""
+
+    def test_save_and_get_provider_ref(self, db):
+        """Test saving and retrieving a provider reference."""
+        from fichero.models import ProviderRef
+
+        ref = ProviderRef(
+            provider_id="test-provider-123",
+            enabled=True,
+            sort_order=0,
+        )
+
+        # Save
+        db.save(ref)
+
+        # Retrieve
+        retrieved = db.get(ProviderRef, ref.id)
+        assert retrieved is not None
+        assert retrieved.id == ref.id
+        assert retrieved.provider_id == "test-provider-123"
+        assert retrieved.enabled is True
+
+    def test_query_provider_refs_by_provider_id(self, db):
+        """Test querying provider refs by provider_id."""
+        from fichero.models import ProviderRef
+
+        ref1 = ProviderRef(provider_id="provider-1")
+        ref2 = ProviderRef(provider_id="provider-1")
+        ref3 = ProviderRef(provider_id="provider-2")
+
+        db.save(ref1)
+        db.save(ref2)
+        db.save(ref3)
+
+        # Query for provider-1
+        refs = db.query(ProviderRef, provider_id="provider-1")
+        assert len(refs) == 2
+
+        # Query for provider-2
+        refs = db.query(ProviderRef, provider_id="provider-2")
+        assert len(refs) == 1
+
+    def test_delete_provider_ref(self, db):
+        """Test deleting a provider reference."""
+        from fichero.models import ProviderRef
+
+        ref = ProviderRef(provider_id="test-provider-123")
+        db.save(ref)
+
+        # Delete
+        db.delete(ref)
+
+        # Verify deletion
+        retrieved = db.get(ProviderRef, ref.id)
+        assert retrieved is None
+
+
+# =============================================================================
+# Provider Reference API Routes Tests
+# =============================================================================
+
+class TestProviderRefRoutes:
+    """Test library-specific provider reference API routes."""
+
+    def test_list_provider_refs_empty(self, client, db, app_db):
+        """Test listing provider refs when none exist."""
+        response = client.get("/api/providers/refs")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_add_provider_ref(self, client, db, app_db):
+        """Test adding a provider reference to a library."""
+        from fichero.models import Provider, ProviderType
+
+        # Create a provider in app database
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        # Add reference via API
+        response = client.post("/api/providers/refs", json={
+            "provider_id": provider.id,
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider_id"] == provider.id
+        assert data["provider_name"] == "OpenAI"
+        assert data["provider_type"] == "openai"
+        assert data["enabled"] is True
+
+    def test_add_provider_ref_nonexistent_provider(self, client, db, app_db):
+        """Test adding a reference to a non-existent provider."""
+        response = client.post("/api/providers/refs", json={
+            "provider_id": "nonexistent-id",
+        })
+
+        assert response.status_code == 404
+
+    def test_add_duplicate_provider_ref(self, client, db, app_db):
+        """Test adding a duplicate provider reference."""
+        from fichero.models import Provider, ProviderType
+
+        # Create provider
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        # Add reference
+        client.post("/api/providers/refs", json={"provider_id": provider.id})
+
+        # Try to add again
+        response = client.post("/api/providers/refs", json={"provider_id": provider.id})
+        assert response.status_code == 400
+
+    def test_list_provider_refs(self, client, db, app_db):
+        """Test listing provider references."""
+        from fichero.models import Provider, ProviderType
+
+        # Create two providers
+        provider1 = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        provider2 = Provider(name="Anthropic", provider_type=ProviderType.anthropic)
+        app_db.save_provider(provider1)
+        app_db.save_provider(provider2)
+
+        # Add references
+        client.post("/api/providers/refs", json={"provider_id": provider1.id})
+        client.post("/api/providers/refs", json={"provider_id": provider2.id})
+
+        # List references
+        response = client.get("/api/providers/refs")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+
+    def test_update_provider_ref(self, client, db, app_db):
+        """Test updating a provider reference."""
+        from fichero.models import Provider, ProviderType
+
+        # Create provider and reference
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        ref_response = client.post("/api/providers/refs", json={"provider_id": provider.id})
+        ref_id = ref_response.json()["id"]
+
+        # Update reference
+        response = client.patch(f"/api/providers/refs/{ref_id}", json={
+            "enabled": False,
+            "sort_order": 5,
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["enabled"] is False
+        assert data["sort_order"] == 5
+
+    def test_delete_provider_ref(self, client, db, app_db):
+        """Test deleting a provider reference."""
+        from fichero.models import Provider, ProviderType
+
+        # Create provider and reference
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        ref_response = client.post("/api/providers/refs", json={"provider_id": provider.id})
+        ref_id = ref_response.json()["id"]
+
+        # Delete reference
+        response = client.delete(f"/api/providers/refs/{ref_id}")
+        assert response.status_code == 200
+
+        # Verify deletion
+        response = client.get("/api/providers/refs")
+        assert len(response.json()) == 0
+
+    def test_list_refs_excludes_deleted_providers(self, client, db, app_db):
+        """Test that listing refs excludes references to deleted providers."""
+        from fichero.models import Provider, ProviderType
+
+        # Create provider and reference
+        provider = Provider(name="OpenAI", provider_type=ProviderType.openai)
+        app_db.save_provider(provider)
+
+        client.post("/api/providers/refs", json={"provider_id": provider.id})
+
+        # Delete the provider from app database
+        app_db.delete_provider(provider.id)
+
+        # List refs should return empty (provider no longer exists)
+        response = client.get("/api/providers/refs")
+        assert response.status_code == 200
+        assert len(response.json()) == 0

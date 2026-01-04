@@ -9,6 +9,7 @@ struct SearchView: View {
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     var onSearchSaved: (() -> Void)?
+    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State private var queryText: String = ""
     @State private var isSmartSearch: Bool = true  // Default to smart search (semantic)
@@ -22,8 +23,9 @@ struct SearchView: View {
     @State private var searchError: String?
     @State private var isSaving: Bool = false
 
-    private let searchService = SearchService(apiClient: APIClient())
-    private let savedSearchService = SavedSearchService(apiClient: APIClient())
+    @EnvironmentObject var searchService: SearchService
+    @EnvironmentObject var savedSearchService: SavedSearchService
+    @EnvironmentObject var apiClient: APIClient
 
     var body: some View {
         HSplitView {
@@ -203,21 +205,20 @@ extension SearchView {
 
             Divider()
 
-            // Results list
+            // Results display (adapts to displayMode)
             if searchResults.isEmpty && !isSearching {
                 emptyState
             } else {
-                List(selection: $selection) {
-                    ForEach(searchResults) { result in
-                        SearchResultRowFromAPI(result: result)
-                            .tag(result.documentId)
-                            .draggable(result.documentId)
-                            .onTapGesture(count: 2) {
-                                loadDocument(result.documentId)
-                            }
-                    }
+                switch displayMode {
+                case .icon:
+                    searchResultsIconView
+                case .list:
+                    searchResultsListView
+                case .table:
+                    searchResultsTableView
+                case .map:
+                    searchResultsListView  // Map view not implemented for search yet
                 }
-                .listStyle(.inset)
             }
         }
     }
@@ -225,7 +226,7 @@ extension SearchView {
     private func loadDocument(_ id: String) {
         Task {
             do {
-                let doc: Document = try await APIClient().get("/documents/\(id)")
+                let doc: Document = try await apiClient.get("/documents/\(id)")
                 await MainActor.run {
                     detailDocument = doc
                 }
@@ -252,6 +253,93 @@ extension SearchView {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Search Results Views
+
+    private var searchResultsListView: some View {
+        List(selection: $selection) {
+            ForEach(searchResults) { result in
+                SearchResultRowFromAPI(result: result)
+                    .tag(result.documentId)
+                    .draggable(result.documentId)
+                    .onTapGesture(count: 2) {
+                        loadDocument(result.documentId)
+                    }
+            }
+        }
+        .listStyle(.inset)
+    }
+
+    private var searchResultsIconView: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 100, maximum: 140))],
+                spacing: 16
+            ) {
+                ForEach(searchResults) { result in
+                    VStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 48))
+                            .foregroundColor(.accentColor)
+
+                        if let name = result.metadata["name"]?.value as? String {
+                            Text(name)
+                                .font(.caption)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                        } else {
+                            Text(result.documentId)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
+
+                        Text(String(format: "%.1f%%", result.score * 100))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(width: 120, height: 120)
+                    .background(selection.contains(result.documentId) ? Color.accentColor.opacity(0.1) : Color.clear)
+                    .cornerRadius(8)
+                    .onTapGesture {
+                        selection = [result.documentId]
+                    }
+                    .onTapGesture(count: 2) {
+                        loadDocument(result.documentId)
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+
+    private var searchResultsTableView: some View {
+        Table(searchResults, selection: $selection) {
+            TableColumn("Name") { result in
+                if let name = result.metadata["name"]?.value as? String {
+                    Text(name)
+                } else {
+                    Text(result.documentId)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            TableColumn("Score") { result in
+                Text(String(format: "%.1f%%", result.score * 100))
+            }
+            .width(min: 60, ideal: 80)
+
+            TableColumn("Preview") { result in
+                if let preview = result.contentPreview {
+                    Text(preview)
+                        .lineLimit(2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("—")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
     }
 }
 
@@ -480,7 +568,8 @@ struct SearchResultRowFromAPI: View {
     SearchView(
         savedSearch: nil,
         selection: .constant([]),
-        detailDocument: .constant(nil)
+        detailDocument: .constant(nil),
+        displayMode: .icon
     )
     .frame(width: 800, height: 600)
 }

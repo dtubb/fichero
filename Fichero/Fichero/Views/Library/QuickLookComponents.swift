@@ -16,6 +16,8 @@ struct QuickLookDownloadView: View {
     @State private var needsAccess = false
     @State private var error: String?
 
+    @EnvironmentObject var apiClient: APIClient
+
     var body: some View {
         Group {
             if let url = fileURL {
@@ -145,7 +147,7 @@ struct QuickLookDownloadView: View {
     }
 
     private func downloadFromAPI() async {
-        let sourceURL = APIClient().sourceURL(for: document.id)
+        let sourceURL = apiClient.sourceURL(for: document.id)
 
         do {
             // Download file from API

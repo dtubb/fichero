@@ -160,7 +160,27 @@ class WorkflowService: ObservableObject {
     /// Rename a workflow.
     func renameWorkflow(_ id: String, newName: String) async throws -> WorkflowResponse {
         let update = WorkflowUpdate(name: newName)
-        return try await api.patch("/workflows/\(id)", body: update)
+        return try await api.put("/workflows/\(id)", body: update)
+    }
+
+    /// Update a workflow properties (name, description, folder_path).
+    func updateWorkflowProperties(
+        _ id: String,
+        name: String? = nil,
+        description: String? = nil,
+        folderPath: String? = nil
+    ) async throws -> WorkflowResponse {
+        let update = WorkflowUpdate(
+            name: name,
+            description: description,
+            folderPath: folderPath
+        )
+        return try await api.put("/workflows/\(id)", body: update)
+    }
+
+    /// Move workflow to a different folder.
+    func moveToFolder(_ id: String, folderPath: String) async throws -> WorkflowResponse {
+        return try await updateWorkflowProperties(id, folderPath: folderPath)
     }
 
     /// Reorder workflows.
@@ -170,19 +190,16 @@ class WorkflowService: ObservableObject {
     }
 
     /// Import a workflow from JSON data.
-    func importWorkflow(name: String = "", description: String = "", workflowData: [String: AnyCodable]) async throws -> WorkflowResponse {
-        struct ImportRequest: Encodable {
-            let name: String
-            let description: String
-            let workflowData: [String: AnyCodable]
-
-            enum CodingKeys: String, CodingKey {
-                case name, description
-                case workflowData = "workflow_data"
-            }
-        }
-
-        let request = ImportRequest(name: name, description: description, workflowData: workflowData)
+    func importWorkflow(
+        name: String = "",
+        description: String = "",
+        workflowData: [String: AnyCodable]
+    ) async throws -> WorkflowResponse {
+        let request = ImportWorkflowRequest(
+            name: name,
+            description: description,
+            workflowData: workflowData
+        )
         return try await api.post("/workflows/import", body: request)
     }
 
@@ -214,7 +231,21 @@ class WorkflowService: ObservableObject {
 // MARK: - Request Models
 
 struct WorkflowUpdate: Encodable {
-    let name: String
+    let name: String?
+    let description: String?
+    let folderPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case description
+        case folderPath = "folder_path"
+    }
+
+    init(name: String? = nil, description: String? = nil, folderPath: String? = nil) {
+        self.name = name
+        self.description = description
+        self.folderPath = folderPath
+    }
 }
 
 struct ReorderRequest: Encodable {
@@ -224,6 +255,17 @@ struct ReorderRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case workflowIds = "workflow_ids"
         case folderPath = "folder_path"
+    }
+}
+
+struct ImportWorkflowRequest: Encodable {
+    let name: String
+    let description: String
+    let workflowData: [String: AnyCodable]
+
+    enum CodingKeys: String, CodingKey {
+        case name, description
+        case workflowData = "workflow_data"
     }
 }
 
@@ -302,10 +344,12 @@ struct WorkflowResponse: Codable {
     let model: String
     let nodes: [[String: AnyCodable]]
     let edges: [[String: AnyCodable]]
+    let folderPath: String
+    let sortOrder: Int
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
     }
 }
-
-

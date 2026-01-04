@@ -98,3 +98,234 @@ Fichero/FicheroTests/
 - **SwiftLint**: Run `swiftlint` for code style enforcement
 - **Formatting**: Use Xcode's built-in formatting (Ctrl+I)
 - **Imports**: Organize imports by framework (SwiftUI, Foundation, etc.)
+
+## File Organization & Size Guidelines
+
+### File Size Limits (Mandatory)
+**CRITICAL**: Large files are unmaintainable and slow compilation.
+
+- **Recommended Limit**: 400 lines per file
+- **Hard Limit**: 1,000 lines (requires split)
+- **Type Body Limit**: 250 lines per struct/class
+- **Function Limit**: 50 lines per function
+
+**Why**: Files > 400 lines:
+- Slow compilation and Xcode performance
+- Difficult code review
+- Hard to navigate and understand
+- Higher bug risk
+- Merge conflict prone
+
+### When to Split Files
+
+**Split immediately if**:
+- File > 400 lines
+- Multiple responsibilities in one file
+- Difficulty finding code
+- Slow Xcode autocomplete
+
+**How to split**:
+1. **By Component**: Extract sub-views into separate files
+2. **By Responsibility**: Separate data models, view logic, helpers
+3. **By Feature**: Group related functionality
+
+**Example**: `EditorView.swift` (1,981 lines) should split into:
+- `EditorView.swift` - Main view (< 200 lines)
+- `EditorToolbar.swift` - Toolbar components
+- `EditorCanvas.swift` - Canvas view
+- `EditorInspector.swift` - Inspector panel
+- `EditorHelpers.swift` - Helper functions
+
+### File Organization Patterns
+
+**✅ DO**:
+```
+Views/
+├── Library/
+│   ├── LibraryView.swift          # Main view (< 300 lines)
+│   ├── DocumentRow.swift           # Row component (< 100 lines)
+│   ├── DocumentInspector.swift     # Inspector panel (< 250 lines)
+│   └── QuickLookComponents.swift   # Preview components
+```
+
+**❌ DON'T**:
+```
+Views/
+└── LibraryView.swift  # 2,000 lines - UNMAINTAINABLE!
+```
+
+### Naming Conventions
+
+**Files**:
+- `PascalCase` for Swift files
+- Descriptive names (`DocumentRow`, not `Row`)
+- Suffix with purpose if needed (`...View`, `...Model`, `...Service`)
+
+**Variables**:
+- **Descriptive names**: Never use `x, y, a, b, i, l, r, dx, dy`
+- **CamelCase**: `selectedDocument`, not `selected_document`
+- **Specific**: `documentCount`, not `count`
+
+**Functions**:
+- Verb-first: `loadDocument()`, `saveWorkflow()`, `updateProgress()`
+- Clear purpose: `handleFileDropOnLibrary()` vs `handleDrop()`
+
+### Code Organization in Files
+
+**Standard file structure**:
+```swift
+import SwiftUI
+import OSLog  // Other imports after SwiftUI
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FileName")
+
+/// Main view component
+struct MyView: View {
+    // MARK: - Properties
+    @State private var ...
+    @StateObject private var ...
+
+    // MARK: - Body
+    var body: some View {
+        ...
+    }
+
+    // MARK: - Subviews (computed properties)
+    private var toolbar: some View { ... }
+    private var content: some View { ... }
+
+    // MARK: - Actions
+    private func handleAction() { ... }
+
+    // MARK: - Helpers
+    private func calculateSomething() -> T { ... }
+}
+
+// MARK: - Supporting Types
+struct HelperType { ... }
+
+// MARK: - Preview
+#Preview {
+    MyView()
+}
+```
+
+## Swift 6 Concurrency Guidelines
+
+### Main Actor Isolation
+
+**Rule**: If a class is marked `@MainActor`, all access is already serialized. Don't use dispatch queues.
+
+**✅ DO**:
+```swift
+@MainActor
+class MyModel: ObservableObject {
+    @Published var data: [Item] = []
+
+    func updateData() {
+        data.append(newItem)  // Already on main actor
+    }
+}
+```
+
+**❌ DON'T**:
+```swift
+@MainActor
+class MyModel: ObservableObject {
+    private let queue = DispatchQueue(...)  // ❌ Unnecessary!
+
+    func updateData() {
+        queue.async {  // ❌ Wrong! Already on main actor
+            self.data.append(newItem)
+        }
+    }
+}
+```
+
+### Calling Main Actor Methods from Background
+
+**Pattern**: Use `Task { @MainActor in ... }` to hop to the main actor
+
+```swift
+// In a background closure
+provider.loadItem(...) { data, error in
+    Task { @MainActor in
+        self.updateUI(with: data)  // Now on main actor
+    }
+}
+```
+
+### Sendable Conformance
+
+**Use `@unchecked Sendable` for classes with internal thread safety**:
+
+```swift
+final class AtomicCounter: @unchecked Sendable {
+    private var value: Int
+    private let lock = NSLock()  // Provides thread safety
+
+    func increment() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+        return value
+    }
+}
+```
+
+### Task Cancellation
+
+**Always check for cancellation in async work**:
+
+```swift
+.task {
+    for item in items {
+        if Task.isCancelled { return }
+        await processItem(item)
+    }
+}
+```
+
+## SwiftLint Integration
+
+### Required Before Commit
+Run SwiftLint before every commit:
+
+```bash
+cd Fichero
+swiftlint
+```
+
+### Common Violations to Avoid
+
+1. **File Length**: Keep files < 400 lines
+2. **Type Body Length**: Keep structs/classes < 250 lines
+3. **Function Length**: Keep functions < 50 lines
+4. **Cyclomatic Complexity**: Keep functions simple (< 10 branches)
+5. **Identifier Names**: Use descriptive names (no `x`, `y`, `i`, etc.)
+6. **Line Length**: Keep lines < 120 characters
+7. **Trailing Whitespace**: Remove all trailing whitespace
+
+### Auto-Fix Common Issues
+
+```bash
+# Fix trailing whitespace and newlines
+swiftlint --fix --format
+```
+
+## Performance Guidelines
+
+### View Updates
+- **Cache expensive computations**: Use `@State private let` for computed data
+- **Don't recreate objects in body**: Use `@StateObject`, not inline creation
+- **Minimize view rebuilds**: Break into smaller, focused components
+
+### Memory Management
+- **Use weak self in closures**: Prevent retain cycles
+- **Release resources in deinit**: Close connections, cancel tasks
+- **Profile regularly**: Use Instruments to find leaks
+
+### Build Performance
+- **Keep files small**: Large files slow compilation
+- **Minimize dependencies**: Only import what you need
+- **Use concrete types**: Avoid excessive protocol composition

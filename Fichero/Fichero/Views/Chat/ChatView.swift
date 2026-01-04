@@ -7,6 +7,7 @@ struct ChatView: View {
     let conversation: Conversation?
     @Binding var selectedDocuments: Set<String>
     var onConversationUpdated: (() -> Void)?
+    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State private var currentConversation: Conversation
     @State private var inputText: String = ""
@@ -19,17 +20,19 @@ struct ChatView: View {
     @State private var selectedProvider: String = ""
     @State private var selectedModel: String = ""
 
-    private let chatService = ChatService(apiClient: APIClient())
+    @EnvironmentObject var chatService: ChatService
     private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatView")
 
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
-        onConversationUpdated: (() -> Void)? = nil
+        onConversationUpdated: (() -> Void)? = nil,
+        displayMode: ViewDisplayMode = .icon
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
         self.onConversationUpdated = onConversationUpdated
+        self.displayMode = displayMode
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
 
@@ -171,16 +174,28 @@ extension ChatView {
     // MARK: - Messages View
 
     private var messagesView: some View {
+        Group {
+            if currentConversation.messages.isEmpty {
+                emptyStateView
+            } else {
+                switch displayMode {
+                case .table:
+                    messagesTableView
+                default:
+                    // Icon, List, Map all use bubble view
+                    messagesBubbleView
+                }
+            }
+        }
+    }
+
+    private var messagesBubbleView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
-                    if currentConversation.messages.isEmpty {
-                        emptyStateView
-                    } else {
-                        ForEach(currentConversation.messages) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
-                        }
+                    ForEach(currentConversation.messages) { message in
+                        MessageBubble(message: message)
+                            .id(message.id)
                     }
 
                     if isLoading {
@@ -199,6 +214,49 @@ extension ChatView {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
                 }
+            }
+        }
+        .background(Color(.textBackgroundColor))
+    }
+
+    private var messagesTableView: some View {
+        VStack(spacing: 0) {
+            Table(currentConversation.messages) {
+                TableColumn("Role") { message in
+                    Text(message.role == .user ? "User" : "Assistant")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .width(min: 60, ideal: 80)
+
+                TableColumn("Content") { message in
+                    Text(message.content)
+                        .lineLimit(3)
+                }
+
+                TableColumn("Sources") { message in
+                    if let sources = message.sources, !sources.isEmpty {
+                        Text("\(sources.count) source(s)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("—")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .width(min: 80, ideal: 100)
+            }
+
+            if isLoading {
+                Divider()
+                loadingIndicator
+                    .padding()
+            }
+
+            if let error = errorMessage {
+                Divider()
+                errorView(error)
+                    .padding()
             }
         }
         .background(Color(.textBackgroundColor))
@@ -426,6 +484,10 @@ struct MessageBubble: View {
 // MARK: - Preview
 
 #Preview {
-    ChatView(conversation: nil, selectedDocuments: .constant([]))
-        .frame(width: 600, height: 500)
+    ChatView(
+        conversation: nil,
+        selectedDocuments: .constant([]),
+        displayMode: .icon
+    )
+    .frame(width: 600, height: 500)
 }

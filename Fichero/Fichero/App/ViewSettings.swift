@@ -38,9 +38,9 @@ enum LibraryLayout: String, CaseIterable, Codable {
     }
 }
 
-/// Preview panel mode
+/// Preview panel mode (matches LayoutMode)
 enum PreviewMode: String, CaseIterable {
     case none
-    case standard   // Side by side (horizontal)
-    case widescreen // Browser above preview (vertical)
+    case standard   // Content and preview stacked vertically
+    case widescreen // Content and preview side-by-side
 }

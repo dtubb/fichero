@@ -49,18 +49,18 @@ struct SidebarItemContextMenu: View {
 extension SidebarItem.ItemType {
     var canBeRenamed: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow:
+        case .document, .savedSearch, .conversation, .workflow, .folder:
             return true
-        case .sectionHeader:
+        case .libraryHeader:
             return false
         }
     }
 
     var canBeDeleted: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow:
+        case .document, .savedSearch, .conversation, .workflow, .folder:
             return true
-        case .sectionHeader:
+        case .libraryHeader:
             return false
         }
     }

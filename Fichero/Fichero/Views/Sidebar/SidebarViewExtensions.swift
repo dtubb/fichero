@@ -1,5 +1,64 @@
 import SwiftUI
 
+// MARK: - Sidebar Bottom Toolbar
+
+/// Compact bottom toolbar for sidebar with common actions.
+///
+/// Modeled after macOS Preview/Finder bottom toolbars with small, icon-only buttons.
+struct SidebarBottomToolbar: View {
+    let createSearch: () -> Void
+    let createChat: () -> Void
+    let createWorkflow: () -> Void
+    let createFolder: () -> Void
+    let importFiles: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // New item menu (dropdown)
+            Menu {
+                Button(action: createSearch) {
+                    Label("New Search", systemImage: "magnifyingglass")
+                }
+                Button(action: createChat) {
+                    Label("New Chat", systemImage: "bubble.left.and.bubble.right")
+                }
+                Button(action: createWorkflow) {
+                    Label("New Workflow", systemImage: "arrow.triangle.branch")
+                }
+
+                Divider()
+
+                Button(action: createFolder) {
+                    Label("New Folder", systemImage: "folder.badge.plus")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11))
+                    .frame(width: 20, height: 20)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("New Item")
+
+            Spacer()
+
+            // Import button
+            Button(action: importFiles) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.system(size: 11))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.borderless)
+            .help("Import Files (⌘I)")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial)
+        .frame(height: 28)
+    }
+}
+
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
@@ -12,25 +71,46 @@ extension View {
     }
 }
 
+/// Configuration for sidebar toolbar
+struct SidebarToolbarConfig {
+    let createFolder: () -> Void
+    let importFiles: () -> Void
+    let createSearch: () -> Void
+    let createChat: () -> Void
+    let createWorkflow: () -> Void
+}
+
 extension View {
-    /// Adds sidebar toolbar with minimal actions.
-    func sidebarToolbar(
-        selectedItem: SidebarItem?,
-        createFolder: @escaping () -> Void,
-        importFiles: @escaping () -> Void,
-        renameItem: @escaping () -> Void,
-        deleteItem: @escaping () -> Void
-    ) -> some View {
+    /// Adds sidebar toolbar with create menu and import button.
+    func sidebarToolbar(config: SidebarToolbarConfig) -> some View {
         self.toolbar {
             ToolbarItem(placement: .automatic) {
-                Button(action: createFolder) {
-                    Image(systemName: "folder.badge.plus")
+                Menu {
+                    Button(action: config.createFolder) {
+                        Label("New Folder", systemImage: "folder.badge.plus")
+                    }
+
+                    Divider()
+
+                    Button(action: config.createSearch) {
+                        Label("New Search", systemImage: "magnifyingglass")
+                    }
+
+                    Button(action: config.createChat) {
+                        Label("New Chat", systemImage: "bubble.left.and.bubble.right")
+                    }
+
+                    Button(action: config.createWorkflow) {
+                        Label("New Workflow", systemImage: "arrow.triangle.branch")
+                    }
+                } label: {
+                    Label("New", systemImage: "plus")
                 }
-                .help("New Folder (⌘⇧N)")
+                .help("New Item")
             }
 
             ToolbarItem(placement: .automatic) {
-                Button(action: importFiles) {
+                Button(action: config.importFiles) {
                     Image(systemName: "square.and.arrow.down")
                 }
                 .help("Import Files or Folders (⌘I)")
@@ -78,26 +158,35 @@ extension View {
     }
 }
 
+/// Configuration for sidebar focused values
+struct SidebarFocusedValuesConfig {
+    let selectedItem: SidebarItem?
+    let createFolder: () -> Void
+    let importFiles: () -> Void
+    let renameItem: () -> Void
+    let deleteItem: () -> Void
+    let createSearch: () -> Void
+    let createChat: () -> Void
+    let createWorkflow: () -> Void
+}
+
 extension View {
     /// Publishes sidebar actions and selection info to the focus system for menu bar commands.
-    func sidebarFocusedValues(
-        selectedItem: SidebarItem?,
-        createFolder: @escaping () -> Void,
-        importFiles: @escaping () -> Void,
-        renameItem: @escaping () -> Void,
-        deleteItem: @escaping () -> Void
-    ) -> some View {
+    func sidebarFocusedValues(config: SidebarFocusedValuesConfig) -> some View {
         self
             .focusedValue(\.sidebarActions, SidebarActions(
-                createFolder: createFolder,
-                importFiles: importFiles,
-                renameItem: renameItem,
-                deleteItem: deleteItem
+                createFolder: config.createFolder,
+                importFiles: config.importFiles,
+                renameItem: config.renameItem,
+                deleteItem: config.deleteItem,
+                createSearch: config.createSearch,
+                createChat: config.createChat,
+                createWorkflow: config.createWorkflow
             ))
             .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
-                selectedItem: selectedItem,
-                canRename: selectedItem?.itemType.canBeRenamed ?? false,
-                canDelete: selectedItem?.itemType.canBeDeleted ?? false
+                selectedItem: config.selectedItem,
+                canRename: config.selectedItem?.itemType.canBeRenamed ?? false,
+                canDelete: config.selectedItem?.itemType.canBeDeleted ?? false
             ))
     }
 }

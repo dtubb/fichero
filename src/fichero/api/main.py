@@ -141,7 +141,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 
 # Include route modules
-from fichero.api.routes import documents, search, ingest, storage, chat, providers, workflows, models
+from fichero.api.routes import documents, search, ingest, storage, chat, providers, workflows, models, folders
 
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
@@ -151,3 +151,4 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])
+app.include_router(folders.router, prefix="/api/folders", tags=["folders"])

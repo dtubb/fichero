@@ -13,6 +13,23 @@ from fastapi.testclient import TestClient
 
 from fichero.api.main import app
 from fichero.db import db_manager
+from fichero.app_db import AppDatabase
+
+
+@pytest.fixture
+def app_db(tmp_path):
+    """
+    Create a test app-wide database for provider storage.
+
+    This is separate from package databases and stores app-wide providers.
+    """
+    app_db_path = tmp_path / "test_app.duckdb"
+    db = AppDatabase(path=app_db_path)
+
+    yield db
+
+    # Cleanup
+    db.close()
 
 
 @pytest.fixture
@@ -45,20 +62,30 @@ def test_package(tmp_path):
 
 
 @pytest.fixture
-def client(test_package):
+def client(test_package, app_db):
     """
     Create test client with proper X-Fichero-Library-Path header.
 
     This client automatically includes the library path header in all requests,
     so tests can make requests without needing to manually add headers.
+
+    Also overrides the app database dependency to use the test app_db.
     """
+    from fichero.api.routes.providers import get_app_database
+
+    # Override dependency to use test app_db
+    app.dependency_overrides[get_app_database] = lambda: app_db
+
     # Create client with default headers
     client = TestClient(
         app,
         headers={"X-Fichero-Library-Path": str(test_package)}
     )
 
-    return client
+    yield client
+
+    # Cleanup: remove overrides
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

@@ -163,6 +163,8 @@ struct ConversationSummary: Codable, Identifiable {
     let messageCount: Int
     let createdAt: String
     let updatedAt: String
+    let folderPath: String
+    let sortOrder: Int
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -170,6 +172,8 @@ struct ConversationSummary: Codable, Identifiable {
         case messageCount = "message_count"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
     }
 }
 
@@ -179,6 +183,8 @@ struct ConversationDetail: Codable, Identifiable {
     let messages: [ChatMessageAPI]
     let createdAt: String
     let updatedAt: String
+    let folderPath: String
+    let sortOrder: Int
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -186,6 +192,8 @@ struct ConversationDetail: Codable, Identifiable {
         case messages
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
     }
 }
 

@@ -9,7 +9,10 @@ class LibraryManager: ObservableObject {
 
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryManager")
 
-    /// All currently open libraries
+    /// Fixed UUID for the Global library (cross-library searches, chats, workflows)
+    static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+    /// All currently open libraries (Global is always last)
     @Published private(set) var openLibraries: [LibraryReference] = []
 
     /// The currently active library (used for new tabs/windows)
@@ -19,19 +22,52 @@ class LibraryManager: ObservableObject {
     private var untitledCounter: Int = 1
 
     /// Represents an open library with its associated resources
+    /// Each library has one instance of each service, shared across all windows/tabs viewing this library
     class LibraryReference: Identifiable, ObservableObject {
         let id: UUID
         let url: URL
         let displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
         @Published var document: FicheroDocument
+
+        // Core services - one instance per library, shared across all tabs/windows
         let apiClient: APIClient
-        let documentStore: DocumentStore  // Shared across all windows/tabs for this library
+        let documentStore: DocumentStore
+        let savedSearchService: SavedSearchService
+        let searchService: SearchService
+        let conversationService: ConversationService
+        let chatService: ChatService
+        let workflowStore: WorkflowStore
+        let workflowService: WorkflowService
+        let importService: ImportService
+        let documentService: DocumentService
+        let storageService: StorageService
+        let providerService: ProviderService
+        let modelService: ModelService
 
         // Security-scoped resource tracking
         private var isAccessingSecurityScope: Bool = false
 
         @MainActor
-        init(url: URL, document: FicheroDocument, displayName: String, id: UUID? = nil, apiClient: APIClient? = nil, documentStore: DocumentStore? = nil, startAccessing: Bool = false) {
+        init(
+            url: URL,
+            document: FicheroDocument,
+            displayName: String,
+            id: UUID? = nil,
+            apiClient: APIClient? = nil,
+            documentStore: DocumentStore? = nil,
+            savedSearchService: SavedSearchService? = nil,
+            searchService: SearchService? = nil,
+            conversationService: ConversationService? = nil,
+            chatService: ChatService? = nil,
+            workflowStore: WorkflowStore? = nil,
+            workflowService: WorkflowService? = nil,
+            importService: ImportService? = nil,
+            documentService: DocumentService? = nil,
+            storageService: StorageService? = nil,
+            providerService: ProviderService? = nil,
+            modelService: ModelService? = nil,
+            startAccessing: Bool = false
+        ) {
             self.id = id ?? UUID()
             self.url = url
             self.displayName = displayName
@@ -44,11 +80,19 @@ class LibraryManager: ObservableObject {
                 self.apiClient = APIClient()
             }
 
-            if let existingStore = documentStore {
-                self.documentStore = existingStore
-            } else {
-                self.documentStore = DocumentStore(apiClient: self.apiClient)
-            }
+            // Initialize all services with the library's APIClient
+            self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
+            self.savedSearchService = savedSearchService ?? SavedSearchService(apiClient: self.apiClient)
+            self.searchService = searchService ?? SearchService(apiClient: self.apiClient)
+            self.conversationService = conversationService ?? ConversationService(apiClient: self.apiClient)
+            self.chatService = chatService ?? ChatService(apiClient: self.apiClient)
+            self.workflowStore = workflowStore ?? WorkflowStore(apiClient: self.apiClient)
+            self.workflowService = workflowService ?? WorkflowService(apiClient: self.apiClient)
+            self.importService = importService ?? ImportService(apiClient: self.apiClient)
+            self.documentService = documentService ?? DocumentService(apiClient: self.apiClient)
+            self.storageService = storageService ?? StorageService(apiClient: self.apiClient)
+            self.providerService = providerService ?? ProviderService(apiClient: self.apiClient)
+            self.modelService = modelService ?? ModelService(apiClient: self.apiClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {
@@ -76,7 +120,58 @@ class LibraryManager: ObservableObject {
         }
     }
 
-    private init() {}
+    private init() {
+        // Always load Global library on startup
+        loadGlobalLibrary()
+    }
+
+    /// Load or create the Global library
+    /// Global library is stored at ~/Library/Application Support/ca.tubb.fichero/global.fichero
+    private func loadGlobalLibrary() {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let globalURL = appSupport
+            .appendingPathComponent("ca.tubb.fichero")
+            .appendingPathComponent("global.fichero")
+
+        // Check if Global library already exists
+        if openLibraries.contains(where: { $0.id == Self.globalLibraryId }) {
+            logger.info("Global library already loaded")
+            return
+        }
+
+        // Create package structure if needed
+        createPackageStructure(at: globalURL)
+
+        // Load or create Global library document
+        let document = FicheroDocument()
+
+        // Create Local library reference with fixed ID
+        let library = LibraryReference(
+            url: globalURL,
+            document: document,
+            displayName: "Local",
+            id: Self.globalLibraryId,
+            startAccessing: false  // No security-scoped access needed for app support folder
+        )
+        library.apiClient.currentLibraryPath = globalURL.path
+
+        // Always insert Global at the beginning
+        openLibraries.insert(library, at: 0)
+
+        logger.info("Loaded Global library at: \(globalURL.path)")
+
+        // Initialize backend database, load data, then ensure Inbox folder exists
+        Task {
+            await initializeBackendDatabase(for: library)
+            await loadLibraryData(for: library)
+            await ensureInboxFolder(for: library)
+        }
+    }
+
+    /// Get the Global library (always available)
+    var globalLibrary: LibraryReference? {
+        return openLibraries.first(where: { $0.id == Self.globalLibraryId })
+    }
 
     /// Open a library from a URL
     /// If already open, returns the existing reference
@@ -104,7 +199,13 @@ class LibraryManager: ObservableObject {
         let library = LibraryReference(url: url, document: document, displayName: displayName, startAccessing: needsSecurityAccess)
         library.apiClient.currentLibraryPath = url.path
 
-        openLibraries.append(library)
+        // Insert after Global library (which is always first)
+        if openLibraries.first?.id == Self.globalLibraryId {
+            openLibraries.insert(library, at: 1)
+        } else {
+            openLibraries.append(library)
+        }
+
         currentLibraryId = library.id  // Set as current library
         let clientId = ObjectIdentifier(library.apiClient)
         logger.info("Opened library: \(url.lastPathComponent, privacy: .public) with APIClient-\(String(describing: clientId), privacy: .public) (security-scoped: \(needsSecurityAccess))")
@@ -112,9 +213,11 @@ class LibraryManager: ObservableObject {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
-        // Initialize the backend database connection
+        // Initialize the backend database connection, load data, and ensure Inbox
         Task {
             await initializeBackendDatabase(for: library)
+            await loadLibraryData(for: library)
+            await ensureInboxFolder(for: library)
         }
 
         return library
@@ -141,7 +244,13 @@ class LibraryManager: ObservableObject {
         let library = LibraryReference(url: temporaryURL, document: document, displayName: displayName)
         library.apiClient.currentLibraryPath = temporaryURL.path  // Set API client path
 
-        openLibraries.append(library)
+        // Insert after Global library (which is always first)
+        if openLibraries.first?.id == Self.globalLibraryId {
+            openLibraries.insert(library, at: 1)
+        } else {
+            openLibraries.append(library)
+        }
+
         currentLibraryId = library.id  // Set as current library
 
         // Increment counter for next new library
@@ -150,9 +259,11 @@ class LibraryManager: ObservableObject {
         let clientId = ObjectIdentifier(library.apiClient)
         logger.info("Created new unsaved library '\(displayName)' with APIClient-\(String(describing: clientId))")
 
-        // Initialize the backend database
+        // Initialize the backend database, load data, and ensure Inbox
         Task {
             await initializeBackendDatabase(for: library)
+            await loadLibraryData(for: library)
+            await ensureInboxFolder(for: library)
         }
 
         return library
@@ -165,7 +276,14 @@ class LibraryManager: ObservableObject {
 
     /// Close a library
     /// Only closes if no windows are using it
+    /// Cannot close the Global library
     func closeLibrary(_ id: UUID) {
+        // Prevent closing Global library
+        if id == Self.globalLibraryId {
+            logger.warning("Cannot close Global library")
+            return
+        }
+
         guard let index = openLibraries.firstIndex(where: { $0.id == id }) else {
             return
         }
@@ -332,6 +450,55 @@ class LibraryManager: ObservableObject {
             logger.info("Initialized backend database for: \(library.displayName)")
         } catch {
             logger.error("Failed to initialize backend database: \(error.localizedDescription)")
+        }
+    }
+
+    /// Load all data for a library (documents, searches, conversations, workflows)
+    private func loadLibraryData(for library: LibraryReference) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                guard !Task.isCancelled else { return }
+                await library.documentStore.loadCollections()
+            }
+            group.addTask {
+                guard !Task.isCancelled else { return }
+                await library.workflowStore.loadWorkflows()
+            }
+            group.addTask {
+                guard !Task.isCancelled else { return }
+                try? await library.conversationService.loadConversations()
+            }
+            group.addTask {
+                guard !Task.isCancelled else { return }
+                try? await library.savedSearchService.loadSavedSearches()
+            }
+        }
+        logger.info("Loaded all data for library: \(library.displayName)")
+    }
+
+    /// Ensure every library has a default "Inbox" folder
+    private func ensureInboxFolder(for library: LibraryReference) async {
+        // Check if Inbox folder exists (collections should already be loaded)
+        let hasInbox = library.documentStore.collections.contains { doc in
+            doc.name == "Inbox" && doc.docType == .folder && doc.parentId == nil
+        }
+
+        logger.info("\(library.displayName) library has \(library.documentStore.collections.count) documents, hasInbox: \(hasInbox)")
+
+        if !hasInbox {
+            // Create Inbox folder
+            do {
+                let inbox = try await library.documentService.createCollection(name: "Inbox", parentId: nil)
+                logger.info("✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)")
+
+                // Reload documents to include the new Inbox
+                await library.documentStore.loadCollections()
+                logger.info("Reloaded collections, now have \(library.documentStore.collections.count) documents")
+            } catch {
+                logger.error("❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)")
+            }
+        } else {
+            logger.info("Inbox folder already exists in \(library.displayName) library")
         }
     }
 }

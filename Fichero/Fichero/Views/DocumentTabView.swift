@@ -12,18 +12,19 @@ struct DocumentTabView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var viewSettings: ViewSettings
 
-    // DocumentStore is shared across all windows/tabs viewing the same library
+    // All services come from the environment (shared per-library, not per-tab)
     @EnvironmentObject var documentStore: DocumentStore
+    @EnvironmentObject var savedSearchService: SavedSearchService
+    @EnvironmentObject var searchService: SearchService
+    @EnvironmentObject var conversationService: ConversationService
+    @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var workflowStore: WorkflowStore
+    @EnvironmentObject var importService: ImportService
+    @EnvironmentObject var documentService: DocumentService
+    @EnvironmentObject var storageService: StorageService
     @EnvironmentObject var windowState: WindowState
 
-    // Other services are per-tab
-    @StateObject private var workflowStore: WorkflowStore
-    @StateObject private var conversationService: ConversationService
-    @StateObject private var documentService: DocumentService
-    @StateObject private var storageService: StorageService
-    @StateObject private var importService: ImportService
-
-    // Get the library reference and its APIClient
+    // Get the library reference
     private var library: LibraryManager.LibraryReference? {
         LibraryManager.shared.getLibrary(id: libraryId)
     }
@@ -36,27 +37,6 @@ struct DocumentTabView: View {
         self.libraryId = libraryId
         self._document = document
         self.documentURL = documentURL
-
-        // Get library's APIClient for per-tab services
-        // DocumentStore is injected via environmentObject
-        guard let library = LibraryManager.shared.getLibrary(id: libraryId) else {
-            // Fallback: create temporary services (should not happen in practice)
-            let tempClient = APIClient()
-            _workflowStore = StateObject(wrappedValue: WorkflowStore(apiClient: tempClient))
-            _conversationService = StateObject(wrappedValue: ConversationService(apiClient: tempClient))
-            _documentService = StateObject(wrappedValue: DocumentService(apiClient: tempClient))
-            _storageService = StateObject(wrappedValue: StorageService(apiClient: tempClient))
-            _importService = StateObject(wrappedValue: ImportService(apiClient: tempClient))
-            return
-        }
-
-        let client = library.apiClient
-        // Create per-tab services
-        _workflowStore = StateObject(wrappedValue: WorkflowStore(apiClient: client))
-        _conversationService = StateObject(wrappedValue: ConversationService(apiClient: client))
-        _documentService = StateObject(wrappedValue: DocumentService(apiClient: client))
-        _storageService = StateObject(wrappedValue: StorageService(apiClient: client))
-        _importService = StateObject(wrappedValue: ImportService(apiClient: client))
     }
 
     var body: some View {
@@ -101,8 +81,14 @@ struct DocumentTabView: View {
                     .environmentObject(viewSettings)
                     .environmentObject(apiClient)
                     .environmentObject(documentStore)
+                    .environmentObject(savedSearchService)
+                    .environmentObject(searchService)
                     .environmentObject(conversationService)
+                    .environmentObject(chatService)
+                    .environmentObject(workflowStore)
                     .environmentObject(importService)
+                    .environmentObject(documentService)
+                    .environmentObject(storageService)
                     .environmentObject(windowState)
 
             case .workflow:
@@ -130,8 +116,8 @@ struct DocumentTabView: View {
         case .library:
             if let context = document.libraryContext {
                 // Load collection if specified
-                if let collectionId = context.selectedCollectionId {
-                    // documentStore.loadCollection(collectionId)
+                if context.selectedCollectionId != nil {
+                    // documentStore.loadCollection(context.selectedCollectionId!)
                     // TODO: Implement when integrating with DocumentStore
                 }
             }
@@ -139,8 +125,8 @@ struct DocumentTabView: View {
         case .workflow:
             if let context = document.workflowContext {
                 // Load workflow if specified
-                if let workflowId = context.workflowId {
-                    // workflowStore.loadWorkflow(workflowId)
+                if context.workflowId != nil {
+                    // workflowStore.loadWorkflow(context.workflowId!)
                     // TODO: Implement when integrating with WorkflowStore
                 }
             }
@@ -148,8 +134,8 @@ struct DocumentTabView: View {
         case .chat:
             if let context = document.chatContext {
                 // Load conversation if specified
-                if let conversationId = context.conversationId {
-                    // conversationService.loadConversation(conversationId)
+                if context.conversationId != nil {
+                    // conversationService.loadConversation(context.conversationId!)
                     // TODO: Implement when integrating with ConversationService
                 }
             }

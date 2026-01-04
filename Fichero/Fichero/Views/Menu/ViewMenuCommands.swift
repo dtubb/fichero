@@ -176,11 +176,14 @@ struct LibraryLayoutButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 8) {
                 if current == layout {
                     Image(systemName: "checkmark")
+                        .frame(width: 12)
                 }
-                Label(label, systemImage: icon)
+                Image(systemName: icon)
+                    .frame(width: 16)
+                Text(label)
             }
         }
         .keyboardShortcut(
@@ -201,7 +204,7 @@ struct PreviewModeSection: View {
             PreviewModeButton(
                 mode: .none,
                 label: "None",
-                icon: "rectangle",
+                icon: "square",
                 shortcut: "5",
                 current: viewSettings.previewMode
             ) {
@@ -211,7 +214,7 @@ struct PreviewModeSection: View {
             PreviewModeButton(
                 mode: .standard,
                 label: "Standard",
-                icon: "rectangle.righthalf.filled",
+                icon: "rectangle.split.1x2",
                 shortcut: "6",
                 current: viewSettings.previewMode
             ) {
@@ -221,7 +224,7 @@ struct PreviewModeSection: View {
             PreviewModeButton(
                 mode: .widescreen,
                 label: "Widescreen",
-                icon: "rectangle.split.1x2",
+                icon: "rectangle.split.2x1",
                 shortcut: "7",
                 current: viewSettings.previewMode
             ) {
@@ -242,11 +245,14 @@ struct PreviewModeButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 8) {
                 if current == mode {
                     Image(systemName: "checkmark")
+                        .frame(width: 12)
                 }
-                Label(label, systemImage: icon)
+                Image(systemName: icon)
+                    .frame(width: 16)
+                Text(label)
             }
         }
         .keyboardShortcut(

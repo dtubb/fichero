@@ -45,7 +45,9 @@ class ConversationService: ObservableObject {
                 id: summary.id,
                 title: summary.title,
                 messages: [],  // Messages loaded on demand
-                documentScope: []
+                documentScope: [],
+                folderPath: summary.folderPath,
+                sortOrder: summary.sortOrder
             )
         }
     }
@@ -58,7 +60,9 @@ class ConversationService: ObservableObject {
                 id: summary.id,
                 title: summary.title,
                 messages: [],  // Messages loaded on demand
-                documentScope: []
+                documentScope: [],
+                folderPath: summary.folderPath,
+                sortOrder: summary.sortOrder
             )
         }
     }
@@ -66,7 +70,25 @@ class ConversationService: ObservableObject {
     /// Rename a conversation.
     func renameConversation(_ id: String, newTitle: String) async throws -> ConversationAPI {
         let update = ConversationUpdate(title: newTitle)
-        return try await api.patch("/chat/conversations/\(id)", body: update)
+        return try await api.put("/chat/conversations/\(id)", body: update)
+    }
+
+    /// Update a conversation.
+    func updateConversation(
+        _ id: String,
+        title: String? = nil,
+        folderPath: String? = nil
+    ) async throws -> ConversationAPI {
+        let update = ConversationUpdate(
+            title: title,
+            folderPath: folderPath
+        )
+        return try await api.put("/chat/conversations/\(id)", body: update)
+    }
+
+    /// Move conversation to a different folder.
+    func moveToFolder(_ id: String, folderPath: String) async throws -> ConversationAPI {
+        return try await updateConversation(id, folderPath: folderPath)
     }
 
     /// Reorder conversations.
@@ -82,7 +104,18 @@ class ConversationService: ObservableObject {
 // MARK: - Request Models
 
 struct ConversationUpdate: Encodable {
-    let title: String
+    let title: String?
+    let folderPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case folderPath = "folder_path"
+    }
+
+    init(title: String? = nil, folderPath: String? = nil) {
+        self.title = title
+        self.folderPath = folderPath
+    }
 }
 
 struct ConversationReorderRequest: Encodable {

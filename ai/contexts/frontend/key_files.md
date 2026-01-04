@@ -1,35 +1,142 @@
 # Frontend Key Files
 
+**Last Updated**: December 31, 2025
+
 ## Essential Files for Development
 
 ### Main Entry Points
-- `Fichero/Fichero/FicheroApp.swift` - Application entry point
-- `Fichero/Fichero/ContentView.swift` - Main content view
+- **App Layer** (`Fichero/Fichero/App/`)
+  - `FicheroApp.swift` - Application entry point, menu bar, window management
+  - `AppState.swift` - Global application state (100% SwiftUI `@Observable`)
+  - `ViewSettings.swift` - View configuration and layout settings
+- **Main View**
+  - `Fichero/Fichero/Views/ContentView.swift` - Three-column layout (Sidebar | Content | Inspector)
+  - `Fichero/Fichero/Views/DocumentTabView.swift` - Tab/window management for documents
 
-### Core Views
-- `Fichero/Fichero/Views/Browser/` - Document browser components
-- `Fichero/Fichero/Views/Chat/` - AI chat interface
-- `Fichero/Fichero/Views/Workflow/` - Visual workflow editor
-- `Fichero/Fichero/Views/Search/` - Search functionality
-- `Fichero/Fichero/Views/Inspector/` - Document metadata inspection
+### Core View Layers
 
-### Services (Business Logic)
-- `Fichero/Fichero/Services/APIClient.swift` - Backend API communication
-- `Fichero/Fichero/Services/DocumentService.swift` - Document management
-- `Fichero/Fichero/Services/ChatService.swift` - Chat functionality
-- `Fichero/Fichero/Services/WorkflowService.swift` - Workflow processing
-- `Fichero/Fichero/Services/SearchService.swift` - Search operations
+#### Sidebar (`Views/Sidebar/`)
+**Multi-mode navigation** (Navigate, Search, Chat, Workflows, Activity)
+- `SidebarView.swift` - Main sidebar container (691 lines - needs split)
+- `SidebarItemRow.swift` - Hierarchical item display (482 lines - needs split)
+- `SidebarSectionHeader.swift` - Collapsible section headers
+- `SidebarItemContextMenu.swift` - Right-click context menus
+- `SidebarConstants.swift` - Shared constants and icons
+- `SidebarTypes.swift` - Enums and type definitions
+- **Note**: Sidebar supports hierarchical documents (folders) but NOT yet hierarchical searches/chats/workflows
 
-### Models (Data & State)
-- `Fichero/Fichero/Models/Document.swift` - Document data model
-- `Fichero/Fichero/Models/DocumentStore.swift` - Document state management
-- `Fichero/Fichero/Models/Workflow.swift` - Workflow data model
-- `Fichero/Fichero/Models/WorkflowStore.swift` - Workflow state management
-- `Fichero/Fichero/Models/Provider.swift` - Provider configurations
+#### Library (`Views/Library/`)
+**Document management and preview**
+- `LibraryView.swift` - Document grid/list view (664 lines - needs split)
+- `EditorView.swift` - **CRITICAL: 1,981 lines - MUST SPLIT**
+- `DocumentInspector.swift` - Metadata inspector panel
+- `QuickLookComponents.swift` - Document preview with folder access management
+- `FolderAccessManager.swift` - Security-scoped bookmark management (macOS sandbox)
 
-### State Management
-- `Fichero/Fichero/Models/AppState.swift` - Global application state
-- `Fichero/Fichero/Models/ViewSettings.swift` - View configuration
+#### Chat (`Views/Chat/`)
+**AI conversation interface**
+- `ChatView.swift` - Main chat interface (425 lines - needs split)
+- `ChatInspector.swift` - Chat settings and document scope (497 lines - needs split)
+
+#### Workflow (`Views/Workflow/`)
+**Visual LangGraph workflow editor**
+- `WorkflowCanvasView.swift` - Node-based canvas (764 lines - needs split)
+- `WorkflowEditor.swift` - Workflow editor wrapper with toolbar
+- `WorkflowInspector.swift` - Tool palette sidebar
+- `WorkflowNodeView.swift` - Individual node rendering (complexity: 27 - CRITICAL)
+- `WorkflowPortView.swift` - Input/output port rendering
+- `WorkflowEdgeView.swift` - Connection lines between nodes
+- `WorkflowOutputLog.swift` - Execution log panel
+
+#### Search (`Views/Search/`)
+**Full-text and semantic search**
+- `SearchView.swift` - Search interface (473 lines - needs split)
+
+#### AI Providers (`Views/AIProviders/`)
+**LLM provider management**
+- `ProvidersView.swift` - Provider list and configuration (489 lines - needs split)
+- `AddProviderSheet.swift` - Add new provider sheet (413 lines - needs split)
+- `AIModelSelectionView.swift` - Model browser and selector
+- `AIModelCatalog.swift` - Hugging Face model discovery
+- `AIProviderAddModelsSheet.swift` - Add models to provider
+
+#### Menu & Toolbars (`Views/Menu/`, `Views/Toolbars/`)
+**Menu commands and toolbar controls**
+- `FocusedCommandButtons.swift` - @FocusedValue menu command handlers
+- `ViewMenuCommands.swift` - View menu commands
+- `ImagePreviewMenuCommands.swift` - Image preview commands
+- `MiniToolbar.swift` - Floating mini toolbar
+- `*Toolbar.swift` - Per-view toolbars (Library, Workflow, Chat, Search)
+
+#### Components (`Views/Components/`)
+**Reusable UI components**
+- `BackendConnectionView.swift` - Backend status indicator
+- `LibraryImageView.swift` - Image display component
+- `ProviderLogoView.swift` - Provider logo display
+- `StatusBadge.swift` - Status indicator badges
+
+### Services Layer (`Services/`)
+**Business logic and API communication**
+
+#### Core Services
+- **APIClient.swift** - HTTP client for backend communication (406 lines)
+- **DocumentService.swift** - Document CRUD operations
+- **ChatService.swift** - Chat/conversation management
+- **WorkflowService.swift** - Workflow execution and management
+- **SearchService.swift** - Search operations
+- **ProviderService.swift** - AI provider configuration (431 lines - needs split)
+- **ModelService.swift** - Model management
+- **StorageService.swift** - File storage operations
+- **ImportService.swift** - File ingestion (LINK/COPY modes)
+
+#### Specialized Services
+- **DragDropService.swift** - Drag and drop handling (Swift 6 compliant)
+- **ErrorService.swift** - Error reporting and handling
+- **PerformanceService.swift** - Performance monitoring
+- **ConversationService.swift** - Conversation management
+- **SavedSearchService.swift** - Saved search management
+
+### Models Layer (`Models/`)
+**Data structures and state management**
+
+#### Document Models
+- **Document.swift** - Core document data model
+- **DocumentStore.swift** - Document state management (516 lines - needs split)
+- **FicheroDocument.swift** - Document wrapper for tabs/windows
+- **LibraryManager.swift** - Library hierarchy management (415 lines)
+
+#### Workflow Models
+- **Workflow.swift** - Workflow data model
+- **WorkflowTypes.swift** - Workflow type definitions
+- **WorkflowStore.swift** - Workflow state management
+- **WorkflowExporter.swift** - Workflow export functionality
+
+#### Provider Models
+- **Provider.swift** - Provider configuration model
+- **CacheModel.swift** - Response caching model
+
+#### UI State Models
+- **ViewContexts.swift** - View mode contexts (Library, Chat, Workflow, Search)
+- **SidebarState.swift** - Sidebar state management
+- **SidebarItem.swift` - Sidebar item data model
+- **WindowState.swift** - Window state management
+- **DragDropModel.swift** - Drag and drop state (Swift 6 compliant)
+- **ErrorModel.swift** - Error representation
+
+### Critical Files Requiring Action
+
+**IMMEDIATE (Production Blockers)**:
+1. **EditorView.swift** (1,981 lines) - Split into 5 files
+2. **WorkflowNodeView.swift** (Complexity: 27) - Refactor to < 10
+
+**HIGH PRIORITY (Maintainability)**:
+3. **WorkflowCanvasView.swift** (764 lines) - Split into 2-3 files
+4. **SidebarView.swift** (691 lines) - Split into 2 files
+5. **LibraryView.swift** (664 lines) - Split into 2 files
+6. **DocumentStore.swift** (516 lines) - Split by responsibility
+7. **ChatInspector.swift** (497 lines) - Extract scoped documents panel
+8. **ProvidersView.swift** (489 lines) - Extract provider settings
+9. **SidebarItemRow.swift** (482 lines) - Extract rendering logic
 
 ## Development Tips
 

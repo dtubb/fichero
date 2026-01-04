@@ -185,7 +185,9 @@ class SavedSearchResponse(BaseModel):
     filters: Optional[dict]
     search_type: str
     sort_by: str
-    sort_order: str
+    sort_order: str  # "asc" or "desc"
+    folder_path: str
+    sort_order_int: int  # Position within folder
     created_at: str
 
 
@@ -210,6 +212,8 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
         search_type=saved.search_type,
         sort_by=saved.sort_by,
         sort_order=saved.sort_order_field,
+        folder_path=saved.folder_path,
+        sort_order_int=saved.sort_order,
         created_at=saved.created_at.isoformat(),
     )
 
@@ -227,10 +231,67 @@ async def list_saved_searches(db: Database = Depends(get_library_database)) -> L
             search_type=s.search_type,
             sort_by=s.sort_by,
             sort_order=s.sort_order_field,
+            folder_path=s.folder_path,
+            sort_order_int=s.sort_order,
             created_at=s.created_at.isoformat(),
         )
         for s in searches
     ]
+
+
+class SavedSearchUpdate(BaseModel):
+    """Request to update saved search properties."""
+    query: Optional[str] = None
+    is_smart_search: Optional[bool] = None
+    filters: Optional[dict] = None
+    search_type: Optional[str] = None
+    sort_by: Optional[str] = None
+    sort_order: Optional[str] = None
+    folder_path: Optional[str] = None
+
+
+@router.put("/saved/{search_id}")
+async def update_saved_search(
+    search_id: str,
+    request: SavedSearchUpdate,
+    db: Database = Depends(get_library_database)
+) -> SavedSearchResponse:
+    """Update a saved search."""
+    saved = db.get(SavedSearch, search_id)
+    if not saved:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+
+    # Update fields
+    if request.query is not None:
+        saved.query = request.query
+    if request.is_smart_search is not None:
+        saved.is_smart_search = request.is_smart_search
+    if request.filters is not None:
+        saved.filters = request.filters
+    if request.search_type is not None:
+        saved.search_type = request.search_type
+    if request.sort_by is not None:
+        saved.sort_by = request.sort_by
+    if request.sort_order is not None:
+        saved.sort_order_field = request.sort_order
+    if request.folder_path is not None:
+        saved.folder_path = request.folder_path
+
+    saved.updated_at = datetime.now()
+    db.save(saved)
+
+    return SavedSearchResponse(
+        id=saved.id,
+        query=saved.query,
+        is_smart_search=saved.is_smart_search,
+        filters=saved.filters,
+        search_type=saved.search_type,
+        sort_by=saved.sort_by,
+        sort_order=saved.sort_order_field,
+        folder_path=saved.folder_path,
+        sort_order_int=saved.sort_order,
+        created_at=saved.created_at.isoformat(),
+    )
 
 
 @router.post("/saved/{search_id}/duplicate")

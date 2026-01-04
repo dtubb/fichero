@@ -104,9 +104,11 @@ class Database:
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init
         self._tables_created: set[str] = set()
-        
+
         # Migrate workflows table if needed
         self._migrate_workflow_table()
+        # Migrate provider_refs table if needed
+        self._migrate_provider_refs_table()
 
     # =========================================================================
     # Core CRUD Operations
@@ -1100,6 +1102,47 @@ class Database:
             # Table might not exist or other issue
             logger.warning(f"Saved searches migration check failed: {e}")
 
+    def _migrate_provider_refs_table(self) -> None:
+        """Create provider_refs table if it doesn't exist.
+
+        This table tracks which app-wide providers a library references.
+        Actual provider config is stored in app.duckdb.
+        """
+        try:
+            # Check if table exists
+            table_exists = self.conn.execute("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_name = 'provider_refs'
+            """).fetchone()[0] > 0
+
+            if table_exists:
+                logger.debug("provider_refs table already exists")
+                return
+
+            # Create the table
+            logger.info("Creating provider_refs table...")
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS provider_refs (
+                    id VARCHAR PRIMARY KEY,
+                    provider_id VARCHAR NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Create index on provider_id for fast lookups
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_provider_refs_provider
+                ON provider_refs(provider_id)
+            """)
+
+            logger.info("provider_refs table created successfully")
+
+        except Exception as e:
+            logger.warning(f"provider_refs table creation failed: {e}")
+
 
 # Multi-library database manager for package documents
 class DatabaseManager:
@@ -1143,6 +1186,7 @@ class DatabaseManager:
                 # Run migrations
                 db._migrate_workflow_table()
                 db._migrate_saved_search_table()
+                db._migrate_provider_refs_table()
 
                 self._databases[package_str] = db
                 logger.info(f"Database connection created: {db_path}")

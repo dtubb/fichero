@@ -190,7 +190,7 @@ class PerformanceService: ObservableObject {
         
         // Benchmark results
         report += "Benchmark Results:\n"
-        for (name, durations) in benchmarks {
+        for (name, _) in benchmarks {
             if let stats = benchmarkStatistics(for: name) {
                 report += "  {\(name)}: {\(stats.count)} runs, avg {\(stats.average)}s, min {\(stats.min)}s, max {\(stats.max)}s\n"
             }
@@ -198,7 +198,7 @@ class PerformanceService: ObservableObject {
         
         // Memory results
         report += "\nMemory Usage:\n"
-        for (name, measurements) in memoryMeasurements {
+        for (name, _) in memoryMeasurements {
             if let avgMemory = averageMemoryUsage(for: name) {
                 let avgMB = Double(avgMemory) / (1024 * 1024)
                 report += "  {\(name)}: {\(avgMB)} MB average\n"

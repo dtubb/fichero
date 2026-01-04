@@ -23,7 +23,8 @@ struct ChatInspector: View {
     @State private var isExtracting: Bool = false
     @State private var extractionResult: String?
 
-    private let chatService = ChatService(apiClient: APIClient())
+    @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var apiClient: APIClient
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -376,7 +377,7 @@ extension ChatInspector {
 
         do {
             // Search documents by name (simple filter for now)
-            let allDocs: [Document] = try await APIClient().get("/documents", query: ["limit": "100"])
+            let allDocs: [Document] = try await apiClient.get("/documents", query: ["limit": "100"])
             let filtered = allDocs.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) &&
                 $0.docType == .file
@@ -430,7 +431,7 @@ extension ChatInspector {
 
         for docId in selectedDocuments {
             do {
-                let doc: Document = try await APIClient().get("/documents/\(docId)")
+                let doc: Document = try await apiClient.get("/documents/\(docId)")
                 loadedDocs.append(doc)
             } catch {
                 logger.error("Failed to load doc \(docId): \(error.localizedDescription)")
