@@ -178,3 +178,194 @@
 - [x] TODO-017: Write concise 100-character summaries for README files (P2, Low)
 - [x] TODO-018: Update TASK_WORKFLOW.md to be more concise with human review and Git steps (P1, Medium)
 - [x] TODO-019: Update context documents to reflect current application state (P1, Medium)
+
+## Workflow System Enhancement (LangGraph Integration) [P0]
+
+### Phase 0: Quick Win
+- [x] TODO-063: Increase Default Window Size (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Fix sidebar being cut off on startup
+  - Estimated: 1-2 hours
+  - Status: Completed - Added .defaultSize(1200x800) to WindowGroup
+
+### Phase 1: LangGraph Foundation (Backend First)
+- [ ] TODO-064: Configure LangGraph Checkpointing with DuckDB (P0, High)
+  - Category: Backend
+  - Depends on: None
+  - Description: Install langgraph-checkpoint-postgres, create DuckDB adapter, test checkpointing
+  - Estimated: 2-3 days
+
+- [ ] TODO-065: Implement Workflow Definition Persistence (P0, High)
+  - Category: Backend
+  - Depends on: None
+  - Description: Database schema for workflows, Pydantic models, CRUD operations, import/export
+  - Estimated: 2-3 days
+
+- [ ] TODO-066: Create Execution API with Thread Management (P0, High)
+  - Category: Backend
+  - Depends on: TODO-064, TODO-065
+  - Description: POST /workflows/execute, GET /threads/{id}, resume/cancel endpoints
+  - Estimated: 2-3 days
+
+- [ ] TODO-067: Build Workflow Library UI (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-065
+  - Description: List saved workflows, save/load/delete UI (SwiftUI only)
+  - Estimated: 2-3 days
+
+- [ ] TODO-068: Integration Testing - Workflow Persistence (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-066, TODO-067
+  - Description: End-to-end save/load/execute/resume tests
+  - Estimated: 1-2 days
+
+### Phase 2: Agent Nodes
+- [ ] TODO-069: Implement Agent Node Support (P0, High)
+  - Category: Backend, AI
+  - Depends on: TODO-066
+  - Description: create_react_agent integration, agent node creation, agent config validation
+  - Estimated: 2-3 days
+
+- [ ] TODO-070: Build Agent Configuration UI (P1, High)
+  - Category: Frontend, AI
+  - Depends on: TODO-069
+  - Description: Views/Agents/, agent type selector, tool assignment UI (SwiftUI only)
+  - Estimated: 2-3 days
+
+- [ ] TODO-071: Update WorkflowInspector with Agents Tab (P1, Medium)
+  - Category: Frontend
+  - Depends on: TODO-070
+  - Description: Add Agents tab to workflow inspector palette
+  - Estimated: 1 day
+
+- [ ] TODO-072: Integration Testing - Agent Workflows (P1, High)
+  - Category: Infrastructure, AI
+  - Depends on: TODO-071
+  - Description: Test workflows with agent nodes, multi-agent coordination
+  - Estimated: 1-2 days
+
+### Phase 3: MCP Integration
+- [ ] TODO-073: Implement MCP Manager Backend (P0, High)
+  - Category: Backend, AI
+  - Depends on: None
+  - Description: Install langchain-mcp-adapters, MCP connection management, tool loading
+  - Estimated: 2-3 days
+
+- [ ] TODO-074: Build MCP Tools UI (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-073
+  - Description: Views/MCPTools/, server connection UI, tool catalog (SwiftUI only)
+  - Estimated: 2-3 days
+
+- [ ] TODO-075: Update WorkflowInspector with MCP Tools Tab (P1, Medium)
+  - Category: Frontend
+  - Depends on: TODO-074
+  - Description: Add MCP tools tab to workflow inspector
+  - Estimated: 1 day
+
+- [ ] TODO-076: Integration Testing - MCP Workflows (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-075
+  - Description: Test with real MCP servers, tool execution in workflows
+  - Estimated: 1-2 days
+
+### Phase 4: Batch Execution & Activity Monitoring
+- [ ] TODO-077: Implement Batch Execution System (P0, High)
+  - Category: Backend, AI
+  - Depends on: TODO-066
+  - Description: Batch wrapper using LangGraph threads, concurrency control, progress tracking
+  - Estimated: 3-4 days
+
+- [ ] TODO-078: Implement Activity Tracking System (P1, High)
+  - Category: Backend
+  - Depends on: TODO-077
+  - Description: Activity logging, WebSocket streaming, checkpoint queries
+  - Estimated: 2-3 days
+
+- [ ] TODO-079: Build Activity Monitor UI (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-078
+  - Description: Real-time activity view, progress visualization (SwiftUI only)
+  - Estimated: 3-4 days
+
+- [ ] TODO-080: Integration Testing - Batch Execution (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-079
+  - Description: Test batch execution with 100+ files, pause/resume workflows
+  - Estimated: 2-3 days
+
+### Phase 5: Automation & Scheduling
+- [ ] TODO-081: Implement Scheduler System (P1, High)
+  - Category: Backend
+  - Depends on: TODO-077
+  - Description: APScheduler integration, cron scheduling, schedule management API
+  - Estimated: 3-4 days
+
+- [ ] TODO-082: Implement File System Triggers (P1, High)
+  - Category: Backend
+  - Depends on: TODO-077
+  - Description: Watchdog integration, folder watching, event filtering
+  - Estimated: 2-3 days
+
+- [ ] TODO-083: Implement App Integrations (P2, Medium)
+  - Category: Backend
+  - Depends on: TODO-082
+  - Description: Devon Think, Bookends, Tinderbox, ai-watcher integration
+  - Estimated: 2-3 days
+
+- [ ] TODO-084: Build Automation UI (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-081, TODO-082
+  - Description: Views/Automation/, schedule/trigger editors (SwiftUI only)
+  - Estimated: 3-4 days
+
+- [ ] TODO-085: Integration Testing - Automation (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-084
+  - Description: Test scheduled workflows, file triggers, app integrations
+  - Estimated: 2-3 days
+
+### Phase 6: Action Library
+- [ ] TODO-086: Implement Action Library Backend (P2, Medium)
+  - Category: Backend
+  - Depends on: TODO-065
+  - Description: Save/load reusable actions, action templates, categorization
+  - Estimated: 2-3 days
+
+- [ ] TODO-087: Build Action Library UI (P2, Medium)
+  - Category: Frontend
+  - Depends on: TODO-086
+  - Description: Action picker, drag-and-drop to canvas (SwiftUI only)
+  - Estimated: 2-3 days
+
+- [ ] TODO-088: Integration Testing - Action Library (P2, Medium)
+  - Category: Infrastructure
+  - Depends on: TODO-087
+  - Description: Test action save/load, use in workflows
+  - Estimated: 1 day
+
+### Phase 7: Advanced Features
+- [ ] TODO-089: Implement Multi-Agent Workflows (P2, Medium)
+  - Category: Backend, AI
+  - Depends on: TODO-072
+  - Description: Supervisor pattern, swarm pattern, agent coordination
+  - Estimated: 3-4 days
+
+- [ ] TODO-090: Implement Model Comparison Engine (P2, Medium)
+  - Category: Backend, AI
+  - Depends on: TODO-077
+  - Description: Parallel execution across models, cost/time tracking
+  - Estimated: 2-3 days
+
+- [ ] TODO-091: Build Comparison Mode UI (P2, Medium)
+  - Category: Frontend
+  - Depends on: TODO-090
+  - Description: Model selection, side-by-side results (SwiftUI only)
+  - Estimated: 2-3 days
+
+- [ ] TODO-092: Integration Testing - Advanced Features (P2, Medium)
+  - Category: Infrastructure
+  - Depends on: TODO-091
+  - Description: Test multi-agent workflows, model comparison
+  - Estimated: 2-3 days

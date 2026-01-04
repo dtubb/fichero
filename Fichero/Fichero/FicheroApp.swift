@@ -59,6 +59,7 @@ struct FicheroApp: App {
                     handleOpenURL(url)
                 }
         }
+        .defaultSize(width: 1200, height: 800)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
