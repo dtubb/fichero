@@ -67,7 +67,7 @@ struct AgentConfigurationView: View {
             }
             if case .array(let toolsArray) = config["tools"] {
                 let tools = toolsArray.compactMap { value -> String? in
-                    if case .string(let s) = value { return s }
+                    if case .string(let toolName) = value { return toolName }
                     return nil
                 }
                 selectedTools = Set(tools)
@@ -202,17 +202,17 @@ struct ToolSelectionView: View {
             ToolCategory(name: "Transform", icon: "wand.and.stars", tools: [
                 ToolItem(name: "summarize", description: "Summarize text content"),
                 ToolItem(name: "translate", description: "Translate text to another language"),
-                ToolItem(name: "extract", description: "Extract structured data"),
+                ToolItem(name: "extract", description: "Extract structured data")
             ]),
             ToolCategory(name: "File Operations", icon: "folder", tools: [
                 ToolItem(name: "read_file", description: "Read file contents"),
                 ToolItem(name: "write_file", description: "Write content to file"),
-                ToolItem(name: "list_directory", description: "List directory contents"),
+                ToolItem(name: "list_directory", description: "List directory contents")
             ]),
             ToolCategory(name: "Web", icon: "globe", tools: [
                 ToolItem(name: "web_search", description: "Search the web"),
-                ToolItem(name: "fetch_url", description: "Fetch URL contents"),
-            ]),
+                ToolItem(name: "fetch_url", description: "Fetch URL contents")
+            ])
         ]
     }
 }

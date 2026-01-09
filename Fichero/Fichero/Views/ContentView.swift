@@ -6,6 +6,7 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView
 
 /// Main content view with three-column navigation
 /// Switches between Library, Search, and Workflow views based on sidebar selection
+// swiftlint:disable:next type_body_length
 struct ContentView: View {
     // MARK: - Environment
 
