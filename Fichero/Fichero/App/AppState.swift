@@ -21,10 +21,15 @@ class AppState: ObservableObject {
     @Published var hasCheckedProviders: Bool = false
     @Published var isFirstLaunchProviderSetup: Bool = false  // True when showing Add Provider on first launch
 
+    // MARK: - MCP Server Management
+
+    @Published var showMCPServers: Bool = false
+
     // MARK: - Services
 
     private let apiClient = APIClient()  // App-wide APIClient for global services
     private let providerService: ProviderService
+    let mcpService: MCPService  // Public for @EnvironmentObject injection
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -32,6 +37,7 @@ class AppState: ObservableObject {
     init() {
         // Initialize services with app-wide APIClient
         self.providerService = ProviderService(apiClient: apiClient)
+        self.mcpService = MCPService(apiClient: apiClient)
 
         // Check API health on launch
         Task {

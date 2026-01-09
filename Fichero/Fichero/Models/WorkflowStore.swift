@@ -32,11 +32,9 @@ class WorkflowStore: ObservableObject {
     }
     
     func loadWorkflows() async {
-        guard isConnected else { return }
-        
         isLoading = true
         error = nil
-        
+
         do {
             let response = try await workflowService.listWorkflows()
             workflows = response.map { workflow in
@@ -45,21 +43,27 @@ class WorkflowStore: ObservableObject {
                     name: workflow.name,
                     description: workflow.description,
                     nodeCount: workflow.nodes.count,
-                    isEnabled: true
+                    isEnabled: true,
+                    folderPath: workflow.folderPath,
+                    sortOrder: workflow.sortOrder,
+                    createdAt: Date(),  // Backend doesn't return these yet
+                    updatedAt: Date()
                 )
             }
+            isConnected = true
         } catch {
             self.error = error
+            isConnected = false
             logger.error("Failed to load workflows: \(String(describing: error))")
         }
-        
+
         isLoading = false
     }
     
     func saveWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowSidebarItem {
         isSaving = true
         defer { isSaving = false }
-        
+
         do {
             let response = try await workflowService.createWorkflow(workflow)
 
@@ -67,16 +71,21 @@ class WorkflowStore: ObservableObject {
                 id: response.id,
                 name: response.name,
                 description: response.description,
-                nodeCount: response.nodes.count
+                nodeCount: response.nodes.count,
+                isEnabled: true,
+                folderPath: response.folderPath,
+                sortOrder: response.sortOrder,
+                createdAt: Date(),
+                updatedAt: Date()
             )
-            
+
             // Update existing or add new
             if let index = workflows.firstIndex(where: { $0.id == response.id }) {
                 workflows[index] = item
             } else {
                 workflows.append(item)
             }
-            
+
             return item
         } catch {
             self.error = error
@@ -87,7 +96,7 @@ class WorkflowStore: ObservableObject {
     func updateWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowSidebarItem {
         isSaving = true
         defer { isSaving = false }
-        
+
         do {
             let response = try await workflowService.updateWorkflow(workflow.id, workflow: workflow)
 
@@ -95,14 +104,19 @@ class WorkflowStore: ObservableObject {
                 id: response.id,
                 name: response.name,
                 description: response.description,
-                nodeCount: response.nodes.count
+                nodeCount: response.nodes.count,
+                isEnabled: true,
+                folderPath: response.folderPath,
+                sortOrder: response.sortOrder,
+                createdAt: Date(),
+                updatedAt: Date()
             )
-            
+
             // Update in local array
             if let index = workflows.firstIndex(where: { $0.id == response.id }) {
                 workflows[index] = item
             }
-            
+
             return item
         } catch {
             self.error = error
@@ -155,7 +169,12 @@ class WorkflowStore: ObservableObject {
                 id: response.id,
                 name: response.name,
                 description: response.description,
-                nodeCount: response.nodes.count
+                nodeCount: response.nodes.count,
+                isEnabled: true,
+                folderPath: response.folderPath,
+                sortOrder: response.sortOrder,
+                createdAt: Date(),
+                updatedAt: Date()
             )
 
             // Add to local array
@@ -198,7 +217,9 @@ class WorkflowStore: ObservableObject {
             provider: currentWorkflow.provider,
             model: currentWorkflow.model,
             nodes: currentWorkflow.nodes,
-            edges: currentWorkflow.edges
+            edges: currentWorkflow.edges,
+            folderPath: currentWorkflow.folderPath,
+            sortOrder: currentWorkflow.sortOrder
         )
 
         // Update using the service
@@ -218,7 +239,9 @@ class WorkflowStore: ObservableObject {
             provider: currentWorkflow.provider,
             model: currentWorkflow.model,
             nodes: currentWorkflow.nodes,
-            edges: currentWorkflow.edges
+            edges: currentWorkflow.edges,
+            folderPath: currentWorkflow.folderPath,
+            sortOrder: currentWorkflow.sortOrder + 1  // Place after original
         )
 
         // Save the new workflow

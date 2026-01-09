@@ -794,6 +794,41 @@ class Conversation(BaseModel):
 
 
 # =============================================================================
+# MCP Server - Model Context Protocol Integration
+# =============================================================================
+
+class MCPServer(BaseModel):
+    """MCP (Model Context Protocol) server configuration.
+
+    MCP servers provide tools that can be used in workflows.
+    Supports multiple transport types: stdio, HTTP, SSE, WebSocket.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    name: str  # Unique server name (used as identifier)
+    description: str = ""
+
+    # Transport configuration
+    transport: str  # "stdio", "sse", "http", or "websocket"
+
+    # Transport-specific parameters (JSON-serialized)
+    command: str | None = None  # For stdio: command to launch server
+    args: list[str] = Field(default_factory=list)  # For stdio: command arguments
+    env: dict[str, str] = Field(default_factory=dict)  # For stdio: environment variables
+    url: str | None = None  # For http/sse/websocket: server URL
+    headers: dict[str, str] = Field(default_factory=dict)  # For http/sse/websocket: HTTP headers
+
+    # Tool configuration
+    tool_name_prefix: bool = True  # Prefix tool names with server name
+    enabled: bool = True  # Server enabled/disabled
+
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
@@ -819,4 +854,5 @@ __all__ = [
     "Tool",
     "SavedSearch",
     "Conversation",
+    "MCPServer",
 ]

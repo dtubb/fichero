@@ -141,7 +141,7 @@ extension ChatView {
             if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             selectedDocuments.insert(docId)
                             Self.logger.info("Added document via drop: \(docId)")
                         }
@@ -150,7 +150,7 @@ extension ChatView {
             } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             selectedDocuments.insert(docId)
                             Self.logger.info("Added document via drop: \(docId)")
                         }
@@ -417,6 +417,7 @@ extension ChatView {
 
 // MARK: - Message Bubble
 
+/// Displays a single chat message in a bubble format
 struct MessageBubble: View {
     let message: ChatMessage
 

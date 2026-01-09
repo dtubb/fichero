@@ -81,9 +81,29 @@ class AppDatabase:
             )
         """)
 
+        # MCP Servers table (app-wide)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS mcp_servers (
+                id VARCHAR PRIMARY KEY,
+                name VARCHAR NOT NULL UNIQUE,
+                description VARCHAR DEFAULT '',
+                transport VARCHAR NOT NULL,
+                command VARCHAR,
+                args JSON DEFAULT '[]',
+                env JSON DEFAULT '{}',
+                url VARCHAR,
+                headers JSON DEFAULT '{}',
+                tool_name_prefix BOOLEAN DEFAULT TRUE,
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create indexes
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)")
 
         logger.info("App database schema initialized")
 
@@ -239,6 +259,119 @@ class AppDatabase:
     def delete_model(self, model_id: str):
         """Delete a model."""
         self.conn.execute("DELETE FROM models WHERE id = ?", [model_id])
+        self.conn.commit()
+
+    def save_mcp_server(self, server):
+        """Save or update an MCP server."""
+        from datetime import datetime
+        import json
+
+        self.conn.execute("""
+            INSERT INTO mcp_servers (
+                id, name, description, transport, command, args, env,
+                url, headers, tool_name_prefix, enabled, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                name = excluded.name,
+                description = excluded.description,
+                transport = excluded.transport,
+                command = excluded.command,
+                args = excluded.args,
+                env = excluded.env,
+                url = excluded.url,
+                headers = excluded.headers,
+                tool_name_prefix = excluded.tool_name_prefix,
+                enabled = excluded.enabled,
+                updated_at = excluded.updated_at
+        """, [
+            server.id,
+            server.name,
+            server.description,
+            server.transport,
+            server.command,
+            json.dumps(server.args),
+            json.dumps(server.env),
+            server.url,
+            json.dumps(server.headers),
+            server.tool_name_prefix,
+            server.enabled,
+            datetime.now(),
+        ])
+        self.conn.commit()
+        return server
+
+    def get_mcp_server(self, server_id: str):
+        """Get an MCP server by ID."""
+        import json
+        from fichero.models import MCPServer
+
+        result = self.conn.execute(
+            "SELECT * FROM mcp_servers WHERE id = ?",
+            [server_id]
+        ).fetchone()
+
+        if not result:
+            return None
+
+        return MCPServer(
+            id=result[0],
+            name=result[1],
+            description=result[2],
+            transport=result[3],
+            command=result[4],
+            args=json.loads(result[5]) if result[5] else [],
+            env=json.loads(result[6]) if result[6] else {},
+            url=result[7],
+            headers=json.loads(result[8]) if result[8] else {},
+            tool_name_prefix=result[9],
+            enabled=result[10],
+            created_at=result[11],
+            updated_at=result[12],
+        )
+
+    def query_mcp_servers(self, **filters):
+        """Query MCP servers with optional filters."""
+        import json
+        from fichero.models import MCPServer
+
+        # Build WHERE clause from filters
+        where_clauses = []
+        params = []
+        for key, value in filters.items():
+            where_clauses.append(f"{key} = ?")
+            params.append(value)
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        results = self.conn.execute(
+            f"SELECT * FROM mcp_servers {where_sql} ORDER BY name",
+            params
+        ).fetchall()
+
+        servers = []
+        for row in results:
+            servers.append(MCPServer(
+                id=row[0],
+                name=row[1],
+                description=row[2],
+                transport=row[3],
+                command=row[4],
+                args=json.loads(row[5]) if row[5] else [],
+                env=json.loads(row[6]) if row[6] else {},
+                url=row[7],
+                headers=json.loads(row[8]) if row[8] else {},
+                tool_name_prefix=row[9],
+                enabled=row[10],
+                created_at=row[11],
+                updated_at=row[12],
+            ))
+
+        return servers
+
+    def delete_mcp_server(self, server_id: str):
+        """Delete an MCP server."""
+        self.conn.execute("DELETE FROM mcp_servers WHERE id = ?", [server_id])
         self.conn.commit()
 
     def close(self):

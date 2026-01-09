@@ -251,18 +251,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         let imageView = TrackingImageView()
         imageView.imageScaling = .scaleNone  // We'll handle sizing
         imageView.onCursorMoved = { normalizedPos in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.cursorPosition = normalizedPos
                 self.onImagePositionChanged?(normalizedPos)
             }
         }
         imageView.onLoupeMagnificationChanged = { newMag in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.loupeMagnification = newMag
             }
         }
         imageView.onLoupeSizeChanged = { newSize in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.loupeSize = newSize
             }
         }
@@ -272,7 +272,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         if let image = NSImage(contentsOf: url) {
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.imageSize = image.size
             }
         }
@@ -289,13 +289,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             object: scrollView.contentView
         )
         context.coordinator.onVisibleRectChanged = { rect in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.visibleRect = rect
             }
         }
 
         // Center initially
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.centerImage(scrollView: scrollView, imageView: imageView)
         }
 
@@ -318,7 +318,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     imageView.frame = NSRect(origin: .zero, size: image.size)
                     imageView.loupePosition = nil  // Reset loupe on image change
                     context.coordinator.currentURL = url
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         self.imageSize = image.size
                     }
                     centerImage(scrollView: scrollView, imageView: imageView)

@@ -12,9 +12,36 @@ struct WorkflowDefinition: Codable {
     let model: String
     let nodes: [WorkflowNode]
     let edges: [WorkflowEdge]
-    
+    let folderPath: String
+    let sortOrder: Int
+
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+    }
+
+    /// Convenience initializer with defaults for creating new workflows
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        description: String = "",
+        provider: String = "",
+        model: String = "",
+        nodes: [WorkflowNode] = [],
+        edges: [WorkflowEdge] = [],
+        folderPath: String = "/",
+        sortOrder: Int = 0
+    ) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.provider = provider
+        self.model = model
+        self.nodes = nodes
+        self.edges = edges
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
     }
 }
 
@@ -32,10 +59,11 @@ struct WorkflowNode: Codable, Identifiable {
     var inputMappings: [InputMapping]
     var providerName: String?
     var modelName: String?
-    var usesLlm: Bool
+    var usesLLM: Bool
+    var config: [String: AnyCodableValue]?
 
     enum CodingKeys: String, CodingKey {
-        case id, tool, label, description, enabled
+        case id, tool, label, description, enabled, config
         case positionX = "position_x"
         case positionY = "position_y"
         case inputPorts = "input_ports"
@@ -43,7 +71,7 @@ struct WorkflowNode: Codable, Identifiable {
         case inputMappings = "input_mappings"
         case providerName = "provider_name"
         case modelName = "model_name"
-        case usesLlm = "uses_llm"
+        case usesLLM = "uses_llm"
     }
 
     init(
@@ -59,7 +87,8 @@ struct WorkflowNode: Codable, Identifiable {
         inputMappings: [InputMapping] = [],
         providerName: String? = nil,
         modelName: String? = nil,
-        usesLlm: Bool = false
+        usesLLM: Bool = false,
+        config: [String: AnyCodableValue]? = nil
     ) {
         self.id = id
         self.tool = tool
@@ -73,7 +102,8 @@ struct WorkflowNode: Codable, Identifiable {
         self.inputMappings = inputMappings
         self.providerName = providerName
         self.modelName = modelName
-        self.usesLlm = usesLlm
+        self.usesLLM = usesLLM
+        self.config = config
     }
 
     // Custom decoder to handle defaults
@@ -91,7 +121,8 @@ struct WorkflowNode: Codable, Identifiable {
         inputMappings = try container.decodeIfPresent([InputMapping].self, forKey: .inputMappings) ?? []
         providerName = try container.decodeIfPresent(String.self, forKey: .providerName)
         modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
-        usesLlm = try container.decodeIfPresent(Bool.self, forKey: .usesLlm) ?? false
+        usesLLM = try container.decodeIfPresent(Bool.self, forKey: .usesLLM) ?? false
+        config = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .config)
     }
 
     /// Convenience initializer from ToolInfo
@@ -108,7 +139,8 @@ struct WorkflowNode: Codable, Identifiable {
         self.inputMappings = []
         self.providerName = nil
         self.modelName = nil
-        self.usesLlm = toolInfo.usesLlm
+        self.usesLLM = toolInfo.usesLLM
+        self.config = nil
     }
 }
 
@@ -230,7 +262,8 @@ struct ToolInfo: Codable, Identifiable {
     let color: String
     let inputPorts: [PortInfo]
     let outputPorts: [PortInfo]
-    let usesLlm: Bool
+    let configSchema: [String: AnyCodableValue]
+    let usesLLM: Bool
     let supportsBatch: Bool
     let supportsStreaming: Bool
     let supportsStructuredOutput: Bool
@@ -243,11 +276,100 @@ struct ToolInfo: Codable, Identifiable {
         case displayName = "display_name"
         case inputPorts = "input_ports"
         case outputPorts = "output_ports"
-        case usesLlm = "uses_llm"
+        case configSchema = "config_schema"
+        case usesLLM = "uses_llm"
         case supportsBatch = "supports_batch"
         case supportsStreaming = "supports_streaming"
         case supportsStructuredOutput = "supports_structured_output"
         case sortOrder = "sort_order"
+    }
+
+    /// Memberwise initializer for creating ToolInfo from code
+    init(
+        name: String,
+        displayName: String,
+        description: String,
+        category: String,
+        icon: String,
+        color: String,
+        inputPorts: [PortInfo],
+        outputPorts: [PortInfo],
+        configSchema: [String: AnyCodableValue] = [:],
+        usesLLM: Bool,
+        supportsBatch: Bool,
+        supportsStreaming: Bool,
+        supportsStructuredOutput: Bool,
+        sortOrder: Int
+    ) {
+        self.name = name
+        self.displayName = displayName
+        self.description = description
+        self.category = category
+        self.icon = icon
+        self.color = color
+        self.inputPorts = inputPorts
+        self.outputPorts = outputPorts
+        self.configSchema = configSchema
+        self.usesLLM = usesLLM
+        self.supportsBatch = supportsBatch
+        self.supportsStreaming = supportsStreaming
+        self.supportsStructuredOutput = supportsStructuredOutput
+        self.sortOrder = sortOrder
+    }
+}
+
+/// Codable wrapper for Any values in config schemas
+enum AnyCodableValue: Codable, Hashable {
+    case string(String)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+    case array([AnyCodableValue])
+    case dictionary([String: AnyCodableValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let string = try? container.decode(String.self) {
+            self = .string(string)
+        } else if let int = try? container.decode(Int.self) {
+            self = .int(int)
+        } else if let double = try? container.decode(Double.self) {
+            self = .double(double)
+        } else if let bool = try? container.decode(Bool.self) {
+            self = .bool(bool)
+        } else if let array = try? container.decode([AnyCodableValue].self) {
+            self = .array(array)
+        } else if let dict = try? container.decode([String: AnyCodableValue].self) {
+            self = .dictionary(dict)
+        } else if container.decodeNil() {
+            self = .null
+        } else {
+            throw DecodingError.typeMismatch(
+                AnyCodableValue.self,
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported type")
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value):
+            try container.encode(value)
+        case .int(let value):
+            try container.encode(value)
+        case .double(let value):
+            try container.encode(value)
+        case .bool(let value):
+            try container.encode(value)
+        case .array(let value):
+            try container.encode(value)
+        case .dictionary(let value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
     }
 }
 
@@ -277,4 +399,47 @@ struct DraggedEdge {
     let sourcePortId: String
     let startPoint: CGPoint
     var currentPoint: CGPoint
+}
+
+// MARK: - Agent Types
+
+/// Agent types for workflow nodes and configuration
+/// This is the canonical definition - use this throughout the app
+enum AgentType: String, CaseIterable, Codable {
+    case react = "react"
+    case toolCalling = "tool_calling"
+    case planAndExecute = "plan_execute"
+
+    var displayName: String {
+        switch self {
+        case .react:
+            return "ReAct"
+        case .toolCalling:
+            return "Tool Calling"
+        case .planAndExecute:
+            return "Plan & Execute"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .react:
+            return "brain"
+        case .toolCalling:
+            return "wrench.and.screwdriver"
+        case .planAndExecute:
+            return "list.bullet.clipboard"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .react:
+            return "Reasoning + Acting loop: The agent thinks step-by-step and decides which tools to use."
+        case .toolCalling:
+            return "Direct tool invocation: The agent calls tools directly based on the input."
+        case .planAndExecute:
+            return "Creates a plan first, then executes steps sequentially."
+        }
+    }
 }

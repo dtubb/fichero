@@ -54,12 +54,13 @@ struct FicheroApp: App {
                 .environmentObject(appState)
                 .environmentObject(viewSettings)
                 .environmentObject(libraryManager)
-                .frame(minWidth: 1000, minHeight: 600)
+                .environmentObject(appState.mcpService)
+                .frame(minWidth: 1100, minHeight: 700)
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
         }
-        .defaultSize(width: 1200, height: 800)
+        .defaultSize(width: 1400, height: 900)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
@@ -136,6 +137,12 @@ struct FicheroApp: App {
 
                 Button("Add Provider...") {
                     appState.showAddProviderFromMenu()
+                }
+
+                Divider()
+
+                Button("MCP Servers...") {
+                    appState.showMCPServers = true
                 }
             }
         }

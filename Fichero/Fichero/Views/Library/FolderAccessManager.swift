@@ -35,7 +35,7 @@ class FolderAccessManager: ObservableObject {
 
     /// Request access to a folder (shows NSOpenPanel)
     func requestFolderAccess(suggestedPath: String? = nil, completion: @escaping (Bool) -> Void) {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             let panel = NSOpenPanel()
             panel.canChooseFiles = false
             panel.canChooseDirectories = true

@@ -60,7 +60,7 @@ class WorkflowService: ObservableObject {
 
     /// List all saved workflows.
     func listWorkflows(folderPath: String = "/") async throws -> [WorkflowResponse] {
-        return try await api.get("/workflows?folder_path=\(folderPath)")
+        return try await api.get("/workflows", query: ["folder_path": folderPath])
     }
 
     /// Get a specific workflow by ID.
@@ -138,7 +138,9 @@ class WorkflowService: ObservableObject {
             provider: response.provider,
             model: response.model,
             nodes: nodes,
-            edges: edges
+            edges: edges,
+            folderPath: response.folderPath,
+            sortOrder: response.sortOrder
         )
     }
 

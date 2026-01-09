@@ -37,7 +37,9 @@ struct Workflow: Identifiable, Codable {
             provider: "openai", // default
             model: "gpt-4o",   // default
             nodes: self.nodes,
-            edges: self.edges
+            edges: self.edges,
+            folderPath: "/",   // default to root
+            sortOrder: 0       // default sort order
         )
     }
 }

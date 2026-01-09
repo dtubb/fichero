@@ -317,26 +317,24 @@ class DragDropService: ObservableObject {
     
     // MARK: - User Feedback
     private func showImportSuccessAlert(documentName: String) {
-        DispatchQueue.main.async {
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = "File Imported"
-                alert.informativeText = "\"\((documentName))\" was successfully imported to your library."
-                alert.addButton(withTitle: "OK")
-                alert.beginSheetModal(for: window, completionHandler: nil)
-            }
+        // Class is @MainActor so we're already on main thread
+        if let window = NSApp.keyWindow {
+            let alert = NSAlert()
+            alert.messageText = "File Imported"
+            alert.informativeText = "\"\(documentName)\" was successfully imported to your library."
+            alert.addButton(withTitle: "OK")
+            alert.beginSheetModal(for: window, completionHandler: nil)
         }
     }
-    
+
     private func showImportErrorAlert(error: String) {
-        DispatchQueue.main.async {
-            if let window = NSApp.keyWindow {
-                let alert = NSAlert()
-                alert.messageText = "Import Failed"
-                alert.informativeText = "Failed to import file: \((error))"
-                alert.addButton(withTitle: "OK")
-                alert.beginSheetModal(for: window, completionHandler: nil)
-            }
+        // Class is @MainActor so we're already on main thread
+        if let window = NSApp.keyWindow {
+            let alert = NSAlert()
+            alert.messageText = "Import Failed"
+            alert.informativeText = "Failed to import file: \(error)"
+            alert.addButton(withTitle: "OK")
+            alert.beginSheetModal(for: window, completionHandler: nil)
         }
     }
 }

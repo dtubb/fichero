@@ -62,6 +62,7 @@ struct ChatInspector: View {
             Task { await loadScopedDocuments() }
         }
         .task {
+            guard !Task.isCancelled else { return }
             await loadScopedDocuments()
         }
     }
@@ -400,7 +401,7 @@ extension ChatInspector {
             if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             selectedDocuments.insert(docId)
                             logger.info("Added document via drop: \(docId)")
                         }
@@ -409,7 +410,7 @@ extension ChatInspector {
             } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
                     if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             selectedDocuments.insert(docId)
                             logger.info("Added document via drop: \(docId)")
                         }
@@ -466,6 +467,7 @@ extension ChatInspector {
 
 // MARK: - Scoped Document Row
 
+/// Row view for displaying a document in the chat scope list
 struct ScopedDocumentRow: View {
     let document: Document
 

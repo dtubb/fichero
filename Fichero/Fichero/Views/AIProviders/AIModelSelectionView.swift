@@ -215,6 +215,7 @@ struct AIModelSelectionView: View {
             }
         }
         .task {
+            guard !Task.isCancelled else { return }
             await loadModels()
         }
     }

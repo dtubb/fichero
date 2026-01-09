@@ -34,6 +34,7 @@ struct LibraryImageView: View {
             }
         }
         .task {
+            guard !Task.isCancelled else { return }
             await loadImage()
         }
     }

@@ -441,7 +441,9 @@ extension SidebarView {
                     provider: "",
                     model: "",
                     nodes: [],
-                    edges: []
+                    edges: [],
+                    folderPath: "/",
+                    sortOrder: 0
                 )
 
                 let response = try await globalLibrary.workflowService.createWorkflow(newWorkflowDef)
@@ -455,7 +457,12 @@ extension SidebarView {
                     id: response.id,
                     name: response.name,
                     description: response.description,
-                    nodeCount: response.nodes.count
+                    nodeCount: response.nodes.count,
+                    isEnabled: true,
+                    folderPath: response.folderPath,
+                    sortOrder: response.sortOrder,
+                    createdAt: Date(),
+                    updatedAt: Date()
                 )
 
                 selectedItemId = "workflow:\(workflowItem.id)"

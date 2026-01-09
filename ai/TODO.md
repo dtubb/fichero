@@ -190,23 +190,23 @@
   - Status: Completed - Added .defaultSize(1200x800) to WindowGroup
 
 ### Phase 1: LangGraph Foundation (Backend First)
-- [ ] TODO-064: Configure LangGraph Checkpointing with DuckDB (P0, High)
+- [x] TODO-064: Configure LangGraph Checkpointing with DuckDB (P0, High)
   - Category: Backend
   - Depends on: None
-  - Description: Install langgraph-checkpoint-postgres, create DuckDB adapter, test checkpointing
-  - Estimated: 2-3 days
+  - Description: Created AsyncDuckDBCheckpointer with 24 passing tests (18 unit + 6 integration)
+  - Status: Completed - Full checkpointing support for durable workflow execution
 
-- [ ] TODO-065: Implement Workflow Definition Persistence (P0, High)
+- [x] TODO-065: Implement Workflow Definition Persistence (P0, High)
   - Category: Backend
   - Depends on: None
-  - Description: Database schema for workflows, Pydantic models, CRUD operations, import/export
-  - Estimated: 2-3 days
+  - Description: Created WorkflowStore with CRUD operations, import/export, 41 passing tests
+  - Status: Completed - Full workflow persistence with JSON portability
 
-- [ ] TODO-066: Create Execution API with Thread Management (P0, High)
+- [x] TODO-066: Create Execution API with Thread Management (P0, High)
   - Category: Backend
   - Depends on: TODO-064, TODO-065
-  - Description: POST /workflows/execute, GET /threads/{id}, resume/cancel endpoints
-  - Estimated: 2-3 days
+  - Description: Created 6 FastAPI endpoints for workflow execution with checkpointing
+  - Status: Completed - Full execution API with pause/resume and thread management
 
 - [ ] TODO-067: Build Workflow Library UI (P1, High)
   - Category: Frontend
@@ -214,18 +214,18 @@
   - Description: List saved workflows, save/load/delete UI (SwiftUI only)
   - Estimated: 2-3 days
 
-- [ ] TODO-068: Integration Testing - Workflow Persistence (P1, High)
+- [x] TODO-068: Integration Testing - Workflow Persistence (P1, High)
   - Category: Infrastructure
   - Depends on: TODO-066, TODO-067
-  - Description: End-to-end save/load/execute/resume tests
-  - Estimated: 1-2 days
+  - Description: End-to-end save/load/execute/resume tests - 8 integration tests covering complete workflow lifecycle
+  - Status: Completed - All 8 tests passing (lifecycle, pause/resume, crash recovery, parallel execution, import/export, checkpoint history, error handling)
 
 ### Phase 2: Agent Nodes
-- [ ] TODO-069: Implement Agent Node Support (P0, High)
+- [x] TODO-069: Implement Agent Node Support (P0, High)
   - Category: Backend, AI
   - Depends on: TODO-066
   - Description: create_react_agent integration, agent node creation, agent config validation
-  - Estimated: 2-3 days
+  - Status: Completed - Full ReAct agent with LangGraph, 8 unit tests passing
 
 - [ ] TODO-070: Build Agent Configuration UI (P1, High)
   - Category: Frontend, AI
@@ -239,30 +239,30 @@
   - Description: Add Agents tab to workflow inspector palette
   - Estimated: 1 day
 
-- [ ] TODO-072: Integration Testing - Agent Workflows (P1, High)
+- [x] TODO-072: Integration Testing - Agent Workflows (P1, High)
   - Category: Infrastructure, AI
   - Depends on: TODO-071
   - Description: Test workflows with agent nodes, multi-agent coordination
-  - Estimated: 1-2 days
+  - Status: Completed - 3 integration tests passing, fixed critical bugs in builder and agent
 
 ### Phase 3: MCP Integration
-- [ ] TODO-073: Implement MCP Manager Backend (P0, High)
+- [x] TODO-073: Implement MCP Manager Backend (P0, High)
   - Category: Backend, AI
   - Depends on: None
-  - Description: Install langchain-mcp-adapters, MCP connection management, tool loading
-  - Estimated: 2-3 days
+  - Description: Full MCP integration with manager, API, workflow tools, 49 passing tests
+  - Status: Completed - Full backend with CRUD API, dynamic tool loading, and workflow registry integration
 
-- [ ] TODO-074: Build MCP Tools UI (P1, High)
+- [x] TODO-074: Build MCP Tools UI (P1, High)
   - Category: Frontend
   - Depends on: TODO-073
   - Description: Views/MCPTools/, server connection UI, tool catalog (SwiftUI only)
-  - Estimated: 2-3 days
+  - Status: Completed - 6 Swift files (MCPService + 5 views), app integration, master-detail layout
 
-- [ ] TODO-075: Update WorkflowInspector with MCP Tools Tab (P1, Medium)
+- [x] TODO-075: Update WorkflowInspector with MCP Tools Tab (P1, Medium)
   - Category: Frontend
   - Depends on: TODO-074
   - Description: Add MCP tools tab to workflow inspector
-  - Estimated: 1 day
+  - Status: Completed - Segmented control with Built-in/MCP tabs, registry loading, server-grouped display
 
 - [ ] TODO-076: Integration Testing - MCP Workflows (P1, High)
   - Category: Infrastructure

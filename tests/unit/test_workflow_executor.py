@@ -509,7 +509,7 @@ def pytest_configure(config):
     """Configure pytest for async tests."""
     config.addinivalue_line(
         "markers",
-        "slow: mark tests as slow (deselect with '-m "not slow"')"
+        'slow: mark tests as slow (deselect with \'-m "not slow"\')'
     )
 
 

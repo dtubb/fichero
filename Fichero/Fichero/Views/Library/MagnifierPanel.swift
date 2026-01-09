@@ -186,7 +186,7 @@ struct MagnifierPanelContent: NSViewRepresentable {
         view.minMagnification = minMagnification
         view.maxMagnification = maxMagnification
         view.onMagnificationChanged = { newMag in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.magnification = newMag
             }
         }

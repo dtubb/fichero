@@ -335,6 +335,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var name: String
     var description: String?
     var nodeCount: Int
+    var edgeCount: Int
     var isEnabled: Bool
     var folderPath: String
     var sortOrder: Int
@@ -346,6 +347,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case name
         case description
         case nodeCount = "node_count"
+        case edgeCount = "edge_count"
         case isEnabled = "is_enabled"
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
@@ -358,6 +360,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         name: String,
         description: String? = nil,
         nodeCount: Int = 0,
+        edgeCount: Int = 0,
         isEnabled: Bool = true,
         folderPath: String = "/",
         sortOrder: Int = 0,
@@ -368,6 +371,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.name = name
         self.description = description
         self.nodeCount = nodeCount
+        self.edgeCount = edgeCount
         self.isEnabled = isEnabled
         self.folderPath = folderPath
         self.sortOrder = sortOrder

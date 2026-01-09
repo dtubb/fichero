@@ -168,6 +168,12 @@ class NodeDef(BaseModel):
         description="Maps input ports to data sources from previous nodes"
     )
 
+    # Input values (can be literal values or path references)
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Input values for the tool (supports path resolution)"
+    )
+
     # Static config (passed directly to tool, not resolved)
     config: dict[str, Any] = Field(
         default_factory=dict,

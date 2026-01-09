@@ -78,6 +78,7 @@ requires = [
     "langchain-core>=0.3.79,<0.4.0",
     "langgraph>=0.2.50",
     "langchain-ollama>=0.3.3,<1.0.0",
+    "langchain-mcp-adapters>=0.2.0,<1.0.0",
     "nest-asyncio>=1.6.0,<2.0.0",
     # macOS-specific optional dependencies
     "opencv-python",  # Generally works well on macOS
@@ -119,6 +120,7 @@ requires = [
     "langchain-core>=0.3.79,<0.4.0",
     "langgraph>=0.2.50",
     "langchain-ollama>=0.3.3,<1.0.0",
+    "langchain-mcp-adapters>=0.2.0,<1.0.0",
     "nest-asyncio>=1.6.0,<2.0.0",
     # Linux-specific optional dependencies
     "opencv-python",  # Generally works well on Linux

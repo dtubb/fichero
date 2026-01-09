@@ -52,6 +52,7 @@ struct AddProviderSheet: View {
         }
         .frame(width: step == 3 ? 600 : 420, height: step == 1 ? 480 : (step == 2 ? 280 : 500))
         .task {
+            guard !Task.isCancelled else { return }
             await loadCatalog()
         }
     }

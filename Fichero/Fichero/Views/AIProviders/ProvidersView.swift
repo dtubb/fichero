@@ -69,6 +69,7 @@ struct ProvidersView: View {
             }
         }
         .task {
+            guard !Task.isCancelled else { return }
             await loadProviders()
         }
         .sheet(isPresented: $showAddProvider) {

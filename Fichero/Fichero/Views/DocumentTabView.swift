@@ -48,6 +48,7 @@ struct DocumentTabView: View {
             }
         }
         .task {
+            guard !Task.isCancelled else { return }
             // Library path is already set in LibraryManager when library was opened
             if let apiClient = apiClient {
                 let clientIdString = String(describing: ObjectIdentifier(apiClient))

@@ -604,6 +604,86 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 
 
 # =============================================================================
+# LangChain Integration
+# =============================================================================
+
+def get_langchain_model(config: LLMConfig):
+    """Create a LangChain ChatModel from Fichero LLMConfig.
+
+    This enables integration with LangChain/LangGraph tools like create_react_agent.
+
+    Args:
+        config: Fichero LLM configuration
+
+    Returns:
+        LangChain ChatModel instance (ChatOpenAI, ChatAnthropic, etc.)
+    """
+    from langchain_openai import ChatOpenAI
+    from langchain_anthropic import ChatAnthropic
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    # Map provider to LangChain class
+    provider = config.provider.lower()
+    model_name = config.model
+
+    # Resolve API key
+    api_key = _resolve_api_key(config)
+
+    # Common parameters
+    common_params = {
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+        "timeout": config.timeout,
+    }
+
+    # Create provider-specific model
+    if provider == "openai":
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base,
+            **common_params,
+        )
+    elif provider == "anthropic":
+        return ChatAnthropic(
+            model=model_name,
+            api_key=api_key,
+            **common_params,
+        )
+    elif provider == "google":
+        return ChatGoogleGenerativeAI(
+            model=model_name,
+            google_api_key=api_key,
+            **common_params,
+        )
+    elif provider == "ollama":
+        # Use ChatOpenAI with ollama base URL
+        return ChatOpenAI(
+            model=model_name,
+            api_key="ollama",  # Ollama doesn't need real key
+            base_url=config.api_base or "http://localhost:11434/v1",
+            **common_params,
+        )
+    elif provider == "lmstudio":
+        # Use ChatOpenAI with LM Studio base URL
+        return ChatOpenAI(
+            model=model_name,
+            api_key="lmstudio",  # LM Studio doesn't need real key
+            base_url=config.api_base or "http://localhost:1234/v1",
+            **common_params,
+        )
+    else:
+        # Default to ChatOpenAI for unknown providers
+        logger.warning(f"Unknown provider {provider}, defaulting to ChatOpenAI")
+        return ChatOpenAI(
+            model=f"{provider}/{model_name}",
+            api_key=api_key or "unknown",
+            base_url=config.api_base,
+            **common_params,
+        )
+
+
+# =============================================================================
 # Exports
 # =============================================================================
 
@@ -628,4 +708,6 @@ __all__ = [
     "list_models_for_provider",
     # Key resolution
     "get_api_key",
+    # LangChain
+    "get_langchain_model",
 ]
