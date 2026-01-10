@@ -271,7 +271,11 @@ dependencies = [
     "python-multipart>=0.0.5",
     # Unified LLM interface (100+ providers, cost tracking)
     "litellm>=1.55.0",
+    # Automation & Scheduling
+    "apscheduler>=3.10.0,<4.0.0",
+    "watchdog>=4.0.0,<5.0.0",
 ]
 
 [project.scripts]
-fichero = "fichero.__main__:main" 
+fichero = "fichero.__main__:main"
+fichero-mcp = "fichero.mcp_server:main" 

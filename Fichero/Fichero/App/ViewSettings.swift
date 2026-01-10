@@ -19,6 +19,7 @@ enum SidebarMode: String, CaseIterable {
     case chat
     case workflows
     case activity
+    case automation
 }
 
 /// Library layout modes

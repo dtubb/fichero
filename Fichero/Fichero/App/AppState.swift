@@ -130,20 +130,4 @@ class AppState: ObservableObject {
         showAddProvider = true
     }
 
-    // MARK: - Future Features
-
-    func refreshStats() async {
-        // TODO: Implement stats refresh via GET /api/stats
-        logger.warning("refreshStats not yet implemented")
-    }
-
-    func startBackend() async {
-        // TODO: Launch Python backend subprocess: python -m fichero serve
-        logger.warning("startBackend not yet implemented")
-    }
-
-    func stopBackend() {
-        // TODO: Terminate backend subprocess
-        logger.warning("stopBackend not yet implemented")
-    }
 }

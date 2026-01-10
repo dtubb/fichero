@@ -3,8 +3,46 @@ import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowLibraryView")
 
-/// View for browsing and managing saved workflows
+/// Tab selection for workflow library
+enum WorkflowLibraryTab: String, CaseIterable {
+    case workflows = "Workflows"
+    case chains = "Chains"
+}
+
+/// View for browsing and managing saved workflows and workflow chains
 struct WorkflowLibraryView: View {
+    @EnvironmentObject var workflowStore: WorkflowStore
+    @EnvironmentObject var apiClient: APIClient
+    @State private var selectedTab: WorkflowLibraryTab = .workflows
+
+    /// Callback when user wants to open a workflow in the editor
+    var onOpenWorkflow: ((WorkflowSidebarItem) -> Void)?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tab picker
+            Picker("View", selection: $selectedTab) {
+                ForEach(WorkflowLibraryTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            // Content based on selected tab
+            switch selectedTab {
+            case .workflows:
+                WorkflowListView(onOpenWorkflow: onOpenWorkflow)
+            case .chains:
+                WorkflowChainListView(apiClient: apiClient)
+            }
+        }
+    }
+}
+
+/// View for browsing and managing saved workflows
+struct WorkflowListView: View {
     @EnvironmentObject var workflowStore: WorkflowStore
     @State private var searchText = ""
     @State private var selectedWorkflowId: String?
@@ -14,7 +52,6 @@ struct WorkflowLibraryView: View {
     @State private var isLoading = false
 
     /// Callback when user wants to open a workflow in the editor
-    /// This replaces NotificationCenter usage with a proper SwiftUI callback
     var onOpenWorkflow: ((WorkflowSidebarItem) -> Void)?
 
     var body: some View {
@@ -204,16 +241,8 @@ struct WorkflowLibraryView: View {
     }
 
     private func executeWorkflow(_ workflow: WorkflowSidebarItem) {
-        Task {
-            do {
-                logger.info("Executing workflow: \(workflow.name)")
-                // TODO: Call execution service when implemented
-                // let result = try await workflowStore.executeWorkflow(id: workflow.id)
-                // logger.info("Workflow completed: \(result.status)")
-            } catch {
-                logger.error("Failed to execute workflow: \(String(describing: error))")
-            }
-        }
+        // Execution is handled by WorkflowDetailView which has direct access to workflowStore
+        logger.info("Execute requested for workflow: \(workflow.name)")
     }
 }
 
@@ -261,9 +290,11 @@ struct WorkflowDetailView: View {
     let onDuplicate: () -> Void
     let onExecute: () -> Void
 
+    @EnvironmentObject var workflowStore: WorkflowStore
     @State private var isExecuting = false
     @State private var executionStatus: String?
     @State private var executionError: String?
+    @State private var currentThreadId: String?
 
     var body: some View {
         ScrollView {
@@ -306,7 +337,7 @@ struct WorkflowDetailView: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            onExecute()
+                            executeWorkflow()
                         } label: {
                             Label(isExecuting ? "Running..." : "Run Workflow", systemImage: "play.fill")
                         }
@@ -383,6 +414,61 @@ struct WorkflowDetailView: View {
             .padding(24)
         }
     }
+
+    // MARK: - Actions
+
+    private func executeWorkflow() {
+        Task {
+            isExecuting = true
+            executionStatus = "Starting workflow..."
+            executionError = nil
+
+            do {
+                let thread = try await workflowStore.executeWorkflow(workflow.id)
+                currentThreadId = thread.threadId
+                executionStatus = "Thread: \(thread.threadId) - \(thread.status.rawValue)"
+
+                // Poll for completion
+                await pollForCompletion(threadId: thread.threadId)
+            } catch {
+                executionError = error.localizedDescription
+                executionStatus = nil
+                isExecuting = false
+            }
+        }
+    }
+
+    private func pollForCompletion(threadId: String) async {
+        // Poll every 2 seconds for status updates
+        while isExecuting {
+            do {
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { break }
+
+                let status = try await workflowStore.getExecutionStatus(threadId)
+                executionStatus = "Thread: \(status.threadId) - \(status.status.rawValue)"
+
+                switch status.status {
+                case .completed:
+                    isExecuting = false
+                    executionStatus = "Completed successfully"
+                case .failed:
+                    isExecuting = false
+                    executionError = status.error ?? "Workflow failed"
+                    executionStatus = nil
+                case .paused:
+                    executionStatus = "Paused - waiting for input"
+                case .running:
+                    // Continue polling
+                    break
+                }
+            } catch {
+                // Stop polling on error
+                isExecuting = false
+                executionError = "Failed to check status: \(error.localizedDescription)"
+            }
+        }
+    }
 }
 
 /// Simple stat display view
@@ -446,4 +532,5 @@ struct NewWorkflowSheet: View {
 #Preview {
     WorkflowLibraryView()
         .environmentObject(WorkflowStore(apiClient: APIClient()))
+        .environmentObject(APIClient())
 }

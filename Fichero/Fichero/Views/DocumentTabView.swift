@@ -103,6 +103,16 @@ struct DocumentTabView: View {
             case .search:
                 // Search tab view (will create later)
                 SearchPlaceholderView()
+
+            case .activity:
+                // Activity monitor view
+                ActivityMonitorView()
+                    .environmentObject(apiClient)
+
+            case .automation:
+                // Automation view for schedules and triggers
+                AutomationView()
+                    .environmentObject(apiClient)
             }
         } else {
             Text("Library not found")
@@ -112,39 +122,8 @@ struct DocumentTabView: View {
     }
 
     private func loadContext() async {
-        // Load appropriate data based on document.viewMode
-        switch document.viewMode {
-        case .library:
-            if let context = document.libraryContext {
-                // Load collection if specified
-                if context.selectedCollectionId != nil {
-                    // documentStore.loadCollection(context.selectedCollectionId!)
-                    // TODO: Implement when integrating with DocumentStore
-                }
-            }
-
-        case .workflow:
-            if let context = document.workflowContext {
-                // Load workflow if specified
-                if context.workflowId != nil {
-                    // workflowStore.loadWorkflow(context.workflowId!)
-                    // TODO: Implement when integrating with WorkflowStore
-                }
-            }
-
-        case .chat:
-            if let context = document.chatContext {
-                // Load conversation if specified
-                if context.conversationId != nil {
-                    // conversationService.loadConversation(context.conversationId!)
-                    // TODO: Implement when integrating with ConversationService
-                }
-            }
-
-        case .search:
-            // Search doesn't need to load anything upfront
-            break
-        }
+        // Context loading is handled by individual views via their own .task modifiers
+        // This method exists for future cross-view state restoration if needed
     }
 }
 

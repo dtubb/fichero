@@ -388,6 +388,8 @@ enum AppViewMode: Equatable {
     case search(SavedSearch?)         // Search view - selected saved search or new search
     case chat(Conversation?)          // Chat view - RAG conversation with documents
     case workflow(WorkflowSidebarItem?)  // Workflow editor - selected workflow
+    case activity                     // Activity monitor - batch and workflow execution tracking
+    case automation                   // Automation view - schedules and file triggers
 
     var category: ItemCategory {
         switch self {
@@ -395,6 +397,8 @@ enum AppViewMode: Equatable {
         case .search: return .search
         case .chat: return .chat
         case .workflow: return .workflow
+        case .activity: return .workflow  // Activity uses workflow category
+        case .automation: return .workflow  // Automation uses workflow category
         }
     }
 }

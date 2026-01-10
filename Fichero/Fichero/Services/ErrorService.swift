@@ -13,16 +13,16 @@ class ErrorService: ObservableObject {
 
     // Error history for debugging and analytics
     @Published private(set) var errorHistory: [ErrorModel] = []
-    
+
     // Maximum number of errors to keep in history
     private let maxErrorHistoryCount = 100
-    
+
     // Logger for error service
     private let logger = Logger(subsystem: "com.fichero.sidebar", category: "ErrorService")
-    
+
     // Private initializer for singleton pattern
     private init() {}
-    
+
     /// Report an error and handle it appropriately
     /// - Parameters:
     ///   - error: The error to report
@@ -34,22 +34,22 @@ class ErrorService: ObservableObject {
         completion: ((ErrorModel) -> Void)? = nil
     ) {
         let errorModel = createErrorModel(from: error)
-        
+
         // Log the error
         logError(errorModel)
-        
+
         // Add to error history
         addToErrorHistory(errorModel)
-        
+
         // Show user feedback if requested
         if showUserFeedback {
             self.showUserFeedback(for: errorModel)
         }
-        
+
         // Call completion handler
         completion?(errorModel)
     }
-    
+
     /// Report an error with custom error model
     /// - Parameters:
     ///   - errorModel: The error model to report
@@ -60,16 +60,16 @@ class ErrorService: ObservableObject {
     ) {
         // Log the error
         logError(errorModel)
-        
+
         // Add to error history
         addToErrorHistory(errorModel)
-        
+
         // Show user feedback if requested
         if showUserFeedback {
             self.showUserFeedback(for: errorModel)
         }
     }
-    
+
     /// Create an ErrorModel from a standard Error
     /// - Parameter error: The error to convert
     /// - Returns: ErrorModel representation
@@ -78,12 +78,12 @@ class ErrorService: ObservableObject {
         if let errorModel = error as? ErrorModel {
             return errorModel
         }
-        
+
         // Handle NSError specifically
         if let nsError = error as NSError? {
             return createErrorModel(from: nsError)
         }
-        
+
         // Default error model for unknown errors
         return ErrorModel(
             type: .unknown,
@@ -93,14 +93,14 @@ class ErrorService: ObservableObject {
             context: ["error_type": String(describing: type(of: error))]
         )
     }
-    
+
     /// Create an ErrorModel from NSError
     /// - Parameter nsError: The NSError to convert
     /// - Returns: ErrorModel representation
     private func createErrorModel(from nsError: NSError) -> ErrorModel {
         let errorType: ErrorType
         let severity: ErrorSeverity
-        
+
         // Map NSError domain and code to our error types
         switch nsError.domain {
         case "NSCocoaErrorDomain":
@@ -128,7 +128,7 @@ class ErrorService: ObservableObject {
             errorType = .unknown
             severity = .medium
         }
-        
+
         return ErrorModel(
             type: errorType,
             severity: severity,
@@ -141,12 +141,12 @@ class ErrorService: ObservableObject {
             ]
         )
     }
-    
+
     /// Log an error using the system logger
     /// - Parameter errorModel: The error to log
     private func logError(_ errorModel: ErrorModel) {
         let logMessage = "[ERROR] [\(errorModel.type.rawValue.uppercased())] [\(errorModel.severity.rawValue.uppercased())] \(errorModel.title): \(errorModel.message)"
-        
+
         switch errorModel.severity {
         case .critical, .high:
             logger.error("\(logMessage, privacy: .public)")
@@ -155,7 +155,7 @@ class ErrorService: ObservableObject {
         case .low, .info:
             logger.info("\(logMessage, privacy: .public)")
         }
-        
+
         // Log context if available
         if let context = errorModel.context {
             for (key, value) in context {
@@ -163,7 +163,7 @@ class ErrorService: ObservableObject {
             }
         }
     }
-    
+
     /// Add an error to the error history
     /// - Parameter errorModel: The error to add
     private func addToErrorHistory(_ errorModel: ErrorModel) {
@@ -174,7 +174,7 @@ class ErrorService: ObservableObject {
             errorHistory.removeLast()
         }
     }
-    
+
     /// Show user feedback for an error
     /// - Parameter errorModel: The error to show feedback for
     private func showUserFeedback(for errorModel: ErrorModel) {
@@ -183,19 +183,19 @@ class ErrorService: ObservableObject {
         // Set current alert - SwiftUI views will observe this and show .alert() modifier
         currentAlert = errorModel
     }
-    
+
     /// Get recent errors for debugging purposes
     /// - Parameter limit: Maximum number of errors to return
     /// - Returns: Array of recent errors
     func getRecentErrors(limit: Int = 10) -> [ErrorModel] {
         return Array(errorHistory.prefix(limit))
     }
-    
+
     /// Clear error history
     func clearErrorHistory() {
         errorHistory.removeAll()
     }
-    
+
     /// Handle error recovery attempt
     /// - Parameters:
     ///   - errorModel: The error to recover from

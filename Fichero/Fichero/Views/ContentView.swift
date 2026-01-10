@@ -52,7 +52,6 @@ struct ContentView: View {
 
     @StateObject private var itemRegistry = ItemTypeRegistry()
 
-    // Temp services (TODO: move to DocumentTabView)
     @StateObject private var performanceService = PerformanceService()
 
     // Error service (using singleton pattern)
@@ -90,6 +89,10 @@ struct ContentView: View {
             viewName = conversation?.title ?? "Chat"
         case .workflow(let workflow):
             viewName = workflow?.name ?? "Workflow"
+        case .activity:
+            viewName = "Activity Monitor"
+        case .automation:
+            viewName = "Automation"
         }
 
         return "\(libraryName) > \(viewName)"
@@ -211,6 +214,14 @@ struct ContentView: View {
         case .workflow:
             // Workflow doesn't have a traditional preview
             EmptyView()
+
+        case .activity:
+            // Activity doesn't have a traditional preview
+            EmptyView()
+
+        case .automation:
+            // Automation doesn't have a traditional preview
+            EmptyView()
         }
     }
 
@@ -237,6 +248,16 @@ struct ContentView: View {
             )
             .navigationSplitViewColumnWidth(280)
             .frame(width: 280)
+
+        case .activity:
+            // Activity monitor doesn't need an inspector
+            EmptyView()
+                .navigationSplitViewColumnWidth(0)
+
+        case .automation:
+            // Automation view doesn't need an inspector
+            EmptyView()
+                .navigationSplitViewColumnWidth(0)
         }
     }
 
@@ -532,6 +553,14 @@ extension ContentView {
                     }
                 )
             }
+
+        case .activity:
+            // Activity monitor - batch and workflow execution tracking
+            ActivityMonitorView()
+
+        case .automation:
+            // Automation view - schedules and file triggers
+            AutomationView()
         }
     }
 
@@ -548,7 +577,7 @@ extension ContentView {
 
     @ViewBuilder
     func breadcrumbView(for doc: Document) -> some View {
-        // TODO: Load ancestors from API via documentStore
+        // Shows document name; full breadcrumb path could be added via documentStore.ancestors()
         HStack(spacing: 4) {
             Text(doc.name)
                 .fontWeight(.medium)

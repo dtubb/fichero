@@ -481,7 +481,7 @@ extension SearchView {
                     isSmartSearch: isSmartSearch,
                     searchType: searchType,
                     sortBy: sortBy,
-                    sortOrder: sortOrder
+                    sortDirection: sortOrder
                 )
                 await MainActor.run {
                     isSaving = false

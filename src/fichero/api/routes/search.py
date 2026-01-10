@@ -31,7 +31,7 @@ class SearchRequest(BaseModel):
     search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"
     filters: dict | None = None  # Advanced filters (doc_type, file_type, date ranges, etc.)
     sort_by: str = "relevance"  # "relevance", "date", "name", "size"
-    sort_order: str = "desc"  # "asc" or "desc"
+    sort_direction: str = "desc"  # "asc" or "desc"
     
     # Pagination
     offset: int = 0
@@ -174,7 +174,7 @@ class SavedSearchCreate(BaseModel):
     filters: Optional[dict] = None
     search_type: str = "hybrid"
     sort_by: str = "relevance"
-    sort_order: str = "desc"
+    sort_direction: str = "desc"  # "asc" or "desc"
 
 
 class SavedSearchResponse(BaseModel):
@@ -185,9 +185,9 @@ class SavedSearchResponse(BaseModel):
     filters: Optional[dict]
     search_type: str
     sort_by: str
-    sort_order: str  # "asc" or "desc"
+    sort_direction: str  # "asc" or "desc"
     folder_path: str
-    sort_order_int: int  # Position within folder
+    sort_order: int  # Position within folder
     created_at: str
 
 
@@ -200,7 +200,7 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
         filters=request.filters,
         search_type=request.search_type,
         sort_by=request.sort_by,
-        sort_order_field=request.sort_order,
+        sort_direction=request.sort_direction,
     )
     db.save(saved)
 
@@ -211,9 +211,9 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
         filters=saved.filters,
         search_type=saved.search_type,
         sort_by=saved.sort_by,
-        sort_order=saved.sort_order_field,
+        sort_direction=saved.sort_direction,
         folder_path=saved.folder_path,
-        sort_order_int=saved.sort_order,
+        sort_order=saved.sort_order,
         created_at=saved.created_at.isoformat(),
     )
 
@@ -230,9 +230,9 @@ async def list_saved_searches(db: Database = Depends(get_library_database)) -> L
             filters=s.filters,
             search_type=s.search_type,
             sort_by=s.sort_by,
-            sort_order=s.sort_order_field,
+            sort_direction=s.sort_direction,
             folder_path=s.folder_path,
-            sort_order_int=s.sort_order,
+            sort_order=s.sort_order,
             created_at=s.created_at.isoformat(),
         )
         for s in searches
@@ -246,7 +246,7 @@ class SavedSearchUpdate(BaseModel):
     filters: Optional[dict] = None
     search_type: Optional[str] = None
     sort_by: Optional[str] = None
-    sort_order: Optional[str] = None
+    sort_direction: Optional[str] = None  # "asc" or "desc"
     folder_path: Optional[str] = None
 
 
@@ -272,8 +272,8 @@ async def update_saved_search(
         saved.search_type = request.search_type
     if request.sort_by is not None:
         saved.sort_by = request.sort_by
-    if request.sort_order is not None:
-        saved.sort_order_field = request.sort_order
+    if request.sort_direction is not None:
+        saved.sort_direction = request.sort_direction
     if request.folder_path is not None:
         saved.folder_path = request.folder_path
 
@@ -287,9 +287,9 @@ async def update_saved_search(
         filters=saved.filters,
         search_type=saved.search_type,
         sort_by=saved.sort_by,
-        sort_order=saved.sort_order_field,
+        sort_direction=saved.sort_direction,
         folder_path=saved.folder_path,
-        sort_order_int=saved.sort_order,
+        sort_order=saved.sort_order,
         created_at=saved.created_at.isoformat(),
     )
 
@@ -308,12 +308,12 @@ async def duplicate_saved_search(search_id: str, db: Database = Depends(get_libr
         filters=original.filters,
         search_type=original.search_type,
         sort_by=original.sort_by,
-        sort_order_field=original.sort_order_field,
+        sort_direction=original.sort_direction,
+        folder_path=original.folder_path,
+        sort_order=original.sort_order,
     )
 
-    # Add "(Copy)" to the name to indicate it's a duplicate
-    # Since SavedSearch model might not have a name field, we'll keep the same query
-    # but the database layer should generate a new ID
+    # The database layer will generate a new ID
     db.save(new_saved)
 
     return SavedSearchResponse(
@@ -323,7 +323,9 @@ async def duplicate_saved_search(search_id: str, db: Database = Depends(get_libr
         filters=new_saved.filters,
         search_type=new_saved.search_type,
         sort_by=new_saved.sort_by,
-        sort_order=new_saved.sort_order_field,
+        sort_direction=new_saved.sort_direction,
+        folder_path=new_saved.folder_path,
+        sort_order=new_saved.sort_order,
         created_at=new_saved.created_at.isoformat(),
     )
 

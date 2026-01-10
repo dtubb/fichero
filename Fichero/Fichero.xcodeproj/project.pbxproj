@@ -27,6 +27,12 @@
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
+		038 /* WorkflowChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137 /* WorkflowChain.swift */; };
+		039 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
+		040 /* WorkflowChainListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139 /* WorkflowChainListView.swift */; };
+		041 /* WorkflowStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140 /* WorkflowStreamService.swift */; };
+		042 /* AppleScriptSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141 /* AppleScriptSupport.swift */; };
+		043 /* Fichero.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 142 /* Fichero.sdef */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
 		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
@@ -64,6 +70,18 @@
 		A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */; };
 		A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA012F110D520021909D /* CanvasHelpers.swift */; };
 		A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
+		A1A3AA232F1115E80021909D /* ActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA222F1115E80021909D /* ActivityService.swift */; };
+		A1A3AA262F1115F90021909D /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */; };
+		A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
+		A1A3AA2B2F113E850021909D /* AutomationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA292F113E850021909D /* AutomationView.swift */; };
+		A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA342F11665B0021909D /* IntegrationsView.swift */; };
+		A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
+		A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
+		A1A3AB252F11CCC70021909D /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB172F11CCC70021909D /* Event.swift */; };
+		A1A3AB262F11CCC70021909D /* Trace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1E2F11CCC70021909D /* Trace.swift */; };
+		A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB192F11CCC70021909D /* MCPServer.swift */; };
+		A1A3AB2C2F11CCC70021909D /* Run.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1C2F11CCC70021909D /* Run.swift */; };
+		A1A3AB2F2F11CCC70021909D /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1A2F11CCC70021909D /* Note.swift */; };
 		A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */; };
 		A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C52F042C0500EAA55A /* AppState.swift */; };
 		A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */; };
@@ -155,6 +173,12 @@
 		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
 		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
 		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
+		137 /* WorkflowChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChain.swift; sourceTree = "<group>"; };
+		138 /* ChainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainService.swift; sourceTree = "<group>"; };
+		139 /* WorkflowChainListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChainListView.swift; sourceTree = "<group>"; };
+		140 /* WorkflowStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamService.swift; sourceTree = "<group>"; };
+		141 /* AppleScriptSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptSupport.swift; sourceTree = "<group>"; };
+		142 /* Fichero.sdef */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = Fichero.sdef; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
@@ -199,6 +223,18 @@
 		A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowOutputLog.swift; sourceTree = "<group>"; };
 		A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPortView.swift; sourceTree = "<group>"; };
 		A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolBlocks.swift; sourceTree = "<group>"; };
+		A1A3AA222F1115E80021909D /* ActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityService.swift; sourceTree = "<group>"; };
+		A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMonitorView.swift; sourceTree = "<group>"; };
+		A1A3AA272F113E6F0021909D /* AutomationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationService.swift; sourceTree = "<group>"; };
+		A1A3AA292F113E850021909D /* AutomationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationView.swift; sourceTree = "<group>"; };
+		A1A3AA342F11665B0021909D /* IntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsView.swift; sourceTree = "<group>"; };
+		A1A3AA372F1166660021909D /* IntegrationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsService.swift; sourceTree = "<group>"; };
+		A1A3AB162F11CCC70021909D /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
+		A1A3AB172F11CCC70021909D /* Event.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Event.swift; sourceTree = "<group>"; };
+		A1A3AB192F11CCC70021909D /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
+		A1A3AB1A2F11CCC70021909D /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
+		A1A3AB1C2F11CCC70021909D /* Run.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Run.swift; sourceTree = "<group>"; };
+		A1A3AB1E2F11CCC70021909D /* Trace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trace.swift; sourceTree = "<group>"; };
 		A1BFB2C52F042C0500EAA55A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSettings.swift; sourceTree = "<group>"; };
 		A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProviderSheet.swift; sourceTree = "<group>"; };
@@ -301,15 +337,16 @@
 		410 /* Fichero */ = {
 			isa = PBXGroup;
 			children = (
-				A1BFB2F12F04420A00EAA55A /* Info.plist */,
-				101 /* FicheroApp.swift */,
-				411 /* Views */,
-				412 /* Models */,
-				413 /* Services */,
-				414 /* Resources */,
-				202 /* Fichero.entitlements */,
 				A1BFB2C72F042C0500EAA55A /* App */,
+				202 /* Fichero.entitlements */,
+				142 /* Fichero.sdef */,
+				101 /* FicheroApp.swift */,
+				A1BFB2F12F04420A00EAA55A /* Info.plist */,
+				412 /* Models */,
+				414 /* Resources */,
+				413 /* Services */,
 				A1BFB4182F06A98700EAA55A /* Utilities */,
+				411 /* Views */,
 			);
 			path = Fichero;
 			sourceTree = "<group>";
@@ -333,6 +370,9 @@
 				A1A3A9BF2F1028480021909D /* MCPServers */,
 				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
 				A1A3A9FD2F110D260021909D /* Agents */,
+				A1A3AA252F1115F90021909D /* Activity */,
+				A1A3AA2A2F113E850021909D /* Automation */,
+				A1A3AA352F11665B0021909D /* Integrations */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -380,6 +420,7 @@
 				A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */,
 				A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */,
 				A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */,
+				139 /* WorkflowChainListView.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -403,22 +444,29 @@
 		412 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A1A3AB162F11CCC70021909D /* Artifact.swift */,
 				4119 /* CacheModel.swift */,
 				103 /* Document.swift */,
 				118 /* DocumentStore.swift */,
 				4126 /* DragDropModel.swift */,
 				4124 /* ErrorModel.swift */,
+				A1A3AB172F11CCC70021909D /* Event.swift */,
 				A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */,
 				A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */,
 				A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */,
 				377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */,
+				A1A3AB192F11CCC70021909D /* MCPServer.swift */,
+				A1A3AB1A2F11CCC70021909D /* Note.swift */,
 				112 /* Provider.swift */,
+				A1A3AB1C2F11CCC70021909D /* Run.swift */,
 				109 /* SidebarItem.swift */,
 				CE9 /* SidebarItemBuilder.swift */,
 				4125 /* SidebarState.swift */,
+				A1A3AB1E2F11CCC70021909D /* Trace.swift */,
 				A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */,
 				9E04EE1958EB4E23A7E1E328 /* WindowState.swift */,
 				462 /* Workflow.swift */,
+				137 /* WorkflowChain.swift */,
 				136 /* WorkflowExporter.swift */,
 				135 /* WorkflowStore.swift */,
 				134 /* WorkflowTypes.swift */,
@@ -430,6 +478,7 @@
 			isa = PBXGroup;
 			children = (
 				119 /* APIClient.swift */,
+				138 /* ChainService.swift */,
 				122 /* ChatService.swift */,
 				123 /* ConversationService.swift */,
 				124 /* SavedSearchService.swift */,
@@ -445,6 +494,11 @@
 				A1BFB3F82F057B6C00EAA55A /* SearchService.swift */,
 				A1A3A9F32F1028E70021909D /* MCPService.swift */,
 				A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */,
+				140 /* WorkflowStreamService.swift */,
+				141 /* AppleScriptSupport.swift */,
+				A1A3AA222F1115E80021909D /* ActivityService.swift */,
+				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
+				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -486,6 +540,30 @@
 				A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */,
 			);
 			path = Agents;
+			sourceTree = "<group>";
+		};
+		A1A3AA252F1115F90021909D /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */,
+			);
+			path = Activity;
+			sourceTree = "<group>";
+		};
+		A1A3AA2A2F113E850021909D /* Automation */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA292F113E850021909D /* AutomationView.swift */,
+			);
+			path = Automation;
+			sourceTree = "<group>";
+		};
+		A1A3AA352F11665B0021909D /* Integrations */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA342F11665B0021909D /* IntegrationsView.swift */,
+			);
+			path = Integrations;
 			sourceTree = "<group>";
 		};
 		A1BFB2C72F042C0500EAA55A /* App */ = {
@@ -685,6 +763,7 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				009 /* Assets.xcassets in Resources */,
+				043 /* Fichero.sdef in Resources */,
 			);
 		};
 		A10521A72EFDC92400B28C3E /* Resources */ = {
@@ -715,6 +794,7 @@
 				A1BFB4062F057B9300EAA55A /* MagnifierPanel.swift in Sources */,
 				A1BFB4072F057B9300EAA55A /* CheckerboardPattern.swift in Sources */,
 				A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */,
+				A1A3AA262F1115F90021909D /* ActivityMonitorView.swift in Sources */,
 				A1BFB45D2F0AAC3700EAA55A /* LibraryViewToolbar.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
 				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
@@ -723,6 +803,7 @@
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
+				A1A3AA2B2F113E850021909D /* AutomationView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
 				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
@@ -730,8 +811,10 @@
 				840 /* ErrorService.swift in Sources */,
 				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
+				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
 				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
+				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
 				A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */,
 				A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */,
 				A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */,
@@ -743,17 +826,27 @@
 				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
 				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
+				038 /* WorkflowChain.swift in Sources */,
+				039 /* ChainService.swift in Sources */,
+				040 /* WorkflowChainListView.swift in Sources */,
 				A1A3AA1A2F110D520021909D /* AgentNodeBlockView.swift in Sources */,
 				A1A3AA1B2F110D520021909D /* SimpleWorkflowView.swift in Sources */,
 				A1A3AA1C2F110D520021909D /* WorkflowOutputLog.swift in Sources */,
 				A1A3AA1D2F110D520021909D /* WorkflowPortView.swift in Sources */,
 				A1A3AA1E2F110D520021909D /* WorkflowInspector.swift in Sources */,
 				A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */,
+				A1A3AA232F1115E80021909D /* ActivityService.swift in Sources */,
 				A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */,
 				A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */,
 				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
 				A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */,
 				A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */,
+				A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */,
+				A1A3AB252F11CCC70021909D /* Event.swift in Sources */,
+				A1A3AB262F11CCC70021909D /* Trace.swift in Sources */,
+				A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */,
+				A1A3AB2C2F11CCC70021909D /* Run.swift in Sources */,
+				A1A3AB2F2F11CCC70021909D /* Note.swift in Sources */,
 				841 /* ErrorModel.swift in Sources */,
 				A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */,
 				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
@@ -766,6 +859,7 @@
 				011 /* SearchView.swift in Sources */,
 				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,
 				A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */,
+				A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */,
 				A1FB1D812F0420A90023093C /* LibraryView.swift in Sources */,
 				A1FB1D822F0420A90023093C /* DocumentInspector.swift in Sources */,
 				A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */,
@@ -798,6 +892,8 @@
 				A1FB1D9C2F0420D50023093C /* SidebarItemRow.swift in Sources */,
 				A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */,
 				A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */,
+				041 /* WorkflowStreamService.swift in Sources */,
+				042 /* AppleScriptSupport.swift in Sources */,
 				A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */,
 				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
 				A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */,

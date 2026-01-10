@@ -116,17 +116,8 @@ struct FicheroApp: App {
 
             CommandGroup(replacing: .sidebar) { }
 
-            CommandGroup(replacing: .help) {
-                Button("Fichero Help") {
-                    // TODO: Implement help documentation
-                }
-
-                Divider()
-
-                Button("Check for Updates...") {
-                    // TODO: Implement update checking
-                }
-            }
+            // Help menu - use default macOS help behavior
+            // Update checking will be added via Sparkle framework when ready for distribution
 
             CommandGroup(after: .appSettings) {
                 Divider()
@@ -186,6 +177,8 @@ struct LibraryWindow: View {
         case .workflow: viewModeName = "Workflow"
         case .chat: viewModeName = "Chat"
         case .search: viewModeName = "Search"
+        case .activity: viewModeName = "Activity"
+        case .automation: viewModeName = "Automation"
         }
 
         return "\(library.displayName) > \(viewModeName)"

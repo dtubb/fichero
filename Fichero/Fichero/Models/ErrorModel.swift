@@ -41,7 +41,7 @@ struct ErrorModel: Identifiable, Codable, Error {
     let isRecoverable: Bool
     let recoverySuggestion: String?
     let helpLink: URL?
-    
+
     init(
         id: UUID = UUID(),
         type: ErrorType,

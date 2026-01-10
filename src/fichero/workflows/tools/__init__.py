@@ -6,6 +6,7 @@ Each tool is a simple async function that processes state.
 
 Categories:
 - agent: AI agents with tool-calling abilities (react_agent)
+- multi_agent: Advanced agent patterns (supervisor, swarm, coordinator)
 - mcp: Tools from MCP (Model Context Protocol) servers
 - vision: Image/document understanding (transcribe, describe, analyze)
 - transform: Image manipulation (enhance, rotate, crop, segment)
@@ -16,11 +17,13 @@ Categories:
 
 # Import tools to register them
 from fichero.workflows.tools import agent
+from fichero.workflows.tools import multi_agent
 from fichero.workflows.tools import transcribe
 from fichero.workflows.tools import mcp
 
 __all__ = [
     "agent",
+    "multi_agent",
     "transcribe",
     "mcp",
 ]

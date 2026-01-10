@@ -23,6 +23,11 @@ from fichero.models import Provider, Model
 logger = logging.getLogger(__name__)
 
 
+def get_db_path() -> str:
+    """Get the path to the app-wide database."""
+    return str(settings.app_db_path)
+
+
 class AppDatabase:
     """App-wide database for providers and settings."""
 

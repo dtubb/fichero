@@ -87,6 +87,16 @@ struct SidebarModeSection: View {
             ) {
                 viewSettings.sidebarMode = .activity
             }
+
+            SidebarModeButton(
+                mode: .automation,
+                label: "Automation",
+                icon: "clock.badge.checkmark",
+                shortcut: "6",
+                current: viewSettings.sidebarMode
+            ) {
+                viewSettings.sidebarMode = .automation
+            }
         }
     }
 }

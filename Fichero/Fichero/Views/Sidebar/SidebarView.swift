@@ -382,7 +382,7 @@ extension SidebarView {
                     query: savedSearch.query,
                     isSmartSearch: savedSearch.isSmartSearch,
                     folderPath: savedSearch.folderPath,
-                    sortOrder: savedSearch.sortOrderInt
+                    sortOrder: savedSearch.sortOrder
                 )
                 viewMode = .search(newSearch)
             } catch {

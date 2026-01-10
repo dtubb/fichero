@@ -36,6 +36,9 @@ from typing import Any
 from uuid import uuid4
 import base64
 
+# Import ProviderType from providers module (single source of truth)
+from fichero.providers import ProviderType
+
 
 def _new_id() -> str:
     """Generate a new unique ID (32-char hex string from UUID v4)."""
@@ -611,31 +614,7 @@ class Event(BaseModel):
 # Provider - AI Service Provider
 # =============================================================================
 
-class ProviderType(str, Enum):
-    """Type of AI provider."""
-    # On-device (Apple)
-    apple = "apple"
-    # Local servers
-    ollama = "ollama"
-    lmstudio = "lmstudio"
-    # Open source
-    huggingface = "huggingface"
-    # Cloud providers
-    openai = "openai"
-    anthropic = "anthropic"
-    google = "google"
-    groq = "groq"
-    together = "together"
-    deepseek = "deepseek"
-    mistral = "mistral"
-    cohere = "cohere"
-    # Additional LiteLLM providers
-    dashscope = "dashscope"
-    xai = "xai"
-    perplexity = "perplexity"
-    fireworks = "fireworks"
-    azure = "azure"
-    bedrock = "bedrock"
+# Note: ProviderType is imported from fichero.providers (single source of truth)
 
 
 class Provider(BaseModel):
@@ -754,12 +733,12 @@ class SavedSearch(BaseModel):
     is_smart_search: bool = True       # Whether to use semantic search
     filters: dict[str, Any] | None = None  # Optional filter parameters
     search_type: str = "hybrid"        # Type of search: semantic, fulltext, hybrid
-    sort_by: str = "relevance"        # Sort field
-    sort_order_field: str = "desc"    # Sort order direction
+    sort_by: str = "relevance"         # Sort field
+    sort_direction: str = "desc"       # Sort direction: "asc" or "desc"
 
     # Organization
     folder_path: str = "/"  # Unix-style path for organization
-    sort_order: int = 0     # User-defined order within folder
+    sort_order: int = 0     # User-defined order within folder (position)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

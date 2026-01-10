@@ -184,10 +184,8 @@ class LibraryManager: ObservableObject {
             return existing
         }
 
-        // Load document from URL
+        // Create document for this library (state is managed by backend)
         let document = FicheroDocument()
-        // TODO: Actually load document data from URL
-        // For now, just create empty document
 
         // Extract display name from file URL (remove .fichero extension)
         let displayName = url.deletingPathExtension().lastPathComponent
@@ -345,8 +343,6 @@ class LibraryManager: ObservableObject {
             } else {
                 // Not a temp library, create new package (for Save As on already-saved libraries)
                 createPackageStructure(at: url)
-
-                // TODO: Copy database and contents from oldURL to url if doing Save As
                 logger.info("Created new package at: \(url.lastPathComponent)")
             }
 

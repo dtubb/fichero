@@ -13,7 +13,7 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "APIClient")
 /// affect other windows operating on different .fichero libraries.
 @MainActor
 class APIClient: ObservableObject {
-    private let baseURL: URL
+    let baseURL: URL  // Internal access for SSE streaming services
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder

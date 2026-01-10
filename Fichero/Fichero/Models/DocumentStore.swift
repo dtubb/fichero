@@ -205,58 +205,32 @@ class DocumentStore: ObservableObject {
     }
 
     /// Delete a document.
+    /// The backend handles cascade deletion of all descendants.
     func deleteDocument(_ document: Document) async throws {
         try await api.delete("/documents/\(document.id)")
 
-        // Remove from local state - recursively removes item and all descendants
-        removeDocumentRecursively(document.id)
-
-        // Publish change - this triggers @Published update
+        // Publish change before refresh
         publish(.documentDeleted(document))
 
-        // If this was the selected item, clear selection
+        // Clear selection if this was selected
         if selectedCollection?.id == document.id {
-            selectedCollection = collections.first
-            if let selected = selectedCollection {
-                await loadChildren(of: selected)
-            }
+            selectedCollection = nil
+        }
+
+        // Refresh from backend - it handles cascade deletes
+        await loadCollections()
+
+        // Re-select first collection if needed
+        if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {
+            await selectCollection(first)
         }
     }
 
     /// Delete document by ID (for non-document items like searches, chats, workflows)
     func deleteDocumentById(_ id: String) async throws {
         try await api.delete("/documents/\(id)")
-        // Reload collections to refresh UI
+        // Refresh from backend
         await loadCollections()
-    }
-
-    /// Recursively remove a document and all its descendants from the collections array
-    private func removeDocumentRecursively(_ documentId: String) {
-        // Find and collect all descendant IDs
-        var toRemove: Set<String> = [documentId]
-        var queue = [documentId]
-
-        while !queue.isEmpty {
-            let parentId = queue.removeFirst()
-
-            // Find all children of this parent in the flat collections array
-            let children = collections.filter { $0.parentId == parentId }
-            for child in children {
-                toRemove.insert(child.id)
-                queue.append(child.id)
-            }
-        }
-
-        // Remove all collected IDs from collections array (triggers @Published update)
-        collections.removeAll { toRemove.contains($0.id) }
-
-        // Also remove from currentDocuments if present
-        currentDocuments.removeAll { toRemove.contains($0.id) }
-
-        // Clear from cache
-        for id in toRemove {
-            childrenCache.removeValue(forKey: id)
-        }
     }
 
     /// Rename a document.
@@ -351,14 +325,13 @@ class DocumentStore: ObservableObject {
             body.append("\(parentId)\r\n".data(using: .utf8)!)
         }
 
-        // Add file
+        // Add file - backend determines MIME type from file content
         let filename = url.lastPathComponent
-        let mimeType = mimeType(for: url)
         let fileData = try Data(contentsOf: url)
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
         body.append(fileData)
         body.append("\r\n".data(using: .utf8)!)
 
@@ -382,19 +355,6 @@ class DocumentStore: ObservableObject {
         publish(.collectionsUpdated(collections))
 
         return document
-    }
-
-    /// Helper to determine MIME type from file extension
-    private func mimeType(for url: URL) -> String {
-        let ext = url.pathExtension.lowercased()
-        switch ext {
-        case "pdf": return "application/pdf"
-        case "jpg", "jpeg": return "image/jpeg"
-        case "png": return "image/png"
-        case "txt": return "text/plain"
-        case "doc", "docx": return "application/msword"
-        default: return "application/octet-stream"
-        }
     }
 
     /// Move a document to a new parent.

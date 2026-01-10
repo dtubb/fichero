@@ -10,10 +10,10 @@ class DragDropModel: ObservableObject {
     @Published var dropError: ErrorModel? = nil
     @Published var dropSuccessCount: Int = 0
     @Published var dropFailureCount: Int = 0
-    
+
     // MARK: - Operation Tracking
     private var activeOperations: Set<UUID> = []
-    
+
     // MARK: - State Management
     func startProcessing() {
         isProcessingDrop = true
@@ -22,31 +22,31 @@ class DragDropModel: ObservableObject {
         dropSuccessCount = 0
         dropFailureCount = 0
     }
-    
+
     func endProcessing() {
         isProcessingDrop = false
     }
-    
+
     func updateProgress(_ progress: Double) {
         dropProgress = progress
     }
-    
+
     func incrementSuccessCount() {
         dropSuccessCount += 1
     }
-    
+
     func incrementFailureCount() {
         dropFailureCount += 1
     }
-    
+
     func setError(_ error: ErrorModel) {
         dropError = error
     }
-    
+
     func clearError() {
         dropError = nil
     }
-    
+
     // MARK: - Operation Tracking
     func startOperation() -> UUID {
         let operationId = UUID()
@@ -61,7 +61,7 @@ class DragDropModel: ObservableObject {
     func getActiveOperationCount() -> Int {
         return activeOperations.count
     }
-    
+
     // MARK: - Reset
     func reset() {
         isProcessingDrop = false

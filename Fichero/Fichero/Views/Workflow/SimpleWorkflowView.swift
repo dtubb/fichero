@@ -7,12 +7,12 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SimpleWorkf
 struct SimpleWorkflowView: View {
     @Binding var editingWorkflow: SimpleWorkflow
     @State private var isSaving: Bool = false
-    
+
     var body: some View {
         VStack {
             Text("Workflow: \(editingWorkflow.name)")
                 .font(.title)
-            
+
             Button(action: {
                 logger.info("Saving workflow: \(editingWorkflow.name)")
                 isSaving = true
@@ -43,7 +43,7 @@ struct SimpleWorkflow: Identifiable, Codable {
     let id: String
     var name: String
     var description: String
-    
+
     init(name: String, description: String = "") {
         self.id = UUID().uuidString
         self.name = name

@@ -63,12 +63,6 @@ struct BackendSettingsView: View {
                     Text(appState.isBackendRunning ? "Connected" : "Disconnected")
 
                     Spacer()
-
-                    if !appState.isBackendRunning {
-                        Button("Start Backend") {
-                            Task { await appState.startBackend() }
-                        }
-                    }
                 }
             }
 

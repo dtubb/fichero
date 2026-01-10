@@ -64,10 +64,12 @@ class WorkflowService: ObservableObject {
     }
 
     /// Get a specific workflow by ID.
+    /// Nodes include embedded port definitions - no additional API calls needed.
     func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
         let response: WorkflowResponse = try await api.get("/workflows/\(id)")
 
         // Convert the response nodes to WorkflowNode objects
+        // Port definitions are embedded in node data - no need to fetch from tool registry
         var nodes: [WorkflowNode] = []
         for nodeDict in response.nodes {
             let nodeId = (nodeDict["id"]?.value as? String) ?? UUID().uuidString
@@ -78,19 +80,9 @@ class WorkflowService: ObservableObject {
             let positionY = (nodeDict["position_y"]?.value as? Double) ?? 0.0
             let enabled = (nodeDict["enabled"]?.value as? Bool) ?? true
 
-            // Fetch tool info to get port definitions
-            var inputPorts: [PortInfo] = []
-            var outputPorts: [PortInfo] = []
-            if !tool.isEmpty {
-                do {
-                    let toolInfo = try await getTool(tool)
-                    inputPorts = toolInfo.inputPorts
-                    outputPorts = toolInfo.outputPorts
-                } catch {
-                    // If tool not found, use empty ports
-                    logger.warning("Failed to fetch tool info for \(tool): \(String(describing: error))")
-                }
-            }
+            // Extract port definitions from node data (already embedded when workflow was saved)
+            let inputPorts = extractPorts(from: nodeDict, key: "input_ports")
+            let outputPorts = extractPorts(from: nodeDict, key: "output_ports")
 
             let node = WorkflowNode(
                 id: nodeId,
@@ -144,6 +136,32 @@ class WorkflowService: ObservableObject {
         )
     }
 
+    /// Extract port definitions from node dictionary.
+    private func extractPorts(from nodeDict: [String: AnyCodable], key: String) -> [PortInfo] {
+        guard let portsValue = nodeDict[key]?.value,
+              let portsArray = portsValue as? [[String: Any]] else {
+            return []
+        }
+
+        return portsArray.compactMap { portDict -> PortInfo? in
+            guard let id = portDict["id"] as? String,
+                  let name = portDict["name"] as? String,
+                  let portType = portDict["port_type"] as? String,
+                  let dataType = portDict["data_type"] as? String else {
+                return nil
+            }
+
+            return PortInfo(
+                id: id,
+                name: name,
+                portType: portType,
+                dataType: dataType,
+                required: portDict["required"] as? Bool ?? true,
+                description: portDict["description"] as? String ?? ""
+            )
+        }
+    }
+
     /// Update an existing workflow.
     func updateWorkflow(_ id: String, workflow: WorkflowDefinition) async throws -> WorkflowResponse {
         return try await api.put("/workflows/\(id)", body: workflow)
@@ -159,25 +177,28 @@ class WorkflowService: ObservableObject {
         return try await api.post("/workflows/\(id)/duplicate")
     }
 
-    /// Rename a workflow.
+    /// Rename a workflow (uses backend PATCH for partial update).
     func renameWorkflow(_ id: String, newName: String) async throws -> WorkflowResponse {
-        let update = WorkflowUpdate(name: newName)
-        return try await api.put("/workflows/\(id)", body: update)
+        let update = WorkflowPatchRequest(name: newName)
+        return try await api.patch("/workflows/\(id)", body: update)
     }
 
     /// Update a workflow properties (name, description, folder_path).
+    /// Uses PATCH for partial updates - only provided fields are changed.
     func updateWorkflowProperties(
         _ id: String,
         name: String? = nil,
         description: String? = nil,
-        folderPath: String? = nil
+        folderPath: String? = nil,
+        sortOrder: Int? = nil
     ) async throws -> WorkflowResponse {
-        let update = WorkflowUpdate(
+        let update = WorkflowPatchRequest(
             name: name,
             description: description,
-            folderPath: folderPath
+            folderPath: folderPath,
+            sortOrder: sortOrder
         )
-        return try await api.put("/workflows/\(id)", body: update)
+        return try await api.patch("/workflows/\(id)", body: update)
     }
 
     /// Move workflow to a different folder.
@@ -232,21 +253,25 @@ class WorkflowService: ObservableObject {
 
 // MARK: - Request Models
 
-struct WorkflowUpdate: Encodable {
+/// Request for partial workflow updates via PATCH.
+struct WorkflowPatchRequest: Encodable {
     let name: String?
     let description: String?
     let folderPath: String?
+    let sortOrder: Int?
 
     enum CodingKeys: String, CodingKey {
         case name
         case description
         case folderPath = "folder_path"
+        case sortOrder = "sort_order"
     }
 
-    init(name: String? = nil, description: String? = nil, folderPath: String? = nil) {
+    init(name: String? = nil, description: String? = nil, folderPath: String? = nil, sortOrder: Int? = nil) {
         self.name = name
         self.description = description
         self.folderPath = folderPath
+        self.sortOrder = sortOrder
     }
 }
 

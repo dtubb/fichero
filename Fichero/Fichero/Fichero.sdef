@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<!--
+    Fichero AppleScript Dictionary
+
+    This file defines the AppleScript interface for Fichero.
+    Users can script common operations like:
+    - Running workflows
+    - Managing documents
+    - Executing workflow chains
+    - Querying document information
+-->
+<dictionary title="Fichero Terminology">
+
+    <!-- Standard Suite -->
+    <suite name="Standard Suite" code="????" description="Common classes and commands for all applications.">
+
+        <command name="open" code="aevtodoc" description="Open a document.">
+            <direct-parameter description="The file(s) to be opened.">
+                <type type="file"/>
+                <type type="file" list="yes"/>
+            </direct-parameter>
+        </command>
+
+        <command name="quit" code="aevtquit" description="Quit the application.">
+            <cocoa class="NSQuitCommand"/>
+        </command>
+
+    </suite>
+
+    <!-- Fichero Suite -->
+    <suite name="Fichero Suite" code="FICH" description="Fichero-specific classes and commands.">
+
+        <!-- Classes -->
+
+        <class name="application" code="capp" description="The Fichero application.">
+            <cocoa class="NSApplication"/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the application."/>
+            <property name="version" code="vers" type="text" access="r" description="The version of the application."/>
+            <element type="document" access="r">
+                <cocoa key="orderedDocuments"/>
+            </element>
+            <element type="workflow" access="r">
+                <cocoa key="workflows"/>
+            </element>
+        </class>
+
+        <class name="document" code="docu" description="A document in the library.">
+            <cocoa class="FicheroScriptDocument"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the document."/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the document."/>
+            <property name="path" code="ppth" type="text" access="r" description="The file path of the document."/>
+            <property name="mime type" code="mime" type="text" access="r" description="The MIME type of the document."/>
+            <property name="size" code="ptsz" type="integer" access="r" description="The file size in bytes."/>
+            <property name="created date" code="cdat" type="date" access="r" description="The creation date."/>
+            <property name="modified date" code="mdat" type="date" access="r" description="The modification date."/>
+        </class>
+
+        <class name="workflow" code="wkfl" description="A workflow definition.">
+            <cocoa class="FicheroScriptWorkflow"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the workflow."/>
+            <property name="name" code="pnam" type="text" access="rw" description="The name of the workflow."/>
+            <property name="description" code="desc" type="text" access="rw" description="The description of the workflow."/>
+            <property name="node count" code="ndct" type="integer" access="r" description="The number of nodes in the workflow."/>
+            <property name="is enabled" code="enbl" type="boolean" access="rw" description="Whether the workflow is enabled."/>
+        </class>
+
+        <class name="workflow chain" code="wchn" description="A workflow chain that connects multiple workflows.">
+            <cocoa class="FicheroScriptWorkflowChain"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the chain."/>
+            <property name="name" code="pnam" type="text" access="rw" description="The name of the chain."/>
+            <property name="step count" code="stct" type="integer" access="r" description="The number of steps in the chain."/>
+        </class>
+
+        <class name="execution thread" code="exth" description="A workflow execution thread.">
+            <cocoa class="FicheroScriptExecutionThread"/>
+            <property name="id" code="ID  " type="text" access="r" description="The thread ID."/>
+            <property name="workflow id" code="wfid" type="text" access="r" description="The workflow ID being executed."/>
+            <property name="status" code="stat" type="text" access="r" description="The execution status: running, paused, completed, failed."/>
+        </class>
+
+        <!-- Commands -->
+
+        <command name="run workflow" code="FICHrwfl" description="Execute a workflow.">
+            <cocoa class="FicheroRunWorkflowCommand"/>
+            <direct-parameter description="The workflow ID to run." type="text"/>
+            <parameter name="with inputs" code="inpt" type="record" optional="yes" description="Input parameters for the workflow.">
+                <cocoa key="inputs"/>
+            </parameter>
+            <result type="text" description="The execution thread ID."/>
+        </command>
+
+        <command name="get workflow status" code="FICHgwst" description="Get the status of a workflow execution.">
+            <cocoa class="FicheroGetWorkflowStatusCommand"/>
+            <direct-parameter description="The thread ID to check." type="text"/>
+            <result type="text" description="The execution status."/>
+        </command>
+
+        <command name="pause workflow" code="FICHpwfl" description="Pause a running workflow.">
+            <cocoa class="FicheroPauseWorkflowCommand"/>
+            <direct-parameter description="The thread ID to pause." type="text"/>
+            <result type="boolean" description="Whether the pause was successful."/>
+        </command>
+
+        <command name="resume workflow" code="FICHrswf" description="Resume a paused workflow.">
+            <cocoa class="FicheroResumeWorkflowCommand"/>
+            <direct-parameter description="The thread ID to resume." type="text"/>
+            <result type="boolean" description="Whether the resume was successful."/>
+        </command>
+
+        <command name="run chain" code="FICHrchn" description="Execute a workflow chain.">
+            <cocoa class="FicheroRunChainCommand"/>
+            <direct-parameter description="The chain ID to run." type="text"/>
+            <parameter name="with inputs" code="inpt" type="record" optional="yes" description="Input parameters for the chain.">
+                <cocoa key="inputs"/>
+            </parameter>
+            <result type="text" description="The execution ID."/>
+        </command>
+
+        <command name="list workflows" code="FICHlwfl" description="List all available workflows.">
+            <cocoa class="FicheroListWorkflowsCommand"/>
+            <result description="List of workflow names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="list documents" code="FICHldoc" description="List documents in the library.">
+            <cocoa class="FicheroListDocumentsCommand"/>
+            <parameter name="in folder" code="fldr" type="text" optional="yes" description="Optional folder path to list.">
+                <cocoa key="folderPath"/>
+            </parameter>
+            <parameter name="limit" code="limt" type="integer" optional="yes" description="Maximum number of results.">
+                <cocoa key="limit"/>
+            </parameter>
+            <result description="List of document names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="search documents" code="FICHsdoc" description="Search for documents.">
+            <cocoa class="FicheroSearchDocumentsCommand"/>
+            <direct-parameter description="The search query." type="text"/>
+            <parameter name="limit" code="limt" type="integer" optional="yes" description="Maximum number of results.">
+                <cocoa key="limit"/>
+            </parameter>
+            <result description="List of matching document names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="import file" code="FICHimpt" description="Import a file into the library.">
+            <cocoa class="FicheroImportFileCommand"/>
+            <direct-parameter description="The file path to import." type="text"/>
+            <parameter name="to folder" code="fldr" type="text" optional="yes" description="Target folder path.">
+                <cocoa key="folderPath"/>
+            </parameter>
+            <parameter name="mode" code="mode" type="text" optional="yes" description="Import mode: 'link' or 'copy'.">
+                <cocoa key="mode"/>
+            </parameter>
+            <result type="text" description="The ID of the imported document."/>
+        </command>
+
+        <command name="get document info" code="FICHgdoc" description="Get information about a document.">
+            <cocoa class="FicheroGetDocumentInfoCommand"/>
+            <direct-parameter description="The document ID." type="text"/>
+            <result type="record" description="Document information record."/>
+        </command>
+
+    </suite>
+
+</dictionary>

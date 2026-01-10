@@ -21,14 +21,14 @@ class SavedSearchService: ObservableObject {
         isSmartSearch: Bool = true,
         searchType: String = "hybrid",
         sortBy: String = "relevance",
-        sortOrder: String = "desc"
+        sortDirection: String = "desc"
     ) async throws -> SavedSearchAPI {
         let request = SaveSearchRequest(
             query: query,
             isSmartSearch: isSmartSearch,
             searchType: searchType,
             sortBy: sortBy,
-            sortOrder: sortOrder
+            sortDirection: sortDirection
         )
         return try await api.post("/search/saved", body: request)
     }
@@ -59,7 +59,7 @@ class SavedSearchService: ObservableObject {
                 filters: SearchFilters(),  // Filters parsing not yet implemented
                 isSmartSearch: api.isSmartSearch,
                 folderPath: api.folderPath,
-                sortOrder: api.sortOrderInt
+                sortOrder: api.sortOrder
             )
         }
     }
@@ -75,7 +75,7 @@ class SavedSearchService: ObservableObject {
                 filters: SearchFilters(),  // Filters parsing not yet implemented
                 isSmartSearch: api.isSmartSearch,
                 folderPath: api.folderPath,
-                sortOrder: api.sortOrderInt
+                sortOrder: api.sortOrder
             )
         }
     }
@@ -94,7 +94,7 @@ class SavedSearchService: ObservableObject {
         filters: [String: String]? = nil,
         searchType: String? = nil,
         sortBy: String? = nil,
-        sortOrder: String? = nil,
+        sortDirection: String? = nil,
         folderPath: String? = nil
     ) async throws -> SavedSearchAPI {
         let update = SavedSearchUpdate(
@@ -103,7 +103,7 @@ class SavedSearchService: ObservableObject {
             filters: filters,
             searchType: searchType,
             sortBy: sortBy,
-            sortOrder: sortOrder,
+            sortDirection: sortDirection,
             folderPath: folderPath
         )
         return try await api.put("/search/saved/\(id)", body: update)
@@ -131,14 +131,14 @@ struct SaveSearchRequest: Encodable {
     let isSmartSearch: Bool
     let searchType: String
     let sortBy: String
-    let sortOrder: String
+    let sortDirection: String  // "asc" or "desc"
 
     enum CodingKeys: String, CodingKey {
         case query
         case isSmartSearch = "is_smart_search"
         case searchType = "search_type"
         case sortBy = "sort_by"
-        case sortOrder = "sort_order"
+        case sortDirection = "sort_direction"
     }
 
     init(
@@ -146,13 +146,13 @@ struct SaveSearchRequest: Encodable {
         isSmartSearch: Bool = true,
         searchType: String = "hybrid",
         sortBy: String = "relevance",
-        sortOrder: String = "desc"
+        sortDirection: String = "desc"
     ) {
         self.query = query
         self.isSmartSearch = isSmartSearch
         self.searchType = searchType
         self.sortBy = sortBy
-        self.sortOrder = sortOrder
+        self.sortDirection = sortDirection
     }
 }
 
@@ -162,7 +162,7 @@ struct SavedSearchUpdate: Encodable {
     let filters: [String: String]?
     let searchType: String?
     let sortBy: String?
-    let sortOrder: String?
+    let sortDirection: String?  // "asc" or "desc"
     let folderPath: String?
 
     enum CodingKeys: String, CodingKey {
@@ -171,7 +171,7 @@ struct SavedSearchUpdate: Encodable {
         case filters
         case searchType = "search_type"
         case sortBy = "sort_by"
-        case sortOrder = "sort_order"
+        case sortDirection = "sort_direction"
         case folderPath = "folder_path"
     }
 
@@ -181,7 +181,7 @@ struct SavedSearchUpdate: Encodable {
         filters: [String: String]? = nil,
         searchType: String? = nil,
         sortBy: String? = nil,
-        sortOrder: String? = nil,
+        sortDirection: String? = nil,
         folderPath: String? = nil
     ) {
         self.query = query
@@ -189,7 +189,7 @@ struct SavedSearchUpdate: Encodable {
         self.filters = filters
         self.searchType = searchType
         self.sortBy = sortBy
-        self.sortOrder = sortOrder
+        self.sortDirection = sortDirection
         self.folderPath = folderPath
     }
 }
@@ -213,9 +213,9 @@ struct SavedSearchAPI: Codable, Identifiable {
     let filters: [String: String]?
     let searchType: String
     let sortBy: String
-    let sortOrder: String  // "asc" or "desc"
+    let sortDirection: String  // "asc" or "desc"
     let folderPath: String
-    let sortOrderInt: Int  // Position within folder
+    let sortOrder: Int  // Position within folder
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -225,9 +225,9 @@ struct SavedSearchAPI: Codable, Identifiable {
         case filters
         case searchType = "search_type"
         case sortBy = "sort_by"
-        case sortOrder = "sort_order"
+        case sortDirection = "sort_direction"
         case folderPath = "folder_path"
-        case sortOrderInt = "sort_order_int"
+        case sortOrder = "sort_order"
         case createdAt = "created_at"
     }
 }

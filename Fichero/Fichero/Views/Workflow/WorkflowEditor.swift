@@ -24,6 +24,7 @@ struct WorkflowEditor: View {
     @State private var snapToGrid: Bool = true
 
     @EnvironmentObject var workflowStore: WorkflowStore
+    @EnvironmentObject var workflowService: WorkflowService
 
     init(
         workflow: WorkflowSidebarItem?,
@@ -113,27 +114,28 @@ struct WorkflowEditor: View {
 
     @MainActor
     private func saveWorkflow() async {
-        // Convert local workflow to API format and save to backend via WorkflowStore
-        // TODO: Implement with proper workflow type once files are added to Xcode project
         logger.info("Save workflow: \(editingWorkflow.name)")
-
-        // Placeholder for actual implementation:
-        // do {
-        //     let apiWorkflow = editingWorkflow.toAPIFormat()
-        //     if selectedWorkflow != nil {
-        //         _ = try await workflowStore.updateWorkflow(apiWorkflow)
-        //     } else {
-        //         _ = try await workflowStore.saveWorkflow(apiWorkflow)
-        //     }
-        // } catch {
-        //     print("Failed to save workflow: \(error)")
-        // }
+        do {
+            let definition = editingWorkflow.toAPIFormat()
+            if selectedWorkflow != nil {
+                _ = try await workflowStore.updateWorkflow(definition)
+            } else {
+                _ = try await workflowStore.saveWorkflow(definition)
+            }
+        } catch {
+            logger.error("Failed to save workflow: \(error.localizedDescription)")
+        }
     }
 
     private func exportWorkflow() {
-        // TODO: Implement export when workflow type is available
         logger.info("Export workflow: \(editingWorkflow.name)")
-        // Will export workflow definition as JSON using WorkflowExporter
+        Task {
+            await WorkflowExporter.exportToFile(
+                editingWorkflow.id,
+                name: editingWorkflow.name,
+                using: workflowService
+            )
+        }
     }
 
     // MARK: - Views

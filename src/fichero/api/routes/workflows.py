@@ -450,6 +450,8 @@ async def get_workflow(
             model=workflow.model,
             nodes=workflow.nodes,
             edges=workflow.edges,
+            folder_path=workflow.folder_path,
+            sort_order=workflow.sort_order,
         )
     except HTTPException:
         raise
@@ -494,11 +496,66 @@ async def update_workflow(
             model=existing.model,
             nodes=existing.nodes,
             edges=existing.edges,
+            folder_path=existing.folder_path,
+            sort_order=existing.sort_order,
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.exception(f"Failed to update workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class WorkflowPatchRequest(BaseModel):
+    """Request for partial workflow update."""
+    name: str | None = None
+    description: str | None = None
+    folder_path: str | None = None
+    sort_order: int | None = None
+
+
+@router.patch("/{workflow_id}")
+async def patch_workflow(
+    workflow_id: str,
+    patch: WorkflowPatchRequest,
+    db: Database = Depends(get_library_database),
+) -> WorkflowResponse:
+    """Partially update a workflow (rename, move to folder, etc.)."""
+    try:
+        from fichero.models import Workflow
+
+        workflow = db.get(Workflow, workflow_id)
+        if not workflow:
+            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+
+        # Apply only the fields that were provided
+        if patch.name is not None:
+            workflow.name = patch.name
+        if patch.description is not None:
+            workflow.description = patch.description
+        if patch.folder_path is not None:
+            workflow.folder_path = patch.folder_path
+        if patch.sort_order is not None:
+            workflow.sort_order = patch.sort_order
+
+        workflow.updated_at = datetime.now()
+        db.save(workflow)
+
+        return WorkflowResponse(
+            id=workflow.id,
+            name=workflow.name,
+            description=workflow.description,
+            provider=workflow.provider,
+            model=workflow.model,
+            nodes=workflow.nodes,
+            edges=workflow.edges,
+            folder_path=workflow.folder_path,
+            sort_order=workflow.sort_order,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to patch workflow {workflow_id}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -564,6 +621,8 @@ async def duplicate_workflow(
             model=new_workflow.model,
             nodes=new_workflow.nodes,
             edges=new_workflow.edges,
+            folder_path=new_workflow.folder_path,
+            sort_order=new_workflow.sort_order,
         )
     except HTTPException:
         raise

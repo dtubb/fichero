@@ -9,16 +9,16 @@ class DragDropService: ObservableObject {
     weak var documentStore: DocumentStore?
     weak var errorService: ErrorService?
     weak var performanceService: PerformanceService?
-    
+
     // MARK: - State
     private let dragDropModel: DragDropModel
     private var benchmark: PerformanceBenchmark?
-    
+
     // MARK: - Initialization
     init(dragDropModel: DragDropModel) {
         self.dragDropModel = dragDropModel
     }
-    
+
     // MARK: - Dependency Injection
     func injectDependencies(
         documentStore: DocumentStore,
@@ -29,22 +29,22 @@ class DragDropService: ObservableObject {
         self.errorService = errorService
         self.performanceService = performanceService
     }
-    
+
     // MARK: - Chat Drop Handling
     func handleChatDrop(providers: [NSItemProvider], completion: @escaping ([String]) -> Void) {
         dragDropModel.startProcessing()
         self.benchmark = performanceService?.startBenchmark("chat_drop")
-        
+
         var documentIds: [String] = []
         let operationCount = providers.count
         let operationQueue = DispatchQueue(label: "com.fichero.dragdrop.chat", attributes: .concurrent)
-        
+
         // Track completed operations
         let completedOperations = AtomicInt(value: 0)
-        
+
         for provider in providers {
             let operationId = dragDropModel.startOperation()
-            
+
             // Use weak self to avoid retain cycles
             provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { [weak self] data, error in
                 guard let self = self else { return }
@@ -95,7 +95,7 @@ class DragDropService: ObservableObject {
                     documentIds.append(docId)
                 }
             }
-            
+
             // Also check for plain text type
             provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { [weak self] data, error in
                 guard let self = self else { return }
@@ -148,7 +148,7 @@ class DragDropService: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Library Drop Handling
     func handleLibrarySectionDrop(providers: [NSItemProvider], completion: @escaping (Bool) -> Void) {
         self.benchmark = performanceService?.startBenchmark("library_drop")
@@ -156,10 +156,10 @@ class DragDropService: ObservableObject {
         var handled = false
         let operationCount = providers.count
         let completedOperations = AtomicInt(value: 0)
-        
+
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             let operationId = dragDropModel.startOperation()
-            
+
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] (urlData, error) in
                 guard let self = self else { return }
 
@@ -214,7 +214,7 @@ class DragDropService: ObservableObject {
                 }
             }
         }
-        
+
         // If no providers were processed, complete immediately
         if providers.isEmpty {
             dragDropModel.endProcessing()
@@ -222,7 +222,7 @@ class DragDropService: ObservableObject {
             completion(false)
         }
     }
-    
+
     // MARK: - File Drop Handling
     @MainActor
     private func handleFileDropOnLibrary(url: URL, completion: @escaping (Bool) -> Void) {
@@ -231,13 +231,13 @@ class DragDropService: ObservableObject {
             do {
                 // Import file as a top-level document (no parent)
                 if let importedDoc = try await documentStore?.importFile(at: url, parentId: nil) {
-                    
+
                     // Show success feedback
                     showImportSuccessAlert(documentName: importedDoc.name)
                     completion(true)
                     return
                 }
-                
+
                 completion(false)
             } catch {
                 let errorModel = ErrorModel.fileSystemError(
@@ -250,14 +250,14 @@ class DragDropService: ObservableObject {
                     isRecoverable: true
                 )
                 errorService?.reportError(errorModel)
-                
+
                 // Show error feedback
                 showImportErrorAlert(error: error.localizedDescription)
                 completion(false)
             }
         }
     }
-    
+
     // MARK: - Error Handling
     @MainActor
     private func handleProviderError(_ error: Error, providerType: String) {
@@ -314,7 +314,7 @@ class DragDropService: ObservableObject {
         errorService?.reportError(errorModel)
         dragDropModel.incrementFailureCount()
     }
-    
+
     // MARK: - User Feedback
     private func showImportSuccessAlert(documentName: String) {
         // Class is @MainActor so we're already on main thread

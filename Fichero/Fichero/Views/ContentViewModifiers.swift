@@ -267,7 +267,9 @@ struct MainContentModifiers: ViewModifier {
         case .workflows:
             viewMode = .workflow(nil)
         case .activity:
-            break
+            viewMode = .activity
+        case .automation:
+            viewMode = .automation
         }
     }
 

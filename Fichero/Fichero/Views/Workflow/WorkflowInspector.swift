@@ -22,6 +22,7 @@ struct WorkflowInspector: View {
 
     @EnvironmentObject var workflowService: WorkflowService
     @EnvironmentObject var mcpService: MCPService
+    @EnvironmentObject var appState: AppState
 
     enum InspectorTab: String, CaseIterable {
         case builtin = "Built-in"
@@ -163,7 +164,7 @@ struct WorkflowInspector: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     Button("Open MCP Servers") {
-                        // TODO: Open MCP servers sheet
+                        appState.showMCPServers = true
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)

@@ -153,6 +153,14 @@ from fichero.api.routes import (
     models,
     folders,
     mcp_servers,
+    batch,
+    activity,
+    schedules,
+    triggers,
+    integrations,
+    actions,
+    model_comparison,
+    chains,
 )
 
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
@@ -166,3 +174,11 @@ app.include_router(workflow_execution.router, prefix="/api/workflow-execution", 
 app.include_router(models.router, prefix="/api/models", tags=["models"])
 app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
 app.include_router(mcp_servers.router, prefix="/api", tags=["mcp-servers"])
+app.include_router(batch.router, prefix="/api", tags=["batches"])
+app.include_router(activity.router, prefix="/api", tags=["activity"])
+app.include_router(schedules.router, prefix="/api", tags=["schedules"])
+app.include_router(triggers.router, prefix="/api", tags=["triggers"])
+app.include_router(integrations.router, prefix="/api", tags=["integrations"])
+app.include_router(actions.router, prefix="/api", tags=["actions"])
+app.include_router(model_comparison.router, prefix="/api", tags=["model-comparison"])
+app.include_router(chains.router, prefix="/api", tags=["chains"])

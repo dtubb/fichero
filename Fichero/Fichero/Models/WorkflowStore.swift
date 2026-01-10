@@ -18,7 +18,7 @@ class WorkflowStore: ObservableObject {
     init(apiClient: APIClient) {
         self.workflowService = WorkflowService(apiClient: apiClient)
     }
-    
+
     func checkConnection() async {
         do {
             // Try to list tools as a connection test
@@ -30,7 +30,7 @@ class WorkflowStore: ObservableObject {
             self.error = error
         }
     }
-    
+
     func loadWorkflows() async {
         isLoading = true
         error = nil
@@ -59,7 +59,7 @@ class WorkflowStore: ObservableObject {
 
         isLoading = false
     }
-    
+
     func saveWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowSidebarItem {
         isSaving = true
         defer { isSaving = false }
@@ -92,7 +92,7 @@ class WorkflowStore: ObservableObject {
             throw error
         }
     }
-    
+
     func updateWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowSidebarItem {
         isSaving = true
         defer { isSaving = false }
@@ -123,7 +123,7 @@ class WorkflowStore: ObservableObject {
             throw error
         }
     }
-    
+
     func deleteWorkflow(_ id: String) async throws {
         do {
             try await workflowService.deleteWorkflow(id)
@@ -133,7 +133,7 @@ class WorkflowStore: ObservableObject {
             throw error
         }
     }
-    
+
     func runWorkflow(
         _ workflow: WorkflowDefinition,
         inputs: [String: Any] = [:],
@@ -146,7 +146,7 @@ class WorkflowStore: ObservableObject {
             throw error
         }
     }
-    
+
     func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
         do {
             return try await workflowService.getWorkflow(id)
@@ -204,47 +204,122 @@ class WorkflowStore: ObservableObject {
         }
     }
 
-    /// Rename a workflow
+    /// Rename a workflow using backend PATCH endpoint.
+    /// The backend handles the partial update - no need to fetch full workflow.
     func renameWorkflow(_ id: String, to newName: String) async throws -> WorkflowSidebarItem {
-        // Get the current workflow
-        let currentWorkflow = try await getWorkflow(id)
+        let response = try await workflowService.renameWorkflow(id, newName: newName)
 
-        // Update the workflow with new name
-        let updatedWorkflow = WorkflowDefinition(
-            id: currentWorkflow.id,
-            name: newName,
-            description: currentWorkflow.description,
-            provider: currentWorkflow.provider,
-            model: currentWorkflow.model,
-            nodes: currentWorkflow.nodes,
-            edges: currentWorkflow.edges,
-            folderPath: currentWorkflow.folderPath,
-            sortOrder: currentWorkflow.sortOrder
+        let item = WorkflowSidebarItem(
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            nodeCount: response.nodes.count,
+            isEnabled: true,
+            folderPath: response.folderPath,
+            sortOrder: response.sortOrder,
+            createdAt: Date(),
+            updatedAt: Date()
         )
 
-        // Update using the service
-        return try await updateWorkflow(updatedWorkflow)
+        // Update in local array
+        if let index = workflows.firstIndex(where: { $0.id == response.id }) {
+            workflows[index] = item
+        }
+
+        return item
     }
 
-    /// Duplicate a workflow
+    /// Duplicate a workflow using backend duplicate endpoint.
+    /// The backend handles ID generation, naming, and all logic.
     func duplicateWorkflow(_ id: String) async throws -> WorkflowSidebarItem {
-        // Get the current workflow
-        let currentWorkflow = try await getWorkflow(id)
+        let response = try await workflowService.duplicateWorkflow(id)
 
-        // Create a new workflow with a new name
-        let newWorkflow = WorkflowDefinition(
-            id: UUID().uuidString, // This will be overridden by the backend
-            name: "\(currentWorkflow.name) Copy",
-            description: currentWorkflow.description,
-            provider: currentWorkflow.provider,
-            model: currentWorkflow.model,
-            nodes: currentWorkflow.nodes,
-            edges: currentWorkflow.edges,
-            folderPath: currentWorkflow.folderPath,
-            sortOrder: currentWorkflow.sortOrder + 1  // Place after original
+        let item = WorkflowSidebarItem(
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            nodeCount: response.nodes.count,
+            isEnabled: true,
+            folderPath: response.folderPath,
+            sortOrder: response.sortOrder,
+            createdAt: Date(),
+            updatedAt: Date()
         )
 
-        // Save the new workflow
-        return try await saveWorkflow(newWorkflow)
+        // Add to local array
+        workflows.append(item)
+
+        return item
+    }
+
+    // MARK: - Workflow Execution
+
+    private lazy var executionService = WorkflowExecutionService()
+
+    /// Execute a saved workflow by ID
+    func executeWorkflow(
+        _ workflowId: String,
+        inputs: [String: Any] = [:],
+        interruptBefore: [String] = [],
+        interruptAfter: [String] = []
+    ) async throws -> ExecutionThread {
+        do {
+            let thread = try await executionService.executeWorkflow(
+                workflowId: workflowId,
+                inputs: inputs,
+                interruptBefore: interruptBefore,
+                interruptAfter: interruptAfter
+            )
+            logger.info("Started execution of workflow \(workflowId), thread: \(thread.threadId)")
+            return thread
+        } catch {
+            self.error = error
+            logger.error("Failed to execute workflow \(workflowId): \(String(describing: error))")
+            throw error
+        }
+    }
+
+    /// Get the status of an execution thread
+    func getExecutionStatus(_ threadId: String) async throws -> ExecutionThread {
+        do {
+            return try await executionService.getThreadStatus(threadId: threadId)
+        } catch {
+            self.error = error
+            throw error
+        }
+    }
+
+    /// Resume a paused workflow
+    func resumeExecution(_ threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
+        do {
+            let thread = try await executionService.resumeWorkflow(threadId: threadId, inputs: inputs)
+            logger.info("Resumed workflow thread: \(threadId)")
+            return thread
+        } catch {
+            self.error = error
+            logger.error("Failed to resume workflow thread \(threadId): \(String(describing: error))")
+            throw error
+        }
+    }
+
+    /// List all execution threads
+    func listExecutionThreads(limit: Int = 100) async throws -> [ExecutionThread] {
+        do {
+            return try await executionService.listThreads(limit: limit)
+        } catch {
+            self.error = error
+            throw error
+        }
+    }
+
+    /// Delete an execution thread
+    func deleteExecutionThread(_ threadId: String) async throws {
+        do {
+            try await executionService.deleteThread(threadId: threadId)
+            logger.info("Deleted execution thread: \(threadId)")
+        } catch {
+            self.error = error
+            throw error
+        }
     }
 }
