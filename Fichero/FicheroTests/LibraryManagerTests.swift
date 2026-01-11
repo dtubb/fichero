@@ -9,8 +9,8 @@ final class LibraryManagerTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
 
-        // Get a clean instance for each test
-        libraryManager = LibraryManager()
+        // Use the shared instance (singleton pattern)
+        libraryManager = LibraryManager.shared
 
         // Create a temporary test directory
         tempDirectory = FileManager.default.temporaryDirectory

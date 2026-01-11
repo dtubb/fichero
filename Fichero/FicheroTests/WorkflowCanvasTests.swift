@@ -28,15 +28,13 @@ class WorkflowCanvasTests: XCTestCase {
 
     func testZoomConstraints() {
         // Test that zoom stays within 10%-400% range
-        let testView = WorkflowCanvasView(workflow: .constant(workflow))
-        
-        // This would normally be tested through the view's state, but we can test the logic
-        // by creating a testable version or using view hosting
-        
+        // Note: WorkflowCanvasView requires scale and snapToGrid bindings
+        // Testing the constraints logic directly without instantiating the view
+
         // For now, we'll test the constraints logic directly
         let minScale: CGFloat = 0.1
         let maxScale: CGFloat = 4.0
-        
+
         XCTAssertTrue(minScale >= 0.1, "Minimum zoom should be at least 10%")
         XCTAssertTrue(maxScale <= 4.0, "Maximum zoom should be at most 400%")
     }

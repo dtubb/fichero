@@ -1,0 +1,43 @@
+{
+  "name": "transcribe",
+  "display_name": "Transcribe Audio",
+  "description": "Transcribes audio files to text using speech-to-text",
+  "category": "vision",
+  "icon": "waveform",
+  "color": "blue",
+  "input_ports": [
+    {
+      "id": "input",
+      "name": "Audio Input",
+      "port_type": "input",
+      "data_type": "files",
+      "required": true,
+      "description": "Audio files to process"
+    }
+  ],
+  "output_ports": [
+    {
+      "id": "text",
+      "name": "Transcribed Text",
+      "port_type": "output",
+      "data_type": "text",
+      "required": true,
+      "description": "The transcribed text output"
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "type": "string",
+        "default": "en"
+      }
+    }
+  },
+  "default_output_schema": null,
+  "uses_llm": false,
+  "supports_batch": true,
+  "supports_streaming": false,
+  "supports_structured_output": false,
+  "sort_order": 1
+}

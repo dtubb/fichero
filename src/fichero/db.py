@@ -105,9 +105,9 @@ class Database:
         self._embedder = None  # Lazy init
         self._tables_created: set[str] = set()
 
-        # Migrate workflows table if needed
+        # Migrate tables if needed
         self._migrate_workflow_table()
-        # Migrate provider_refs table if needed
+        self._migrate_saved_search_table()
         self._migrate_provider_refs_table()
 
     # =========================================================================
@@ -197,14 +197,22 @@ class Database:
                 raise ValueError(f"Invalid column name: {k}")
 
         # Convert enum values to their string representation for queries
+        # Separate None values (need IS NULL) from regular values (need = $param)
         query_filters = {}
+        where_clauses = []
+
         for k, v in filters.items():
-            if hasattr(v, 'value'):  # It's an enum
+            if v is None:
+                # Use IS NULL for None values
+                where_clauses.append(f"{k} IS NULL")
+            elif hasattr(v, 'value'):  # It's an enum
                 query_filters[k] = v.value
+                where_clauses.append(f"{k} = ${k}")
             else:
                 query_filters[k] = v
+                where_clauses.append(f"{k} = ${k}")
 
-        where = " AND ".join(f"{k} = ${k}" for k in query_filters.keys())
+        where = " AND ".join(where_clauses)
         rows = self.conn.execute(
             f"SELECT * FROM {table} WHERE {where}",
             query_filters
@@ -1067,37 +1075,45 @@ class Database:
         try:
             # Check if table exists using DuckDB's information_schema
             table_exists = self.conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables 
+                SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'saved_searches'
             """).fetchone()[0] > 0
-            
+
             if not table_exists:
                 # Table doesn't exist, nothing to migrate
                 logger.debug("Saved searches table does not exist, skipping migration")
                 return
-            
+
             # Check current schema
             result = self.conn.execute("PRAGMA table_info('saved_searches')").fetchall()
             columns = {row[1]: row for row in result}
-            
+
             # Add folder_path if missing
             if 'folder_path' not in columns:
                 logger.info("Migrating saved_searches table: adding folder_path column...")
                 self.conn.execute("""
-                    ALTER TABLE saved_searches 
+                    ALTER TABLE saved_searches
                     ADD COLUMN folder_path VARCHAR DEFAULT '/'
                 """)
-            
+
             # Add sort_order if missing
             if 'sort_order' not in columns:
                 logger.info("Migrating saved_searches table: adding sort_order column...")
                 self.conn.execute("""
-                    ALTER TABLE saved_searches 
+                    ALTER TABLE saved_searches
                     ADD COLUMN sort_order INTEGER DEFAULT 0
                 """)
-            
+
+            # Add sort_direction if missing
+            if 'sort_direction' not in columns:
+                logger.info("Migrating saved_searches table: adding sort_direction column...")
+                self.conn.execute("""
+                    ALTER TABLE saved_searches
+                    ADD COLUMN sort_direction VARCHAR DEFAULT 'desc'
+                """)
+
             logger.info("Saved searches table migration completed")
-            
+
         except Exception as e:
             # Table might not exist or other issue
             logger.warning(f"Saved searches migration check failed: {e}")

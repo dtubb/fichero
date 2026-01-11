@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "DataType": {
+      "description": "Data types for port connections.",
+      "enum": [
+        "any",
+        "files",
+        "file",
+        "text",
+        "json",
+        "array",
+        "image",
+        "number",
+        "boolean"
+      ],
+      "title": "DataType",
+      "type": "string"
+    }
+  },
+  "description": "Definition of an input or output port on a node.\n\nPorts are the connection points where edges attach.\nEach port has a data type for validation.",
+  "properties": {
+    "id": {
+      "description": "Unique port identifier within the node",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name for the port",
+      "title": "Name",
+      "type": "string"
+    },
+    "port_type": {
+      "description": "Whether this is an input or output port",
+      "enum": [
+        "input",
+        "output"
+      ],
+      "title": "Port Type",
+      "type": "string"
+    },
+    "data_type": {
+      "$ref": "#/$defs/DataType",
+      "default": "any",
+      "description": "Expected data type"
+    },
+    "required": {
+      "default": true,
+      "description": "Whether this input is required",
+      "title": "Required",
+      "type": "boolean"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "default": {
+      "default": null,
+      "title": "Default"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "port_type"
+  ],
+  "title": "PortDef",
+  "type": "object"
+}

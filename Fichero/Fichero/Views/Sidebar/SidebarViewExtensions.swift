@@ -237,3 +237,83 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
             }
     }
 }
+
+// MARK: - New Folder Dialog
+
+extension View {
+    /// Adds new folder creation alert dialog.
+    func sidebarNewFolderDialog(
+        sidebarState: SidebarState,
+        createFolder: @escaping (String) async -> Void
+    ) -> some View {
+        self.modifier(SidebarNewFolderDialogModifier(
+            sidebarState: sidebarState,
+            createFolder: createFolder
+        ))
+    }
+}
+
+private struct SidebarNewFolderDialogModifier: ViewModifier {
+    @ObservedObject var sidebarState: SidebarState
+    let createFolder: (String) async -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "New Folder",
+                isPresented: $sidebarState.showingNewFolderDialog,
+                actions: {
+                    TextField("Folder Name", text: $sidebarState.newFolderName)
+                    Button("Create") {
+                        let folderName = sidebarState.newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !folderName.isEmpty else { return }
+                        Task {
+                            await createFolder(folderName)
+                            sidebarState.resetFolderCreationState()
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(sidebarState.newFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel", role: .cancel) {
+                        sidebarState.resetFolderCreationState()
+                    }
+                },
+                message: {
+                    Text("Enter a name for the new folder.")
+                }
+            )
+            .alert("Folder Creation Failed", isPresented: .constant(sidebarState.newFolderErrorMessage != nil)) {
+                Button("OK", role: .cancel) {
+                    sidebarState.newFolderErrorMessage = nil
+                }
+            } message: {
+                Text(sidebarState.newFolderErrorMessage ?? "Unknown error")
+            }
+    }
+}
+
+// MARK: - File Import
+
+extension View {
+    /// Adds file importer for importing files into the library.
+    func sidebarFileImporter(
+        isPresented: Binding<Bool>,
+        importFiles: @escaping ([URL]) async -> Void
+    ) -> some View {
+        self.fileImporter(
+            isPresented: isPresented,
+            allowedContentTypes: [.item, .folder],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                Task {
+                    await importFiles(urls)
+                }
+            case .failure(let error):
+                // Log but don't show error - user cancelled or other benign issue
+                print("File import cancelled or failed: \(error.localizedDescription)")
+            }
+        }
+    }
+}

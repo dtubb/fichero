@@ -128,6 +128,14 @@ struct SidebarView: View {
                 deleteState: deleteState,
                 performDelete: performDelete
             )
+            .sidebarNewFolderDialog(
+                sidebarState: sidebarState,
+                createFolder: createFolder
+            )
+            .sidebarFileImporter(
+                isPresented: $sidebarState.showingFileImporter,
+                importFiles: handleImportedFiles
+            )
     }
 
     /// Set up observers for all library services using Combine
@@ -484,7 +492,29 @@ extension SidebarView {
         // Show folder creation dialog
         sidebarState.showingNewFolderDialog = true
         sidebarState.newFolderCategory = .folder
-        // Implementation would show a dialog to create folder
+    }
+
+    /// Actually create the folder after user enters name
+    private func createFolder(_ name: String) async {
+        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        guard let library = targetLibrary else {
+            sidebarState.newFolderErrorMessage = "No library available"
+            return
+        }
+
+        logger.info("Creating folder '\(name)' in library: \(library.displayName)")
+
+        do {
+            // Create a collection (folder) using the document store
+            _ = try await library.documentStore.createCollection(name: name)
+            logger.info("Created folder: \(name)")
+
+            // Rebuild caches to show the new folder
+            rebuildCaches()
+        } catch {
+            logger.error("Failed to create folder: \(error)")
+            sidebarState.newFolderErrorMessage = error.localizedDescription
+        }
     }
 }
 
@@ -494,13 +524,36 @@ extension SidebarView {
     /// Import files to the library that owns the selected item (or Global if none)
     private func importFiles() {
         let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        guard targetLibrary != nil else {
+            logger.error("No library available for import")
+            return
+        }
+
+        // Show file picker
+        sidebarState.showingFileImporter = true
+    }
+
+    /// Handle imported files from file picker
+    private func handleImportedFiles(_ urls: [URL]) async {
+        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
         guard let library = targetLibrary else {
             logger.error("No library available for import")
             return
         }
 
-        // Implementation: Show file picker and import to library
-        logger.info("Import to library: \(library.displayName)")
+        logger.info("Importing \(urls.count) files to library: \(library.displayName)")
+
+        do {
+            // Use the import service to import files
+            _ = try await library.importService.importFiles(urls, mode: .link)
+            logger.info("Imported \(urls.count) files")
+        } catch {
+            logger.error("Failed to import files: \(error)")
+        }
+
+        // Refresh the document store
+        await library.documentStore.refresh()
+        rebuildCaches()
     }
 
     /// Rename the selected item

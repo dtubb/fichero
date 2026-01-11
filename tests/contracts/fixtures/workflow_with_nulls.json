@@ -1,0 +1,26 @@
+{
+  "id": "test-workflow-nulls",
+  "name": "Workflow with Nulls",
+  "description": "",
+  "provider": "",
+  "model": "",
+  "nodes": [
+    {
+      "id": "node-null",
+      "tool": "echo",
+      "label": null,
+      "description": null,
+      "position_x": 0.0,
+      "position_y": 0.0,
+      "enabled": true,
+      "input_ports": [],
+      "output_ports": [],
+      "input_mappings": null,
+      "inputs": null,
+      "config": null
+    }
+  ],
+  "edges": [],
+  "folder_path": "/",
+  "sort_order": 0
+}

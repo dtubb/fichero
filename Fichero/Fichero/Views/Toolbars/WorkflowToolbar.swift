@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkflowToolbar: View {
     // Run state
     @Binding var isRunning: Bool
+    @Binding var isSaving: Bool
     @Binding var showOutputLog: Bool
     let canRun: Bool
 
@@ -62,10 +63,16 @@ struct WorkflowToolbar: View {
                         }
                     },
                     label: {
-                        Image(systemName: "square.and.arrow.down")
+                        if isSaving {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "square.and.arrow.down")
+                        }
                     }
                 )
-                .help("Save Workflow")
+                .disabled(isSaving)
+                .help(isSaving ? "Saving..." : "Save Workflow")
 
                 // Export
                 Button(action: onExport) {

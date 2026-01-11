@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "DataType": {
+      "description": "Data types for port connections.",
+      "enum": [
+        "any",
+        "files",
+        "file",
+        "text",
+        "json",
+        "array",
+        "image",
+        "number",
+        "boolean"
+      ],
+      "title": "DataType",
+      "type": "string"
+    },
+    "InputMapping": {
+      "description": "Maps a node input port to a data source.\n\nAllows referencing output from ANY previous node, not just\nthe immediately preceding one in the graph.\n\nExamples:\n    source_path=\"$.nodes.transcribe.text\"\n    source_path=\"$.nodes.entities.people | join:', '\"\n    source_path=\"$.inputs.language\"\n    source_path=\"$.files\"",
+      "properties": {
+        "port_id": {
+          "description": "Target input port ID on this node",
+          "title": "Port Id",
+          "type": "string"
+        },
+        "source_path": {
+          "description": "Path expression to data source",
+          "title": "Source Path",
+          "type": "string"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional transform pipe (e.g., '| join:\", \"')",
+          "title": "Transform"
+        }
+      },
+      "required": [
+        "port_id",
+        "source_path"
+      ],
+      "title": "InputMapping",
+      "type": "object"
+    },
+    "OutputSchema": {
+      "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}",
+      "properties": {
+        "schema": {
+          "additionalProperties": true,
+          "description": "JSON Schema definition",
+          "title": "Schema",
+          "type": "object"
+        },
+        "description": {
+          "default": "",
+          "description": "Description for LLM prompt context",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "title": "OutputSchema",
+      "type": "object"
+    },
+    "PortDef": {
+      "description": "Definition of an input or output port on a node.\n\nPorts are the connection points where edges attach.\nEach port has a data type for validation.",
+      "properties": {
+        "id": {
+          "description": "Unique port identifier within the node",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name for the port",
+          "title": "Name",
+          "type": "string"
+        },
+        "port_type": {
+          "description": "Whether this is an input or output port",
+          "enum": [
+            "input",
+            "output"
+          ],
+          "title": "Port Type",
+          "type": "string"
+        },
+        "data_type": {
+          "$ref": "#/$defs/DataType",
+          "default": "any",
+          "description": "Expected data type"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether this input is required",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "port_type"
+      ],
+      "title": "PortDef",
+      "type": "object"
+    }
+  },
+  "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\nEach node has input and output ports for visual edge connections.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
+  "properties": {
+    "id": {
+      "description": "Unique node identifier",
+      "title": "Id",
+      "type": "string"
+    },
+    "tool": {
+      "description": "Tool function name from registry",
+      "title": "Tool",
+      "type": "string"
+    },
+    "input_ports": {
+      "description": "Input connection ports",
+      "items": {
+        "$ref": "#/$defs/PortDef"
+      },
+      "title": "Input Ports",
+      "type": "array"
+    },
+    "output_ports": {
+      "description": "Output connection ports",
+      "items": {
+        "$ref": "#/$defs/PortDef"
+      },
+      "title": "Output Ports",
+      "type": "array"
+    },
+    "input_mappings": {
+      "description": "Maps input ports to data sources from previous nodes",
+      "items": {
+        "$ref": "#/$defs/InputMapping"
+      },
+      "title": "Input Mappings",
+      "type": "array"
+    },
+    "inputs": {
+      "additionalProperties": true,
+      "description": "Input values for the tool (supports path resolution)",
+      "title": "Inputs",
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": true,
+      "description": "Static tool configuration (not resolved)",
+      "title": "Config",
+      "type": "object"
+    },
+    "output_schema": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OutputSchema"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "JSON Schema for structured LLM output"
+    },
+    "position_x": {
+      "default": 0.0,
+      "title": "Position X",
+      "type": "number"
+    },
+    "position_y": {
+      "default": 0.0,
+      "title": "Position Y",
+      "type": "number"
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Label"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tool"
+  ],
+  "title": "NodeDef",
+  "type": "object"
+}

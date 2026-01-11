@@ -43,6 +43,7 @@
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
 		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
 		A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
@@ -306,6 +307,7 @@
 		300 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */,
 			);
 		};
 		A10521A62EFDC92400B28C3E /* Frameworks */ = {
@@ -669,6 +671,9 @@
 			buildRules = (
 			);
 			name = Fichero;
+			packageProductDependencies = (
+				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
+			);
 			productName = Fichero;
 			productReference = 100 /* Fichero.app */;
 			productType = "com.apple.product-type.application";
@@ -746,6 +751,9 @@
 				Base,
 			);
 			mainGroup = 400;
+			packageReferences = (
+				A18ED3A92F13E313007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */,
+			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
 			projectDirPath = "";
@@ -1228,6 +1236,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A18ED3A92F13E313007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FicheroAPIClient;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FicheroAPIClient;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 700 /* Project object */;
 }

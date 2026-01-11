@@ -5,41 +5,60 @@ struct Workflow: Identifiable, Codable {
     let id: String
     var name: String
     var description: String
+    var provider: String
+    var model: String
     var nodes: [WorkflowNode]
     var edges: [WorkflowEdge]
+    var folderPath: String
+    var sortOrder: Int
+
     init(
         id: String = UUID().uuidString,
         name: String,
         description: String = "",
+        provider: String = "",
+        model: String = "",
         nodes: [WorkflowNode] = [],
-        edges: [WorkflowEdge] = []
+        edges: [WorkflowEdge] = [],
+        folderPath: String = "/",
+        sortOrder: Int = 0
     ) {
         self.id = id
         self.name = name
         self.description = description
+        self.provider = provider
+        self.model = model
         self.nodes = nodes
         self.edges = edges
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
     }
+
     /// Initialize from API response
     init(from apiWorkflow: WorkflowDefinition) {
         self.id = apiWorkflow.id
         self.name = apiWorkflow.name
         self.description = apiWorkflow.description
+        self.provider = apiWorkflow.provider
+        self.model = apiWorkflow.model
         self.nodes = apiWorkflow.nodes
         self.edges = apiWorkflow.edges
+        self.folderPath = apiWorkflow.folderPath
+        self.sortOrder = apiWorkflow.sortOrder
     }
-    /// Convert to API format
+
+    /// Convert to API format for saving to backend
     func toAPIFormat() -> WorkflowDefinition {
         return WorkflowDefinition(
             id: self.id,
             name: self.name,
             description: self.description,
-            provider: "openai", // default
-            model: "gpt-4o",   // default
+            provider: self.provider,
+            model: self.model,
             nodes: self.nodes,
             edges: self.edges,
-            folderPath: "/",   // default to root
-            sortOrder: 0       // default sort order
+            folderPath: self.folderPath,
+            sortOrder: self.sortOrder
         )
     }
 }

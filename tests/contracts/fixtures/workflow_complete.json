@@ -1,0 +1,97 @@
+{
+  "id": "test-workflow-abc123",
+  "name": "Test Workflow",
+  "description": "A workflow for testing serialization",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "nodes": [
+    {
+      "id": "node-1",
+      "tool": "transcribe",
+      "label": "Transcribe Audio",
+      "description": "Transcribes audio files to text",
+      "position_x": 100.0,
+      "position_y": 200.0,
+      "enabled": true,
+      "input_ports": [
+        {
+          "id": "input",
+          "name": "Input",
+          "port_type": "input",
+          "data_type": "files",
+          "required": true,
+          "description": "Audio files to transcribe"
+        }
+      ],
+      "output_ports": [
+        {
+          "id": "text",
+          "name": "Text Output",
+          "port_type": "output",
+          "data_type": "text",
+          "required": true,
+          "description": "Transcribed text"
+        }
+      ],
+      "input_mappings": [],
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "node-2",
+      "tool": "summarize",
+      "label": "Summarize",
+      "description": "Summarizes text using LLM",
+      "position_x": 350.0,
+      "position_y": 200.0,
+      "enabled": true,
+      "input_ports": [
+        {
+          "id": "text",
+          "name": "Text",
+          "port_type": "input",
+          "data_type": "text",
+          "required": true,
+          "description": "Text to summarize"
+        }
+      ],
+      "output_ports": [
+        {
+          "id": "summary",
+          "name": "Summary",
+          "port_type": "output",
+          "data_type": "text",
+          "required": true,
+          "description": "Summarized text"
+        }
+      ],
+      "input_mappings": [
+        {
+          "port_id": "text",
+          "source_path": "$.nodes.node-1.text"
+        }
+      ],
+      "inputs": {},
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-1",
+      "target": "node-2",
+      "source_port": "text",
+      "target_port": "text",
+      "condition": null,
+      "label": null,
+      "animated": false
+    }
+  ],
+  "folder_path": "/",
+  "sort_order": 0,
+  "timeout_seconds": 300,
+  "max_retries": 3,
+  "version": "1.0",
+  "created_at": null,
+  "updated_at": null
+}

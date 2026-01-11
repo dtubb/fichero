@@ -1,0 +1,2479 @@
+{
+  "generated_from": "FastAPI OpenAPI schema",
+  "note": "This file is auto-generated. Do not edit manually.",
+  "endpoints": {
+    "health": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "operation_id": "health_check_api_health_get",
+        "summary": "Health Check",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "stats": [
+      {
+        "method": "GET",
+        "path": "/stats",
+        "operation_id": "get_stats_api_stats_get",
+        "summary": "Get Stats",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "documents": [
+      {
+        "method": "GET",
+        "path": "/documents",
+        "operation_id": "list_documents_api_documents_get",
+        "summary": "List Documents",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "doc_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "file_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Document]"
+      },
+      {
+        "method": "POST",
+        "path": "/documents",
+        "operation_id": "create_document_api_documents_post",
+        "summary": "Create Document",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentCreate",
+        "response_model": "Document"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/collections",
+        "operation_id": "list_collections_api_documents_collections_get",
+        "summary": "List Collections",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Document]"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/roots",
+        "operation_id": "list_roots_api_documents_roots_get",
+        "summary": "List Roots",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Document]"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}",
+        "operation_id": "get_document_api_documents__doc_id__get",
+        "summary": "Get Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Document"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}",
+        "operation_id": "update_document_api_documents__doc_id__put",
+        "summary": "Update Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "DocumentUpdate",
+        "response_model": "Document"
+      },
+      {
+        "method": "DELETE",
+        "path": "/documents/{doc_id}",
+        "operation_id": "delete_document_api_documents__doc_id__delete",
+        "summary": "Delete Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/children",
+        "operation_id": "get_children_api_documents__doc_id__children_get",
+        "summary": "Get Children",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Document]"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/ancestors",
+        "operation_id": "get_ancestors_api_documents__doc_id__ancestors_get",
+        "summary": "Get Ancestors",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Document]"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/reorder",
+        "operation_id": "reorder_documents_api_documents_reorder_post",
+        "summary": "Reorder Documents",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/documents/import",
+        "operation_id": "import_file_api_documents_import_post",
+        "summary": "Import File",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "Document"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/move",
+        "operation_id": "move_document_api_documents__doc_id__move_put",
+        "summary": "Move Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "Document"
+      }
+    ],
+    "search": [
+      {
+        "method": "POST",
+        "path": "/search",
+        "operation_id": "enhanced_search_api_search_post",
+        "summary": "Enhanced Search",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SearchRequest",
+        "response_model": "SearchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/search/stats",
+        "operation_id": "search_stats_api_search_stats_get",
+        "summary": "Search Stats",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/search/reindex",
+        "operation_id": "reindex_all_api_search_reindex_post",
+        "summary": "Reindex All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/search/embed/{doc_id}",
+        "operation_id": "embed_document_api_search_embed__doc_id__post",
+        "summary": "Embed Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/search/saved",
+        "operation_id": "save_search_api_search_saved_post",
+        "summary": "Save Search",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SavedSearchCreate",
+        "response_model": "SavedSearchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/search/saved",
+        "operation_id": "list_saved_searches_api_search_saved_get",
+        "summary": "List Saved Searches",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SavedSearchResponse]"
+      },
+      {
+        "method": "PUT",
+        "path": "/search/saved/{search_id}",
+        "operation_id": "update_saved_search_api_search_saved__search_id__put",
+        "summary": "Update Saved Search",
+        "path_params": [
+          "search_id"
+        ],
+        "query_params": [],
+        "request_model": "SavedSearchUpdate",
+        "response_model": "SavedSearchResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/search/saved/{search_id}",
+        "operation_id": "delete_saved_search_api_search_saved__search_id__delete",
+        "summary": "Delete Saved Search",
+        "path_params": [
+          "search_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/search/saved/{search_id}/duplicate",
+        "operation_id": "duplicate_saved_search_api_search_saved__search_id__duplicate_post",
+        "summary": "Duplicate Saved Search",
+        "path_params": [
+          "search_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SavedSearchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/search/saved/reorder",
+        "operation_id": "reorder_saved_searches_api_search_saved_reorder_post",
+        "summary": "Reorder Saved Searches",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "ingest": [
+      {
+        "method": "POST",
+        "path": "/ingest/file",
+        "operation_id": "ingest_file_api_ingest_file_post",
+        "summary": "Ingest File",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "IngestFileRequest",
+        "response_model": "Document"
+      },
+      {
+        "method": "POST",
+        "path": "/ingest/folder",
+        "operation_id": "ingest_folder_api_ingest_folder_post",
+        "summary": "Ingest Folder",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "IngestFolderRequest",
+        "response_model": "IngestTaskResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/ingest/status/{task_id}",
+        "operation_id": "get_ingest_status_api_ingest_status__task_id__get",
+        "summary": "Get Ingest Status",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IngestTaskStatus"
+      }
+    ],
+    "storage": [
+      {
+        "method": "GET",
+        "path": "/storage/thumbnail/{doc_id}",
+        "operation_id": "get_thumbnail_api_storage_thumbnail__doc_id__get",
+        "summary": "Get Thumbnail",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/storage/display/{doc_id}",
+        "operation_id": "get_display_image_api_storage_display__doc_id__get",
+        "summary": "Get Display Image",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/storage/source/{doc_id}",
+        "operation_id": "get_source_file_api_storage_source__doc_id__get",
+        "summary": "Get Source File",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/storage/stats",
+        "operation_id": "storage_stats_api_storage_stats_get",
+        "summary": "Storage Stats",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/storage/debug/{doc_id}",
+        "operation_id": "debug_document_paths_api_storage_debug__doc_id__get",
+        "summary": "Debug Document Paths",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "chat": [
+      {
+        "method": "POST",
+        "path": "/chat",
+        "operation_id": "chat_api_chat_post",
+        "summary": "Chat",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChatRequest",
+        "response_model": "ChatResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chat/conversations",
+        "operation_id": "list_conversations_api_chat_conversations_get",
+        "summary": "List Conversations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "get_conversation_api_chat_conversations__conversation_id__get",
+        "summary": "Get Conversation",
+        "path_params": [
+          "conversation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConversationHistory"
+      },
+      {
+        "method": "PUT",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "update_conversation_api_chat_conversations__conversation_id__put",
+        "summary": "Update Conversation",
+        "path_params": [
+          "conversation_id"
+        ],
+        "query_params": [],
+        "request_model": "ConversationUpdate",
+        "response_model": "ConversationHistory"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "delete_conversation_api_chat_conversations__conversation_id__delete",
+        "summary": "Delete Conversation",
+        "path_params": [
+          "conversation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/chat/conversations/{conversation_id}/duplicate",
+        "operation_id": "duplicate_conversation_api_chat_conversations__conversation_id__duplicate_post",
+        "summary": "Duplicate Conversation",
+        "path_params": [
+          "conversation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/chat/conversations/reorder",
+        "operation_id": "reorder_conversations_api_chat_conversations_reorder_post",
+        "summary": "Reorder Conversations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/chat/providers",
+        "operation_id": "list_providers_api_chat_providers_get",
+        "summary": "List Providers",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ProviderInfo]"
+      },
+      {
+        "method": "POST",
+        "path": "/chat/extract-text",
+        "operation_id": "extract_text_api_chat_extract_text_post",
+        "summary": "Extract Text",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExtractTextRequest",
+        "response_model": "ExtractTextResponse"
+      }
+    ],
+    "providers": [
+      {
+        "method": "GET",
+        "path": "/providers/catalog",
+        "operation_id": "list_provider_catalog_api_providers_catalog_get",
+        "summary": "List Provider Catalog",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ProviderCatalogResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/catalog/{provider_type}",
+        "operation_id": "get_catalog_provider_api_providers_catalog__provider_type__get",
+        "summary": "Get Catalog Provider",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProviderCatalogResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/models/{provider_type}",
+        "operation_id": "list_models_for_provider_api_providers_models__provider_type__get",
+        "summary": "List Models For Provider",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "vision_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ModelResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/providers",
+        "operation_id": "list_providers_api_providers_get",
+        "summary": "List Providers",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ProviderResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/providers",
+        "operation_id": "create_provider_api_providers_post",
+        "summary": "Create Provider",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ProviderCreate",
+        "response_model": "ProviderResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/refs",
+        "operation_id": "list_library_provider_refs_api_providers_refs_get",
+        "summary": "List Library Provider Refs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ProviderRefResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/refs",
+        "operation_id": "add_provider_ref_api_providers_refs_post",
+        "summary": "Add Provider Ref",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ProviderRefCreate",
+        "response_model": "ProviderRefResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/providers/refs/{ref_id}",
+        "operation_id": "update_provider_ref_api_providers_refs__ref_id__patch",
+        "summary": "Update Provider Ref",
+        "path_params": [
+          "ref_id"
+        ],
+        "query_params": [],
+        "request_model": "ProviderRefUpdate",
+        "response_model": "ProviderRefResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/refs/{ref_id}",
+        "operation_id": "delete_provider_ref_api_providers_refs__ref_id__delete",
+        "summary": "Delete Provider Ref",
+        "path_params": [
+          "ref_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/providers/{provider_id}",
+        "operation_id": "get_provider_api_providers__provider_id__get",
+        "summary": "Get Provider",
+        "path_params": [
+          "provider_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProviderResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/providers/{provider_id}",
+        "operation_id": "update_provider_api_providers__provider_id__patch",
+        "summary": "Update Provider",
+        "path_params": [
+          "provider_id"
+        ],
+        "query_params": [],
+        "request_model": "ProviderUpdate",
+        "response_model": "ProviderResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/{provider_id}",
+        "operation_id": "delete_provider_api_providers__provider_id__delete",
+        "summary": "Delete Provider",
+        "path_params": [
+          "provider_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/providers/{provider_type}/api-key",
+        "operation_id": "set_provider_api_key_api_providers__provider_type__api_key_post",
+        "summary": "Set Provider Api Key",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": "APIKeyRequest",
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/{provider_type}/api-key",
+        "operation_id": "delete_provider_api_key_api_providers__provider_type__api_key_delete",
+        "summary": "Delete Provider Api Key",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/providers/{provider_type}/api-key/status",
+        "operation_id": "check_api_key_status_api_providers__provider_type__api_key_status_get",
+        "summary": "Check Api Key Status",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/providers/{provider_type}/test",
+        "operation_id": "test_provider_connection_api_providers__provider_type__test_post",
+        "summary": "Test Provider Connection",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConnectionTestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/{provider_id}/models",
+        "operation_id": "list_provider_models_api_providers__provider_id__models_get",
+        "summary": "List Provider Models",
+        "path_params": [
+          "provider_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[UserModelResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/{provider_id}/models",
+        "operation_id": "add_model_to_provider_api_providers__provider_id__models_post",
+        "summary": "Add Model To Provider",
+        "path_params": [
+          "provider_id"
+        ],
+        "query_params": [],
+        "request_model": "ModelCreate",
+        "response_model": "UserModelResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/{provider_id}/models/{model_id}",
+        "operation_id": "remove_model_from_provider_api_providers__provider_id__models__model_id__delete",
+        "summary": "Remove Model From Provider",
+        "path_params": [
+          "provider_id",
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "workflows": [
+      {
+        "method": "GET",
+        "path": "/workflows/tools",
+        "operation_id": "list_workflow_tools_api_workflows_tools_get",
+        "summary": "List Workflow Tools",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ToolResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/tools/grouped",
+        "operation_id": "list_tools_grouped_api_workflows_tools_grouped_get",
+        "summary": "List Tools Grouped",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ToolListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/tools/{tool_name}",
+        "operation_id": "get_tool_api_workflows_tools__tool_name__get",
+        "summary": "Get Tool",
+        "path_params": [
+          "tool_name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ToolResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/tools/{tool_name}/create-node",
+        "operation_id": "create_node_api_workflows_tools__tool_name__create_node_post",
+        "summary": "Create Node",
+        "path_params": [
+          "tool_name"
+        ],
+        "query_params": [
+          {
+            "name": "position_x",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "position_y",
+            "required": false,
+            "type": "number"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NodeResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/run",
+        "operation_id": "run_workflow_inline_api_workflows_run_post",
+        "summary": "Run Workflow Inline",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "Body_run_workflow_inline_api_workflows_run_post",
+        "response_model": "WorkflowRunResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows",
+        "operation_id": "create_workflow_api_workflows_post",
+        "summary": "Create Workflow",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkflowDef",
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows",
+        "operation_id": "list_workflows_api_workflows_get",
+        "summary": "List Workflows",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[WorkflowResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/import",
+        "operation_id": "import_workflow_api_workflows_import_post",
+        "summary": "Import Workflow",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "name",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{workflow_id}/export",
+        "operation_id": "export_workflow_api_workflows__workflow_id__export_get",
+        "summary": "Export Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/{workflow_id}",
+        "operation_id": "get_workflow_api_workflows__workflow_id__get",
+        "summary": "Get Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/workflows/{workflow_id}",
+        "operation_id": "update_workflow_api_workflows__workflow_id__put",
+        "summary": "Update Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": "WorkflowDef",
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/workflows/{workflow_id}",
+        "operation_id": "patch_workflow_api_workflows__workflow_id__patch",
+        "summary": "Patch Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": "WorkflowPatchRequest",
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/workflows/{workflow_id}",
+        "operation_id": "delete_workflow_api_workflows__workflow_id__delete",
+        "summary": "Delete Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{workflow_id}/duplicate",
+        "operation_id": "duplicate_workflow_api_workflows__workflow_id__duplicate_post",
+        "summary": "Duplicate Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/reorder",
+        "operation_id": "reorder_workflows_api_workflows_reorder_post",
+        "summary": "Reorder Workflows",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{workflow_id}/run",
+        "operation_id": "run_saved_workflow_api_workflows__workflow_id__run_post",
+        "summary": "Run Saved Workflow",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": "WorkflowRunRequest",
+        "response_model": "WorkflowRunResponse"
+      }
+    ],
+    "workflow-execution": [
+      {
+        "method": "POST",
+        "path": "/workflow-execution/execute/stream",
+        "operation_id": "execute_workflow_stream_api_workflow_execution_execute_stream_post",
+        "summary": "Execute Workflow Stream",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExecuteWorkflowRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workflow-execution/execute",
+        "operation_id": "execute_workflow_api_workflow_execution_execute_post",
+        "summary": "Execute Workflow",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExecuteWorkflowRequest",
+        "response_model": "ExecutionStatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflow-execution/threads/{thread_id}/resume",
+        "operation_id": "resume_workflow_api_workflow_execution_threads__thread_id__resume_post",
+        "summary": "Resume Workflow",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": "ResumeWorkflowRequest",
+        "response_model": "ExecutionStatusResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/threads/{thread_id}/status",
+        "operation_id": "get_thread_status_api_workflow_execution_threads__thread_id__status_get",
+        "summary": "Get Thread Status",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ExecutionStatusResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/threads",
+        "operation_id": "list_threads_api_workflow_execution_threads_get",
+        "summary": "List Threads",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ThreadListResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/workflow-execution/threads/{thread_id}",
+        "operation_id": "delete_thread_api_workflow_execution_threads__thread_id__delete",
+        "summary": "Delete Thread",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "models": [
+      {
+        "method": "GET",
+        "path": "/models/huggingface/tasks",
+        "operation_id": "list_hf_tasks_api_models_huggingface_tasks_get",
+        "summary": "List Hf Tasks",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[HFTaskCategory]"
+      },
+      {
+        "method": "GET",
+        "path": "/models/huggingface",
+        "operation_id": "search_hf_models_api_models_huggingface_get",
+        "summary": "Search Hf Models",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "task",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "library",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ModelSearchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/models/huggingface/{model_id}",
+        "operation_id": "get_hf_model_api_models_huggingface__model_id__get",
+        "summary": "Get Hf Model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HFModelInfo"
+      }
+    ],
+    "folders": [
+      {
+        "method": "GET",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "list_folders_api_folders__entity_type__folders_get",
+        "summary": "List Folders",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [
+          {
+            "name": "parent_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[FolderInfo]"
+      },
+      {
+        "method": "POST",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "create_folder_api_folders__entity_type__folders_post",
+        "summary": "Create Folder",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "FolderInfo"
+      },
+      {
+        "method": "PUT",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "rename_folder_api_folders__entity_type__folders_put",
+        "summary": "Rename Folder",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [],
+        "request_model": "RenameFolderRequest",
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "delete_folder_api_folders__entity_type__folders_delete",
+        "summary": "Delete Folder",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "delete_contents",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "PUT",
+        "path": "/folders/{entity_type}/move",
+        "operation_id": "move_items_api_folders__entity_type__move_put",
+        "summary": "Move Items",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [],
+        "request_model": "MoveItemsRequest",
+        "response_model": null
+      }
+    ],
+    "mcp-servers": [
+      {
+        "method": "GET",
+        "path": "/mcp-servers",
+        "operation_id": "list_mcp_servers_api_mcp_servers_get",
+        "summary": "List Mcp Servers",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[MCPServerResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers",
+        "operation_id": "create_mcp_server_api_mcp_servers_post",
+        "summary": "Create Mcp Server",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateMCPServerRequest",
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/mcp-servers/tools/all",
+        "operation_id": "get_all_mcp_tools_api_mcp_servers_tools_all_get",
+        "summary": "Get All Mcp Tools",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/tools/load-into-workflow-registry",
+        "operation_id": "load_mcp_tools_into_workflow_registry_api_mcp_servers_tools_load_into_workflow_registry_post",
+        "summary": "Load Mcp Tools Into Workflow Registry",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/tools/reload-workflow-registry",
+        "operation_id": "reload_mcp_tools_in_workflow_registry_api_mcp_servers_tools_reload_workflow_registry_post",
+        "summary": "Reload Mcp Tools In Workflow Registry",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "get_mcp_server_api_mcp_servers__server_id__get",
+        "summary": "Get Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "update_mcp_server_api_mcp_servers__server_id__put",
+        "summary": "Update Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateMCPServerRequest",
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "delete_mcp_server_api_mcp_servers__server_id__delete",
+        "summary": "Delete Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/{server_id}/load-tools",
+        "operation_id": "load_server_tools_api_mcp_servers__server_id__load_tools_post",
+        "summary": "Load Server Tools",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [
+          {
+            "name": "force_reload",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "batches": [
+      {
+        "method": "POST",
+        "path": "/batches",
+        "operation_id": "create_batch_api_batches_post",
+        "summary": "Create Batch",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateBatchRequest",
+        "response_model": "BatchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/batches",
+        "operation_id": "list_batches_api_batches_get",
+        "summary": "List Batches",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[BatchResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/batches/{batch_id}",
+        "operation_id": "get_batch_api_batches__batch_id__get",
+        "summary": "Get Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [
+          {
+            "name": "include_items",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "BatchResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/batches/{batch_id}",
+        "operation_id": "delete_batch_api_batches__batch_id__delete",
+        "summary": "Delete Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/batches/{batch_id}/progress",
+        "operation_id": "get_batch_progress_api_batches__batch_id__progress_get",
+        "summary": "Get Batch Progress",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BatchProgressResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/batches/{batch_id}/execute",
+        "operation_id": "execute_batch_api_batches__batch_id__execute_post",
+        "summary": "Execute Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/batches/{batch_id}/pause",
+        "operation_id": "pause_batch_api_batches__batch_id__pause_post",
+        "summary": "Pause Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BatchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/batches/{batch_id}/resume",
+        "operation_id": "resume_batch_api_batches__batch_id__resume_post",
+        "summary": "Resume Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/batches/{batch_id}/cancel",
+        "operation_id": "cancel_batch_api_batches__batch_id__cancel_post",
+        "summary": "Cancel Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BatchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/batches/{batch_id}/retry",
+        "operation_id": "retry_batch_api_batches__batch_id__retry_post",
+        "summary": "Retry Batch",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "activity": [
+      {
+        "method": "GET",
+        "path": "/activity",
+        "operation_id": "list_activities_api_activity_get",
+        "summary": "List Activities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "types",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "levels",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "batch_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "thread_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "since",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "until",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActivityResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/recent",
+        "operation_id": "get_recent_activities_api_activity_recent_get",
+        "summary": "Get Recent Activities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActivityResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/stats",
+        "operation_id": "get_activity_stats_api_activity_stats_get",
+        "summary": "Get Activity Stats",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "hours",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityStatsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/stream",
+        "operation_id": "stream_activities_api_activity_stream_get",
+        "summary": "Stream Activities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "types",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "levels",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "batch_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/activity/workflow/{workflow_id}",
+        "operation_id": "get_workflow_activity_api_activity_workflow__workflow_id__get",
+        "summary": "Get Workflow Activity",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActivityResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/batch/{batch_id}",
+        "operation_id": "get_batch_activity_api_activity_batch__batch_id__get",
+        "summary": "Get Batch Activity",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActivityResponse]"
+      },
+      {
+        "method": "DELETE",
+        "path": "/activity/cleanup",
+        "operation_id": "cleanup_old_activities_api_activity_cleanup_delete",
+        "summary": "Cleanup Old Activities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "days",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "schedules": [
+      {
+        "method": "POST",
+        "path": "/schedules",
+        "operation_id": "create_schedule_api_schedules_post",
+        "summary": "Create Schedule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateScheduleRequest",
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules",
+        "operation_id": "list_schedules_api_schedules_get",
+        "summary": "List Schedules",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ScheduleResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules/{schedule_id}",
+        "operation_id": "get_schedule_api_schedules__schedule_id__get",
+        "summary": "Get Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/schedules/{schedule_id}",
+        "operation_id": "delete_schedule_api_schedules__schedule_id__delete",
+        "summary": "Delete Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/pause",
+        "operation_id": "pause_schedule_api_schedules__schedule_id__pause_post",
+        "summary": "Pause Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/resume",
+        "operation_id": "resume_schedule_api_schedules__schedule_id__resume_post",
+        "summary": "Resume Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/trigger",
+        "operation_id": "trigger_schedule_api_schedules__schedule_id__trigger_post",
+        "summary": "Trigger Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleRunResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules/{schedule_id}/runs",
+        "operation_id": "get_schedule_runs_api_schedules__schedule_id__runs_get",
+        "summary": "Get Schedule Runs",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ScheduleRunResponse]"
+      }
+    ],
+    "triggers": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "operation_id": "create_trigger_api_triggers_post",
+        "summary": "Create Trigger",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateTriggerRequest",
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "operation_id": "list_triggers_api_triggers_get",
+        "summary": "List Triggers",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TriggerResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/{trigger_id}",
+        "operation_id": "get_trigger_api_triggers__trigger_id__get",
+        "summary": "Get Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/triggers/{trigger_id}",
+        "operation_id": "delete_trigger_api_triggers__trigger_id__delete",
+        "summary": "Delete Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/{trigger_id}/pause",
+        "operation_id": "pause_trigger_api_triggers__trigger_id__pause_post",
+        "summary": "Pause Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/{trigger_id}/resume",
+        "operation_id": "resume_trigger_api_triggers__trigger_id__resume_post",
+        "summary": "Resume Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/{trigger_id}/executions",
+        "operation_id": "get_trigger_executions_api_triggers__trigger_id__executions_get",
+        "summary": "Get Trigger Executions",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TriggerExecutionResponse]"
+      }
+    ],
+    "integrations": [
+      {
+        "method": "GET",
+        "path": "/integrations",
+        "operation_id": "list_integrations_api_integrations_get",
+        "summary": "List Integrations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[IntegrationInfo]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/available",
+        "operation_id": "list_available_integrations_api_integrations_available_get",
+        "summary": "List Available Integrations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[IntegrationInfo]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}",
+        "operation_id": "get_integration_api_integrations__app_name__get",
+        "summary": "Get Integration",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationInfo"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/refresh",
+        "operation_id": "refresh_integration_api_integrations__app_name__refresh_post",
+        "summary": "Refresh Integration",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationInfo"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}/items",
+        "operation_id": "list_items_api_integrations__app_name__items_get",
+        "summary": "List Items",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "item_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "database",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "container",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[IntegrationItem]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}/items/{external_id}",
+        "operation_id": "get_item_api_integrations__app_name__items__external_id__get",
+        "summary": "Get Item",
+        "path_params": [
+          "app_name",
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationItem"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/import",
+        "operation_id": "import_item_api_integrations__app_name__import_post",
+        "summary": "Import Item",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": "ImportRequest",
+        "response_model": "ImportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/export",
+        "operation_id": "export_item_api_integrations__app_name__export_post",
+        "summary": "Export Item",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": "ExportRequest",
+        "response_model": "ExportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/open/{external_id}",
+        "operation_id": "open_item_api_integrations__app_name__open__external_id__post",
+        "summary": "Open Item",
+        "path_params": [
+          "app_name",
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/devonthink/databases",
+        "operation_id": "list_devonthink_databases_api_integrations_devonthink_databases_get",
+        "summary": "List Devonthink Databases",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/bookends/libraries",
+        "operation_id": "list_bookends_libraries_api_integrations_bookends_libraries_get",
+        "summary": "List Bookends Libraries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/bookends/citation/{external_id}",
+        "operation_id": "get_bookends_citation_api_integrations_bookends_citation__external_id__get",
+        "summary": "Get Bookends Citation",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [
+          {
+            "name": "style",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/tinderbox/documents",
+        "operation_id": "list_tinderbox_documents_api_integrations_tinderbox_documents_get",
+        "summary": "List Tinderbox Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/tinderbox/notes",
+        "operation_id": "create_tinderbox_note_api_integrations_tinderbox_notes_post",
+        "summary": "Create Tinderbox Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateNoteRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
+        "operation_id": "get_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_get",
+        "summary": "Get Tinderbox Attributes",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [
+          {
+            "name": "attributes",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "PUT",
+        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
+        "operation_id": "set_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_put",
+        "summary": "Set Tinderbox Attributes",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": "SetAttributesRequest",
+        "response_model": null
+      }
+    ],
+    "actions": [
+      {
+        "method": "GET",
+        "path": "/actions",
+        "operation_id": "list_actions_api_actions_get",
+        "summary": "List Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/actions",
+        "operation_id": "create_action_api_actions_post",
+        "summary": "Create Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/builtin",
+        "operation_id": "list_builtin_actions_api_actions_builtin_get",
+        "summary": "List Builtin Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/custom",
+        "operation_id": "list_custom_actions_api_actions_custom_get",
+        "summary": "List Custom Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/recent",
+        "operation_id": "list_recent_actions_api_actions_recent_get",
+        "summary": "List Recent Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/popular",
+        "operation_id": "list_popular_actions_api_actions_popular_get",
+        "summary": "List Popular Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/categories",
+        "operation_id": "list_categories_api_actions_categories_get",
+        "summary": "List Categories",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/actions/category/{category}",
+        "operation_id": "list_actions_by_category_api_actions_category__category__get",
+        "summary": "List Actions By Category",
+        "path_params": [
+          "category"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/search",
+        "operation_id": "search_actions_api_actions_search_get",
+        "summary": "Search Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/{action_id}",
+        "operation_id": "get_action_api_actions__action_id__get",
+        "summary": "Get Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/actions/{action_id}",
+        "operation_id": "update_action_api_actions__action_id__put",
+        "summary": "Update Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/actions/{action_id}",
+        "operation_id": "delete_action_api_actions__action_id__delete",
+        "summary": "Delete Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/actions/{action_id}/use",
+        "operation_id": "record_action_use_api_actions__action_id__use_post",
+        "summary": "Record Action Use",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/actions/{action_id}/export",
+        "operation_id": "export_action_api_actions__action_id__export_get",
+        "summary": "Export Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/actions/import",
+        "operation_id": "import_action_api_actions_import_post",
+        "summary": "Import Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ImportActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/from-node",
+        "operation_id": "create_action_from_node_api_actions_from_node_post",
+        "summary": "Create Action From Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateFromNodeRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/composite",
+        "operation_id": "create_composite_action_api_actions_composite_post",
+        "summary": "Create Composite Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateCompositeRequest",
+        "response_model": "ActionResponse"
+      }
+    ],
+    "model-comparison": [
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare",
+        "operation_id": "compare_models_api_model_comparison_compare_post",
+        "summary": "Compare Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/history",
+        "operation_id": "get_comparison_history_api_model_comparison_history_get",
+        "summary": "Get Comparison History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/comparison/{comparison_id}",
+        "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",
+        "summary": "Get Comparison",
+        "path_params": [
+          "comparison_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/models",
+        "operation_id": "list_available_models_api_model_comparison_models_get",
+        "summary": "List Available Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/estimate-cost",
+        "operation_id": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
+        "summary": "Estimate Comparison Cost",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/presets",
+        "operation_id": "get_comparison_presets_api_model_comparison_presets_get",
+        "summary": "Get Comparison Presets",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "chains": [
+      {
+        "method": "POST",
+        "path": "/chains",
+        "operation_id": "create_chain_api_chains_post",
+        "summary": "Create Chain",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains",
+        "operation_id": "list_chains_api_chains_get",
+        "summary": "List Chains",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ChainListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/{chain_id}",
+        "operation_id": "get_chain_api_chains__chain_id__get",
+        "summary": "Get Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/chains/{chain_id}",
+        "operation_id": "update_chain_api_chains__chain_id__put",
+        "summary": "Update Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/{chain_id}",
+        "operation_id": "delete_chain_api_chains__chain_id__delete",
+        "summary": "Delete Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/chains/{chain_id}/execute",
+        "operation_id": "execute_chain_api_chains__chain_id__execute_post",
+        "summary": "Execute Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "ExecuteChainRequest",
+        "response_model": "ChainExecutionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "get_chain_execution_api_chains_executions__execution_id__get",
+        "summary": "Get Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "cancel_chain_execution_api_chains_executions__execution_id__delete",
+        "summary": "Cancel Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ]
+  }
+}

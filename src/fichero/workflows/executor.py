@@ -25,7 +25,7 @@ from enum import Enum
 from collections import defaultdict
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.pregel import Pregel
+from langgraph.graph.state import CompiledStateGraph
 
 from fichero.workflows.types import (
     State as BaseState,
@@ -122,7 +122,11 @@ class WorkflowExecutor:
         max_retries: int = 3,
     ):
         self.workflow = workflow
-        self.llm_config = llm_config or LLMConfig()
+        # Use workflow's provider/model as defaults if no explicit config provided
+        self.llm_config = llm_config or LLMConfig(
+            provider=workflow.provider or "openai",
+            model=workflow.model or "gpt-4o"
+        )
         self.max_concurrent = max_concurrent
         self.max_retries = max_retries
         
@@ -139,16 +143,10 @@ class WorkflowExecutor:
         
         logger.info(f"Initialized WorkflowExecutor for '{workflow.name}'")
     
-    def _build_execution_graph(self) -> Pregel:
-        """Build the execution graph using LangGraph Pregel Execution Engine."""
-        # Build the base graph using existing builder
-        base_graph = build_graph(self.workflow)
-        
-        # Convert to Pregel for advanced execution control
-        # Pregel provides better control over execution flow and state management
-        pregel_graph = Pregel(base_graph)
-        
-        return pregel_graph
+    def _build_execution_graph(self) -> CompiledStateGraph:
+        """Build the execution graph using LangGraph."""
+        # build_graph() already compiles and returns a CompiledStateGraph
+        return build_graph(self.workflow)
     
     def add_progress_listener(self, listener: ProgressEventListener) -> None:
         """Add a progress event listener."""

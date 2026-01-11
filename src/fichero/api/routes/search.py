@@ -82,8 +82,8 @@ async def enhanced_search(request: SearchRequest, db: Database = Depends(get_lib
     if request.sort_by not in ["relevance", "date", "name", "size"]:
         raise HTTPException(status_code=400, detail="Invalid sort_by. Must be 'relevance', 'date', 'name', or 'size'")
 
-    if request.sort_order not in ["asc", "desc"]:
-        raise HTTPException(status_code=400, detail="Invalid sort_order. Must be 'asc' or 'desc'")
+    if request.sort_direction not in ["asc", "desc"]:
+        raise HTTPException(status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'")
 
     # Perform enhanced search
     results, total_count, search_stats = db.search(
@@ -93,7 +93,7 @@ async def enhanced_search(request: SearchRequest, db: Database = Depends(get_lib
         search_type=request.search_type,
         filters=request.filters,
         sort_by=request.sort_by,
-        sort_order=request.sort_order,
+        sort_order=request.sort_direction,  # db.search uses sort_order param for direction
         offset=request.offset,
         use_fuzzy_match=request.use_fuzzy_match,
         highlight_results=request.highlight_results,
@@ -175,6 +175,8 @@ class SavedSearchCreate(BaseModel):
     search_type: str = "hybrid"
     sort_by: str = "relevance"
     sort_direction: str = "desc"  # "asc" or "desc"
+    folder_path: str = "/"  # Organization folder
+    sort_order: int = 0  # Position within folder
 
 
 class SavedSearchResponse(BaseModel):
@@ -201,6 +203,8 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
         search_type=request.search_type,
         sort_by=request.sort_by,
         sort_direction=request.sort_direction,
+        folder_path=request.folder_path,
+        sort_order=request.sort_order,
     )
     db.save(saved)
 

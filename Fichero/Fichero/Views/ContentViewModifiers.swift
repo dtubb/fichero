@@ -221,11 +221,8 @@ struct MainContentModifiers: ViewModifier {
             Task {
                 do {
                     let fullWorkflow = try await workflowStore.getWorkflow(item.id)
-                    editingWorkflow = Workflow(
-                        id: fullWorkflow.id,
-                        name: fullWorkflow.name,
-                        description: fullWorkflow.description
-                    )
+                    // Use the initializer that copies ALL fields (nodes, edges, provider, model, etc.)
+                    editingWorkflow = Workflow(from: fullWorkflow)
                 } catch {
                     logger.error("Failed to load workflow: \(error.localizedDescription)")
                     editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")

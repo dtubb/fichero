@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-01-11T09:16:37.350895",
+  "models": [
+    {
+      "name": "WorkflowDef",
+      "schema_file": "schemas/WorkflowDef.json"
+    },
+    {
+      "name": "NodeDef",
+      "schema_file": "schemas/NodeDef.json"
+    },
+    {
+      "name": "EdgeDef",
+      "schema_file": "schemas/EdgeDef.json"
+    },
+    {
+      "name": "PortDef",
+      "schema_file": "schemas/PortDef.json"
+    },
+    {
+      "name": "InputMapping",
+      "schema_file": "schemas/InputMapping.json"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "fixtures/workflow_complete.json",
+      "model": "WorkflowDef"
+    },
+    {
+      "file": "fixtures/workflow_with_nulls.json",
+      "model": "WorkflowDef"
+    },
+    {
+      "file": "fixtures/tool_response.json",
+      "model": "ToolResponse"
+    }
+  ]
+}

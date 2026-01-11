@@ -14,9 +14,15 @@ Key concepts:
 
 from __future__ import annotations
 
+import uuid
 from enum import Enum
 from typing import TypedDict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _new_id() -> str:
+    """Generate a new unique ID."""
+    return uuid.uuid4().hex
 
 
 # =============================================================================
@@ -149,7 +155,7 @@ class NodeDef(BaseModel):
         For LLM nodes, `output_schema` defines the exact JSON structure
         the LLM must return (enforced via structured output mode).
     """
-    id: str = Field(..., description="Unique node identifier")
+    id: str = Field(default_factory=_new_id, description="Unique node identifier")
     tool: str = Field(..., description="Tool function name from registry")
 
     # Port definitions (populated from tool registry, can be customized)
@@ -195,6 +201,19 @@ class NodeDef(BaseModel):
     description: str | None = None  # Node description
     enabled: bool = True            # Can be disabled without removing
 
+    # Validators to handle null values from Swift/JSON
+    @field_validator('config', 'inputs', mode='before')
+    @classmethod
+    def convert_none_to_empty_dict(cls, v):
+        """Convert null to empty dict for dict fields."""
+        return v if v is not None else {}
+
+    @field_validator('input_mappings', 'input_ports', 'output_ports', mode='before')
+    @classmethod
+    def convert_none_to_empty_list(cls, v):
+        """Convert null to empty list for list fields."""
+        return v if v is not None else []
+
 
 class EdgeDef(BaseModel):
     """Definition of an edge connecting two nodes via their ports.
@@ -227,7 +246,7 @@ class WorkflowDef(BaseModel):
     This is the JSON-serializable representation of a workflow
     that can be saved, loaded, and executed.
     """
-    id: str = Field(..., description="Unique workflow identifier")
+    id: str = Field(default_factory=_new_id, description="Unique workflow identifier")
     name: str = Field(..., description="Display name")
     description: str = ""
 

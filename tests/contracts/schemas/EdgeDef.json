@@ -1,0 +1,69 @@
+{
+  "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node.",
+  "properties": {
+    "id": {
+      "default": "",
+      "description": "Unique edge identifier (auto-generated if empty)",
+      "title": "Id",
+      "type": "string"
+    },
+    "source": {
+      "description": "Source node ID",
+      "title": "Source",
+      "type": "string"
+    },
+    "target": {
+      "description": "Target node ID",
+      "title": "Target",
+      "type": "string"
+    },
+    "source_port": {
+      "default": "output",
+      "description": "Output port ID on source node",
+      "title": "Source Port",
+      "type": "string"
+    },
+    "target_port": {
+      "default": "input",
+      "description": "Input port ID on target node",
+      "title": "Target Port",
+      "type": "string"
+    },
+    "condition": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Condition expression (e.g., '$.nodes.classify.category == \"invoice\"')",
+      "title": "Condition"
+    },
+    "animated": {
+      "default": false,
+      "title": "Animated",
+      "type": "boolean"
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Label"
+    }
+  },
+  "required": [
+    "source",
+    "target"
+  ],
+  "title": "EdgeDef",
+  "type": "object"
+}

@@ -16,6 +16,8 @@ struct WorkflowEditor: View {
 
     @State private var isRunning: Bool = false
     @State private var isSaving: Bool = false
+    @State private var saveError: String?
+    @State private var showSaveSuccess: Bool = false
     @State private var showOutputLog: Bool = false
     @State private var executionState: WorkflowExecutionState?
 
@@ -41,6 +43,7 @@ struct WorkflowEditor: View {
             // Workflow toolbar at top
             WorkflowToolbar(
                 isRunning: $isRunning,
+                isSaving: $isSaving,
                 showOutputLog: $showOutputLog,
                 canRun: !editingWorkflow.nodes.isEmpty,
                 scale: $scale,
@@ -80,6 +83,34 @@ struct WorkflowEditor: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .overlay(alignment: .top) {
+            // Save status indicator
+            if showSaveSuccess {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Saved")
+                        .font(.caption)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.regularMaterial)
+                .cornerRadius(8)
+                .padding(.top, 50)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showSaveSuccess)
+        .alert("Save Failed", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK") { saveError = nil }
+        } message: {
+            if let error = saveError {
+                Text(error)
+            }
+        }
     }
 
     // MARK: - Actions
@@ -115,6 +146,9 @@ struct WorkflowEditor: View {
     @MainActor
     private func saveWorkflow() async {
         logger.info("Save workflow: \(editingWorkflow.name)")
+        isSaving = true
+        saveError = nil
+
         do {
             let definition = editingWorkflow.toAPIFormat()
             if selectedWorkflow != nil {
@@ -122,9 +156,21 @@ struct WorkflowEditor: View {
             } else {
                 _ = try await workflowStore.saveWorkflow(definition)
             }
+            logger.info("Successfully saved workflow")
+            showSaveSuccess = true
+
+            // Hide success message after 2 seconds
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                showSaveSuccess = false
+            }
         } catch {
             logger.error("Failed to save workflow: \(error.localizedDescription)")
+            saveError = error.localizedDescription
         }
+
+        isSaving = false
     }
 
     private func exportWorkflow() {

@@ -47,8 +47,15 @@ class StateManagerTests: XCTestCase {
             id: "doc-1",
             name: "Test",
             icon: "doc",
-            section: .library,
-            itemType: .document(document)
+            category: .folder,
+            itemType: .document(document),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: UUID(),
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
         )
 
         state.showDeleteConfirmation(for: item)
@@ -64,8 +71,15 @@ class StateManagerTests: XCTestCase {
             id: "doc-1",
             name: "Test",
             icon: "doc",
-            section: .library,
-            itemType: .document(document)
+            category: .folder,
+            itemType: .document(document),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: UUID(),
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
         )
 
         state.showDeleteConfirmation(for: item)
