@@ -79,6 +79,38 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 - **`Views/Workflow/`**: Visual node editor for building LangGraph workflows
 - **`Services/`**: API client communicating with FastAPI backend
 - **`Models/`**: Swift data models mirroring Python Pydantic models
+- **`FicheroAPIClient/`**: Generated type-safe API client (local Swift package)
+
+### Swift API Client (OpenAPI Generator)
+
+The Swift frontend uses **Apple's Swift OpenAPI Generator** to create type-safe API clients from the Python backend's OpenAPI schema. This ensures Swift and Python stay in sync.
+
+**Key files:**
+- `Fichero/FicheroAPIClient/` - Local Swift package with generated client
+- `tests/contracts/openapi.json` - OpenAPI schema (source of truth)
+- `scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
+
+**Usage:**
+```swift
+import FicheroAPIClient
+import OpenAPIURLSession
+
+let client = Client(
+    serverURL: URL(string: "http://localhost:8765/api")!,
+    transport: URLSessionTransport()
+)
+
+// Type-safe API calls
+let response = try await client.listWorkflowsApiWorkflowsGet(.init())
+let workflows = try response.ok.body.json
+```
+
+**When Python API changes:**
+```bash
+./scripts/sync_openapi_schema.sh
+```
+
+See `ai/contexts/frontend/api_client.md` for detailed documentation
 
 ### Ingest System
 

@@ -48,7 +48,28 @@ uvicorn fichero.api.main:app --reload
 ### Testing
 - Unit tests: `tests/unit/` - Fast, isolated component tests
 - Integration tests: `tests/integration/` - End-to-end API tests
+- Contract tests: `tests/integration/test_api_contracts.py` - API schema validation
 - Run tests: `pytest tests/`
+
+### OpenAPI Schema Export
+
+The backend exports its OpenAPI schema for Swift code generation:
+
+```bash
+# Export schema (run after API changes)
+./scripts/sync_openapi_schema.sh
+```
+
+This generates:
+- `tests/contracts/openapi.json` - Full OpenAPI 3.0 schema
+- `tests/contracts/endpoints.json` - Simplified endpoint list
+
+The Swift frontend uses `swift-openapi-generator` to create type-safe clients from this schema. See `ai/contexts/frontend/api_client.md` for Swift usage.
+
+**Important**: Run the sync script after modifying:
+- API routes in `src/fichero/api/routes/`
+- Pydantic models in `src/fichero/models.py`
+- Request/response schemas
 
 ### Key Patterns
 - **FastAPI**: RESTful API design with Pydantic models
