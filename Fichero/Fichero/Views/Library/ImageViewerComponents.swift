@@ -413,7 +413,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         if let imageView = context.coordinator.imageView as? TrackingImageView {
+            // Auto-show loupe at center when enabled via menu and no position exists
+            let wasEnabled = imageView.loupeEnabled
             imageView.loupeEnabled = loupeEnabled
+            if loupeEnabled && !wasEnabled && imageView.loupePosition == nil {
+                imageView.showLoupeAtCenter()
+            }
+
             imageView.loupeLocked = loupeLocked
             imageView.loupeMagnification = loupeMagnification
             imageView.loupeSize = loupeSize
@@ -457,10 +463,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         let scaleY = viewSize.height / imageSize.height
         let fitScale = min(scaleX, scaleY, 1.0)
 
-        Self.logger.info(
-            "centerImage: viewSize=\(viewSize.width)x\(viewSize.height), " +
-            "imageSize=\(imageSize.width)x\(imageSize.height), fitScale=\(fitScale)"
-        )
+        Self.logger.info("centerImage: view=\(viewSize.width)x\(viewSize.height) img=\(imageSize.width)x\(imageSize.height)")
         scrollView.magnification = fitScale
         updateContentInsets(scrollView: scrollView, imageView: imageView)
     }

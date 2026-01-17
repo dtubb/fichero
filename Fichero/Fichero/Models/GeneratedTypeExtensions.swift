@@ -47,7 +47,7 @@ extension Components.Schemas.EdgeDef {
 
 // MARK: - PortDef Extensions
 
-extension Components.Schemas.PortDef: Identifiable {
+extension Components.Schemas.PortDef: @retroactive Identifiable {
     /// Whether this is an input port
     public var isInput: Bool { portType == .input }
 
@@ -57,7 +57,7 @@ extension Components.Schemas.PortDef: Identifiable {
 
 // MARK: - PortResponse Extensions
 
-extension Components.Schemas.PortResponse: Identifiable {
+extension Components.Schemas.PortResponse: @retroactive Identifiable {
     /// Whether this is an input port
     public var isInput: Bool { portType == "input" }
 
@@ -67,42 +67,42 @@ extension Components.Schemas.PortResponse: Identifiable {
 
 // MARK: - ToolResponse Extensions
 
-extension Components.Schemas.ToolResponse: Identifiable {
+extension Components.Schemas.ToolResponse: @retroactive Identifiable {
     public var id: String { name }
 }
 
 // MARK: - CategoryToolsResponse Extensions
 
-extension Components.Schemas.CategoryToolsResponse: Identifiable {
+extension Components.Schemas.CategoryToolsResponse: @retroactive Identifiable {
     public var id: String { category }
 }
 
 // MARK: - InputMapping Extensions
 
-extension Components.Schemas.InputMapping: Identifiable {
+extension Components.Schemas.InputMapping: @retroactive Identifiable {
     public var id: String { portId }
 }
 
 // MARK: - WorkflowResponse Extensions
 
-extension Components.Schemas.WorkflowResponse: Identifiable {
+extension Components.Schemas.WorkflowResponse: @retroactive Identifiable {
     /// Number of edges in the workflow
     public var edgeCount: Int { edges.count }
 }
 
 // MARK: - Other Identifiable Conformances
 
-extension Components.Schemas.MCPServerResponse: Identifiable {}
+extension Components.Schemas.MCPServerResponse: @retroactive Identifiable {}
 
-extension Components.Schemas.ScheduleResponse: Identifiable {
+extension Components.Schemas.ScheduleResponse: @retroactive Identifiable {
     public var id: String { scheduleId }
 }
 
-extension Components.Schemas.TriggerResponse: Identifiable {
+extension Components.Schemas.TriggerResponse: @retroactive Identifiable {
     public var id: String { triggerId }
 }
 
-extension Components.Schemas.ActionResponse: Identifiable {}
+extension Components.Schemas.ActionResponse: @retroactive Identifiable {}
 
 // MARK: - OpenAPIObjectContainer Helpers
 
