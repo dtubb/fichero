@@ -417,8 +417,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             imageView.loupeEnabled = loupeEnabled
 
             // Auto-show loupe at center when enabled and no position exists
+            // Use slight delay to let view settle before drawing
             if loupeEnabled && imageView.loupePosition == nil {
-                imageView.showLoupeAtCenter()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak imageView] in
+                    guard let imageView = imageView,
+                          imageView.loupeEnabled,
+                          imageView.loupePosition == nil else { return }
+                    imageView.showLoupeAtCenter()
+                }
             }
 
             imageView.loupeLocked = loupeLocked
@@ -733,24 +739,23 @@ class TrackingImageView: NSImageView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        // Update loupe when not locked
+        // Option + move: reposition crosshairs (what loupe is looking at)
+        // Normal move: nothing (free for rubber band selection)
         if loupeEnabled && !loupeLocked && loupePosition != nil {
             let optionPressed = event.modifierFlags.contains(.option)
 
             if optionPressed {
-                // Option held: move the loupe view position (reposition the loupe on screen)
-                loupeViewPosition = location
+                // Option held: move crosshairs (what's being magnified)
+                loupePosition = location
+                needsDisplay = true
             }
-            // Always update what the loupe is looking at (follows cursor)
-            loupePosition = location
-            needsDisplay = true
+            // Normal move does nothing - loupe stays where it is
         }
 
         // Update cursor for loupe edge resize
         if loupeEnabled, let viewPos = loupeViewPosition {
             let rect = loupeRect(at: viewPos)
             if rect.contains(location) && isOnLoupeEdge(location, loupeCenter: viewPos) {
-                // On edge - show resize cursor
                 NSCursor.crosshair.set()
             } else {
                 NSCursor.arrow.set()
@@ -816,10 +821,8 @@ class TrackingImageView: NSImageView {
             }
         }
 
-        // Click outside loupe (or no loupe yet) - place loupe at click location
-        loupePosition = clickLocation
-        loupeViewPosition = clickLocation
-        needsDisplay = true
+        // Click outside loupe - pass through for rubber band selection
+        super.mouseDown(with: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -841,15 +844,12 @@ class TrackingImageView: NSImageView {
         }
 
         if isDraggingLoupe {
-            // Move the view position (where loupe is displayed)
+            // Move only the view position (where loupe is displayed)
+            // Crosshairs (what we're looking at) stays the same - use Option+move to change that
             loupeViewPosition = CGPoint(
                 x: location.x - dragOffset.width,
                 y: location.y - dragOffset.height
             )
-            // When not locked, also update what we're looking at
-            if !loupeLocked {
-                loupePosition = location
-            }
             needsDisplay = true
             return
         }
