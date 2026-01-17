@@ -407,11 +407,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             scrollView.magnification = scale
         }
 
-        // Update content insets to keep image centered when smaller than view
-        if let imageView = context.coordinator.imageView {
-            updateContentInsets(scrollView: scrollView, imageView: imageView)
-        }
-
         if let imageView = context.coordinator.imageView as? TrackingImageView {
             // Update loupe enabled state
             imageView.loupeEnabled = loupeEnabled
