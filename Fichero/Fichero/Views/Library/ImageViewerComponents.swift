@@ -17,6 +17,7 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.panelMagnification") private var panelMagnification: Double = 4.0
     @AppStorage("imagePreview.panelHeight") private var panelHeight: Double = 120.0
     @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
+    @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
     @State private var scale: CGFloat = 1.0
     @State private var minScale: CGFloat = 0.1
@@ -73,7 +74,9 @@ struct ZoomableImagePreview: View {
                     .frame(height: 16)
 
                 // Magnifier panel toggle
-                Button(action: { magnifierEnabled.toggle() }) {
+                Button {
+                    magnifierEnabled.toggle()
+                } label: {
                     Image(systemName: "rectangle.bottomhalf.inset.filled")
                 }
                 .buttonStyle(.plain)
@@ -82,14 +85,25 @@ struct ZoomableImagePreview: View {
 
                 // Loupe toggle with zoom controls
                 HStack(spacing: 4) {
-                    Button(action: { loupeEnabled.toggle() }) {
+                    Button {
+                        loupeEnabled.toggle()
+                    } label: {
                         Image(systemName: loupeEnabled ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(loupeEnabled ? .accentColor : .primary)
-                    .help("Loupe (click to place, drag to move, scroll/pinch to zoom, drag edge to resize)")
+                    .help("Loupe (crosshairs follow cursor, Option+move to reposition, lock to freeze)")
 
                     if loupeEnabled {
+                        Button {
+                            loupeLocked.toggle()
+                        } label: {
+                            Image(systemName: loupeLocked ? "lock.fill" : "lock.open")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(loupeLocked ? .accentColor : .secondary)
+                        .help(loupeLocked ? "Unlock loupe (crosshairs follow cursor)" : "Lock loupe (freeze view)")
+
                         Text(String(format: "%.1fx", CGFloat(loupeMagnification)))
                             .font(.caption2)
                             .monospacedDigit()
@@ -124,6 +138,7 @@ struct ZoomableImagePreview: View {
                         minScale: minScale,
                         maxScale: maxScale,
                         loupeEnabled: loupeEnabled,
+                        loupeLocked: loupeLocked,
                         loupeMagnification: Binding(
                             get: { CGFloat(loupeMagnification) },
                             set: { loupeMagnification = Double($0) }
@@ -224,7 +239,7 @@ struct ZoomableImagePreview: View {
             fitToWindow()
             return .handled
         }
-        .focusedValue(\.imageZoomActions, ImageZoomActions(
+        .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
             zoomIn: zoomIn,
             zoomOut: zoomOut,
             actualSize: actualSize,
@@ -255,6 +270,10 @@ struct ZoomableImagePreview: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 scale = fitScale
             }
+            // Center the content after a brief delay to let the scale apply
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                imageCoordinator?.centerContent()
+            }
         }
     }
 
@@ -278,6 +297,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     let minScale: CGFloat
     let maxScale: CGFloat
     let loupeEnabled: Bool
+    let loupeLocked: Bool
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
     @Binding var coordinator: Coordinator?  // Exposed for external scroll control
@@ -290,8 +310,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor(white: 0.15, alpha: 1.0)
+        scrollView.backgroundColor = NSColor(white: 0.4, alpha: 1.0)  // Medium-dark gray like Preview.app
         scrollView.postsBoundsChangedNotifications = true
+        scrollView.contentView.postsBoundsChangedNotifications = true
 
         // Add magnification gesture recognizer for loupe pinch-to-zoom
         // This works alongside NSScrollView's built-in magnification
@@ -353,7 +374,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
-        Self.logger.info("makeNSView: Set documentView, scrollView bounds=\(scrollView.bounds.width)x\(scrollView.bounds.height)")
+        Self.logger.info(
+            "makeNSView: Set documentView, bounds=\(scrollView.bounds.width)x\(scrollView.bounds.height)"
+        )
 
         // Observe scroll/zoom changes for visible rect
         NotificationCenter.default.addObserver(
@@ -384,8 +407,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             scrollView.magnification = scale
         }
 
+        // Update content insets to keep image centered when smaller than view
+        if let imageView = context.coordinator.imageView {
+            updateContentInsets(scrollView: scrollView, imageView: imageView)
+        }
+
         if let imageView = context.coordinator.imageView as? TrackingImageView {
             imageView.loupeEnabled = loupeEnabled
+            imageView.loupeLocked = loupeLocked
             imageView.loupeMagnification = loupeMagnification
             imageView.loupeSize = loupeSize
 
@@ -428,8 +457,34 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         let scaleY = viewSize.height / imageSize.height
         let fitScale = min(scaleX, scaleY, 1.0)
 
-        Self.logger.info("centerImage: viewSize=\(viewSize.width)x\(viewSize.height), imageSize=\(imageSize.width)x\(imageSize.height), fitScale=\(fitScale)")
+        Self.logger.info(
+            "centerImage: viewSize=\(viewSize.width)x\(viewSize.height), " +
+            "imageSize=\(imageSize.width)x\(imageSize.height), fitScale=\(fitScale)"
+        )
         scrollView.magnification = fitScale
+        updateContentInsets(scrollView: scrollView, imageView: imageView)
+    }
+
+    /// Update content insets to center the image when it's smaller than the scroll view
+    private func updateContentInsets(scrollView: NSScrollView, imageView: NSView) {
+        guard let imgView = imageView as? NSImageView, let image = imgView.image else { return }
+
+        let viewSize = scrollView.bounds.size
+        let scaledImageSize = CGSize(
+            width: image.size.width * scrollView.magnification,
+            height: image.size.height * scrollView.magnification
+        )
+
+        // Calculate insets to center the image
+        let horizontalInset = max(0, (viewSize.width - scaledImageSize.width) / 2)
+        let verticalInset = max(0, (viewSize.height - scaledImageSize.height) / 2)
+
+        scrollView.contentInsets = NSEdgeInsets(
+            top: verticalInset,
+            left: horizontalInset,
+            bottom: verticalInset,
+            right: horizontalInset
+        )
     }
 
     class Coordinator: NSObject, NSGestureRecognizerDelegate {
@@ -537,7 +592,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
             // NSScrollView coordinate system vs Minimap:
             // - X: Both use left-to-right, no flip needed
-            // - Y: NSScrollView uses bottom-left origin (Y increases upward), minimap uses top-left (Y increases downward)
+            // - Y: NSScrollView uses bottom-left origin (Y up), minimap uses top-left (Y down)
 
             // X: No flip needed
             let normalizedX = visibleRect.origin.x / imageSize.width
@@ -571,6 +626,26 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             // Fit scale is the minimum of x/y scales, capped at 1.0 (don't upscale)
             return min(scaleX, scaleY, 1.0)
         }
+
+        /// Center the content in the scroll view
+        func centerContent() {
+            guard let scrollView = scrollView,
+                  let imageView = imageView as? NSImageView,
+                  let image = imageView.image else { return }
+
+            let imageSize = image.size
+            let magnification = scrollView.magnification
+            let scaledWidth = imageSize.width * magnification
+            let scaledHeight = imageSize.height * magnification
+            let viewSize = scrollView.bounds.size
+
+            // Calculate centered position
+            let centerX = max(0, (scaledWidth - viewSize.width) / 2)
+            let centerY = max(0, (scaledHeight - viewSize.height) / 2)
+
+            scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
     }
 }
 
@@ -585,20 +660,11 @@ class TrackingImageView: NSImageView {
     var onLoupeSizeChanged: ((CGFloat) -> Void)?
     var loupeEnabled: Bool = false {
         didSet {
-            if loupeEnabled {
-                if loupePosition == nil {
-                    // Auto-show loupe at center when enabled for the first time
-                    showLoupeAtCenter()
-                } else {
-                    // Re-show at last position
-                    needsDisplay = true
-                }
-            } else {
-                // Hide loupe when disabled (but remember position)
-                needsDisplay = true
-            }
+            // Just redraw - user must click to place loupe
+            needsDisplay = true
         }
     }
+    var loupeLocked: Bool = false  // When locked, loupe doesn't follow mouse
     var loupePosition: CGPoint?  // Position in image coordinates (what we're looking at)
     var loupeViewPosition: CGPoint?  // Where loupe is displayed
     private var isDraggingLoupe = false
@@ -663,6 +729,19 @@ class TrackingImageView: NSImageView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
+        // Update loupe when not locked
+        if loupeEnabled && !loupeLocked && loupePosition != nil {
+            let optionPressed = event.modifierFlags.contains(.option)
+
+            if optionPressed {
+                // Option held: move the loupe view position (reposition the loupe on screen)
+                loupeViewPosition = location
+            }
+            // Always update what the loupe is looking at (follows cursor)
+            loupePosition = location
+            needsDisplay = true
+        }
+
         // Update cursor for loupe edge resize
         if loupeEnabled, let viewPos = loupeViewPosition {
             let rect = loupeRect(at: viewPos)
@@ -715,16 +794,15 @@ class TrackingImageView: NSImageView {
         if let viewPos = loupeViewPosition {
             let rect = loupeRect(at: viewPos)
             if rect.contains(clickLocation) {
-                // Check if on edge for resize
+                // Check if on edge for resize (works whether locked or not)
                 if isOnLoupeEdge(clickLocation, loupeCenter: viewPos) {
-                    // Start resizing
                     isResizingLoupe = true
                     resizeStartSize = loupeSize
                     resizeStartDistance = distanceToLoupeCenter(clickLocation, loupeCenter: viewPos)
                     return
                 }
 
-                // Not on edge - start dragging
+                // Not on edge - start dragging to reposition loupe view
                 isDraggingLoupe = true
                 dragOffset = CGSize(
                     width: clickLocation.x - viewPos.x,
@@ -734,7 +812,7 @@ class TrackingImageView: NSImageView {
             }
         }
 
-        // Place new loupe - both the view position and what it's looking at
+        // Click outside loupe (or no loupe yet) - place loupe at click location
         loupePosition = clickLocation
         loupeViewPosition = clickLocation
         needsDisplay = true
@@ -759,11 +837,15 @@ class TrackingImageView: NSImageView {
         }
 
         if isDraggingLoupe {
-            // Move only the view position, keep looking at the same spot
+            // Move the view position (where loupe is displayed)
             loupeViewPosition = CGPoint(
                 x: location.x - dragOffset.width,
                 y: location.y - dragOffset.height
             )
+            // When not locked, also update what we're looking at
+            if !loupeLocked {
+                loupePosition = location
+            }
             needsDisplay = true
             return
         }
@@ -909,6 +991,34 @@ class TrackingImageView: NSImageView {
             height: textSize.height
         )
         (badgeText as NSString).draw(in: textRect, withAttributes: attributes)
+
+        // Draw lock indicator when locked (top of loupe)
+        if loupeLocked {
+            let lockIconSize: CGFloat = 16
+            let lockRect = NSRect(
+                x: rect.midX - lockIconSize / 2,
+                y: rect.maxY - lockIconSize - 8,
+                width: lockIconSize,
+                height: lockIconSize
+            )
+
+            // Lock background
+            let lockBgPath = NSBezierPath(roundedRect: lockRect, xRadius: 4, yRadius: 4)
+            NSColor.controlAccentColor.setFill()
+            lockBgPath.fill()
+
+            // Draw lock symbol
+            if let lockImage = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil) {
+                let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
+                let configuredImage = lockImage.withSymbolConfiguration(config) ?? lockImage
+                configuredImage.draw(
+                    in: lockRect.insetBy(dx: 3, dy: 3),
+                    from: .zero,
+                    operation: .sourceOver,
+                    fraction: 1.0
+                )
+            }
+        }
     }
     // swiftlint:enable function_body_length
 }

@@ -19,6 +19,7 @@ struct ImagePreviewMenuCommands: View {
     @AppStorage("imagePreview.magnifierEnabled") private var magnifierEnabled = false
     @AppStorage("imagePreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
+    @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
     @AppStorage("imagePreview.loupeMagnification") private var loupeMagnification: Double = 3.0
     @AppStorage("imagePreview.loupeSize") private var loupeSize: Double = 150.0
     @AppStorage("imagePreview.panelMagnification") private var panelMagnification: Double = 4.0
@@ -82,7 +83,7 @@ struct ImagePreviewMenuCommands: View {
         }
         .keyboardShortcut("m", modifiers: [.command, .option])
 
-        // Lock magnifier toggle
+        // Lock magnifier toggle (Shift + toggle shortcut)
         Button {
             magnifierLocked.toggle()
         } label: {
@@ -93,10 +94,8 @@ struct ImagePreviewMenuCommands: View {
                 Label("Lock Magnifier", systemImage: "lock")
             }
         }
-        .keyboardShortcut("l", modifiers: [.command, .option])
+        .keyboardShortcut("m", modifiers: [.command, .option, .shift])
         .disabled(!magnifierEnabled)
-
-        Divider()
 
         // Magnifier zoom in
         Button("Magnifier Zoom In") {
@@ -117,7 +116,7 @@ struct ImagePreviewMenuCommands: View {
 
     @ViewBuilder
     private var loupeSection: some View {
-        // Loupe toggle
+        // Loupe toggle (L for Loupe)
         Button {
             loupeEnabled.toggle()
         } label: {
@@ -125,9 +124,37 @@ struct ImagePreviewMenuCommands: View {
                 if loupeEnabled {
                     Image(systemName: "checkmark")
                 }
-                Label("Loupe", systemImage: "eye")
+                Label("Loupe", systemImage: "magnifyingglass.circle")
             }
         }
-        .keyboardShortcut("k", modifiers: [.command, .option])
+        .keyboardShortcut("l", modifiers: [.command, .option])
+
+        // Lock loupe toggle (Shift + toggle shortcut)
+        Button {
+            loupeLocked.toggle()
+        } label: {
+            HStack {
+                if loupeLocked {
+                    Image(systemName: "checkmark")
+                }
+                Label("Lock Loupe", systemImage: "lock")
+            }
+        }
+        .keyboardShortcut("l", modifiers: [.command, .option, .shift])
+        .disabled(!loupeEnabled)
+
+        // Loupe zoom in
+        Button("Loupe Zoom In") {
+            loupeMagnification = min(loupeMagnification * MagnifierLimits.zoomFactor, MagnifierLimits.maxMagnification)
+        }
+        .keyboardShortcut("]", modifiers: [.command, .control])
+        .disabled(!loupeEnabled || loupeMagnification >= MagnifierLimits.maxMagnification)
+
+        // Loupe zoom out
+        Button("Loupe Zoom Out") {
+            loupeMagnification = max(loupeMagnification / MagnifierLimits.zoomFactor, MagnifierLimits.minMagnification)
+        }
+        .keyboardShortcut("[", modifiers: [.command, .control])
+        .disabled(!loupeEnabled || loupeMagnification <= MagnifierLimits.minMagnification)
     }
 }

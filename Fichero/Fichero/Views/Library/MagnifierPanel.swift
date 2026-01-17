@@ -32,17 +32,21 @@ struct MagnifierPanelView: View {
                     maxMagnification: maxMagnification
                 )
 
-                // Lock indicator overlay (top-left when locked)
+                // Lock indicator overlay (top-left when locked) - clickable to unlock
                 if isLocked {
                     VStack {
                         HStack {
-                            Image(systemName: "lock.fill")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(4)
-                                .background(Color.accentColor)
-                                .cornerRadius(4)
-                                .padding(8)
+                            Button(action: onLockToggle) {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .padding(4)
+                                    .background(Color.accentColor)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Click to unlock magnifier")
+                            .padding(8)
                             Spacer()
                         }
                         Spacer()
@@ -112,7 +116,7 @@ struct MagnifierPanelView: View {
                 .padding(8)
             }
         }
-        .background(Color(white: 0.1))
+        .background(Color(nsColor: .windowBackgroundColor))
         .overlay(
             // Blue border when locked
             RoundedRectangle(cornerRadius: 0)
@@ -182,7 +186,7 @@ struct MagnifierPanelContent: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = MagnifierPanelNSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(white: 0.1, alpha: 1.0).cgColor
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         view.minMagnification = minMagnification
         view.maxMagnification = maxMagnification
         view.onMagnificationChanged = { newMag in
