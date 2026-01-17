@@ -413,10 +413,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         if let imageView = context.coordinator.imageView as? TrackingImageView {
-            // Auto-show loupe at center when enabled via menu and no position exists
-            let wasEnabled = imageView.loupeEnabled
+            // Update loupe enabled state
             imageView.loupeEnabled = loupeEnabled
-            if loupeEnabled && !wasEnabled && imageView.loupePosition == nil {
+
+            // Auto-show loupe at center when enabled and no position exists
+            if loupeEnabled && imageView.loupePosition == nil {
                 imageView.showLoupeAtCenter()
             }
 
