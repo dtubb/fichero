@@ -20,9 +20,11 @@
 ### AI Integration
 - `src/fichero/llm.py` - LLM provider integration
 - `src/fichero/workflows/` - AI workflow system
-  - `builder.py` - Workflow construction
-  - `resolver.py` - Workflow execution
-  - `registry.py` - Available workflow tools
+  - `registry.py` - Tool definitions with ports (SINGLE SOURCE OF TRUTH)
+  - `types.py` - NodeDef, EdgeDef, WorkflowState models
+  - `builder.py` - LangGraph construction from workflow definitions
+  - `executor.py` - Workflow execution engine
+  - `store.py` - Workflow persistence (DuckDB)
 
 ### Configuration
 - `src/fichero/providers.py` - AI provider configurations

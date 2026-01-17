@@ -63,8 +63,9 @@ _TEXT_EXTRACTABLE = {
 
 class IngestMode(str, Enum):
     """How to handle file ingestion."""
-    LINK = "link"  # Reference with macOS bookmark
-    COPY = "copy"  # Copy into library storage
+    LINK = "link"  # Reference with macOS bookmark (file stays in place)
+    COPY = "copy"  # Copy into library storage (file duplicated)
+    MOVE = "move"  # Move into library storage (file relocated, original deleted)
 
 
 # =============================================================================
@@ -136,7 +137,9 @@ def detect_file_type(path: Path) -> FileType:
         Detected FileType, or FileType.other if unknown
     """
     suffix = path.suffix.lower()
-    return _FILE_TYPE_MAP.get(suffix, FileType.other)
+    file_type = _FILE_TYPE_MAP.get(suffix, FileType.other)
+    logger.debug(f"Detected file type for {path.name}: suffix='{suffix}' -> type={file_type.value}")
+    return file_type
 
 
 # =============================================================================
@@ -189,7 +192,7 @@ def ingest_file(
     # Build metadata
     metadata: dict = {}
 
-    if mode == IngestMode.COPY:
+    if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
         dest = _copy_to_library(path, package_path)
         doc = Document(
@@ -201,6 +204,15 @@ def ingest_file(
             metadata=metadata,
             status=Status.pending,
         )
+
+        # For MOVE mode, delete original file after successful copy
+        if mode == IngestMode.MOVE:
+            try:
+                path.unlink()
+                logger.info("Moved file (original deleted): %s", path)
+            except Exception as e:
+                logger.warning("Failed to delete original file after move: %s", e)
+                # Continue anyway - file was successfully copied
     else:
         # Link with bookmark
         bookmark = create_bookmark(path)

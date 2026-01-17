@@ -56,16 +56,35 @@ class ImportService: ObservableObject {
                     currentFile: url.lastPathComponent
                 )
 
-                // Call Python backend: POST /api/ingest/file
-                let doc = try await importFile(
-                    url,
-                    mode: mode,
-                    parentId: parentId,
-                    extractText: extractText,
-                    autoEmbed: autoEmbed
-                )
-                imported.append(doc)
-                logger.info("Successfully imported: \(url.lastPathComponent)")
+                // Check if URL is a directory
+                var isDirectory: ObjCBool = false
+                let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+                if exists && isDirectory.boolValue {
+                    // Import folder using dedicated folder endpoint
+                    logger.info("Detected folder: \(url.lastPathComponent), using folder import")
+                    let folderDocs = try await importFolderCore(
+                        url,
+                        mode: mode,
+                        parentId: parentId,
+                        recursive: true,
+                        extractText: extractText,
+                        autoEmbed: autoEmbed
+                    )
+                    imported.append(contentsOf: folderDocs)
+                    logger.info("Successfully imported folder with \(folderDocs.count) documents: \(url.lastPathComponent)")
+                } else {
+                    // Call Python backend: POST /api/ingest/file
+                    let doc = try await importFile(
+                        url,
+                        mode: mode,
+                        parentId: parentId,
+                        extractText: extractText,
+                        autoEmbed: autoEmbed
+                    )
+                    imported.append(doc)
+                    logger.info("Successfully imported: \(url.lastPathComponent)")
+                }
 
             } catch {
                 logger.error("Failed to import \(url.lastPathComponent): \(error.localizedDescription)")
@@ -153,6 +172,26 @@ class ImportService: ObservableObject {
         isImporting = true
         defer { isImporting = false }
 
+        return try await importFolderCore(
+            url,
+            mode: mode,
+            parentId: parentId,
+            recursive: recursive,
+            extractText: extractText,
+            autoEmbed: autoEmbed
+        )
+    }
+
+    /// Core folder import logic - doesn't manage isImporting flag
+    /// Used internally when called from importFiles which already manages the flag
+    private func importFolderCore(
+        _ url: URL,
+        mode: IngestMode,
+        parentId: String?,
+        recursive: Bool,
+        extractText: Bool,
+        autoEmbed: Bool
+    ) async throws -> [Document] {
         logger.info("Starting folder import: \(url.lastPathComponent)")
 
         // Ensure folder is accessible
@@ -170,13 +209,12 @@ class ImportService: ObservableObject {
 
         // Call Python backend: POST /api/ingest/folder
         let request = IngestFolderRequest(
-            folder: url.path,
-            mode: mode.rawValue,
+            path: url.path,
+            copyMode: mode == .copy,
             parentId: parentId,
             recursive: recursive,
             extractText: extractText,
-            autoEmbed: autoEmbed,
-            createCollection: true
+            autoEmbed: autoEmbed
         )
 
         let documents: [Document] = try await api.post("/ingest/folder", body: request)
@@ -199,6 +237,31 @@ class ImportService: ObservableObject {
 enum IngestMode: String, Codable {
     case link = "LINK"  // Create bookmark reference (zero disk usage)
     case copy = "COPY"  // Copy file into library (uses APFS cloning)
+    case move = "MOVE"  // Move file into library (original deleted)
+
+    var displayName: String {
+        switch self {
+        case .link: return "Link Files"
+        case .copy: return "Copy Files"
+        case .move: return "Move Files"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .link: return "Reference files in place (no disk usage)"
+        case .copy: return "Duplicate files into library"
+        case .move: return "Move files into library (original deleted)"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .link: return "link"
+        case .copy: return "doc.on.doc"
+        case .move: return "arrow.right.doc"
+        }
+    }
 }
 
 /// Request body for file import
@@ -222,22 +285,20 @@ struct IngestFileRequest: Codable {
 
 /// Request body for folder import
 struct IngestFolderRequest: Codable {
-    let folder: String
-    let mode: String
+    let path: String
+    let copyMode: Bool
     let parentId: String?
     let recursive: Bool
     let extractText: Bool
     let autoEmbed: Bool
-    let createCollection: Bool
 
     enum CodingKeys: String, CodingKey {
-        case folder
-        case mode
+        case path
+        case copyMode = "copy_mode"
         case parentId = "parent_id"
         case recursive
         case extractText = "extract_text"
         case autoEmbed = "auto_embed"
-        case createCollection = "create_collection"
     }
 }
 

@@ -56,6 +56,12 @@ class ProgressEventType(str, Enum):
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
     WORKFLOW_CANCELLED = "workflow_cancelled"
+    # Parallel execution events
+    PARALLEL_STARTED = "parallel_started"      # Fan-out begins
+    FILE_STARTED = "file_started"              # Single file processing starts
+    FILE_COMPLETED = "file_completed"          # Single file processing done
+    FILE_FAILED = "file_failed"                # Single file processing failed
+    PARALLEL_COMPLETED = "parallel_completed"  # All files done, aggregated
 
 
 @dataclass
@@ -70,6 +76,11 @@ class ProgressEvent:
     message: str | None = None
     error: str | None = None
     data: dict[str, Any] = field(default_factory=dict)
+    # Parallel execution fields
+    file_path: str | None = None      # Current file being processed
+    file_index: int | None = None     # Index in parallel batch (0-based)
+    file_total: int | None = None     # Total files in parallel batch
+    namespace: tuple[str, ...] = ()   # LangGraph namespace for subgraph tracking
 
 
 class ProgressEventListener:
@@ -305,112 +316,214 @@ class WorkflowExecutor:
     
     async def _execute_with_pregel(self, initial_state: DocumentState) -> DocumentState:
         """Execute workflow using LangGraph Pregel Execution Engine.
-        
+
         Pregel provides:
         - Fine-grained control over execution
         - Better state management
         - Support for complex workflow patterns
         - Improved error handling
+        - Parallel execution via Send API
         """
         # Get the Pregel execution engine
         pregel = self._graph
-        
+
         # Set up execution with our state management
         current_state = initial_state
-        
+
         # Track execution progress
         total_nodes = len(self.workflow.nodes)
         completed_nodes = 0
-        
-        # Execute nodes using Pregel
-        async for step in pregel.astream(current_state):
+
+        # Track parallel execution state
+        parallel_tracking: dict[str, dict] = {}  # node_id -> {total, completed, errors}
+
+        # Execute nodes using Pregel with subgraph streaming
+        async for chunk in pregel.astream(current_state, stream_mode="updates", subgraphs=True):
             # Check for cancellation
             if self._cancel_requested:
                 current_state["cancelled"] = True
                 break
-            
-            # Update progress
-            if step["current_node"] and step["current_node"] not in current_state.get("completed_nodes", []):
-                node_id = step["current_node"]
-                
-                # Emit node started event
-                await self._emit_event(ProgressEvent(
-                    event_type=ProgressEventType.NODE_STARTED,
-                    task_id=current_state["task_id"],
-                    workflow_id=current_state["workflow_id"],
-                    node_id=node_id,
-                    progress=float(completed_nodes) / max(total_nodes, 1),
-                    message=f"Starting node: {node_id}",
-                ))
-                
-                # Track node execution time
-                node_start_time = time.time()
-            
-            # Update state with step results
-            current_state.update(step)
-            
-            # Check if node completed
-            if step.get("completed_nodes"):
-                for node_id in step["completed_nodes"]:
-                    if node_id not in current_state.get("completed_nodes", []):
-                        completed_nodes += 1
-                        
-                        # Calculate node execution time
-                        if node_id in current_state.get("node_times", {}):
-                            # Already tracked
-                            pass
-                        else:
-                            node_end_time = time.time()
-                            # This would be more accurate with proper timing in the node execution
-                            
-                        # Emit node completed event
+
+            # Parse the chunk - with subgraphs=True, format is (namespace, updates)
+            if isinstance(chunk, tuple) and len(chunk) == 2:
+                namespace, updates = chunk
+            else:
+                namespace = ()
+                updates = chunk
+
+            # Process updates from each node
+            for node_name, step in updates.items():
+                if not isinstance(step, dict):
+                    continue
+
+                # Detect parallel processing nodes (suffixed with _process)
+                if "_process" in node_name:
+                    # This is a parallel file processing event
+                    base_node_id = node_name.replace("_process", "")
+                    file_path = step.get("parallel_file", "")
+                    file_index = step.get("parallel_index", 0)
+                    file_total = step.get("parallel_total", 1)
+
+                    # Initialize tracking for this node
+                    if base_node_id not in parallel_tracking:
+                        parallel_tracking[base_node_id] = {
+                            "total": file_total,
+                            "completed": 0,
+                            "errors": 0,
+                        }
+                        # Emit parallel started event
                         await self._emit_event(ProgressEvent(
-                            event_type=ProgressEventType.NODE_COMPLETED,
+                            event_type=ProgressEventType.PARALLEL_STARTED,
+                            task_id=current_state["task_id"],
+                            workflow_id=current_state["workflow_id"],
+                            node_id=base_node_id,
+                            file_total=file_total,
+                            message=f"Starting parallel processing of {file_total} files",
+                            namespace=namespace,
+                        ))
+
+                    # Emit file started event
+                    await self._emit_event(ProgressEvent(
+                        event_type=ProgressEventType.FILE_STARTED,
+                        task_id=current_state["task_id"],
+                        workflow_id=current_state["workflow_id"],
+                        node_id=base_node_id,
+                        file_path=file_path,
+                        file_index=file_index,
+                        file_total=file_total,
+                        progress=float(parallel_tracking[base_node_id]["completed"]) / max(file_total, 1),
+                        message=f"Processing file {file_index + 1}/{file_total}",
+                        namespace=namespace,
+                    ))
+
+                    # Check result in parallel_results
+                    parallel_results = step.get("parallel_results", {}).get(base_node_id, [])
+                    if parallel_results:
+                        result = parallel_results[0] if parallel_results else {}
+                        if result.get("success"):
+                            parallel_tracking[base_node_id]["completed"] += 1
+                            await self._emit_event(ProgressEvent(
+                                event_type=ProgressEventType.FILE_COMPLETED,
+                                task_id=current_state["task_id"],
+                                workflow_id=current_state["workflow_id"],
+                                node_id=base_node_id,
+                                file_path=result.get("file"),
+                                file_index=result.get("index"),
+                                file_total=file_total,
+                                progress=float(parallel_tracking[base_node_id]["completed"]) / max(file_total, 1),
+                                message=f"Completed file {result.get('index', 0) + 1}/{file_total}",
+                                namespace=namespace,
+                            ))
+                        else:
+                            parallel_tracking[base_node_id]["errors"] += 1
+                            await self._emit_event(ProgressEvent(
+                                event_type=ProgressEventType.FILE_FAILED,
+                                task_id=current_state["task_id"],
+                                workflow_id=current_state["workflow_id"],
+                                node_id=base_node_id,
+                                file_path=result.get("file"),
+                                file_index=result.get("index"),
+                                file_total=file_total,
+                                error=result.get("error"),
+                                message=f"Failed file {result.get('index', 0) + 1}/{file_total}",
+                                namespace=namespace,
+                            ))
+
+                elif "_aggregate" in node_name:
+                    # Aggregation completed
+                    base_node_id = node_name.replace("_aggregate", "")
+                    tracking = parallel_tracking.get(base_node_id, {})
+
+                    await self._emit_event(ProgressEvent(
+                        event_type=ProgressEventType.PARALLEL_COMPLETED,
+                        task_id=current_state["task_id"],
+                        workflow_id=current_state["workflow_id"],
+                        node_id=base_node_id,
+                        file_total=tracking.get("total", 0),
+                        progress=1.0,
+                        message=f"Completed {tracking.get('completed', 0)}/{tracking.get('total', 0)} files",
+                        data={
+                            "success_count": tracking.get("completed", 0),
+                            "error_count": tracking.get("errors", 0),
+                        },
+                        namespace=namespace,
+                    ))
+                    completed_nodes += 1
+
+                else:
+                    # Regular node processing
+                    node_id = node_name
+
+                    # Check if node started
+                    if step.get("current_node") and step["current_node"] not in current_state.get("completed_nodes", []):
+                        await self._emit_event(ProgressEvent(
+                            event_type=ProgressEventType.NODE_STARTED,
                             task_id=current_state["task_id"],
                             workflow_id=current_state["workflow_id"],
                             node_id=node_id,
                             progress=float(completed_nodes) / max(total_nodes, 1),
-                            message=f"Completed node: {node_id}",
+                            message=f"Starting node: {node_id}",
+                            namespace=namespace,
                         ))
-            
-            # Check for errors
-            if step.get("error"):
-                error = step["error"]
-                current_node = step.get("current_node", "unknown")
-                
-                # Check if we should retry
-                retry_count = current_state["retry_counts"].get(current_node, 0)
-                if retry_count < current_state["max_retries"]:
-                    await self._emit_event(ProgressEvent(
-                        event_type=ProgressEventType.NODE_RETRY,
-                        task_id=current_state["task_id"],
-                        workflow_id=current_state["workflow_id"],
-                        node_id=current_node,
-                        message=f"Retrying node {current_node} (attempt {retry_count + 1})",
-                        data={"retry_count": retry_count + 1},
-                    ))
-                    
-                    # Increment retry count
-                    current_state["retry_counts"][current_node] = retry_count + 1
-                    
-                    # Reset error and continue
-                    current_state["error"] = None
-                    continue
-                else:
-                    # Max retries exceeded
-                    await self._emit_event(ProgressEvent(
-                        event_type=ProgressEventType.NODE_FAILED,
-                        task_id=current_state["task_id"],
-                        workflow_id=current_state["workflow_id"],
-                        node_id=current_node,
-                        error=error,
-                        message=f"Node {current_node} failed after {retry_count} retries",
-                    ))
-                    
-                    # Set workflow error
-                    current_state["error"] = f"Node {current_node} failed: {error}"
-                    break
-        
+
+                    # Update state with step results
+                    for key, value in step.items():
+                        if key in current_state:
+                            if isinstance(current_state[key], dict) and isinstance(value, dict):
+                                current_state[key].update(value)
+                            elif isinstance(current_state[key], list) and isinstance(value, list):
+                                current_state[key].extend(value)
+                            else:
+                                current_state[key] = value
+                        else:
+                            current_state[key] = value
+
+                    # Check if node completed
+                    if step.get("completed_nodes"):
+                        for completed_node_id in step["completed_nodes"]:
+                            if completed_node_id not in current_state.get("completed_nodes", []):
+                                completed_nodes += 1
+                                await self._emit_event(ProgressEvent(
+                                    event_type=ProgressEventType.NODE_COMPLETED,
+                                    task_id=current_state["task_id"],
+                                    workflow_id=current_state["workflow_id"],
+                                    node_id=completed_node_id,
+                                    progress=float(completed_nodes) / max(total_nodes, 1),
+                                    message=f"Completed node: {completed_node_id}",
+                                    namespace=namespace,
+                                ))
+
+                    # Check for errors
+                    if step.get("error"):
+                        error = step["error"]
+                        current_node = step.get("current_node", node_id)
+
+                        # Check if we should retry
+                        retry_count = current_state["retry_counts"].get(current_node, 0)
+                        if retry_count < current_state["max_retries"]:
+                            await self._emit_event(ProgressEvent(
+                                event_type=ProgressEventType.NODE_RETRY,
+                                task_id=current_state["task_id"],
+                                workflow_id=current_state["workflow_id"],
+                                node_id=current_node,
+                                message=f"Retrying node {current_node} (attempt {retry_count + 1})",
+                                data={"retry_count": retry_count + 1},
+                                namespace=namespace,
+                            ))
+                            current_state["retry_counts"][current_node] = retry_count + 1
+                            current_state["error"] = None
+                        else:
+                            await self._emit_event(ProgressEvent(
+                                event_type=ProgressEventType.NODE_FAILED,
+                                task_id=current_state["task_id"],
+                                workflow_id=current_state["workflow_id"],
+                                node_id=current_node,
+                                error=error,
+                                message=f"Node {current_node} failed after {retry_count} retries",
+                                namespace=namespace,
+                            ))
+                            current_state["error"] = f"Node {current_node} failed: {error}"
+
         return current_state
     
     async def execute_concurrent(
@@ -518,7 +631,7 @@ class SSEEventAdapter(ProgressEventListener):
     def _event_to_sse(self, event: ProgressEvent) -> str:
         """Convert progress event to SSE format."""
         event_data = {
-            "event": event.event_type,
+            "event": event.event_type.value if isinstance(event.event_type, ProgressEventType) else event.event_type,
             "timestamp": event.timestamp,
             "task_id": event.task_id,
             "workflow_id": event.workflow_id,
@@ -527,8 +640,13 @@ class SSEEventAdapter(ProgressEventListener):
             "message": event.message,
             "error": event.error,
             "data": event.data,
+            # Parallel execution fields
+            "file_path": event.file_path,
+            "file_index": event.file_index,
+            "file_total": event.file_total,
+            "namespace": list(event.namespace) if event.namespace else None,
         }
-        
+
         import json
         return f"data: {json.dumps(event_data)}\n\n"
     

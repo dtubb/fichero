@@ -425,3 +425,223 @@
   - Depends on: TODO-098
   - Description: Fix critical issues from Phase 8 code review
   - Status: Completed - Fixed unsafe eval() in chaining.py (AST-based evaluator), AppleScript main thread blocking (RunLoop pattern), added 6 missing Swift models (Artifact, Run, Trace, Note, Event, MCPServer), added 7 missing provider types to Swift enum
+
+### Phase 10: API Client Migration (Swift OpenAPI Generator)
+- [x] TODO-102: Set Up Swift OpenAPI Generator Infrastructure (P0, High)
+  - Category: Frontend, Infrastructure
+  - Depends on: None
+  - Description: Create FicheroAPIClient package with Swift OpenAPI Generator, configure build plugin
+  - Status: Completed - Package.swift, openapi-generator-config.yaml, FicheroClient wrapper, LibraryPathMiddleware
+
+- [x] TODO-103: Migrate WorkflowService to Generated Client (Pilot) (P0, High)
+  - Category: Frontend
+  - Depends on: TODO-102
+  - Description: Create WorkflowServiceGenerated using FicheroAPIClient, wire to LibraryManager
+  - Status: Completed - Full migration with type conversions, response handling, all build errors fixed
+
+- [x] TODO-104: Update Tests for Generated Client (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-103
+  - Description: Update EndpointValidationTests and ContractTests for generated types
+  - Status: Completed - Tests for generated types compile-time validation, Python endpoint matching
+
+- [x] TODO-105: Migrate High-Priority Services to Generated Client (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-103
+  - Description: Migrate remaining services using FicheroAPIClient instead of legacy APIClient
+  - Status: Completed (4/4 simple services migrated, 3 deferred due to complex UI types)
+  - Completed migrations:
+    - SavedSearchService.swift → SavedSearchServiceGenerated.swift ✓
+    - ConversationService.swift → ConversationServiceGenerated.swift ✓
+    - ChatService.swift → ChatServiceGenerated.swift ✓
+    - DocumentService.swift → DocumentServiceGenerated.swift ✓
+  - Deferred (require type conversion layers - see TODO-106):
+    - ProviderService.swift (complex UI types: swiftUIColor, formattedInputCost, capabilityBadges)
+    - SearchService.swift (generated types differ: SearchResult fields, no SearchStats schema)
+    - ModelService.swift (complex UI types similar to ProviderService)
+  - Pattern: Follow WorkflowServiceGenerated.swift as reference implementation
+  - See: ai/contexts/frontend/api_migration_guide.md
+
+- [ ] TODO-106: Migrate Complex Services to Generated Client (P2, Medium)
+  - Category: Frontend
+  - Depends on: TODO-105
+  - Description: Migrate services with complex UI types requiring conversion layers
+  - Services to migrate (deferred from TODO-105 due to complexity):
+    - ProviderService.swift (14 calls) - needs type conversion for UI computed properties
+    - SearchService.swift (4 calls) - generated types have different structure
+    - ModelService.swift (3 calls) - needs type conversion for UI computed properties
+  - Additional services:
+    - AutomationService.swift (16 calls)
+    - ActivityService.swift (12 calls)
+    - ImportService.swift (2 calls)
+    - StorageService.swift (1 call)
+    - MCPService.swift
+    - ChainService.swift
+    - WorkflowStreamService.swift
+  - Pattern: Keep local types with computed properties, add conversion from generated types
+
+- [ ] TODO-107: Remove Legacy APIClient (P2, Medium)
+  - Category: Frontend, Infrastructure
+  - Depends on: TODO-105, TODO-106
+  - Description: Once all services migrated, remove legacy APIClient.swift and APIEndpoints.swift
+  - Cleanup: Remove unused code, update imports, verify no regressions
+
+### Phase 10A: Fix Services Using Direct URLSession (P1, High)
+- [ ] TODO-108: Migrate Direct URLSession Services to Generated Client (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-103
+  - Description: 5 services bypass APIClient entirely and use hardcoded URLSession calls
+  - Services to fix:
+    - WorkflowStreamService.swift (SSE streaming with URLSession)
+    - MCPService.swift (direct URLSession)
+    - ChainService.swift (direct URLSession)
+    - ImportService.swift (direct URLSession)
+    - StorageService.swift (direct URLSession)
+  - Pattern: Use FicheroAPIClient for type-safe API calls, keep URLSession only for streaming
+
+### Phase 10B: Backend API Integration Tests (P1, High)
+- [ ] TODO-109: Add HTTP Integration Tests for Document Endpoints (P1, High)
+  - Category: Backend, Infrastructure
+  - Depends on: None
+  - Description: Test actual HTTP requests/responses for document CRUD endpoints
+  - Endpoints: GET/POST /api/documents, GET/PUT/DELETE /api/documents/{id}, PATCH /api/documents/{id}/move
+  - Use: pytest with httpx TestClient, verify response schemas match OpenAPI
+
+- [ ] TODO-110: Add HTTP Integration Tests for Workflow Endpoints (P1, High)
+  - Category: Backend, Infrastructure
+  - Depends on: None
+  - Description: Test HTTP requests/responses for workflow CRUD and execution
+  - Endpoints: GET/POST /api/workflows, GET/PUT/DELETE /api/workflows/{id}, POST /api/workflows/{id}/execute
+  - Include: SSE streaming tests for /api/workflows/stream
+
+- [ ] TODO-111: Add HTTP Integration Tests for Search/Chat Endpoints (P1, High)
+  - Category: Backend, Infrastructure
+  - Depends on: None
+  - Description: Test search and chat API endpoints at HTTP level
+  - Endpoints: POST /api/search, GET/POST /api/search/saved, POST /api/chat, GET /api/chat/conversations
+
+- [ ] TODO-112: Add HTTP Integration Tests for Provider/MCP Endpoints (P1, High)
+  - Category: Backend, Infrastructure
+  - Depends on: None
+  - Description: Test provider and MCP management endpoints
+  - Endpoints: GET/POST /api/providers, GET /api/providers/catalog, GET/POST/DELETE /api/mcp/*
+
+### Phase 10C: Fix UI-Backend Connections (P0, High)
+- [x] TODO-113: Wire WorkflowEditor.runWorkflow() to Real Backend (P0, High)
+  - Category: Frontend
+  - Depends on: TODO-103
+  - Description: WorkflowEditor.runWorkflow() currently simulates 2-second delay, not connected to backend
+  - Fix: Call WorkflowServiceGenerated.executeWorkflow(), handle SSE streaming, show real execution progress
+  - File: Fichero/Views/Workflow/WorkflowEditor.swift
+  - Status: Completed - Uses workflowStore.executeWorkflow() with polling for status updates
+
+- [x] TODO-119: Wire WorkflowEditor Load/Save to Backend (P0, High)
+  - Category: Frontend
+  - Depends on: TODO-103
+  - Description: Node editor changes not persisted - load/save not connected to database
+  - Fix:
+    - Load workflow definition from backend when opening editor
+    - Auto-save or explicit save when nodes/edges change
+    - Use WorkflowServiceGenerated for CRUD operations
+  - Files: WorkflowEditor.swift, WorkflowCanvasView.swift, WorkflowDefinition.swift
+  - Status: Completed - Added .onChange(of: viewMode) in ContentView to load workflow from backend
+
+- [x] TODO-120: Implement Workflow View Modes (Icons, List, Table, Node Editor) (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-119
+  - Description: Duplicate library view system for workflows with 4 view modes
+  - Views to implement:
+    - Icons: Visual thumbnails designed from nodes/edges (mini graph preview)
+    - List: Standard Mac list view with name, description, date
+    - Table: Sortable columns with detailed metadata
+    - Node Editor: Current canvas view (already exists)
+  - Reference: Study how document library implements view modes
+  - Pattern: ViewMode enum, ViewModeToolbar, conditional view rendering
+  - Status: Completed - WorkflowLibraryView with icon grid (LazyVGrid + WorkflowThumbnailView), list, and table views
+
+- [x] TODO-121: Implement Workflow JSON Import/Export via Backend (P1, High)
+  - Category: Frontend, Backend
+  - Depends on: TODO-119
+  - Description: Import/export workflow definitions as JSON files
+  - Backend: Already has /api/workflows/export and /api/workflows/import endpoints
+  - Frontend: Add import/export buttons, file picker, use FicheroAPIClient
+  - Files: WorkflowLibraryView.swift, WorkflowServiceGenerated.swift
+  - Status: Completed - WorkflowExporter with import/export, buttons in library toolbar and context menu
+
+- [x] TODO-114: Fix AgentConfigurationView Tool Loading (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-108
+  - Description: AgentConfigurationView has hardcoded placeholder tool data
+  - Fix: Load available tools from backend via MCPService or ToolRegistryService
+  - File: Fichero/Views/Agents/AgentConfigurationView.swift
+  - Status: Completed - ToolSelectionView now calls workflowService.listToolsGrouped() from backend
+
+- [x] TODO-115: Switch Views to Use WorkflowServiceGenerated (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-103
+  - Description: Several views still use legacy WorkflowService instead of WorkflowServiceGenerated
+  - Status: Completed - Migrated all workflow views to use WorkflowServiceGenerated
+  - Audit: WorkflowLibraryView, WorkflowDetailView, ChainDetailView
+  - Fix: Replace @StateObject var workflowService with workflowServiceGenerated
+
+### Phase 10D: Frontend-Backend Sync Tests (P1, High)
+- [ ] TODO-116: Add Contract Tests for Generated Types (P1, High)
+  - Category: Infrastructure
+  - Depends on: TODO-104
+  - Description: Ensure Swift generated types can parse Python-produced JSON
+  - Tests: For each Components.Schemas.* type, verify round-trip JSON parsing
+  - Fixture: Create shared JSON fixtures in tests/contracts/ used by both Swift and Python
+
+- [ ] TODO-117: Add Schema Validation Tests (P1, Medium)
+  - Category: Infrastructure
+  - Depends on: TODO-116
+  - Description: Verify openapi.json stays in sync with Python models
+  - Script: Python script that exports current schema and compares to committed openapi.json
+  - CI: Add to pre-commit or CI pipeline to catch schema drift
+
+- [ ] TODO-118: Add E2E Workflow Tests (P2, Medium)
+  - Category: Infrastructure
+  - Depends on: TODO-113
+  - Description: End-to-end tests that exercise full stack (Swift UI -> API -> LangGraph -> Response)
+  - Framework: XCTest with running backend, or pytest with simulated Swift client
+  - Coverage: Create workflow, execute, verify results, delete
+
+### Bug Fixes (User Reported)
+- [x] TODO-122: Fix New Search Internal Server Error (P1, High)
+  - Category: Backend
+  - Depends on: None
+  - Description: Creating a new search from sidebar causes Internal Server Error
+  - Status: Completed - Fixed by setting currentLibraryPath in LibraryReference.init()
+
+- [x] TODO-123: Fix Import Folder from Data Menu (P1, High)
+  - Category: Frontend, Backend
+  - Depends on: None
+  - Description: Import Folder option in Data menu doesn't work
+  - Status: Completed - Fixed by detecting directories in importFiles() and routing to importFolderCore()
+
+- [ ] TODO-124: Fix nw_protocol_socket_set_no_wake_from_sleep Warning (P3, Low)
+  - Category: Infrastructure
+  - Depends on: None
+  - Description: Console shows "nw_protocol_socket_set_no_wake_from_sleep setsockopt SO_NOWAKEFROMSLEEP failed" warnings
+  - Status: Bug report - likely a macOS network socket configuration issue
+
+### Phase 10E: Workflow Type Cleanup (P0, High)
+- [ ] TODO-125: Refactor Workflow Types - Backend Port Cleanup (P0, High)
+  - Category: Backend, Infrastructure
+  - Depends on: None
+  - Description: Remove port storage from NodeDef, ports should come from tool registry not be duplicated in every node
+  - Key issues:
+    - Ports duplicated from registry into every NodeDef (wasteful, error-prone)
+    - Property name mismatches: source vs sourceNodeId, usesLlm vs usesLLM
+    - ~1750 lines of conversion code in Swift exists because of these issues
+  - Fix: Remove ports from NodeDef storage, add enrichment function, fix property aliases
+
+- [!] TODO-126: Remove Swift Workflow Type Conversion Layer (P1, High)
+  - Category: Frontend, Infrastructure
+  - Depends on: TODO-125
+  - Description: Remove ~1750 lines of redundant type conversion code in Swift
+  - Files to clean:
+    - WorkflowServiceGenerated.swift (~700 lines of conversion functions)
+    - WorkflowTypes.swift (~350 lines of manual types)
+    - GeneratedTypeExtensions.swift (simplify to minimal extensions)
+  - Blocked until TODO-125 regenerates OpenAPI spec with correct types

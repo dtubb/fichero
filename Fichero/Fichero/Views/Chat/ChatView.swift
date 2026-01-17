@@ -20,7 +20,8 @@ struct ChatView: View {
     @State private var selectedProvider: String = ""
     @State private var selectedModel: String = ""
 
-    @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var chatService: ChatServiceGenerated
+    @EnvironmentObject var conversationService: ConversationServiceGenerated
     private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatView")
 
     init(
@@ -82,7 +83,7 @@ struct ChatView: View {
 extension ChatView {
     func loadConversation(_ id: String) async {
         do {
-            let detail = try await chatService.getConversation(id)
+            let detail = try await conversationService.getConversation(id)
             await MainActor.run {
                 currentConversation = Conversation(
                     id: detail.id,
@@ -179,14 +180,83 @@ extension ChatView {
                 emptyStateView
             } else {
                 switch displayMode {
+                case .icon:
+                    messagesIconView
+                case .list:
+                    messagesBubbleView
                 case .table:
                     messagesTableView
-                default:
-                    // Icon, List, Map all use bubble view
-                    messagesBubbleView
+                case .map:
+                    messagesMapView
                 }
             }
         }
+    }
+
+    private var messagesIconView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 200, maximum: 280))],
+                    spacing: 16
+                ) {
+                    ForEach(currentConversation.messages) { message in
+                        MessageCard(message: message)
+                            .id(message.id)
+                    }
+                }
+                .padding()
+
+                if isLoading {
+                    loadingIndicator
+                }
+
+                if let error = errorMessage {
+                    errorView(error)
+                }
+            }
+            .onChange(of: currentConversation.messages.count) { _, _ in
+                if let lastMessage = currentConversation.messages.last {
+                    withAnimation {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .background(Color(.textBackgroundColor))
+    }
+
+    private var messagesMapView: some View {
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical]) {
+                ZStack {
+                    // Grid background
+                    ChatMapGrid()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+
+                    // Message cards positioned on canvas
+                    ForEach(Array(currentConversation.messages.enumerated()), id: \.element.id) { index, message in
+                        MessageMapCard(message: message)
+                            .position(messagePosition(for: index, role: message.role, in: geometry.size))
+                    }
+
+                    if isLoading {
+                        loadingIndicator
+                            .position(x: geometry.size.width / 2, y: geometry.size.height - 50)
+                    }
+                }
+                .frame(width: max(geometry.size.width, 1000), height: max(geometry.size.height, 600))
+            }
+        }
+        .background(Color(.textBackgroundColor))
+    }
+
+    /// Position messages in a flowing conversation layout
+    private func messagePosition(for index: Int, role: ChatRole, in size: CGSize) -> CGPoint {
+        let ySpacing: CGFloat = 120
+        let xOffset: CGFloat = role == .user ? size.width * 0.7 : size.width * 0.3
+        return CGPoint(x: min(max(xOffset, 150), size.width - 150), y: CGFloat(index) * ySpacing + 80)
     }
 
     private var messagesBubbleView: some View {
@@ -479,6 +549,123 @@ struct MessageBubble: View {
             }
         }
         .padding(.leading, 12)
+    }
+}
+
+// MARK: - Message Card (for Icon view)
+
+/// Card representation of a chat message for Icon/Grid view
+private struct MessageCard: View {
+    let message: ChatMessage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Role badge
+            HStack {
+                Image(systemName: message.role == .user ? "person.fill" : "brain.head.profile")
+                    .foregroundColor(message.role == .user ? .accentColor : .purple)
+                Text(message.role == .user ? "You" : "Assistant")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+
+            // Content preview
+            Text(message.content)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .lineLimit(4)
+
+            // Sources indicator
+            if let sources = message.sources, !sources.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.text")
+                        .font(.caption2)
+                    Text("\(sources.count) source(s)")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(message.role == .user ? Color.accentColor.opacity(0.1) : Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separatorColor), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Message Map Card (for Map view)
+
+/// Card representation for spatial map view
+private struct MessageMapCard: View {
+    let message: ChatMessage
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // Role icon
+            Image(systemName: message.role == .user ? "person.fill" : "brain.head.profile")
+                .font(.title2)
+                .foregroundColor(message.role == .user ? .accentColor : .purple)
+                .frame(width: 40, height: 40)
+                .background((message.role == .user ? Color.accentColor : Color.purple).opacity(0.15))
+                .clipShape(Circle())
+
+            // Content preview
+            Text(message.content)
+                .font(.caption)
+                .lineLimit(3)
+                .multilineTextAlignment(.center)
+                .frame(width: 140)
+
+            // Sources badge
+            if let sources = message.sources, !sources.isEmpty {
+                Text("\(sources.count) sources")
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.gray)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(10)
+        .frame(width: 160, height: 130)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(message.role == .user ? Color.accentColor : Color.purple, lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Chat Map Grid
+
+private struct ChatMapGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let spacing: CGFloat = 40
+
+        var xPos = spacing
+        while xPos < rect.width {
+            path.move(to: CGPoint(x: xPos, y: 0))
+            path.addLine(to: CGPoint(x: xPos, y: rect.height))
+            xPos += spacing
+        }
+
+        var yPos = spacing
+        while yPos < rect.height {
+            path.move(to: CGPoint(x: 0, y: yPos))
+            path.addLine(to: CGPoint(x: rect.width, y: yPos))
+            yPos += spacing
+        }
+
+        return path
     }
 }
 

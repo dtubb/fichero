@@ -381,7 +381,7 @@ class AppleScriptBridge {
     // MARK: - Workflow Operations
 
     func runWorkflow(workflowId: String, inputs: [String: Any]) async throws -> String {
-        let url = baseURL.appendingPathComponent("workflows/execution/execute")
+        let url = baseURL.appendingPathComponent("workflow-execution/execute")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -398,33 +398,20 @@ class AppleScriptBridge {
     }
 
     func getWorkflowStatus(threadId: String) async throws -> String {
-        let url = baseURL.appendingPathComponent("workflows/execution/threads/\(threadId)/status")
+        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/status")
         let (data, _) = try await session.data(from: url)
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return result?["status"] as? String ?? "unknown"
     }
 
     func pauseWorkflow(threadId: String) async throws -> Bool {
-        let url = baseURL.appendingPathComponent("workflows/execution/threads/\(threadId)/pause")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = "{}".data(using: .utf8)
-
-        let (data, response) = try await session.data(for: request)
-
-        // Check if endpoint exists
-        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
-            // Pause not supported yet
-            return false
-        }
-
-        let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return result?["success"] as? Bool ?? false
+        // Note: Pause endpoint not implemented - workflows use interrupt_before/after for checkpointing
+        // This returns false until pause functionality is added
+        return false
     }
 
     func resumeWorkflow(threadId: String) async throws -> String {
-        let url = baseURL.appendingPathComponent("workflows/execution/threads/\(threadId)/resume")
+        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/resume")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

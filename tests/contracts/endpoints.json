@@ -809,6 +809,18 @@
       },
       {
         "method": "POST",
+        "path": "/workflows/tools/{tool_name}/prompt",
+        "operation_id": "get_tool_prompt_api_workflows_tools__tool_name__prompt_post",
+        "summary": "Get Tool Prompt",
+        "path_params": [
+          "tool_name"
+        ],
+        "query_params": [],
+        "request_model": "PromptRequest",
+        "response_model": "PromptResponse"
+      },
+      {
+        "method": "POST",
         "path": "/workflows/tools/{tool_name}/create-node",
         "operation_id": "create_node_api_workflows_tools__tool_name__create_node_post",
         "summary": "Create Node",
@@ -829,16 +841,6 @@
         ],
         "request_model": null,
         "response_model": "NodeResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/workflows/run",
-        "operation_id": "run_workflow_inline_api_workflows_run_post",
-        "summary": "Run Workflow Inline",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "Body_run_workflow_inline_api_workflows_run_post",
-        "response_model": "WorkflowRunResponse"
       },
       {
         "method": "POST",
@@ -974,29 +976,19 @@
         ],
         "request_model": null,
         "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/workflows/{workflow_id}/run",
-        "operation_id": "run_saved_workflow_api_workflows__workflow_id__run_post",
-        "summary": "Run Saved Workflow",
-        "path_params": [
-          "workflow_id"
-        ],
-        "query_params": [],
-        "request_model": "WorkflowRunRequest",
-        "response_model": "WorkflowRunResponse"
       }
     ],
     "workflow-execution": [
       {
-        "method": "POST",
-        "path": "/workflow-execution/execute/stream",
-        "operation_id": "execute_workflow_stream_api_workflow_execution_execute_stream_post",
-        "summary": "Execute Workflow Stream",
-        "path_params": [],
+        "method": "GET",
+        "path": "/workflow-execution/stream/{thread_id}",
+        "operation_id": "stream_workflow_events_api_workflow_execution_stream__thread_id__get",
+        "summary": "Stream Workflow Events",
+        "path_params": [
+          "thread_id"
+        ],
         "query_params": [],
-        "request_model": "ExecuteWorkflowRequest",
+        "request_model": null,
         "response_model": null
       },
       {
@@ -1007,7 +999,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "ExecuteWorkflowRequest",
-        "response_model": "ExecutionStatusResponse"
+        "response_model": null
       },
       {
         "method": "POST",
@@ -2470,6 +2462,70 @@
         "path_params": [
           "execution_id"
         ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "artifacts": [
+      {
+        "method": "GET",
+        "path": "/artifacts/document/{doc_id}",
+        "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
+        "summary": "List Document Artifacts",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "artifact_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ArtifactListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/{artifact_id}",
+        "operation_id": "get_artifact_api_artifacts__artifact_id__get",
+        "summary": "Get Artifact",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ArtifactResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/artifacts/{artifact_id}",
+        "operation_id": "delete_artifact_api_artifacts__artifact_id__delete",
+        "summary": "Delete Artifact",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/types",
+        "operation_id": "list_artifact_types_api_artifacts_types_get",
+        "summary": "List Artifact Types",
+        "path_params": [],
         "query_params": [],
         "request_model": null,
         "response_model": null

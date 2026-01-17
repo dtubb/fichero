@@ -43,6 +43,8 @@ def register_tool(
     output_ports: list[PortDef] | None = None,
     config_schema: dict[str, Any] | None = None,
     default_output_schema: dict[str, Any] | None = None,
+    default_prompt: str | None = None,
+    prompt_builder: Callable[[dict[str, Any]], str] | None = None,
     uses_llm: bool = False,
     supports_batch: bool = False,
     supports_streaming: bool = False,
@@ -66,6 +68,8 @@ def register_tool(
                 PortDef(id="text", name="Text", port_type="output", data_type=DataType.TEXT),
             ],
             uses_llm=True,
+            default_prompt="Extract all text from this image...",
+            prompt_builder=build_transcribe_prompt,  # Optional: dynamic prompt
         )
         async def transcribe(state: State, config: dict) -> dict:
             ...
@@ -90,6 +94,8 @@ def register_tool(
             output_ports=output_ports or default_output,
             config_schema=config_schema or {},
             default_output_schema=default_output_schema,
+            default_prompt=default_prompt,
+            prompt_builder=prompt_builder,
             uses_llm=uses_llm,
             supports_batch=supports_batch,
             supports_streaming=supports_streaming,
@@ -138,25 +144,63 @@ def get_categories() -> list[str]:
     return result
 
 
+def enrich_node_with_ports(node: NodeDef) -> NodeDef:
+    """Enrich a node with port definitions from the tool registry.
+
+    Ports are defined in the tool registry and should NOT be stored with nodes.
+    This function adds the port definitions to a node for:
+    - API responses (so UI can display ports)
+    - Validation (to check port compatibility)
+    - Execution (to resolve input/output connections)
+
+    Args:
+        node: A NodeDef, typically loaded from database without ports
+
+    Returns:
+        A new NodeDef with ports populated from the tool registry.
+        If the tool is not found, returns the node unchanged (preserving any
+        existing ports for backward compatibility with tests/inline definitions).
+    """
+    tool_def = TOOL_DEFS.get(node.tool)
+    if not tool_def:
+        # Tool not in registry - preserve existing ports for backward compatibility
+        # This allows tests and inline workflow definitions to work
+        if not node.input_ports and not node.output_ports:
+            logger.warning(f"Tool not found in registry: {node.tool}")
+        return node
+
+    # Create a new node with ports from registry
+    # Use model_copy to preserve all existing fields
+    return node.model_copy(update={
+        'input_ports': list(tool_def.input_ports),
+        'output_ports': list(tool_def.output_ports),
+        'uses_llm': tool_def.uses_llm,  # Also sync uses_llm from registry
+    })
+
+
 def create_node_from_tool(tool_name: str, position_x: float = 0, position_y: float = 0) -> NodeDef | None:
     """Create a new node instance from a tool definition.
 
-    This copies the tool's ports and creates a unique node ID.
+    Note: The returned node has ports populated for immediate use in the UI.
+    When saving to database, use node.model_dump_for_storage() to exclude ports.
     """
     tool_def = TOOL_DEFS.get(tool_name)
     if not tool_def:
         return None
 
+    # Create node with ports for immediate UI use
+    # When saving, use model_dump_for_storage() to exclude ports
     return NodeDef(
         id=f"{tool_name}_{uuid.uuid4().hex[:8]}",
         tool=tool_name,
-        input_ports=tool_def.input_ports.copy(),
-        output_ports=tool_def.output_ports.copy(),
+        input_ports=list(tool_def.input_ports),
+        output_ports=list(tool_def.output_ports),
         config={},
         position_x=position_x,
         position_y=position_y,
         label=tool_def.display_name,
         description=tool_def.description,
+        uses_llm=tool_def.uses_llm,
     )
 
 

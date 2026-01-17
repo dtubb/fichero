@@ -5,7 +5,7 @@ import SwiftUI
 /// Actions that can be performed on the sidebar selection
 struct SidebarActions {
     let createFolder: () -> Void
-    let importFiles: () -> Void
+    let importFiles: (IngestMode) -> Void
     let renameItem: () -> Void
     let deleteItem: () -> Void
     let createSearch: () -> Void
@@ -102,10 +102,22 @@ struct FocusedImportFilesButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
 
     var body: some View {
-        Button("Import Files or Folders...") {
-            sidebarActions?.importFiles()
+        Menu("Import") {
+            Button("Link Files...") {
+                sidebarActions?.importFiles(.link)
+            }
+            .keyboardShortcut("i", modifiers: [.command])
+
+            Button("Copy Files...") {
+                sidebarActions?.importFiles(.copy)
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+
+            Button("Move Files...") {
+                sidebarActions?.importFiles(.move)
+            }
+            .keyboardShortcut("i", modifiers: [.command, .shift])
         }
-        .keyboardShortcut("i", modifiers: [.command])
         .disabled(sidebarActions == nil)
     }
 }

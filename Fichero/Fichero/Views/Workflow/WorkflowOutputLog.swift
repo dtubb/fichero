@@ -1,9 +1,30 @@
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowOutputLog")
 
 /// Output log showing workflow execution progress
 struct WorkflowOutputLog: View {
     let workflow: Workflow
-    let executionState: WorkflowExecutionState?
+
+    /// Optional passed-in state (for when execution is in progress)
+    var executionStateOverride: WorkflowExecutionState?
+
+    /// Access the observer for persisted state
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
+
+    /// Effective execution state - prefer observer state for persistence
+    private var executionState: WorkflowExecutionState? {
+        // Try observer first (persists across view switches)
+        if let observerState = executionObserver.getExecutionState(for: workflow.id) {
+            return observerState
+        }
+        // Fall back to passed state
+        if let override = executionStateOverride {
+            return override
+        }
+        return nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -45,21 +66,43 @@ struct WorkflowOutputLog: View {
     }
 
     private func progressTable(state: WorkflowExecutionState) -> some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Table header
-                tableHeaderRow
+        VStack(spacing: 0) {
+            // Error banner if workflow failed
+            if state.status == .failed, let error = state.error {
+                errorBanner(error: error)
+            }
 
-                Divider()
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Table header
+                    tableHeaderRow
 
-                // Table rows
-                ForEach(state.documentProgress) { progress in
-                    tableRow(for: progress)
                     Divider()
+
+                    // Table rows
+                    ForEach(state.documentProgress) { progress in
+                        tableRow(for: progress)
+                        Divider()
+                    }
                 }
             }
         }
         .background(Color(.textBackgroundColor))
+    }
+
+    private func errorBanner(error: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.white)
+            Text(error)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.red)
     }
 
     private var tableHeaderRow: some View {
@@ -101,19 +144,74 @@ struct WorkflowOutputLog: View {
         .padding(.vertical, 4)
     }
 
+    @ViewBuilder
     private var emptyStateView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.title2)
-                .foregroundColor(.secondary)
+        // Show error message if workflow failed
+        if let state = executionState, state.status == .failed {
+            errorStateView(error: state.error)
+        } else if let state = executionState, state.status == .completed, state.documentProgress.isEmpty {
+            // Completed but no documents processed - show warning
+            warningStateView
+        } else {
+            // Normal empty state
+            VStack(spacing: 8) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
 
-            Text("No output yet")
+                Text("No output yet")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("Run the workflow to see processing results")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.textBackgroundColor))
+        }
+    }
+
+    private func errorStateView(error: String?) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title)
+                .foregroundColor(.red)
+
+            Text("Workflow Failed")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            if let error = error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.textBackgroundColor))
+    }
+
+    private var warningStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.title)
+                .foregroundColor(.orange)
+
+            Text("No Documents Processed")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text("""
+                The workflow completed but didn't process any documents.
+                Check that the source node has a valid collection selected.
+                """)
                 .font(.caption)
                 .foregroundColor(.secondary)
-
-            Text("Run the workflow to see processing results")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.textBackgroundColor))
@@ -141,6 +239,9 @@ struct WorkflowOutputLog: View {
         case .running:
             ProgressView()
                 .scaleEffect(0.6)
+        case .paused:
+            Image(systemName: "pause.circle.fill")
+                .foregroundColor(.orange)
         case .completed:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
@@ -154,6 +255,7 @@ struct WorkflowOutputLog: View {
         switch status {
         case .idle: return Text("Idle")
         case .running: return Text("Running")
+        case .paused: return Text("Paused")
         case .completed: return Text("Completed")
         case .failed: return Text("Failed")
         }
@@ -194,11 +296,106 @@ struct WorkflowOutputLog: View {
                 }
             }
         case .failed(let error):
-            Image(systemName: "xmark.circle.fill")
-                .foregroundColor(.red)
-                .font(.caption2)
-                .help(error ?? "Unknown error")
+            ErrorStatusCell(error: error)
         }
+    }
+
+}
+
+// MARK: - Error Status Cell
+
+/// Clickable error cell that shows full error in a popover
+private struct ErrorStatusCell: View {
+    let error: String?
+    @State private var showingPopover = false
+
+    var body: some View {
+        Button {
+            showingPopover.toggle()
+        } label: {
+            HStack(spacing: 2) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.red)
+                    .font(.caption2)
+                if let error = error {
+                    Text(simplifyError(error))
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text("Error Details")
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        showingPopover = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Divider()
+
+                if let error = error {
+                    Text(error)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: 400, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Unknown error")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Copy") {
+                        if let error = error {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(error, forType: .string)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding()
+            .frame(minWidth: 300, maxWidth: 450)
+        }
+        .help(error ?? "Unknown error")
+    }
+
+    /// Extract the key part of an error message for display
+    private func simplifyError(_ error: String) -> String {
+        // Handle common error patterns
+        if error.contains("402") || error.lowercased().contains("insufficient credits") {
+            return "No credits"
+        }
+        if error.contains("401") || error.lowercased().contains("unauthorized") {
+            return "Auth error"
+        }
+        if error.contains("timeout") || error.contains("timed out") {
+            return "Timeout"
+        }
+        if error.contains("429") || error.lowercased().contains("rate limit") {
+            return "Rate limit"
+        }
+        if error.contains("500") || error.contains("internal server") {
+            return "Server error"
+        }
+        // Truncate long errors
+        if error.count > 15 {
+            return String(error.prefix(12)) + "..."
+        }
+        return error
     }
 }
 
@@ -207,11 +404,13 @@ struct WorkflowOutputLog: View {
 struct WorkflowExecutionState {
     var status: WorkflowStatus
     var documentProgress: [DocumentProgress]
+    var error: String?
 }
 
 enum WorkflowStatus {
     case idle
     case running
+    case paused
     case completed
     case failed
 }
@@ -261,7 +460,7 @@ extension WorkflowExecutionState {
                     "step-2": .pending,
                     "step-3": .pending
                 ]
-            ),
+            )
         ]
     )
 }
@@ -271,7 +470,8 @@ extension WorkflowExecutionState {
 #Preview("Empty") {
     WorkflowOutputLog(
         workflow: Workflow(name: "Test", description: ""),
-        executionState: nil
+        executionStateOverride: nil
     )
+    .environment(WorkflowExecutionObserver())
     .frame(width: 600, height: 200)
 }

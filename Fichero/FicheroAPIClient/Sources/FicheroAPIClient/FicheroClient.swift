@@ -47,11 +47,9 @@ public final class FicheroClient: ObservableObject {
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
         self.currentLibraryPath = libraryPath
 
-        // The API paths in OpenAPI include /api prefix
-        let serverURL = baseURL.appendingPathComponent("api")
-
+        // The API paths in OpenAPI already include /api prefix, so use base URL directly
         self.api = Client(
-            serverURL: serverURL,
+            serverURL: baseURL,
             transport: URLSessionTransport(),
             middlewares: [libraryPathProvider.createMiddleware()]
         )
@@ -59,9 +57,8 @@ public final class FicheroClient: ObservableObject {
 
     /// Rebuild the client with updated middleware (called when libraryPath changes)
     private func rebuildClient() {
-        let serverURL = baseURL.appendingPathComponent("api")
         self.api = Client(
-            serverURL: serverURL,
+            serverURL: baseURL,
             transport: URLSessionTransport(),
             middlewares: [libraryPathProvider.createMiddleware()]
         )

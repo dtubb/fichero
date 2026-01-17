@@ -22,6 +22,7 @@ class SidebarState: ObservableObject {
     @Published var isLibraryDropTargeted: Bool = false
     @Published var renamingItemId: String?
     @Published var showingFileImporter: Bool = false
+    @Published var selectedImportMode: IngestMode = .link
     @Published var showingNewFolderDialog: Bool = false
     @Published var newFolderParentId: String?
     @Published var newFolderCategory: ItemCategory?

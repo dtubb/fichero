@@ -32,6 +32,8 @@ class DocumentCreate(BaseModel):
     page_content: Optional[str] = None
     metadata: dict = {}
 
+    model_config = {"extra": "allow"}
+
 
 class DocumentUpdate(BaseModel):
     """Request model for updating a document."""
@@ -43,6 +45,8 @@ class DocumentUpdate(BaseModel):
     page_content: Optional[str] = None
     status: Optional[Status] = None
     metadata: Optional[dict] = None
+
+    model_config = {"extra": "allow"}
 
 
 # Routes
@@ -269,13 +273,23 @@ async def import_file(
             logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
 
 
+class MoveRequest(BaseModel):
+    """Request model for moving a document."""
+    parent_id: Optional[str] = None
+
+    model_config = {"extra": "allow"}
+
+
 @router.put("/{doc_id}/move")
 async def move_document(
     doc_id: str,
-    parent_id: Optional[str] = None,
+    parent_id: Optional[str] = Query(None),
     db: Database = Depends(get_library_database),
 ) -> Document:
-    """Move a document to a new parent location."""
+    """Move a document to a new parent location.
+
+    Accepts parent_id as either a query parameter or in the request body for flexibility.
+    """
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")

@@ -17,7 +17,7 @@ from fichero.workflows.types import (
     DataType,
     ToolDef,
 )
-from fichero.workflows.registry import TOOL_DEFS
+from fichero.workflows.registry import TOOL_DEFS, enrich_node_with_ports
 
 logger = logging.getLogger(__name__)
 
@@ -107,50 +107,55 @@ def validate_node_connections(node: NodeDef, tool_def: ToolDef | None = None) ->
 
 def validate_workflow_connections(workflow: WorkflowDef) -> list[str]:
     """Validate all connections in a workflow.
-    
+
     Args:
         workflow: The workflow to validate
-        
+
     Returns:
-        List of error messages (empty if valid)")
+        List of error messages (empty if valid)
     """
     errors = []
-    
+
+    # Build a map of enriched nodes (with ports from registry)
+    enriched_nodes: dict[str, NodeDef] = {}
+    for node in workflow.nodes:
+        enriched_nodes[node.id] = enrich_node_with_ports(node)
+
     # Validate each node
     for node in workflow.nodes:
         node_errors = validate_node_connections(node)
         errors.extend(node_errors)
-    
+
     # Validate each edge
     for edge in workflow.edges:
-        # Find source and target nodes
-        source_node = workflow.get_node(edge.source)
-        target_node = workflow.get_node(edge.target)
-        
+        # Find source and target nodes (enriched with ports from registry)
+        source_node = enriched_nodes.get(edge.source)
+        target_node = enriched_nodes.get(edge.target)
+
         if not source_node:
             errors.append(f"Edge references unknown source node: {edge.source}")
             continue
-        
+
         if not target_node:
             errors.append(f"Edge references unknown target node: {edge.target}")
             continue
-        
-        # Find source and target ports
+
+        # Find source and target ports (now guaranteed to have ports from registry)
         source_port = next((p for p in source_node.output_ports if p.id == edge.source_port), None)
         target_port = next((p for p in target_node.input_ports if p.id == edge.target_port), None)
-        
+
         if not source_port:
             errors.append(f"Edge references unknown source port '{edge.source_port}' on node '{edge.source}'")
             continue
-        
+
         if not target_port:
             errors.append(f"Edge references unknown target port '{edge.target_port}' on node '{edge.target}'")
             continue
-        
+
         # Validate connection compatibility
         if not validate_port_connection(source_port, target_port):
             errors.append(f"Invalid connection from {edge.source}.{edge.source_port} to {edge.target}.{edge.target_port}")
-    
+
     return errors
 
 

@@ -14,11 +14,11 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var documentStore: DocumentStore
-    @EnvironmentObject var conversationService: ConversationService
+    @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var importService: ImportService
     @EnvironmentObject var windowState: WindowState
     @EnvironmentObject var workflowStore: WorkflowStore
-    @EnvironmentObject var savedSearchService: SavedSearchService
+    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
 
     // MARK: - State
 
@@ -477,6 +477,25 @@ struct ContentView: View {
                 viewDisplayMode = newDisplayMode
             }
         }
+        .onChange(of: viewMode) { oldMode, _ in
+            // Auto-save workflow when navigating away from a workflow
+            if case .workflow(let oldWorkflow) = oldMode, let workflow = oldWorkflow {
+                // Capture the editing workflow content before it changes
+                let workflowToSave = editingWorkflow
+                Task {
+                    await autoSaveWorkflow(workflowId: workflow.id, workflow: workflowToSave)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            // Auto-save workflow when app quits
+            if case .workflow(let workflow) = viewMode, let workflowItem = workflow {
+                let workflowToSave = editingWorkflow
+                Task {
+                    await autoSaveWorkflow(workflowId: workflowItem.id, workflow: workflowToSave)
+                }
+            }
+        }
         .modifier(
             MainContentModifiers(
                 documentStore: documentStore,
@@ -548,6 +567,7 @@ extension ContentView {
             } else {
                 // Library mode - show workflow browser
                 WorkflowLibraryView(
+                    displayMode: viewDisplayMode,
                     onOpenWorkflow: { workflowItem in
                         viewMode = .workflow(workflowItem)
                     }
@@ -614,6 +634,33 @@ extension ContentView {
         let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
         editingWorkflow.nodes.append(newNode)
         logger.info("Added node '\(tool.displayName)' at (\(position.x), \(position.y))")
+    }
+
+    /// Auto-save a workflow (called when switching views or app quits)
+    /// - Parameters:
+    ///   - workflowId: The ID of the workflow to save
+    ///   - workflow: The workflow content to save
+    @MainActor
+    func autoSaveWorkflow(workflowId: String, workflow: Workflow) async {
+        // Only save if there's content worth saving
+        guard !workflow.nodes.isEmpty || !workflow.name.isEmpty else {
+            logger.info("Auto-save skipped: empty workflow")
+            return
+        }
+
+        logger.info("Auto-saving workflow: \(workflow.name) (id: \(workflowId))")
+        // Debug: log node provider/model values at save time
+        for node in workflow.nodes {
+            print("[DEBUG SAVE] Node \(node.id): providerName=\(node.providerName ?? "nil"), modelName=\(node.modelName ?? "nil")")
+        }
+        do {
+            let definition = workflow.toAPIFormat()
+            // Always update since we have a workflow ID
+            _ = try await workflowStore.updateWorkflow(definition)
+            logger.info("Auto-save completed for workflow: \(workflowId)")
+        } catch {
+            logger.error("Auto-save failed: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Navigation

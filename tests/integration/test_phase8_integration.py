@@ -134,7 +134,7 @@ class TestSSEStreaming:
 
     @pytest.mark.asyncio
     async def test_sse_endpoint_exists(self, async_api_client):
-        """Test that SSE streaming endpoint exists."""
+        """Test that non-blocking execute + SSE stream endpoints exist."""
         # First get a workflow ID
         response = await async_api_client.get("/workflows")
         if response.status_code != 200:
@@ -146,7 +146,7 @@ class TestSSEStreaming:
 
         workflow_id = workflows[0]["id"]
 
-        # Test SSE endpoint with POST
+        # Step 1: POST /execute to start workflow (returns 202 Accepted)
         request_data = {
             "workflow_id": workflow_id,
             "inputs": {},
@@ -156,38 +156,52 @@ class TestSSEStreaming:
             "interrupt_after": []
         }
 
-        # We just check the endpoint accepts the request
-        # Full streaming test requires actual workflow execution
         try:
-            async with async_api_client.stream(
-                "POST",
-                "/workflows/execution/execute/stream",
+            response = await async_api_client.post(
+                "/workflows/execution/execute",
                 json=request_data,
                 timeout=5.0
-            ) as response:
-                # Check response headers for SSE
-                content_type = response.headers.get("content-type", "")
-                assert "text/event-stream" in content_type or response.status_code == 200
+            )
 
-                # Try to read first event (may timeout if no events)
-                try:
-                    async for line in response.aiter_lines():
-                        if line.startswith("event:") or line.startswith("data:"):
-                            # Got an SSE event - test passes
-                            break
-                except asyncio.TimeoutError:
-                    # Timeout is acceptable - endpoint exists and responds
-                    pass
+            # Should return 202 Accepted with thread_id and stream_url
+            if response.status_code == 202:
+                data = response.json()
+                assert "thread_id" in data
+                assert "stream_url" in data
+                thread_id = data["thread_id"]
+
+                # Step 2: GET /stream/{thread_id} for SSE events
+                async with async_api_client.stream(
+                    "GET",
+                    f"/workflows/execution/stream/{thread_id}",
+                    timeout=5.0
+                ) as stream_response:
+                    # Check response headers for SSE
+                    content_type = stream_response.headers.get("content-type", "")
+                    assert "text/event-stream" in content_type or stream_response.status_code == 200
+
+                    # Try to read first event (may timeout if no events)
+                    try:
+                        async for line in stream_response.aiter_lines():
+                            if line.startswith("event:") or line.startswith("data:"):
+                                # Got an SSE event - test passes
+                                break
+                    except asyncio.TimeoutError:
+                        # Timeout is acceptable - endpoint exists and responds
+                        pass
+            elif response.status_code == 404:
+                pytest.fail("Execute endpoint not found")
+
         except httpx.HTTPStatusError as e:
             # 404 means endpoint doesn't exist
             if e.response.status_code == 404:
-                pytest.fail("SSE streaming endpoint not found")
+                pytest.fail("Execute endpoint not found")
             # Other errors may be acceptable (e.g., workflow execution fails)
             pass
 
     @pytest.mark.asyncio
-    async def test_regular_execute_still_works(self, async_api_client):
-        """Test that regular (non-streaming) execute endpoint still works."""
+    async def test_execute_returns_202_accepted(self, async_api_client):
+        """Test that execute endpoint returns 202 Accepted."""
         response = await async_api_client.get("/workflows")
         if response.status_code != 200:
             pytest.skip("Workflows endpoint not available")
@@ -208,8 +222,14 @@ class TestSSEStreaming:
             json=request_data
         )
 
-        # Should return a response (may be error if workflow can't run)
-        assert response.status_code in [200, 400, 500]
+        # Should return 202 Accepted (non-blocking), or error codes
+        assert response.status_code in [202, 400, 404, 500]
+
+        if response.status_code == 202:
+            data = response.json()
+            assert "thread_id" in data
+            assert "workflow_id" in data
+            assert "stream_url" in data
 
 
 # =============================================================================

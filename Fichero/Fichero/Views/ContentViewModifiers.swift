@@ -9,8 +9,8 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView
 struct DataLoadingModifiers: ViewModifier {
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
-    let conversationService: ConversationService
-    let savedSearchService: SavedSearchService
+    let conversationService: ConversationServiceGenerated
+    let savedSearchService: SavedSearchServiceGenerated
 
     func body(content: Content) -> some View {
         content
@@ -87,6 +87,7 @@ struct SheetModifiers: ViewModifier {
                     },
                     isFirstLaunch: appState.isFirstLaunchProviderSetup
                 )
+                .environmentObject(appState.providerService)
             }
             .sheet(isPresented: Binding(
                 get: { appState.showProvidersSettings },
@@ -94,6 +95,7 @@ struct SheetModifiers: ViewModifier {
             )) {
                 ProvidersSettingsSheet()
                     .environmentObject(appState)
+                    .environmentObject(appState.providerService)
             }
             .sheet(isPresented: Binding(
                 get: { appState.showMCPServers },
@@ -165,8 +167,8 @@ struct DropTargetModifiers: ViewModifier {
 struct MainContentModifiers: ViewModifier {
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
-    let conversationService: ConversationService
-    let savedSearchService: SavedSearchService
+    let conversationService: ConversationServiceGenerated
+    let savedSearchService: SavedSearchServiceGenerated
     let appState: AppState
     let viewSettings: ViewSettings
 
@@ -203,7 +205,7 @@ struct MainContentModifiers: ViewModifier {
                 handleBrowserSelectionChange: handleBrowserSelectionChange,
                 handleDocumentChange: handleDocumentChange
             ))
-            .modifier(SheetModifiers(appState: appState))
+            // Note: SheetModifiers removed - app-level sheets now handled in LibraryWindow
             .modifier(DropTargetModifiers(
                 isDropTargeted: $isDropTargeted,
                 isImporting: $isImporting,

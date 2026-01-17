@@ -155,7 +155,7 @@ struct SidebarView: View {
                 .store(in: &cancellables)
 
             // Observe saved search changes
-            library.savedSearchService.objectWillChange
+            library.savedSearchServiceGenerated.objectWillChange
                 .sink { _ in
                     Task { @MainActor in
                         rebuildCaches()
@@ -164,7 +164,7 @@ struct SidebarView: View {
                 .store(in: &cancellables)
 
             // Observe conversation changes
-            library.conversationService.objectWillChange
+            library.conversationServiceGenerated.objectWillChange
                 .sink { _ in
                     Task { @MainActor in
                         rebuildCaches()
@@ -186,7 +186,9 @@ struct SidebarView: View {
     /// Configure item registry handlers
     private func setupItemRegistry() {
         itemRegistry.createFolder = handleCreateNewFolder
-        itemRegistry.importFiles = importFiles
+        itemRegistry.importFiles = {
+            importFiles(mode: .link)  // Default to link mode from Add menu
+        }
         itemRegistry.createSearch = createNewSearch
         itemRegistry.createChat = createNewChat
         itemRegistry.createWorkflow = createNewWorkflow
@@ -373,13 +375,13 @@ extension SidebarView {
         Task {
             do {
                 // Use saveSearch API with query parameter
-                let savedSearch = try await globalLibrary.savedSearchService.saveSearch(
+                let savedSearch = try await globalLibrary.savedSearchServiceGenerated.saveSearch(
                     query: "New Search",
                     isSmartSearch: true
                 )
 
                 // Reload searches to get updated list
-                try await globalLibrary.savedSearchService.loadSavedSearches()
+                try await globalLibrary.savedSearchServiceGenerated.loadSavedSearches()
                 rebuildCaches()
 
                 // Select the new search
@@ -410,18 +412,18 @@ extension SidebarView {
             do {
                 // Create a new conversation by sending an initial message
                 // The backend will create the conversation automatically
-                let response = try await globalLibrary.chatService.chat(
+                let response = try await globalLibrary.chatServiceGenerated.chat(
                     message: "Hello",
                     conversationId: nil,
                     documentIds: nil
                 )
 
                 // Reload conversations to get the new one
-                try await globalLibrary.conversationService.loadConversations()
+                try await globalLibrary.conversationServiceGenerated.loadConversations()
                 rebuildCaches()
 
                 // Find the conversation we just created
-                if let newConv = globalLibrary.conversationService.conversations.first(where: { $0.id == response.conversationId }) {
+                if let newConv = globalLibrary.conversationServiceGenerated.conversations.first(where: { $0.id == response.conversationId }) {
                     selectedItemId = "conversation:\(newConv.id)"
                     viewMode = .chat(newConv)
                     logger.info("Created new chat: \(newConv.id)")
@@ -454,7 +456,7 @@ extension SidebarView {
                     sortOrder: 0
                 )
 
-                let response = try await globalLibrary.workflowService.createWorkflow(newWorkflowDef)
+                let response = try await globalLibrary.workflowServiceGenerated.createWorkflow(newWorkflowDef)
 
                 // Reload workflows to get the new one
                 await globalLibrary.workflowStore.loadWorkflows()
@@ -522,12 +524,15 @@ extension SidebarView {
 
 extension SidebarView {
     /// Import files to the library that owns the selected item (or Global if none)
-    private func importFiles() {
+    private func importFiles(mode: IngestMode = .link) {
         let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
         guard targetLibrary != nil else {
             logger.error("No library available for import")
             return
         }
+
+        // Store the selected mode for use in handleImportedFiles
+        sidebarState.selectedImportMode = mode
 
         // Show file picker
         sidebarState.showingFileImporter = true
@@ -541,12 +546,13 @@ extension SidebarView {
             return
         }
 
-        logger.info("Importing \(urls.count) files to library: \(library.displayName)")
+        let mode = sidebarState.selectedImportMode
+        logger.info("Importing \(urls.count) files to library: \(library.displayName) with mode: \(mode.rawValue)")
 
         do {
-            // Use the import service to import files
-            _ = try await library.importService.importFiles(urls, mode: .link)
-            logger.info("Imported \(urls.count) files")
+            // Use the import service to import files with selected mode
+            _ = try await library.importService.importFiles(urls, mode: mode)
+            logger.info("Imported \(urls.count) files using mode: \(mode.rawValue)")
         } catch {
             logger.error("Failed to import files: \(error)")
         }
@@ -576,28 +582,35 @@ extension SidebarView {
 
     /// Perform the actual deletion
     private func performDelete(item: SidebarItem) async {
+        logger.info("performDelete called for: \(item.name) (id: \(item.id), libraryId: \(item.libraryId?.uuidString ?? "nil"))")
+
         guard let libraryId = item.libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else {
-            logger.error("Could not find library for deletion")
+            logger.error("Could not find library for deletion - libraryId: \(item.libraryId?.uuidString ?? "nil")")
             return
         }
 
         do {
             switch item.itemType {
             case .document(let doc):
+                logger.info("Deleting document: \(doc.id)")
                 try await library.documentStore.deleteDocument(doc)
             case .savedSearch(let search):
-                try await library.savedSearchService.deleteSavedSearch(search.id)
+                logger.info("Deleting search: \(search.id)")
+                try await library.savedSearchServiceGenerated.deleteSavedSearch(search.id)
             case .conversation(let conversation):
-                try await library.conversationService.deleteConversation(conversation.id)
+                logger.info("Deleting conversation: \(conversation.id)")
+                try await library.conversationServiceGenerated.deleteConversation(conversation.id)
             case .workflow(let workflow):
-                try await library.workflowService.deleteWorkflow(workflow.id)
+                logger.info("Deleting workflow: \(workflow.id)")
+                try await library.workflowStore.deleteWorkflow(workflow.id)
             case .folder:
                 logger.info("Folder deletion not yet implemented")
             case .libraryHeader:
                 logger.warning("Cannot delete library header")
             }
 
+            logger.info("Delete successful, rebuilding caches")
             rebuildCaches()
             selectedItemId = nil
         } catch {

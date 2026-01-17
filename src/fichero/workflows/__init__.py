@@ -28,7 +28,7 @@ from fichero.workflows.types import (
     WorkflowDef,
     ToolDef,
 )
-from fichero.workflows.registry import TOOLS, register_tool, list_tools, get_tool_def
+from fichero.workflows.registry import TOOLS, register_tool, list_tools, get_tool_def, enrich_node_with_ports
 from fichero.workflows.builder import build_graph, execute_workflow
 from fichero.workflows.resolver import resolve_inputs, resolve_value, evaluate_condition
 
@@ -44,6 +44,7 @@ __all__ = [
     "register_tool",
     "list_tools",
     "get_tool_def",
+    "enrich_node_with_ports",
     # Builder
     "build_graph",
     "execute_workflow",

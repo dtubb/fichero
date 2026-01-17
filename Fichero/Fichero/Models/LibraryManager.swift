@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import FicheroAPIClient
 
 /// Manages multiple open .fichero libraries
 /// Allows multiple windows and tabs to reference the same library instance
@@ -31,18 +32,21 @@ class LibraryManager: ObservableObject {
 
         // Core services - one instance per library, shared across all tabs/windows
         let apiClient: APIClient
+        let ficheroClient: FicheroClient  // Generated API client
         let documentStore: DocumentStore
-        let savedSearchService: SavedSearchService
+        let savedSearchServiceGenerated: SavedSearchServiceGenerated  // Generated saved search service
         let searchService: SearchService
-        let conversationService: ConversationService
-        let chatService: ChatService
+        let conversationServiceGenerated: ConversationServiceGenerated  // Generated conversation service
+        let chatServiceGenerated: ChatServiceGenerated  // Generated chat service
         let workflowStore: WorkflowStore
-        let workflowService: WorkflowService
+        let workflowServiceGenerated: WorkflowServiceGenerated  // Generated workflow service
+        let workflowStreamService: WorkflowStreamService  // SSE streaming for workflow execution
         let importService: ImportService
-        let documentService: DocumentService
+        let documentServiceGenerated: DocumentServiceGenerated
         let storageService: StorageService
         let providerService: ProviderService
         let modelService: ModelService
+        let artifactService: ArtifactService
 
         // Security-scoped resource tracking
         private var isAccessingSecurityScope: Bool = false
@@ -55,14 +59,9 @@ class LibraryManager: ObservableObject {
             id: UUID? = nil,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
-            savedSearchService: SavedSearchService? = nil,
             searchService: SearchService? = nil,
-            conversationService: ConversationService? = nil,
-            chatService: ChatService? = nil,
             workflowStore: WorkflowStore? = nil,
-            workflowService: WorkflowService? = nil,
             importService: ImportService? = nil,
-            documentService: DocumentService? = nil,
             storageService: StorageService? = nil,
             providerService: ProviderService? = nil,
             modelService: ModelService? = nil,
@@ -80,19 +79,28 @@ class LibraryManager: ObservableObject {
                 self.apiClient = APIClient()
             }
 
+            // Set the library path on the API client immediately
+            // This ensures all services created below have access to the path
+            self.apiClient.currentLibraryPath = url.path
+
+            // Create the generated API client (shares same library path)
+            self.ficheroClient = FicheroClient(libraryPath: url.path)
+
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
-            self.savedSearchService = savedSearchService ?? SavedSearchService(apiClient: self.apiClient)
+            self.savedSearchServiceGenerated = SavedSearchServiceGenerated(ficheroClient: self.ficheroClient)
             self.searchService = searchService ?? SearchService(apiClient: self.apiClient)
-            self.conversationService = conversationService ?? ConversationService(apiClient: self.apiClient)
-            self.chatService = chatService ?? ChatService(apiClient: self.apiClient)
-            self.workflowStore = workflowStore ?? WorkflowStore(apiClient: self.apiClient)
-            self.workflowService = workflowService ?? WorkflowService(apiClient: self.apiClient)
+            self.conversationServiceGenerated = ConversationServiceGenerated(ficheroClient: self.ficheroClient)
+            self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
+            self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
+            self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
+            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient)
             self.importService = importService ?? ImportService(apiClient: self.apiClient)
-            self.documentService = documentService ?? DocumentService(apiClient: self.apiClient)
+            self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageService(apiClient: self.apiClient)
             self.providerService = providerService ?? ProviderService(apiClient: self.apiClient)
             self.modelService = modelService ?? ModelService(apiClient: self.apiClient)
+            self.artifactService = ArtifactService(apiClient: self.apiClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {
@@ -146,6 +154,7 @@ class LibraryManager: ObservableObject {
         let document = FicheroDocument()
 
         // Create Local library reference with fixed ID
+        // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
         let library = LibraryReference(
             url: globalURL,
             document: document,
@@ -153,7 +162,6 @@ class LibraryManager: ObservableObject {
             id: Self.globalLibraryId,
             startAccessing: false  // No security-scoped access needed for app support folder
         )
-        library.apiClient.currentLibraryPath = globalURL.path
 
         // Always insert Global at the beginning
         openLibraries.insert(library, at: 0)
@@ -194,8 +202,8 @@ class LibraryManager: ObservableObject {
         let needsSecurityAccess = !isTemporaryLibrary(url)
 
         // Create new library reference
+        // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
         let library = LibraryReference(url: url, document: document, displayName: displayName, startAccessing: needsSecurityAccess)
-        library.apiClient.currentLibraryPath = url.path
 
         // Insert after Global library (which is always first)
         if openLibraries.first?.id == Self.globalLibraryId {
@@ -239,8 +247,8 @@ class LibraryManager: ObservableObject {
         // This ensures the backend database is created in the right place
         createPackageStructure(at: temporaryURL)
 
+        // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
         let library = LibraryReference(url: temporaryURL, document: document, displayName: displayName)
-        library.apiClient.currentLibraryPath = temporaryURL.path  // Set API client path
 
         // Insert after Global library (which is always first)
         if openLibraries.first?.id == Self.globalLibraryId {
@@ -366,6 +374,7 @@ class LibraryManager: ObservableObject {
 
             // Update the API client's library path to the new location
             library.apiClient.currentLibraryPath = url.path
+            library.ficheroClient.currentLibraryPath = url.path
 
             // Update the reference in our array
             openLibraries[index] = library
@@ -462,11 +471,11 @@ class LibraryManager: ObservableObject {
             }
             group.addTask {
                 guard !Task.isCancelled else { return }
-                try? await library.conversationService.loadConversations()
+                try? await library.conversationServiceGenerated.loadConversations()
             }
             group.addTask {
                 guard !Task.isCancelled else { return }
-                try? await library.savedSearchService.loadSavedSearches()
+                try? await library.savedSearchServiceGenerated.loadSavedSearches()
             }
         }
         logger.info("Loaded all data for library: \(library.displayName)")
@@ -484,7 +493,7 @@ class LibraryManager: ObservableObject {
         if !hasInbox {
             // Create Inbox folder
             do {
-                let inbox = try await library.documentService.createCollection(name: "Inbox", parentId: nil)
+                let inbox = try await library.documentServiceGenerated.createCollection(name: "Inbox", parentId: nil)
                 logger.info("✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)")
 
                 // Reload documents to include the new Inbox

@@ -14,13 +14,13 @@ struct DocumentTabView: View {
 
     // All services come from the environment (shared per-library, not per-tab)
     @EnvironmentObject var documentStore: DocumentStore
-    @EnvironmentObject var savedSearchService: SavedSearchService
+    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var searchService: SearchService
-    @EnvironmentObject var conversationService: ConversationService
-    @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var conversationService: ConversationServiceGenerated
+    @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var importService: ImportService
-    @EnvironmentObject var documentService: DocumentService
+    @EnvironmentObject var documentService: DocumentServiceGenerated
     @EnvironmentObject var storageService: StorageService
     @EnvironmentObject var windowState: WindowState
 

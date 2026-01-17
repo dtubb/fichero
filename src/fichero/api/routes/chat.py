@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
+from fichero.app_db import get_app_db, AppDatabase
 from fichero.models import Document, Provider as ProviderModel, Model as ModelModel, Conversation
 from fichero.keychain import has_api_key
 from fichero.providers import PROVIDERS as PROVIDER_CATALOG, get_provider_info
@@ -77,13 +78,15 @@ class ChatRequest(BaseModel):
     provider: Optional[str] = None  # e.g., "openai", "anthropic", "ollama"
     model: Optional[str] = None  # e.g., "gpt-4o-mini", "claude-3-haiku"
 
+    model_config = {"extra": "allow"}
+
 
 class ChatResponse(BaseModel):
     """Response model for chat."""
     message: str
     sources: List[DocumentSource]
     conversation_id: str
-    model_used: Optional[str] = None  # Which model actually handled the request
+    model_used: str = ""  # Which model actually handled the request (empty if not known)
 
 
 class ProviderInfo(BaseModel):
@@ -92,6 +95,7 @@ class ProviderInfo(BaseModel):
     name: str
     models: List[str]
     available: bool  # Whether API key is configured
+    supports_vision: bool = False  # Whether provider supports vision/image input
 
 
 class ConversationHistory(BaseModel):
@@ -365,6 +369,8 @@ class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     folder_path: Optional[str] = None
 
+    model_config = {"extra": "allow"}
+
 
 @router.put("/conversations/{conversation_id}")
 async def update_conversation(
@@ -464,21 +470,33 @@ async def reorder_conversations(
     return {"status": "reordered", "count": len(conversation_ids), "folder_path": folder_path}
 
 
+def get_app_database() -> AppDatabase:
+    """FastAPI dependency to get the app-wide database."""
+    return get_app_db()
+
+
 @router.get("/providers")
 async def list_providers(
-    db: Database = Depends(get_library_database),
+    app_db: AppDatabase = Depends(get_app_database),
 ) -> List[ProviderInfo]:
-    """List available LLM providers and their models from user configuration."""
+    """List available LLM providers and their models from user configuration.
+
+    Providers are stored app-wide (not per-library), so we query the app database.
+    """
     result = []
 
-    # Get configured providers from database
-    configured_providers = db.query(ProviderModel, enabled=True)
+    # Get configured providers from app-wide database
+    configured_providers = app_db.list_providers()
+    # Filter to enabled only
+    configured_providers = [p for p in configured_providers if p.enabled]
 
     for provider in configured_providers:
         provider_type = provider.provider_type.value
 
-        # Get models for this provider
-        models = db.query(ModelModel, provider_id=provider.id, enabled=True)
+        # Get models for this provider from app database
+        models = app_db.list_models(provider.id)
+        # Filter to enabled only
+        models = [m for m in models if m.enabled]
         model_ids = [m.model_id for m in models]
 
         # If no models configured, use default from catalog
@@ -497,11 +515,15 @@ async def list_providers(
         else:
             available = has_api_key(provider_type)
 
+        # Get vision support from catalog
+        supports_vision = catalog_info.supports_vision if catalog_info else False
+
         result.append(ProviderInfo(
             id=provider_type,
             name=provider.name,
             models=model_ids,
             available=available,
+            supports_vision=supports_vision,
         ))
 
     return result
@@ -512,6 +534,8 @@ class ExtractTextRequest(BaseModel):
     """Request to extract text from documents."""
     document_ids: Optional[List[str]] = None  # None means all documents
     force: bool = False  # Re-extract even if text already exists
+
+    model_config = {"extra": "allow"}
 
 
 class ExtractTextResponse(BaseModel):

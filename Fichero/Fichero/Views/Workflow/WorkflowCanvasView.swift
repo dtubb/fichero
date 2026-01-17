@@ -8,6 +8,14 @@ struct WorkflowCanvasView: View {
     @Binding var scale: CGFloat
     @Binding var snapToGrid: Bool
 
+    // Execution observer for node progress (uses @Observable pattern)
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
+
+    /// Node execution states from the observer (reactive via @Observable)
+    private var nodeStates: [String: NodeExecutionState] {
+        executionObserver.activeExecutions[workflow.id]?.nodeStates ?? [:]
+    }
+
     // Focus state for keyboard commands
     @FocusState private var isCanvasFocused: Bool
 
@@ -41,48 +49,51 @@ struct WorkflowCanvasView: View {
     let snapThreshold: CGFloat = 10
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Layer 1: Grid background (decorative, no interaction)
-            GridPattern()
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                .allowsHitTesting(false)
+        // Outer container fills available space and clips content
+        GeometryReader { _ in
+            ZStack(alignment: .topLeading) {
+                // Layer 1: Grid background (decorative, no interaction)
+                GridPattern()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                    .allowsHitTesting(false)
 
-            // Layer 2: Interactive background (tap-to-deselect)
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    selectedNodeIds.removeAll()
-                    selectedEdgeId = nil
-                    editingNodeId = nil
-                    isCanvasFocused = true  // Re-focus for keyboard commands
-                }
+                // Layer 2: Interactive background (tap-to-deselect)
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedNodeIds.removeAll()
+                        selectedEdgeId = nil
+                        editingNodeId = nil
+                        isCanvasFocused = true  // Re-focus for keyboard commands
+                    }
 
-            // Layer 3: Canvas content (nodes and edges)
-            canvasContent
-        }
-        .frame(width: canvasSize.width, height: canvasSize.height)
-        .scaleEffect(scale)
-        .offset(offset)
-        .gesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    handleZoom(value: value)
-                }
-                .onEnded { value in
-                    handleZoomEnded(value: value)
-                }
-        )
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    handlePan(value: value)
-                }
-                .onEnded { _ in
-                    isPanning = false
-                }
-        )
-        .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
-            handleDrop(providers: providers, at: location)
+                // Layer 3: Canvas content (nodes and edges)
+                canvasContent
+            }
+            .frame(width: canvasSize.width, height: canvasSize.height)
+            .scaleEffect(scale)
+            .offset(offset)
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        handleZoom(value: value)
+                    }
+                    .onEnded { value in
+                        handleZoomEnded(value: value)
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        handlePan(value: value)
+                    }
+                    .onEnded { _ in
+                        isPanning = false
+                    }
+            )
+            .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+                handleDrop(providers: providers, at: location)
+            }
         }
         .background(Color(.textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -207,7 +218,8 @@ extension WorkflowCanvasView {
             },
             onInputPortDetach: { port, nodeId in
                 detachAndRedrag(fromNode: nodeId, port: port)
-            }
+            },
+            executionState: nodeStates[node.id]
         )
         .frame(width: nodeWidth, height: nodeHeight)
         .popover(
@@ -232,16 +244,22 @@ extension WorkflowCanvasView {
             )
         }
         .position(x: node.positionX, y: node.positionY)
-        // Tap to select and open popover
-        .onTapGesture {
+        // Double tap to open popover for editing (must come before single tap)
+        .onTapGesture(count: 2) {
             selectedEdgeId = nil
             selectedNodeIds = [node.id]
             editingNodeId = node.id
-            isCanvasFocused = true  // Re-focus for keyboard commands
         }
-        // Drag to move node
+        // Single tap to select (allows delete key to work)
+        .onTapGesture {
+            selectedEdgeId = nil
+            selectedNodeIds = [node.id]
+            editingNodeId = nil  // Close any open popover
+            isCanvasFocused = true  // Keep focus on canvas for keyboard commands
+        }
+        // Drag to move node - use regular gesture so port's highPriorityGesture takes precedence
         .gesture(
-            DragGesture(minimumDistance: 8)
+            DragGesture(minimumDistance: 3)
                 .onChanged { value in
                     handleNodeDrag(value: value, index: index)
                 }
@@ -309,6 +327,7 @@ extension WorkflowCanvasView {
     struct PreviewWrapper: View {
         @State private var scale: CGFloat = 1.0
         @State private var snapToGrid: Bool = true
+        @State private var executionObserver = WorkflowExecutionObserver()
 
         var body: some View {
             WorkflowCanvasView(
@@ -348,6 +367,7 @@ extension WorkflowCanvasView {
                 scale: $scale,
                 snapToGrid: $snapToGrid
             )
+            .environment(executionObserver)
             .frame(width: 800, height: 500)
         }
     }

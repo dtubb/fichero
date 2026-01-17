@@ -23,7 +23,7 @@ struct ChatInspector: View {
     @State private var isExtracting: Bool = false
     @State private var extractionResult: String?
 
-    @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var apiClient: APIClient
 
     var body: some View {

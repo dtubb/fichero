@@ -20,10 +20,18 @@ from fichero.workflows.tools import agent
 from fichero.workflows.tools import multi_agent
 from fichero.workflows.tools import transcribe
 from fichero.workflows.tools import mcp
+from fichero.workflows.tools import sources    # Source tools: collection, folder, search
+from fichero.workflows.tools import describe   # Vision: image descriptions
+from fichero.workflows.tools import summarize  # LLM: summarize_file, summarize_folder, summarize_collection
+from fichero.workflows.tools import entities   # LLM: extract_entities
 
 __all__ = [
     "agent",
     "multi_agent",
     "transcribe",
     "mcp",
+    "sources",
+    "describe",
+    "summarize",
+    "entities",
 ]

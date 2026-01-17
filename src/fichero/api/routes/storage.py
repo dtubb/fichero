@@ -108,7 +108,12 @@ async def get_source_file(
 
     source_path = resolve_source(doc)
 
-    if not source_path or not source_path.exists():
+    if not source_path:
+        logger.warning(f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}")
+        raise HTTPException(status_code=404, detail="Source file not available")
+
+    if not source_path.exists():
+        logger.warning(f"Source path resolved but doesn't exist: {source_path}")
         raise HTTPException(status_code=404, detail="Source file not available")
 
     # Determine media type from file extension

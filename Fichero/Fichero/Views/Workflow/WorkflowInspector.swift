@@ -20,7 +20,7 @@ struct WorkflowInspector: View {
     @State private var isLoadingMCPTools: Bool = false
     @State private var mcpToolsGrouped: [String: [MCPToolInfo]] = [:]
 
-    @EnvironmentObject var workflowService: WorkflowService
+    @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @EnvironmentObject var mcpService: MCPService
     @EnvironmentObject var appState: AppState
 
@@ -351,7 +351,7 @@ struct WorkflowInspector: View {
         defer { isLoadingTools = false }
 
         do {
-            let response = try await workflowService.listToolsGrouped()
+            let response = try await workflowServiceGenerated.listToolsGrouped()
             toolCategories = response.categories
             let totalTools = response.categories.reduce(0) { $0 + $1.tools.count }
             logger.info("Loaded \(totalTools) built-in tools in \(response.categories.count) categories")

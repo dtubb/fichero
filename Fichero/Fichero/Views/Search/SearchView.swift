@@ -24,7 +24,7 @@ struct SearchView: View {
     @State private var isSaving: Bool = false
 
     @EnvironmentObject var searchService: SearchService
-    @EnvironmentObject var savedSearchService: SavedSearchService
+    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
 
     var body: some View {
@@ -217,7 +217,7 @@ extension SearchView {
                 case .table:
                     searchResultsTableView
                 case .map:
-                    searchResultsListView  // Map view not implemented for search yet
+                    searchResultsMapView
                 }
             }
         }
@@ -340,6 +340,129 @@ extension SearchView {
                 }
             }
         }
+    }
+
+    private var searchResultsMapView: some View {
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical]) {
+                ZStack {
+                    // Grid background
+                    SearchMapGrid()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+
+                    // Search result cards positioned by relevance
+                    ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, result in
+                        SearchResultCard(
+                            result: result,
+                            isSelected: selection.contains(result.documentId)
+                        )
+                        .position(cardPosition(for: index, score: result.score, in: geometry.size))
+                        .onTapGesture {
+                            selection = [result.documentId]
+                        }
+                        .onTapGesture(count: 2) {
+                            loadDocument(result.documentId)
+                        }
+                    }
+                }
+                .frame(width: max(geometry.size.width, 1200), height: max(geometry.size.height, 800))
+            }
+        }
+        .background(Color(.textBackgroundColor))
+    }
+
+    /// Calculate card position based on relevance score and index
+    private func cardPosition(for index: Int, score: Double, in size: CGSize) -> CGPoint {
+        let columns = max(4, Int(size.width / 180))
+        let row = index / columns
+        let col = index % columns
+        let xPos = CGFloat(col) * 170 + 100
+        let yPos = CGFloat(row) * 140 + 80
+        return CGPoint(x: xPos, y: yPos)
+    }
+}
+
+// MARK: - Search Map Grid
+
+private struct SearchMapGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let spacing: CGFloat = 40
+
+        // Vertical lines
+        var xPos = spacing
+        while xPos < rect.width {
+            path.move(to: CGPoint(x: xPos, y: 0))
+            path.addLine(to: CGPoint(x: xPos, y: rect.height))
+            xPos += spacing
+        }
+
+        // Horizontal lines
+        var yPos = spacing
+        while yPos < rect.height {
+            path.move(to: CGPoint(x: 0, y: yPos))
+            path.addLine(to: CGPoint(x: rect.width, y: yPos))
+            yPos += spacing
+        }
+
+        return path
+    }
+}
+
+// MARK: - Search Result Card (for Map View)
+
+private struct SearchResultCard: View {
+    let result: SearchResult
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Icon
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 28))
+                .foregroundColor(.accentColor)
+                .frame(width: 44, height: 44)
+                .background(Color.accentColor.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Name
+            if let name = result.metadata["name"]?.value as? String {
+                Text(name)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text(result.documentId.prefix(12) + "...")
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+
+            // Score badge
+            Text(String(format: "%.0f%%", result.score * 100))
+                .font(.caption2)
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(scoreColor(for: result.score))
+                .clipShape(Capsule())
+        }
+        .frame(width: 140, height: 110)
+        .padding(8)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Color.accentColor : Color(.separatorColor), lineWidth: isSelected ? 2 : 1)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+    }
+
+    private func scoreColor(for score: Double) -> Color {
+        if score >= 0.8 { return .green }
+        if score >= 0.5 { return .orange }
+        return .gray
     }
 }
 

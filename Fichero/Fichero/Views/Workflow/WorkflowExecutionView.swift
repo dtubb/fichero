@@ -5,35 +5,29 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowExe
 
 /// View for monitoring workflow execution threads
 struct WorkflowExecutionView: View {
+    @EnvironmentObject var apiClient: APIClient
     @StateObject private var executionService = WorkflowExecutionService()
     @State private var selectedThread: ExecutionThread?
     @State private var isLoading = false
 
     var body: some View {
-        NavigationSplitView {
-            threadList
-        } detail: {
-            if let thread = selectedThread {
-                ThreadDetailView(
+        threadList
+            .task {
+                guard !Task.isCancelled else { return }
+                // Set library path on execution service
+                executionService.setLibraryPath(apiClient.currentLibraryPath)
+                await loadThreads()
+            }
+            .refreshable {
+                await loadThreads()
+            }
+            .sheet(item: $selectedThread) { thread in
+                ThreadDetailSheet(
                     thread: thread,
                     executionService: executionService,
                     onRefresh: { await refreshThread(thread.threadId) }
                 )
-            } else {
-                ContentUnavailableView(
-                    "No Thread Selected",
-                    systemImage: "arrow.triangle.2.circlepath",
-                    description: Text("Select a thread to view its details")
-                )
             }
-        }
-        .task {
-            guard !Task.isCancelled else { return }
-            await loadThreads()
-        }
-        .refreshable {
-            await loadThreads()
-        }
     }
 
     @ViewBuilder
@@ -49,10 +43,19 @@ struct WorkflowExecutionView: View {
                     description: Text("Run a workflow to see execution threads here")
                 )
             } else {
-                List(executionService.threads, selection: $selectedThread) { thread in
+                List(executionService.threads) { thread in
                     ThreadRow(thread: thread)
-                        .tag(thread)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            selectedThread = thread
+                        }
                         .contextMenu {
+                            Button {
+                                selectedThread = thread
+                            } label: {
+                                Label("View Details", systemImage: "info.circle")
+                            }
+
                             if thread.status == .paused {
                                 Button {
                                     Task { await resumeThread(thread.threadId) }
@@ -70,7 +73,6 @@ struct WorkflowExecutionView: View {
                 }
             }
         }
-        .navigationTitle("Execution Threads")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -183,8 +185,32 @@ struct ThreadRow: View {
     }
 }
 
-/// Detail view for a single execution thread
-struct ThreadDetailView: View {
+/// Sheet wrapper for thread details
+struct ThreadDetailSheet: View {
+    let thread: ExecutionThread
+    let executionService: WorkflowExecutionService
+    let onRefresh: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ThreadDetailContent(
+                thread: thread,
+                executionService: executionService,
+                onRefresh: onRefresh
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 500, minHeight: 400)
+    }
+}
+
+/// Detail view content for a single execution thread
+struct ThreadDetailContent: View {
     let thread: ExecutionThread
     let executionService: WorkflowExecutionService
     let onRefresh: () async -> Void
@@ -227,6 +253,7 @@ struct ThreadDetailView: View {
                 Spacer()
             }
         }
+        .navigationTitle(thread.workflowName)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 if thread.status == .paused {

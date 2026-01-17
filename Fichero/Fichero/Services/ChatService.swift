@@ -1,105 +1,7 @@
 import Foundation
-import Combine
 
-/// Service for RAG chat operations via the Fichero backend.
-@MainActor
-class ChatService: ObservableObject {
-    private let api: APIClient
-
-    init(apiClient: APIClient) {
-        self.api = apiClient
-    }
-
-    // MARK: - Chat
-
-    /// Send a chat message and get a RAG response.
-    func chat(
-        message: String,
-        conversationId: String? = nil,
-        documentIds: [String]? = nil,
-        includeSources: Bool = true,
-        maxSources: Int = 5,
-        provider: String? = nil,
-        model: String? = nil
-    ) async throws -> ChatAPIResponse {
-        let request = ChatAPIRequest(
-            message: message,
-            conversationId: conversationId,
-            documentIds: documentIds,
-            includeSources: includeSources,
-            maxSources: maxSources,
-            provider: provider,
-            model: model
-        )
-        return try await api.post("/chat", body: request)
-    }
-
-    // MARK: - Providers
-
-    /// List available LLM providers.
-    func listProviders() async throws -> [LLMProvider] {
-        try await api.get("/chat/providers")
-    }
-
-    // MARK: - Text Extraction
-
-    /// Extract text from documents (populates page_content for search/chat).
-    func extractText(documentIds: [String]? = nil, force: Bool = false) async throws -> ExtractTextResponse {
-        let request = ExtractTextRequest(documentIds: documentIds, force: force)
-        return try await api.post("/chat/extract-text", body: request)
-    }
-
-    // MARK: - Conversations
-
-    /// List all conversations.
-    func listConversations() async throws -> [ConversationSummary] {
-        try await api.get("/chat/conversations")
-    }
-
-    /// Get a conversation with full message history.
-    func getConversation(_ id: String) async throws -> ConversationDetail {
-        try await api.get("/chat/conversations/\(id)")
-    }
-
-    /// Delete a conversation.
-    func deleteConversation(_ id: String) async throws {
-        try await api.delete("/chat/conversations/\(id)")
-    }
-}
-
-// MARK: - Request Models
-
-struct ChatAPIRequest: Codable {
-    let message: String
-    let conversationId: String?
-    let documentIds: [String]?
-    let includeSources: Bool
-    let maxSources: Int
-    let provider: String?
-    let model: String?
-
-    enum CodingKeys: String, CodingKey {
-        case message
-        case conversationId = "conversation_id"
-        case documentIds = "document_ids"
-        case includeSources = "include_sources"
-        case maxSources = "max_sources"
-        case provider
-        case model
-    }
-}
-
-struct ExtractTextRequest: Codable {
-    let documentIds: [String]?
-    let force: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case documentIds = "document_ids"
-        case force
-    }
-}
-
-// MARK: - Response Models
+// MARK: - Chat Response Models
+// These types are shared across the app for chat-related functionality
 
 struct ChatAPIResponse: Codable {
     let message: String
@@ -120,6 +22,12 @@ struct LLMProvider: Codable, Identifiable {
     let name: String
     let models: [String]
     let available: Bool
+    let supportsVision: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, models, available
+        case supportsVision = "supports_vision"
+    }
 }
 
 struct ExtractTextResponse: Codable {

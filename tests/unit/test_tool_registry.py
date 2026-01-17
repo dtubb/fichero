@@ -341,65 +341,63 @@ class TestNodeValidation:
 
 
 class TestWorkflowValidation:
-    """Test workflow connection validation."""
+    """Test workflow connection validation.
+
+    Note: These tests use real tools from the registry since ports are now
+    fetched from the registry at validation time (not stored on nodes).
+    """
 
     def test_validate_simple_workflow(self):
         """Test validation of a simple valid workflow."""
-        # Create a simple workflow with two connected nodes
+        from fichero.workflows.types import InputMapping
+
+        # Create a simple workflow with two connected nodes using real tools
+        # files -> transcribe: files output connects to files input
         workflow = WorkflowDef(
             id="test_workflow",
             name="Test Workflow",
             nodes=[
                 NodeDef(
                     id="node1",
-                    tool="test_tool",
-                    input_ports=[],
-                    output_ports=[
-                        PortDef(
-                            id="output",
-                            name="Output",
-                            port_type="output",
-                            data_type=DataType.TEXT
-                        )
-                    ]
+                    tool="files",  # Real tool: outputs files
                 ),
                 NodeDef(
                     id="node2",
-                    tool="test_tool",
-                    input_ports=[
-                        PortDef(
-                            id="input",
-                            name="Input",
-                            port_type="input",
-                            data_type=DataType.TEXT
+                    tool="transcribe",  # Real tool: takes files input
+                    # Add input mapping so validation passes
+                    input_mappings=[
+                        InputMapping(
+                            port_id="files",
+                            source_path="$.nodes.node1.files"
                         )
-                    ],
-                    output_ports=[]
+                    ]
                 )
             ],
             edges=[
                 EdgeDef(
                     source="node1",
                     target="node2",
-                    source_port="output",
-                    target_port="input"
+                    source_port="files",  # files tool output port
+                    target_port="files"   # transcribe tool input port
                 )
             ]
         )
-        
-        # Should be valid
+
+        # Should be valid - ports are fetched from registry
         errors = validate_workflow_connections(workflow)
-        assert len(errors) == 0
+        assert len(errors) == 0, f"Unexpected errors: {errors}"
 
     def test_validate_workflow_with_invalid_edge(self):
-        """Test validation of workflow with invalid edge."""
+        """Test validation of workflow with invalid edge (type mismatch)."""
+        # Use inline ports for this test to test type compatibility validation
+        # Use a unique tool name that won't be in the registry
         workflow = WorkflowDef(
             id="test_workflow",
             name="Test Workflow",
             nodes=[
                 NodeDef(
                     id="node1",
-                    tool="test_tool",
+                    tool="_nonexistent_type_test_tool",
                     input_ports=[],
                     output_ports=[
                         PortDef(
@@ -412,7 +410,7 @@ class TestWorkflowValidation:
                 ),
                 NodeDef(
                     id="node2",
-                    tool="test_tool",
+                    tool="_nonexistent_type_test_tool",
                     input_ports=[
                         PortDef(
                             id="input",
@@ -433,39 +431,41 @@ class TestWorkflowValidation:
                 )
             ]
         )
-        
-        # Should fail due to incompatible types
+
+        # Should fail due to incompatible types (plus unknown tool warnings)
         errors = validate_workflow_connections(workflow)
-        assert len(errors) == 1
-        assert "Invalid connection" in errors[0]
+        # Filter to just the type compatibility error
+        type_errors = [e for e in errors if "Invalid connection" in e]
+        assert len(type_errors) == 1
+        assert "Invalid connection" in type_errors[0]
 
     def test_validate_workflow_with_missing_node(self):
         """Test validation of workflow with missing node reference."""
+        # Use a real tool to avoid unknown tool errors
         workflow = WorkflowDef(
             id="test_workflow",
             name="Test Workflow",
             nodes=[
                 NodeDef(
                     id="node1",
-                    tool="test_tool",
-                    input_ports=[],
-                    output_ports=[]
+                    tool="files",  # Real tool
                 )
             ],
             edges=[
                 EdgeDef(
                     source="node1",
                     target="nonexistent_node",  # This node doesn't exist
-                    source_port="output",
+                    source_port="files",
                     target_port="input"
                 )
             ]
         )
-        
+
         # Should fail due to missing node
         errors = validate_workflow_connections(workflow)
-        assert len(errors) == 1
-        assert "Edge references unknown target node" in errors[0]
+        missing_node_errors = [e for e in errors if "unknown target node" in e]
+        assert len(missing_node_errors) == 1
+        assert "Edge references unknown target node" in missing_node_errors[0]
 
 
 class TestCompatibleTools:

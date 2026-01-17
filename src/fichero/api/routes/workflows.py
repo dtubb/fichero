@@ -28,6 +28,7 @@ from fichero.workflows.registry import (
     list_tools_by_category,
     get_categories,
     create_node_from_tool,
+    enrich_node_with_ports,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class PortResponse(BaseModel):
     data_type: str
     required: bool = True
     description: str = ""
+    default: Any = None  # Default value for optional inputs
 
 
 class ToolResponse(BaseModel):
@@ -58,8 +60,9 @@ class ToolResponse(BaseModel):
     color: str
     input_ports: list[PortResponse]
     output_ports: list[PortResponse]
-    config_schema: dict
-    default_output_schema: dict | None
+    config_schema: dict = {}
+    default_output_schema: dict = {}
+    default_prompt: str = ""  # Default prompt for LLM tools (shown in UI, empty if none)
     uses_llm: bool
     supports_batch: bool
     supports_streaming: bool
@@ -83,8 +86,8 @@ class NodeResponse(BaseModel):
     """Node created from tool."""
     id: str
     tool: str
-    label: str | None
-    description: str | None
+    label: str = ""
+    description: str = ""
     input_ports: list[PortResponse]
     output_ports: list[PortResponse]
     position_x: float
@@ -98,32 +101,77 @@ class WorkflowResponse(BaseModel):
     description: str
     provider: str
     model: str
-    nodes: list[dict]
-    edges: list[dict]
+    nodes: list[NodeDef]
+    edges: list[EdgeDef]
     folder_path: str
     sort_order: int
-
-
-class WorkflowRunRequest(BaseModel):
-    """Request to run a workflow."""
-    inputs: dict[str, Any] = {}
-    input_files: list[str] = []
-
-
-class WorkflowRunResponse(BaseModel):
-    """Result of running a workflow."""
-    task_id: str
-    workflow_id: str
-    status: str
-    completed_nodes: list[str]
-    outputs: dict[str, Any]
-    output_files: list[str]
-    error: Optional[str] = None
 
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def _dict_to_node_def(node_dict: dict, enrich_ports: bool = True) -> NodeDef:
+    """Convert a node dict from database to NodeDef.
+
+    Args:
+        node_dict: Node data from database
+        enrich_ports: If True, populate ports from tool registry (default).
+                      Set to False if you need the raw stored data.
+
+    Returns:
+        NodeDef with ports populated from registry (if enrich_ports=True)
+    """
+    from fichero.workflows.types import PortDef, InputMapping, OutputSchema
+
+    # Convert input_mappings to InputMapping objects
+    input_mappings = [InputMapping(**m) for m in node_dict.get("input_mappings", [])]
+
+    # Convert output_schema if present
+    output_schema = None
+    if node_dict.get("output_schema"):
+        output_schema = OutputSchema(**node_dict["output_schema"])
+
+    # Create node without ports initially (ports come from registry)
+    node = NodeDef(
+        id=node_dict.get("id", ""),
+        tool=node_dict.get("tool", ""),
+        label=node_dict.get("label"),
+        description=node_dict.get("description"),
+        input_ports=[],  # Will be enriched from registry
+        output_ports=[],  # Will be enriched from registry
+        input_mappings=input_mappings,
+        inputs=node_dict.get("inputs"),
+        config=node_dict.get("config"),
+        output_schema=output_schema,
+        position_x=node_dict.get("position_x", 0),
+        position_y=node_dict.get("position_y", 0),
+        enabled=node_dict.get("enabled", True),
+        provider_name=node_dict.get("provider_name"),
+        model_name=node_dict.get("model_name"),
+        uses_llm=node_dict.get("uses_llm", False),
+    )
+
+    # Enrich with ports from tool registry
+    if enrich_ports:
+        node = enrich_node_with_ports(node)
+
+    return node
+
+
+def _dict_to_edge_def(edge_dict: dict) -> EdgeDef:
+    """Convert an edge dict from database to EdgeDef."""
+    return EdgeDef(
+        id=edge_dict.get("id", ""),
+        source=edge_dict.get("source", ""),
+        target=edge_dict.get("target", ""),
+        source_port=edge_dict.get("source_port", "output"),
+        target_port=edge_dict.get("target_port", "input"),
+        condition=edge_dict.get("condition"),
+        label=edge_dict.get("label"),
+        animated=edge_dict.get("animated", False),
+    )
+
 
 def _port_to_response(port: PortDef) -> PortResponse:
     """Convert PortDef to API response."""
@@ -134,6 +182,7 @@ def _port_to_response(port: PortDef) -> PortResponse:
         data_type=port.data_type.value if isinstance(port.data_type, DataType) else str(port.data_type),
         required=port.required,
         description=port.description,
+        default=port.default,
     )
 
 
@@ -148,8 +197,9 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         color=tool.color,
         input_ports=[_port_to_response(p) for p in tool.input_ports],
         output_ports=[_port_to_response(p) for p in tool.output_ports],
-        config_schema=tool.config_schema,
-        default_output_schema=tool.default_output_schema,
+        config_schema=tool.config_schema or {},
+        default_output_schema=tool.default_output_schema or {},
+        default_prompt=tool.default_prompt or "",
         uses_llm=tool.uses_llm,
         supports_batch=tool.supports_batch,
         supports_streaming=tool.supports_streaming,
@@ -212,6 +262,32 @@ async def get_tool(tool_name: str) -> ToolResponse:
     return _tool_to_response(tool_def)
 
 
+class PromptRequest(BaseModel):
+    """Request to build a prompt with specific config."""
+    config: dict = {}
+
+
+class PromptResponse(BaseModel):
+    """Response with built prompt."""
+    prompt: str = ""  # Empty string if no prompt
+
+
+@router.post("/tools/{tool_name}/prompt")
+async def get_tool_prompt(tool_name: str, request: PromptRequest) -> PromptResponse:
+    """Get the default prompt for a tool, optionally customized by config.
+
+    This allows the UI to show users what prompt will be sent to the LLM
+    based on their current configuration settings.
+    """
+    tool_def = get_tool_def(tool_name)
+    if not tool_def:
+        raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
+
+    # Use the tool's prompt builder if available, otherwise return default
+    prompt = tool_def.get_prompt(request.config)
+    return PromptResponse(prompt=prompt)
+
+
 @router.post("/tools/{tool_name}/create-node")
 async def create_node(
     tool_name: str,
@@ -239,40 +315,6 @@ async def create_node(
 
 
 # =============================================================================
-# Workflow Execution Routes
-# =============================================================================
-
-@router.post("/run")
-async def run_workflow_inline(
-    workflow: WorkflowDef,
-    request: WorkflowRunRequest,
-) -> WorkflowRunResponse:
-    """Run a workflow inline (doesn't save the workflow definition)."""
-    try:
-        # Import here to avoid circular imports
-        from fichero.workflows import execute_workflow
-
-        final_state = await execute_workflow(
-            workflow=workflow,
-            inputs=request.inputs,
-            input_files=request.input_files,
-        )
-
-        return WorkflowRunResponse(
-            task_id=final_state.get("task_id", ""),
-            workflow_id=final_state.get("workflow_id", ""),
-            status="completed" if not final_state.get("error") else "failed",
-            completed_nodes=final_state.get("completed_nodes", []),
-            outputs=final_state.get("outputs", {}),
-            output_files=final_state.get("output_files", []),
-            error=final_state.get("error"),
-        )
-    except Exception as e:
-        logger.exception("Workflow execution failed")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =============================================================================
 # Workflow CRUD
 # =============================================================================
 
@@ -286,13 +328,14 @@ async def create_workflow(
         from fichero.models import Workflow
 
         # Convert LangGraph workflow to database model
+        # Use model_dump_for_storage() to exclude ports (they come from registry)
         db_workflow = Workflow(
             name=workflow.name,
             description=workflow.description or "",
             format="nodes",
             provider=workflow.provider or "",
             model=workflow.model or "",
-            nodes=[node.model_dump() for node in workflow.nodes],
+            nodes=[node.model_dump_for_storage() for node in workflow.nodes],
             edges=[edge.model_dump() for edge in workflow.edges],
         )
 
@@ -305,8 +348,8 @@ async def create_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
-            nodes=db_workflow.nodes,
-            edges=db_workflow.edges,
+            nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
+            edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
         )
@@ -356,8 +399,8 @@ async def import_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
-            nodes=db_workflow.nodes,
-            edges=db_workflow.edges,
+            nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
+            edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
         )
@@ -417,8 +460,8 @@ async def list_workflows(
                 description=workflow.description,
                 provider=workflow.provider,
                 model=workflow.model,
-                nodes=workflow.nodes,
-                edges=workflow.edges,
+                nodes=[_dict_to_node_def(n) for n in workflow.nodes],
+                edges=[_dict_to_edge_def(e) for e in workflow.edges],
                 folder_path=workflow.folder_path,
                 sort_order=workflow.sort_order,
             )
@@ -448,8 +491,8 @@ async def get_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
-            nodes=workflow.nodes,
-            edges=workflow.edges,
+            nodes=[_dict_to_node_def(n) for n in workflow.nodes],
+            edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
         )
@@ -469,33 +512,43 @@ async def update_workflow(
     """Update an existing workflow."""
     try:
         from fichero.models import Workflow
-        
+
+        # Debug: log what's being received and saved
+        print(f"[UPDATE] workflow: id={workflow_id}")
+        print(f"[UPDATE]   received nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}")
+        for node in workflow.nodes[:3]:  # Log first 3 nodes
+            print(f"[UPDATE]   node: tool={node.tool}, id={node.id[:8]}...")
+
         # Get existing workflow
         existing = db.get(Workflow, workflow_id)
         if not existing:
             raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
         
         # Update fields
+        # Use model_dump_for_storage() to exclude ports (they come from registry)
         existing.name = workflow.name
         existing.description = workflow.description or ""
         existing.format = "nodes"
         existing.provider = workflow.provider or ""
         existing.model = workflow.model or ""
-        existing.nodes = [node.model_dump() for node in workflow.nodes]
+        existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
         existing.edges = [edge.model_dump() for edge in workflow.edges]
         existing.updated_at = datetime.now()
         
         # Save changes
         db.save(existing)
-        
+
+        # Debug: verify what was saved
+        print(f"[UPDATE]   saved nodes: {len(existing.nodes)}, edges: {len(existing.edges)}")
+
         return WorkflowResponse(
             id=existing.id,
             name=existing.name,
             description=existing.description,
             provider=existing.provider,
             model=existing.model,
-            nodes=existing.nodes,
-            edges=existing.edges,
+            nodes=[_dict_to_node_def(n) for n in existing.nodes],
+            edges=[_dict_to_edge_def(e) for e in existing.edges],
             folder_path=existing.folder_path,
             sort_order=existing.sort_order,
         )
@@ -507,11 +560,16 @@ async def update_workflow(
 
 
 class WorkflowPatchRequest(BaseModel):
-    """Request for partial workflow update."""
-    name: str | None = None
-    description: str | None = None
-    folder_path: str | None = None
-    sort_order: int | None = None
+    """Request for partial workflow update.
+
+    All fields are optional strings - send only the fields you want to update.
+    """
+    name: Optional[str] = None
+    description: Optional[str] = None
+    folder_path: Optional[str] = None
+    sort_order: Optional[int] = None
+
+    model_config = {"extra": "allow"}
 
 
 @router.patch("/{workflow_id}")
@@ -547,8 +605,8 @@ async def patch_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
-            nodes=workflow.nodes,
-            edges=workflow.edges,
+            nodes=[_dict_to_node_def(n) for n in workflow.nodes],
+            edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
         )
@@ -619,8 +677,8 @@ async def duplicate_workflow(
             description=new_workflow.description,
             provider=new_workflow.provider,
             model=new_workflow.model,
-            nodes=new_workflow.nodes,
-            edges=new_workflow.edges,
+            nodes=[_dict_to_node_def(n) for n in new_workflow.nodes],
+            edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
             folder_path=new_workflow.folder_path,
             sort_order=new_workflow.sort_order,
         )
@@ -659,146 +717,3 @@ async def reorder_workflows(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{workflow_id}/run")
-async def run_saved_workflow(
-    workflow_id: str,
-    request: WorkflowRunRequest,
-    db: Database = Depends(get_library_database),
-) -> WorkflowRunResponse:
-    """Run a saved workflow."""
-    try:
-        from fichero.models import Workflow
-        
-        # Load workflow from database
-        db_workflow = db.get(Workflow, workflow_id)
-        if not db_workflow:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
-        
-        # Convert to LangGraph format
-        if db_workflow.format == "nodes":
-            workflow_def = _convert_to_langgraph_format(db_workflow)
-        else:
-            # Convert legacy steps to LangGraph format
-            workflow_def = _convert_steps_to_langgraph_format(db_workflow)
-        
-        # Import here to avoid circular imports
-        from fichero.workflows import execute_workflow
-        
-        final_state = await execute_workflow(
-            workflow=workflow_def,
-            inputs=request.inputs,
-            input_files=request.input_files,
-        )
-        
-        return WorkflowRunResponse(
-            task_id=final_state.get("task_id", ""),
-            workflow_id=workflow_id,
-            status="completed" if not final_state.get("error") else "failed",
-            completed_nodes=final_state.get("completed_nodes", []),
-            outputs=final_state.get("outputs", {}),
-            output_files=final_state.get("output_files", []),
-            error=final_state.get("error"),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to run saved workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-def _convert_to_langgraph_format(db_workflow) -> WorkflowDef:
-    """Convert database workflow to LangGraph WorkflowDef."""
-    from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef, PortDef
-    
-    # Convert nodes
-    nodes = []
-    for node_dict in db_workflow.nodes:
-        # Convert port dicts to PortDef objects
-        input_ports = [PortDef(**port) for port in node_dict.get("input_ports", [])]
-        output_ports = [PortDef(**port) for port in node_dict.get("output_ports", [])]
-        
-        node = NodeDef(
-            id=node_dict["id"],
-            tool=node_dict["tool"],
-            label=node_dict.get("label"),
-            description=node_dict.get("description"),
-            input_ports=input_ports,
-            output_ports=output_ports,
-            position_x=node_dict.get("position_x", 0),
-            position_y=node_dict.get("position_y", 0),
-            enabled=node_dict.get("enabled", True),
-            input_mappings=node_dict.get("input_mappings", []),
-        )
-        nodes.append(node)
-    
-    # Convert edges
-    edges = []
-    for edge_dict in db_workflow.edges:
-        edge = EdgeDef(
-            source=edge_dict["source"],
-            target=edge_dict["target"],
-            source_port=edge_dict.get("source_port", "output"),
-            target_port=edge_dict.get("target_port", "input"),
-            condition=edge_dict.get("condition"),
-            label=edge_dict.get("label"),
-        )
-        edges.append(edge)
-    
-    return WorkflowDef(
-        id=db_workflow.id,
-        name=db_workflow.name,
-        description=db_workflow.description,
-        provider=db_workflow.provider,
-        model=db_workflow.model,
-        nodes=nodes,
-        edges=edges,
-    )
-
-
-def _convert_steps_to_langgraph_format(db_workflow) -> WorkflowDef:
-    """Convert legacy steps to LangGraph WorkflowDef."""
-    from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
-    from fichero.workflows.registry import create_node_from_tool
-    
-    # Create nodes from steps
-    nodes = []
-    edges = []
-    previous_node_id = None
-    
-    for i, step in enumerate(db_workflow.steps):
-        tool_name = step["tool"]
-        position_x = 150 + (i * 200)
-        position_y = 200
-        
-        # Create node from tool
-        node = create_node_from_tool(tool_name, position_x, position_y)
-        if node:
-            # Override with step-specific settings
-            node.label = step.get("name", node.label)
-            
-            nodes.append(node)
-            
-            # Create edge from previous node
-            if previous_node_id:
-                edges.append(EdgeDef(
-                    source=previous_node_id,
-                    target=node.id,
-                    source_port="output",
-                    target_port="input",
-                ))
-            
-            previous_node_id = node.id
-    
-    return WorkflowDef(
-        id=db_workflow.id,
-        name=db_workflow.name,
-        description=db_workflow.description,
-        provider=db_workflow.provider,
-        model=db_workflow.model,
-        nodes=nodes,
-        edges=edges,
-    )

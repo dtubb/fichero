@@ -4,6 +4,17 @@
 
 This guide documents the migration from the legacy `APIClient` to the generated `FicheroAPIClient` using Swift OpenAPI Generator.
 
+## Critical Architecture Note
+
+**See TODO-125 and TODO-126 for workflow type cleanup tasks.**
+
+The current codebase has ~1750 lines of redundant type conversion code because:
+1. Ports are stored with nodes (should come from registry)
+2. Property names don't match (source vs sourceNodeId)
+3. Manual Swift types shadow generated types
+
+After TODO-125 (Python cleanup), regenerate the OpenAPI spec and much of this guide becomes simpler.
+
 ## Migration Scope
 
 Based on codebase analysis:

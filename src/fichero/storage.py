@@ -301,7 +301,10 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
 
+        logger.debug(f"Opening image: {source} (suffix: {source.suffix})")
         with Image.open(source) as img:
+            logger.debug(f"Image opened successfully: mode={img.mode}, size={img.size}")
+
             # Handle EXIF rotation
             if ImageOps:
                 img = ImageOps.exif_transpose(img)
@@ -311,15 +314,16 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
 
             # Convert to RGB for JPEG (handles RGBA, P mode, etc.)
             if img.mode not in ("RGB", "L"):
+                logger.debug(f"Converting from {img.mode} to RGB")
                 img = img.convert("RGB")
 
             img.save(dest, "JPEG", quality=settings.quality)
 
-        logger.debug(f"Generated: {dest}")
+        logger.info(f"Generated thumbnail: {dest} from {source.name}")
         return dest
 
     except Exception as e:
-        logger.warning(f"Image generation failed for {source}: {e}")
+        logger.error(f"Image generation failed for {source.name} ({source.suffix}): {e}", exc_info=True)
         return None
 
 

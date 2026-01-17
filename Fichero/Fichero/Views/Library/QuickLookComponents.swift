@@ -34,22 +34,42 @@ struct QuickLookDownloadView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = error {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 48))
-                        .foregroundColor(.orange)
-                    Text("Preview unavailable")
-                        .font(.headline)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-
-                    Button("Retry") {
-                        Task { await loadFile() }
+                ZStack {
+                    // Show thumbnail in background if available
+                    AsyncImage(url: apiClient.thumbnailURL(for: document.id)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.3)
+                        default:
+                            Color.clear
+                        }
                     }
-                    .buttonStyle(.bordered)
+
+                    // Error overlay
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 48))
+                            .foregroundColor(.orange)
+                        Text("Preview unavailable")
+                            .font(.headline)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
+
+                        Button("Retry") {
+                            Task { await loadFile() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -125,24 +145,35 @@ struct QuickLookDownloadView: View {
 
             // Check if readable (either directly or via granted folder access)
             if FolderAccessManager.shared.hasAccess(to: path) {
-                await MainActor.run {
-                    self.fileURL = localURL
-                    self.isLoading = false
-                }
-                return
-            }
+                logger.info("Has folder access to: \(path)")
 
-            // File exists but no access - prompt user
-            if FileManager.default.fileExists(atPath: path) {
-                await MainActor.run {
-                    self.needsAccess = true
-                    self.isLoading = false
+                // Verify the file can actually be read before using it
+                if FileManager.default.isReadableFile(atPath: path) {
+                    logger.info("File is readable, using local path")
+                    await MainActor.run {
+                        self.fileURL = localURL
+                        self.isLoading = false
+                    }
+                    return
+                } else {
+                    logger.warning("File exists but is not readable, falling back to API download: \(path)")
+                    // Fall through to API download
                 }
-                return
+            } else {
+                // File exists but no access - prompt user
+                if FileManager.default.fileExists(atPath: path) {
+                    logger.info("File exists but no folder access granted")
+                    await MainActor.run {
+                        self.needsAccess = true
+                        self.isLoading = false
+                    }
+                    return
+                }
             }
         }
 
         // No local path or file doesn't exist - download from API
+        logger.info("Loading file from API for document: \(document.id)")
         await downloadFromAPI()
     }
 
@@ -150,8 +181,16 @@ struct QuickLookDownloadView: View {
         let sourceURL = apiClient.sourceURL(for: document.id)
 
         do {
+            // Create request with required header
+            var request = URLRequest(url: sourceURL)
+            if let libraryPath = apiClient.currentLibraryPath {
+                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            } else {
+                logger.warning("Downloading source without library path - API may reject request")
+            }
+
             // Download file from API
-            let (tempURL, response) = try await URLSession.shared.download(from: sourceURL)
+            let (tempURL, response) = try await URLSession.shared.download(for: request)
 
             // Try to get filename from Content-Disposition header
             var fileName = fileNameWithExtension()
@@ -181,7 +220,38 @@ struct QuickLookDownloadView: View {
             }
             try FileManager.default.moveItem(at: tempURL, to: destURL)
 
-            logger.info("Downloaded to: \(destURL.path)")
+            // Verify file exists and has size
+            let attrs = try FileManager.default.attributesOfItem(atPath: destURL.path)
+            let fileSize = attrs[.size] as? Int64 ?? 0
+            logger.info("Downloaded to: \(destURL.path) (size: \(fileSize) bytes, extension: \(destURL.pathExtension))")
+
+            // Verify it's actually valid, not an error response
+            if fileSize < 1000 {
+                logger.warning("Downloaded file is very small (\(fileSize) bytes), likely an error response")
+                // Try to read as JSON error
+                if let content = try? String(contentsOf: destURL, encoding: .utf8) {
+                    logger.error("Error response: \(content)")
+
+                    // Parse error message if possible
+                    var errorMessage = "Source file not available"
+                    if content.contains("Source file not available") {
+                        errorMessage = "External file not accessible"
+                    } else if content.contains("Field required") {
+                        errorMessage = "API error: Missing required field"
+                    }
+
+                    // Check if this is a linked file
+                    if let path = document.path, path.starts(with: "/Volumes/") {
+                        errorMessage += "\n\nThis file is linked to an external drive:\n\(path)\n\nMount the drive to view the full resolution file."
+                    }
+
+                    await MainActor.run {
+                        self.error = errorMessage
+                        self.isLoading = false
+                    }
+                    return
+                }
+            }
 
             await MainActor.run {
                 self.fileURL = destURL
@@ -234,7 +304,10 @@ struct SmartPreviewView: View {
 
     private var isImage: Bool {
         let imageExtensions = ["jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "heic", "webp"]
-        return imageExtensions.contains(url.pathExtension.lowercased())
+        let ext = url.pathExtension.lowercased()
+        let result = imageExtensions.contains(ext)
+        logger.info("SmartPreviewView: \(url.lastPathComponent) extension='\(ext)' isImage=\(result)")
+        return result
     }
 
     var body: some View {

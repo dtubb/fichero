@@ -10,7 +10,7 @@ struct SidebarBottomToolbar: View {
     let createChat: () -> Void
     let createWorkflow: () -> Void
     let createFolder: () -> Void
-    let importFiles: () -> Void
+    let importFiles: (IngestMode) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -43,13 +43,27 @@ struct SidebarBottomToolbar: View {
 
             Spacer()
 
-            // Import button
-            Button(action: importFiles) {
+            // Import menu
+            Menu {
+                Button(action: { importFiles(.link) }) {
+                    Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
+                }
+
+                Button(action: { importFiles(.copy) }) {
+                    Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
+                }
+
+                Button(action: { importFiles(.move) }) {
+                    Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
+                }
+            } label: {
                 Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 11))
                     .frame(width: 20, height: 20)
             }
-            .buttonStyle(.borderless)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
             .help("Import Files (⌘I)")
         }
         .padding(.horizontal, 8)
@@ -74,14 +88,14 @@ extension View {
 /// Configuration for sidebar toolbar
 struct SidebarToolbarConfig {
     let createFolder: () -> Void
-    let importFiles: () -> Void
+    let importFiles: (IngestMode) -> Void
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
 }
 
 extension View {
-    /// Adds sidebar toolbar with create menu and import button.
+    /// Adds sidebar toolbar with create menu and import menu.
     func sidebarToolbar(config: SidebarToolbarConfig) -> some View {
         self.toolbar {
             ToolbarItem(placement: .automatic) {
@@ -110,10 +124,22 @@ extension View {
             }
 
             ToolbarItem(placement: .automatic) {
-                Button(action: config.importFiles) {
+                Menu {
+                    Button(action: { config.importFiles(.link) }) {
+                        Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
+                    }
+
+                    Button(action: { config.importFiles(.copy) }) {
+                        Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
+                    }
+
+                    Button(action: { config.importFiles(.move) }) {
+                        Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
+                    }
+                } label: {
                     Image(systemName: "square.and.arrow.down")
                 }
-                .help("Import Files or Folders (⌘I)")
+                .help("Import Files or Folders")
             }
         }
     }
@@ -123,8 +149,8 @@ extension View {
 struct SidebarCacheMonitoringConfig {
     let rebuildCaches: () -> Void
     let documentStore: DocumentStore
-    let savedSearchService: SavedSearchService
-    let conversationService: ConversationService
+    let savedSearchService: SavedSearchServiceGenerated
+    let conversationService: ConversationServiceGenerated
     let workflowStore: WorkflowStore
     let selectedItem: SidebarItem?
     let handleSelection: (SidebarItem?) -> Void
@@ -162,7 +188,7 @@ extension View {
 struct SidebarFocusedValuesConfig {
     let selectedItem: SidebarItem?
     let createFolder: () -> Void
-    let importFiles: () -> Void
+    let importFiles: (IngestMode) -> Void
     let renameItem: () -> Void
     let deleteItem: () -> Void
     let createSearch: () -> Void

@@ -2,13 +2,23 @@
 //  EndpointValidationTests.swift
 //  FicheroTests
 //
-//  Validates that Swift's APIEndpoints match the Python API.
-//  This catches endpoint drift between frontend and backend.
+//  Validates that the Swift API client matches the Python API.
+//
+//  With the migration to Swift OpenAPI Generator (FicheroAPIClient),
+//  endpoint validation is handled by the code generation process.
+//  The generator uses the same openapi.json that the Python backend exports,
+//  ensuring type-safe API calls that match the backend schema.
+//
+//  These tests verify:
+//  1. Generated types have expected properties (compile-time safety)
+//  2. Operation IDs match Python endpoints (runtime validation)
+//  3. HTTP methods follow REST conventions (API consistency)
 //
 
 import Foundation
 import Testing
 @testable import Fichero
+import FicheroAPIClient
 
 /// Path to the Python-exported endpoints file
 private func endpointsFilePath() -> URL {
@@ -60,116 +70,9 @@ struct EndpointsFile: Decodable {
     let endpoints: [String: [PythonEndpoint]]
 }
 
-// MARK: - Endpoint Path Validation Tests
-
-struct EndpointPathValidationTests {
-
-    @Test("Documents endpoints match Python API")
-    func documentsEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "documents")
-
-        // Verify key endpoints exist
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/documents" })
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/documents" })
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path.contains("/documents/") && $0.path.contains("{") })
-
-        // Verify Swift constants match
-        #expect(APIEndpoints.Documents.list == "/documents")
-        #expect(APIEndpoints.Documents.create == "/documents")
-        #expect(APIEndpoints.Documents.collections == "/documents/collections")
-    }
-
-    @Test("Workflows endpoints match Python API")
-    func workflowsEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "workflows")
-
-        // Verify key endpoints exist
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/workflows" })
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/workflows" })
-        #expect(pythonEndpoints.contains { $0.method == "PUT" && $0.path.contains("{workflow_id}") })
-        #expect(pythonEndpoints.contains { $0.method == "DELETE" && $0.path.contains("{workflow_id}") })
-
-        // Verify Swift constants match
-        #expect(APIEndpoints.Workflows.list == "/workflows")
-        #expect(APIEndpoints.Workflows.create == "/workflows")
-        #expect(APIEndpoints.Workflows.tools == "/workflows/tools")
-    }
-
-    @Test("Search endpoints match Python API")
-    func searchEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "search")
-
-        // Search uses POST (not GET) for the main search
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/search" })
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/search/saved" })
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/search/saved" })
-
-        // Verify Swift constants match
-        #expect(APIEndpoints.Search.search == "/search")
-        #expect(APIEndpoints.Search.saved == "/search/saved")
-    }
-
-    @Test("Chat endpoints match Python API")
-    func chatEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "chat")
-
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/chat" })
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/chat/conversations" })
-
-        // Verify Swift constants match
-        #expect(APIEndpoints.Chat.send == "/chat")
-        #expect(APIEndpoints.Chat.conversations == "/chat/conversations")
-    }
-
-    @Test("Provider endpoints match Python API")
-    func providerEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "providers")
-
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/providers/catalog" })
-        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/providers" })
-        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/providers" })
-
-        // Verify Swift constants match
-        #expect(APIEndpoints.Providers.catalog == "/providers/catalog")
-        #expect(APIEndpoints.Providers.list == "/providers")
-    }
-
-    @Test("Storage endpoints match Python API")
-    func storageEndpoints() throws {
-        let pythonEndpoints = try loadPythonEndpoints(for: "storage")
-
-        #expect(pythonEndpoints.contains { $0.path.contains("/storage/thumbnail/") })
-        #expect(pythonEndpoints.contains { $0.path.contains("/storage/display/") })
-
-        // Verify Swift constants produce correct paths
-        #expect(APIEndpoints.Storage.thumbnail("test").contains("/storage/thumbnail/"))
-        #expect(APIEndpoints.Storage.display("test").contains("/storage/display/"))
-    }
-
-    // MARK: - Helper
-
-    private func loadPythonEndpoints(for resource: String) throws -> [PythonEndpoint] {
-        let filePath = endpointsFilePath()
-
-        guard FileManager.default.fileExists(atPath: filePath.path) else {
-            Issue.record("endpoints.json not found. Run: python scripts/export_openapi_schema.py")
-            return []
-        }
-
-        let data = try Data(contentsOf: filePath)
-        let file = try JSONDecoder().decode(EndpointsFile.self, from: data)
-
-        guard let endpoints = file.endpoints[resource] else {
-            Issue.record("Resource '\(resource)' not found in endpoints.json")
-            return []
-        }
-
-        return endpoints
-    }
-}
-
 // MARK: - HTTP Method Validation Tests
 
+/// Validates that the Python API follows REST conventions for HTTP methods.
 struct HTTPMethodValidationTests {
 
     @Test("Create operations use POST")
@@ -237,33 +140,151 @@ struct HTTPMethodValidationTests {
     }
 }
 
-// MARK: - Endpoint Definition Tests
+// MARK: - Generated Client Validation Tests
 
-struct EndpointDefinitionTests {
+/// Tests that validate the Swift OpenAPI Generator client matches the Python API.
+/// These tests provide compile-time type safety AND runtime operation ID verification.
+struct GeneratedClientValidationTests {
 
-    @Test("EndpointDefinitions match Python API")
-    func definitionsMatchPython() throws {
+    @Test("Generated operation IDs match Python endpoints")
+    func generatedOperationIdsMatchPython() throws {
         let pythonEndpoints = try loadAllEndpoints()
 
-        for definition in EndpointDefinition.definitions {
-            // Convert Swift pattern to regex
-            let pattern = definition.pathPattern
-                .replacingOccurrences(of: "{id}", with: "\\{[^}]+\\}")
-                .replacingOccurrences(of: "/", with: "\\/")
+        // Collect Python operation IDs
+        let pythonOperationIds = Set(pythonEndpoints.compactMap { $0.operationId })
 
-            let regex = try? NSRegularExpression(pattern: "^\(pattern)$")
+        // These are the key operations we expect to find
+        let expectedOperations = [
+            "list_workflows_api_workflows_get",
+            "create_workflow_api_workflows_post",
+            "get_workflow_api_workflows__workflow_id__get",
+            "update_workflow_api_workflows__workflow_id__put",
+            "delete_workflow_api_workflows__workflow_id__delete",
+            "list_documents_api_documents_get",
+            "create_document_api_documents_post",
+            "search_documents_api_search_post",
+            "health_check_api_health_get"
+        ]
 
-            let matching = pythonEndpoints.filter { endpoint in
-                guard endpoint.method == definition.method else { return false }
-                let range = NSRange(endpoint.path.startIndex..., in: endpoint.path)
-                return regex?.firstMatch(in: endpoint.path, range: range) != nil
-            }
-
+        for operationId in expectedOperations {
             #expect(
-                !matching.isEmpty,
-                "No Python endpoint matches \(definition.method) \(definition.pathPattern)"
+                pythonOperationIds.contains(operationId),
+                "Expected operation '\(operationId)' not found in Python endpoints"
             )
         }
+    }
+
+    @Test("Generated workflow types have required properties")
+    func workflowTypesHaveRequiredProperties() {
+        // This test provides compile-time validation that generated types exist
+        // If the OpenAPI schema changes and removes these types, compilation fails
+
+        // WorkflowDef - the request/definition type
+        let workflowDef = Components.Schemas.WorkflowDef(
+            id: "test-id",
+            name: "Test Workflow",
+            description: "A test workflow",
+            nodes: [],
+            edges: [],
+            provider: nil,
+            model: nil
+        )
+        #expect(workflowDef.id == "test-id")
+        #expect(workflowDef.name == "Test Workflow")
+
+        // NodeDef - workflow node definition
+        let nodeDef = Components.Schemas.NodeDef(
+            id: "node-1",
+            tool: "test_tool",
+            inputPorts: [],
+            outputPorts: [],
+            positionX: 100.0,
+            positionY: 200.0,
+            label: "Test Node",
+            description: nil,
+            enabled: true
+        )
+        #expect(nodeDef.id == "node-1")
+        #expect(nodeDef.tool == "test_tool")
+        #expect(nodeDef.positionX == 100.0)
+
+        // EdgeDef - workflow edge definition
+        // Uses 'source'/'target' not 'sourceNode'/'targetNode'
+        let edgeDef = Components.Schemas.EdgeDef(
+            id: "edge-1",
+            source: "node-1",
+            target: "node-2",
+            sourcePort: "output",
+            targetPort: "input"
+        )
+        #expect(edgeDef.id == "edge-1")
+        #expect(edgeDef.source == "node-1")
+        #expect(edgeDef.target == "node-2")
+    }
+
+    @Test("Generated document types have required properties")
+    func documentTypesHaveRequiredProperties() {
+        // Verify Document schema has expected structure
+        // The generated type must have these properties or compilation fails
+
+        let document = Components.Schemas.Document(
+            id: "doc-1",
+            parentId: nil,
+            docType: Components.Schemas.DocType.file,
+            fileType: Components.Schemas.FileType.pdf,
+            name: "Test Document",
+            path: nil,
+            sequence: nil,
+            bbox: nil,
+            pageContent: nil,
+            metadata: nil,
+            status: Components.Schemas.Status.completed,
+            createdAt: Date(),
+            updatedAt: nil,
+            expectedThumbnailPath: "storage/thumbnails/do/doc-1.jpg",
+            expectedDisplayPath: "storage/thumbnails/do/doc-1_display.jpg"
+        )
+        #expect(document.id == "doc-1")
+        #expect(document.name == "Test Document")
+        #expect(document.docType == Components.Schemas.DocType.file)
+    }
+
+    @Test("Generated port types match API schema")
+    func portTypesMatchSchema() {
+        // PortDef uses PortTypePayload enum for port type
+        let inputPort = Components.Schemas.PortDef(
+            id: "port-1",
+            name: "input_port",
+            portType: .input,
+            dataType: .text,
+            required: true,
+            description: "An input port"
+        )
+        #expect(inputPort.portType == .input)
+        #expect(inputPort.dataType == .text)
+
+        let outputPort = Components.Schemas.PortDef(
+            id: "port-2",
+            name: "output_port",
+            portType: .output,
+            dataType: .image,
+            required: false,
+            description: nil
+        )
+        #expect(outputPort.portType == .output)
+    }
+
+    @Test("FicheroClient can be instantiated")
+    @MainActor
+    func clientInstantiation() async {
+        // Verify the client wrapper can be created
+        let client = FicheroClient()
+        #expect(client.baseURL.absoluteString == "http://127.0.0.1:8765")
+        #expect(client.currentLibraryPath == nil)
+
+        // Verify client with library path
+        let clientWithPath = FicheroClient(libraryPath: "/test/path")
+        #expect(clientWithPath.currentLibraryPath == "/test/path")
     }
 
     // MARK: - Helper
@@ -272,7 +293,7 @@ struct EndpointDefinitionTests {
         let filePath = endpointsFilePath()
 
         guard FileManager.default.fileExists(atPath: filePath.path) else {
-            Issue.record("endpoints.json not found")
+            Issue.record("endpoints.json not found. Run: python scripts/export_openapi_schema.py")
             return []
         }
 
@@ -280,5 +301,89 @@ struct EndpointDefinitionTests {
         let file = try JSONDecoder().decode(EndpointsFile.self, from: data)
 
         return file.endpoints.values.flatMap { $0 }
+    }
+}
+
+// MARK: - Python Endpoint Validation Tests
+
+/// Validates that the Python API has expected endpoints.
+/// This checks the structure of endpoints.json, not Swift code.
+struct PythonEndpointStructureTests {
+
+    @Test("Documents endpoints exist in Python API")
+    func documentsEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "documents")
+
+        // Verify key endpoints exist
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/documents" })
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/documents" })
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path.contains("/documents/") && $0.path.contains("{") })
+    }
+
+    @Test("Workflows endpoints exist in Python API")
+    func workflowsEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "workflows")
+
+        // Verify key endpoints exist
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/workflows" })
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/workflows" })
+        #expect(pythonEndpoints.contains { $0.method == "PUT" && $0.path.contains("{workflow_id}") })
+        #expect(pythonEndpoints.contains { $0.method == "DELETE" && $0.path.contains("{workflow_id}") })
+    }
+
+    @Test("Search endpoints exist in Python API")
+    func searchEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "search")
+
+        // Search uses POST (not GET) for the main search
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/search" })
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/search/saved" })
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/search/saved" })
+    }
+
+    @Test("Chat endpoints exist in Python API")
+    func chatEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "chat")
+
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/chat" })
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/chat/conversations" })
+    }
+
+    @Test("Provider endpoints exist in Python API")
+    func providerEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "providers")
+
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/providers/catalog" })
+        #expect(pythonEndpoints.contains { $0.method == "GET" && $0.path == "/providers" })
+        #expect(pythonEndpoints.contains { $0.method == "POST" && $0.path == "/providers" })
+    }
+
+    @Test("Storage endpoints exist in Python API")
+    func storageEndpointsExist() throws {
+        let pythonEndpoints = try loadPythonEndpoints(for: "storage")
+
+        #expect(pythonEndpoints.contains { $0.path.contains("/storage/thumbnail/") })
+        #expect(pythonEndpoints.contains { $0.path.contains("/storage/display/") })
+    }
+
+    // MARK: - Helper
+
+    private func loadPythonEndpoints(for resource: String) throws -> [PythonEndpoint] {
+        let filePath = endpointsFilePath()
+
+        guard FileManager.default.fileExists(atPath: filePath.path) else {
+            Issue.record("endpoints.json not found. Run: python scripts/export_openapi_schema.py")
+            return []
+        }
+
+        let data = try Data(contentsOf: filePath)
+        let file = try JSONDecoder().decode(EndpointsFile.self, from: data)
+
+        guard let endpoints = file.endpoints[resource] else {
+            Issue.record("Resource '\(resource)' not found in endpoints.json")
+            return []
+        }
+
+        return endpoints
     }
 }

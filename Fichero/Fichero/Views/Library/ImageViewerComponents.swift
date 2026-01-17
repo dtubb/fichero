@@ -1,10 +1,13 @@
 import SwiftUI
 import AppKit
+import OSLog
 
 // MARK: - Zoomable Image Preview (with controls and magnifier)
 
 struct ZoomableImagePreview: View {
     let url: URL
+
+    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ZoomableImagePreview")
 
     // These settings persist across image changes using AppStorage
     @AppStorage("imagePreview.magnifierEnabled") private var magnifierEnabled = false
@@ -24,6 +27,7 @@ struct ZoomableImagePreview: View {
     @State private var imageSize: CGSize = .zero
     @State private var image: NSImage?
     @State private var visibleRect: CGRect = .zero  // Normalized 0-1
+    @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
 
     /// The position to use for magnifier (locked or cursor)
     private var magnifierPosition: CGPoint {
@@ -131,7 +135,8 @@ struct ZoomableImagePreview: View {
                         ),
                         onImagePositionChanged: { pos in
                             lastImagePosition = pos
-                        }
+                        },
+                        coordinator: $imageCoordinator
                     )
 
                     // Bottom magnifier panel
@@ -152,7 +157,7 @@ struct ZoomableImagePreview: View {
                             isLocked: $magnifierLocked,
                             onLockToggle: {
                                 if !magnifierLocked {
-                                    // Locking - save last valid image position
+                                    // Locking - save current position
                                     lockedPosition = lastImagePosition
                                 }
                                 magnifierLocked.toggle()
@@ -167,7 +172,10 @@ struct ZoomableImagePreview: View {
                     NavigatorMiniMap(
                         image: img,
                         cursorPosition: cursorPosition,
-                        visibleRect: visibleRect
+                        visibleRect: visibleRect,
+                        onRectangleDragged: { normalizedOrigin in
+                            imageCoordinator?.scrollToNormalizedPosition(normalizedOrigin)
+                        }
                     )
                     .frame(width: 150, height: 100)
                     .padding(8)
@@ -175,16 +183,41 @@ struct ZoomableImagePreview: View {
             }
         }
         .onAppear {
+            Self.logger.info("ZoomableImagePreview onAppear: loading \(url.lastPathComponent)")
             image = NSImage(contentsOf: url)
             if let img = image {
                 imageSize = img.size
+                Self.logger.info("Successfully loaded image: size=\(img.size.width)x\(img.size.height)")
+            } else {
+                Self.logger.error("Failed to load NSImage from: \(url.path)")
             }
         }
         .onChange(of: url) { _, newURL in
+            Self.logger.info("ZoomableImagePreview URL changed: loading \(newURL.lastPathComponent)")
             image = NSImage(contentsOf: newURL)
             if let img = image {
                 imageSize = img.size
+                Self.logger.info("Successfully loaded new image: size=\(img.size.width)x\(img.size.height)")
+            } else {
+                Self.logger.error("Failed to load NSImage from: \(newURL.path)")
             }
+        }
+        .onKeyPress(.init("+"), phases: .down) { _ in
+            zoomIn()
+            return .handled
+        }
+        .onKeyPress(.init("="), phases: .down) { _ in
+            // Also handle = key (same as + without shift)
+            zoomIn()
+            return .handled
+        }
+        .onKeyPress(.init("-"), phases: .down) { _ in
+            zoomOut()
+            return .handled
+        }
+        .onKeyPress(.init("0"), phases: .down) { _ in
+            actualSize()
+            return .handled
         }
     }
 
@@ -216,6 +249,8 @@ struct ZoomableImagePreview: View {
 // MARK: - Image with Cursor Tracking and Loupe
 
 struct ImageWithCursorTracking: NSViewRepresentable {
+    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ImageWithCursorTracking")
+
     let url: URL
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
@@ -227,25 +262,37 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
     var onImagePositionChanged: ((CGPoint) -> Void)?  // Called when cursor moves over image
+    @Binding var coordinator: Coordinator?  // Exposed for external scroll control
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
-        scrollView.allowsMagnification = true
+        scrollView.allowsMagnification = true  // Use built-in Mac zoom behavior
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
         scrollView.backgroundColor = NSColor(white: 0.15, alpha: 1.0)
         scrollView.postsBoundsChangedNotifications = true
 
-        // Add magnification gesture recognizer for pinch-to-zoom
+        // Add magnification gesture recognizer for loupe pinch-to-zoom
+        // This works alongside NSScrollView's built-in magnification
         let magnifyGesture = NSMagnificationGestureRecognizer(
             target: context.coordinator,
             action: #selector(Coordinator.handleMagnify(_:))
         )
+        magnifyGesture.delegate = context.coordinator
         scrollView.addGestureRecognizer(magnifyGesture)
         context.coordinator.magnifyGesture = magnifyGesture
+
+        // Add double-click gesture for zoom
+        let doubleClickGesture = NSClickGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleDoubleClick(_:))
+        )
+        doubleClickGesture.numberOfClicksRequired = 2
+        scrollView.addGestureRecognizer(doubleClickGesture)
+        context.coordinator.doubleClickGesture = doubleClickGesture
 
         // Create tracking image view with loupe
         let imageView = TrackingImageView()
@@ -272,14 +319,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         if let image = NSImage(contentsOf: url) {
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
+            Self.logger.info("makeNSView: Set image size=\(image.size.width)x\(image.size.height)")
             Task { @MainActor in
                 self.imageSize = image.size
             }
+        } else {
+            Self.logger.error("makeNSView: Failed to load image from: \(url.lastPathComponent)")
         }
 
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+        Self.logger.info("makeNSView: Set documentView, scrollView bounds=\(scrollView.bounds.width)x\(scrollView.bounds.height)")
 
         // Observe scroll/zoom changes for visible rect
         NotificationCenter.default.addObserver(
@@ -294,15 +345,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             }
         }
 
-        // Center initially
-        Task { @MainActor in
-            self.centerImage(scrollView: scrollView, imageView: imageView)
-        }
+        // Initial center will happen in updateNSView after layout
+        context.coordinator.needsInitialCenter = true
 
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Center image on first layout when bounds are known
+        if context.coordinator.needsInitialCenter && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
+            context.coordinator.needsInitialCenter = false
+            centerImage(scrollView: scrollView, imageView: context.coordinator.imageView!)
+        }
         if abs(scrollView.magnification - scale) > 0.01 {
             scrollView.magnification = scale
         }
@@ -331,11 +385,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        let coord = Coordinator()
+        Task { @MainActor in
+            self.coordinator = coord
+        }
+        return coord
     }
 
     private func centerImage(scrollView: NSScrollView, imageView: NSView) {
-        guard let imgView = imageView as? NSImageView, let image = imgView.image else { return }
+        guard let imgView = imageView as? NSImageView, let image = imgView.image else {
+            Self.logger.warning("centerImage: No image or imageView")
+            return
+        }
 
         let viewSize = scrollView.bounds.size
         let imageSize = image.size
@@ -344,25 +405,51 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         let scaleY = viewSize.height / imageSize.height
         let fitScale = min(scaleX, scaleY, 1.0)
 
+        Self.logger.info("centerImage: viewSize=\(viewSize.width)x\(viewSize.height), imageSize=\(imageSize.width)x\(imageSize.height), fitScale=\(fitScale)")
         scrollView.magnification = fitScale
     }
 
-    class Coordinator: NSObject {
+    class Coordinator: NSObject, NSGestureRecognizerDelegate {
         var scrollView: NSScrollView?
         var imageView: NSView?
         var currentURL: URL?
         var onVisibleRectChanged: ((CGRect) -> Void)?
         var magnifyGesture: NSMagnificationGestureRecognizer?
+        var doubleClickGesture: NSClickGestureRecognizer?
+        var onZoomIn: (() -> Void)?
+        var needsInitialCenter: Bool = false
         private var initialMagnification: CGFloat = 1.0
 
         @objc func boundsDidChange(_ notification: Notification) {
             updateVisibleRect()
         }
 
-        @objc func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
+        // Allow our gesture recognizer to work simultaneously with NSScrollView's built-in magnification
+        func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer) -> Bool {
+            return true
+        }
+
+        @objc func handleDoubleClick(_ gesture: NSClickGestureRecognizer) {
             guard let scrollView = scrollView else { return }
 
-            // Check if cursor is over loupe - if so, zoom the loupe instead
+            if gesture.state == .ended {
+                // Get click location for zoom centering
+                let clickLocation = gesture.location(in: scrollView)
+
+                // Toggle between zooming in and fit to window
+                if scrollView.magnification > 1.1 {
+                    // Currently zoomed in - fit to window
+                    scrollView.magnification = 1.0
+                } else {
+                    // Currently at fit - zoom in to 2x at click location
+                    scrollView.setMagnification(2.0, centeredAt: clickLocation)
+                }
+            }
+        }
+
+        @objc func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
+            // Check if cursor is over loupe - if so, zoom the loupe instead of main image
             if let trackingView = imageView as? TrackingImageView,
                trackingView.loupeEnabled,
                let loupeViewPos = trackingView.loupeViewPosition {
@@ -383,24 +470,35 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     default:
                         break
                     }
-                    return
                 }
             }
+            // If not over loupe, let NSScrollView's built-in magnification handle it
+        }
 
-            // Not over loupe - zoom main image
-            switch gesture.state {
-            case .began:
-                initialMagnification = scrollView.magnification
-            case .changed:
-                let newMag = initialMagnification * (1 + gesture.magnification)
-                let clampedMag = max(scrollView.minMagnification, min(scrollView.maxMagnification, newMag))
-                let location = gesture.location(in: scrollView)
-                scrollView.setMagnification(clampedMag, centeredAt: location)
-            case .ended, .cancelled:
-                break
-            default:
-                break
-            }
+        /// Scroll to a normalized position (0-1 coordinates)
+        func scrollToNormalizedPosition(_ normalizedOrigin: CGPoint) {
+            guard let scrollView = scrollView,
+                  let imageView = imageView as? NSImageView,
+                  let image = imageView.image else { return }
+
+            let imageSize = image.size
+            let magnification = scrollView.magnification
+
+            // Calculate scaled image size
+            let scaledWidth = imageSize.width * magnification
+            let scaledHeight = imageSize.height * magnification
+
+            // Convert normalized position to document coordinates
+            // normalizedOrigin is the top-left corner in normalized space (0-1, top-left origin)
+            let docX = normalizedOrigin.x * scaledWidth
+            // NSScrollView uses bottom-left origin, so convert from top-left
+            // The top of the visible rect in NSScrollView should be at: (1-normalizedY) * scaledHeight
+            // The bottom (origin) is: top - visibleHeight
+            let docY = (1.0 - normalizedOrigin.y) * scaledHeight - scrollView.contentView.bounds.height
+
+            let targetPoint = CGPoint(x: docX, y: docY)
+            scrollView.contentView.scroll(to: targetPoint)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 
         func updateVisibleRect() {
@@ -421,8 +519,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             let normalizedWidth = min(1.0, visibleRect.width / scaledWidth)
             let normalizedHeight = min(1.0, visibleRect.height / scaledHeight)
 
-            // For Y, flip because NSScrollView origin is bottom-left but minimap expects top-left origin
-            let normalizedY = 1.0 - (visibleRect.origin.y / scaledHeight) - normalizedHeight
+            // NSScrollView uses bottom-left origin (Y increases upward)
+            // Minimap uses top-left origin (Y increases downward)
+            // The TOP of the visible rect in NSScrollView is: origin.y + height
+            // In normalized coords: 1.0 - (top in NSScrollView) / scaledHeight
+            let normalizedY = 1.0 - (visibleRect.origin.y + visibleRect.height) / scaledHeight
 
             let rect = CGRect(
                 x: max(0, min(1 - normalizedWidth, normalizedX)),

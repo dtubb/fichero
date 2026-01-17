@@ -14,11 +14,22 @@ struct WorkflowDefinition: Codable {
     let edges: [WorkflowEdge]
     let folderPath: String
     let sortOrder: Int
+    // Execution settings
+    let timeoutSeconds: Int
+    let maxRetries: Int
+    // Metadata
+    let version: String
+    let createdAt: String?
+    let updatedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, provider, model, nodes, edges
+        case id, name, description, provider, model, nodes, edges, version
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
+        case timeoutSeconds = "timeout_seconds"
+        case maxRetries = "max_retries"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 
     /// Convenience initializer with defaults for creating new workflows
@@ -31,7 +42,12 @@ struct WorkflowDefinition: Codable {
         nodes: [WorkflowNode] = [],
         edges: [WorkflowEdge] = [],
         folderPath: String = "/",
-        sortOrder: Int = 0
+        sortOrder: Int = 0,
+        timeoutSeconds: Int = 300,
+        maxRetries: Int = 3,
+        version: String = "1.0",
+        createdAt: String? = nil,
+        updatedAt: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -42,6 +58,29 @@ struct WorkflowDefinition: Codable {
         self.edges = edges
         self.folderPath = folderPath
         self.sortOrder = sortOrder
+        self.timeoutSeconds = timeoutSeconds
+        self.maxRetries = maxRetries
+        self.version = version
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        provider = try container.decodeIfPresent(String.self, forKey: .provider) ?? ""
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+        nodes = try container.decodeIfPresent([WorkflowNode].self, forKey: .nodes) ?? []
+        edges = try container.decodeIfPresent([WorkflowEdge].self, forKey: .edges) ?? []
+        folderPath = try container.decodeIfPresent(String.self, forKey: .folderPath) ?? "/"
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        timeoutSeconds = try container.decodeIfPresent(Int.self, forKey: .timeoutSeconds) ?? 300
+        maxRetries = try container.decodeIfPresent(Int.self, forKey: .maxRetries) ?? 3
+        version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
 }
 
@@ -57,18 +96,21 @@ struct WorkflowNode: Codable, Identifiable {
     let inputPorts: [PortInfo]
     let outputPorts: [PortInfo]
     var inputMappings: [InputMapping]
+    var inputs: [String: AnyCodableValue]?         // Input values (can be literal or path references)
+    var config: [String: AnyCodableValue]?
+    var outputSchema: OutputSchema?                 // Structured output schema for LLM nodes
     var providerName: String?
     var modelName: String?
     var usesLLM: Bool
-    var config: [String: AnyCodableValue]?
 
     enum CodingKeys: String, CodingKey {
-        case id, tool, label, description, enabled, config
+        case id, tool, label, description, enabled, config, inputs
         case positionX = "position_x"
         case positionY = "position_y"
         case inputPorts = "input_ports"
         case outputPorts = "output_ports"
         case inputMappings = "input_mappings"
+        case outputSchema = "output_schema"
         case providerName = "provider_name"
         case modelName = "model_name"
         case usesLLM = "uses_llm"
@@ -85,10 +127,12 @@ struct WorkflowNode: Codable, Identifiable {
         inputPorts: [PortInfo] = [],
         outputPorts: [PortInfo] = [],
         inputMappings: [InputMapping] = [],
+        inputs: [String: AnyCodableValue]? = nil,
+        config: [String: AnyCodableValue]? = nil,
+        outputSchema: OutputSchema? = nil,
         providerName: String? = nil,
         modelName: String? = nil,
-        usesLLM: Bool = false,
-        config: [String: AnyCodableValue]? = nil
+        usesLLM: Bool = false
     ) {
         self.id = id
         self.tool = tool
@@ -100,10 +144,12 @@ struct WorkflowNode: Codable, Identifiable {
         self.inputPorts = inputPorts
         self.outputPorts = outputPorts
         self.inputMappings = inputMappings
+        self.inputs = inputs
+        self.config = config
+        self.outputSchema = outputSchema
         self.providerName = providerName
         self.modelName = modelName
         self.usesLLM = usesLLM
-        self.config = config
     }
 
     // Custom decoder to handle defaults
@@ -119,10 +165,12 @@ struct WorkflowNode: Codable, Identifiable {
         inputPorts = try container.decodeIfPresent([PortInfo].self, forKey: .inputPorts) ?? []
         outputPorts = try container.decodeIfPresent([PortInfo].self, forKey: .outputPorts) ?? []
         inputMappings = try container.decodeIfPresent([InputMapping].self, forKey: .inputMappings) ?? []
+        inputs = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .inputs)
+        config = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .config)
+        outputSchema = try container.decodeIfPresent(OutputSchema.self, forKey: .outputSchema)
         providerName = try container.decodeIfPresent(String.self, forKey: .providerName)
         modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
         usesLLM = try container.decodeIfPresent(Bool.self, forKey: .usesLLM) ?? false
-        config = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .config)
     }
 
     /// Convenience initializer from ToolInfo
@@ -137,10 +185,12 @@ struct WorkflowNode: Codable, Identifiable {
         self.inputPorts = toolInfo.inputPorts
         self.outputPorts = toolInfo.outputPorts
         self.inputMappings = []
+        self.inputs = nil
+        self.config = nil
+        self.outputSchema = toolInfo.defaultOutputSchema.map { OutputSchema(jsonSchema: $0) }
         self.providerName = nil
         self.modelName = nil
         self.usesLLM = toolInfo.usesLLM
-        self.config = nil
     }
 }
 
@@ -212,9 +262,32 @@ struct WorkflowEdge: Codable, Identifiable {
     }
 }
 
-
-
 // WorkflowExecutionState is defined in WorkflowOutputLog.swift
+
+// MARK: - Output Schema
+
+/// JSON Schema for structured output from LLM nodes.
+/// When specified, the LLM will return data matching this schema exactly.
+struct OutputSchema: Codable, Hashable {
+    let jsonSchema: [String: AnyCodableValue]
+    let description: String
+
+    enum CodingKeys: String, CodingKey {
+        case jsonSchema = "schema"  // Python uses "schema" as alias for "json_schema"
+        case description
+    }
+
+    init(jsonSchema: [String: AnyCodableValue], description: String = "") {
+        self.jsonSchema = jsonSchema
+        self.description = description
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        jsonSchema = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .jsonSchema) ?? [:]
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+    }
+}
 
 // MARK: - Input Mapping
 
@@ -263,6 +336,8 @@ struct ToolInfo: Codable, Identifiable {
     let inputPorts: [PortInfo]
     let outputPorts: [PortInfo]
     let configSchema: [String: AnyCodableValue]
+    let defaultOutputSchema: [String: AnyCodableValue]?  // Default structured output schema
+    let defaultPrompt: String?  // Default prompt for LLM tools (from backend)
     let usesLLM: Bool
     let supportsBatch: Bool
     let supportsStreaming: Bool
@@ -277,6 +352,8 @@ struct ToolInfo: Codable, Identifiable {
         case inputPorts = "input_ports"
         case outputPorts = "output_ports"
         case configSchema = "config_schema"
+        case defaultOutputSchema = "default_output_schema"
+        case defaultPrompt = "default_prompt"
         case usesLLM = "uses_llm"
         case supportsBatch = "supports_batch"
         case supportsStreaming = "supports_streaming"
@@ -295,6 +372,8 @@ struct ToolInfo: Codable, Identifiable {
         inputPorts: [PortInfo],
         outputPorts: [PortInfo],
         configSchema: [String: AnyCodableValue] = [:],
+        defaultOutputSchema: [String: AnyCodableValue]? = nil,
+        defaultPrompt: String? = nil,
         usesLLM: Bool,
         supportsBatch: Bool,
         supportsStreaming: Bool,
@@ -310,6 +389,8 @@ struct ToolInfo: Codable, Identifiable {
         self.inputPorts = inputPorts
         self.outputPorts = outputPorts
         self.configSchema = configSchema
+        self.defaultOutputSchema = defaultOutputSchema
+        self.defaultPrompt = defaultPrompt
         self.usesLLM = usesLLM
         self.supportsBatch = supportsBatch
         self.supportsStreaming = supportsStreaming
@@ -380,11 +461,42 @@ struct PortInfo: Codable, Identifiable, Hashable {
     let dataType: String
     let required: Bool
     let description: String
+    let defaultValue: AnyCodableValue?  // Default value for optional inputs
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, required
         case portType = "port_type"
         case dataType = "data_type"
+        case defaultValue = "default"
+    }
+
+    init(
+        id: String,
+        name: String,
+        portType: String,
+        dataType: String,
+        required: Bool = true,
+        description: String = "",
+        defaultValue: AnyCodableValue? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.portType = portType
+        self.dataType = dataType
+        self.required = required
+        self.description = description
+        self.defaultValue = defaultValue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        portType = try container.decode(String.self, forKey: .portType)
+        dataType = try container.decode(String.self, forKey: .dataType)
+        required = try container.decodeIfPresent(Bool.self, forKey: .required) ?? true
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        defaultValue = try container.decodeIfPresent(AnyCodableValue.self, forKey: .defaultValue)
     }
 
     /// Whether this is an input port
@@ -441,5 +553,132 @@ enum AgentType: String, CaseIterable, Codable {
         case .planAndExecute:
             return "Creates a plan first, then executes steps sequentially."
         }
+    }
+}
+
+// MARK: - Service Response Types
+
+/// Response containing tools grouped by category
+struct ToolsGroupedResponse: Codable {
+    let categories: [CategoryTools]
+}
+
+/// Response for a created/fetched node
+struct NodeResponse: Codable, Identifiable {
+    let id: String
+    let tool: String
+    let label: String?
+    let description: String?
+    let inputPorts: [PortInfo]
+    let outputPorts: [PortInfo]
+    let positionX: Double
+    let positionY: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, tool, label, description
+        case inputPorts = "input_ports"
+        case outputPorts = "output_ports"
+        case positionX = "position_x"
+        case positionY = "position_y"
+    }
+}
+
+/// Request to run a workflow inline
+struct RunWorkflowRequest: Encodable {
+    let workflow: WorkflowDefinition
+    let inputs: [String: AnyCodable]
+    let inputFiles: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case workflow, inputs
+        case inputFiles = "input_files"
+    }
+
+    init(workflow: WorkflowDefinition, inputs: [String: Any], inputFiles: [String]) {
+        self.workflow = workflow
+        self.inputs = inputs.mapValues { AnyCodable($0) }
+        self.inputFiles = inputFiles
+    }
+}
+
+/// Workflow response from API (uses AnyCodable for nodes/edges)
+struct WorkflowResponse: Codable {
+    let id: String
+    let name: String
+    let description: String
+    let provider: String
+    let model: String
+    let nodes: [[String: AnyCodable]]
+    let edges: [[String: AnyCodable]]
+    let folderPath: String
+    let sortOrder: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, provider, model, nodes, edges
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+    }
+}
+
+// MARK: - Workflow Execution State
+
+/// Execution state for a single workflow node during runtime
+enum NodeExecutionStatus: String, Codable {
+    case idle = "idle"
+    case running = "running"
+    case parallelRunning = "parallel_running"
+    case completed = "completed"
+    case failed = "failed"
+}
+
+/// Tracks execution progress for a workflow node
+struct NodeExecutionState: Identifiable {
+    let nodeId: String
+    var status: NodeExecutionStatus = .idle
+    var progress: Double = 0.0  // 0.0 to 1.0
+    var fileIndex: Int = 0
+    var fileTotal: Int = 0
+    var successCount: Int = 0
+    var errorCount: Int = 0
+    var currentFile: String?
+    var errorMessage: String?
+
+    var id: String { nodeId }
+
+    /// Whether this node is currently processing files in parallel
+    var isParallelProcessing: Bool {
+        status == .parallelRunning && fileTotal > 0
+    }
+
+    /// Progress text for display (e.g., "5/10")
+    var progressText: String? {
+        guard isParallelProcessing else { return nil }
+        return "\(successCount + errorCount)/\(fileTotal)"
+    }
+}
+
+/// Workflow execution SSE event from backend
+struct WorkflowSSEEvent: Codable {
+    let event: String
+    let threadId: String
+    let workflowId: String
+    let data: [String: AnyCodableValue]
+    let timestamp: String
+    // Parallel execution fields
+    let nodeId: String?
+    let filePath: String?
+    let fileIndex: Int?
+    let fileTotal: Int?
+    let progress: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case event, data, timestamp
+        case threadId = "thread_id"
+        case workflowId = "workflow_id"
+        case nodeId = "node_id"
+        case filePath = "file_path"
+        case fileIndex = "file_index"
+        case fileTotal = "file_total"
+        case progress
     }
 }

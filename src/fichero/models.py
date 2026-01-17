@@ -108,7 +108,7 @@ class Document(BaseModel):
 
     Compatible with LangChain's Document concept via page_content and metadata.
     """
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
     parent_id: str | None = None

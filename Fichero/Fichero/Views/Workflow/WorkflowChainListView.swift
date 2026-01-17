@@ -19,52 +19,55 @@ struct WorkflowChainListView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            chainList
-        } detail: {
-            if let selectedId = selectedChainId,
-               let chain = chainService.chains.first(where: { $0.id == selectedId }) {
-                ChainDetailView(
+        chainList
+            .searchable(text: $searchText, prompt: "Search chains...")
+            .task {
+                guard !Task.isCancelled else { return }
+                await chainService.loadChains()
+            }
+            .sheet(isPresented: $showNewChainSheet) {
+                NewChainSheet(
+                    workflows: workflowStore.workflows,
+                    onCreate: { name, description, steps in
+                        await createChain(name: name, description: description, steps: steps)
+                    }
+                )
+            }
+            .sheet(item: selectedChain) { chain in
+                ChainDetailSheet(
                     chain: chain,
                     workflows: workflowStore.workflows,
                     onExecute: { executeChain(chain) },
                     onDelete: { confirmDelete(chain) }
                 )
-            } else {
-                ContentUnavailableView(
-                    "No Chain Selected",
-                    systemImage: "link",
-                    description: Text("Select a chain to view its details")
-                )
             }
-        }
-        .searchable(text: $searchText, prompt: "Search chains...")
-        .task {
-            guard !Task.isCancelled else { return }
-            await chainService.loadChains()
-        }
-        .sheet(isPresented: $showNewChainSheet) {
-            NewChainSheet(
-                workflows: workflowStore.workflows,
-                onCreate: { name, description, steps in
-                    await createChain(name: name, description: description, steps: steps)
+            .alert("Delete Chain?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    chainToDelete = nil
                 }
-            )
-        }
-        .alert("Delete Chain?", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) {
-                chainToDelete = nil
-            }
-            Button("Delete", role: .destructive) {
+                Button("Delete", role: .destructive) {
+                    if let chain = chainToDelete {
+                        Task { await deleteChain(chain) }
+                    }
+                }
+            } message: {
                 if let chain = chainToDelete {
-                    Task { await deleteChain(chain) }
+                    Text("Are you sure you want to delete \"\(chain.name)\"? This action cannot be undone.")
                 }
             }
-        } message: {
-            if let chain = chainToDelete {
-                Text("Are you sure you want to delete \"\(chain.name)\"? This action cannot be undone.")
+    }
+
+    /// Selected chain binding for sheet presentation
+    private var selectedChain: Binding<WorkflowChain?> {
+        Binding(
+            get: {
+                guard let id = selectedChainId else { return nil }
+                return chainService.chains.first { $0.id == id }
+            },
+            set: { newChain in
+                selectedChainId = newChain?.id
             }
-        }
+        )
     }
 
     @ViewBuilder
@@ -91,13 +94,23 @@ struct WorkflowChainListView: View {
                     }
                 }
             } else {
-                List(filteredChains, selection: $selectedChainId) { chain in
+                List(filteredChains) { chain in
                     ChainListRow(
                         chain: chain,
                         isExecuting: executingChainId == chain.id
                     )
-                    .tag(chain.id)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        // Double-click to open details
+                        selectedChainId = chain.id
+                    }
                     .contextMenu {
+                        Button {
+                            selectedChainId = chain.id
+                        } label: {
+                            Label("View Details", systemImage: "info.circle")
+                        }
+
                         Button {
                             executeChain(chain)
                         } label: {
@@ -115,7 +128,6 @@ struct WorkflowChainListView: View {
                 }
             }
         }
-        .navigationTitle("Workflow Chains")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -238,9 +250,41 @@ struct ChainListRow: View {
     }
 }
 
-// MARK: - Chain Detail View
+// MARK: - Chain Detail Sheet
 
-struct ChainDetailView: View {
+/// Sheet wrapper for chain details
+struct ChainDetailSheet: View {
+    let chain: WorkflowChain
+    let workflows: [WorkflowSidebarItem]
+    let onExecute: () -> Void
+    let onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ChainDetailContent(
+                chain: chain,
+                workflows: workflows,
+                onExecute: onExecute,
+                onDelete: {
+                    dismiss()
+                    onDelete()
+                }
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 500, minHeight: 400)
+    }
+}
+
+// MARK: - Chain Detail Content
+
+/// Reusable chain detail content (used in sheet and potentially elsewhere)
+struct ChainDetailContent: View {
     let chain: WorkflowChain
     let workflows: [WorkflowSidebarItem]
     let onExecute: () -> Void

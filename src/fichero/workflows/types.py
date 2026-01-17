@@ -16,8 +16,30 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import TypedDict, Any, Literal
+from typing import TypedDict, Any, Literal, Annotated
 from pydantic import BaseModel, Field, field_validator
+
+
+def _merge_parallel_results(
+    existing: dict[str, list[Any]] | None,
+    new: dict[str, list[Any]] | None,
+) -> dict[str, list[Any]]:
+    """Reducer for parallel_results - merges results from parallel branches.
+
+    Each parallel branch returns {node_id: [result]} and this reducer
+    combines them into {node_id: [result1, result2, ...]}.
+    """
+    if existing is None:
+        existing = {}
+    if new is None:
+        return existing
+
+    result = dict(existing)
+    for node_id, results in new.items():
+        if node_id not in result:
+            result[node_id] = []
+        result[node_id].extend(results)
+    return result
 
 
 def _new_id() -> str:
@@ -71,7 +93,7 @@ class InputMapping(BaseModel):
     """
     port_id: str = Field(..., description="Target input port ID on this node")
     source_path: str = Field(..., description="Path expression to data source")
-    transform: str | None = Field(default=None, description="Optional transform pipe (e.g., '| join:\", \"')")
+    transform: str = Field(default="", description="Optional transform pipe (e.g., '| join:\", \"'), empty if none")
 
 
 class OutputSchema(BaseModel):
@@ -111,6 +133,9 @@ class State(TypedDict):
     task_id: str                    # Unique execution ID
     workflow_id: str                # Workflow definition ID
 
+    # Library context (required for source tools)
+    library_path: str               # Path to .fichero library package
+
     # Input/Output
     inputs: dict[str, Any]          # Initial inputs to workflow
     outputs: dict[str, Any]         # Node outputs (keyed by node_id)
@@ -124,6 +149,14 @@ class State(TypedDict):
     input_files: list[str]          # Input file paths
     output_files: list[str]         # Generated output file paths
 
+    # Parallel execution tracking (for Send API fan-out)
+    # Annotated with reducer to merge results from concurrent parallel branches
+    parallel_results: Annotated[dict[str, list[Any]], _merge_parallel_results]  # node_id -> list of results
+    parallel_index: int             # Current file index when in parallel branch
+    parallel_total: int             # Total files being processed in parallel
+    parallel_file: str              # Current file path in parallel branch
+    parallel_document: dict[str, Any] | None  # Current document metadata in parallel branch
+
 
 # =============================================================================
 # Workflow Definition
@@ -133,7 +166,11 @@ class NodeDef(BaseModel):
     """Definition of a single node in the workflow graph.
 
     Nodes represent tools/operations that process data.
-    Each node has input and output ports for visual edge connections.
+
+    IMPORTANT: Ports should NOT be stored with nodes. They are defined in the
+    tool registry and should be fetched using `enrich_node_with_ports()`.
+    The port fields here are kept for backward compatibility and API responses
+    but should be empty when persisting to database.
 
     Input Mapping:
         The `input_mappings` list allows referencing ANY previous node's output,
@@ -158,14 +195,16 @@ class NodeDef(BaseModel):
     id: str = Field(default_factory=_new_id, description="Unique node identifier")
     tool: str = Field(..., description="Tool function name from registry")
 
-    # Port definitions (populated from tool registry, can be customized)
+    # Port definitions - DEPRECATED for storage
+    # These are populated from the tool registry at runtime for API responses.
+    # Do NOT store ports in the database - use enrich_node_with_ports() instead.
     input_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Input connection ports"
+        description="Input connection ports (populated from registry, not stored)"
     )
     output_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Output connection ports"
+        description="Output connection ports (populated from registry, not stored)"
     )
 
     # Input mapping - reference any previous node's output
@@ -197,9 +236,14 @@ class NodeDef(BaseModel):
     position_y: float = 0.0
 
     # Optional metadata
-    label: str | None = None        # Display label (defaults to tool name)
-    description: str | None = None  # Node description
+    label: str = ""                 # Display label (defaults to tool name if empty)
+    description: str = ""           # Node description
     enabled: bool = True            # Can be disabled without removing
+
+    # Per-node LLM configuration (overrides workflow defaults)
+    provider_name: str = ""         # e.g., "openai", "anthropic" (empty for default)
+    model_name: str = ""            # e.g., "gpt-4o", "claude-3-5-sonnet-20241022" (empty for default)
+    uses_llm: bool = False          # Whether this node uses an LLM
 
     # Validators to handle null values from Swift/JSON
     @field_validator('config', 'inputs', mode='before')
@@ -213,6 +257,18 @@ class NodeDef(BaseModel):
     def convert_none_to_empty_list(cls, v):
         """Convert null to empty list for list fields."""
         return v if v is not None else []
+
+    def model_dump_for_storage(self) -> dict:
+        """Get a minimal dict for database storage (excludes ports).
+
+        Ports should not be stored - they come from the tool registry.
+        Use this method when saving workflows to the database.
+        """
+        data = self.model_dump()
+        # Remove ports - they'll be enriched from registry when loading
+        data.pop('input_ports', None)
+        data.pop('output_ports', None)
+        return data
 
 
 class EdgeDef(BaseModel):
@@ -230,14 +286,14 @@ class EdgeDef(BaseModel):
     target_port: str = Field(default="input", description="Input port ID on target node")
 
     # Conditional routing (for IF/Switch nodes)
-    condition: str | None = Field(
-        default=None,
-        description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"')"
+    condition: str = Field(
+        default="",
+        description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional"
     )
 
     # Visual styling
     animated: bool = False          # Show animated flow
-    label: str | None = None        # Label on edge
+    label: str = ""                 # Label on edge (empty for none)
 
 
 class WorkflowDef(BaseModel):
@@ -326,6 +382,20 @@ class ToolDef(BaseModel):
         description="Default structured output schema (can be customized per node)"
     )
 
+    # Default prompt for LLM tools (shown in UI, user can customize)
+    default_prompt: str | None = Field(
+        default=None,
+        description="Default prompt template for LLM tools"
+    )
+
+    # Callable to build dynamic prompt based on config
+    # This is not serialized - it's used at runtime
+    prompt_builder: Any | None = Field(
+        default=None,
+        exclude=True,
+        description="Function to build prompt from config: (config: dict) -> str"
+    )
+
     # Capabilities
     uses_llm: bool = False          # Requires LLM provider/model selection
     supports_batch: bool = False    # Can process multiple files in parallel
@@ -334,3 +404,16 @@ class ToolDef(BaseModel):
 
     # Sort order for UI
     sort_order: int = 100           # Lower = higher in list
+
+    def get_prompt(self, config: dict[str, Any] | None = None) -> str | None:
+        """Get the prompt for this tool, optionally customized by config.
+
+        If prompt_builder is set, uses it to build a dynamic prompt.
+        Otherwise returns default_prompt.
+        """
+        if self.prompt_builder and callable(self.prompt_builder):
+            try:
+                return self.prompt_builder(config or {})
+            except Exception:
+                pass
+        return self.default_prompt

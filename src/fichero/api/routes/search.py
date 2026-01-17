@@ -253,6 +253,8 @@ class SavedSearchUpdate(BaseModel):
     sort_direction: Optional[str] = None  # "asc" or "desc"
     folder_path: Optional[str] = None
 
+    model_config = {"extra": "allow"}
+
 
 @router.put("/saved/{search_id}")
 async def update_saved_search(

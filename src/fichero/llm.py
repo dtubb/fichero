@@ -1,11 +1,11 @@
 """
 Fichero Unified LLM Interface
 
-Shared interface for all LLM operations using LiteLLM.
-Used by chat API, workflows, and future MCP tools.
+Shared interface for all LLM operations using LangChain.
+LiteLLM is ONLY used for model discovery and pricing info.
 
 Capabilities:
-- Chat: Conversational AI with streaming support
+- Chat: Conversational AI with streaming support (via LangChain)
 - Vision: Image understanding (GPT-4o, Claude 3, Gemini, etc.)
 - Embeddings: Vector embeddings for semantic search
 - Tools: Function/tool calling
@@ -138,7 +138,7 @@ async def chat(
     stream: bool = False,
     system: str | None = None,
 ) -> str | AsyncIterator[str]:
-    """Send a chat message.
+    """Send a chat message using LangChain.
 
     Args:
         prompt: User message (string) or full messages list
@@ -149,51 +149,52 @@ async def chat(
     Returns:
         Response string, or async generator if streaming
     """
-    litellm = _get_litellm()
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+    # Get LangChain model
+    model = get_langchain_model(config)
 
     # Build messages
     if isinstance(prompt, str):
         messages = []
         if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
     else:
-        messages = prompt
-
-    # Build kwargs
-    kwargs = {
-        "model": config.get_model_name(),
-        "messages": messages,
-        "temperature": config.temperature,
-        "max_tokens": config.max_tokens,
-        "timeout": config.timeout,
-        **config.extra,
-    }
-
-    # Add API key if available
-    api_key = _resolve_api_key(config)
-    if api_key:
-        kwargs["api_key"] = api_key
-
-    # Add custom base URL if set
-    if config.api_base:
-        kwargs["api_base"] = config.api_base
+        # Convert dict messages to LangChain format
+        messages = _convert_to_langchain_messages(prompt)
 
     if stream:
-        return _stream_chat(litellm, kwargs)
+        return _stream_chat_langchain(model, messages)
     else:
-        response = await litellm.acompletion(**kwargs)
-        return response.choices[0].message.content
+        response = await model.ainvoke(messages)
+        return response.content
 
 
-async def _stream_chat(litellm, kwargs: dict) -> AsyncIterator[str]:
-    """Stream chat response."""
-    kwargs["stream"] = True
-    response = await litellm.acompletion(**kwargs)
-    async for chunk in response:
-        content = chunk.choices[0].delta.content
-        if content:
-            yield content
+async def _stream_chat_langchain(model, messages: list) -> AsyncIterator[str]:
+    """Stream chat response using LangChain."""
+    async for chunk in model.astream(messages):
+        if chunk.content:
+            yield chunk.content
+
+
+def _convert_to_langchain_messages(messages: list[dict]) -> list:
+    """Convert OpenAI-format messages to LangChain message objects."""
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+    result = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            result.append(SystemMessage(content=content))
+        elif role == "assistant":
+            result.append(AIMessage(content=content))
+        else:  # user or default
+            result.append(HumanMessage(content=content))
+
+    return result
 
 
 # =============================================================================
@@ -205,7 +206,7 @@ async def vision(
     prompt: str,
     config: LLMConfig,
 ) -> str:
-    """Analyze images with a vision model.
+    """Analyze images with a vision model using LangChain.
 
     Args:
         images: List of image URLs or base64 data URIs
@@ -215,9 +216,12 @@ async def vision(
     Returns:
         Analysis text
     """
-    litellm = _get_litellm()
+    from langchain_core.messages import HumanMessage
 
-    # Build multimodal message content
+    # Get LangChain model
+    model = get_langchain_model(config)
+
+    # Build multimodal message content (LangChain format)
     content = [{"type": "text", "text": prompt}]
     for img in images:
         content.append({
@@ -225,50 +229,29 @@ async def vision(
             "image_url": {"url": img}
         })
 
-    messages = [{"role": "user", "content": content}]
+    # Create multimodal message
+    message = HumanMessage(content=content)
 
-    kwargs = {
-        "model": config.get_model_name(),
-        "messages": messages,
-        "temperature": config.temperature,
-        "max_tokens": config.max_tokens,
-        "timeout": config.timeout,
-        **config.extra,
-    }
-
-    api_key = _resolve_api_key(config)
-    if api_key:
-        kwargs["api_key"] = api_key
-
-    if config.api_base:
-        kwargs["api_base"] = config.api_base
-
-    response = await litellm.acompletion(**kwargs)
-    return response.choices[0].message.content
+    # Call model
+    response = await model.ainvoke([message])
+    return response.content
 
 
 # =============================================================================
 # Embeddings
 # =============================================================================
 
-def embed(
-    texts: list[str],
-    model: str = "text-embedding-3-small",
-    api_key: str | None = None,
-) -> list[list[float]]:
-    """Create embeddings for texts.
+def _get_langchain_embeddings(model: str = "text-embedding-3-small", api_key: str | None = None):
+    """Get LangChain embeddings model.
 
     Args:
-        texts: List of texts to embed
-        model: Embedding model (default: OpenAI text-embedding-3-small)
-        api_key: Optional API key (uses keychain/env if not provided)
+        model: Embedding model name
+        api_key: Optional API key
 
     Returns:
-        List of embedding vectors
+        LangChain embeddings instance
     """
-    litellm = _get_litellm()
-
-    kwargs = {"model": model, "input": texts}
+    from langchain_openai import OpenAIEmbeddings
 
     # Resolve API key
     if not api_key:
@@ -279,11 +262,31 @@ def embed(
             provider = "openai"  # Default for OpenAI models
         api_key = get_api_key(provider)
 
-    if api_key:
-        kwargs["api_key"] = api_key
+    # Currently we primarily use OpenAI embeddings
+    # Could be extended for other providers
+    return OpenAIEmbeddings(
+        model=model,
+        api_key=api_key,
+    )
 
-    response = litellm.embedding(**kwargs)
-    return [item["embedding"] for item in response.data]
+
+def embed(
+    texts: list[str],
+    model: str = "text-embedding-3-small",
+    api_key: str | None = None,
+) -> list[list[float]]:
+    """Create embeddings for texts using LangChain.
+
+    Args:
+        texts: List of texts to embed
+        model: Embedding model (default: OpenAI text-embedding-3-small)
+        api_key: Optional API key (uses keychain/env if not provided)
+
+    Returns:
+        List of embedding vectors
+    """
+    embeddings = _get_langchain_embeddings(model, api_key)
+    return embeddings.embed_documents(texts)
 
 
 async def aembed(
@@ -291,23 +294,9 @@ async def aembed(
     model: str = "text-embedding-3-small",
     api_key: str | None = None,
 ) -> list[list[float]]:
-    """Async version of embed."""
-    litellm = _get_litellm()
-
-    kwargs = {"model": model, "input": texts}
-
-    if not api_key:
-        if "/" in model:
-            provider = model.split("/")[0]
-        else:
-            provider = "openai"
-        api_key = get_api_key(provider)
-
-    if api_key:
-        kwargs["api_key"] = api_key
-
-    response = await litellm.aembedding(**kwargs)
-    return [item["embedding"] for item in response.data]
+    """Async version of embed using LangChain."""
+    embeddings = _get_langchain_embeddings(model, api_key)
+    return await embeddings.aembed_documents(texts)
 
 
 # =============================================================================
@@ -319,7 +308,7 @@ async def chat_with_tools(
     tools: list[dict[str, Any]],
     config: LLMConfig,
 ) -> dict[str, Any]:
-    """Chat with tool/function calling support.
+    """Chat with tool/function calling support using LangChain.
 
     Args:
         prompt: User message or messages list
@@ -329,36 +318,31 @@ async def chat_with_tools(
     Returns:
         Dict with 'content' and 'tool_calls' keys
     """
-    litellm = _get_litellm()
+    from langchain_core.messages import HumanMessage
 
+    # Get LangChain model
+    model = get_langchain_model(config)
+
+    # Bind tools to model
+    model_with_tools = model.bind_tools(tools)
+
+    # Build messages
     if isinstance(prompt, str):
-        messages = [{"role": "user", "content": prompt}]
+        messages = [HumanMessage(content=prompt)]
     else:
-        messages = prompt
+        messages = _convert_to_langchain_messages(prompt)
 
-    kwargs = {
-        "model": config.get_model_name(),
-        "messages": messages,
-        "tools": tools,
-        "temperature": config.temperature,
-        "max_tokens": config.max_tokens,
-        "timeout": config.timeout,
-        **config.extra,
-    }
+    # Call model with tools
+    response = await model_with_tools.ainvoke(messages)
 
-    api_key = _resolve_api_key(config)
-    if api_key:
-        kwargs["api_key"] = api_key
-
-    if config.api_base:
-        kwargs["api_base"] = config.api_base
-
-    response = await litellm.acompletion(**kwargs)
-    message = response.choices[0].message
+    # Extract tool calls from response
+    tool_calls = []
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        tool_calls = response.tool_calls
 
     return {
-        "content": message.content,
-        "tool_calls": message.tool_calls or [],
+        "content": response.content,
+        "tool_calls": tool_calls,
     }
 
 
@@ -371,7 +355,7 @@ async def structured_output(
     schema: type[BaseModel],
     config: LLMConfig,
 ) -> BaseModel:
-    """Get structured output matching a Pydantic schema.
+    """Get structured output matching a Pydantic schema using LangChain.
 
     Args:
         prompt: User prompt
@@ -381,43 +365,18 @@ async def structured_output(
     Returns:
         Instance of the schema class
     """
-    litellm = _get_litellm()
+    from langchain_core.messages import HumanMessage
 
-    # Build system prompt with schema
-    schema_json = schema.model_json_schema()
-    system = f"""Respond with valid JSON matching this schema:
-{schema_json}
+    # Get LangChain model
+    model = get_langchain_model(config)
 
-Only output the JSON, no other text."""
+    # Use LangChain's with_structured_output for clean schema binding
+    structured_model = model.with_structured_output(schema)
 
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": prompt},
-    ]
+    # Call model
+    result = await structured_model.ainvoke([HumanMessage(content=prompt)])
 
-    kwargs = {
-        "model": config.get_model_name(),
-        "messages": messages,
-        "temperature": config.temperature,
-        "max_tokens": config.max_tokens,
-        "timeout": config.timeout,
-        "response_format": {"type": "json_object"},
-        **config.extra,
-    }
-
-    api_key = _resolve_api_key(config)
-    if api_key:
-        kwargs["api_key"] = api_key
-
-    if config.api_base:
-        kwargs["api_base"] = config.api_base
-
-    response = await litellm.acompletion(**kwargs)
-    content = response.choices[0].message.content
-
-    import json
-    data = json.loads(content)
-    return schema(**data)
+    return result
 
 
 # =============================================================================
@@ -656,8 +615,22 @@ def get_langchain_model(config: LLMConfig):
             google_api_key=api_key,
             **common_params,
         )
+    elif provider == "mistral":
+        from langchain_mistralai import ChatMistralAI
+        return ChatMistralAI(
+            model=model_name,
+            api_key=api_key,
+            **common_params,
+        )
+    elif provider == "cohere":
+        from langchain_cohere import ChatCohere
+        return ChatCohere(
+            model=model_name,
+            cohere_api_key=api_key,
+            **common_params,
+        )
     elif provider == "ollama":
-        # Use ChatOpenAI with ollama base URL
+        # Use ChatOpenAI with ollama base URL (OpenAI-compatible)
         return ChatOpenAI(
             model=model_name,
             api_key="ollama",  # Ollama doesn't need real key
@@ -665,21 +638,115 @@ def get_langchain_model(config: LLMConfig):
             **common_params,
         )
     elif provider == "lmstudio":
-        # Use ChatOpenAI with LM Studio base URL
+        # Use ChatOpenAI with LM Studio base URL (OpenAI-compatible)
         return ChatOpenAI(
             model=model_name,
             api_key="lmstudio",  # LM Studio doesn't need real key
             base_url=config.api_base or "http://localhost:1234/v1",
             **common_params,
         )
-    else:
-        # Default to ChatOpenAI for unknown providers
-        logger.warning(f"Unknown provider {provider}, defaulting to ChatOpenAI")
+    elif provider == "groq":
+        # Groq uses OpenAI-compatible API
         return ChatOpenAI(
-            model=f"{provider}/{model_name}",
-            api_key=api_key or "unknown",
-            base_url=config.api_base,
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.groq.com/openai/v1",
             **common_params,
+        )
+    elif provider == "together":
+        # Together uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.together.xyz/v1",
+            **common_params,
+        )
+    elif provider == "deepseek":
+        # DeepSeek uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.deepseek.com/v1",
+            **common_params,
+        )
+    elif provider == "openrouter":
+        # OpenRouter uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://openrouter.ai/api/v1",
+            **common_params,
+        )
+    elif provider == "dashscope":
+        # Alibaba DashScope uses OpenAI-compatible API
+        # Default to international endpoint; China users can override via api_base
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            **common_params,
+        )
+    elif provider == "xai":
+        # xAI (Grok) uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.x.ai/v1",
+            **common_params,
+        )
+    elif provider == "perplexity":
+        # Perplexity uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.perplexity.ai",
+            **common_params,
+        )
+    elif provider == "fireworks":
+        # Fireworks uses OpenAI-compatible API
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api.fireworks.ai/inference/v1",
+            **common_params,
+        )
+    elif provider == "azure":
+        # Azure OpenAI has special handling
+        from langchain_openai import AzureChatOpenAI
+        return AzureChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            azure_endpoint=config.api_base,
+            api_version=config.extra.get("api_version", "2024-02-01"),
+            **common_params,
+        )
+    elif provider == "bedrock":
+        # AWS Bedrock
+        from langchain_aws import ChatBedrock
+        return ChatBedrock(
+            model_id=model_name,
+            region_name=config.extra.get("region", "us-east-1"),
+            **common_params,
+        )
+    elif provider == "huggingface":
+        # Hugging Face Inference API (OpenAI-compatible)
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url=config.api_base or "https://api-inference.huggingface.co/v1",
+            **common_params,
+        )
+    else:
+        # FAIL if provider is empty or unknown - don't silently default
+        if not provider:
+            raise ValueError(
+                "LLM provider not configured. Please set a provider on the workflow or node."
+            )
+        raise ValueError(
+            f"Unknown LLM provider: '{provider}'. "
+            f"Supported providers: openai, anthropic, google, mistral, cohere, "
+            f"ollama, lmstudio, groq, together, deepseek, openrouter, dashscope, "
+            f"xai, perplexity, fireworks, azure, bedrock, huggingface"
         )
 
 

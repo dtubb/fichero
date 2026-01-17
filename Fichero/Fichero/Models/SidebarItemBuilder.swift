@@ -17,12 +17,12 @@ enum SidebarItemBuilder {
         allItems.append(contentsOf: libraryItems)
 
         // Add searches
-        let searches = library.savedSearchService.savedSearches
+        let searches = library.savedSearchServiceGenerated.savedSearches
         let searchItems = buildSearchHierarchy(from: searches, libraryId: library.id)
         allItems.append(contentsOf: searchItems)
 
         // Add chats
-        let conversations = library.conversationService.conversations
+        let conversations = library.conversationServiceGenerated.conversations
         let chatItems = buildChatHierarchy(from: conversations, libraryId: library.id)
         allItems.append(contentsOf: chatItems)
 
@@ -36,17 +36,20 @@ enum SidebarItemBuilder {
 
     /// Build hierarchical library items from documents using parentId
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
-        // Build a map of parentId -> children
+        // Only show folders in the sidebar, not individual files
+        let folders = documents.filter { $0.docType == .folder }
+
+        // Build a map of parentId -> children (folders only)
         var childrenMap: [String: [Document]] = [:]
         var rootDocuments: [Document] = []
         var inboxDocument: Document?
 
-        for doc in documents {
+        for doc in folders {
             if let parentId = doc.parentId {
                 childrenMap[parentId, default: []].append(doc)
             } else {
                 // Check if this is the Inbox folder
-                if doc.name == "Inbox" && doc.docType == .folder {
+                if doc.name == "Inbox" {
                     inboxDocument = doc
                 } else {
                     rootDocuments.append(doc)
@@ -54,7 +57,7 @@ enum SidebarItemBuilder {
             }
         }
 
-        // Recursively build tree
+        // Recursively build tree (only folders)
         func buildItem(_ doc: Document) -> SidebarItem {
             let children = childrenMap[doc.id]?.map { buildItem($0) }
             return SidebarItem.fromDocument(doc, libraryId: libraryId, children: children)

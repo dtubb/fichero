@@ -36,8 +36,9 @@ class ProviderType(str, Enum):
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
-    # Open source
+    # Open source / aggregators
     huggingface = "huggingface"
+    openrouter = "openrouter"    # Multi-provider aggregator
     # Cloud providers
     openai = "openai"
     anthropic = "anthropic"
@@ -151,8 +152,22 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         color="yellow",
         sort_order=3,
     ),
+    ProviderType.openrouter: ProviderInfo(
+        type=ProviderType.openrouter,
+        name="OpenRouter",
+        description="Access 100+ models: Claude, GPT-4, Llama, Gemini",
+        api_key_env="OPENROUTER_API_KEY",
+        api_key_url="https://openrouter.ai/keys",
+        supports_vision=True,
+        supports_embeddings=True,
+        default_model="openai/gpt-4o-mini",
+        icon="point.3.connected.trianglepath.dotted",  # Network/routing icon
+        logo_asset="Providers/OpenRouter",
+        color="teal",
+        sort_order=4,
+    ),
     # ==========================================================================
-    # Cloud Providers - sort_order 4+
+    # Cloud Providers - sort_order 5+
     # ==========================================================================
     ProviderType.openai: ProviderInfo(
         type=ProviderType.openai,
@@ -166,7 +181,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="sparkles",
         logo_asset="Providers/OpenAI",
         color="green",
-        sort_order=4,
+        sort_order=5,
     ),
     ProviderType.anthropic: ProviderInfo(
         type=ProviderType.anthropic,
@@ -180,7 +195,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="brain",
         logo_asset="Providers/Anthropic",
         color="orange",
-        sort_order=5,
+        sort_order=6,
     ),
     ProviderType.google: ProviderInfo(
         type=ProviderType.google,
@@ -194,7 +209,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="globe",
         logo_asset="Providers/GoogleAI",
         color="blue",
-        sort_order=6,
+        sort_order=7,
     ),
     ProviderType.groq: ProviderInfo(
         type=ProviderType.groq,
@@ -208,7 +223,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="bolt.fill",
         logo_asset="Providers/Groq",
         color="orange",
-        sort_order=7,
+        sort_order=8,
     ),
     ProviderType.together: ProviderInfo(
         type=ProviderType.together,
@@ -222,7 +237,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="square.stack.3d.up",
         logo_asset="Providers/TogetherAI",
         color="teal",
-        sort_order=8,
+        sort_order=9,
     ),
     ProviderType.deepseek: ProviderInfo(
         type=ProviderType.deepseek,
@@ -236,7 +251,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="water.waves",
         logo_asset="Providers/DeepSeek",
         color="cyan",
-        sort_order=9,
+        sort_order=10,
     ),
     ProviderType.mistral: ProviderInfo(
         type=ProviderType.mistral,
@@ -250,7 +265,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="wind",
         logo_asset="Providers/MistralAI",
         color="blue",
-        sort_order=10,
+        sort_order=11,
     ),
     ProviderType.cohere: ProviderInfo(
         type=ProviderType.cohere,
@@ -264,24 +279,24 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="text.alignleft",
         logo_asset="Providers/Cohere",
         color="pink",
-        sort_order=11,
+        sort_order=12,
     ),
     # ==========================================================================
-    # Additional LiteLLM Providers - sort_order 12+
+    # Additional LiteLLM Providers - sort_order 13+
     # ==========================================================================
     ProviderType.dashscope: ProviderInfo(
         type=ProviderType.dashscope,
         name="DashScope (Alibaba)",
         description="Qwen VL, Qwen Max - excellent for OCR",
         api_key_env="DASHSCOPE_API_KEY",
-        api_key_url="https://dashscope.console.aliyun.com/apiKey",
+        api_key_url="https://www.alibabacloud.com/en/solutions/generative-ai/dashscope",
         supports_vision=True,
         supports_embeddings=True,
         default_model="qwen-vl-max",
-        icon="eye.circle",
+        icon="eye.circle.fill",
         logo_asset="Providers/DashScope",
         color="orange",
-        sort_order=12,
+        sort_order=13,
     ),
     ProviderType.xai: ProviderInfo(
         type=ProviderType.xai,
@@ -292,10 +307,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         supports_vision=True,
         supports_embeddings=False,
         default_model="grok-2-latest",
-        icon="xmark.circle",
+        icon="x.circle.fill",  # X logo style
         logo_asset="Providers/xAI",
-        color="black",
-        sort_order=13,
+        color="gray",
+        sort_order=14,
     ),
     ProviderType.perplexity: ProviderInfo(
         type=ProviderType.perplexity,
@@ -306,10 +321,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         supports_vision=False,
         supports_embeddings=False,
         default_model="llama-3.1-sonar-large-128k-online",
-        icon="magnifyingglass.circle",
+        icon="magnifyingglass.circle.fill",
         logo_asset="Providers/Perplexity",
         color="teal",
-        sort_order=14,
+        sort_order=15,
     ),
     ProviderType.fireworks: ProviderInfo(
         type=ProviderType.fireworks,
@@ -320,10 +335,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         supports_vision=True,
         supports_embeddings=True,
         default_model="accounts/fireworks/models/llama-v3p1-70b-instruct",
-        icon="flame",
+        icon="flame.fill",
         logo_asset="Providers/Fireworks",
         color="red",
-        sort_order=15,
+        sort_order=16,
     ),
     ProviderType.azure: ProviderInfo(
         type=ProviderType.azure,
@@ -337,7 +352,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="cloud.fill",
         logo_asset="Providers/Azure",
         color="blue",
-        sort_order=16,
+        sort_order=17,
     ),
     ProviderType.bedrock: ProviderInfo(
         type=ProviderType.bedrock,
@@ -348,10 +363,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         supports_vision=True,
         supports_embeddings=True,
         default_model="anthropic.claude-3-sonnet-20240229-v1:0",
-        icon="rectangle.stack.fill",
-        logo_asset="Providers/AWS",
-        color="yellow",
-        sort_order=17,
+        icon="square.stack.3d.up.fill",
+        logo_asset="Providers/Bedrock",
+        color="orange",
+        sort_order=18,
     ),
 }
 

@@ -105,3 +105,40 @@ Swift UI → HTTP Request → FastAPI → Database → HTTP Response → Swift U
 - Exhaustive code examples
 - Implementation details of non-relevant components
 - Historical context or deprecated features
+
+## Workflow Type Architecture
+
+### Design Principles
+
+1. **Tool Registry is Single Source of Truth**
+   - Port definitions live in `workflows/registry.py`
+   - NodeDef stores tool reference, not port copies
+   - Ports enriched from registry at runtime
+
+2. **Minimal Data Storage**
+   ```
+   NodeDef (stored): {id, tool, position, config, label, enabled}
+   NodeDef (runtime): above + {inputPorts, outputPorts} from registry
+   ```
+
+3. **Generated Types Over Manual Types**
+   - Swift uses `Components.Schemas.*` from OpenAPI generator
+   - Avoid manual Swift types that shadow generated ones
+   - See `ai/tasks/TODO-125/` and `ai/tasks/TODO-126/`
+
+### Data Flow
+```
+Python Tool Registry (port definitions)
+    ↓
+Python API (minimal NodeDef in responses)
+    ↓
+Swift Generated Types (from OpenAPI spec)
+    ↓
+SwiftUI Views (use generated types directly)
+```
+
+### Key Files
+- `src/fichero/workflows/registry.py` - Tool definitions with ports
+- `src/fichero/workflows/types.py` - NodeDef, EdgeDef models
+- `Fichero/FicheroAPIClient/` - Generated Swift client
+- `Fichero/Models/GeneratedTypeExtensions.swift` - Minimal extensions

@@ -24,14 +24,14 @@ extension EnvironmentValues {
 @MainActor
 class SidebarServices: ObservableObject {
     var documentStore: DocumentStore?
-    var savedSearchService: SavedSearchService?
-    var conversationService: ConversationService?
+    var savedSearchService: SavedSearchServiceGenerated?
+    var conversationService: ConversationServiceGenerated?
     var workflowStore: WorkflowStore?
 
     nonisolated init(
         documentStore: DocumentStore? = nil,
-        savedSearchService: SavedSearchService? = nil,
-        conversationService: ConversationService? = nil,
+        savedSearchService: SavedSearchServiceGenerated? = nil,
+        conversationService: ConversationServiceGenerated? = nil,
         workflowStore: WorkflowStore? = nil
     ) {
         self.documentStore = documentStore

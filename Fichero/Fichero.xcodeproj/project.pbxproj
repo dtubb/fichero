@@ -18,14 +18,14 @@
 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
 		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
 		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
+		845 /* ArtifactService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846 /* ArtifactService.swift */; };
 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
-		024 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123 /* ConversationService.swift */; };
 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
 		026 /* ProviderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125 /* ProviderService.swift */; };
-		027 /* WorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126 /* WorkflowService.swift */; };
 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
+		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
 		038 /* WorkflowChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137 /* WorkflowChain.swift */; };
 		039 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
@@ -33,6 +33,12 @@
 		041 /* WorkflowStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140 /* WorkflowStreamService.swift */; };
 		042 /* AppleScriptSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141 /* AppleScriptSupport.swift */; };
 		043 /* Fichero.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 142 /* Fichero.sdef */; };
+		044 /* WorkflowServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143 /* WorkflowServiceGenerated.swift */; };
+		045 /* SavedSearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144 /* SavedSearchServiceGenerated.swift */; };
+		046 /* ConversationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145 /* ConversationServiceGenerated.swift */; };
+		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
+		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
+		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
 		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
@@ -44,6 +50,7 @@
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
+		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
 		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
 		A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
@@ -97,7 +104,6 @@
 		A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */; };
 		A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E32F0439FE00EAA55A /* ImportService.swift */; };
 		A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E62F043D2300EAA55A /* StorageService.swift */; };
-		A1BFB2E82F043D2300EAA55A /* DocumentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E52F043D2300EAA55A /* DocumentService.swift */; };
 		A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */; };
 		A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */; };
 		A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */; };
@@ -165,14 +171,14 @@
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
 		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		846 /* ArtifactService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactService.swift; sourceTree = "<group>"; };
 		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
-		123 /* ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationService.swift; sourceTree = "<group>"; };
 		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
 		125 /* ProviderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderService.swift; sourceTree = "<group>"; };
-		126 /* WorkflowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowService.swift; sourceTree = "<group>"; };
 		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
 		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
 		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
+		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
 		137 /* WorkflowChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChain.swift; sourceTree = "<group>"; };
 		138 /* ChainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainService.swift; sourceTree = "<group>"; };
@@ -180,6 +186,12 @@
 		140 /* WorkflowStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamService.swift; sourceTree = "<group>"; };
 		141 /* AppleScriptSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptSupport.swift; sourceTree = "<group>"; };
 		142 /* Fichero.sdef */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = Fichero.sdef; sourceTree = "<group>"; };
+		143 /* WorkflowServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowServiceGenerated.swift; sourceTree = "<group>"; };
+		144 /* SavedSearchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchServiceGenerated.swift; sourceTree = "<group>"; };
+		145 /* ConversationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationServiceGenerated.swift; sourceTree = "<group>"; };
+		146 /* ChatServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceGenerated.swift; sourceTree = "<group>"; };
+		148 /* DocumentServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentServiceGenerated.swift; sourceTree = "<group>"; };
+		149 /* WorkflowExecutionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionObserver.swift; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
@@ -249,7 +261,6 @@
 		A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewMenuCommands.swift; sourceTree = "<group>"; };
 		A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsSheet.swift; sourceTree = "<group>"; };
 		A1BFB2E32F0439FE00EAA55A /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
-		A1BFB2E52F043D2300EAA55A /* DocumentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentService.swift; sourceTree = "<group>"; };
 		A1BFB2E62F043D2300EAA55A /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroDocument.swift; sourceTree = "<group>"; };
 		A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewContexts.swift; sourceTree = "<group>"; };
@@ -308,6 +319,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */,
+				A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */,
 			);
 		};
 		A10521A62EFDC92400B28C3E /* Frameworks */ = {
@@ -472,6 +484,7 @@
 				136 /* WorkflowExporter.swift */,
 				135 /* WorkflowStore.swift */,
 				134 /* WorkflowTypes.swift */,
+				GTE1 /* GeneratedTypeExtensions.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -482,25 +495,29 @@
 				119 /* APIClient.swift */,
 				138 /* ChainService.swift */,
 				122 /* ChatService.swift */,
-				123 /* ConversationService.swift */,
 				124 /* SavedSearchService.swift */,
 				125 /* ProviderService.swift */,
-				126 /* WorkflowService.swift */,
+				143 /* WorkflowServiceGenerated.swift */,
+				144 /* SavedSearchServiceGenerated.swift */,
+				145 /* ConversationServiceGenerated.swift */,
+				146 /* ChatServiceGenerated.swift */,
+				148 /* DocumentServiceGenerated.swift */,
 				127 /* ModelService.swift */,
 				4121 /* PerformanceService.swift */,
 				4123 /* ErrorService.swift */,
 				4127 /* DragDropService.swift */,
 				A1BFB2E32F0439FE00EAA55A /* ImportService.swift */,
-				A1BFB2E52F043D2300EAA55A /* DocumentService.swift */,
 				A1BFB2E62F043D2300EAA55A /* StorageService.swift */,
 				A1BFB3F82F057B6C00EAA55A /* SearchService.swift */,
 				A1A3A9F32F1028E70021909D /* MCPService.swift */,
 				A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */,
 				140 /* WorkflowStreamService.swift */,
+				149 /* WorkflowExecutionObserver.swift */,
 				141 /* AppleScriptSupport.swift */,
 				A1A3AA222F1115E80021909D /* ActivityService.swift */,
 				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
 				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
+				846 /* ArtifactService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -673,6 +690,7 @@
 			name = Fichero;
 			packageProductDependencies = (
 				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
+				A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */,
 			);
 			productName = Fichero;
 			productReference = 100 /* Fichero.app */;
@@ -752,7 +770,7 @@
 			);
 			mainGroup = 400;
 			packageReferences = (
-				A18ED3A92F13E313007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */,
+				A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
@@ -878,21 +896,24 @@
 				018 /* ChatView.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
+				845 /* ArtifactService.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
 				A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */,
 				023 /* ChatService.swift in Sources */,
-				024 /* ConversationService.swift in Sources */,
 				025 /* SavedSearchService.swift in Sources */,
 				A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */,
 				026 /* ProviderService.swift in Sources */,
-				027 /* WorkflowService.swift in Sources */,
+				044 /* WorkflowServiceGenerated.swift in Sources */,
+				045 /* SavedSearchServiceGenerated.swift in Sources */,
+				046 /* ConversationServiceGenerated.swift in Sources */,
+				047 /* ChatServiceGenerated.swift in Sources */,
+				049 /* DocumentServiceGenerated.swift in Sources */,
 				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
 				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
 				028 /* ModelService.swift in Sources */,
 				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
 				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
-				A1BFB2E82F043D2300EAA55A /* DocumentService.swift in Sources */,
 				A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */,
 				A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */,
 				9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */,
@@ -901,15 +922,17 @@
 				A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */,
 				A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */,
 				041 /* WorkflowStreamService.swift in Sources */,
+				048 /* WorkflowExecutionObserver.swift in Sources */,
 				042 /* AppleScriptSupport.swift in Sources */,
 				A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */,
 				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
 				A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */,
 				A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */,
 				A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */,
-				035 /* WorkflowTypes.swift in Sources */,
 				832 /* Workflow.swift in Sources */,
+				035 /* WorkflowTypes.swift in Sources */,
 				036 /* WorkflowStore.swift in Sources */,
+				GTE2 /* GeneratedTypeExtensions.swift in Sources */,
 				A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */,
 				A1BFB3F92F057B6C00EAA55A /* SearchService.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
@@ -1238,7 +1261,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A18ED3A92F13E313007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */ = {
+		A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = FicheroAPIClient;
 		};
@@ -1246,6 +1269,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FicheroAPIClient;
+		};
+		A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FicheroAPIClient;
 		};

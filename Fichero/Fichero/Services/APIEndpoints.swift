@@ -45,7 +45,6 @@ enum APIEndpoints {
         static let create = "/workflows"
         static let tools = "/workflows/tools"
         static let toolsGrouped = "/workflows/tools/grouped"
-        static let run = "/workflows/run"
         static let reorder = "/workflows/reorder"
         static let importWorkflow = "/workflows/import"
 
@@ -54,7 +53,6 @@ enum APIEndpoints {
         static func delete(_ id: String) -> String { "/workflows/\(id)" }
         static func duplicate(_ id: String) -> String { "/workflows/\(id)/duplicate" }
         static func export(_ id: String) -> String { "/workflows/\(id)/export" }
-        static func runWorkflow(_ id: String) -> String { "/workflows/\(id)/run" }
         static func tool(_ name: String) -> String { "/workflows/tools/\(name)" }
         static func createNode(_ toolName: String) -> String { "/workflows/tools/\(toolName)/create-node" }
     }

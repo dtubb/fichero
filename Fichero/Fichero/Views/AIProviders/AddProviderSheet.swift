@@ -193,14 +193,18 @@ struct AddProviderSheet: View {
                                 .foregroundColor(.secondary)
                         }
                     } else if !entry.isLocal {
-                        // Cloud providers: API key required
+                        // Cloud providers: API key optional (can add later)
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("API Key")
+                            Text("API Key (optional)")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
 
                             SecureField("Enter your API key", text: $apiKey)
                                 .textFieldStyle(.roundedBorder)
+
+                            Text("You can add the API key later from Providers settings.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
 
                             if let url = entry.apiKeyUrl {
                                 Link("Get an API key from \(entry.name)", destination: URL(string: url)!)
@@ -231,7 +235,7 @@ struct AddProviderSheet: View {
                     addProvider()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(isAdding || (selectedEntry?.isLocal == false && apiKey.isEmpty))
+                .disabled(isAdding)  // Allow adding without API key - can configure later
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)

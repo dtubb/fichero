@@ -95,6 +95,18 @@ struct FicheroApp: App {
                 FocusedNewChatButton()
 
                 FocusedNewWorkflowButton()
+
+                Divider()
+
+                Button("New Action...") {
+                    // TODO: Implement new action creation
+                }
+                .disabled(true)  // Enable when implemented
+
+                Button("New Automation...") {
+                    // TODO: Implement new automation creation
+                }
+                .disabled(true)  // Enable when implemented
             }
 
             // Edit menu
@@ -122,19 +134,20 @@ struct FicheroApp: App {
             CommandGroup(after: .appSettings) {
                 Divider()
 
-                Button("Providers...") {
+                Button("AI Providers & Models...") {
                     appState.showProvidersSettings = true
                 }
-
-                Button("Add Provider...") {
-                    appState.showAddProviderFromMenu()
-                }
-
-                Divider()
 
                 Button("MCP Servers...") {
                     appState.showMCPServers = true
                 }
+
+                Divider()
+
+                Button("Integrations...") {
+                    // TODO: Implement integrations sheet
+                }
+                .disabled(true)  // Enable when implemented
             }
         }
 
@@ -154,6 +167,9 @@ struct LibraryWindow: View {
     @EnvironmentObject var viewSettings: ViewSettings
 
     @StateObject private var windowState: WindowState
+
+    // App-wide workflow execution observer (uses @Observable, not ObservableObject)
+    @State private var executionObserver = WorkflowExecutionObserver()
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
@@ -205,17 +221,20 @@ struct LibraryWindow: View {
                 .environmentObject(windowState)
                 // Inject all library services (one instance per library, shared across tabs)
                 .environmentObject(library.documentStore)
-                .environmentObject(library.savedSearchService)
+                .environmentObject(library.savedSearchServiceGenerated)
                 .environmentObject(library.searchService)
-                .environmentObject(library.conversationService)
-                .environmentObject(library.chatService)
+                .environmentObject(library.conversationServiceGenerated)
+                .environmentObject(library.chatServiceGenerated)
                 .environmentObject(library.workflowStore)
-                .environmentObject(library.workflowService)
+                .environmentObject(library.workflowServiceGenerated)
+                .environmentObject(library.workflowStreamService)
                 .environmentObject(library.importService)
-                .environmentObject(library.documentService)
+                .environmentObject(library.documentServiceGenerated)
                 .environmentObject(library.storageService)
                 .environmentObject(library.providerService)
                 .environmentObject(library.modelService)
+                .environmentObject(library.artifactService)
+                .environment(executionObserver)
             } else {
                 // Welcome screen - no library open yet
                 WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })
@@ -234,6 +253,36 @@ struct LibraryWindow: View {
         .focusedValue(\.saveLibraryAction) { handleSaveLibrary() }
         .navigationTitle(windowTitle)
         .navigationSubtitle(windowSubtitle)
+        // App-level sheets (providers, MCP servers) - must be here to work when no library is open
+        .sheet(isPresented: Binding(
+            get: { appState.showProvidersSettings },
+            set: { appState.showProvidersSettings = $0 }
+        )) {
+            ProvidersSettingsSheet()
+                .environmentObject(appState)
+                .environmentObject(appState.providerService)
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showAddProvider },
+            set: { appState.showAddProvider = $0 }
+        )) {
+            AddProviderSheet(
+                onAdd: {
+                    await appState.loadProviders()
+                    appState.isFirstLaunchProviderSetup = false
+                },
+                isFirstLaunch: appState.isFirstLaunchProviderSetup
+            )
+            .environmentObject(appState.providerService)
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showMCPServers },
+            set: { appState.showMCPServers = $0 }
+        )) {
+            MCPServersSheet()
+                .environmentObject(appState)
+                .environmentObject(appState.mcpService)
+        }
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
         .onChange(of: libraryManager.currentLibraryId) { _, newId in

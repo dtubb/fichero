@@ -13,8 +13,8 @@ from datetime import datetime
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, Response
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from fichero.db import Database
@@ -22,6 +22,8 @@ from fichero.api.main import get_library_database
 from fichero.models import Workflow
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
+from fichero.workflows.builder import SystemicErrorDetected, SOURCE_TOOLS, PARALLEL_TOOLS
+from fichero.workflows.activity import get_activity_tracker
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,13 +69,54 @@ class ThreadListResponse(BaseModel):
     threads: list[ExecutionStatusResponse]
 
 
+class ExecuteAcceptedResponse(BaseModel):
+    """Response when workflow execution has been accepted (202)."""
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    status: str = "accepted"  # Will transition to "running"
+    stream_url: str  # URL to subscribe for SSE events
+
+
+# =============================================================================
+# Background Task Management
+# =============================================================================
+
+# Store for tracking background workflow executions
+# Key: thread_id, Value: dict with workflow state and asyncio.Queue for events
+_running_workflows: dict[str, dict[str, Any]] = {}
+
+
+def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
+    """Get the current state of a running workflow."""
+    return _running_workflows.get(thread_id)
+
+
+def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
+    """Update the state of a running workflow."""
+    _running_workflows[thread_id] = state
+
+
+def _remove_workflow_state(thread_id: str) -> None:
+    """Remove a workflow from tracking (after completion)."""
+    _running_workflows.pop(thread_id, None)
+
+
 class SSEEvent(BaseModel):
     """Server-Sent Event for workflow execution updates."""
-    event: str  # "start", "node_begin", "node_end", "complete", "error", "pause"
+    # Events: "start", "node_begin", "node_end", "complete", "error", "pause"
+    #         "parallel_start", "file_start", "file_complete", "file_error", "parallel_complete"
+    event: str
     thread_id: str
     workflow_id: str
     data: dict[str, Any] = Field(default_factory=dict)
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    # Parallel execution fields
+    node_id: str | None = None
+    file_path: str | None = None
+    file_index: int | None = None
+    file_total: int | None = None
+    progress: float | None = None  # 0.0 to 1.0
 
 
 # =============================================================================
@@ -83,81 +126,116 @@ class SSEEvent(BaseModel):
 def format_sse(event: SSEEvent) -> str:
     """Format an SSE event for streaming."""
     data = event.model_dump_json()
-    return f"event: {event.event}\ndata: {data}\n\n"
+    formatted = f"event: {event.event}\ndata: {data}\n\n"
+    # Debug: log every SSE event being sent
+    print(f"[SSE-YIELD] {event.event}: {str(event.data)[:80]}...")
+    return formatted
 
 
-async def workflow_stream_generator(
+# =============================================================================
+# Background Execution
+# =============================================================================
+
+async def _run_workflow_in_background(
+    thread_id: str,
     workflow: Workflow,
-    request: "ExecuteWorkflowRequest",
+    request: ExecuteWorkflowRequest,
     db: Database,
-) -> AsyncGenerator[str, None]:
+) -> None:
     """
-    Stream workflow execution events as SSE.
+    Run a workflow in the background, publishing events to a queue.
 
-    Yields SSE-formatted events as the workflow executes.
+    This function is spawned as a background task when the user calls /execute.
+    Events are stored in _running_workflows[thread_id]["events"] queue.
     """
-    thread_id = request.thread_id or f"thread-{uuid4().hex[:12]}"
+    # Get the queue for this thread
+    state = _get_workflow_state(thread_id)
+    if not state:
+        logger.error(f"No workflow state found for thread {thread_id}")
+        return
+
+    event_queue: asyncio.Queue = state["events"]
+    workflow_id = request.workflow_id
+
+    # Activity tracking
+    activity_tracker = get_activity_tracker(str(db.path))
+    start_time = datetime.utcnow()
+    node_start_times: dict[str, datetime] = {}
 
     try:
+        # Mark as running
+        state["status"] = "running"
+
+        # Log activity: workflow started
+        activity_tracker.workflow_started(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            input_count=len(request.inputs),
+        )
+
         # Send start event
-        yield format_sse(SSEEvent(
+        await event_queue.put(SSEEvent(
             event="start",
             thread_id=thread_id,
-            workflow_id=request.workflow_id,
+            workflow_id=workflow_id,
             data={"workflow_name": workflow.name, "inputs": request.inputs}
         ))
 
         # Get checkpointer
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
-        # Build workflow with streaming callbacks
-        from langgraph.graph import StateGraph
-        from fichero.workflows.types import State, NodeDef
-        from fichero.workflows.registry import get_tool
-        from fichero.workflows.builder import _make_node_function
-        from fichero.llm import LLMConfig
+        # Build workflow using the parallel-aware builder
+        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+        from fichero.workflows.builder import build_graph
 
-        # Create state graph
-        graph = StateGraph(State)
-
-        # Build LLM config
-        llm_config = LLMConfig(provider=workflow.provider, model=workflow.model)
-        workflow_config = {"provider": workflow.provider, "model": workflow.model}
-
-        # Track node events for streaming
-        node_start_times: dict[str, datetime] = {}
-
-        # Add nodes
-        for node_dict in workflow.nodes:
-            tool_fn = get_tool(node_dict["tool"])
-            if not tool_fn:
-                raise ValueError(f"Unknown tool: {node_dict['tool']}")
-
-            node_def = NodeDef(
-                id=node_dict["id"],
-                tool=node_dict["tool"],
-                label=node_dict.get("label"),
-                inputs=node_dict.get("inputs", {}),
-                config=node_dict.get("config", {}),
-            )
-
-            node_fn = _make_node_function(node_def, tool_fn, llm_config, workflow_config)
-            graph.add_node(node_dict["id"], node_fn)
-
-        # Add edges
-        for edge_dict in workflow.edges:
-            source = edge_dict.get("source") or edge_dict.get("source_node_id")
-            target = edge_dict.get("target") or edge_dict.get("target_node_id")
-
-            if source and target:
-                graph.add_edge(source, target)
-
-        # Compile with checkpointer
-        app = graph.compile(
-            checkpointer=checkpointer,
-            interrupt_before=request.interrupt_before,
-            interrupt_after=request.interrupt_after,
+        # Convert Workflow model to WorkflowDef
+        workflow_def = WorkflowDef(
+            id=workflow.id,
+            name=workflow.name,
+            description=workflow.description or "",
+            provider=workflow.provider or "",
+            model=workflow.model or "",
+            nodes=[
+                NodeDef(
+                    id=n["id"],
+                    tool=n["tool"],
+                    label=n.get("label", ""),
+                    inputs=n.get("inputs", {}),
+                    config=n.get("config", {}),
+                    provider_name=n.get("provider_name", ""),
+                    model_name=n.get("model_name", ""),
+                )
+                for n in workflow.nodes
+            ],
+            edges=[
+                EdgeDef(
+                    source=e.get("source") or e.get("source_node_id", ""),
+                    target=e.get("target") or e.get("target_node_id", ""),
+                    source_port=e.get("source_port", "output"),
+                    target_port=e.get("target_port", "input"),
+                )
+                for e in workflow.edges
+            ],
         )
+
+        # Create event callback for parallel processing events
+        async def emit_parallel_event(event_type: str, data: dict) -> None:
+            """Callback to emit SSE events from parallel node processing."""
+            await event_queue.put(SSEEvent(
+                event=event_type,
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                node_id=data.get("node_id", ""),
+                file_path=data.get("file_path"),
+                file_index=data.get("file_index"),
+                file_total=data.get("file_total"),
+                progress=data.get("progress"),
+                data={"error": data.get("error")} if data.get("error") else {},
+            ))
+
+        # Build graph with parallel execution support and event callback
+        app = build_graph(workflow_def, enable_parallel=True, event_callback=emit_parallel_event)
 
         # Execute with streaming
         config = {
@@ -167,150 +245,293 @@ async def workflow_stream_generator(
             }
         }
 
-        # Use astream_events for real-time updates
-        async for event in app.astream_events(request.inputs, config=config, version="v2"):
-            event_type = event.get("event", "")
-            event_name = event.get("name", "")
+        # Build initial state with library_path
+        initial_state = {
+            **request.inputs,
+            "library_path": str(db.path.parent) if hasattr(db, 'path') else "",
+        }
 
-            if event_type == "on_chain_start" and event_name:
-                # Node starting
-                node_start_times[event_name] = datetime.utcnow()
-                yield format_sse(SSEEvent(
-                    event="node_begin",
-                    thread_id=thread_id,
-                    workflow_id=request.workflow_id,
-                    data={
-                        "node_id": event_name,
-                        "node_name": event_name,
-                    }
-                ))
+        # Identify exit nodes (nodes with no outgoing edges)
+        exit_node_ids = set()
+        all_source_nodes = {e.get("source") or e.get("source_node_id", "") for e in workflow.edges}
+        for node in workflow.nodes:
+            node_id = node.get("id", "")
+            if node_id and node_id not in all_source_nodes:
+                # This node has no outgoing edges - it's an exit node
+                # Account for parallel processing which adds _aggregate suffix
+                exit_node_ids.add(node_id)
+                exit_node_ids.add(f"{node_id}_aggregate")
 
-            elif event_type == "on_chain_end" and event_name:
-                # Node finished
-                start_time = node_start_times.get(event_name, datetime.utcnow())
-                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        print(f"[EXECUTE] Exit nodes for completion detection: {exit_node_ids}")
+        completed_exit_nodes = set()
+
+        # Stream execution events
+        async for event in app.astream_events(
+            initial_state,
+            config=config,
+            version="v2",
+        ):
+            event_kind = event.get("event", "")
+
+            if event_kind == "on_chain_start" and event.get("name"):
+                node_name = event.get("name", "")
+                if node_name not in ("__start__", "LangGraph"):
+                    node_start_times[node_name] = datetime.utcnow()
+
+                    # Log activity: node started
+                    activity_tracker.node_started(
+                        workflow_id=workflow_id,
+                        thread_id=thread_id,
+                        node_id=node_name,
+                        node_name=node_name,
+                    )
+
+                    await event_queue.put(SSEEvent(
+                        event="node_begin",
+                        thread_id=thread_id,
+                        workflow_id=workflow_id,
+                        node_id=node_name,
+                        data={"node": node_name}
+                    ))
+
+            elif event_kind == "on_chain_end" and event.get("name"):
+                node_name = event.get("name", "")
                 output = event.get("data", {}).get("output", {})
 
-                yield format_sse(SSEEvent(
-                    event="node_end",
-                    thread_id=thread_id,
-                    workflow_id=request.workflow_id,
-                    data={
-                        "node_id": event_name,
-                        "node_name": event_name,
-                        "duration_ms": duration_ms,
-                        "output": output if isinstance(output, dict) else str(output)[:500],
-                    }
-                ))
+                if node_name not in ("__start__", "LangGraph"):
+                    # Calculate node duration
+                    node_start = node_start_times.get(node_name, datetime.utcnow())
+                    node_duration_ms = (datetime.utcnow() - node_start).total_seconds() * 1000
+
+                    # Check for parallel processing completion
+                    if isinstance(output, dict) and "parallel_results" in output:
+                        results = output.get("parallel_results", {})
+                        for node_id, file_results in results.items():
+                            success_count = sum(1 for r in file_results if r.get("success"))
+                            error_count = len(file_results) - success_count
+                            await event_queue.put(SSEEvent(
+                                event="parallel_complete",
+                                thread_id=thread_id,
+                                workflow_id=workflow_id,
+                                node_id=node_id,
+                                data={
+                                    "success_count": success_count,
+                                    "error_count": error_count,
+                                    "total": len(file_results),
+                                }
+                            ))
+
+                    # Log activity: node completed
+                    activity_tracker.node_completed(
+                        workflow_id=workflow_id,
+                        thread_id=thread_id,
+                        node_id=node_name,
+                        node_name=node_name,
+                        duration_ms=node_duration_ms,
+                    )
+
+                    await event_queue.put(SSEEvent(
+                        event="node_end",
+                        thread_id=thread_id,
+                        workflow_id=workflow_id,
+                        node_id=node_name,
+                        data={"node": node_name, "duration_ms": node_duration_ms}
+                    ))
+
+                    # Track exit node completion
+                    if node_name in exit_node_ids:
+                        completed_exit_nodes.add(node_name)
+                        print(f"[EXECUTE] Exit node completed: {node_name}, completed: {completed_exit_nodes}/{exit_node_ids}")
+
+                        # Check if all exit nodes are done
+                        if exit_node_ids and completed_exit_nodes >= exit_node_ids:
+                            print(f"[EXECUTE] All exit nodes completed, breaking from astream_events loop")
+                            break
 
         # Get final state
+        print(f"[COMPLETE] Getting final state from checkpointer...")
         checkpoint_tuple = await checkpointer.aget_tuple(config)
-        has_pending = len(checkpoint_tuple.pending_writes) > 0 if checkpoint_tuple else False
+        final_state = checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else {}
+        print(f"[COMPLETE] Got final state, keys: {list(final_state.keys()) if final_state else 'none'}")
 
-        if has_pending:
-            # Workflow paused at interrupt point
-            yield format_sse(SSEEvent(
-                event="pause",
-                thread_id=thread_id,
-                workflow_id=request.workflow_id,
-                data={
-                    "checkpoint_id": checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
-                    "current_state": checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else None,
-                }
-            ))
-        else:
-            # Workflow completed
-            final_state = checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else {}
-            yield format_sse(SSEEvent(
-                event="complete",
-                thread_id=thread_id,
-                workflow_id=request.workflow_id,
-                data={
-                    "checkpoint_id": checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
-                    "final_state": final_state,
-                }
-            ))
+        # Store final state
+        state["status"] = "completed"
+        state["final_state"] = final_state
+
+        # Calculate total duration
+        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+        # Log activity: workflow completed
+        activity_tracker.workflow_completed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            duration_ms=total_duration_ms,
+        )
+
+        # Send complete event
+        await event_queue.put(SSEEvent(
+            event="complete",
+            thread_id=thread_id,
+            workflow_id=workflow_id,
+            data={
+                "checkpoint_id": checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
+                "final_state": final_state,
+                "duration_ms": total_duration_ms,
+            }
+        ))
+
+    except SystemicErrorDetected as e:
+        logger.error(f"Systemic error in background workflow {workflow_id}: {e}")
+        state["status"] = "failed"
+        state["error"] = str(e)
+
+        # Calculate duration
+        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+        # Log activity: workflow failed (systemic error)
+        activity_tracker.workflow_failed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
+            duration_ms=total_duration_ms,
+        )
+
+        await event_queue.put(SSEEvent(
+            event="systemic_error",
+            thread_id=thread_id,
+            workflow_id=workflow_id,
+            data={
+                "error": str(e),
+                "error_count": e.error_count,
+                "total_count": e.total_count,
+                "sample_errors": e.errors[:5] if e.errors else [],
+            }
+        ))
 
     except Exception as e:
-        logger.exception(f"Stream error for workflow {request.workflow_id}")
-        yield format_sse(SSEEvent(
+        logger.exception(f"Background workflow error for {workflow_id}")
+        state["status"] = "failed"
+        state["error"] = str(e)
+
+        # Calculate duration
+        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+        # Log activity: workflow failed
+        activity_tracker.workflow_failed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            error=str(e),
+            duration_ms=total_duration_ms,
+        )
+
+        await event_queue.put(SSEEvent(
             event="error",
             thread_id=thread_id,
-            workflow_id=request.workflow_id,
+            workflow_id=workflow_id,
             data={"error": str(e)}
         ))
+
+    finally:
+        # Signal end of stream
+        await event_queue.put(None)  # Sentinel to signal stream end
 
 
 # =============================================================================
 # Endpoints
 # =============================================================================
 
-@router.post("/execute/stream")
-async def execute_workflow_stream(
-    request: ExecuteWorkflowRequest,
-    db: Database = Depends(get_library_database),
-) -> StreamingResponse:
+@router.get("/stream/{thread_id}")
+async def stream_workflow_events(thread_id: str) -> StreamingResponse:
     """
-    Execute a workflow with real-time SSE progress streaming.
+    Subscribe to SSE events for a running workflow.
 
-    This endpoint returns a Server-Sent Events stream with live updates
-    as the workflow executes. Events include:
+    This endpoint returns a Server-Sent Events stream for a workflow
+    that was started via POST /execute. Connect to this endpoint
+    immediately after receiving the 202 Accepted response.
+
+    Events include:
     - start: Workflow execution started
     - node_begin: A node started executing
     - node_end: A node finished executing
+    - parallel_complete: Parallel file processing completed
     - complete: Workflow finished successfully
-    - pause: Workflow paused at interrupt point
     - error: An error occurred
+    - systemic_error: Too many consecutive failures
 
     Args:
-        request: Execution parameters including workflow_id and inputs
+        thread_id: The thread ID returned from /execute
 
     Returns:
-        SSE stream of execution events
-
-    Raises:
-        404: Workflow not found
+        StreamingResponse with SSE events
     """
-    # Load workflow
-    store = WorkflowStore(db)
-    workflow = store.get(request.workflow_id)
-    if not workflow:
+    # Check if workflow is being tracked
+    state = _get_workflow_state(thread_id)
+    if not state:
         raise HTTPException(
             status_code=404,
-            detail=f"Workflow not found: {request.workflow_id}"
+            detail=f"Workflow thread not found: {thread_id}. It may have already completed."
         )
 
+    async def event_generator() -> AsyncGenerator[str, None]:
+        """Generate SSE events from the workflow's event queue."""
+        event_queue: asyncio.Queue = state["events"]
+
+        while True:
+            try:
+                # Wait for next event with timeout
+                event = await asyncio.wait_for(event_queue.get(), timeout=60.0)
+
+                if event is None:
+                    # Sentinel value - stream is complete
+                    break
+
+                yield format_sse(event)
+
+            except asyncio.TimeoutError:
+                # Send keepalive comment to prevent connection timeout
+                yield ": keepalive\n\n"
+
     return StreamingResponse(
-        workflow_stream_generator(workflow, request, db),
+        event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "X-Accel-Buffering": "no",
         }
     )
 
 
-@router.post("/execute")
+@router.post("/execute", status_code=202)
 async def execute_workflow(
     request: ExecuteWorkflowRequest,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
-) -> ExecutionStatusResponse:
+) -> ExecuteAcceptedResponse:
     """
-    Execute a workflow with checkpointing.
+    Execute a workflow (non-blocking).
 
-    This endpoint starts workflow execution with full state persistence.
-    The workflow can be paused, resumed, and survives server restarts.
+    This endpoint starts workflow execution in the background and returns
+    immediately with a 202 Accepted response. Use the stream_url to
+    subscribe to real-time progress events via SSE.
+
+    Flow:
+    1. POST /execute → 202 Accepted with thread_id and stream_url
+    2. GET /stream/{thread_id} → SSE stream with progress events
+    3. Events: start, node_begin, node_end, parallel_complete, complete, error
 
     Args:
         request: Execution parameters including workflow_id and inputs
 
     Returns:
-        Execution status with thread_id for tracking
+        202 Accepted with thread_id and stream_url for SSE subscription
 
     Raises:
         404: Workflow not found
-        500: Execution error
     """
     try:
         # Load workflow
@@ -322,67 +543,59 @@ async def execute_workflow(
                 detail=f"Workflow not found: {request.workflow_id}"
             )
 
+        # Debug: log workflow data being executed
+        print(f"[EXECUTE] Workflow '{workflow.name}' (id={workflow.id})")
+        print(f"[EXECUTE]   nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}")
+        for i, node in enumerate(workflow.nodes[:3]):  # Log first 3 nodes
+            print(f"[EXECUTE]   node[{i}]: tool={node.get('tool', '?')}, id={node.get('id', '?')[:8]}...")
+        if not workflow.nodes:
+            print("[EXECUTE]   WARNING: Workflow has no nodes! Execution will complete instantly.")
+
         # Generate thread ID if not provided
         thread_id = request.thread_id or f"thread-{uuid4().hex[:12]}"
 
-        # Get checkpointer
-        checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
+        # Create event queue for this workflow
+        event_queue: asyncio.Queue = asyncio.Queue()
 
-        # Build LangGraph workflow with checkpointing
-        app = _build_workflow_with_checkpointer(
-            workflow,
-            checkpointer,
-            interrupt_before=request.interrupt_before,
-            interrupt_after=request.interrupt_after,
+        # Register workflow state
+        _set_workflow_state(thread_id, {
+            "workflow_id": request.workflow_id,
+            "workflow_name": workflow.name,
+            "status": "accepted",
+            "events": event_queue,
+            "error": None,
+            "final_state": None,
+        })
+
+        # Start background execution
+        # Note: We use asyncio.create_task instead of background_tasks.add_task
+        # because background_tasks runs after the response is sent, but we need
+        # the task to start immediately so events can begin flowing
+        asyncio.create_task(_run_workflow_in_background(
+            thread_id=thread_id,
+            workflow=workflow,
+            request=request,
+            db=db,
+        ))
+
+        # Build stream URL
+        base_url = str(http_request.base_url).rstrip("/")
+        stream_url = f"{base_url}/api/workflows/stream/{thread_id}"
+
+        print(f"[EXECUTE] Started background execution, stream at: {stream_url}")
+
+        return ExecuteAcceptedResponse(
+            thread_id=thread_id,
+            workflow_id=request.workflow_id,
+            workflow_name=workflow.name,
+            status="accepted",
+            stream_url=stream_url,
         )
-
-        # Execute workflow
-        config = {
-            "configurable": {
-                "thread_id": thread_id,
-                "checkpoint_ns": request.checkpoint_ns,
-            }
-        }
-
-        try:
-            final_state = await app.ainvoke(request.inputs, config=config)
-
-            # Get latest checkpoint to determine status
-            checkpoint_tuple = await checkpointer.aget_tuple(config)
-
-            return ExecutionStatusResponse(
-                thread_id=thread_id,
-                workflow_id=request.workflow_id,
-                workflow_name=workflow.name,
-                status="completed",
-                checkpoint_id=checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
-                current_state=final_state,
-                error=None,
-            )
-
-        except Exception as e:
-            # Execution interrupted (paused at interrupt point)
-            checkpoint_tuple = await checkpointer.aget_tuple(config)
-
-            if "interrupt" in str(e).lower() or checkpoint_tuple:
-                # Workflow paused successfully
-                return ExecutionStatusResponse(
-                    thread_id=thread_id,
-                    workflow_id=request.workflow_id,
-                    workflow_name=workflow.name,
-                    status="paused",
-                    checkpoint_id=checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
-                    current_state=checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else None,
-                    error=None,
-                )
-            else:
-                # Actual error
-                raise
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Failed to execute workflow {request.workflow_id}")
+        logger.exception(f"Failed to start workflow {request.workflow_id}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -513,7 +726,15 @@ async def get_thread_status(
         current_state = checkpoint_tuple.checkpoint.get("channel_values", {})
         has_pending_writes = len(checkpoint_tuple.pending_writes) > 0
 
-        status = "paused" if has_pending_writes else "completed"
+        # Check for error in state
+        workflow_error = current_state.get("error") if isinstance(current_state, dict) else None
+
+        if has_pending_writes:
+            status = "paused"
+        elif workflow_error:
+            status = "failed"
+        else:
+            status = "completed"
 
         return ExecutionStatusResponse(
             thread_id=thread_id,
@@ -522,7 +743,7 @@ async def get_thread_status(
             status=status,
             checkpoint_id=checkpoint_tuple.checkpoint["id"],
             current_state=current_state,
-            error=None,
+            error=workflow_error,
         )
 
     except HTTPException:
@@ -644,57 +865,206 @@ def _build_workflow_with_checkpointer(
     checkpointer: AsyncDuckDBCheckpointer,
     interrupt_before: list[str] | None = None,
     interrupt_after: list[str] | None = None,
+    enable_parallel: bool = True,
 ):
     """
     Build a LangGraph workflow with checkpointing enabled.
+
+    Uses the parallel-aware build_graph() function for proper fan-out/fan-in
+    execution of batch processing nodes.
 
     Args:
         workflow: Workflow database model
         checkpointer: AsyncDuckDBCheckpointer instance
         interrupt_before: Optional list of node IDs to pause before
         interrupt_after: Optional list of node IDs to pause after
+        enable_parallel: Whether to enable parallel file processing (default: True)
 
     Returns:
         Compiled LangGraph application with checkpointing
     """
-    from langgraph.graph import StateGraph
-    from fichero.workflows.types import State, NodeDef
+    from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+    from fichero.workflows.builder import build_graph, PARALLEL_TOOLS
+
+    # Convert Workflow model to WorkflowDef
+    workflow_def = WorkflowDef(
+        id=workflow.id,
+        name=workflow.name,
+        description=workflow.description or "",
+        provider=workflow.provider or "",
+        model=workflow.model or "",
+        nodes=[
+            NodeDef(
+                id=n["id"],
+                tool=n["tool"],
+                label=n.get("label", ""),
+                inputs=n.get("inputs", {}),
+                config=n.get("config", {}),
+                provider_name=n.get("provider_name", ""),
+                model_name=n.get("model_name", ""),
+            )
+            for n in workflow.nodes
+        ],
+        edges=[
+            EdgeDef(
+                source=e.get("source") or e.get("source_node_id", ""),
+                target=e.get("target") or e.get("target_node_id", ""),
+                source_port=e.get("source_port", "output"),
+                target_port=e.get("target_port", "input"),
+            )
+            for e in workflow.edges
+        ],
+    )
+
+    # Debug: Log workflow structure
+    print(f"[BUILD] Workflow '{workflow_def.name}' (id={workflow_def.id})")
+    print(f"[BUILD]   nodes: {len(workflow_def.nodes)}, edges: {len(workflow_def.edges)}")
+    print(f"[BUILD]   parallel execution: {enable_parallel}")
+
+    # Log nodes
+    for node in workflow_def.nodes:
+        print(f"[BUILD] Node {node.id[:8]}... tool={node.tool}")
+        print(f"[BUILD]   inputs: {node.inputs}")
+        print(f"[BUILD]   config: {node.config}")
+        print(f"[BUILD]   provider: {node.provider_name or '(workflow default)'}")
+        print(f"[BUILD]   model: {node.model_name or '(workflow default)'}")
+
+    # Log edges and detect parallel edges
+    print(f"[BUILD] Edges:")
+    for edge in workflow_def.edges:
+        target_node = workflow_def.get_node(edge.target)
+        source_node = workflow_def.get_node(edge.source)
+        is_parallel = (
+            enable_parallel
+            and target_node
+            and target_node.tool in PARALLEL_TOOLS
+            and source_node
+            and source_node.tool in SOURCE_TOOLS
+        )
+        parallel_marker = " [PARALLEL]" if is_parallel else ""
+        print(f"[BUILD]   {edge.source} -> {edge.target}{parallel_marker}")
+
+    # Build graph using parallel-aware builder
+    # Note: build_graph returns a compiled graph, but we need to recompile with checkpointer
+    # So we use the StateGraph directly but with parallel detection
+    from langgraph.graph import StateGraph, START, END
+    from fichero.workflows.types import State
     from fichero.workflows.registry import get_tool
-    from fichero.workflows.builder import _make_node_function
+    from fichero.workflows.builder import (
+        _make_node_function,
+        _make_fan_out_function,
+        _make_parallel_node_function,
+        _make_aggregation_function,
+    )
     from fichero.llm import LLMConfig
 
     # Create state graph
     graph = StateGraph(State)
 
     # Build LLM config
-    llm_config = LLMConfig(provider=workflow.provider, model=workflow.model)
-    workflow_config = {"provider": workflow.provider, "model": workflow.model}
+    llm_config = LLMConfig(provider=workflow_def.provider, model=workflow_def.model)
+    workflow_config = {"provider": workflow_def.provider, "model": workflow_def.model}
+
+    # Build edge lookup for auto-wiring
+    edges_by_target = {}
+    for edge in workflow_def.edges:
+        if edge.target not in edges_by_target:
+            edges_by_target[edge.target] = []
+        edges_by_target[edge.target].append({
+            "source": edge.source,
+            "source_port": edge.source_port,
+            "target_port": edge.target_port,
+        })
+
+    # Identify parallel processing edges (source -> batch tool)
+    parallel_edges = set()
+    if enable_parallel:
+        for edge in workflow_def.edges:
+            target_node = workflow_def.get_node(edge.target)
+            if target_node and target_node.tool in PARALLEL_TOOLS:
+                source_node = workflow_def.get_node(edge.source)
+                if source_node and source_node.tool in SOURCE_TOOLS:
+                    parallel_edges.add((edge.source, edge.target))
+                    print(f"[BUILD] Parallel edge detected: {edge.source} -> {edge.target}")
 
     # Add nodes
-    for node_dict in workflow.nodes:
-        tool_fn = get_tool(node_dict["tool"])
-        if not tool_fn:
-            raise ValueError(f"Unknown tool: {node_dict['tool']}")
+    for node_def in workflow_def.nodes:
+        tool_fn = get_tool(node_def.tool)
+        if tool_fn is None:
+            raise ValueError(f"Unknown tool: {node_def.tool}")
 
-        # Create NodeDef
-        node_def = NodeDef(
-            id=node_dict["id"],
-            tool=node_dict["tool"],
-            label=node_dict.get("label"),
-            inputs=node_dict.get("inputs", {}),
-            config=node_dict.get("config", {}),
+        incoming_edges = edges_by_target.get(node_def.id, [])
+
+        # Check if this node receives parallel fan-out
+        is_parallel_target = any(
+            (e["source"], node_def.id) in parallel_edges
+            for e in incoming_edges
         )
 
-        node_fn = _make_node_function(node_def, tool_fn, llm_config, workflow_config)
-        graph.add_node(node_dict["id"], node_fn)
+        if is_parallel_target:
+            # Create single-file processing node for parallel execution
+            node_fn = _make_parallel_node_function(
+                node_def, tool_fn, llm_config, workflow_config
+            )
+            # Add aggregation node
+            agg_fn = _make_aggregation_function(node_def.id)
+            graph.add_node(f"{node_def.id}_process", node_fn)
+            graph.add_node(f"{node_def.id}_aggregate", agg_fn)
+            print(f"[BUILD] Added parallel nodes: {node_def.id}_process, {node_def.id}_aggregate")
+        else:
+            # Standard node
+            node_fn = _make_node_function(
+                node_def, tool_fn, llm_config, workflow_config, incoming_edges
+            )
+            graph.add_node(node_def.id, node_fn)
 
     # Add edges
-    for edge_dict in workflow.edges:
-        source = edge_dict.get("source") or edge_dict.get("source_node_id")
-        target = edge_dict.get("target") or edge_dict.get("target_node_id")
+    for edge in workflow_def.edges:
+        if (edge.source, edge.target) in parallel_edges:
+            # Create fan-out edge using Send API
+            fan_out_fn = _make_fan_out_function(edge.source, edge.target)
+            graph.add_conditional_edges(
+                edge.source,
+                fan_out_fn,
+                [f"{edge.target}_process"]
+            )
+            # Connect process to aggregate
+            graph.add_edge(f"{edge.target}_process", f"{edge.target}_aggregate")
+            print(f"[BUILD] Added parallel edges: {edge.source} -> fan-out -> {edge.target}_process -> {edge.target}_aggregate")
+        else:
+            # Check if source was parallelized - connect from aggregate
+            source_is_parallel = any(
+                (e.source, e.target) in parallel_edges and e.target == edge.source
+                for e in workflow_def.edges
+            )
+            if source_is_parallel:
+                graph.add_edge(f"{edge.source}_aggregate", edge.target)
+            else:
+                graph.add_edge(edge.source, edge.target)
 
-        if source and target:
-            graph.add_edge(source, target)
+    # Connect START to entry nodes
+    entry_nodes = workflow_def.get_entry_nodes()
+    if not entry_nodes:
+        raise ValueError("Workflow has no entry nodes")
+
+    for entry in entry_nodes:
+        print(f"[BUILD] START -> {entry}")
+        graph.add_edge(START, entry)
+
+    # Connect exit nodes to END
+    exit_nodes = workflow_def.get_exit_nodes()
+    for exit_node in exit_nodes:
+        # Check if this exit node was parallelized
+        is_parallel = any(
+            (e.source, e.target) in parallel_edges and e.target == exit_node
+            for e in workflow_def.edges
+        )
+        if is_parallel:
+            print(f"[BUILD] {exit_node}_aggregate -> END")
+            graph.add_edge(f"{exit_node}_aggregate", END)
+        else:
+            print(f"[BUILD] {exit_node} -> END")
+            graph.add_edge(exit_node, END)
 
     # Compile with checkpointer
     return graph.compile(

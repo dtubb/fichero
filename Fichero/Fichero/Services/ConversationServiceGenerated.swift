@@ -1,0 +1,301 @@
+import Foundation
+import Combine
+import OSLog
+import FicheroAPIClient
+import OpenAPIRuntime
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ConversationService")
+
+/// ConversationService using the generated OpenAPI client.
+/// This replaces the manual APIClient with type-safe generated calls.
+@MainActor
+class ConversationServiceGenerated: ObservableObject {
+    private let client: FicheroClient
+
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
+    }
+
+    // MARK: - Published State
+
+    /// All conversations loaded from backend
+    @Published var conversations: [Conversation] = []
+
+    // MARK: - API Methods
+
+    /// List all conversations.
+    func listConversations() async throws -> [ConversationSummary] {
+        let response = try await client.api.listConversationsApiChatConversationsGet(.init(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let jsonArray = try okResponse.body.json
+            // Parse untyped response into ConversationSummary
+            return try jsonArray.map { item in
+                try parseConversationSummary(from: item.additionalProperties)
+            }
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Get a conversation with full message history.
+    func getConversation(_ id: String) async throws -> ConversationDetail {
+        let response = try await client.api.getConversationApiChatConversationsConversationIdGet(.init(
+            path: .init(conversationId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let history = try okResponse.body.json
+            return convertToConversationDetail(history)
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Delete a conversation.
+    func deleteConversation(_ id: String) async throws {
+        let response = try await client.api.deleteConversationApiChatConversationsConversationIdDelete(.init(
+            path: .init(conversationId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+
+        switch response {
+        case .ok:
+            // Update local array to trigger UI refresh
+            conversations.removeAll { $0.id == id }
+            return
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Duplicate a conversation.
+    func duplicateConversation(_ id: String) async throws -> ConversationAPI {
+        let response = try await client.api.duplicateConversationApiChatConversationsConversationIdDuplicatePost(.init(
+            path: .init(conversationId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let payload = try okResponse.body.json
+            return try parseConversationAPI(from: payload.additionalProperties)
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Rename a conversation.
+    func renameConversation(_ id: String, newTitle: String) async throws -> ConversationAPI {
+        return try await updateConversation(id, title: newTitle)
+    }
+
+    /// Update a conversation.
+    func updateConversation(
+        _ id: String,
+        title: String? = nil,
+        folderPath: String? = nil
+    ) async throws -> ConversationAPI {
+        // Build request using additionalProperties since fields are optional
+        var data: [String: Any] = [:]
+        if let title = title { data["title"] = title }
+        if let folderPath = folderPath { data["folder_path"] = folderPath }
+        let container = try OpenAPIObjectContainer(unvalidatedValue: data)
+        let request = Components.Schemas.ConversationUpdate(additionalProperties: container)
+
+        let response = try await client.api.updateConversationApiChatConversationsConversationIdPut(.init(
+            path: .init(conversationId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let history = try okResponse.body.json
+            let result = convertHistoryToAPI(history)
+
+            // Update local array to trigger UI refresh
+            if let index = conversations.firstIndex(where: { $0.id == id }) {
+                if let newTitle = title {
+                    conversations[index].title = newTitle
+                }
+                if let newFolderPath = folderPath {
+                    conversations[index].folderPath = newFolderPath
+                }
+            }
+
+            return result
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Move conversation to a different folder.
+    func moveToFolder(_ id: String, folderPath: String) async throws -> ConversationAPI {
+        return try await updateConversation(id, folderPath: folderPath)
+    }
+
+    /// Reorder conversations.
+    func reorderConversations(_ conversationIds: [String], folderPath: String = "/") async throws {
+        let response = try await client.api.reorderConversationsApiChatConversationsReorderPost(.init(
+            query: .init(folderPath: folderPath),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(conversationIds)
+        ))
+
+        switch response {
+        case .ok:
+            return
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
+    /// Load conversations from backend and update @Published property
+    func loadConversations() async throws {
+        let summaries = try await listConversations()
+        conversations = summaries.map { summary in
+            Conversation(
+                id: summary.id,
+                title: summary.title,
+                messages: [],  // Messages loaded on demand
+                documentScope: [],
+                folderPath: summary.folderPath,
+                sortOrder: summary.sortOrder
+            )
+        }
+    }
+
+    /// Convert API summaries to local Conversation models for sidebar.
+    func getConversationsForSidebar() async throws -> [Conversation] {
+        let summaries = try await listConversations()
+        return summaries.map { summary in
+            Conversation(
+                id: summary.id,
+                title: summary.title,
+                messages: [],  // Messages loaded on demand
+                documentScope: [],
+                folderPath: summary.folderPath,
+                sortOrder: summary.sortOrder
+            )
+        }
+    }
+
+    // MARK: - Type Conversion
+
+    /// Parse untyped OpenAPI container to ConversationSummary
+    private func parseConversationSummary(from container: OpenAPIObjectContainer) throws -> ConversationSummary {
+        guard let dict = container.value as? [String: Any],
+              let id = dict["id"] as? String,
+              let title = dict["title"] as? String else {
+            throw ConversationServiceError.invalidData
+        }
+
+        return ConversationSummary(
+            id: id,
+            title: title,
+            messageCount: dict["message_count"] as? Int ?? 0,
+            createdAt: dict["created_at"] as? String ?? "",
+            updatedAt: dict["updated_at"] as? String ?? "",
+            folderPath: dict["folder_path"] as? String ?? "/",
+            sortOrder: dict["sort_order"] as? Int ?? 0
+        )
+    }
+
+    /// Convert generated ConversationHistory to ConversationDetail
+    private func convertToConversationDetail(_ history: Components.Schemas.ConversationHistory) -> ConversationDetail {
+        ConversationDetail(
+            id: history.id,
+            title: history.title,
+            messages: history.messages.map { msg in
+                ChatMessageAPI(
+                    role: msg.role,
+                    content: msg.content
+                )
+            },
+            createdAt: history.createdAt,
+            updatedAt: history.updatedAt,
+            folderPath: history.folderPath ?? "/",
+            sortOrder: history.sortOrder ?? 0
+        )
+    }
+
+    /// Convert ConversationHistory to ConversationAPI
+    private func convertHistoryToAPI(_ history: Components.Schemas.ConversationHistory) -> ConversationAPI {
+        ConversationAPI(
+            id: history.id,
+            title: history.title,
+            messageCount: history.messages.count,
+            createdAt: history.createdAt,
+            updatedAt: history.updatedAt,
+            folderPath: history.folderPath ?? "/",
+            sortOrder: history.sortOrder ?? 0
+        )
+    }
+
+    /// Parse untyped OpenAPI container to ConversationAPI
+    private func parseConversationAPI(from container: OpenAPIObjectContainer) throws -> ConversationAPI {
+        guard let dict = container.value as? [String: Any],
+              let id = dict["id"] as? String,
+              let title = dict["title"] as? String else {
+            throw ConversationServiceError.invalidData
+        }
+
+        let messages = dict["messages"] as? [[String: Any]] ?? []
+
+        return ConversationAPI(
+            id: id,
+            title: title,
+            messageCount: messages.count,
+            createdAt: dict["created_at"] as? String ?? "",
+            updatedAt: dict["updated_at"] as? String ?? "",
+            folderPath: dict["folder_path"] as? String ?? "/",
+            sortOrder: dict["sort_order"] as? Int ?? 0
+        )
+    }
+}
+
+// MARK: - Error Types
+
+enum ConversationServiceError: Error, LocalizedError {
+    case unexpectedResponse
+    case invalidData
+    case notFound
+
+    var errorDescription: String? {
+        switch self {
+        case .unexpectedResponse:
+            return "Unexpected response from server"
+        case .invalidData:
+            return "Invalid data received"
+        case .notFound:
+            return "Conversation not found"
+        }
+    }
+}
+
+// MARK: - API Response Types
+
+struct ConversationAPI: Codable, Identifiable {
+    let id: String
+    let title: String
+    let messageCount: Int
+    let createdAt: String
+    let updatedAt: String
+    let folderPath: String
+    let sortOrder: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, title
+        case messageCount = "message_count"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
+    }
+}

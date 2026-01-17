@@ -106,10 +106,17 @@
 - **LibraryManager.swift** - Library hierarchy management (415 lines)
 
 #### Workflow Models
-- **Workflow.swift** - Workflow data model
-- **WorkflowTypes.swift** - Workflow type definitions
+- **Workflow.swift** - Local workflow model for UI operations
+- **WorkflowTypes.swift** - Manual type definitions (TO BE SIMPLIFIED - see TODO-126)
 - **WorkflowStore.swift** - Workflow state management
 - **WorkflowExporter.swift** - Workflow export functionality
+- **GeneratedTypeExtensions.swift** - Extensions for generated OpenAPI types
+
+#### Generated API Client (`FicheroAPIClient/`)
+- **Package.swift** - Local Swift package for generated client
+- **.build/.../Types.swift** - Generated types from OpenAPI spec
+- Uses Swift OpenAPI Generator plugin
+- See `ai/contexts/frontend/api_migration_guide.md` for patterns
 
 #### Provider Models
 - **Provider.swift** - Provider configuration model

@@ -28,7 +28,7 @@ class AppState: ObservableObject {
     // MARK: - Services
 
     private let apiClient = APIClient()  // App-wide APIClient for global services
-    private let providerService: ProviderService
+    let providerService: ProviderService  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppState")
 

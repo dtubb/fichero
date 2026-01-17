@@ -9,7 +9,17 @@ Usage:
 
     # Via CLI
     fichero serve
+
+Environment Variables:
+    FICHERO_VALIDATE_MODELS: Set to "1" to validate Python/Swift model sync on startup
+    TOKENIZERS_PARALLELISM: Set to "false" to disable tokenizer parallelism (avoids fork warnings)
 """
+
+import os
+
+# Disable tokenizers parallelism to avoid fork() warnings when using multiprocessing
+# This must be set before any imports that use transformers/tokenizers
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import logging
 from contextlib import asynccontextmanager
@@ -20,9 +30,58 @@ from fastapi.middleware.cors import CORSMiddleware
 logger = logging.getLogger(__name__)
 
 
+def _validate_model_sync() -> bool:
+    """Validate that Python and Swift models are in sync.
+
+    Returns True if sync is valid, False if there are issues.
+    """
+    try:
+        from pathlib import Path
+        import subprocess
+
+        # Find the validation script
+        api_dir = Path(__file__).parent
+        project_root = api_dir.parent.parent.parent
+        script_path = project_root / "scripts" / "validate_model_sync.py"
+
+        if not script_path.exists():
+            logger.warning(f"Model validation script not found: {script_path}")
+            return True  # Don't block startup if script is missing
+
+        result = subprocess.run(
+            ["python3", str(script_path)],
+            capture_output=True,
+            text=True,
+            cwd=str(project_root),
+        )
+
+        if result.returncode != 0:
+            logger.error("Model sync validation failed!")
+            logger.error(result.stdout)
+            if result.stderr:
+                logger.error(result.stderr)
+            return False
+
+        logger.info("Model sync validation passed")
+        return True
+
+    except Exception as e:
+        logger.warning(f"Model validation check failed: {e}")
+        return True  # Don't block startup on validation errors
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Startup: optionally validate model sync
+    if os.environ.get("FICHERO_VALIDATE_MODELS") == "1":
+        logger.info("Validating Python/Swift model sync...")
+        if not _validate_model_sync():
+            logger.warning(
+                "Model sync issues detected! Run './scripts/sync_openapi_schema.sh' to fix."
+            )
+            # We log a warning but don't block startup
+
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
     from fichero.db import db_manager
@@ -161,6 +220,7 @@ from fichero.api.routes import (
     actions,
     model_comparison,
     chains,
+    artifacts,
 )
 
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
@@ -182,3 +242,4 @@ app.include_router(integrations.router, prefix="/api", tags=["integrations"])
 app.include_router(actions.router, prefix="/api", tags=["actions"])
 app.include_router(model_comparison.router, prefix="/api", tags=["model-comparison"])
 app.include_router(chains.router, prefix="/api", tags=["chains"])
+app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])

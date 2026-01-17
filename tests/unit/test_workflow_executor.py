@@ -517,6 +517,302 @@ async def mock_fail_tool(inputs: dict, state: State, llm_config: LLMConfig) -> d
 
 
 # =============================================================================
+# Parallel Execution Tests
+# =============================================================================
+
+class TestParallelExecution:
+    """Test parallel file processing with Send API."""
+
+    @pytest.fixture
+    def parallel_workflow(self) -> WorkflowDef:
+        """Create a workflow with parallel processing nodes."""
+        return WorkflowDef(
+            id="parallel_test_workflow",
+            name="Parallel Test Workflow",
+            nodes=[
+                NodeDef(
+                    id="source",
+                    tool="collection",  # Source tool
+                    label="Get Files",
+                ),
+                NodeDef(
+                    id="transcribe",
+                    tool="transcribe",  # Parallel tool
+                    label="Transcribe Files",
+                ),
+            ],
+            edges=[
+                EdgeDef(
+                    source="source",
+                    target="transcribe",
+                    source_port="files",
+                    target_port="files",
+                ),
+            ],
+        )
+
+    def test_parallel_tools_detection(self):
+        """Test that PARALLEL_TOOLS contains expected tools."""
+        from fichero.workflows.builder import PARALLEL_TOOLS
+
+        assert "transcribe" in PARALLEL_TOOLS
+        assert "describe" in PARALLEL_TOOLS
+        assert "summarize" in PARALLEL_TOOLS
+        assert "entities" in PARALLEL_TOOLS
+        # Non-parallel tools should not be in the set
+        assert "collection" not in PARALLEL_TOOLS
+        assert "search" not in PARALLEL_TOOLS
+
+    def test_parallel_edge_detection(self, parallel_workflow):
+        """Test that parallel edges are detected correctly."""
+        from fichero.workflows.builder import build_graph, PARALLEL_TOOLS, SOURCE_TOOLS
+
+        # Verify the edge connects source -> parallel tool
+        edge = parallel_workflow.edges[0]
+        target_node = parallel_workflow.get_node(edge.target)
+        source_node = parallel_workflow.get_node(edge.source)
+
+        # Target should be a parallel tool
+        assert target_node.tool in PARALLEL_TOOLS, "transcribe should be parallel"
+        # Source should be a source tool
+        assert source_node.tool == "collection", "source should be collection"
+        assert source_node.tool in SOURCE_TOOLS, "collection should be in SOURCE_TOOLS"
+
+    def test_source_tools_includes_all_sources(self):
+        """Test that SOURCE_TOOLS includes all expected source tools."""
+        from fichero.workflows.builder import SOURCE_TOOLS
+
+        # All these tools should trigger parallel processing when connected to PARALLEL_TOOLS
+        expected_sources = {"files", "collection", "folder", "search"}
+        assert SOURCE_TOOLS == expected_sources, f"Expected {expected_sources}, got {SOURCE_TOOLS}"
+
+    def test_fan_out_function_creation(self):
+        """Test creating a fan-out function."""
+        from fichero.workflows.builder import _make_fan_out_function
+
+        fan_out = _make_fan_out_function("source", "transcribe")
+        assert callable(fan_out), "fan_out should be callable"
+
+        # Test with mock state
+        state = {
+            "task_id": "test",
+            "workflow_id": "test",
+            "outputs": {
+                "source": {
+                    "files": ["/path/file1.jpg", "/path/file2.jpg", "/path/file3.jpg"],
+                    "documents": [],
+                }
+            },
+        }
+
+        sends = fan_out(state)
+        assert len(sends) == 3, "Should create 3 Send objects"
+
+        # Check Send objects have correct target
+        for send in sends:
+            assert send.node == "transcribe_process"
+
+    def test_fan_out_empty_files(self):
+        """Test fan-out with no files returns empty list."""
+        from fichero.workflows.builder import _make_fan_out_function
+
+        fan_out = _make_fan_out_function("source", "transcribe")
+
+        state = {
+            "outputs": {
+                "source": {"files": [], "documents": []}
+            }
+        }
+
+        sends = fan_out(state)
+        assert len(sends) == 0, "Should return empty list for no files"
+
+    def test_aggregation_function_creation(self):
+        """Test creating an aggregation function."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        aggregate = _make_aggregation_function("transcribe")
+        assert callable(aggregate), "aggregate should be callable"
+
+    @pytest.mark.asyncio
+    async def test_aggregation_function_combines_results(self):
+        """Test that aggregation properly combines parallel results."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        aggregate = _make_aggregation_function("transcribe")
+
+        # Mock state with parallel results
+        state = {
+            "parallel_results": {
+                "transcribe": [
+                    {"file": "/path/file1.jpg", "index": 0, "result": {"text": "Text 1"}, "success": True},
+                    {"file": "/path/file2.jpg", "index": 1, "result": {"text": "Text 2"}, "success": True},
+                    {"file": "/path/file3.jpg", "index": 2, "error": "Failed", "success": False},
+                ]
+            },
+            "outputs": {},
+            "completed_nodes": [],
+        }
+
+        result = await aggregate(state)
+
+        # Check aggregated output
+        assert "outputs" in result
+        assert "transcribe" in result["outputs"]
+        output = result["outputs"]["transcribe"]
+
+        assert output["success_count"] == 2
+        assert output["error_count"] == 1
+        assert len(output["texts"]) == 2
+        assert output["texts"][0] == "Text 1"
+        assert output["texts"][1] == "Text 2"
+
+    def test_state_has_parallel_fields(self):
+        """Test that State TypedDict has parallel execution fields."""
+        from fichero.workflows.types import State
+
+        # Check that the required keys are in State's annotations
+        annotations = State.__annotations__
+
+        assert "parallel_results" in annotations
+        assert "parallel_index" in annotations
+        assert "parallel_total" in annotations
+        assert "parallel_file" in annotations
+        assert "parallel_document" in annotations
+
+
+# =============================================================================
+# Error Detection Tests
+# =============================================================================
+
+class TestErrorDetection:
+    """Tests for systemic error detection in parallel processing."""
+
+    @pytest.mark.asyncio
+    async def test_consecutive_errors_triggers_abort(self):
+        """Test that 5+ consecutive errors trigger SystemicErrorDetected."""
+        from fichero.workflows.builder import (
+            _make_aggregation_function,
+            SystemicErrorDetected,
+            MAX_CONSECUTIVE_ERRORS,
+        )
+
+        # Create aggregation function
+        agg_fn = _make_aggregation_function("test_node")
+
+        # Create results with consecutive errors
+        # First 2 succeed, then 5 fail in a row (should trigger abort)
+        results = [
+            {"index": 0, "success": True, "result": {"text": "ok"}},
+            {"index": 1, "success": True, "result": {"text": "ok"}},
+            {"index": 2, "success": False, "file": "f3.txt", "error": "API error"},
+            {"index": 3, "success": False, "file": "f4.txt", "error": "API error"},
+            {"index": 4, "success": False, "file": "f5.txt", "error": "API error"},
+            {"index": 5, "success": False, "file": "f6.txt", "error": "API error"},
+            {"index": 6, "success": False, "file": "f7.txt", "error": "API error"},
+        ]
+
+        state = {"parallel_results": {"test_node": results}}
+
+        with pytest.raises(SystemicErrorDetected) as exc_info:
+            await agg_fn(state)
+
+        assert exc_info.value.error_count == 5
+        assert exc_info.value.total_count == 7
+        assert "consecutive failures" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_scattered_errors_no_abort(self):
+        """Test that scattered errors (not consecutive) don't trigger abort."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        agg_fn = _make_aggregation_function("test_node")
+
+        # Create results with errors scattered (never 5 in a row)
+        results = [
+            {"index": 0, "success": True, "result": {"text": "ok"}},
+            {"index": 1, "success": False, "file": "f2.txt", "error": "error"},
+            {"index": 2, "success": True, "result": {"text": "ok"}},
+            {"index": 3, "success": False, "file": "f4.txt", "error": "error"},
+            {"index": 4, "success": True, "result": {"text": "ok"}},
+            {"index": 5, "success": False, "file": "f6.txt", "error": "error"},
+            {"index": 6, "success": True, "result": {"text": "ok"}},
+            {"index": 7, "success": False, "file": "f8.txt", "error": "error"},
+            {"index": 8, "success": True, "result": {"text": "ok"}},
+        ]
+
+        state = {"parallel_results": {"test_node": results}}
+
+        # Should not raise - errors are scattered
+        result = await agg_fn(state)
+
+        assert result["outputs"]["test_node"]["error_count"] == 4
+        assert result["outputs"]["test_node"]["success_count"] == 5
+
+    @pytest.mark.asyncio
+    async def test_high_error_rate_triggers_abort(self):
+        """Test that error rate > 50% triggers SystemicErrorDetected."""
+        from fichero.workflows.builder import (
+            _make_aggregation_function,
+            SystemicErrorDetected,
+            MIN_FILES_FOR_ERROR_RATE,
+        )
+
+        agg_fn = _make_aggregation_function("test_node")
+
+        # Create 12 results with 7 failures (58% error rate)
+        # Scatter them to avoid consecutive error detection (max 4 in a row)
+        # Pattern: F F F F S F F F S S S S (4 fail, 1 succeed, 3 fail, 4 succeed)
+        results = [
+            {"index": 0, "success": False, "file": "f0.txt", "error": "error"},
+            {"index": 1, "success": False, "file": "f1.txt", "error": "error"},
+            {"index": 2, "success": False, "file": "f2.txt", "error": "error"},
+            {"index": 3, "success": False, "file": "f3.txt", "error": "error"},
+            {"index": 4, "success": True, "result": {"text": "ok"}},  # Break
+            {"index": 5, "success": False, "file": "f5.txt", "error": "error"},
+            {"index": 6, "success": False, "file": "f6.txt", "error": "error"},
+            {"index": 7, "success": False, "file": "f7.txt", "error": "error"},
+            {"index": 8, "success": True, "result": {"text": "ok"}},  # Break
+            {"index": 9, "success": True, "result": {"text": "ok"}},
+            {"index": 10, "success": True, "result": {"text": "ok"}},
+            {"index": 11, "success": True, "result": {"text": "ok"}},
+        ]
+
+        state = {"parallel_results": {"test_node": results}}
+
+        with pytest.raises(SystemicErrorDetected) as exc_info:
+            await agg_fn(state)
+
+        assert exc_info.value.error_count == 7
+        assert "error rate" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_small_batch_no_rate_check(self):
+        """Test that small batches don't trigger error rate check."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        agg_fn = _make_aggregation_function("test_node")
+
+        # 5 files with 3 failures (60% error rate, but < MIN_FILES_FOR_ERROR_RATE)
+        # Also ensure errors aren't consecutive (4 would be under threshold of 5)
+        results = [
+            {"index": 0, "success": True, "result": {"text": "ok"}},
+            {"index": 1, "success": False, "file": "f2.txt", "error": "error"},
+            {"index": 2, "success": True, "result": {"text": "ok"}},
+            {"index": 3, "success": False, "file": "f4.txt", "error": "error"},
+            {"index": 4, "success": False, "file": "f5.txt", "error": "error"},
+        ]
+
+        state = {"parallel_results": {"test_node": results}}
+
+        # Should not raise - batch too small for error rate check
+        result = await agg_fn(state)
+
+        assert result["outputs"]["test_node"]["error_count"] == 3
+        assert result["outputs"]["test_node"]["success_count"] == 2
+
+
+# =============================================================================
 # Test Configuration
 # =============================================================================
 

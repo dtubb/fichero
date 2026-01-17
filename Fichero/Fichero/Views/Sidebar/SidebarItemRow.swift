@@ -24,6 +24,9 @@ struct SidebarItemRow: View {
     @ObservedObject var deleteState: DeleteStateManager
     @ObservedObject var libraryManager: LibraryManager
 
+    // Uses @Observable pattern - injected via .environment() from LibraryWindow
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
+
     // Get services from the item's library
     private var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
@@ -32,18 +35,31 @@ struct SidebarItemRow: View {
 
     // Convenience accessors for services from item's library
     private var documentStore: DocumentStore? { library?.documentStore }
-    private var savedSearchService: SavedSearchService? { library?.savedSearchService }
-    private var conversationService: ConversationService? { library?.conversationService }
+    private var savedSearchService: SavedSearchServiceGenerated? { library?.savedSearchServiceGenerated }
+    private var conversationService: ConversationServiceGenerated? { library?.conversationServiceGenerated }
     private var workflowStore: WorkflowStore? { library?.workflowStore }
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
     @State private var isCommittingRename = false
+    @State private var isPulsing = false  // For workflow running animation
 
     /// Determines if this item represents a folder type document.
     private var isFolder: Bool {
         guard case .document(let doc) = item.itemType else { return false }
         return doc.docType == .folder
+    }
+
+    /// Check if this workflow item is currently running
+    private var workflowIsRunning: Bool {
+        guard case .workflow(let workflow) = item.itemType else { return false }
+        return executionObserver.isRunning(workflowId: workflow.id)
+    }
+
+    /// Get progress for a running workflow (0.0 to 1.0)
+    private var workflowProgress: Double? {
+        guard case .workflow(let workflow) = item.itemType else { return nil }
+        return executionObserver.getProgress(for: workflow.id)
     }
 
     private var isExpanded: Binding<Bool> {
@@ -157,8 +173,32 @@ struct SidebarItemRow: View {
                     .lineLimit(1)
             }
         } icon: {
-            Image(systemName: item.icon)
-                .foregroundColor(iconColor)
+            ZStack {
+                if workflowIsRunning {
+                    // Pulsing glow background for running workflows
+                    Circle()
+                        .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))
+                        .frame(width: 20, height: 20)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
+
+                    // Show spinning progress indicator for running workflows
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: item.icon)
+                        .foregroundColor(iconColor)
+                }
+            }
+        }
+        .onChange(of: workflowIsRunning) { _, isRunning in
+            isPulsing = isRunning
+        }
+        .onAppear {
+            // Start pulsing if already running when view appears
+            if workflowIsRunning {
+                isPulsing = true
+            }
         }
     }
 
@@ -466,27 +506,31 @@ extension SidebarItemRow {
             actualId = itemId
         }
 
+        // Get the library for the item being renamed (not self.item!)
+        guard let itemLibraryId = itemToRename.libraryId,
+              let itemLibrary = libraryManager.getLibrary(id: itemLibraryId) else {
+            logger.error("Cannot rename: item has no libraryId or library not found")
+            return
+        }
+
         do {
-            // Use the correct service based on item type
+            // Use the correct service based on item type - from the ITEM's library
             switch itemToRename.itemType {
             case .savedSearch:
-                guard let savedSearchService = savedSearchService else { return }
-                _ = try await savedSearchService.renameSavedSearch(actualId, newName: newName)
+                _ = try await itemLibrary.savedSearchServiceGenerated.renameSavedSearch(actualId, newName: newName)
                 logger.debug(" Renamed saved search \(actualId) to '\(newName)'")
             case .conversation:
-                guard let conversationService = conversationService else { return }
-                _ = try await conversationService.renameConversation(actualId, newTitle: newName)
+                _ = try await itemLibrary.conversationServiceGenerated.renameConversation(actualId, newTitle: newName)
                 logger.debug(" Renamed conversation \(actualId) to '\(newName)'")
             case .workflow:
-                guard let workflowStore = workflowStore else { return }
-                _ = try await workflowStore.renameWorkflow(actualId, to: newName)
+                _ = try await itemLibrary.workflowStore.renameWorkflow(actualId, to: newName)
                 logger.debug(" Renamed workflow \(actualId) to '\(newName)'")
             default:
                 logger.debug(" ⚠️ Unknown item type for rename")
             }
             // UI updates automatically via @Published collections
         } catch {
-            logger.debug(" Failed to rename item: \(error.localizedDescription)")
+            logger.error(" Failed to rename item: \(error.localizedDescription)")
         }
     }
 }

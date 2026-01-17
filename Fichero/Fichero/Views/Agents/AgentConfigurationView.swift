@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import FicheroAPIClient
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AgentConfigurationView")
 
@@ -95,10 +96,12 @@ struct AgentConfigurationView: View {
 
 /// View for selecting tools to assign to an agent
 struct ToolSelectionView: View {
+    @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @Binding var selectedTools: Set<String>
     @State private var availableTools: [ToolCategory] = []
     @State private var searchText = ""
     @State private var isLoading = false
+    @State private var loadError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -110,6 +113,22 @@ struct ToolSelectionView: View {
             if isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity)
+            } else if let error = loadError {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text("Failed to load tools")
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Retry") {
+                        Task { await loadTools() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
             } else if availableTools.isEmpty {
                 Text("No tools available")
                     .foregroundColor(.secondary)
@@ -194,26 +213,48 @@ struct ToolSelectionView: View {
 
     private func loadTools() async {
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
 
-        // Load tools from registry
-        // For now, use placeholder data
-        availableTools = [
-            ToolCategory(name: "Transform", icon: "wand.and.stars", tools: [
-                ToolItem(name: "summarize", description: "Summarize text content"),
-                ToolItem(name: "translate", description: "Translate text to another language"),
-                ToolItem(name: "extract", description: "Extract structured data")
-            ]),
-            ToolCategory(name: "File Operations", icon: "folder", tools: [
-                ToolItem(name: "read_file", description: "Read file contents"),
-                ToolItem(name: "write_file", description: "Write content to file"),
-                ToolItem(name: "list_directory", description: "List directory contents")
-            ]),
-            ToolCategory(name: "Web", icon: "globe", tools: [
-                ToolItem(name: "web_search", description: "Search the web"),
-                ToolItem(name: "fetch_url", description: "Fetch URL contents")
-            ])
-        ]
+        do {
+            // Load tools from backend registry
+            let response = try await workflowServiceGenerated.listToolsGrouped()
+
+            // Convert API response to local types
+            availableTools = response.categories.map { category in
+                ToolCategory(
+                    name: category.displayName,
+                    icon: iconForCategory(category.category),
+                    tools: category.tools.map { tool in
+                        ToolItem(name: tool.name, description: tool.description)
+                    }
+                )
+            }
+
+            logger.info("Loaded \(response.categories.count) tool categories")
+        } catch {
+            logger.error("Failed to load tools: \(error.localizedDescription)")
+            loadError = error.localizedDescription
+
+            // Use fallback data if backend unavailable
+            availableTools = []
+        }
+    }
+
+    /// Map category names to SF Symbol icons
+    private func iconForCategory(_ category: String) -> String {
+        switch category.lowercased() {
+        case "transform": return "wand.and.stars"
+        case "vision": return "eye"
+        case "llm": return "brain"
+        case "convert": return "arrow.triangle.2.circlepath"
+        case "logic": return "arrow.triangle.branch"
+        case "conditions": return "questionmark.diamond"
+        case "file": return "folder"
+        case "web": return "globe"
+        case "mcp": return "puzzlepiece.extension"
+        default: return "square.stack.3d.up"
+        }
     }
 }
 
@@ -260,7 +301,8 @@ struct ToolItem {
 }
 
 #Preview {
-    AgentConfigurationView(
+    let ficheroClient = FicheroClient(libraryPath: "/tmp/preview.fichero")
+    return AgentConfigurationView(
         node: .constant(WorkflowNode(
             tool: "agent",
             label: "Test Agent",
@@ -268,4 +310,5 @@ struct ToolItem {
             positionY: 100
         ))
     )
+    .environmentObject(WorkflowServiceGenerated(ficheroClient: ficheroClient))
 }

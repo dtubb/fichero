@@ -21,7 +21,6 @@ import duckdb
 
 from fichero.workflows.builder import build_graph
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
-from fichero.workflows.executor import ProgressEvent, ProgressEventType
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)

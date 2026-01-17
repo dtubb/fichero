@@ -7,14 +7,32 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowExe
 @MainActor
 class WorkflowExecutionService: ObservableObject {
     private let baseURL: URL
+    private var libraryPath: String?
 
     @Published var isExecuting: Bool = false
     @Published var threads: [ExecutionThread] = []
     @Published var currentThreadStatus: ExecutionThread?
     @Published var error: String?
 
-    init(baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!) {
+    init(baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!, libraryPath: String? = nil) {
         self.baseURL = baseURL
+        self.libraryPath = libraryPath
+    }
+
+    /// Update the library path (called when library changes)
+    func setLibraryPath(_ path: String?) {
+        self.libraryPath = path
+    }
+
+    /// Create a URLRequest with common headers
+    private func createRequest(url: URL, method: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let libraryPath = libraryPath {
+            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        }
+        return request
     }
 
     // MARK: - Execute Workflow
@@ -33,15 +51,13 @@ class WorkflowExecutionService: ObservableObject {
             "workflow_id": workflowId,
             "inputs": inputs,
             "interrupt_before": interruptBefore,
-            "interrupt_after": interruptAfter,
+            "interrupt_after": interruptAfter
         ]
         if let threadId = threadId {
             body["thread_id"] = threadId
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = createRequest(url: url, method: "POST")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         isExecuting = true
@@ -71,9 +87,7 @@ class WorkflowExecutionService: ObservableObject {
     func resumeWorkflow(threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
         let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/resume")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = createRequest(url: url, method: "POST")
 
         if let inputs = inputs {
             let body: [String: Any] = ["inputs": inputs]
@@ -107,8 +121,7 @@ class WorkflowExecutionService: ObservableObject {
     func getThreadStatus(threadId: String) async throws -> ExecutionThread {
         let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/status")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        let request = createRequest(url: url, method: "GET")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -135,8 +148,7 @@ class WorkflowExecutionService: ObservableObject {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
 
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "GET"
+        let request = createRequest(url: components.url!, method: "GET")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -162,8 +174,7 @@ class WorkflowExecutionService: ObservableObject {
     func deleteThread(threadId: String) async throws {
         let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
+        let request = createRequest(url: url, method: "DELETE")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

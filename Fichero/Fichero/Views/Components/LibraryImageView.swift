@@ -1,4 +1,5 @@
 import SwiftUI
+import OSLog
 
 /// Image view that loads from backend with proper library path headers
 /// Replacement for AsyncImage which doesn't support custom headers
@@ -17,6 +18,8 @@ struct LibraryImageView: View {
     @State private var image: Image?
     @State private var isLoading = false
     @State private var loadError: Error?
+
+    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryImageView")
 
     var body: some View {
         Group {
@@ -45,16 +48,21 @@ struct LibraryImageView: View {
         isLoading = true
         loadError = nil
 
+        Self.logger.info("Loading \(self.imageType == .thumbnail ? "thumbnail" : "display") for document: \(self.documentId)")
+
         do {
             switch imageType {
             case .thumbnail:
                 image = try await storageService.getThumbnail(documentId)
+                Self.logger.info("Successfully loaded thumbnail for: \(self.documentId)")
             case .display:
                 image = try await storageService.getDisplayImage(documentId)
+                Self.logger.info("Successfully loaded display image for: \(self.documentId)")
             }
         } catch {
             loadError = error
-            // Silently fail - will show placeholder icon
+            Self.logger.error("Failed to load image for \(self.documentId): \(error.localizedDescription)")
+            // Will show placeholder icon
         }
 
         isLoading = false

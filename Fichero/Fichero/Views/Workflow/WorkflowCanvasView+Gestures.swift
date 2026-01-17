@@ -19,6 +19,9 @@ extension WorkflowCanvasView {
     }
 
     func handlePan(value: DragGesture.Value) {
+        // Don't pan if we're dragging a node or an edge
+        guard draggingNodeIndex == nil && draggedEdge == nil else { return }
+
         if !isPanning {
             // Start panning - store initial offset
             lastOffset = offset
@@ -39,6 +42,9 @@ extension WorkflowCanvasView {
 
 extension WorkflowCanvasView {
     func handleNodeDrag(value: DragGesture.Value, index: Int) {
+        // Don't move node if we're dragging an edge from a port
+        guard draggedEdge == nil else { return }
+
         // On first drag event, store starting position
         if nodeDragStartPosition == nil {
             nodeDragStartPosition = CGPoint(

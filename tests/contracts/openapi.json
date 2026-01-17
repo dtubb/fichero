@@ -767,7 +767,7 @@
           "documents"
         ],
         "summary": "Move Document",
-        "description": "Move a document to a new parent location.",
+        "description": "Move a document to a new parent location.\n\nAccepts parent_id as either a query parameter or in the request body for flexibility.",
         "operationId": "move_document_api_documents__doc_id__move_put",
         "parameters": [
           {
@@ -2127,40 +2127,19 @@
           "chat"
         ],
         "summary": "List Providers",
-        "description": "List available LLM providers and their models from user configuration.",
+        "description": "List available LLM providers and their models from user configuration.\n\nProviders are stored app-wide (not per-library), so we query the app database.",
         "operationId": "list_providers_api_chat_providers_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ProviderInfo"
                   },
+                  "type": "array",
                   "title": "Response List Providers Api Chat Providers Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3193,6 +3172,59 @@
         }
       }
     },
+    "/api/workflows/tools/{tool_name}/prompt": {
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Get Tool Prompt",
+        "description": "Get the default prompt for a tool, optionally customized by config.\n\nThis allows the UI to show users what prompt will be sent to the LLM\nbased on their current configuration settings.",
+        "operationId": "get_tool_prompt_api_workflows_tools__tool_name__prompt_post",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/tools/{tool_name}/create-node": {
       "post": {
         "tags": [
@@ -3239,48 +3271,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NodeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/workflows/run": {
-      "post": {
-        "tags": [
-          "workflows"
-        ],
-        "summary": "Run Workflow Inline",
-        "description": "Run a workflow inline (doesn't save the workflow definition).",
-        "operationId": "run_workflow_inline_api_workflows_run_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_run_workflow_inline_api_workflows_run_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowRunResponse"
                 }
               }
             }
@@ -3876,97 +3866,25 @@
         }
       }
     },
-    "/api/workflows/{workflow_id}/run": {
-      "post": {
+    "/api/workflow-execution/stream/{thread_id}": {
+      "get": {
         "tags": [
-          "workflows"
+          "workflow-execution"
         ],
-        "summary": "Run Saved Workflow",
-        "description": "Run a saved workflow.",
-        "operationId": "run_saved_workflow_api_workflows__workflow_id__run_post",
+        "summary": "Stream Workflow Events",
+        "description": "Subscribe to SSE events for a running workflow.\n\nThis endpoint returns a Server-Sent Events stream for a workflow\nthat was started via POST /execute. Connect to this endpoint\nimmediately after receiving the 202 Accepted response.\n\nEvents include:\n- start: Workflow execution started\n- node_begin: A node started executing\n- node_end: A node finished executing\n- parallel_complete: Parallel file processing completed\n- complete: Workflow finished successfully\n- error: An error occurred\n- systemic_error: Too many consecutive failures\n\nArgs:\n    thread_id: The thread ID returned from /execute\n\nReturns:\n    StreamingResponse with SSE events",
+        "operationId": "stream_workflow_events_api_workflow_execution_stream__thread_id__get",
         "parameters": [
           {
-            "name": "workflow_id",
+            "name": "thread_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Workflow Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
+              "title": "Thread Id"
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkflowRunRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowRunResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/workflow-execution/execute/stream": {
-      "post": {
-        "tags": [
-          "workflow-execution"
-        ],
-        "summary": "Execute Workflow Stream",
-        "description": "Execute a workflow with real-time SSE progress streaming.\n\nThis endpoint returns a Server-Sent Events stream with live updates\nas the workflow executes. Events include:\n- start: Workflow execution started\n- node_begin: A node started executing\n- node_end: A node finished executing\n- complete: Workflow finished successfully\n- pause: Workflow paused at interrupt point\n- error: An error occurred\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    SSE stream of execution events\n\nRaises:\n    404: Workflow not found",
-        "operationId": "execute_workflow_stream_api_workflow_execution_execute_stream_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExecuteWorkflowRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3995,7 +3913,7 @@
           "workflow-execution"
         ],
         "summary": "Execute Workflow",
-        "description": "Execute a workflow with checkpointing.\n\nThis endpoint starts workflow execution with full state persistence.\nThe workflow can be paused, resumed, and survives server restarts.\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    Execution status with thread_id for tracking\n\nRaises:\n    404: Workflow not found\n    500: Execution error",
+        "description": "Execute a workflow (non-blocking).\n\nThis endpoint starts workflow execution in the background and returns\nimmediately with a 202 Accepted response. Use the stream_url to\nsubscribe to real-time progress events via SSE.\n\nFlow:\n1. POST /execute \u2192 202 Accepted with thread_id and stream_url\n2. GET /stream/{thread_id} \u2192 SSE stream with progress events\n3. Events: start, node_begin, node_end, parallel_complete, complete, error\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    202 Accepted with thread_id and stream_url for SSE subscription\n\nRaises:\n    404: Workflow not found",
         "operationId": "execute_workflow_api_workflow_execution_execute_post",
         "parameters": [
           {
@@ -4019,12 +3937,12 @@
           }
         },
         "responses": {
-          "200": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExecutionStatusResponse"
+                  "$ref": "#/components/schemas/ExecuteAcceptedResponse"
                 }
               }
             }
@@ -9023,6 +8941,239 @@
           }
         }
       }
+    },
+    "/api/artifacts/document/{doc_id}": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "List Document Artifacts",
+        "description": "List all artifacts for a document.\n\nReturns artifacts sorted by creation date (newest first).",
+        "operationId": "list_document_artifacts_api_artifacts_document__doc_id__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "artifact_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by artifact type",
+              "title": "Artifact Type"
+            },
+            "description": "Filter by artifact type"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Max results",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Max results"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Offset for pagination",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Offset for pagination"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Get Artifact",
+        "description": "Get a specific artifact by ID.",
+        "operationId": "get_artifact_api_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Delete Artifact",
+        "description": "Delete an artifact.",
+        "operationId": "delete_artifact_api_artifacts__artifact_id__delete",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifacts/types": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "List Artifact Types",
+        "description": "List all artifact types in the library.\n\nUseful for filtering UI.",
+        "operationId": "list_artifact_types_api_artifacts_types_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response List Artifact Types Api Artifacts Types Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9272,6 +9423,93 @@
         "title": "ActivityStatsResponse",
         "description": "Response model for activity statistics."
       },
+      "ArtifactListResponse": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactResponse"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifacts",
+          "total"
+        ],
+        "title": "ArtifactListResponse",
+        "description": "Response for listing artifacts."
+      },
+      "ArtifactResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Data"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "artifact_type",
+          "version",
+          "reviewed",
+          "created_at"
+        ],
+        "title": "ArtifactResponse",
+        "description": "Artifact response with formatted data."
+      },
       "BatchItemResponse": {
         "properties": {
           "thread_id": {
@@ -9455,22 +9693,6 @@
           "file"
         ],
         "title": "Body_import_file_api_documents_import_post"
-      },
-      "Body_run_workflow_inline_api_workflows_run_post": {
-        "properties": {
-          "workflow": {
-            "$ref": "#/components/schemas/WorkflowDef"
-          },
-          "request": {
-            "$ref": "#/components/schemas/WorkflowRunRequest"
-          }
-        },
-        "type": "object",
-        "required": [
-          "workflow",
-          "request"
-        ],
-        "title": "Body_run_workflow_inline_api_workflows_run_post"
       },
       "CategoryToolsResponse": {
         "properties": {
@@ -9739,6 +9961,7 @@
             "title": "Model"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "message"
@@ -9765,8 +9988,8 @@
           },
           "model_used": {
             "type": "string",
-            "nullable": true,
-            "title": "Model Used"
+            "title": "Model Used",
+            "default": ""
           }
         },
         "type": "object",
@@ -9918,6 +10141,7 @@
             "title": "Folder Path"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "title": "ConversationUpdate",
         "description": "Request to update conversation properties."
@@ -10464,6 +10688,7 @@
             "readOnly": true
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "name",
@@ -10509,6 +10734,7 @@
             "default": {}
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "name"
@@ -10586,6 +10812,7 @@
             "title": "Metadata"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "title": "DocumentUpdate",
         "description": "Request model for updating a document."
@@ -10622,9 +10849,9 @@
           },
           "condition": {
             "type": "string",
-            "nullable": true,
             "title": "Condition",
-            "description": "Condition expression (e.g., '$.nodes.classify.category == \"invoice\"')"
+            "description": "Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional",
+            "default": ""
           },
           "animated": {
             "type": "boolean",
@@ -10633,8 +10860,8 @@
           },
           "label": {
             "type": "string",
-            "nullable": true,
-            "title": "Label"
+            "title": "Label",
+            "default": ""
           }
         },
         "type": "object",
@@ -10654,6 +10881,40 @@
         ],
         "title": "EntityType",
         "description": "Type of entity for folder operations."
+      },
+      "ExecuteAcceptedResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "accepted"
+          },
+          "stream_url": {
+            "type": "string",
+            "title": "Stream Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "workflow_id",
+          "workflow_name",
+          "stream_url"
+        ],
+        "title": "ExecuteAcceptedResponse",
+        "description": "Response when workflow execution has been accepted (202)."
       },
       "ExecuteChainRequest": {
         "properties": {
@@ -10842,6 +11103,7 @@
             "default": false
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "title": "ExtractTextRequest",
         "description": "Request to extract text from documents."
@@ -11224,9 +11486,9 @@
           },
           "transform": {
             "type": "string",
-            "nullable": true,
             "title": "Transform",
-            "description": "Optional transform pipe (e.g., '| join:\", \"')"
+            "description": "Optional transform pipe (e.g., '| join:\", \"'), empty if none",
+            "default": ""
           }
         },
         "type": "object",
@@ -11628,7 +11890,7 @@
         "title": "MoveItemsRequest",
         "description": "Request to move items to a folder."
       },
-      "NodeDef": {
+      "NodeDef-Input": {
         "properties": {
           "id": {
             "type": "string",
@@ -11646,7 +11908,7 @@
             },
             "type": "array",
             "title": "Input Ports",
-            "description": "Input connection ports"
+            "description": "Input connection ports (populated from registry, not stored)"
           },
           "output_ports": {
             "items": {
@@ -11654,7 +11916,7 @@
             },
             "type": "array",
             "title": "Output Ports",
-            "description": "Output connection ports"
+            "description": "Output connection ports (populated from registry, not stored)"
           },
           "input_mappings": {
             "items": {
@@ -11693,18 +11955,33 @@
           },
           "label": {
             "type": "string",
-            "nullable": true,
-            "title": "Label"
+            "title": "Label",
+            "default": ""
           },
           "description": {
             "type": "string",
-            "nullable": true,
-            "title": "Description"
+            "title": "Description",
+            "default": ""
           },
           "enabled": {
             "type": "boolean",
             "title": "Enabled",
             "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
           }
         },
         "type": "object",
@@ -11712,7 +11989,108 @@
           "tool"
         ],
         "title": "NodeDef",
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\nEach node has input and output ports for visual edge connections.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
       },
       "NodeResponse": {
         "properties": {
@@ -11726,13 +12104,13 @@
           },
           "label": {
             "type": "string",
-            "nullable": true,
-            "title": "Label"
+            "title": "Label",
+            "default": ""
           },
           "description": {
             "type": "string",
-            "nullable": true,
-            "title": "Description"
+            "title": "Description",
+            "default": ""
           },
           "input_ports": {
             "items": {
@@ -11761,8 +12139,6 @@
         "required": [
           "id",
           "tool",
-          "label",
-          "description",
           "input_ports",
           "output_ports",
           "position_x",
@@ -11896,6 +12272,9 @@
             "type": "string",
             "title": "Description",
             "default": ""
+          },
+          "default": {
+            "title": "Default"
           }
         },
         "type": "object",
@@ -11907,6 +12286,31 @@
         ],
         "title": "PortResponse",
         "description": "Port definition for node editor."
+      },
+      "PromptRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "PromptRequest",
+        "description": "Request to build a prompt with specific config."
+      },
+      "PromptResponse": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "PromptResponse",
+        "description": "Response with built prompt."
       },
       "ProviderCatalogResponse": {
         "properties": {
@@ -12050,6 +12454,11 @@
           "available": {
             "type": "boolean",
             "title": "Available"
+          },
+          "supports_vision": {
+            "type": "boolean",
+            "title": "Supports Vision",
+            "default": false
           }
         },
         "type": "object",
@@ -12403,6 +12812,7 @@
             "title": "Folder Path"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "title": "SavedSearchUpdate",
         "description": "Request to update saved search properties."
@@ -12897,13 +13307,19 @@
           "config_schema": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Config Schema"
+            "title": "Config Schema",
+            "default": {}
           },
           "default_output_schema": {
             "additionalProperties": true,
             "type": "object",
-            "nullable": true,
-            "title": "Default Output Schema"
+            "title": "Default Output Schema",
+            "default": {}
+          },
+          "default_prompt": {
+            "type": "string",
+            "title": "Default Prompt",
+            "default": ""
           },
           "uses_llm": {
             "type": "boolean",
@@ -12936,8 +13352,6 @@
           "color",
           "input_ports",
           "output_ports",
-          "config_schema",
-          "default_output_schema",
           "uses_llm",
           "supports_batch",
           "supports_streaming",
@@ -13478,7 +13892,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -13556,9 +13970,10 @@
             "title": "Sort Order"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "title": "WorkflowPatchRequest",
-        "description": "Request for partial workflow update."
+        "description": "Request for partial workflow update.\n\nAll fields are optional strings - send only the fields you want to update."
       },
       "WorkflowResponse": {
         "properties": {
@@ -13584,16 +13999,14 @@
           },
           "nodes": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"
           },
           "edges": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/EdgeDef"
             },
             "type": "array",
             "title": "Edges"
@@ -13621,78 +14034,6 @@
         ],
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
-      },
-      "WorkflowRunRequest": {
-        "properties": {
-          "inputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Inputs",
-            "default": {}
-          },
-          "input_files": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Input Files",
-            "default": []
-          }
-        },
-        "type": "object",
-        "title": "WorkflowRunRequest",
-        "description": "Request to run a workflow."
-      },
-      "WorkflowRunResponse": {
-        "properties": {
-          "task_id": {
-            "type": "string",
-            "title": "Task Id"
-          },
-          "workflow_id": {
-            "type": "string",
-            "title": "Workflow Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "completed_nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Completed Nodes"
-          },
-          "outputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Outputs"
-          },
-          "output_files": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Output Files"
-          },
-          "error": {
-            "type": "string",
-            "nullable": true,
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "task_id",
-          "workflow_id",
-          "status",
-          "completed_nodes",
-          "outputs",
-          "output_files"
-        ],
-        "title": "WorkflowRunResponse",
-        "description": "Result of running a workflow."
       }
     }
   }

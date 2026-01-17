@@ -57,6 +57,7 @@ struct ProvidersView: View {
                     catalogEntry: catalog.first { $0.type == provider.providerType },
                     onUpdate: loadProviders
                 )
+                .frame(minWidth: 350)
             } else {
                 VStack {
                     Image(systemName: "cpu")
@@ -290,20 +291,41 @@ struct ProviderDetailView: View {
                 // Only show API Key section for cloud providers
                 if !isLocalProvider {
                     Section("API Key") {
-                        SecureField("API Key", text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-
-                        HStack {
-                            Button("Save Key") {
-                                saveAPIKey()
+                        if provider.hasApiKey {
+                            // Key exists - show status and option to replace
+                            HStack {
+                                Image(systemName: "key.fill")
+                                    .foregroundColor(.green)
+                                Text("API key saved in Keychain")
+                                    .foregroundColor(.secondary)
+                                Spacer()
                             }
-                            .disabled(apiKey.isEmpty || isSaving)
 
-                            if provider.hasApiKey {
+                            SecureField("Enter new key to replace", text: $apiKey)
+                                .textFieldStyle(.roundedBorder)
+
+                            HStack {
+                                Button("Replace Key") {
+                                    saveAPIKey()
+                                }
+                                .disabled(apiKey.isEmpty || isSaving)
+
                                 Button("Remove Key", role: .destructive) {
                                     removeAPIKey()
                                 }
                             }
+                        } else {
+                            // No key - show input field
+                            Text("No API key configured")
+                                .foregroundColor(.orange)
+
+                            SecureField("Enter your API key", text: $apiKey)
+                                .textFieldStyle(.roundedBorder)
+
+                            Button("Save Key") {
+                                saveAPIKey()
+                            }
+                            .disabled(apiKey.isEmpty || isSaving)
                         }
 
                         Text("Keys are stored securely in macOS Keychain")

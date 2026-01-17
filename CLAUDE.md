@@ -183,6 +183,29 @@ Workflows are defined as visual graphs in the Swift UI but executed in Python vi
 3. Builds a LangGraph executable
 4. Streams results back to the frontend
 
+**Architecture Principles:**
+
+1. **Tool Registry is Single Source of Truth for Ports**
+   - Port definitions (input/output) belong in `workflows/registry.py`
+   - NodeDef should NOT store ports - only reference the tool name
+   - Ports are enriched from registry when needed for execution or UI display
+
+2. **Minimal NodeDef Format**
+   - Store only: `id`, `tool`, `position_x`, `position_y`, `label`, `config`, `enabled`
+   - Do NOT duplicate port definitions in stored workflows
+
+3. **LangGraph Conversion in Backend Only**
+   - All graph-to-LangGraph conversion happens in `workflows/builder.py`
+   - Swift should never construct LangGraph structures
+   - Swift sends minimal workflow definitions, Python handles all execution logic
+
+4. **Generated Types Over Manual Types**
+   - Use Swift OpenAPI Generator types (`Components.Schemas.*`) directly in views
+   - Avoid creating manual Swift types that shadow generated types
+   - Keep `GeneratedTypeExtensions.swift` minimal (just Identifiable conformances)
+
+See `ai/tasks/TODO-125/` and `ai/tasks/TODO-126/` for current cleanup tasks.
+
 ## AI Task Management System
 
 This project uses a structured task management system in the `ai/` folder for organizing development work.
