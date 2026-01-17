@@ -1,111 +1,159 @@
 import SwiftUI
 
-// MARK: - Navigator Mini-Map (top right corner)
+// MARK: - Navigator Mini-Map
 
+/// A miniature navigation view showing the current viewport position within a larger image.
+/// Displayed in the corner when zoomed in, allowing users to click/drag to pan the main view.
 struct NavigatorMiniMap: View {
+    // MARK: - Constants
+
+    private enum Layout {
+        static let cornerRadius: CGFloat = 6
+        static let borderOpacity: Double = 0.3
+        static let backgroundOpacity: Double = 0.7
+        static let shadowRadius: CGFloat = 5
+        static let shadowOffsetY: CGFloat = 2
+        static let shadowOpacity: Double = 0.3
+        static let hoverOpacity: Double = 1.0
+        static let defaultOpacity: Double = 0.7
+        static let hoverAnimationDuration: Double = 0.15
+        static let minimumViewportSize: CGFloat = 8
+        static let zoomThreshold: CGFloat = 0.99
+    }
+
+    private enum ViewportStyle {
+        static let fillOpacity: Double = 0.15
+        static let fillOpacityDragging: Double = 0.25
+        static let strokeOpacity: Double = 1.0
+        static let strokeOpacityDragging: Double = 0.8
+        static let strokeWidth: CGFloat = 2
+        static let strokeWidthDragging: CGFloat = 3
+    }
+
+    // MARK: - Properties
+
     let image: NSImage
-    let cursorPosition: CGPoint
     let visibleRect: CGRect  // Normalized 0-1 coordinates
-    var onRectangleDragged: ((CGPoint) -> Void)?  // Called with new normalized center position
+    let onRectangleDragged: ((CGPoint) -> Void)?
 
     @State private var isHovering = false
-    @State private var isDraggingRect = false
+    @State private var isDragging = false
+
+    // MARK: - Computed Properties
+
+    private var isZoomedIn: Bool {
+        visibleRect.width < Layout.zoomThreshold || visibleRect.height < Layout.zoomThreshold
+    }
+
+    // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Thumbnail image
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-
-            // Visible area rectangle overlay
-            GeometryReader { geometry in
-                visibleRectOverlay(mapSize: geometry.size)
+        Image(nsImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .background(Color.black.opacity(Layout.backgroundOpacity))
+            .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                    .stroke(Color.white.opacity(Layout.borderOpacity), lineWidth: 1)
+            )
+            .shadow(
+                color: .black.opacity(Layout.shadowOpacity),
+                radius: Layout.shadowRadius,
+                x: 0,
+                y: Layout.shadowOffsetY
+            )
+            .overlay { gestureOverlay }
+            .opacity(isHovering ? Layout.hoverOpacity : Layout.defaultOpacity)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: Layout.hoverAnimationDuration)) {
+                    isHovering = hovering
+                }
             }
-        }
-        .background(Color.black.opacity(0.7))
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.3), radius: 5, x: 0, y: 2)
-        .opacity(isHovering ? 1.0 : 0.7)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovering = hovering
+    }
+
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var gestureOverlay: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(dragGesture(mapSize: geometry.size))
+
+            if isZoomedIn {
+                viewportIndicator(mapSize: geometry.size)
             }
         }
     }
 
-    /// Calculate and draw the visible rect overlay
     @ViewBuilder
-    private func visibleRectOverlay(mapSize: CGSize) -> some View {
-        // Calculate actual image bounds within the map (accounting for aspect ratio)
-        let imageAspect = image.size.width / image.size.height
-        let mapAspect = mapSize.width / mapSize.height
+    private func viewportIndicator(mapSize: CGSize) -> some View {
+        let size = viewportSize(for: mapSize)
+        let center = viewportCenter(for: mapSize)
 
-        let imageRect = imageAspect > mapAspect
-            ? CGRect(x: 0,
-                     y: (mapSize.height - mapSize.width / imageAspect) / 2,
-                     width: mapSize.width,
-                     height: mapSize.width / imageAspect)
-            : CGRect(x: (mapSize.width - mapSize.height * imageAspect) / 2,
-                     y: 0,
-                     width: mapSize.height * imageAspect,
-                     height: mapSize.height)
+        let fillOpacity = isDragging ? ViewportStyle.fillOpacityDragging : ViewportStyle.fillOpacity
+        let strokeOpacity = isDragging ? ViewportStyle.strokeOpacityDragging : ViewportStyle.strokeOpacity
+        let strokeWidth = isDragging ? ViewportStyle.strokeWidthDragging : ViewportStyle.strokeWidth
 
-        // Draw visible area indicator (when zoomed in)
-        if visibleRect.width < 0.99 || visibleRect.height < 0.99 {
-            let rectWidth = max(8, visibleRect.width * imageRect.width)
-            let rectHeight = max(8, visibleRect.height * imageRect.height)
-            // Position the center of the rectangle (position() centers the view at the given point)
-            let rectCenterX = imageRect.origin.x + (visibleRect.origin.x + visibleRect.width / 2) * imageRect.width
-            let rectCenterY = imageRect.origin.y + (visibleRect.origin.y + visibleRect.height / 2) * imageRect.height
-
-            ZStack {
-                // Fill background
-                Rectangle()
-                    .fill(Color.accentColor.opacity(isDraggingRect ? 0.25 : 0.15))
-                // Stroke border
-                Rectangle()
-                    .stroke(
-                        isDraggingRect ? Color.accentColor.opacity(0.8) : Color.accentColor,
-                        lineWidth: isDraggingRect ? 3 : 2
-                    )
-            }
-            .frame(width: rectWidth, height: rectHeight)
-            .position(x: rectCenterX, y: rectCenterY)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        isDraggingRect = true
-                        // Convert drag location to normalized image coordinates
-                        let dragX = value.location.x
-                        let dragY = value.location.y
-
-                        // Calculate normalized position (centered on drag point)
-                        var normalizedX = (dragX - imageRect.origin.x) / imageRect.width - visibleRect.width / 2
-                        var normalizedY = (dragY - imageRect.origin.y) / imageRect.height - visibleRect.height / 2
-
-                        // Clamp to valid range (account for rect size)
-                        normalizedX = max(0, min(1 - visibleRect.width, normalizedX))
-                        normalizedY = max(0, min(1 - visibleRect.height, normalizedY))
-
-                        onRectangleDragged?(CGPoint(x: normalizedX, y: normalizedY))
-                    }
-                    .onEnded { _ in
-                        isDraggingRect = false
-                    }
+        RoundedRectangle(cornerRadius: 2)
+            .fill(Color.accentColor.opacity(fillOpacity))
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(Color.accentColor.opacity(strokeOpacity), lineWidth: strokeWidth)
             )
-            .onHover { hovering in
-                if hovering {
-                    NSCursor.openHand.push()
-                } else {
-                    NSCursor.pop()
-                }
+            .frame(width: size.width, height: size.height)
+            .position(center)
+            .allowsHitTesting(false)
+    }
+
+    // MARK: - Gestures
+
+    private func dragGesture(mapSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                isDragging = true
+                let newOrigin = normalizedOrigin(for: value.location, in: mapSize)
+                onRectangleDragged?(newOrigin)
             }
-        }
+            .onEnded { _ in
+                isDragging = false
+            }
+    }
+
+    // MARK: - Calculations
+
+    private func viewportSize(for mapSize: CGSize) -> CGSize {
+        CGSize(
+            width: max(Layout.minimumViewportSize, visibleRect.width * mapSize.width),
+            height: max(Layout.minimumViewportSize, visibleRect.height * mapSize.height)
+        )
+    }
+
+    private func viewportCenter(for mapSize: CGSize) -> CGPoint {
+        CGPoint(
+            x: (visibleRect.origin.x + visibleRect.width / 2) * mapSize.width,
+            y: (visibleRect.origin.y + visibleRect.height / 2) * mapSize.height
+        )
+    }
+
+    private func normalizedOrigin(for location: CGPoint, in mapSize: CGSize) -> CGPoint {
+        // Convert tap/drag location to normalized coordinates, centered on viewport
+        let normalizedX = (location.x / mapSize.width) - (visibleRect.width / 2)
+        let normalizedY = (location.y / mapSize.height) - (visibleRect.height / 2)
+
+        // Clamp to valid range (keep viewport within bounds)
+        return CGPoint(
+            x: normalizedX.clamped(to: 0...(1 - visibleRect.width)),
+            y: normalizedY.clamped(to: 0...(1 - visibleRect.height))
+        )
+    }
+}
+
+// MARK: - Comparable Extension
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

@@ -2,6 +2,22 @@ import SwiftUI
 
 // MARK: - Focused Values for Menu Commands
 
+/// Actions for image preview zoom controls
+struct ImageZoomActions {
+    let zoomIn: () -> Void
+    let zoomOut: () -> Void
+    let actualSize: () -> Void
+    let zoomToFit: () -> Void
+    let canZoomIn: Bool
+    let canZoomOut: Bool
+    let currentScale: CGFloat
+}
+
+/// FocusedValue key for image zoom actions
+struct ImageZoomActionsKey: FocusedValueKey {
+    typealias Value = ImageZoomActions
+}
+
 /// Actions that can be performed on the sidebar selection
 struct SidebarActions {
     let createFolder: () -> Void
@@ -51,6 +67,11 @@ struct SaveLibraryActionKey: FocusedValueKey {
 }
 
 extension FocusedValues {
+    var imageZoomActions: ImageZoomActionsKey.Value? {
+        get { self[ImageZoomActionsKey.self] }
+        set { self[ImageZoomActionsKey.self] = newValue }
+    }
+
     var sidebarActions: SidebarActionsKey.Value? {
         get { self[SidebarActionsKey.self] }
         set { self[SidebarActionsKey.self] = newValue }

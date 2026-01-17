@@ -21,8 +21,7 @@ struct ZoomableImagePreview: View {
     @State private var scale: CGFloat = 1.0
     @State private var minScale: CGFloat = 0.1
     @State private var maxScale: CGFloat = 10.0
-    @State private var cursorPosition: CGPoint = .zero
-    @State private var lastImagePosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Last position over image (not UI)
+    @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Current cursor position over image
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Position when locked
     @State private var imageSize: CGSize = .zero
     @State private var image: NSImage?
@@ -133,9 +132,6 @@ struct ZoomableImagePreview: View {
                             get: { CGFloat(loupeSize) },
                             set: { loupeSize = Double($0) }
                         ),
-                        onImagePositionChanged: { pos in
-                            lastImagePosition = pos
-                        },
                         coordinator: $imageCoordinator
                     )
 
@@ -157,8 +153,8 @@ struct ZoomableImagePreview: View {
                             isLocked: $magnifierLocked,
                             onLockToggle: {
                                 if !magnifierLocked {
-                                    // Locking - save current position
-                                    lockedPosition = lastImagePosition
+                                    // Locking - save the current magnifier position
+                                    lockedPosition = cursorPosition
                                 }
                                 magnifierLocked.toggle()
                             }
@@ -171,7 +167,6 @@ struct ZoomableImagePreview: View {
                 if let img = image, visibleRect.width < 0.99 || visibleRect.height < 0.99 || loupeEnabled {
                     NavigatorMiniMap(
                         image: img,
-                        cursorPosition: cursorPosition,
                         visibleRect: visibleRect,
                         onRectangleDragged: { normalizedOrigin in
                             imageCoordinator?.scrollToNormalizedPosition(normalizedOrigin)
@@ -219,7 +214,28 @@ struct ZoomableImagePreview: View {
             actualSize()
             return .handled
         }
+        .onChange(of: magnifierLocked) { wasLocked, isLocked in
+            if isLocked && !wasLocked {
+                // Locking via menu command - save current position
+                lockedPosition = cursorPosition
+            }
+        }
+        .onKeyPress(.init("9"), phases: .down) { _ in
+            fitToWindow()
+            return .handled
+        }
+        .focusedValue(\.imageZoomActions, ImageZoomActions(
+            zoomIn: zoomIn,
+            zoomOut: zoomOut,
+            actualSize: actualSize,
+            zoomToFit: fitToWindow,
+            canZoomIn: scale < maxScale,
+            canZoomOut: scale > minScale,
+            currentScale: scale
+        ))
     }
+
+    // MARK: - Zoom Actions
 
     private func zoomIn() {
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -234,8 +250,11 @@ struct ZoomableImagePreview: View {
     }
 
     private func fitToWindow() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scale = 1.0
+        // Calculate fit scale from coordinator if available
+        if let fitScale = imageCoordinator?.calculateFitScale() {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                scale = fitScale
+            }
         }
     }
 
@@ -261,7 +280,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     let loupeEnabled: Bool
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
-    var onImagePositionChanged: ((CGPoint) -> Void)?  // Called when cursor moves over image
     @Binding var coordinator: Coordinator?  // Exposed for external scroll control
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -299,8 +317,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         imageView.imageScaling = .scaleNone  // We'll handle sizing
         imageView.onCursorMoved = { normalizedPos in
             Task { @MainActor in
-                self.cursorPosition = normalizedPos
-                self.onImagePositionChanged?(normalizedPos)
+                // Only update if position is within bounds (clamp to valid range)
+                // This prevents edge artifacts when cursor leaves image area
+                let clampedPos = CGPoint(
+                    x: max(0, min(1, normalizedPos.x)),
+                    y: max(0, min(1, normalizedPos.y))
+                )
+                self.cursorPosition = clampedPos
             }
         }
         imageView.onLoupeMagnificationChanged = { newMag in
@@ -481,20 +504,17 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                   let imageView = imageView as? NSImageView,
                   let image = imageView.image else { return }
 
-            let imageSize = image.size
-            let magnification = scrollView.magnification
-
-            // Calculate scaled image size
-            let scaledWidth = imageSize.width * magnification
-            let scaledHeight = imageSize.height * magnification
-
-            // Convert normalized position to document coordinates
+            // Convert normalized position to document (image) coordinates
             // normalizedOrigin is the top-left corner in normalized space (0-1, top-left origin)
-            let docX = normalizedOrigin.x * scaledWidth
-            // NSScrollView uses bottom-left origin, so convert from top-left
-            // The top of the visible rect in NSScrollView should be at: (1-normalizedY) * scaledHeight
-            // The bottom (origin) is: top - visibleHeight
-            let docY = (1.0 - normalizedOrigin.y) * scaledHeight - scrollView.contentView.bounds.height
+            let imageSize = image.size
+
+            // X: No flip needed (both use left-to-right)
+            let docX = normalizedOrigin.x * imageSize.width
+
+            // Y: Flip back (minimap top → NSScrollView bottom)
+            // We need the visible height in document coordinates
+            let visibleHeightInDocCoords = scrollView.contentView.documentVisibleRect.height
+            let docY = (1.0 - normalizedOrigin.y) * imageSize.height - visibleHeightInDocCoords
 
             let targetPoint = CGPoint(x: docX, y: docY)
             scrollView.contentView.scroll(to: targetPoint)
@@ -506,24 +526,24 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                   let imageView = imageView as? NSImageView,
                   let image = imageView.image else { return }
 
+            // documentVisibleRect is in document (image) coordinates, not screen coordinates
+            // So we normalize against the image size, not the scaled/displayed size
             let visibleRect = scrollView.contentView.documentVisibleRect
             let imageSize = image.size
-            let magnification = scrollView.magnification
 
-            // Calculate scaled image size
-            let scaledWidth = imageSize.width * magnification
-            let scaledHeight = imageSize.height * magnification
+            // Calculate normalized visible rect (0-1 range) using image size
+            let normalizedWidth = min(1.0, visibleRect.width / imageSize.width)
+            let normalizedHeight = min(1.0, visibleRect.height / imageSize.height)
 
-            // Calculate normalized visible rect (0-1 range)
-            let normalizedX = visibleRect.origin.x / scaledWidth
-            let normalizedWidth = min(1.0, visibleRect.width / scaledWidth)
-            let normalizedHeight = min(1.0, visibleRect.height / scaledHeight)
+            // NSScrollView coordinate system vs Minimap:
+            // - X: Both use left-to-right, no flip needed
+            // - Y: NSScrollView uses bottom-left origin (Y increases upward), minimap uses top-left (Y increases downward)
 
-            // NSScrollView uses bottom-left origin (Y increases upward)
-            // Minimap uses top-left origin (Y increases downward)
-            // The TOP of the visible rect in NSScrollView is: origin.y + height
-            // In normalized coords: 1.0 - (top in NSScrollView) / scaledHeight
-            let normalizedY = 1.0 - (visibleRect.origin.y + visibleRect.height) / scaledHeight
+            // X: No flip needed
+            let normalizedX = visibleRect.origin.x / imageSize.width
+
+            // Flip Y: The TOP edge in NSScrollView should map to TOP edge in minimap
+            let normalizedY = 1.0 - (visibleRect.origin.y + visibleRect.height) / imageSize.height
 
             let rect = CGRect(
                 x: max(0, min(1 - normalizedWidth, normalizedX)),
@@ -533,6 +553,23 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             )
 
             onVisibleRectChanged?(rect)
+        }
+
+        /// Calculate the scale needed to fit the image in the scroll view
+        func calculateFitScale() -> CGFloat? {
+            guard let scrollView = scrollView,
+                  let imageView = imageView as? NSImageView,
+                  let image = imageView.image else { return nil }
+
+            let viewSize = scrollView.bounds.size
+            guard viewSize.width > 0, viewSize.height > 0 else { return nil }
+
+            let imageSize = image.size
+            let scaleX = viewSize.width / imageSize.width
+            let scaleY = viewSize.height / imageSize.height
+
+            // Fit scale is the minimum of x/y scales, capped at 1.0 (don't upscale)
+            return min(scaleX, scaleY, 1.0)
         }
     }
 }
