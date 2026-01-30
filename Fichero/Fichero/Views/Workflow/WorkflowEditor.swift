@@ -37,10 +37,14 @@ struct WorkflowEditor: View {
     @State private var diagramLoading: Bool = false
     @State private var diagramError: String?
 
+    // Document picker state
+    @State private var showDocumentPicker: Bool = false
+
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @EnvironmentObject var documentStore: DocumentStore
+    @EnvironmentObject var libraryManager: LibraryManager
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -80,6 +84,9 @@ struct WorkflowEditor: View {
                         await saveWorkflow()
                         showDiagramPreview = true
                     }
+                },
+                onRunOnDocuments: {
+                    showDocumentPicker = true
                 }
             )
 
@@ -151,6 +158,14 @@ struct WorkflowEditor: View {
                 workflowName: editingWorkflow.name,
                 isPresented: $showDiagramPreview
             )
+        }
+        .sheet(isPresented: $showDocumentPicker) {
+            DocumentPickerSheet(
+                workflowId: editingWorkflow.id,
+                workflowName: editingWorkflow.name
+            )
+            .environmentObject(libraryManager)
+            .environmentObject(documentStore)
         }
     }
 

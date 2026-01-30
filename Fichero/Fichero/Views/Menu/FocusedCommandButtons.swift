@@ -70,6 +70,11 @@ struct SaveLibraryActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for running a workflow on selected documents
+struct RunWorkflowOnSelectionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
@@ -104,6 +109,11 @@ extension FocusedValues {
     var saveLibraryAction: SaveLibraryActionKey.Value? {
         get { self[SaveLibraryActionKey.self] }
         set { self[SaveLibraryActionKey.self] = newValue }
+    }
+
+    var runWorkflowOnSelection: RunWorkflowOnSelectionKey.Value? {
+        get { self[RunWorkflowOnSelectionKey.self] }
+        set { self[RunWorkflowOnSelectionKey.self] = newValue }
     }
 }
 
@@ -334,5 +344,18 @@ struct FocusedNewTriggerButton: View {
             sidebarActions?.createTrigger()
         }
         .disabled(sidebarActions == nil)
+    }
+}
+
+/// Button that runs a workflow on selected documents
+struct FocusedRunWorkflowOnSelectionButton: View {
+    @FocusedValue(\.runWorkflowOnSelection) private var runWorkflowOnSelection
+
+    var body: some View {
+        Button("Run Workflow on Selection...") {
+            runWorkflowOnSelection?()
+        }
+        .keyboardShortcut("r", modifiers: [.command, .shift])
+        .disabled(runWorkflowOnSelection == nil)
     }
 }

@@ -107,6 +107,10 @@ struct FicheroApp: App {
                 FocusedNewScheduleButton()
 
                 FocusedNewTriggerButton()
+
+                Divider()
+
+                FocusedRunWorkflowOnSelectionButton()
             }
 
             // Edit menu

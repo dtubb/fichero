@@ -18,6 +18,7 @@ struct WorkflowToolbar: View {
     let onExport: () -> Void
     let onResetZoom: () -> Void
     var onPreviewDiagram: (() -> Void)? = nil
+    var onRunOnDocuments: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -88,6 +89,17 @@ struct WorkflowToolbar: View {
                     }
                     .help("Preview LangGraph Diagram")
                 }
+
+                // Run on Documents button
+                if let onRunDocs = onRunOnDocuments {
+                    Button(action: onRunDocs) {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .help("Run on Documents...")
+                }
+
+                Divider()
+                    .frame(height: 20)
 
                 // Run button
                 Button(action: onRun) {

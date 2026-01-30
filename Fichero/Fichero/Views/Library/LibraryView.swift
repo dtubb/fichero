@@ -35,6 +35,12 @@ struct LibraryView: View {
         .init(\.name, order: .forward)
     ]
 
+    // Workflow picker state
+    @State private var showWorkflowPicker = false
+    @State private var selectedDocumentIdsForBatch: [String] = []
+
+    @EnvironmentObject var libraryManager: LibraryManager
+
     // Column visibility for Table view
     @AppStorage("column_name") private var showName = true
     @AppStorage("column_status") private var showStatus = true
@@ -116,6 +122,21 @@ struct LibraryView: View {
             }
         }
         .searchable(text: $searchText, prompt: "Search documents")
+        .sheet(isPresented: $showWorkflowPicker) {
+            WorkflowPickerSheet(
+                selectedDocumentIds: selectedDocumentIdsForBatch,
+                onSelect: { workflowId in
+                    Task {
+                        await runBatchWorkflow(workflowId: workflowId)
+                    }
+                }
+            )
+            .environmentObject(libraryManager)
+        }
+        .focusedSceneValue(\.runWorkflowOnSelection, selection.count >= 2 ? {
+            selectedDocumentIdsForBatch = Array(selection)
+            showWorkflowPicker = true
+        } : nil)
     }
 }
 
@@ -157,6 +178,9 @@ extension LibraryView {
                     .onTapGesture(count: 2) {
                         detailDocument = doc
                     }
+                    .contextMenu {
+                        documentContextMenu(for: doc)
+                    }
                 }
             }
             .padding()
@@ -177,6 +201,9 @@ extension LibraryView {
                     .onTapGesture(count: 2) {
                         detailDocument = doc
                     }
+                    .contextMenu {
+                        documentContextMenu(for: doc)
+                    }
             }
         }
         .listStyle(.plain)
@@ -194,6 +221,12 @@ extension LibraryView {
             }
         }
         .tableStyle(.inset)
+        .contextMenu(forSelectionType: String.self) { items in
+            if let firstId = items.first,
+               let doc = filteredDocuments.first(where: { $0.id == firstId }) {
+                documentContextMenu(for: doc)
+            }
+        }
         .onTapGesture(count: 2) {
             if let firstId = selection.first,
                let doc = filteredDocuments.first(where: { $0.id == firstId }) {
@@ -229,6 +262,9 @@ extension LibraryView {
                                 mapPositions[doc.id] = value.location
                             }
                     )
+                    .contextMenu {
+                        documentContextMenu(for: doc)
+                    }
                 }
             }
         }
@@ -370,6 +406,98 @@ extension LibraryView {
         showCreatedDate = true
         showModifiedDate = false
         showSize = false
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private func documentContextMenu(for document: Document) -> some View {
+        // Only show "Run Workflow..." if 2+ documents are selected
+        if selection.count >= 2 {
+            Button {
+                selectedDocumentIdsForBatch = Array(selection)
+                showWorkflowPicker = true
+            } label: {
+                Label("Run Workflow...", systemImage: "flowchart")
+            }
+        }
+    }
+
+    // MARK: - Batch Execution
+
+    @MainActor
+    private func runBatchWorkflow(workflowId: String) async {
+        guard !selectedDocumentIdsForBatch.isEmpty else { return }
+
+        // Create batch items - one per document
+        let batchItems: [[String: AnyCodableValue]] = selectedDocumentIdsForBatch.map { documentId in
+            ["document_id": .string(documentId)]
+        }
+
+        // Get API client from environment
+        guard let globalLibrary = libraryManager.globalLibrary else {
+            print("Error: No global library available")
+            return
+        }
+
+        // Create batch request payload
+        let requestBody: [String: Any] = [
+            "workflow_id": workflowId,
+            "items": batchItems.map { item in
+                item.mapValues { value in
+                    switch value {
+                    case .string(let str): return str
+                    case .int(let int): return int
+                    case .double(let double): return double
+                    case .bool(let bool): return bool
+                    case .array(let arr): return arr
+                    case .dictionary(let dict): return dict
+                    case .null: return NSNull()
+                    }
+                }
+            },
+            "max_concurrent": 5
+        ]
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
+
+            // Make direct HTTP request to batch API
+            guard let url = URL(string: "http://localhost:8765/api/batches") else {
+                print("Error: Invalid URL")
+                return
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = jsonData
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("Error: Invalid response")
+                return
+            }
+
+            if httpResponse.statusCode == 200 {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let batchId = json["batch_id"] as? String {
+                    print("Created batch: \(batchId) with \(selectedDocumentIdsForBatch.count) items")
+                    // TODO: Navigate to batches sidebar and execute batch with SSE streaming
+                    // This would be done via a BatchService similar to ChainService
+                } else {
+                    print("Created batch with \(selectedDocumentIdsForBatch.count) items")
+                }
+            } else {
+                print("Error: HTTP \(httpResponse.statusCode)")
+                if let errorText = String(data: data, encoding: .utf8) {
+                    print("Error details: \(errorText)")
+                }
+            }
+        } catch {
+            print("Error creating batch: \(error.localizedDescription)")
+        }
     }
 }
 
