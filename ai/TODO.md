@@ -645,3 +645,32 @@
     - WorkflowTypes.swift (~350 lines of manual types)
     - GeneratedTypeExtensions.swift (simplify to minimal extensions)
   - Blocked until TODO-125 regenerates OpenAPI spec with correct types
+
+### Sidebar UX Improvements (P1)
+- [ ] TODO-127: Universal Creation - Enable All Create Commands Everywhere (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Allow all item creation commands to work from any sidebar mode, automatically switching modes
+  - Files: SidebarView.swift, SidebarViewExtensions.swift, FocusedCommandButtons.swift, FicheroApp.swift
+  - Status: Planned - task.md and context.md created
+
+- [ ] TODO-128: Flatten Automation Sidebar - Remove Folder Structure (P1, Medium)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Remove disclosure groups and inline + buttons, use flat list with icons like other sidebars
+  - Files: AutomationSidebarContent.swift
+  - Status: Planned - task.md and context.md created
+
+- [ ] TODO-129: Add Folder Support to Workflows Sidebar (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Enable folder organization in Workflows sidebar (backend folderPath already exists)
+  - Files: SidebarItemBuilder.swift, WorkflowsSidebarContent.swift, WorkflowStore.swift
+  - Status: Planned - task.md and context.md created
+
+- [ ] TODO-130: Implement Contextual Batch Triggering (P1, High)
+  - Category: Frontend, Backend
+  - Depends on: None
+  - Description: Add context menu, toolbar button, and menu item to trigger batch workflow execution
+  - Files: DocumentBrowserView.swift, WorkflowDetailView.swift, FicheroApp.swift, WorkflowPickerSheet.swift
+  - Status: Planned - task.md and context.md created
