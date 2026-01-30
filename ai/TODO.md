@@ -584,6 +584,14 @@
   - Audit: WorkflowLibraryView, WorkflowDetailView, ChainDetailView
   - Fix: Replace @StateObject var workflowService with workflowServiceGenerated
 
+- [x] TODO-131: Fix Workflow Nodes to Inherit AI Settings Defaults (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: New workflow nodes weren't using AI Settings defaults (provider/model)
+  - Fix: Added AppState to WorkflowCanvasView, created getDefaultsForCategory() to map tool categories to AI defaults, updated WorkflowNode.init(from:) to accept provider/model
+  - Files: WorkflowCanvasView.swift, WorkflowCanvasView+DropHandling.swift, WorkflowTypes.swift
+  - Status: Completed - New nodes now inherit correct defaults based on tool category (audio→audioProvider/Model, vision→visionProvider/Model, etc.)
+
 ### Phase 10D: Frontend-Backend Sync Tests (P1, High)
 - [ ] TODO-116: Add Contract Tests for Generated Types (P1, High)
   - Category: Infrastructure
