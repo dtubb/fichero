@@ -139,8 +139,8 @@ struct DocumentPickerSheet: View {
         // Create batch request payload
         let requestBody: [String: Any] = [
             "workflow_id": workflowId,
-            "items": batchItems.map { item in
-                item.mapValues { value in
+            "items": batchItems.map { item -> [String: Any] in
+                item.mapValues { value -> Any in
                     switch value {
                     case .string(let str): return str
                     case .int(let int): return int
