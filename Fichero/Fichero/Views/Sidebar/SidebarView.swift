@@ -598,6 +598,7 @@ extension SidebarView {
                     folderPath: savedSearch.folderPath,
                     sortOrder: savedSearch.sortOrder
                 )
+                sidebarMode = .search  // Switch to search sidebar
                 viewMode = .search(newSearch)
             } catch {
                 logger.error("Failed to create search: \(error.localizedDescription)")
@@ -641,6 +642,7 @@ extension SidebarView {
 
                 // Select the new chat
                 selectedItemId = "chat:\(newConv.id)"
+                sidebarMode = .chat  // Switch to chat sidebar
                 viewMode = .chat(newConv)
                 logger.info("Created new chat: \(newConv.id)")
 
@@ -685,6 +687,7 @@ extension SidebarView {
                     updatedAt: Date()
                 )
                 selectedItemId = "workflow:\(workflowItem.id)"
+                sidebarMode = .workflows  // Switch to workflows sidebar
                 viewMode = .workflow(workflowItem)
                 logger.info("Created new workflow: \(workflowItem.id)")
             } catch {

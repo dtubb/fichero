@@ -27,10 +27,10 @@ struct SidebarActions {
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
-    let createChain: (() -> Void)?
-    let createComparison: (() -> Void)?
-    let createSchedule: (() -> Void)?
-    let createTrigger: (() -> Void)?
+    let createChain: () -> Void          // No longer optional
+    let createComparison: () -> Void     // No longer optional
+    let createSchedule: () -> Void       // No longer optional
+    let createTrigger: () -> Void        // No longer optional
 }
 
 /// Information about the current sidebar selection
@@ -295,9 +295,9 @@ struct FocusedNewChainButton: View {
 
     var body: some View {
         Button("New Chain") {
-            sidebarActions?.createChain?()
+            sidebarActions?.createChain()
         }
-        .disabled(sidebarActions?.createChain == nil)
+        .disabled(sidebarActions == nil)
     }
 }
 
@@ -307,9 +307,9 @@ struct FocusedNewComparisonButton: View {
 
     var body: some View {
         Button("New Comparison") {
-            sidebarActions?.createComparison?()
+            sidebarActions?.createComparison()
         }
-        .disabled(sidebarActions?.createComparison == nil)
+        .disabled(sidebarActions == nil)
     }
 }
 
@@ -319,9 +319,9 @@ struct FocusedNewScheduleButton: View {
 
     var body: some View {
         Button("New Schedule") {
-            sidebarActions?.createSchedule?()
+            sidebarActions?.createSchedule()
         }
-        .disabled(sidebarActions?.createSchedule == nil)
+        .disabled(sidebarActions == nil)
     }
 }
 
@@ -331,8 +331,8 @@ struct FocusedNewTriggerButton: View {
 
     var body: some View {
         Button("New Trigger") {
-            sidebarActions?.createTrigger?()
+            sidebarActions?.createTrigger()
         }
-        .disabled(sidebarActions?.createTrigger == nil)
+        .disabled(sidebarActions == nil)
     }
 }

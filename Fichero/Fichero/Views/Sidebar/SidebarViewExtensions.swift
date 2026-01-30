@@ -217,10 +217,10 @@ struct SidebarFocusedValuesConfig {
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
-    var createChain: (() -> Void)?
-    var createComparison: (() -> Void)?
-    var createSchedule: (() -> Void)?
-    var createTrigger: (() -> Void)?
+    let createChain: () -> Void          // No longer optional
+    let createComparison: () -> Void     // No longer optional
+    let createSchedule: () -> Void       // No longer optional
+    let createTrigger: () -> Void        // No longer optional
 }
 
 extension View {
