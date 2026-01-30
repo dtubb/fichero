@@ -447,12 +447,12 @@ extension LibraryView {
                 item.mapValues { value in
                     switch value {
                     case .string(let str): return str
-                    case .int(let int): return int
-                    case .double(let double): return double
-                    case .bool(let bool): return bool
-                    case .array(let arr): return arr
-                    case .dictionary(let dict): return dict
-                    case .null: return NSNull()
+                    case .int(let int): return String(int)
+                    case .double(let double): return String(double)
+                    case .bool(let bool): return String(bool)
+                    case .array(let arr): return String(describing: arr)
+                    case .dictionary(let dict): return String(describing: dict)
+                    case .null: return "null"
                     }
                 }
             },

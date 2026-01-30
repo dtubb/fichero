@@ -316,7 +316,16 @@ class ActivityServiceGenerated {
 
     /// Convert generated workflow run to app type
     private func convertToWorkflowRun(_ response: Components.Schemas.WorkflowRunResponse) -> WorkflowRunResponse {
-        WorkflowRunResponse(
+        // Extract workflow snapshot from OpenAPI Payload wrapper
+        let workflowSnapshot: [String: Any]? = response.workflowSnapshot?.additionalProperties.value as? [String: Any]
+
+        // Extract node name map from OpenAPI Payload wrapper
+        let nodeNameMap: [String: String]? = response.nodeNameMap?.additionalProperties
+
+        // Extract progress timeline from OpenAPI Payload wrapper
+        let progressTimeline: [String: Any]? = response.progressTimeline?.additionalProperties.value as? [String: Any]
+
+        return WorkflowRunResponse(
             threadId: response.threadId,
             workflowId: response.workflowId,
             workflowName: response.workflowName,
@@ -326,7 +335,11 @@ class ActivityServiceGenerated {
             startedAt: response.startedAt,
             completedAt: response.completedAt,
             durationMs: response.durationMs,
-            error: response.error
+            error: response.error,
+            workflowSnapshot: workflowSnapshot,
+            nodeNameMap: nodeNameMap,
+            progressTimeline: progressTimeline,
+            diagramMermaid: response.diagramMermaid
         )
     }
 }

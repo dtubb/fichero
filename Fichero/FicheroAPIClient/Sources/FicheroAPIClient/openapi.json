@@ -4619,6 +4619,56 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/diagram.png": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Thread Diagram Png",
+        "description": "Get workflow diagram PNG from workflow run snapshot.\n\nThis endpoint generates a diagram from the saved workflow snapshot,\nwhich means it works even if the original workflow definition was deleted.\n\nArgs:\n    thread_id: Thread ID of the workflow run\n\nReturns:\n    PNG image of the workflow diagram\n\nRaises:\n    404: Run not found or no snapshot available\n    500: Failed to generate diagram",
+        "operationId": "get_thread_diagram_png_api_workflow_execution_threads__thread_id__diagram_png_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/cache/stats": {
       "get": {
         "tags": [
@@ -15809,6 +15859,31 @@
             "type": "string",
             "nullable": true,
             "title": "Error"
+          },
+          "workflow_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Workflow Snapshot"
+          },
+          "node_name_map": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Node Name Map"
+          },
+          "progress_timeline": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Progress Timeline"
+          },
+          "diagram_mermaid": {
+            "type": "string",
+            "nullable": true,
+            "title": "Diagram Mermaid"
           }
         },
         "type": "object",

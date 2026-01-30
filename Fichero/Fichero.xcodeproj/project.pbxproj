@@ -73,7 +73,6 @@
 		A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */; };
 		A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */; };
 		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
-		AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
 		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
 		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
 		A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */; };
@@ -163,6 +162,8 @@
 		A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */; };
 		A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */; };
 		A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */; };
+		A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */; };
+		A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */; };
 		A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D792F0420310023093C /* AIModelCatalog.swift */; };
 		A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7C2F0420930023093C /* ChatInspector.swift */; };
 		A1FB1D812F0420A90023093C /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7F2F0420A90023093C /* LibraryView.swift */; };
@@ -176,6 +177,7 @@
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
 		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
 		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
+		AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
 		B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E04EE1958EB4E23A7E1E328 /* WindowState.swift */; };
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
 		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
@@ -275,7 +277,6 @@
 		A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerRow.swift; sourceTree = "<group>"; };
 		A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionRow.swift; sourceTree = "<group>"; };
 		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
-		AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTypes.swift; sourceTree = "<group>"; };
 		A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCodeView.swift; sourceTree = "<group>"; };
 		A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityConsoleView.swift; sourceTree = "<group>"; };
@@ -367,6 +368,8 @@
 		A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewToolbar.swift; sourceTree = "<group>"; };
 		A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutMode.swift; sourceTree = "<group>"; };
+		A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerSheet.swift; sourceTree = "<group>"; };
+		A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPickerSheet.swift; sourceTree = "<group>"; };
 		A1FB1D792F0420310023093C /* AIModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelCatalog.swift; sourceTree = "<group>"; };
 		A1FB1D7C2F0420930023093C /* ChatInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInspector.swift; sourceTree = "<group>"; };
 		A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspector.swift; sourceTree = "<group>"; };
@@ -379,6 +382,7 @@
 		A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarStateManagers.swift; sourceTree = "<group>"; };
 		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
+		AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceGenerated.swift; sourceTree = "<group>"; };
 		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
 		FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatchDetailView.swift; sourceTree = "<group>"; };
@@ -476,6 +480,7 @@
 				4111 /* Sidebar */,
 				A1BFB4102F057C4000EAA55A /* Toolbars */,
 				4116 /* Workflow */,
+				A1D8BCE72F2CD054006D91D7 /* Sheets */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -805,6 +810,15 @@
 			path = Utilities;
 			sourceTree = "<group>";
 		};
+		A1D8BCE72F2CD054006D91D7 /* Sheets */ = {
+			isa = PBXGroup;
+			children = (
+				A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */,
+				A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */,
+			);
+			path = Sheets;
+			sourceTree = "<group>";
+		};
 		A1FB1D7A2F0420310023093C /* AIProviders */ = {
 			isa = PBXGroup;
 			children = (
@@ -1007,6 +1021,8 @@
 				A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */,
 				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
+				A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */,
+				A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */,
 				838 /* PerformanceService.swift in Sources */,
 				840 /* ErrorService.swift in Sources */,
 				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,

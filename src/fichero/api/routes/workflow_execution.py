@@ -185,6 +185,7 @@ async def _run_workflow_in_background(
     start_time = datetime.utcnow()
     node_start_times: dict[str, datetime] = {}
     execution_log_lines: list[str] = []  # Collect execution logs
+    progress_timeline: dict[str, Any] = {"nodes": {}, "steps": []}  # Capture progress for historical viewing
 
     async def log_execution(message: str) -> None:
         """Log a message to both console and execution log, and stream via SSE."""
@@ -278,19 +279,64 @@ async def _run_workflow_in_background(
         await log_execution(f"Generating Python code for workflow")
         python_code = _generate_workflow_python_code(workflow)
 
-        # Save workflow run with Python code
+        # Create workflow snapshot for historical visualization (even if workflow is deleted)
+        await log_execution(f"Creating workflow snapshot")
+        workflow_snapshot = {
+            "nodes": [
+                {"id": n["id"], "tool": n["tool"], "label": n.get("label", "")}
+                for n in workflow.nodes
+            ],
+            "edges": [
+                {"source": e.get("source") or e.get("source_node_id", ""),
+                 "target": e.get("target") or e.get("target_node_id", "")}
+                for e in workflow.edges
+            ]
+        }
+
+        # Build node name mapping (UUID → readable name)
+        await log_execution(f"Building node name mapping")
+        node_name_map = {}
+        name_counts = {}
+        for node in workflow.nodes:
+            node_id = node["id"]
+            base_name = node.get("label") or node["tool"].replace("_", " ").title()
+
+            # Handle duplicate names with numbering
+            if base_name in name_counts:
+                name_counts[base_name] += 1
+                unique_name = f"{base_name} {name_counts[base_name]}"
+            else:
+                name_counts[base_name] = 1
+                unique_name = base_name
+
+            node_name_map[node_id] = unique_name
+
+        # Generate Mermaid diagram for historical viewing
+        await log_execution(f"Generating workflow diagram")
+        try:
+            app_preview = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+            diagram_mermaid = app_preview.get_graph().draw_mermaid()
+        except Exception as e:
+            logger.warning(f"Could not generate diagram: {e}")
+            diagram_mermaid = None
+
+        # Save workflow run with all metadata
         await activity_tracker.store.save_workflow_run(
             thread_id=thread_id,
             workflow_id=workflow_id,
             workflow_name=workflow.name,
             python_code=python_code,
+            workflow_snapshot=workflow_snapshot,
+            node_name_map=node_name_map,
+            diagram_mermaid=diagram_mermaid,
             started_at=start_time,
         )
-        await log_execution(f"Saved workflow run record")
+        await log_execution(f"Saved workflow run record with snapshot")
 
         # Create event callback for parallel processing events
         async def emit_parallel_event(event_type: str, data: dict) -> None:
             """Callback to emit SSE events from parallel node processing."""
+            # Emit SSE event (existing behavior)
             await event_queue.put(SSEEvent(
                 event=event_type,
                 thread_id=thread_id,
@@ -302,6 +348,68 @@ async def _run_workflow_in_background(
                 progress=data.get("progress"),
                 data={"error": data.get("error")} if data.get("error") else {},
             ))
+
+            # Capture file-level timeline for historical viewing and log to console
+            if event_type == "file_start":
+                file_index = data.get("file_index", 0)
+                file_total = data.get("file_total", 0)
+                file_path = data.get("file_path", "")
+                # Extract just the filename for cleaner logging
+                file_name = file_path.split("/")[-1] if file_path else "unknown"
+                await log_execution(f"  Processing file {file_index}/{file_total}: {file_name}")
+
+                progress_timeline["steps"].append({
+                    "type": "file",
+                    "node_id": data.get("node_id", ""),
+                    "file_path": file_path,
+                    "file_index": file_index,
+                    "file_total": file_total,
+                    "started_at": datetime.utcnow().isoformat(),
+                    "status": "running"
+                })
+            elif event_type == "file_complete":
+                file_index = data.get("file_index", 0)
+                file_total = data.get("file_total", 0)
+                file_path = data.get("file_path", "")
+                file_name = file_path.split("/")[-1] if file_path else "unknown"
+
+                # Find and update the matching file entry
+                duration_ms = 0
+                for entry in reversed(progress_timeline["steps"]):
+                    if (entry.get("type") == "file" and
+                        entry.get("file_path") == file_path and
+                        entry.get("status") == "running"):
+                        entry["completed_at"] = datetime.utcnow().isoformat()
+                        entry["status"] = "success"
+                        # Calculate duration
+                        start = datetime.fromisoformat(entry["started_at"])
+                        duration_ms = (datetime.utcnow() - start).total_seconds() * 1000
+                        entry["duration_ms"] = duration_ms
+                        break
+
+                await log_execution(f"  File {file_index}/{file_total} completed: {file_name} ({duration_ms:.0f}ms)")
+            elif event_type == "file_error":
+                file_path = data.get("file_path", "")
+                file_name = file_path.split("/")[-1] if file_path else "unknown"
+                error_msg = data.get("error", "Unknown error")
+                await log_execution(f"  ERROR processing {file_name}: {error_msg}")
+
+                # Find and update the matching file entry
+                for entry in reversed(progress_timeline["steps"]):
+                    if (entry.get("type") == "file" and
+                        entry.get("file_path") == file_path and
+                        entry.get("status") == "running"):
+                        entry["completed_at"] = datetime.utcnow().isoformat()
+                        entry["status"] = "error"
+                        entry["error"] = error_msg
+                        break
+            elif event_type == "parallel_complete":
+                # Save aggregate stats for the node
+                progress_timeline["nodes"][data.get("node_id", "")] = {
+                    "total_files": data.get("total", 0),
+                    "success_count": data.get("success_count", 0),
+                    "error_count": data.get("error_count", 0)
+                }
 
         # Build graph with parallel execution support, event callback, and checkpointer
         app = build_graph(
@@ -372,6 +480,13 @@ async def _run_workflow_in_background(
                         node_id=original_id,
                         node_name=original_id,
                     )
+
+                    # Capture node start to progress timeline
+                    progress_timeline["steps"].append({
+                        "node_id": original_id,
+                        "started_at": datetime.utcnow().isoformat(),
+                        "status": "running"
+                    })
 
                     await event_queue.put(SSEEvent(
                         event="node_begin",
@@ -464,6 +579,21 @@ async def _run_workflow_in_background(
                         **activity_metadata,
                     )
 
+                    # Update progress timeline with node completion
+                    for entry in reversed(progress_timeline["steps"]):
+                        if (entry.get("node_id") == original_id and
+                            entry.get("status") == "running" and
+                            entry.get("type") is None):  # Only update node steps, not file steps
+                            entry["completed_at"] = datetime.utcnow().isoformat()
+                            entry["status"] = "success"
+                            entry["duration_ms"] = node_duration_ms
+                            # Add metadata
+                            if "files_processed" in activity_metadata:
+                                entry["files_processed"] = activity_metadata["files_processed"]
+                            if "artifacts_created" in activity_metadata:
+                                entry["artifacts_created"] = activity_metadata["artifacts_created"]
+                            break
+
                     await event_queue.put(SSEEvent(
                         event="node_end",
                         thread_id=thread_id,
@@ -529,12 +659,13 @@ async def _run_workflow_in_background(
 
         await log_execution(f"Workflow completed successfully in {total_duration_ms:.0f}ms")
 
-        # Save execution log to workflow run
+        # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="completed",
             execution_log=execution_log,
+            progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             completed_at=datetime.utcnow(),
         )
@@ -571,12 +702,13 @@ async def _run_workflow_in_background(
             duration_ms=total_duration_ms,
         )
 
-        # Save execution log to workflow run
+        # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="failed",
             execution_log=execution_log,
+            progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
             completed_at=datetime.utcnow(),
@@ -613,12 +745,13 @@ async def _run_workflow_in_background(
             duration_ms=total_duration_ms,
         )
 
-        # Save execution log to workflow run
+        # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="failed",
             execution_log=execution_log,
+            progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             error=str(e),
             completed_at=datetime.utcnow(),
@@ -998,9 +1131,18 @@ async def get_thread_history(
         workflow = store.get(workflow_id) if workflow_id != "unknown" else None
         workflow_name = workflow.name if workflow else "Unknown"
 
-        # Build node name mapping (UUID -> readable name) from workflow
+        # Try to get saved node name mapping from workflow run first
+        activity_tracker = get_activity_tracker(str(db.path))
+        run = await activity_tracker.store.get_workflow_run(thread_id)
         node_names: dict[str, str] = {}
-        if workflow:
+
+        if run and run.get("node_name_map"):
+            # Use saved mapping (works even if workflow was deleted)
+            node_names = run["node_name_map"]
+            logger.info(f"Using saved node name mapping for thread {thread_id}")
+        elif workflow:
+            # Fallback: build from workflow definition
+            logger.info(f"Building node name mapping from workflow definition for thread {thread_id}")
             name_counts: dict[str, int] = {}
             for node in workflow.nodes:
                 node_id = node.get("id", "")
@@ -1016,6 +1158,9 @@ async def get_thread_history(
                     unique_name = base_name
 
                 node_names[node_id] = unique_name
+        else:
+            # No mapping available - UUIDs will be shown
+            logger.warning(f"No node name mapping available for thread {thread_id}")
 
         def _translate_node_name(raw_name: str | None) -> str | None:
             """Translate a raw node ID/name to human-readable name."""
@@ -2019,6 +2164,11 @@ class WorkflowRunResponse(BaseModel):
     completed_at: str | None = None
     duration_ms: float | None = None
     error: str | None = None
+    # New fields for historical visualization
+    workflow_snapshot: dict | None = None
+    node_name_map: dict[str, str] | None = None
+    progress_timeline: dict | None = None
+    diagram_mermaid: str | None = None
 
 
 @router.get("/threads/{thread_id}/run")
@@ -2062,12 +2212,105 @@ async def get_workflow_run(
             completed_at=run.get("completed_at"),  # Already ISO string from activity.py
             duration_ms=run.get("duration_ms"),
             error=run.get("error"),
+            # New fields for historical visualization
+            workflow_snapshot=run.get("workflow_snapshot"),
+            node_name_map=run.get("node_name_map"),
+            progress_timeline=run.get("progress_timeline"),
+            diagram_mermaid=run.get("diagram_mermaid"),
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.exception(f"Failed to get workflow run for thread {thread_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/threads/{thread_id}/diagram.png")
+async def get_thread_diagram_png(
+    thread_id: str,
+    db: Database = Depends(get_library_database),
+) -> Response:
+    """
+    Get workflow diagram PNG from workflow run snapshot.
+
+    This endpoint generates a diagram from the saved workflow snapshot,
+    which means it works even if the original workflow definition was deleted.
+
+    Args:
+        thread_id: Thread ID of the workflow run
+
+    Returns:
+        PNG image of the workflow diagram
+
+    Raises:
+        404: Run not found or no snapshot available
+        500: Failed to generate diagram
+    """
+    try:
+        from fichero.workflows.builder import build_graph
+        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+
+        activity_tracker = get_activity_tracker(str(db.path))
+        run = await activity_tracker.store.get_workflow_run(thread_id)
+
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow run not found: {thread_id}"
+            )
+
+        workflow_snapshot = run.get("workflow_snapshot")
+        if not workflow_snapshot:
+            raise HTTPException(
+                status_code=404,
+                detail="No workflow snapshot available for this run"
+            )
+
+        # Rebuild workflow definition from snapshot
+        workflow_def = WorkflowDef(
+            id=run["workflow_id"],
+            name=run["workflow_name"],
+            description="",
+            provider="",
+            model="",
+            nodes=[
+                NodeDef(
+                    id=n["id"],
+                    tool=n["tool"],
+                    label=n.get("label", ""),
+                    inputs={},
+                    config={},
+                )
+                for n in workflow_snapshot["nodes"]
+            ],
+            edges=[
+                EdgeDef(
+                    source=e["source"],
+                    target=e["target"],
+                    source_port="output",
+                    target_port="input",
+                )
+                for e in workflow_snapshot["edges"]
+            ],
+        )
+
+        # Build graph and generate PNG
+        app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+        png_bytes = app.get_graph().draw_mermaid_png()
+
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f'inline; filename="{run["workflow_name"]}.png"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate diagram for thread {thread_id}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -42,7 +42,7 @@ struct ActivityDiagramView: View {
             guard !Task.isCancelled else { return }
             await loadDiagram()
         }
-        .onChange(of: selectedRun.workflowId) { _, _ in
+        .onChange(of: selectedRun.threadId) { _, _ in
             Task {
                 await loadDiagram()
             }
@@ -86,12 +86,12 @@ struct ActivityDiagramView: View {
                 .foregroundStyle(.secondary)
             Text("No diagram available")
                 .font(.headline)
-            if selectedRun.workflowId != nil {
+            if selectedRun.threadId != nil {
                 Button("Load Diagram") {
                     Task { await loadDiagram() }
                 }
             } else {
-                Text("Workflow ID not available")
+                Text("Thread ID not available")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -100,8 +100,8 @@ struct ActivityDiagramView: View {
     }
 
     private func loadDiagram() async {
-        guard let workflowId = selectedRun.workflowId else {
-            error = "No workflow ID available"
+        guard let threadId = selectedRun.threadId else {
+            error = "No thread ID available"
             return
         }
 
@@ -109,11 +109,12 @@ struct ActivityDiagramView: View {
         error = nil
 
         do {
+            // Use thread-based endpoint (works even if workflow was deleted)
             let url = apiClient.baseURL
                 .appendingPathComponent("workflow-execution")
-                .appendingPathComponent("workflows")
-                .appendingPathComponent(workflowId)
-                .appendingPathComponent("visualization.png")
+                .appendingPathComponent("threads")
+                .appendingPathComponent(threadId)
+                .appendingPathComponent("diagram.png")
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"

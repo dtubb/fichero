@@ -211,6 +211,28 @@ class ActivityStore:
                 )
             """)
 
+            # Add new columns for workflow snapshot, node mapping, progress, and diagram
+            # These allow historical runs to be visualized even if workflow is deleted
+            try:
+                conn.execute("ALTER TABLE workflow_runs ADD COLUMN workflow_snapshot JSON")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                conn.execute("ALTER TABLE workflow_runs ADD COLUMN node_name_map JSON")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                conn.execute("ALTER TABLE workflow_runs ADD COLUMN progress_timeline JSON")
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                conn.execute("ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT")
+            except Exception:
+                pass  # Column already exists
+
             # Indexes for efficient queries
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activities_timestamp
@@ -456,24 +478,38 @@ class ActivityStore:
         workflow_id: str,
         workflow_name: str,
         python_code: Optional[str] = None,
+        workflow_snapshot: Optional[dict] = None,
+        node_name_map: Optional[dict[str, str]] = None,
+        diagram_mermaid: Optional[str] = None,
         started_at: Optional[datetime] = None,
     ) -> None:
         """Save a new workflow run record."""
         def _save():
             conn = duckdb.connect(self.db_path)
             try:
+                # Convert dicts to JSON strings
+                workflow_snapshot_json = json.dumps(workflow_snapshot) if workflow_snapshot else None
+                node_name_map_json = json.dumps(node_name_map) if node_name_map else None
+
                 conn.execute("""
                     INSERT INTO workflow_runs
-                    (thread_id, workflow_id, workflow_name, python_code, status, started_at)
-                    VALUES (?, ?, ?, ?, 'running', ?)
+                    (thread_id, workflow_id, workflow_name, python_code, workflow_snapshot,
+                     node_name_map, diagram_mermaid, status, started_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)
                     ON CONFLICT (thread_id) DO UPDATE SET
                         python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
+                        workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, workflow_runs.workflow_snapshot),
+                        node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
+                        diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
                         workflow_name = EXCLUDED.workflow_name
                 """, [
                     thread_id,
                     workflow_id,
                     workflow_name,
                     python_code,
+                    workflow_snapshot_json,
+                    node_name_map_json,
+                    diagram_mermaid,
                     started_at or datetime.utcnow(),
                 ])
             finally:
@@ -486,6 +522,7 @@ class ActivityStore:
         thread_id: str,
         status: Optional[str] = None,
         execution_log: Optional[str] = None,
+        progress_timeline: Optional[dict] = None,
         duration_ms: Optional[float] = None,
         error: Optional[str] = None,
         completed_at: Optional[datetime] = None,
@@ -503,6 +540,9 @@ class ActivityStore:
                 if execution_log is not None:
                     updates.append("execution_log = ?")
                     params.append(execution_log)
+                if progress_timeline is not None:
+                    updates.append("progress_timeline = ?")
+                    params.append(json.dumps(progress_timeline))
                 if duration_ms is not None:
                     updates.append("duration_ms = ?")
                     params.append(duration_ms)
@@ -548,12 +588,18 @@ class ActivityStore:
                 result = conn.execute("""
                     SELECT thread_id, workflow_id, workflow_name, python_code,
                            execution_log, status, started_at, completed_at,
-                           duration_ms, error
+                           duration_ms, error, workflow_snapshot, node_name_map,
+                           progress_timeline, diagram_mermaid
                     FROM workflow_runs
                     WHERE thread_id = ?
                 """, [thread_id]).fetchone()
 
                 if result:
+                    # Parse JSON fields
+                    workflow_snapshot = json.loads(result[10]) if result[10] else None
+                    node_name_map = json.loads(result[11]) if result[11] else None
+                    progress_timeline = json.loads(result[12]) if result[12] else None
+
                     return {
                         "thread_id": result[0],
                         "workflow_id": result[1],
@@ -565,6 +611,10 @@ class ActivityStore:
                         "completed_at": result[7].isoformat() if result[7] else None,
                         "duration_ms": result[8],
                         "error": result[9],
+                        "workflow_snapshot": workflow_snapshot,
+                        "node_name_map": node_name_map,
+                        "progress_timeline": progress_timeline,
+                        "diagram_mermaid": result[13],
                     }
                 return None
             finally:
