@@ -69,13 +69,32 @@ extension WorkflowCanvasView {
             let (provider, model) = await getDefaultsForCategory(toolInfo.category)
 
             // Create node with full tool metadata and AI defaults
-            let node = WorkflowNode(
+            var node = WorkflowNode(
                 from: toolInfo,
                 positionX: adjustedPosition.x,
                 positionY: adjustedPosition.y,
                 providerName: provider,
                 modelName: model
             )
+
+            // Set mode configs when we have a provider from AI defaults
+            // This ensures the tool uses the LLM provider instead of local/Apple defaults
+            if provider != nil {
+                if node.config == nil {
+                    node.config = [:]
+                }
+
+                // Transcribe (vision): set vision_mode to "llm" (vs "apple" on-device OCR)
+                if toolInfo.name == "transcribe" {
+                    node.config?["vision_mode"] = .string("llm")
+                }
+
+                // Audio Transcribe: set audio_mode to "llm" (vs "local_whisper" or "apple_speech")
+                if toolInfo.name == "audio_transcribe" {
+                    node.config?["audio_mode"] = .string("llm")
+                }
+            }
+
             workflow.nodes.append(node)
 
             // Auto-connect: if there's a selected node with output ports, connect to new node's input
