@@ -11,6 +11,9 @@ struct WorkflowCanvasView: View {
     // Execution observer for node progress (uses @Observable pattern)
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
+    // App state for accessing AI defaults
+    @EnvironmentObject var appState: AppState
+
     /// Node execution states from the observer (reactive via @Observable)
     private var nodeStates: [String: NodeExecutionState] {
         executionObserver.activeExecutions[workflow.id]?.nodeStates ?? [:]

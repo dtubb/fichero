@@ -174,7 +174,13 @@ struct WorkflowNode: Codable, Identifiable {
     }
 
     /// Convenience initializer from ToolInfo
-    init(from toolInfo: ToolInfo, positionX: Double = 0, positionY: Double = 0) {
+    init(
+        from toolInfo: ToolInfo,
+        positionX: Double = 0,
+        positionY: Double = 0,
+        providerName: String? = nil,
+        modelName: String? = nil
+    ) {
         self.id = UUID().uuidString
         self.tool = toolInfo.name
         self.label = toolInfo.displayName
@@ -189,8 +195,8 @@ struct WorkflowNode: Codable, Identifiable {
         // Use config defaults from tool if available
         self.config = toolInfo.configDefaults.isEmpty ? nil : toolInfo.configDefaults
         self.outputSchema = toolInfo.defaultOutputSchema.map { OutputSchema(jsonSchema: $0) }
-        self.providerName = nil
-        self.modelName = nil
+        self.providerName = providerName
+        self.modelName = modelName
         self.usesLLM = toolInfo.usesLLM
     }
 }

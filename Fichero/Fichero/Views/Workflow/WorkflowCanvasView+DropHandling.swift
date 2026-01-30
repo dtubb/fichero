@@ -3,6 +3,36 @@ import SwiftUI
 // MARK: - Drop Handling
 
 extension WorkflowCanvasView {
+    /// Get default provider and model for a tool based on its category
+    func getDefaultsForCategory(_ category: String) async -> (provider: String?, model: String?) {
+        guard appState.isBackendRunning else {
+            return (nil, nil)
+        }
+
+        do {
+            let defaults = try await appState.fetchAIDefaults()
+
+            switch category.lowercased() {
+            case "audio":
+                return (defaults.audioProvider.isEmpty ? nil : defaults.audioProvider,
+                        defaults.audioModel.isEmpty ? nil : defaults.audioModel)
+            case "vision":
+                return (defaults.visionProvider.isEmpty ? nil : defaults.visionProvider,
+                        defaults.visionModel.isEmpty ? nil : defaults.visionModel)
+            case "text", "llm":
+                return (defaults.textProvider.isEmpty ? nil : defaults.textProvider,
+                        defaults.textModel.isEmpty ? nil : defaults.textModel)
+            case "video":
+                return (defaults.videoProvider.isEmpty ? nil : defaults.videoProvider,
+                        defaults.videoModel.isEmpty ? nil : defaults.videoModel)
+            default:
+                return (nil, nil)
+            }
+        } catch {
+            return (nil, nil)
+        }
+    }
+
     func handleDrop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         for provider in providers {
             provider.loadObject(ofClass: NSString.self) { item, _ in
@@ -33,25 +63,37 @@ extension WorkflowCanvasView {
         // Adjust position to avoid overlapping existing nodes
         let adjustedPosition = findNonOverlappingPosition(near: position)
 
-        // Create node with full tool metadata
-        let node = WorkflowNode(from: toolInfo, positionX: adjustedPosition.x, positionY: adjustedPosition.y)
-        workflow.nodes.append(node)
+        // Create node with AI defaults in a Task (async context required)
+        Task { @MainActor in
+            // Get default provider/model for this tool's category
+            let (provider, model) = await getDefaultsForCategory(toolInfo.category)
 
-        // Auto-connect: if there's a selected node with output ports, connect to new node's input
-        if let source = sourceNode,
-           let outputPort = source.outputPorts.first,
-           let inputPort = node.inputPorts.first {
-            let newEdge = WorkflowEdge(
-                sourceNodeId: source.id,
-                targetNodeId: node.id,
-                sourcePortId: outputPort.id,
-                targetPortId: inputPort.id
+            // Create node with full tool metadata and AI defaults
+            let node = WorkflowNode(
+                from: toolInfo,
+                positionX: adjustedPosition.x,
+                positionY: adjustedPosition.y,
+                providerName: provider,
+                modelName: model
             )
-            workflow.edges.append(newEdge)
-        }
+            workflow.nodes.append(node)
 
-        selectedNodeIds = [node.id]
-        editingNodeId = node.id
+            // Auto-connect: if there's a selected node with output ports, connect to new node's input
+            if let source = sourceNode,
+               let outputPort = source.outputPorts.first,
+               let inputPort = node.inputPorts.first {
+                let newEdge = WorkflowEdge(
+                    sourceNodeId: source.id,
+                    targetNodeId: node.id,
+                    sourcePortId: outputPort.id,
+                    targetPortId: inputPort.id
+                )
+                workflow.edges.append(newEdge)
+            }
+
+            selectedNodeIds = [node.id]
+            editingNodeId = node.id
+        }
     }
 
     /// Add node from tool name only (legacy fallback)
