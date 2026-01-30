@@ -84,14 +84,19 @@ extension WorkflowCanvasView {
                     node.config = [:]
                 }
 
-                // Transcribe (vision): set vision_mode to "llm" (vs "apple" on-device OCR)
-                if toolInfo.name == "transcribe" {
+                // Set the appropriate mode based on tool category
+                switch toolInfo.category.lowercased() {
+                case "vision":
+                    // Vision tools: set vision_mode="llm" (vs "apple" on-device OCR)
                     node.config?["vision_mode"] = .string("llm")
-                }
-
-                // Audio Transcribe: set audio_mode to "llm" (vs "local_whisper" or "apple_speech")
-                if toolInfo.name == "audio_transcribe" {
+                case "audio":
+                    // Audio tools: set audio_mode="llm" (vs "local_whisper" or "apple_speech")
                     node.config?["audio_mode"] = .string("llm")
+                case "video":
+                    // Video tools: set video_mode="llm" if applicable
+                    node.config?["video_mode"] = .string("llm")
+                default:
+                    break
                 }
             }
 
