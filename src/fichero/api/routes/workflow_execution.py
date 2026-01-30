@@ -41,6 +41,8 @@ class ExecuteWorkflowRequest(BaseModel):
     checkpoint_ns: str = ""  # Checkpoint namespace for sub-workflows
     interrupt_before: list[str] = Field(default_factory=list)  # Node IDs to pause before
     interrupt_after: list[str] = Field(default_factory=list)  # Node IDs to pause after
+    force_new: bool = False  # If True, ignore provided thread_id and create a fresh execution
+    skip_cache: bool = False  # If True, bypass node result cache (still writes new results)
 
 
 class ExecutionStatusResponse(BaseModel):
@@ -76,6 +78,27 @@ class ExecuteAcceptedResponse(BaseModel):
     workflow_name: str
     status: str = "accepted"  # Will transition to "running"
     stream_url: str  # URL to subscribe for SSE events
+
+
+class CheckpointSnapshot(BaseModel):
+    """A single checkpoint in the execution history."""
+    checkpoint_id: str
+    parent_checkpoint_id: str | None = None
+    step: int
+    timestamp: str | None = None
+    node_name: str | None = None  # Node that produced this checkpoint
+    state_values: dict[str, Any] = Field(default_factory=dict)  # State at this step
+    writes: dict[str, Any] = Field(default_factory=dict)  # What was written
+    next_nodes: list[str] = Field(default_factory=list)  # Next nodes to execute
+
+
+class CheckpointHistoryResponse(BaseModel):
+    """Response with full checkpoint history for a thread."""
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    total_steps: int
+    checkpoints: list[CheckpointSnapshot]
 
 
 # =============================================================================
@@ -161,10 +184,27 @@ async def _run_workflow_in_background(
     activity_tracker = get_activity_tracker(str(db.path))
     start_time = datetime.utcnow()
     node_start_times: dict[str, datetime] = {}
+    execution_log_lines: list[str] = []  # Collect execution logs
+
+    async def log_execution(message: str) -> None:
+        """Log a message to both console and execution log, and stream via SSE."""
+        timestamp = datetime.utcnow().strftime("%H:%M:%S.%f")[:-3]
+        log_line = f"[{timestamp}] {message}"
+        execution_log_lines.append(log_line)
+        print(log_line)
+        # Stream log line to frontend
+        await event_queue.put(SSEEvent(
+            event="log",
+            thread_id=thread_id,
+            workflow_id=workflow_id,
+            data={"line": log_line}
+        ))
 
     try:
         # Mark as running
         state["status"] = "running"
+
+        await log_execution(f"Starting workflow '{workflow.name}'")
 
         # Log activity: workflow started
         activity_tracker.workflow_started(
@@ -219,6 +259,35 @@ async def _run_workflow_in_background(
             ],
         )
 
+        # Resolve default provider/model if not set on workflow
+        if not workflow_def.provider or not workflow_def.model:
+            try:
+                from fichero.app_db import get_app_db
+                app_db = get_app_db()
+                default = app_db.get_default_model()
+                if default:
+                    if not workflow_def.provider:
+                        workflow_def.provider = default[0]
+                    if not workflow_def.model:
+                        workflow_def.model = default[1]
+                    logger.info(f"Using default provider: {workflow_def.provider}/{workflow_def.model}")
+            except Exception as e:
+                logger.warning(f"Could not load default provider: {e}")
+
+        # Generate and save Python code
+        await log_execution(f"Generating Python code for workflow")
+        python_code = _generate_workflow_python_code(workflow)
+
+        # Save workflow run with Python code
+        await activity_tracker.store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=workflow_id,
+            workflow_name=workflow.name,
+            python_code=python_code,
+            started_at=start_time,
+        )
+        await log_execution(f"Saved workflow run record")
+
         # Create event callback for parallel processing events
         async def emit_parallel_event(event_type: str, data: dict) -> None:
             """Callback to emit SSE events from parallel node processing."""
@@ -234,8 +303,14 @@ async def _run_workflow_in_background(
                 data={"error": data.get("error")} if data.get("error") else {},
             ))
 
-        # Build graph with parallel execution support and event callback
-        app = build_graph(workflow_def, enable_parallel=True, event_callback=emit_parallel_event)
+        # Build graph with parallel execution support, event callback, and checkpointer
+        app = build_graph(
+            workflow_def,
+            enable_parallel=True,
+            event_callback=emit_parallel_event,
+            checkpointer=checkpointer,
+            skip_cache=request.skip_cache,
+        )
 
         # Execute with streaming
         config = {
@@ -251,18 +326,23 @@ async def _run_workflow_in_background(
             "library_path": str(db.path.parent) if hasattr(db, 'path') else "",
         }
 
-        # Identify exit nodes (nodes with no outgoing edges)
+        # Identify exit nodes (nodes with no outgoing edges) using raw IDs
         exit_node_ids = set()
         all_source_nodes = {e.get("source") or e.get("source_node_id", "") for e in workflow.edges}
         for node in workflow.nodes:
             node_id = node.get("id", "")
             if node_id and node_id not in all_source_nodes:
-                # This node has no outgoing edges - it's an exit node
-                # Account for parallel processing which adds _aggregate suffix
                 exit_node_ids.add(node_id)
-                exit_node_ids.add(f"{node_id}_aggregate")
 
-        print(f"[EXECUTE] Exit nodes for completion detection: {exit_node_ids}")
+        def _normalize_node_name(name: str) -> str:
+            """Strip LangGraph internal suffixes to get the original node ID."""
+            if name.endswith("_aggregate"):
+                return name[: -len("_aggregate")]
+            if name.endswith("_process"):
+                return name[: -len("_process")]
+            return name
+
+        logger.debug(f"Exit nodes for completion: {exit_node_ids}")
         completed_exit_nodes = set()
 
         # Stream execution events
@@ -277,21 +357,28 @@ async def _run_workflow_in_background(
                 node_name = event.get("name", "")
                 if node_name not in ("__start__", "LangGraph"):
                     node_start_times[node_name] = datetime.utcnow()
+                    original_id = _normalize_node_name(node_name)
+
+                    # Skip node_begin for _aggregate (internal — the node already started with _process)
+                    if node_name.endswith("_aggregate"):
+                        continue
+
+                    await log_execution(f"Node '{original_id}' started")
 
                     # Log activity: node started
                     activity_tracker.node_started(
                         workflow_id=workflow_id,
                         thread_id=thread_id,
-                        node_id=node_name,
-                        node_name=node_name,
+                        node_id=original_id,
+                        node_name=original_id,
                     )
 
                     await event_queue.put(SSEEvent(
                         event="node_begin",
                         thread_id=thread_id,
                         workflow_id=workflow_id,
-                        node_id=node_name,
-                        data={"node": node_name}
+                        node_id=original_id,
+                        data={"node": original_id}
                     ))
 
             elif event_kind == "on_chain_end" and event.get("name"):
@@ -299,9 +386,19 @@ async def _run_workflow_in_background(
                 output = event.get("data", {}).get("output", {})
 
                 if node_name not in ("__start__", "LangGraph"):
-                    # Calculate node duration
-                    node_start = node_start_times.get(node_name, datetime.utcnow())
+                    original_id = _normalize_node_name(node_name)
+
+                    # Skip node_end for _process (node isn't done until _aggregate finishes)
+                    if node_name.endswith("_process"):
+                        continue
+
+                    # Calculate node duration (use _process start time if this is _aggregate)
+                    process_name = f"{original_id}_process" if node_name.endswith("_aggregate") else node_name
+                    node_start = node_start_times.get(process_name, node_start_times.get(node_name, datetime.utcnow()))
                     node_duration_ms = (datetime.utcnow() - node_start).total_seconds() * 1000
+
+                    # Build activity metadata from output
+                    activity_metadata = {}
 
                     # Check for parallel processing completion
                     if isinstance(output, dict) and "parallel_results" in output:
@@ -320,39 +417,74 @@ async def _run_workflow_in_background(
                                     "total": len(file_results),
                                 }
                             ))
+                            # Add to activity metadata
+                            activity_metadata["success_count"] = success_count
+                            activity_metadata["error_count"] = error_count
+                            activity_metadata["total_files"] = len(file_results)
+
+                    # Extract useful metadata from output
+                    if isinstance(output, dict):
+                        # Files processed
+                        if "files" in output:
+                            files = output["files"]
+                            if isinstance(files, list):
+                                activity_metadata["files_processed"] = len(files)
+
+                        # Artifacts created
+                        if "artifacts" in output:
+                            artifacts = output["artifacts"]
+                            if isinstance(artifacts, list):
+                                activity_metadata["artifacts_created"] = len(artifacts)
+
+                        # Text/results count
+                        if "results" in output:
+                            results = output["results"]
+                            if isinstance(results, list):
+                                activity_metadata["results_count"] = len(results)
+
+                        # Output files
+                        if "output_files" in output:
+                            output_files = output["output_files"]
+                            if isinstance(output_files, list):
+                                activity_metadata["output_files"] = len(output_files)
+
+                        # Error from output
+                        if "error" in output and output["error"]:
+                            activity_metadata["error"] = str(output["error"])[:200]
+
+                    await log_execution(f"Node '{original_id}' completed in {node_duration_ms:.0f}ms")
 
                     # Log activity: node completed
                     activity_tracker.node_completed(
                         workflow_id=workflow_id,
                         thread_id=thread_id,
-                        node_id=node_name,
-                        node_name=node_name,
+                        node_id=original_id,
+                        node_name=original_id,
                         duration_ms=node_duration_ms,
+                        **activity_metadata,
                     )
 
                     await event_queue.put(SSEEvent(
                         event="node_end",
                         thread_id=thread_id,
                         workflow_id=workflow_id,
-                        node_id=node_name,
-                        data={"node": node_name, "duration_ms": node_duration_ms}
+                        node_id=original_id,
+                        data={"node": original_id, "duration_ms": node_duration_ms}
                     ))
 
-                    # Track exit node completion
-                    if node_name in exit_node_ids:
-                        completed_exit_nodes.add(node_name)
-                        print(f"[EXECUTE] Exit node completed: {node_name}, completed: {completed_exit_nodes}/{exit_node_ids}")
+                    # Track exit node completion (using normalized ID)
+                    if original_id in exit_node_ids:
+                        completed_exit_nodes.add(original_id)
+                        logger.info(f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_ids)}")
 
                         # Check if all exit nodes are done
                         if exit_node_ids and completed_exit_nodes >= exit_node_ids:
-                            print(f"[EXECUTE] All exit nodes completed, breaking from astream_events loop")
+                            logger.info("All exit nodes completed, ending stream")
                             break
 
         # Get final state
-        print(f"[COMPLETE] Getting final state from checkpointer...")
         checkpoint_tuple = await checkpointer.aget_tuple(config)
         final_state = checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else {}
-        print(f"[COMPLETE] Got final state, keys: {list(final_state.keys()) if final_state else 'none'}")
 
         # Store final state
         state["status"] = "completed"
@@ -361,12 +493,50 @@ async def _run_workflow_in_background(
         # Calculate total duration
         total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
 
+        # Build completion metadata from final state
+        completion_metadata = {
+            "nodes_completed": len(completed_exit_nodes),
+        }
+
+        # Extract stats from final state
+        if isinstance(final_state, dict):
+            # Count files processed
+            if "files" in final_state:
+                files = final_state["files"]
+                if isinstance(files, list):
+                    completion_metadata["total_files"] = len(files)
+
+            # Count artifacts
+            if "artifacts" in final_state:
+                artifacts = final_state["artifacts"]
+                if isinstance(artifacts, list):
+                    completion_metadata["total_artifacts"] = len(artifacts)
+
+            # Count results
+            if "results" in final_state:
+                results = final_state["results"]
+                if isinstance(results, list):
+                    completion_metadata["total_results"] = len(results)
+
         # Log activity: workflow completed
         activity_tracker.workflow_completed(
             workflow_id=workflow_id,
             thread_id=thread_id,
             workflow_name=workflow.name,
             duration_ms=total_duration_ms,
+            **completion_metadata,
+        )
+
+        await log_execution(f"Workflow completed successfully in {total_duration_ms:.0f}ms")
+
+        # Save execution log to workflow run
+        execution_log = "\n".join(execution_log_lines)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="completed",
+            execution_log=execution_log,
+            duration_ms=total_duration_ms,
+            completed_at=datetime.utcnow(),
         )
 
         # Send complete event
@@ -389,6 +559,9 @@ async def _run_workflow_in_background(
         # Calculate duration
         total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
 
+        await log_execution(f"SYSTEMIC ERROR: {e.error_count}/{e.total_count} consecutive failures")
+        await log_execution(f"Sample errors: {e.errors[:3] if e.errors else []}")
+
         # Log activity: workflow failed (systemic error)
         activity_tracker.workflow_failed(
             workflow_id=workflow_id,
@@ -396,6 +569,17 @@ async def _run_workflow_in_background(
             workflow_name=workflow.name,
             error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
             duration_ms=total_duration_ms,
+        )
+
+        # Save execution log to workflow run
+        execution_log = "\n".join(execution_log_lines)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="failed",
+            execution_log=execution_log,
+            duration_ms=total_duration_ms,
+            error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
+            completed_at=datetime.utcnow(),
         )
 
         await event_queue.put(SSEEvent(
@@ -418,6 +602,8 @@ async def _run_workflow_in_background(
         # Calculate duration
         total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
 
+        await log_execution(f"ERROR: {str(e)}")
+
         # Log activity: workflow failed
         activity_tracker.workflow_failed(
             workflow_id=workflow_id,
@@ -425,6 +611,17 @@ async def _run_workflow_in_background(
             workflow_name=workflow.name,
             error=str(e),
             duration_ms=total_duration_ms,
+        )
+
+        # Save execution log to workflow run
+        execution_log = "\n".join(execution_log_lines)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="failed",
+            execution_log=execution_log,
+            duration_ms=total_duration_ms,
+            error=str(e),
+            completed_at=datetime.utcnow(),
         )
 
         await event_queue.put(SSEEvent(
@@ -551,8 +748,11 @@ async def execute_workflow(
         if not workflow.nodes:
             print("[EXECUTE]   WARNING: Workflow has no nodes! Execution will complete instantly.")
 
-        # Generate thread ID if not provided
-        thread_id = request.thread_id or f"thread-{uuid4().hex[:12]}"
+        # Generate thread ID if not provided or if force_new is True
+        if request.force_new or not request.thread_id:
+            thread_id = f"thread-{uuid4().hex[:12]}"
+        else:
+            thread_id = request.thread_id
 
         # Create event queue for this workflow
         event_queue: asyncio.Queue = asyncio.Queue()
@@ -753,6 +953,210 @@ async def get_thread_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/threads/{thread_id}/history")
+async def get_thread_history(
+    thread_id: str,
+    db: Database = Depends(get_library_database),
+    limit: int = 100,
+) -> CheckpointHistoryResponse:
+    """
+    Get the full checkpoint history for a workflow execution thread.
+
+    Returns all checkpoints (state snapshots) in chronological order,
+    showing the state at each step of execution. This enables:
+    - Debugging workflow execution step-by-step
+    - Understanding what each node produced
+    - Time-travel debugging (viewing state at any point)
+
+    Args:
+        thread_id: Thread ID
+        limit: Maximum number of checkpoints to return (default 100)
+
+    Returns:
+        Full checkpoint history with state at each step
+
+    Raises:
+        404: Thread not found
+    """
+    try:
+        # Get checkpointer
+        checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
+
+        # Check if thread exists
+        config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+        latest_tuple = await checkpointer.aget_tuple(config)
+
+        if not latest_tuple:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No checkpoint found for thread: {thread_id}"
+            )
+
+        # Get workflow info
+        workflow_id = latest_tuple.metadata.get("workflow_id", "unknown")
+        store = WorkflowStore(db)
+        workflow = store.get(workflow_id) if workflow_id != "unknown" else None
+        workflow_name = workflow.name if workflow else "Unknown"
+
+        # Build node name mapping (UUID -> readable name) from workflow
+        node_names: dict[str, str] = {}
+        if workflow:
+            name_counts: dict[str, int] = {}
+            for node in workflow.nodes:
+                node_id = node.get("id", "")
+                # Use label if available, otherwise capitalize tool name
+                base_name = node.get("label") or node.get("tool", "unknown").replace("_", " ").title()
+
+                # Ensure uniqueness
+                if base_name in name_counts:
+                    name_counts[base_name] += 1
+                    unique_name = f"{base_name} {name_counts[base_name]}"
+                else:
+                    name_counts[base_name] = 1
+                    unique_name = base_name
+
+                node_names[node_id] = unique_name
+
+        def _translate_node_name(raw_name: str | None) -> str | None:
+            """Translate a raw node ID/name to human-readable name."""
+            if not raw_name:
+                return None
+            # Strip LangGraph suffixes (_process, _aggregate)
+            clean_name = raw_name
+            if clean_name.endswith("_aggregate"):
+                clean_name = clean_name[: -len("_aggregate")]
+            elif clean_name.endswith("_process"):
+                clean_name = clean_name[: -len("_process")]
+            # Look up in mapping
+            return node_names.get(clean_name, raw_name)
+
+        # Get all checkpoints for this thread using alist
+        checkpoints: list[CheckpointSnapshot] = []
+        step = 0
+
+        async for checkpoint_tuple in checkpointer.alist(config, limit=limit):
+            checkpoint = checkpoint_tuple.checkpoint
+            metadata = checkpoint_tuple.metadata
+
+            # Extract useful info from checkpoint
+            channel_values = checkpoint.get("channel_values", {})
+
+            # Get writes from metadata (what was written at this step)
+            writes = metadata.get("writes", {})
+
+            # Get next nodes from checkpoint (nodes pending execution)
+            next_nodes = []
+            if checkpoint_tuple.pending_writes:
+                next_nodes = [w[1] for w in checkpoint_tuple.pending_writes if len(w) > 1]
+
+            # Extract node name from various sources
+            source = metadata.get("source", "")
+            raw_node_name = None
+
+            # Try writes first (the node that wrote data)
+            if writes:
+                # Filter out internal keys like '__pregel_tasks', 'parallel_results'
+                real_node_keys = [k for k in writes.keys()
+                                  if not k.startswith("__") and k not in ("parallel_results",)]
+                if real_node_keys:
+                    raw_node_name = real_node_keys[0]
+
+            # Try current_node from channel_values
+            if not raw_node_name and channel_values.get("current_node"):
+                raw_node_name = channel_values["current_node"]
+
+            # Try completed_nodes (last completed)
+            if not raw_node_name:
+                completed = channel_values.get("completed_nodes", [])
+                if completed:
+                    raw_node_name = completed[-1] if isinstance(completed, list) else str(completed)
+
+            # Try metadata source (format: "loop:node_name")
+            if not raw_node_name and source and ":" in source:
+                parts = source.split(":")
+                if len(parts) > 1 and parts[1] not in ("start", "__start__", "end", "__end__"):
+                    raw_node_name = parts[1]
+
+            # Translate raw node name to human-readable name
+            node_name = _translate_node_name(raw_node_name)
+
+            # For parallel_results, show the nodes that contributed (with translation)
+            if not node_name and "parallel_results" in writes:
+                parallel_data = writes.get("parallel_results", {})
+                if isinstance(parallel_data, dict) and parallel_data:
+                    contributing_nodes = list(parallel_data.keys())
+                    if contributing_nodes:
+                        # Translate each contributing node name
+                        translated = [_translate_node_name(n) or n for n in contributing_nodes[:3]]
+                        node_name = f"Parallel: {', '.join(translated)}"
+                        if len(contributing_nodes) > 3:
+                            node_name += f" +{len(contributing_nodes) - 3}"
+
+            # Try to get timestamp from metadata
+            timestamp = metadata.get("created_at") or metadata.get("timestamp")
+
+            snapshots = CheckpointSnapshot(
+                checkpoint_id=checkpoint.get("id", ""),
+                parent_checkpoint_id=checkpoint_tuple.parent_config["configurable"]["checkpoint_id"]
+                    if checkpoint_tuple.parent_config else None,
+                step=metadata.get("step", step),
+                timestamp=timestamp,
+                node_name=node_name,
+                state_values=_sanitize_state_for_json(channel_values),
+                writes=_sanitize_state_for_json(writes),
+                next_nodes=next_nodes,
+            )
+            checkpoints.append(snapshots)
+            step += 1
+
+        # Reverse to get chronological order (oldest first)
+        checkpoints.reverse()
+
+        # Update step numbers to be chronological
+        for i, cp in enumerate(checkpoints):
+            cp.step = i
+
+        return CheckpointHistoryResponse(
+            thread_id=thread_id,
+            workflow_id=workflow_id,
+            workflow_name=workflow_name,
+            total_steps=len(checkpoints),
+            checkpoints=checkpoints,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get history for thread {thread_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _sanitize_state_for_json(state: Any) -> dict[str, Any]:
+    """
+    Sanitize state values for JSON serialization.
+
+    Removes non-serializable objects and converts complex types to strings.
+    """
+    if not isinstance(state, dict):
+        return {"value": str(state) if state else None}
+
+    result = {}
+    for key, value in state.items():
+        try:
+            # Try to serialize - if it works, keep it
+            json.dumps(value)
+            result[key] = value
+        except (TypeError, ValueError):
+            # If not serializable, convert to string representation
+            if hasattr(value, "__dict__"):
+                result[key] = str(value)
+            elif isinstance(value, (list, tuple)):
+                result[key] = [str(v) for v in value]
+            else:
+                result[key] = str(value)
+    return result
+
+
 @router.get("/threads")
 async def list_threads(
     db: Database = Depends(get_library_database),
@@ -884,7 +1288,7 @@ def _build_workflow_with_checkpointer(
         Compiled LangGraph application with checkpointing
     """
     from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
-    from fichero.workflows.builder import build_graph, PARALLEL_TOOLS
+    from fichero.workflows.builder import build_graph, PARALLEL_TOOLS, SOURCE_TOOLS
 
     # Convert Workflow model to WorkflowDef
     workflow_def = WorkflowDef(
@@ -916,18 +1320,22 @@ def _build_workflow_with_checkpointer(
         ],
     )
 
-    # Debug: Log workflow structure
-    print(f"[BUILD] Workflow '{workflow_def.name}' (id={workflow_def.id})")
-    print(f"[BUILD]   nodes: {len(workflow_def.nodes)}, edges: {len(workflow_def.edges)}")
-    print(f"[BUILD]   parallel execution: {enable_parallel}")
+    # Resolve default provider/model if not set on workflow
+    if not workflow_def.provider or not workflow_def.model:
+        try:
+            from fichero.app_db import get_app_db
+            app_db = get_app_db()
+            default = app_db.get_default_model()
+            if default:
+                if not workflow_def.provider:
+                    workflow_def.provider = default[0]
+                if not workflow_def.model:
+                    workflow_def.model = default[1]
+                logger.info(f"Using default provider: {workflow_def.provider}/{workflow_def.model}")
+        except Exception as e:
+            logger.warning(f"Could not load default provider: {e}")
 
-    # Log nodes
-    for node in workflow_def.nodes:
-        print(f"[BUILD] Node {node.id[:8]}... tool={node.tool}")
-        print(f"[BUILD]   inputs: {node.inputs}")
-        print(f"[BUILD]   config: {node.config}")
-        print(f"[BUILD]   provider: {node.provider_name or '(workflow default)'}")
-        print(f"[BUILD]   model: {node.model_name or '(workflow default)'}")
+    logger.debug(f"Building workflow '{workflow_def.name}': {len(workflow_def.nodes)} nodes, {len(workflow_def.edges)} edges")
 
     # Log edges and detect parallel edges
     print(f"[BUILD] Edges:")
@@ -1019,18 +1427,29 @@ def _build_workflow_with_checkpointer(
             graph.add_node(node_def.id, node_fn)
 
     # Add edges
+    # Group parallel edges by source node (one conditional edge per source)
+    parallel_by_source: dict[str, list[str]] = {}
     for edge in workflow_def.edges:
         if (edge.source, edge.target) in parallel_edges:
-            # Create fan-out edge using Send API
-            fan_out_fn = _make_fan_out_function(edge.source, edge.target)
-            graph.add_conditional_edges(
-                edge.source,
-                fan_out_fn,
-                [f"{edge.target}_process"]
-            )
-            # Connect process to aggregate
-            graph.add_edge(f"{edge.target}_process", f"{edge.target}_aggregate")
-            print(f"[BUILD] Added parallel edges: {edge.source} -> fan-out -> {edge.target}_process -> {edge.target}_aggregate")
+            if edge.source not in parallel_by_source:
+                parallel_by_source[edge.source] = []
+            parallel_by_source[edge.source].append(edge.target)
+
+    # Add fan-out conditional edges (one per source node)
+    for source_id, target_ids in parallel_by_source.items():
+        fan_out_fn = _make_fan_out_function(source_id, target_ids)
+        graph.add_conditional_edges(
+            source_id,
+            fan_out_fn,
+            [f"{t}_process" for t in target_ids]
+        )
+        for target_id in target_ids:
+            graph.add_edge(f"{target_id}_process", f"{target_id}_aggregate")
+
+    # Add non-parallel edges
+    for edge in workflow_def.edges:
+        if (edge.source, edge.target) in parallel_edges:
+            continue  # Already handled above
         else:
             # Check if source was parallelized - connect from aggregate
             source_is_parallel = any(
@@ -1072,3 +1491,606 @@ def _build_workflow_with_checkpointer(
         interrupt_before=interrupt_before,
         interrupt_after=interrupt_after,
     )
+
+
+# =============================================================================
+# Visualization & Code Export Endpoints
+# =============================================================================
+
+class WorkflowVisualizationResponse(BaseModel):
+    """Response with workflow visualization data."""
+    workflow_id: str
+    workflow_name: str
+    mermaid_code: str  # Mermaid diagram code
+    node_count: int
+    edge_count: int
+
+
+class WorkflowCodeExportResponse(BaseModel):
+    """Response with exported Python code for the workflow."""
+    workflow_id: str
+    workflow_name: str
+    python_code: str
+
+
+@router.get("/workflows/{workflow_id}/visualization")
+async def get_workflow_visualization(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+    xray: bool = False,
+) -> WorkflowVisualizationResponse:
+    """
+    Get visualization (Mermaid diagram) for a workflow.
+
+    Returns Mermaid code that can be rendered as a graph diagram.
+    Use https://mermaid.live or any Mermaid renderer to visualize.
+
+    Args:
+        workflow_id: Workflow ID
+        xray: If True, show internal subgraph details
+
+    Returns:
+        Mermaid diagram code and workflow metadata
+    """
+    try:
+        # Load workflow
+        store = WorkflowStore(db)
+        workflow = store.get(workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow not found: {workflow_id}"
+            )
+
+        # Build graph (without checkpointer for visualization)
+        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+        from fichero.workflows.builder import build_graph
+
+        workflow_def = WorkflowDef(
+            id=workflow.id,
+            name=workflow.name,
+            description=workflow.description or "",
+            provider=workflow.provider or "",
+            model=workflow.model or "",
+            nodes=[
+                NodeDef(
+                    id=n["id"],
+                    tool=n["tool"],
+                    label=n.get("label", ""),
+                    inputs=n.get("inputs", {}),
+                    config=n.get("config", {}),
+                )
+                for n in workflow.nodes
+            ],
+            edges=[
+                EdgeDef(
+                    source=e.get("source") or e.get("source_node_id", ""),
+                    target=e.get("target") or e.get("target_node_id", ""),
+                    source_port=e.get("source_port", "output"),
+                    target_port=e.get("target_port", "input"),
+                )
+                for e in workflow.edges
+            ],
+        )
+
+        # Build compiled graph
+        app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+
+        # Get Mermaid code
+        graph_obj = app.get_graph(xray=xray)
+        mermaid_code = graph_obj.draw_mermaid()
+
+        return WorkflowVisualizationResponse(
+            workflow_id=workflow_id,
+            workflow_name=workflow.name,
+            mermaid_code=mermaid_code,
+            node_count=len(workflow.nodes),
+            edge_count=len(workflow.edges),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate visualization for workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/workflows/{workflow_id}/visualization.png")
+async def get_workflow_visualization_png(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+    xray: bool = False,
+) -> Response:
+    """
+    Get visualization as PNG image for a workflow.
+
+    Returns the workflow graph as a PNG image.
+
+    Args:
+        workflow_id: Workflow ID
+        xray: If True, show internal subgraph details
+
+    Returns:
+        PNG image of the workflow graph
+    """
+    try:
+        # Load workflow
+        store = WorkflowStore(db)
+        workflow = store.get(workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow not found: {workflow_id}"
+            )
+
+        # Build graph
+        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+        from fichero.workflows.builder import build_graph
+
+        workflow_def = WorkflowDef(
+            id=workflow.id,
+            name=workflow.name,
+            description=workflow.description or "",
+            provider=workflow.provider or "",
+            model=workflow.model or "",
+            nodes=[
+                NodeDef(
+                    id=n["id"],
+                    tool=n["tool"],
+                    label=n.get("label", ""),
+                    inputs=n.get("inputs", {}),
+                    config=n.get("config", {}),
+                )
+                for n in workflow.nodes
+            ],
+            edges=[
+                EdgeDef(
+                    source=e.get("source") or e.get("source_node_id", ""),
+                    target=e.get("target") or e.get("target_node_id", ""),
+                    source_port=e.get("source_port", "output"),
+                    target_port=e.get("target_port", "input"),
+                )
+                for e in workflow.edges
+            ],
+        )
+
+        # Build compiled graph
+        app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+
+        # Get PNG bytes
+        graph_obj = app.get_graph(xray=xray)
+        png_bytes = graph_obj.draw_mermaid_png()
+
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f'inline; filename="{workflow.name}.png"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate PNG for workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/workflows/{workflow_id}/code")
+async def get_workflow_code(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> WorkflowCodeExportResponse:
+    """
+    Export workflow as Python code.
+
+    Generates Python code that recreates this workflow using LangGraph.
+    The code can be run standalone or modified for custom use cases.
+
+    Args:
+        workflow_id: Workflow ID
+
+    Returns:
+        Python code as a string
+    """
+    try:
+        # Load workflow
+        store = WorkflowStore(db)
+        workflow = store.get(workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow not found: {workflow_id}"
+            )
+
+        # Generate Python code
+        code = _generate_workflow_python_code(workflow)
+
+        return WorkflowCodeExportResponse(
+            workflow_id=workflow_id,
+            workflow_name=workflow.name,
+            python_code=code,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to export code for workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _generate_workflow_python_code(workflow: Workflow) -> str:
+    """
+    Generate Python code for a workflow.
+
+    Creates runnable Python code that builds and executes the workflow
+    using LangGraph primitives.
+    """
+    # Collect tool imports
+    tools_used = set(n.get("tool", "") for n in workflow.nodes if n.get("tool"))
+
+    # Build code
+    lines = [
+        '"""',
+        f'Workflow: {workflow.name}',
+        f'Description: {workflow.description or "No description"}',
+        f'Generated from Fichero workflow ID: {workflow.id}',
+        '"""',
+        '',
+        'from typing import Any, TypedDict',
+        'from langgraph.graph import StateGraph, START, END',
+        '',
+        '# Import Fichero tools (adjust imports for your environment)',
+        'from fichero.workflows.registry import get_tool',
+        'from fichero.llm import LLMConfig',
+        '',
+        '',
+        '# =============================================================================',
+        '# State Definition',
+        '# =============================================================================',
+        '',
+        'class State(TypedDict, total=False):',
+        '    """Workflow state passed between nodes."""',
+        '    files: list[str]  # Input files',
+        '    results: list[Any]  # Processing results',
+        '    artifacts: list[dict]  # Generated artifacts',
+        '    errors: list[str]  # Error messages',
+        '    library_path: str  # Library database path',
+        '',
+        '',
+        '# =============================================================================',
+        '# Node Functions',
+        '# =============================================================================',
+        '',
+    ]
+
+    # Generate node functions
+    for node in workflow.nodes:
+        node_id = node.get("id", "unknown")
+        tool_name = node.get("tool", "unknown")
+        label = node.get("label", tool_name)
+        config = node.get("config", {})
+
+        # Create safe function name
+        func_name = f'node_{node_id.replace("-", "_")[:20]}'
+
+        lines.extend([
+            f'def {func_name}(state: State) -> dict[str, Any]:',
+            f'    """',
+            f'    Node: {label}',
+            f'    Tool: {tool_name}',
+            f'    """',
+            f'    tool_fn = get_tool("{tool_name}")',
+            f'    if tool_fn is None:',
+            f'        return {{"errors": state.get("errors", []) + ["Tool not found: {tool_name}"]}}',
+            f'    ',
+            f'    # Get inputs from state',
+            f'    inputs = {{',
+            f'        "files": state.get("files", []),',
+            f'        "results": state.get("results", []),',
+        ])
+
+        # Add config values
+        for key, value in config.items():
+            if isinstance(value, str):
+                lines.append(f'        "{key}": "{value}",')
+            else:
+                lines.append(f'        "{key}": {value!r},')
+
+        lines.extend([
+            f'    }}',
+            f'    ',
+            f'    # Execute tool',
+            f'    try:',
+            f'        result = tool_fn(inputs)',
+            f'        return result',
+            f'    except Exception as e:',
+            f'        return {{"errors": state.get("errors", []) + [str(e)]}}',
+            f'',
+            f'',
+        ])
+
+    # Build graph
+    lines.extend([
+        '# =============================================================================',
+        '# Build Graph',
+        '# =============================================================================',
+        '',
+        'def build_workflow() -> StateGraph:',
+        f'    """Build the {workflow.name} workflow graph."""',
+        '    graph = StateGraph(State)',
+        '    ',
+        '    # Add nodes',
+    ])
+
+    # Add nodes
+    for node in workflow.nodes:
+        node_id = node.get("id", "unknown")
+        func_name = f'node_{node_id.replace("-", "_")[:20]}'
+        lines.append(f'    graph.add_node("{node_id}", {func_name})')
+
+    lines.append('    ')
+    lines.append('    # Add edges')
+
+    # Determine entry nodes (nodes with no incoming edges)
+    target_nodes = set(e.get("target") or e.get("target_node_id", "") for e in workflow.edges)
+    source_nodes = set(e.get("source") or e.get("source_node_id", "") for e in workflow.edges)
+    all_node_ids = set(n.get("id", "") for n in workflow.nodes)
+    entry_nodes = all_node_ids - target_nodes
+
+    # Add START edges
+    for entry_node in entry_nodes:
+        if entry_node:
+            lines.append(f'    graph.add_edge(START, "{entry_node}")')
+
+    # Add workflow edges
+    for edge in workflow.edges:
+        source = edge.get("source") or edge.get("source_node_id", "")
+        target = edge.get("target") or edge.get("target_node_id", "")
+        if source and target:
+            lines.append(f'    graph.add_edge("{source}", "{target}")')
+
+    # Determine exit nodes (nodes with no outgoing edges)
+    exit_nodes = all_node_ids - source_nodes
+
+    # Add END edges
+    for exit_node in exit_nodes:
+        if exit_node:
+            lines.append(f'    graph.add_edge("{exit_node}", END)')
+
+    lines.extend([
+        '    ',
+        '    return graph',
+        '',
+        '',
+        '# =============================================================================',
+        '# Main Execution',
+        '# =============================================================================',
+        '',
+        'if __name__ == "__main__":',
+        '    # Build and compile the graph',
+        '    graph = build_workflow()',
+        '    app = graph.compile()',
+        '    ',
+        '    # Example execution',
+        '    initial_state = {',
+        '        "files": [],  # Add your input files here',
+        '        "results": [],',
+        '        "artifacts": [],',
+        '        "errors": [],',
+        '        "library_path": "",  # Set your library path',
+        '    }',
+        '    ',
+        '    # Run the workflow',
+        '    final_state = app.invoke(initial_state)',
+        '    ',
+        '    # Print results',
+        '    print("Results:", final_state.get("results", []))',
+        '    print("Artifacts:", final_state.get("artifacts", []))',
+        '    if final_state.get("errors"):',
+        '        print("Errors:", final_state["errors"])',
+    ])
+
+    return '\n'.join(lines)
+
+
+# =============================================================================
+# Cache Management Endpoints
+# =============================================================================
+
+class CacheStatsResponse(BaseModel):
+    """Response with cache statistics."""
+    total_entries: int
+    workflows_cached: int | None = None
+    nodes_cached: int | None = None
+    tools_cached: int
+    oldest_entry: str | None = None
+    newest_entry: str | None = None
+
+
+class CacheClearResponse(BaseModel):
+    """Response after clearing cache."""
+    entries_deleted: int
+    message: str
+
+
+@router.get("/workflows/{workflow_id}/cache/stats")
+async def get_workflow_cache_stats(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> CacheStatsResponse:
+    """
+    Get cache statistics for a workflow.
+
+    Shows how many node results are cached, which tools are cached, etc.
+
+    Args:
+        workflow_id: Workflow ID
+
+    Returns:
+        Cache statistics
+    """
+    try:
+        from fichero.workflows.cache import get_node_cache
+
+        cache = get_node_cache(db.path)
+        stats = cache.get_stats(workflow_id=workflow_id)
+
+        return CacheStatsResponse(**stats)
+
+    except Exception as e:
+        logger.exception(f"Failed to get cache stats for workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/workflows/{workflow_id}/cache")
+async def clear_workflow_cache(
+    workflow_id: str,
+    db: Database = Depends(get_library_database),
+) -> CacheClearResponse:
+    """
+    Clear all cached results for a workflow.
+
+    This will cause all nodes to be re-executed on the next run.
+
+    Args:
+        workflow_id: Workflow ID
+
+    Returns:
+        Number of entries deleted
+    """
+    try:
+        from fichero.workflows.cache import get_node_cache
+
+        cache = get_node_cache(db.path)
+        count = cache.clear_workflow(workflow_id)
+
+        return CacheClearResponse(
+            entries_deleted=count,
+            message=f"Cleared {count} cached entries for workflow {workflow_id}"
+        )
+
+    except Exception as e:
+        logger.exception(f"Failed to clear cache for workflow {workflow_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/cache")
+async def clear_all_cache(
+    db: Database = Depends(get_library_database),
+) -> CacheClearResponse:
+    """
+    Clear all cached node results.
+
+    This will cause all nodes in all workflows to be re-executed on next run.
+
+    Returns:
+        Number of entries deleted
+    """
+    try:
+        from fichero.workflows.cache import get_node_cache
+
+        cache = get_node_cache(db.path)
+        count = cache.clear_all()
+
+        return CacheClearResponse(
+            entries_deleted=count,
+            message=f"Cleared entire cache: {count} entries"
+        )
+
+    except Exception as e:
+        logger.exception("Failed to clear cache")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Workflow Run Data Endpoints
+# =============================================================================
+
+class WorkflowRunResponse(BaseModel):
+    """Response with workflow run data (code, logs, etc.)."""
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    python_code: str | None = None
+    execution_log: str | None = None
+    status: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_ms: float | None = None
+    error: str | None = None
+
+
+@router.get("/threads/{thread_id}/run")
+async def get_workflow_run(
+    thread_id: str,
+    db: Database = Depends(get_library_database),
+) -> WorkflowRunResponse:
+    """
+    Get workflow run data including Python code and execution log.
+
+    Returns the saved Python code and execution log for a completed run.
+    Useful for debugging and understanding what happened during execution.
+
+    Args:
+        thread_id: Thread ID
+
+    Returns:
+        Workflow run data with code and logs
+
+    Raises:
+        404: Run not found
+    """
+    try:
+        activity_tracker = get_activity_tracker(str(db.path))
+        run = await activity_tracker.store.get_workflow_run(thread_id)
+
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow run not found for thread: {thread_id}"
+            )
+
+        return WorkflowRunResponse(
+            thread_id=run["thread_id"],
+            workflow_id=run["workflow_id"],
+            workflow_name=run["workflow_name"],
+            python_code=run.get("python_code"),
+            execution_log=run.get("execution_log"),
+            status=run.get("status", "unknown"),
+            started_at=run.get("started_at"),  # Already ISO string from activity.py
+            completed_at=run.get("completed_at"),  # Already ISO string from activity.py
+            duration_ms=run.get("duration_ms"),
+            error=run.get("error"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get workflow run for thread {thread_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cache/stats")
+async def get_all_cache_stats(
+    db: Database = Depends(get_library_database),
+) -> CacheStatsResponse:
+    """
+    Get overall cache statistics.
+
+    Shows total cached entries across all workflows.
+
+    Returns:
+        Cache statistics
+    """
+    try:
+        from fichero.workflows.cache import get_node_cache
+
+        cache = get_node_cache(db.path)
+        stats = cache.get_stats()
+
+        return CacheStatsResponse(**stats)
+
+    except Exception as e:
+        logger.exception("Failed to get cache stats")
+        raise HTTPException(status_code=500, detail=str(e))

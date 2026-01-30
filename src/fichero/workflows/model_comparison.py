@@ -16,7 +16,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from fichero.llm import get_langchain_model, LLMConfig, get_model_info
+from enum import Enum
+
+from fichero.llm import get_langchain_model, LLMConfig, get_model_info, vision
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +130,90 @@ MODEL_PRICING = {
     "mistral": (0.0, 0.0),
     "codellama": (0.0, 0.0),
 }
+
+
+class ModelTier(str, Enum):
+    """Model performance/cost tiers."""
+    FRONTIER = "frontier"  # Best quality, highest cost
+    MID = "mid"            # Good quality, moderate cost
+    BUDGET = "budget"      # Basic quality, low cost
+    LOCAL = "local"        # Free, runs locally
+
+
+# Model tier assignments
+MODEL_TIERS: dict[str, ModelTier] = {
+    # Frontier (best models)
+    "gpt-4o": ModelTier.FRONTIER,
+    "gpt-4-turbo": ModelTier.FRONTIER,
+    "gpt-4": ModelTier.FRONTIER,
+    "claude-3-5-sonnet-20241022": ModelTier.FRONTIER,
+    "claude-3-opus-20240229": ModelTier.FRONTIER,
+    "gemini-1.5-pro": ModelTier.FRONTIER,
+    # Mid tier
+    "gpt-4o-mini": ModelTier.MID,
+    "claude-3-5-haiku-20241022": ModelTier.MID,
+    "claude-3-sonnet-20240229": ModelTier.MID,
+    "gemini-1.5-flash": ModelTier.MID,
+    "mistral-large-latest": ModelTier.MID,
+    "mistral-medium-latest": ModelTier.MID,
+    # Budget tier
+    "gpt-3.5-turbo": ModelTier.BUDGET,
+    "claude-3-haiku-20240307": ModelTier.BUDGET,
+    "gemini-pro": ModelTier.BUDGET,
+    "mistral-small-latest": ModelTier.BUDGET,
+    # Local (free)
+    "llama3.2": ModelTier.LOCAL,
+    "llama3.1": ModelTier.LOCAL,
+    "mistral": ModelTier.LOCAL,
+    "codellama": ModelTier.LOCAL,
+}
+
+
+def get_model_tier(model: str) -> ModelTier:
+    """Get the tier for a model."""
+    tier = MODEL_TIERS.get(model)
+    if tier:
+        return tier
+    # Check for partial matches
+    for model_name, t in MODEL_TIERS.items():
+        if model_name in model.lower() or model.lower() in model_name:
+            return t
+    return ModelTier.MID  # Default to mid tier
+
+
+def get_models_by_tier() -> dict[str, list[dict]]:
+    """Get all models grouped by tier with pricing info."""
+    result: dict[str, list[dict]] = {
+        "frontier": [],
+        "mid": [],
+        "budget": [],
+        "local": [],
+    }
+
+    for model, pricing in MODEL_PRICING.items():
+        tier = get_model_tier(model)
+        # Determine provider from model name
+        provider = "unknown"
+        if "gpt" in model.lower():
+            provider = "openai"
+        elif "claude" in model.lower():
+            provider = "anthropic"
+        elif "gemini" in model.lower():
+            provider = "google"
+        elif "mistral" in model.lower():
+            provider = "mistral" if "latest" in model else "ollama"
+        elif model in ["llama3.2", "llama3.1", "codellama"]:
+            provider = "ollama"
+
+        result[tier.value].append({
+            "provider": provider,
+            "model": model,
+            "input_price": pricing[0],
+            "output_price": pricing[1],
+            "tier": tier.value,
+        })
+
+    return result
 
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
@@ -329,6 +415,297 @@ class ModelComparisonEngine:
             if c.comparison_id == comparison_id:
                 return c
         return None
+
+    async def compare_vision(
+        self,
+        images: list[str],
+        prompt: str,
+        models: list[ModelSpec],
+        detail: str = "auto",
+        timeout_seconds: int = 120,
+    ) -> ComparisonResult:
+        """Compare vision models on the same image(s).
+
+        Args:
+            images: List of image URLs or base64 data URIs
+            prompt: Prompt to send with images
+            models: Models to compare (must support vision)
+            detail: Image detail level (auto, low, high)
+            timeout_seconds: Timeout per model
+
+        Returns:
+            ComparisonResult with all model responses
+        """
+        import uuid
+        comparison_id = str(uuid.uuid4())[:8]
+
+        logger.info(f"Starting vision comparison {comparison_id} with {len(models)} models, {len(images)} images")
+
+        tasks = [
+            self._run_vision_model(spec, images, prompt, detail, timeout_seconds)
+            for spec in models
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        model_results: list[ModelResult] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                spec = models[i]
+                model_results.append(ModelResult(
+                    provider=spec.provider,
+                    model=spec.model,
+                    response="",
+                    latency_ms=0,
+                    error=str(result),
+                ))
+            else:
+                model_results.append(result)
+
+        # Calculate stats
+        successful_results = [r for r in model_results if not r.error]
+        fastest_model = None
+        cheapest_model = None
+
+        if successful_results:
+            fastest = min(successful_results, key=lambda r: r.latency_ms)
+            fastest_model = f"{fastest.provider}/{fastest.model}"
+            cheapest = min(successful_results, key=lambda r: r.cost_usd)
+            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+
+        comparison = ComparisonResult(
+            prompt=f"[Vision: {len(images)} images] {prompt}",
+            models_compared=[f"{s.provider}/{s.model}" for s in models],
+            results=model_results,
+            fastest_model=fastest_model,
+            cheapest_model=cheapest_model,
+            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_latency_ms=sum(r.latency_ms for r in model_results),
+            comparison_id=comparison_id,
+        )
+
+        self.comparison_history.append(comparison)
+        return comparison
+
+    async def _run_vision_model(
+        self,
+        spec: ModelSpec,
+        images: list[str],
+        prompt: str,
+        detail: str,
+        timeout_seconds: int,
+    ) -> ModelResult:
+        """Run a single vision model."""
+        start_time = time.time()
+
+        try:
+            config = LLMConfig(
+                provider=spec.provider,
+                model=spec.model,
+                temperature=spec.temperature,
+            )
+
+            response = await asyncio.wait_for(
+                asyncio.to_thread(vision, images, prompt, config),
+                timeout=timeout_seconds,
+            )
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Estimate tokens (vision is typically more expensive)
+            input_tokens = len(prompt) // 4 + (len(images) * 1000)  # ~1000 tokens per image
+            output_tokens = len(response) // 4
+            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response=response,
+                latency_ms=latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost,
+            )
+
+        except asyncio.TimeoutError:
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=f"Timeout after {timeout_seconds}s",
+            )
+        except Exception as e:
+            logger.exception(f"Vision model {spec.provider}/{spec.model} failed: {e}")
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=str(e),
+            )
+
+    async def compare_tool(
+        self,
+        tool_name: str,
+        inputs: dict[str, Any],
+        models: list[ModelSpec],
+        tool_config: dict[str, Any] | None = None,
+        timeout_seconds: int = 120,
+    ) -> ComparisonResult:
+        """Compare models running the same workflow tool.
+
+        Args:
+            tool_name: Name of the workflow tool (describe, summarize, etc.)
+            inputs: Tool inputs (files, text, etc.)
+            models: Models to compare
+            tool_config: Optional tool configuration overrides
+            timeout_seconds: Timeout per model
+
+        Returns:
+            ComparisonResult with all model responses
+        """
+        import uuid
+        from fichero.workflows.registry import get_tool
+
+        comparison_id = str(uuid.uuid4())[:8]
+
+        logger.info(f"Starting tool comparison {comparison_id}: {tool_name} with {len(models)} models")
+
+        # Get the tool function
+        tool_func = get_tool(tool_name)
+        if tool_func is None:
+            raise ValueError(f"Unknown tool: {tool_name}")
+
+        tasks = [
+            self._run_tool_with_model(tool_func, tool_name, spec, inputs, tool_config, timeout_seconds)
+            for spec in models
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        model_results: list[ModelResult] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                spec = models[i]
+                model_results.append(ModelResult(
+                    provider=spec.provider,
+                    model=spec.model,
+                    response="",
+                    latency_ms=0,
+                    error=str(result),
+                ))
+            else:
+                model_results.append(result)
+
+        # Calculate stats
+        successful_results = [r for r in model_results if not r.error]
+        fastest_model = None
+        cheapest_model = None
+
+        if successful_results:
+            fastest = min(successful_results, key=lambda r: r.latency_ms)
+            fastest_model = f"{fastest.provider}/{fastest.model}"
+            cheapest = min(successful_results, key=lambda r: r.cost_usd)
+            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+
+        comparison = ComparisonResult(
+            prompt=f"[Tool: {tool_name}] {str(inputs)[:100]}",
+            models_compared=[f"{s.provider}/{s.model}" for s in models],
+            results=model_results,
+            fastest_model=fastest_model,
+            cheapest_model=cheapest_model,
+            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_latency_ms=sum(r.latency_ms for r in model_results),
+            comparison_id=comparison_id,
+        )
+
+        self.comparison_history.append(comparison)
+        return comparison
+
+    async def _run_tool_with_model(
+        self,
+        tool_func,
+        tool_name: str,
+        spec: ModelSpec,
+        inputs: dict[str, Any],
+        tool_config: dict[str, Any] | None,
+        timeout_seconds: int,
+    ) -> ModelResult:
+        """Run a workflow tool with a specific model."""
+        from fichero.workflows.types import State
+        start_time = time.time()
+
+        try:
+            config = LLMConfig(
+                provider=spec.provider,
+                model=spec.model,
+                temperature=spec.temperature,
+            )
+
+            # Merge inputs with tool config
+            merged_inputs = {**inputs}
+            if tool_config:
+                merged_inputs.update(tool_config)
+
+            # Create minimal state
+            state = State(
+                files=[],
+                results={},
+                errors={},
+                metadata={},
+            )
+
+            # Run the tool
+            result = await asyncio.wait_for(
+                tool_func(merged_inputs, state, config),
+                timeout=timeout_seconds,
+            )
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Extract response - try common output keys
+            response = ""
+            if isinstance(result, dict):
+                for key in ["text", "description", "summary", "result", "output"]:
+                    if key in result and result[key]:
+                        response = str(result[key])
+                        break
+                if not response:
+                    response = str(result)
+
+            # Estimate cost
+            input_tokens = len(str(inputs)) // 4
+            output_tokens = len(response) // 4
+            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response=response,
+                latency_ms=latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost,
+            )
+
+        except asyncio.TimeoutError:
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=f"Timeout after {timeout_seconds}s",
+            )
+        except Exception as e:
+            logger.exception(f"Tool {tool_name} with {spec.provider}/{spec.model} failed: {e}")
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=str(e),
+            )
 
 
 # Global engine instance

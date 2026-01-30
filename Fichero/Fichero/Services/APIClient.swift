@@ -88,9 +88,10 @@ class APIClient: ObservableObject {
         // App-wide endpoints that don't need library path header
         let isHealthEndpoint = path.contains("/health")
         let isAppWideProviderEndpoint = path.contains("/providers") && !path.contains("/providers/refs")
+        let isSettingsEndpoint = path.contains("/settings")
 
         // Skip header for app-wide endpoints
-        if isHealthEndpoint || isAppWideProviderEndpoint {
+        if isHealthEndpoint || isAppWideProviderEndpoint || isSettingsEndpoint {
             return
         }
 
@@ -112,12 +113,36 @@ class APIClient: ObservableObject {
     // MARK: - Generic Methods
 
     func get<T: Decodable>(_ path: String, query: [String: String]? = nil) async throws -> T {
-        var url = baseURL.appendingPathComponent(path)
+        // Parse path and any inline query string to avoid URL encoding issues
+        // appendingPathComponent encodes ? and & which breaks query strings
+        var pathOnly = path
+        var mergedQuery: [String: String] = query ?? [:]
 
-        if let query = query, !query.isEmpty {
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-            components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-            url = components.url!
+        // Extract query string from path if present (e.g., "/activity?limit=10")
+        if let queryStart = path.firstIndex(of: "?") {
+            pathOnly = String(path[..<queryStart])
+            let queryString = String(path[path.index(after: queryStart)...])
+            for param in queryString.split(separator: "&") {
+                let parts = param.split(separator: "=", maxSplits: 1)
+                if parts.count == 2 {
+                    let key = String(parts[0])
+                    let value = String(parts[1])
+                    // Don't overwrite explicit query params
+                    if mergedQuery[key] == nil {
+                        mergedQuery[key] = value
+                    }
+                }
+            }
+        }
+
+        // Build URL with proper path and query handling
+        var components = URLComponents(url: baseURL.appendingPathComponent(pathOnly), resolvingAgainstBaseURL: false)!
+        if !mergedQuery.isEmpty {
+            components.queryItems = mergedQuery.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+
+        guard let url = components.url else {
+            throw APIError.invalidResponse
         }
 
         var request = URLRequest(url: url)
@@ -149,16 +174,12 @@ class APIClient: ObservableObject {
         configureRequest(&request)
 
         logger.info("POST \(url.absoluteString)")
-        if let bodyData = request.httpBody, let bodyString = String(data: bodyData, encoding: .utf8) {
-            logger.info("Body: \(bodyString)")
-        }
+        // Note: Request body logging removed to avoid potential sensitive data exposure
 
         do {
             let (data, response) = try await session.data(for: request)
             logger.info("Response received, \(data.count) bytes")
-            if let responseString = String(data: data, encoding: .utf8)?.prefix(500) {
-                logger.info("Response: \(String(responseString))")
-            }
+            // Note: Response body logging removed to avoid potential sensitive data exposure
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -181,9 +202,7 @@ class APIClient: ObservableObject {
         do {
             let (data, response) = try await session.data(for: request)
             logger.info("Response received, \(data.count) bytes")
-            if let responseString = String(data: data, encoding: .utf8)?.prefix(500) {
-                logger.info("Response: \(String(responseString))")
-            }
+            // Note: Response body logging removed to avoid potential sensitive data exposure
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -331,10 +350,10 @@ extension APIClient {
         request.httpBody = try encoder.encode(body)
         configureRequest(&request)
 
-        logger.info("POST \(url.absoluteString) (no response)")
+        logger.info("POST \(url.absoluteString) (void response)")
 
         let (data, response) = try await session.data(for: request)
-        logger.info("Response received, \(data.count) bytes")
+        logger.debug("Response received, \(data.count) bytes")
         try validateResponse(response, data: data)
     }
 }

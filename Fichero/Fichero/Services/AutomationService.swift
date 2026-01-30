@@ -4,6 +4,7 @@ import OSLog
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AutomationService")
 
 /// Service for interacting with the Automation API (schedules and triggers)
+/// Note: Data refresh is handled by SidebarView via callback pattern (onRefresh)
 @MainActor
 class AutomationService {
     private let apiClient: APIClient
@@ -12,11 +13,31 @@ class AutomationService {
         self.apiClient = apiClient
     }
 
+    // MARK: - Input Validation
+
+    /// Validate an ID to prevent path traversal attacks
+    private func validateId(_ id: String) throws {
+        // Reject IDs containing path traversal sequences or special characters
+        let invalidPatterns = ["..", "/", "\\", "%2e", "%2f", "%5c"]
+        for pattern in invalidPatterns {
+            if id.lowercased().contains(pattern) {
+                logger.error("Invalid ID detected: contains forbidden pattern '\(pattern)'")
+                throw AutomationServiceError.invalidInput("Invalid ID format")
+            }
+        }
+        // IDs should only contain alphanumeric, hyphen, and underscore
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        if id.unicodeScalars.contains(where: { !allowedCharacters.contains($0) }) {
+            logger.error("Invalid ID detected: contains invalid characters")
+            throw AutomationServiceError.invalidInput("Invalid ID format")
+        }
+    }
+
     // MARK: - Schedule Operations
 
     /// Create a new schedule
     func createSchedule(request: CreateScheduleRequest) async throws -> ScheduleInfo {
-        let response: ScheduleInfo = try await apiClient.post("/api/schedules", body: request)
+        let response: ScheduleInfo = try await apiClient.post("/schedules", body: request)
         return response
     }
 
@@ -30,43 +51,49 @@ class AutomationService {
             queryParams.append("workflow_id=\(workflowId)")
         }
         let queryString = "?\(queryParams.joined(separator: "&"))"
-        let response: [ScheduleInfo] = try await apiClient.get("/api/schedules\(queryString)")
+        let response: [ScheduleInfo] = try await apiClient.get("/schedules\(queryString)")
         return response
     }
 
     /// Get schedule by ID
     func getSchedule(scheduleId: String) async throws -> ScheduleInfo {
-        let response: ScheduleInfo = try await apiClient.get("/api/schedules/\(scheduleId)")
+        try validateId(scheduleId)
+        let response: ScheduleInfo = try await apiClient.get("/schedules/\(scheduleId)")
         return response
     }
 
     /// Delete a schedule
     func deleteSchedule(scheduleId: String) async throws {
-        try await apiClient.delete("/api/schedules/\(scheduleId)")
+        try validateId(scheduleId)
+        try await apiClient.delete("/schedules/\(scheduleId)")
     }
 
     /// Pause a schedule
     func pauseSchedule(scheduleId: String) async throws -> ScheduleInfo {
-        let response: ScheduleInfo = try await apiClient.post("/api/schedules/\(scheduleId)/pause")
+        try validateId(scheduleId)
+        let response: ScheduleInfo = try await apiClient.post("/schedules/\(scheduleId)/pause")
         return response
     }
 
     /// Resume a schedule
     func resumeSchedule(scheduleId: String) async throws -> ScheduleInfo {
-        let response: ScheduleInfo = try await apiClient.post("/api/schedules/\(scheduleId)/resume")
+        try validateId(scheduleId)
+        let response: ScheduleInfo = try await apiClient.post("/schedules/\(scheduleId)/resume")
         return response
     }
 
     /// Trigger a schedule to run now
     func triggerSchedule(scheduleId: String) async throws -> ScheduleRunInfo {
-        let response: ScheduleRunInfo = try await apiClient.post("/api/schedules/\(scheduleId)/trigger")
+        try validateId(scheduleId)
+        let response: ScheduleRunInfo = try await apiClient.post("/schedules/\(scheduleId)/trigger")
         return response
     }
 
     /// Get schedule run history
     func getScheduleRuns(scheduleId: String, limit: Int = 50) async throws -> [ScheduleRunInfo] {
+        try validateId(scheduleId)
         let response: [ScheduleRunInfo] = try await apiClient.get(
-            "/api/schedules/\(scheduleId)/runs?limit=\(limit)"
+            "/schedules/\(scheduleId)/runs?limit=\(limit)"
         )
         return response
     }
@@ -75,7 +102,7 @@ class AutomationService {
 
     /// Create a new file trigger
     func createTrigger(request: CreateTriggerRequest) async throws -> TriggerInfo {
-        let response: TriggerInfo = try await apiClient.post("/api/triggers", body: request)
+        let response: TriggerInfo = try await apiClient.post("/triggers", body: request)
         return response
     }
 
@@ -89,37 +116,42 @@ class AutomationService {
             queryParams.append("workflow_id=\(workflowId)")
         }
         let queryString = "?\(queryParams.joined(separator: "&"))"
-        let response: [TriggerInfo] = try await apiClient.get("/api/triggers\(queryString)")
+        let response: [TriggerInfo] = try await apiClient.get("/triggers\(queryString)")
         return response
     }
 
     /// Get trigger by ID
     func getTrigger(triggerId: String) async throws -> TriggerInfo {
-        let response: TriggerInfo = try await apiClient.get("/api/triggers/\(triggerId)")
+        try validateId(triggerId)
+        let response: TriggerInfo = try await apiClient.get("/triggers/\(triggerId)")
         return response
     }
 
     /// Delete a trigger
     func deleteTrigger(triggerId: String) async throws {
-        try await apiClient.delete("/api/triggers/\(triggerId)")
+        try validateId(triggerId)
+        try await apiClient.delete("/triggers/\(triggerId)")
     }
 
     /// Pause a trigger
     func pauseTrigger(triggerId: String) async throws -> TriggerInfo {
-        let response: TriggerInfo = try await apiClient.post("/api/triggers/\(triggerId)/pause")
+        try validateId(triggerId)
+        let response: TriggerInfo = try await apiClient.post("/triggers/\(triggerId)/pause")
         return response
     }
 
     /// Resume a trigger
     func resumeTrigger(triggerId: String) async throws -> TriggerInfo {
-        let response: TriggerInfo = try await apiClient.post("/api/triggers/\(triggerId)/resume")
+        try validateId(triggerId)
+        let response: TriggerInfo = try await apiClient.post("/triggers/\(triggerId)/resume")
         return response
     }
 
     /// Get trigger execution history
     func getTriggerExecutions(triggerId: String, limit: Int = 50) async throws -> [TriggerExecutionInfo] {
+        try validateId(triggerId)
         let response: [TriggerExecutionInfo] = try await apiClient.get(
-            "/api/triggers/\(triggerId)/executions?limit=\(limit)"
+            "/triggers/\(triggerId)/executions?limit=\(limit)"
         )
         return response
     }
@@ -213,7 +245,7 @@ struct CreateTriggerRequest: Codable {
 
 // MARK: - Response Models
 
-struct ScheduleInfo: Codable, Identifiable {
+struct ScheduleInfo: Codable, Identifiable, Equatable, Hashable {
     let scheduleId: String
     let name: String
     let workflowId: String
@@ -323,7 +355,7 @@ struct ScheduleRunInfo: Codable, Identifiable {
     }
 }
 
-struct TriggerInfo: Codable, Identifiable {
+struct TriggerInfo: Codable, Identifiable, Equatable, Hashable {
     let triggerId: String
     let name: String
     let workflowId: String
@@ -432,5 +464,18 @@ struct TriggerExecutionInfo: Codable, Identifiable {
         case status
         case error
         case completedAt = "completed_at"
+    }
+}
+
+// MARK: - Errors
+
+enum AutomationServiceError: LocalizedError {
+    case invalidInput(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidInput(let message):
+            return "Invalid input: \(message)"
+        }
     }
 }

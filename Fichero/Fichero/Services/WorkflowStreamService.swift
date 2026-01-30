@@ -21,6 +21,7 @@ enum WorkflowStreamEvent: Equatable {
     case pause(threadId: String, checkpointId: String?, currentState: [String: Any]?)
     case error(threadId: String, error: String)
     case systemicError(threadId: String, error: String, errorCount: Int, totalCount: Int)
+    case log(threadId: String, line: String)
 
     // Equatable for testing - simplified comparison
     static func == (lhs: WorkflowStreamEvent, rhs: WorkflowStreamEvent) -> Bool {
@@ -49,6 +50,8 @@ enum WorkflowStreamEvent: Equatable {
             return lhsThread == rhsThread && lhsError == rhsError
         case (.systemicError(let lhsThread, _, _, _), .systemicError(let rhsThread, _, _, _)):
             return lhsThread == rhsThread
+        case (.log(let lhsThread, let lhsLine), .log(let rhsThread, let rhsLine)):
+            return lhsThread == rhsThread && lhsLine == rhsLine
         default:
             return false
         }
@@ -389,6 +392,9 @@ class WorkflowStreamService: ObservableObject {
 
     // MARK: - Private Methods
 
+    // TODO: Refactor parseEvent - extract case handlers into separate methods
+    // Function is 115 lines, target <100
+    // swiftlint:disable:next function_body_length
     private func parseEvent(_ jsonString: String) -> WorkflowStreamEvent? {
         guard let data = jsonString.data(using: .utf8) else {
             logger.error("[SSE-PARSE] Failed to convert string to data")
@@ -514,6 +520,10 @@ class WorkflowStreamService: ObservableObject {
                     errorCount: errorCount,
                     totalCount: totalCount
                 )
+
+            case "log":
+                let line = (eventData.data["line"]?.stringValue) ?? ""
+                return .log(threadId: eventData.threadId, line: line)
 
             default:
                 logger.warning("Unknown SSE event type: \(eventData.event)")

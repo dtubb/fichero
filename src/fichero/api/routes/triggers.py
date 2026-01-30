@@ -11,9 +11,10 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.db import Database, db_manager
 from fichero.workflows.file_watcher import (
     FileWatcherManager,
     FileTrigger,
@@ -22,8 +23,8 @@ from fichero.workflows.file_watcher import (
     TriggerStatus,
     FilterMode,
     TriggerExecution,
-    get_file_watcher,
 )
+from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,16 @@ class CreateTriggerRequest(BaseModel):
     )
     use_batch: bool = Field(True, description="Batch multiple files")
     max_concurrent: int = Field(5, description="Max concurrent batch items")
+
+
+class UpdateTriggerRequest(BaseModel):
+    """Request to update an existing file trigger."""
+    name: Optional[str] = Field(None, description="Display name for the trigger")
+    workflow_id: Optional[str] = Field(None, description="ID of workflow to execute")
+    config: Optional[TriggerConfigRequest] = Field(None, description="Trigger configuration")
+    inputs_template: Optional[dict[str, Any]] = Field(None, description="Template for workflow inputs")
+    use_batch: Optional[bool] = Field(None, description="Batch multiple files")
+    max_concurrent: Optional[int] = Field(None, description="Max concurrent batch items")
 
 
 class TriggerResponse(BaseModel):
@@ -137,23 +148,52 @@ class TriggerExecutionResponse(BaseModel):
         )
 
 
-def _get_watcher() -> FileWatcherManager:
-    """Get file watcher or raise 503 if not initialized."""
-    watcher = get_file_watcher()
-    if not watcher:
+# Per-library file watcher instances
+_watchers: dict[str, FileWatcherManager] = {}
+
+
+async def get_library_database(
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+) -> Database:
+    """Get database for current library."""
+    if not x_fichero_library_path:
         raise HTTPException(
-            status_code=503,
-            detail="File watcher not initialized"
+            status_code=400,
+            detail="Missing X-Fichero-Library-Path header"
         )
-    return watcher
+    try:
+        return db_manager.get_database(x_fichero_library_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to access library database: {str(e)}"
+        )
+
+
+async def get_file_watcher(
+    db: Database = Depends(get_library_database)
+) -> FileWatcherManager:
+    """Get or create file watcher for the current library."""
+    db_path = str(db.path)
+
+    if db_path not in _watchers:
+        workflow_store = WorkflowStore(db)
+        watcher = FileWatcherManager(db_path, workflow_store)
+        await watcher.start()
+        _watchers[db_path] = watcher
+        logger.info(f"Created file watcher for library: {db_path}")
+
+    return _watchers[db_path]
 
 
 # Endpoints
 
 @router.post("", response_model=TriggerResponse)
-async def create_trigger(request: CreateTriggerRequest) -> TriggerResponse:
+async def create_trigger(
+    request: CreateTriggerRequest,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> TriggerResponse:
     """Create a new file trigger."""
-    watcher = _get_watcher()
 
     try:
         config = TriggerConfig(
@@ -192,9 +232,9 @@ async def list_triggers(
     workflow_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
 ) -> list[TriggerResponse]:
     """List file triggers with optional filtering."""
-    watcher = _get_watcher()
 
     status_enum = TriggerStatus(status) if status else None
 
@@ -209,9 +249,11 @@ async def list_triggers(
 
 
 @router.get("/{trigger_id}", response_model=TriggerResponse)
-async def get_trigger(trigger_id: str) -> TriggerResponse:
+async def get_trigger(
+    trigger_id: str,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> TriggerResponse:
     """Get trigger by ID."""
-    watcher = _get_watcher()
 
     trigger = await watcher.get_trigger(trigger_id)
     if not trigger:
@@ -221,9 +263,11 @@ async def get_trigger(trigger_id: str) -> TriggerResponse:
 
 
 @router.delete("/{trigger_id}")
-async def delete_trigger(trigger_id: str) -> dict:
+async def delete_trigger(
+    trigger_id: str,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> dict:
     """Delete a file trigger."""
-    watcher = _get_watcher()
 
     # Verify trigger exists
     trigger = await watcher.get_trigger(trigger_id)
@@ -234,10 +278,69 @@ async def delete_trigger(trigger_id: str) -> dict:
     return {"message": f"Trigger {trigger_id} deleted"}
 
 
+@router.put("/{trigger_id}", response_model=TriggerResponse)
+async def update_trigger(
+    trigger_id: str,
+    request: UpdateTriggerRequest,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> TriggerResponse:
+    """Update a file trigger."""
+
+    # Verify trigger exists
+    trigger = await watcher.get_trigger(trigger_id)
+    if not trigger:
+        raise HTTPException(status_code=404, detail=f"Trigger {trigger_id} not found")
+
+    try:
+        # Update fields if provided
+        if request.name is not None:
+            trigger.name = request.name
+
+        if request.workflow_id is not None:
+            trigger.workflow_id = request.workflow_id
+
+        if request.config is not None:
+            trigger.config = TriggerConfig(
+                watch_path=request.config.watch_path,
+                recursive=request.config.recursive,
+                events=[TriggerEvent(e) for e in request.config.events],
+                filter_mode=FilterMode(request.config.filter_mode),
+                filter_pattern=request.config.filter_pattern,
+                filter_extensions=request.config.filter_extensions,
+                exclude_patterns=request.config.exclude_patterns,
+                debounce_seconds=request.config.debounce_seconds,
+                batch_delay_seconds=request.config.batch_delay_seconds,
+            )
+
+        if request.inputs_template is not None:
+            trigger.inputs_template = request.inputs_template
+
+        if request.use_batch is not None:
+            trigger.use_batch = request.use_batch
+
+        if request.max_concurrent is not None:
+            trigger.max_concurrent = request.max_concurrent
+
+        trigger.updated_at = datetime.utcnow()
+
+        # Save updated trigger
+        await watcher.update_trigger(trigger)
+
+        return TriggerResponse.from_trigger(trigger)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Failed to update trigger: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{trigger_id}/pause", response_model=TriggerResponse)
-async def pause_trigger(trigger_id: str) -> TriggerResponse:
+async def pause_trigger(
+    trigger_id: str,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> TriggerResponse:
     """Pause an active file trigger."""
-    watcher = _get_watcher()
 
     try:
         trigger = await watcher.pause_trigger(trigger_id)
@@ -247,9 +350,11 @@ async def pause_trigger(trigger_id: str) -> TriggerResponse:
 
 
 @router.post("/{trigger_id}/resume", response_model=TriggerResponse)
-async def resume_trigger(trigger_id: str) -> TriggerResponse:
+async def resume_trigger(
+    trigger_id: str,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
+) -> TriggerResponse:
     """Resume a paused file trigger."""
-    watcher = _get_watcher()
 
     try:
         trigger = await watcher.resume_trigger(trigger_id)
@@ -262,9 +367,9 @@ async def resume_trigger(trigger_id: str) -> TriggerResponse:
 async def get_trigger_executions(
     trigger_id: str,
     limit: int = 50,
+    watcher: FileWatcherManager = Depends(get_file_watcher),
 ) -> list[TriggerExecutionResponse]:
     """Get execution history for a trigger."""
-    watcher = _get_watcher()
 
     # Verify trigger exists
     trigger = await watcher.get_trigger(trigger_id)

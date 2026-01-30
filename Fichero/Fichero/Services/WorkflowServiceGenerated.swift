@@ -775,10 +775,7 @@ extension WorkflowServiceGenerated {
     private func convertObjectContainerToDict(
         _ container: OpenAPIRuntime.OpenAPIObjectContainer
     ) -> [String: Any] {
-        if let dict = container.value as? [String: Any] {
-            return dict
-        }
-        return [:]
+        return container.value as [String: Any]
     }
 
     private func convertObjectContainerToAnyCodableDict(

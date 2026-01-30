@@ -1,8 +1,9 @@
 import SwiftUI
+import FicheroAPIClient
 
 /// Displays provider logo - uses bundled image if available, SF Symbol as fallback
 struct ProviderLogoView: View {
-    let entry: ProviderCatalogEntry
+    let entry: Components.Schemas.ProviderCatalogResponse
     let size: CGFloat
 
     var body: some View {

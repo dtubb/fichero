@@ -44,3 +44,39 @@ struct SidebarSectionHeader: View {
             }
     }
 }
+
+// MARK: - Library Section Header
+
+/// Section header specifically for library grouping across sidebar modes.
+/// Displays the library name (or "Global" for the global library) with an item count.
+/// Shows a checkmark indicator when this library is the current active library.
+struct LibrarySectionHeader: View {
+    let library: LibraryManager.LibraryReference
+    let itemCount: Int
+    var isCurrentLibrary: Bool = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            // Current library indicator (checkmark)
+            if isCurrentLibrary {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.accent)
+            }
+
+            if library.id == LibraryManager.globalLibraryId {
+                Text("Global")
+            } else {
+                Text(library.displayName)
+            }
+
+            Spacer()
+
+            if itemCount > 0 {
+                Text("\(itemCount)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}

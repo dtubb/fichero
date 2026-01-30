@@ -42,6 +42,72 @@ def _merge_parallel_results(
     return result
 
 
+def _merge_outputs(
+    existing: dict[str, Any] | None,
+    new: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Reducer for outputs - merges node outputs from concurrent branches.
+
+    Each node returns {node_id: result} and this reducer combines them.
+    """
+    if existing is None:
+        existing = {}
+    if new is None:
+        return existing
+    result = dict(existing)
+    result.update(new)
+    return result
+
+
+def _merge_completed_nodes(
+    existing: list[str] | None,
+    new: list[str] | None,
+) -> list[str]:
+    """Reducer for completed_nodes - merges lists from concurrent branches."""
+    if existing is None:
+        existing = []
+    if new is None:
+        return existing
+    # Union while preserving order
+    seen = set(existing)
+    result = list(existing)
+    for item in new:
+        if item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
+
+
+def _last_value(existing: str | None, new: str | None) -> str:
+    """Reducer for current_node - takes the last value in parallel execution.
+
+    When multiple parallel nodes update current_node simultaneously,
+    we just keep the last one (order doesn't matter for tracking).
+    """
+    if new is not None:
+        return new
+    return existing or ""
+
+
+def _merge_output_files(
+    existing: list[str] | None,
+    new: list[str] | None,
+) -> list[str]:
+    """Reducer for output_files - merges file lists from concurrent branches."""
+    if existing is None:
+        existing = []
+    if new is None:
+        return existing
+    # Union while preserving order
+    seen = set(existing)
+    result = list(existing)
+    for item in new:
+        if item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
+
+
 def _new_id() -> str:
     """Generate a new unique ID."""
     return uuid.uuid4().hex
@@ -138,16 +204,16 @@ class State(TypedDict):
 
     # Input/Output
     inputs: dict[str, Any]          # Initial inputs to workflow
-    outputs: dict[str, Any]         # Node outputs (keyed by node_id)
+    outputs: Annotated[dict[str, Any], _merge_outputs]  # Node outputs (keyed by node_id)
 
     # Execution tracking
-    current_node: str               # Current node being executed
-    completed_nodes: list[str]      # Nodes that have completed
+    current_node: Annotated[str, _last_value]  # Current node being executed (uses reducer for parallel)
+    completed_nodes: Annotated[list[str], _merge_completed_nodes]  # Nodes that have completed
     error: str | None               # Error message if failed
 
     # File tracking
     input_files: list[str]          # Input file paths
-    output_files: list[str]         # Generated output file paths
+    output_files: Annotated[list[str], _merge_output_files]  # Generated output file paths
 
     # Parallel execution tracking (for Send API fan-out)
     # Annotated with reducer to merge results from concurrent parallel branches
@@ -374,6 +440,12 @@ class ToolDef(BaseModel):
     config_schema: dict[str, Any] = Field(
         default_factory=dict,
         description="JSON Schema for tool configuration options"
+    )
+
+    # Config defaults (actual default values for new nodes)
+    config_defaults: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default config values to use when creating a new node"
     )
 
     # Output schema template (for LLM tools that support structured output)

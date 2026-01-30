@@ -1,18 +1,19 @@
 import SwiftUI
 import OSLog
+import FicheroAPIClient
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ProvidersView")
 
 /// Providers management view - manage LLM providers and their models
 struct ProvidersView: View {
     @EnvironmentObject var appState: AppState
-    @State private var providers: [ProviderResponse] = []
-    @State private var catalog: [ProviderCatalogEntry] = []
+    @State private var providers: [Components.Schemas.ProviderResponse] = []
+    @State private var catalog: [Components.Schemas.ProviderCatalogResponse] = []
     @State private var isLoading = true
     @State private var showAddProvider = false
-    @State private var selectedProvider: ProviderResponse?
+    @State private var selectedProvider: Components.Schemas.ProviderResponse?
 
-    @EnvironmentObject var providerService: ProviderService
+    @EnvironmentObject var providerService: ProviderServiceGenerated
 
     var body: some View {
         HSplitView {
@@ -22,7 +23,7 @@ struct ProvidersView: View {
                     ForEach(sortedProviders) { provider in
                         ProviderSettingsRow(
                             provider: provider,
-                            catalogEntry: catalog.first { $0.type == provider.providerType }
+                            catalogEntry: catalog.first { $0.providerType == provider.providerType }
                         )
                         .tag(provider)
                     }
@@ -54,7 +55,7 @@ struct ProvidersView: View {
             if let provider = selectedProvider {
                 ProviderDetailView(
                     provider: provider,
-                    catalogEntry: catalog.first { $0.type == provider.providerType },
+                    catalogEntry: catalog.first { $0.providerType == provider.providerType },
                     onUpdate: loadProviders
                 )
                 .frame(minWidth: 350)
@@ -79,7 +80,7 @@ struct ProvidersView: View {
     }
 
     /// Providers sorted: Apple, Ollama, LM Studio, HuggingFace, then rest alphabetically
-    private var sortedProviders: [ProviderResponse] {
+    private var sortedProviders: [Components.Schemas.ProviderResponse] {
         providers.sorted { provider1, provider2 in
             let orderA = sortOrder(provider1.providerType)
             let orderB = sortOrder(provider2.providerType)
@@ -134,8 +135,8 @@ struct ProvidersView: View {
 
 /// Provider row in the settings list
 struct ProviderSettingsRow: View {
-    let provider: ProviderResponse
-    let catalogEntry: ProviderCatalogEntry?
+    let provider: Components.Schemas.ProviderResponse
+    let catalogEntry: Components.Schemas.ProviderCatalogResponse?
 
     /// Whether this provider is local (always shows green status)
     private var isLocalProvider: Bool {
@@ -182,8 +183,8 @@ struct ProviderSettingsRow: View {
 
 /// Provider detail view showing configuration and models
 struct ProviderDetailView: View {
-    let provider: ProviderResponse
-    let catalogEntry: ProviderCatalogEntry?  // For checking isLocal/isBuiltin
+    let provider: Components.Schemas.ProviderResponse
+    let catalogEntry: Components.Schemas.ProviderCatalogResponse?  // For checking isLocal/isBuiltin
     let onUpdate: () async -> Void
 
     @State private var apiKey: String = ""
@@ -191,15 +192,15 @@ struct ProviderDetailView: View {
 
     // Connection test state
     @State private var isTesting = false
-    @State private var testResult: ConnectionTestResponse?
+    @State private var testResult: Components.Schemas.ConnectionTestResponse?
     @State private var testError: String?
 
     // Models state
     @State private var showModelBrowser = false
-    @State private var userModels: [UserModelResponse] = []
+    @State private var userModels: [Components.Schemas.UserModelResponse] = []
     @State private var isLoadingModels = false
 
-    @EnvironmentObject var providerService: ProviderService
+    @EnvironmentObject var providerService: ProviderServiceGenerated
 
     /// Whether this provider is local (no API key needed)
     private var isLocalProvider: Bool {
@@ -477,7 +478,7 @@ struct ProviderDetailView: View {
         }
     }
 
-    private func deleteModel(_ model: UserModelResponse) {
+    private func deleteModel(_ model: Components.Schemas.UserModelResponse) {
         Task {
             do {
                 // Use model.id (UUID), not model.modelId (the model name like "gemini-1.0-pro")

@@ -650,6 +650,58 @@ class WorkflowScheduler:
         logger.info(f"Resumed schedule {schedule_id}")
         return schedule
 
+    async def update_schedule(self, schedule: Schedule) -> Schedule:
+        """Update an existing schedule.
+
+        Args:
+            schedule: Schedule object with updated fields
+
+        Returns:
+            Updated Schedule object
+        """
+        # Verify schedule exists
+        existing = await self.get_schedule(schedule.schedule_id)
+        if not existing:
+            raise ValueError(f"Schedule {schedule.schedule_id} not found")
+
+        # If workflow_id changed, validate new workflow exists
+        if schedule.workflow_id != existing.workflow_id:
+            workflow = await self.workflow_store.get(schedule.workflow_id)
+            if not workflow:
+                raise ValueError(f"Workflow {schedule.workflow_id} not found")
+
+        # If schedule config changed and schedule is active, re-register job
+        config_changed = (
+            schedule.config.schedule_type != existing.config.schedule_type
+            or schedule.config.cron_expression != existing.config.cron_expression
+            or schedule.config.interval_seconds != existing.config.interval_seconds
+            or schedule.config.run_at != existing.config.run_at
+        )
+
+        if config_changed and schedule.status == ScheduleStatus.ACTIVE:
+            # Remove old job
+            try:
+                self._scheduler.remove_job(schedule.schedule_id)
+            except Exception:
+                pass
+
+            # Register new job
+            self._register_job(schedule)
+
+            # Update next run time
+            job = self._scheduler.get_job(schedule.schedule_id)
+            if job:
+                schedule.next_run_at = job.next_run_time
+
+        # Save to database
+        await self._save_schedule(schedule)
+
+        # Update cache
+        self._schedules[schedule.schedule_id] = schedule
+
+        logger.info(f"Updated schedule {schedule.schedule_id}")
+        return schedule
+
     async def delete_schedule(self, schedule_id: str) -> None:
         """Delete a schedule."""
         # Remove from APScheduler

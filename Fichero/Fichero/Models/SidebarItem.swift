@@ -8,6 +8,9 @@ enum ItemCategory: String, CaseIterable, Identifiable {
     case search = "Search"
     case chat = "Chat"
     case workflow = "Workflow"
+    case automation = "Automation"  // Schedules and triggers
+    case batch = "Batch"  // Running batches
+    case activity = "Activity"  // Workflow runs
     case library = "Library"  // For library group headers
 
     var id: String { rawValue }
@@ -18,6 +21,9 @@ enum ItemCategory: String, CaseIterable, Identifiable {
         case .search: return "magnifyingglass"
         case .chat: return "bubble.left.and.bubble.right"
         case .workflow: return "arrow.triangle.branch"
+        case .automation: return "clock.arrow.2.circlepath"
+        case .batch: return "square.stack.3d.up"
+        case .activity: return "waveform.path.ecg"
         case .library: return "book.closed"
         }
     }
@@ -48,6 +54,12 @@ struct SidebarItem: Identifiable, Hashable {
         case savedSearch(SavedSearch)
         case conversation(Conversation)
         case workflow(WorkflowSidebarItem)
+        case chain(WorkflowChain)
+        case comparison(ComparisonSummary)
+        case schedule(ScheduleInfo)
+        case trigger(TriggerInfo)
+        case batch(BatchInfo)
+        case activityRun(ActivityItem)
         case folder(folderPath: String)  // Folder item (no data, just structure)
         case libraryHeader  // For library group headers
     }
@@ -121,6 +133,111 @@ struct SidebarItem: Identifiable, Hashable {
             libraryId: libraryId,
             folderPath: conversation.folderPath,
             sortOrder: conversation.sortOrder,
+            isFolder: false
+        )
+    }
+
+    static func fromChain(_ chain: WorkflowChain, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        SidebarItem(
+            id: "chain:\(chain.id)",
+            name: chain.name,
+            icon: "link",
+            category: .workflow,
+            itemType: .chain(chain),
+            children: children,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",  // Chains don't have folder paths yet
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    static func fromComparison(_ comparison: ComparisonSummary, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        // Truncate prompt for display
+        let displayName = comparison.prompt.prefix(40) + (comparison.prompt.count > 40 ? "..." : "")
+        return SidebarItem(
+            id: "comparison:\(comparison.comparisonId)",
+            name: String(displayName),
+            icon: "arrow.left.arrow.right",
+            category: .chat,
+            itemType: .comparison(comparison),
+            children: children,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    static func fromSchedule(_ schedule: ScheduleInfo, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        SidebarItem(
+            id: "schedule:\(schedule.scheduleId)",
+            name: schedule.name,
+            icon: schedule.statusIcon,
+            category: .automation,
+            itemType: .schedule(schedule),
+            children: children,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    static func fromTrigger(_ trigger: TriggerInfo, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        SidebarItem(
+            id: "trigger:\(trigger.triggerId)",
+            name: trigger.name,
+            icon: trigger.statusIcon,
+            category: .automation,
+            itemType: .trigger(trigger),
+            children: children,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    static func fromBatch(_ batch: BatchInfo, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        let progress = batch.totalItems > 0 ? Double(batch.completedItems) / Double(batch.totalItems) : 0
+        return SidebarItem(
+            id: "batch:\(batch.batchId)",
+            name: batch.name,
+            icon: batch.status == "running" ? "play.circle.fill" : "checkmark.circle",
+            category: .batch,
+            itemType: .batch(batch),
+            children: children,
+            progress: progress,
+            showProgress: batch.status == "running",
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    static func fromActivityRun(_ activity: ActivityItem, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+        SidebarItem(
+            id: "activity:\(activity.id)",
+            name: activity.name,
+            icon: activity.statusIcon,
+            category: .activity,
+            itemType: .activityRun(activity),
+            children: children,
+            progress: nil,
+            showProgress: activity.status == "running",
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
             isFolder: false
         )
     }
@@ -384,21 +501,98 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
 
 /// Which main view is active based on sidebar selection
 enum AppViewMode: Equatable {
-    case library(Document?)           // Library browsing - selected collection/folder
-    case search(SavedSearch?)         // Search view - selected saved search or new search
-    case chat(Conversation?)          // Chat view - RAG conversation with documents
+    case library(Document?)              // Library browsing - selected collection/folder
+    case search(SavedSearch?)            // Search view - selected saved search or new search
+    case chat(Conversation?)             // Chat view - RAG conversation with documents
+    case comparison(ComparisonSummary?)  // Model comparison view
     case workflow(WorkflowSidebarItem?)  // Workflow editor - selected workflow
-    case activity                     // Activity monitor - batch and workflow execution tracking
-    case automation                   // Automation view - schedules and file triggers
+    case chain(WorkflowChain?)           // Chain editor - workflow chain
+    case batches                         // Batch jobs list and management
+    case batch(BatchInfo?)               // Batch detail view
+    case automation                      // Schedules and file triggers
+    case schedule(ScheduleInfo?)         // Schedule detail/creation view
+    case trigger(TriggerInfo?)           // Trigger detail/creation view
+    case activity(SelectedActivityRun?)  // All workflow runs - optional selected run for detail view
 
     var category: ItemCategory {
         switch self {
         case .library: return .folder
         case .search: return .search
-        case .chat: return .chat
-        case .workflow: return .workflow
-        case .activity: return .workflow  // Activity uses workflow category
-        case .automation: return .workflow  // Automation uses workflow category
+        case .chat, .comparison: return .chat
+        case .workflow, .chain: return .workflow
+        case .batches, .batch, .automation, .schedule, .trigger: return .workflow
+        case .activity: return .workflow
         }
+    }
+}
+
+// MARK: - Activity Run Selection
+
+/// Child type for activity run selection (Xcode Report Navigator style)
+enum ActivityChildType: String, Equatable, CaseIterable {
+    case console
+    case progress
+    case errors
+    case graph    // Checkpoint history
+    case code     // Python code
+    case diagram  // Workflow diagram
+    case log      // Execution log
+
+    var label: String {
+        switch self {
+        case .console: return "Console"
+        case .progress: return "Progress"
+        case .errors: return "Errors"
+        case .graph: return "Graph"
+        case .code: return "Code"
+        case .diagram: return "Diagram"
+        case .log: return "Log"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .console: return "text.alignleft"
+        case .progress: return "chart.bar.fill"
+        case .errors: return "exclamationmark.triangle.fill"
+        case .graph: return "point.3.connected.trianglepath.dotted"
+        case .code: return "chevron.left.forwardslash.chevron.right"
+        case .diagram: return "flowchart"
+        case .log: return "doc.text"
+        }
+    }
+}
+
+/// Selected activity run for the detail view
+/// Lightweight reference - full details loaded on demand
+struct SelectedActivityRun: Equatable, Identifiable {
+    let id: String
+    let name: String
+    let workflowId: String?
+    let threadId: String?
+    let timestamp: Date
+    let status: ActivityRunStatusType
+    let isLive: Bool  // True if currently running (use observer for updates)
+    var childType: ActivityChildType?  // Which child is selected (nil = overview)
+
+    enum ActivityRunStatusType: String, Equatable {
+        case running
+        case completed
+        case failed
+        case cancelled
+    }
+
+    /// Create a copy with a different child type
+    func with(childType: ActivityChildType?) -> SelectedActivityRun {
+        SelectedActivityRun(
+            id: id,
+            name: name,
+            workflowId: workflowId,
+            threadId: threadId,
+            timestamp: timestamp,
+            status: status,
+            isLive: isLive,
+            childType: childType
+        )
     }
 }

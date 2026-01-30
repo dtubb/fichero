@@ -411,7 +411,7 @@ struct ModelResultCard: View {
 // MARK: - Model Picker Sheet
 
 struct ModelPickerSheet: View {
-    let availableModels: [ModelInfo]
+    let availableModels: [ComparisonModelInfo]
     @Binding var selectedModels: [ModelSpec]
     @Environment(\.dismiss) private var dismiss
 

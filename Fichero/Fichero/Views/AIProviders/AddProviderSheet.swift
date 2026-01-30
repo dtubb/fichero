@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import FicheroAPIClient
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AddProviderSheet")
 
@@ -8,7 +9,7 @@ struct AddProviderSheet: View {
     let onAdd: () async -> Void
     let isFirstLaunch: Bool
 
-    @State private var catalog: [ProviderCatalogEntry] = []
+    @State private var catalog: [Components.Schemas.ProviderCatalogResponse] = []
     @State private var existingProviderTypes: Set<String> = []  // Already configured
     @State private var selectedType: String?
     @State private var apiKey: String = ""
@@ -16,11 +17,11 @@ struct AddProviderSheet: View {
     @State private var isLoading = true
     @State private var isAdding = false
     @State private var step: Int = 1  // 1 = choose, 2 = configure, 3 = models
-    @State private var addedProvider: ProviderResponse?  // The provider we just added
+    @State private var addedProvider: Components.Schemas.ProviderResponse?  // The provider we just added
     @State private var selectedModelForStep3: ModelInfo?  // Selected model in step 3
     @State private var isAddingModel = false
 
-    @EnvironmentObject var providerService: ProviderService
+    @EnvironmentObject var providerService: ProviderServiceGenerated
 
     init(onAdd: @escaping () async -> Void, isFirstLaunch: Bool = false) {
         self.onAdd = onAdd
@@ -28,13 +29,13 @@ struct AddProviderSheet: View {
     }
 
     /// Currently selected catalog entry
-    private var selectedEntry: ProviderCatalogEntry? {
-        catalog.first { $0.type == selectedType }
+    private var selectedEntry: Components.Schemas.ProviderCatalogResponse? {
+        catalog.first { $0.providerType == selectedType }
     }
 
     /// Catalog entries that haven't been added yet
-    private var availableCatalog: [ProviderCatalogEntry] {
-        catalog.filter { !existingProviderTypes.contains($0.type) }
+    private var availableCatalog: [Components.Schemas.ProviderCatalogResponse] {
+        catalog.filter { !existingProviderTypes.contains($0.providerType) }
     }
 
     var body: some View {
@@ -95,9 +96,9 @@ struct AddProviderSheet: View {
                             ForEach(availableCatalog) { entry in
                                 ProviderRadioRow(
                                     entry: entry,
-                                    isSelected: selectedType == entry.type
+                                    isSelected: selectedType == entry.providerType
                                 ) {
-                                    selectedType = entry.type
+                                    selectedType = entry.providerType
                                 }
                             }
                         }
@@ -130,7 +131,7 @@ struct AddProviderSheet: View {
                 .disabled(isFirstLaunch && catalog.isEmpty)
 
                 Button(selectedEntry?.isBuiltin == true ? "Add" : "Continue") {
-                    logger.info("Button tapped, selectedEntry=\(selectedEntry?.type ?? "nil"), isBuiltin=\(selectedEntry?.isBuiltin ?? false)")
+                    logger.info("Button tapped, selectedEntry=\(selectedEntry?.providerType ?? "nil"), isBuiltin=\(selectedEntry?.isBuiltin ?? false)")
                     // For built-in providers, add directly without config step
                     if let entry = selectedEntry, entry.isBuiltin {
                         logger.info("isBuiltin=true, calling addProvider()")
@@ -185,10 +186,10 @@ struct AddProviderSheet: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
 
-                            TextField(defaultServerUrl(for: entry.type), text: $serverUrl)
+                            TextField(defaultServerUrl(for: entry.providerType), text: $serverUrl)
                                 .textFieldStyle(.roundedBorder)
 
-                            Text("Leave empty to use default: \(defaultServerUrl(for: entry.type))")
+                            Text("Leave empty to use default: \(defaultServerUrl(for: entry.providerType))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -266,10 +267,10 @@ extension AddProviderSheet {
 
             // Pre-select first available local provider for first launch
             if isFirstLaunch, let first = availableCatalog.first(where: { $0.isLocal }) {
-                selectedType = first.type
+                selectedType = first.providerType
             } else if selectedType == nil, let first = availableCatalog.first {
                 // Pre-select first available if nothing selected
-                selectedType = first.type
+                selectedType = first.providerType
             }
         } catch {
             logger.error("Load catalog failed: \(String(describing: error))")
@@ -387,7 +388,7 @@ extension AddProviderSheet {
 
 
 struct ProviderRadioRow: View {
-    let entry: ProviderCatalogEntry
+    let entry: Components.Schemas.ProviderCatalogResponse
     let isSelected: Bool
     let onSelect: () -> Void
 

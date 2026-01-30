@@ -21,6 +21,7 @@ struct WorkflowExecution: Identifiable {
     var workflowError: String?
     var totalFiles: Int = 0
     var processedFiles: Int = 0
+    var logLines: [String] = []  // Streamed execution log lines
 
     /// Ordered document progress for display
     var orderedDocumentProgress: [DocumentProgress] {
@@ -178,7 +179,10 @@ class WorkflowExecutionObserver {
 
     // MARK: - Event Handling
 
+    // TODO: Refactor handleEvent - extract case handlers into separate methods
+    // Function is 145 lines, target <100
     /// Handle SSE event and update all relevant state
+    // swiftlint:disable:next function_body_length
     func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
         // Log every event for debugging
         logger.info("[EVENT] Received: \(String(describing: event).prefix(80)) for workflow: \(workflowId)")
@@ -322,6 +326,14 @@ class WorkflowExecutionObserver {
             }
             execution.isRunning = false
 
+            // Remove from active executions after a delay (let UI update first)
+            let completedWorkflowId = workflowId
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                self.activeExecutions.removeValue(forKey: completedWorkflowId)
+                logger.info("Removed completed execution: \(completedWorkflowId)")
+            }
+
         case .pause:
             logger.info("Workflow paused")
             execution.status = .paused
@@ -330,11 +342,30 @@ class WorkflowExecutionObserver {
             logger.error("Workflow error: \(error)")
             execution.status = .failed
             execution.workflowError = error
+            execution.isRunning = false
+
+            // Remove from active executions after a delay
+            let failedWorkflowId = workflowId
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                self.activeExecutions.removeValue(forKey: failedWorkflowId)
+            }
 
         case .systemicError(_, let error, let errorCount, let totalCount):
             logger.error("Systemic error: \(error) (\(errorCount)/\(totalCount) failures)")
             execution.status = .failed
             execution.workflowError = "Systemic error: \(error) (\(errorCount)/\(totalCount) failures)"
+            execution.isRunning = false
+
+            // Remove from active executions after a delay
+            let systemicFailedWorkflowId = workflowId
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                self.activeExecutions.removeValue(forKey: systemicFailedWorkflowId)
+            }
+
+        case .log(_, let line):
+            execution.logLines.append(line)
         }
 
         // Save updated execution

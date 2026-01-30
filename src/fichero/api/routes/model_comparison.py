@@ -13,6 +13,7 @@ from fichero.workflows.model_comparison import (
     ModelSpec,
     get_comparison_engine,
     MODEL_PRICING,
+    get_models_by_tier,
 )
 
 router = APIRouter(prefix="/model-comparison", tags=["model-comparison"])
@@ -34,6 +35,36 @@ class CompareRequest(BaseModel):
     )
     system_prompt: str | None = Field(default=None, description="Optional system prompt")
     timeout_seconds: int = Field(default=60, description="Timeout per model")
+
+
+class VisionCompareRequest(BaseModel):
+    """Request to compare vision models."""
+    images: list[str] = Field(..., description="Image URLs or base64 data URIs")
+    prompt: str = Field(default="Describe this image in detail", description="Prompt for vision analysis")
+    models: list[dict] = Field(
+        default=[
+            {"provider": "openai", "model": "gpt-4o"},
+            {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
+        ],
+        description="Vision-capable models to compare"
+    )
+    detail: str = Field(default="auto", description="Image detail level: auto, low, high")
+    timeout_seconds: int = Field(default=120, description="Timeout per model")
+
+
+class ToolCompareRequest(BaseModel):
+    """Request to compare models running a workflow tool."""
+    tool_name: str = Field(..., description="Name of the workflow tool (describe, summarize, classify, etc.)")
+    inputs: dict = Field(..., description="Tool-specific inputs (files, text, etc.)")
+    models: list[dict] = Field(
+        default=[
+            {"provider": "openai", "model": "gpt-4o"},
+            {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
+        ],
+        description="Models to compare"
+    )
+    tool_config: dict | None = Field(default=None, description="Optional tool configuration overrides")
+    timeout_seconds: int = Field(default=120, description="Timeout per model")
 
 
 class ModelInfo(BaseModel):
@@ -210,3 +241,103 @@ async def get_comparison_presets():
             },
         ]
     }
+
+
+@router.get("/models-by-tier")
+async def get_models_grouped_by_tier():
+    """Get all models grouped by performance/cost tier.
+
+    Returns models organized into:
+    - frontier: Best quality, highest cost (GPT-4o, Claude 3.5 Sonnet, etc.)
+    - mid: Good quality, moderate cost (GPT-4o-mini, Claude Haiku, etc.)
+    - budget: Basic quality, low cost (GPT-3.5, etc.)
+    - local: Free, runs locally (Llama, Mistral via Ollama)
+    """
+    return get_models_by_tier()
+
+
+@router.post("/compare-vision")
+async def compare_vision_models(request: VisionCompareRequest):
+    """Compare vision models on the same image(s).
+
+    Sends the same image(s) to multiple vision-capable models
+    and returns comparison results with timing and cost metrics.
+
+    Images can be:
+    - URLs (https://...)
+    - Base64 data URIs (data:image/jpeg;base64,...)
+    """
+    model_specs = [
+        ModelSpec(
+            provider=m.get("provider", "openai"),
+            model=m.get("model", "gpt-4o"),
+            temperature=m.get("temperature", 0.7),
+        )
+        for m in request.models
+    ]
+
+    engine = get_comparison_engine()
+    result = await engine.compare_vision(
+        images=request.images,
+        prompt=request.prompt,
+        models=model_specs,
+        detail=request.detail,
+        timeout_seconds=request.timeout_seconds,
+    )
+
+    return result.to_dict()
+
+
+@router.post("/compare-tool")
+async def compare_tool_across_models(request: ToolCompareRequest):
+    """Compare models running the same workflow tool.
+
+    Runs a workflow tool (describe, summarize, classify, etc.) with
+    multiple models and compares their outputs.
+
+    Available tools can be found via the /api/workflows/tools endpoint.
+    """
+    model_specs = [
+        ModelSpec(
+            provider=m.get("provider", "openai"),
+            model=m.get("model", "gpt-4o"),
+            temperature=m.get("temperature", 0.7),
+        )
+        for m in request.models
+    ]
+
+    engine = get_comparison_engine()
+    result = await engine.compare_tool(
+        tool_name=request.tool_name,
+        inputs=request.inputs,
+        models=model_specs,
+        tool_config=request.tool_config,
+        timeout_seconds=request.timeout_seconds,
+    )
+
+    return result.to_dict()
+
+
+@router.get("/tools")
+async def list_available_tools():
+    """List available workflow tools that can be used for comparison.
+
+    Returns tools that support LLM comparison (have uses_llm=True).
+    """
+    from fichero.workflows.registry import get_all_tools
+
+    tools = []
+    for name, tool_info in get_all_tools().items():
+        if tool_info.get("uses_llm", False):
+            tools.append({
+                "name": name,
+                "display_name": tool_info.get("display_name", name),
+                "description": tool_info.get("description", ""),
+                "category": tool_info.get("category", "other"),
+                "input_ports": [
+                    {"id": p.id, "name": p.name, "required": p.required}
+                    for p in tool_info.get("input_ports", [])
+                ],
+            })
+
+    return {"tools": tools}

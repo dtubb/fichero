@@ -1,9 +1,15 @@
 import SwiftUI
 import OSLog
 
+// swiftlint:disable file_length
+
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
 
+// TODO: Refactor NodePopover into smaller components (type body is 873 lines, target <350)
+// See: ai/inbox/nodepopover-refactor.md for the planned breakdown
+
 /// Popover for configuring a workflow node
+// swiftlint:disable:next type_body_length
 struct NodePopover: View {
     @Binding var node: WorkflowNode
     let onDelete: () -> Void
@@ -127,6 +133,10 @@ struct NodePopover: View {
             searchConfigSection
         case "files":
             filesConfigSection
+        case "transcribe":
+            transcribeConfigSection
+        case "describe":
+            describeConfigSection
         default:
             // Use dynamic config view for everything else
             if let info = toolInfo, !info.configSchema.isEmpty {
@@ -384,7 +394,7 @@ struct NodePopover: View {
         for provider in providers {
             _ = provider.loadObject(ofClass: String.self) { string, _ in
                 guard let docId = string else { return }
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     if !self.selectedFileIds.contains(docId) {
                         self.selectedFileIds.append(docId)
                         self.updateConfig(
@@ -407,114 +417,82 @@ struct NodePopover: View {
     // MARK: - Describe Config
 
     private var describeConfigSection: some View {
+        // Describe tool ONLY supports LLM vision (no Apple Vision)
+        // The backend hardcodes vision_mode="llm" since it requires semantic understanding
         VStack(alignment: .leading, spacing: 12) {
-            // Vision Mode selector
+            // Detail level
             VStack(alignment: .leading, spacing: 4) {
-                Text("Vision Engine")
+                Text("Detail Level")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Picker("", selection: $visionMode) {
-                    Label("Apple Vision (On-Device)", systemImage: "apple.logo")
-                        .tag("apple")
-                    Label("Vision LLM (Cloud)", systemImage: "cloud")
-                        .tag("llm")
+                Picker("", selection: $detailLevel) {
+                    Text("Brief").tag("brief")
+                    Text("Detailed").tag("detailed")
+                    Text("Comprehensive").tag("comprehensive")
                 }
                 .labelsHidden()
-                .pickerStyle(.menu)
-                .onChange(of: visionMode) { _, newValue in
-                    updateConfig(key: "vision_mode", value: .string(newValue))
-                    node.usesLLM = (newValue == "llm")
-                    // Clear provider/model when switching to Apple Vision
-                    if newValue == "apple" {
-                        node.providerName = nil
-                        node.modelName = nil
-                    }
-                }
-
-                if visionMode == "apple" {
-                    Text("Uses macOS built-in image classification")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                .pickerStyle(.segmented)
+                .onChange(of: detailLevel) { _, newValue in
+                    updateConfig(key: "detail_level", value: .string(newValue))
                 }
             }
 
-            // LLM-specific options (only shown for Cloud LLM mode)
-            if visionMode == "llm" {
-                // Detail level
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Detail Level")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // Focus
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Focus (optional)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
 
-                    Picker("", selection: $detailLevel) {
-                        Text("Brief").tag("brief")
-                        Text("Detailed").tag("detailed")
-                        Text("Comprehensive").tag("comprehensive")
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .onChange(of: detailLevel) { _, newValue in
-                        updateConfig(key: "detail_level", value: .string(newValue))
-                    }
-                }
-
-                // Focus
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Focus (optional)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    TextField("e.g., people, objects, text, scene", text: $focusText)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: focusText) { _, newValue in
-                            if newValue.isEmpty {
-                                removeConfig(key: "focus")
-                            } else {
-                                updateConfig(key: "focus", value: .string(newValue))
-                            }
-                        }
-                }
-
-                // Custom prompt
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Prompt")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    ZStack(alignment: .topLeading) {
-                        // Placeholder showing default prompt from backend
-                        if promptText.isEmpty, let defaultPrompt = currentDefaultPrompt {
-                            Text(defaultPrompt)
-                                .font(.caption)
-                                .foregroundColor(.secondary.opacity(0.7))
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 8)
-                        }
-
-                        TextEditor(text: $promptText)
-                            .font(.caption)
-                            .scrollContentBackground(.hidden)
-                            .background(Color.clear)
-                    }
-                    .frame(minHeight: 80)
-                    .background(Color(.textBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color(.separatorColor), lineWidth: 1)
-                    )
-                    .onChange(of: promptText) { _, newValue in
+                TextField("e.g., people, objects, text, scene", text: $focusText)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: focusText) { _, newValue in
                         if newValue.isEmpty {
-                            removeConfig(key: "prompt")
+                            removeConfig(key: "focus")
                         } else {
-                            updateConfig(key: "prompt", value: .string(newValue))
+                            updateConfig(key: "focus", value: .string(newValue))
                         }
                     }
+            }
 
-                    Text("Edit to customize, or clear to use default")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+            // Custom prompt
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Prompt")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                ZStack(alignment: .topLeading) {
+                    // Placeholder showing default prompt from backend
+                    if promptText.isEmpty, let defaultPrompt = currentDefaultPrompt {
+                        Text(defaultPrompt)
+                            .font(.caption)
+                            .foregroundColor(.secondary.opacity(0.7))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 8)
+                    }
+
+                    TextEditor(text: $promptText)
+                        .font(.caption)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
                 }
+                .frame(minHeight: 80)
+                .background(Color(.textBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color(.separatorColor), lineWidth: 1)
+                )
+                .onChange(of: promptText) { _, newValue in
+                    if newValue.isEmpty {
+                        removeConfig(key: "prompt")
+                    } else {
+                        updateConfig(key: "prompt", value: .string(newValue))
+                    }
+                }
+
+                Text("Edit to customize, or clear to use default")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -720,8 +698,13 @@ struct NodePopover: View {
         promptText = getConfigString("prompt")
         language = getConfigString("language").isEmpty ? "en" : getConfigString("language")
 
-        // Vision mode for transcribe/describe (default to "apple" for on-device)
-        visionMode = getConfigString("vision_mode").isEmpty ? "apple" : getConfigString("vision_mode")
+        // Vision mode only applies to tools that support Apple Vision (transcribe)
+        // Default to "apple" for transcribe, "llm" for all other vision tools
+        if Self.appleVisionTools.contains(node.tool) {
+            visionMode = getConfigString("vision_mode").isEmpty ? "apple" : getConfigString("vision_mode")
+        } else {
+            visionMode = "llm"  // All other vision tools only support LLM
+        }
 
         // Describe config
         detailLevel = getConfigString("detail_level").isEmpty ? "detailed" : getConfigString("detail_level")
@@ -1067,18 +1050,38 @@ struct NodePopover: View {
         node.usesLLM
     }
 
+    /// All vision category tools that require vision-capable models
+    private static let visionTools: Set<String> = [
+        "transcribe", "describe", "analyze", "caption", "classify",
+        "objects", "handwriting", "table_extract", "colors", "faces",
+        "scene", "tags", "layout", "safety", "quality", "style",
+        "extract", "diagram", "compare", "similarity"
+    ]
+
     /// Tools that require vision-capable models
     private var toolRequiresVision: Bool {
-        ["transcribe", "describe"].contains(node.tool)
+        Self.visionTools.contains(node.tool)
+    }
+
+    /// Tools that support Apple Vision (on-device OCR) - only transcribe currently
+    private static let appleVisionTools: Set<String> = ["transcribe"]
+
+    /// Whether this tool supports switching between Apple Vision and LLM
+    private var toolSupportsAppleVision: Bool {
+        Self.appleVisionTools.contains(node.tool)
     }
 
     /// Whether to show the provider/model section
     private var shouldShowProviderSection: Bool {
-        // For vision tools, only show if using LLM mode
-        if toolRequiresVision {
+        // For tools that support Apple Vision switching, only show when using LLM mode
+        if toolSupportsAppleVision {
             return visionMode == "llm"
         }
-        // For other tools, show if tool uses LLM
+        // For other vision tools (LLM-only), always show if it's a vision tool
+        if toolRequiresVision {
+            return true
+        }
+        // For non-vision tools, show if tool uses LLM
         return toolUsesLLM
     }
 
@@ -1130,282 +1133,4 @@ struct NodePopover: View {
         onDelete: {},
         onDuplicate: {}
     )
-}
-import SwiftUI
-
-/// Dynamically renders config form fields based on tool's config schema
-struct DynamicConfigView: View {
-    let toolInfo: ToolInfo
-    @Binding var config: [String: AnyCodableValue]?
-
-    // State for each config value (keyed by config key)
-    @State private var stringValues: [String: String] = [:]
-    @State private var intValues: [String: Int] = [:]
-    @State private var boolValues: [String: Bool] = [:]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(sortedConfigKeys, id: \.self) { key in
-                if let fieldSchema = getFieldSchema(for: key) {
-                    configField(key: key, schema: fieldSchema)
-                }
-            }
-        }
-        .onAppear {
-            initializeValues()
-        }
-    }
-
-    // MARK: - Sorted Keys
-
-    /// Sort config keys by priority (common fields first)
-    private var sortedConfigKeys: [String] {
-        let keys = toolInfo.configSchema.keys
-        let priorityOrder = ["collection_id", "vision_mode", "language", "max_image_dimension", "prompt"]
-
-        let priority = keys.filter { priorityOrder.contains($0) }
-            .sorted { priorityOrder.firstIndex(of: $0)! < priorityOrder.firstIndex(of: $1)! }
-
-        let others = keys.filter { !priorityOrder.contains($0) }.sorted()
-
-        return priority + others
-    }
-
-    // MARK: - Schema Helpers
-
-    private func getFieldSchema(for key: String) -> [String: AnyCodableValue]? {
-        guard case .dictionary(let schema) = toolInfo.configSchema[key] else {
-            return nil
-        }
-        return schema
-    }
-
-    private func getType(from schema: [String: AnyCodableValue]) -> String? {
-        if case .string(let type) = schema["type"] {
-            return type
-        }
-        return nil
-    }
-
-    private func getDescription(from schema: [String: AnyCodableValue]) -> String? {
-        if case .string(let desc) = schema["description"] {
-            return desc
-        }
-        return nil
-    }
-
-    private func getDefault(from schema: [String: AnyCodableValue]) -> AnyCodableValue? {
-        schema["default"]
-    }
-
-    private func getEnum(from schema: [String: AnyCodableValue]) -> [String]? {
-        if case .array(let values) = schema["enum"] {
-            return values.compactMap {
-                if case .string(let str) = $0 {
-                    return str
-                }
-                return nil
-            }
-        }
-        return nil
-    }
-
-    // MARK: - Field Rendering
-
-    @ViewBuilder
-    private func configField(key: String, schema: [String: AnyCodableValue]) -> some View {
-        if let type = getType(from: schema) {
-            let description = getDescription(from: schema)
-            let label = key.replacingOccurrences(of: "_", with: " ").capitalized
-
-            VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            switch type {
-            case "string":
-                if let enumValues = getEnum(from: schema) {
-                    enumPicker(key: key, label: label, options: enumValues, description: description)
-                } else if key == "prompt" {
-                    promptEditor(key: key, description: description)
-                } else {
-                    stringField(key: key, description: description)
-                }
-
-            case "integer":
-                integerField(key: key, schema: schema, description: description)
-
-            case "boolean":
-                booleanToggle(key: key, description: description)
-
-            default:
-                Text("Unsupported type: \(type)")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-            }
-
-                if let desc = description {
-                    Text(desc)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-    }
-
-    // MARK: - Field Types
-
-    private func stringField(key: String, description: String?) -> some View {
-        TextField(description ?? "Enter value", text: Binding(
-            get: { stringValues[key] ?? "" },
-            set: { newValue in
-                stringValues[key] = newValue
-                updateConfig(key: key, value: .string(newValue))
-            }
-        ))
-        .textFieldStyle(.roundedBorder)
-    }
-
-    private func enumPicker(key: String, label: String, options: [String], description: String?) -> some View {
-        Picker(label, selection: Binding(
-            get: { stringValues[key] ?? options.first ?? "" },
-            set: { newValue in
-                stringValues[key] = newValue
-                updateConfig(key: key, value: .string(newValue))
-            }
-        )) {
-            ForEach(options, id: \.self) { option in
-                Text(option).tag(option)
-            }
-        }
-        .pickerStyle(.menu)
-    }
-
-    private func promptEditor(key: String, description: String?) -> some View {
-        ZStack(alignment: .topLeading) {
-            // Placeholder showing default prompt
-            if stringValues[key]?.isEmpty ?? true, let defaultPrompt = toolInfo.defaultPrompt {
-                Text(defaultPrompt)
-                    .font(.caption)
-                    .foregroundColor(.secondary.opacity(0.7))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 8)
-            }
-
-            TextEditor(text: Binding(
-                get: { stringValues[key] ?? "" },
-                set: { newValue in
-                    stringValues[key] = newValue
-                    if newValue.isEmpty {
-                        removeConfig(key: key)
-                    } else {
-                        updateConfig(key: key, value: .string(newValue))
-                    }
-                }
-            ))
-            .font(.caption)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
-        }
-        .frame(minHeight: 80)
-        .background(Color(.textBackgroundColor))
-        .overlay(
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(Color(.separatorColor), lineWidth: 1)
-        )
-    }
-
-    private func integerField(key: String, schema: [String: AnyCodableValue], description: String?) -> some View {
-        Group {
-            // Check if this is max_image_dimension - use preset picker
-            if key == "max_image_dimension" {
-                Picker("Max Image Size", selection: Binding(
-                    get: { intValues[key] ?? 2048 },
-                    set: { newValue in
-                        intValues[key] = newValue
-                        updateConfig(key: key, value: .int(newValue))
-                    }
-                )) {
-                    Text("512px (Fastest)").tag(512)
-                    Text("768px (Fast)").tag(768)
-                    Text("1024px (Balanced)").tag(1024)
-                    Text("1536px (Detailed)").tag(1536)
-                    Text("2048px (Default)").tag(2048)
-                    Text("Original Size (Maximum)").tag(0)
-                }
-                .pickerStyle(.menu)
-            } else {
-                // Generic integer field
-                TextField("Enter number", value: Binding(
-                    get: { intValues[key] ?? 0 },
-                    set: { newValue in
-                        intValues[key] = newValue
-                        updateConfig(key: key, value: .int(newValue))
-                    }
-                ), formatter: NumberFormatter())
-                .textFieldStyle(.roundedBorder)
-            }
-        }
-    }
-
-    private func booleanToggle(key: String, description: String?) -> some View {
-        Toggle(description ?? "", isOn: Binding(
-            get: { boolValues[key] ?? false },
-            set: { newValue in
-                boolValues[key] = newValue
-                updateConfig(key: key, value: .bool(newValue))
-            }
-        ))
-    }
-
-    // MARK: - State Management
-
-    private func initializeValues() {
-        // Initialize from existing config
-        for (key, value) in config ?? [:] {
-            switch value {
-            case .string(let str):
-                stringValues[key] = str
-            case .int(let num):
-                intValues[key] = num
-            case .bool(let flag):
-                boolValues[key] = flag
-            default:
-                break
-            }
-        }
-
-        // Set defaults from schema if not in config
-        for (key, schemaValue) in toolInfo.configSchema {
-            guard case .dictionary(let schema) = schemaValue else { continue }
-
-            // Skip if already set
-            if config?[key] != nil { continue }
-
-            if let defaultValue = getDefault(from: schema) {
-                switch defaultValue {
-                case .string(let str):
-                    stringValues[key] = str
-                case .int(let num):
-                    intValues[key] = num
-                case .bool(let flag):
-                    boolValues[key] = flag
-                default:
-                    break
-                }
-            }
-        }
-    }
-
-    private func updateConfig(key: String, value: AnyCodableValue) {
-        if config == nil {
-            config = [:]
-        }
-        config?[key] = value
-    }
-
-    private func removeConfig(key: String) {
-        config?.removeValue(forKey: key)
-    }
 }

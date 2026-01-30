@@ -218,12 +218,17 @@ class WorkflowExecutor:
         self._cancel_requested = False
         
         try:
+            # Calculate file count for reporting
+            file_count = len(input_files or []) + len(documents or [])
+            file_info = f" ({file_count} files)" if file_count > 0 else ""
+
             # Emit workflow started event
             await self._emit_event(ProgressEvent(
                 event_type=ProgressEventType.WORKFLOW_STARTED,
                 task_id=task_id,
                 workflow_id=self.workflow.id,
-                message=f"Workflow '{self.workflow.name}' started",
+                message=f"Workflow '{self.workflow.name}' started{file_info}",
+                file_total=file_count if file_count > 0 else None,
             ))
             
             logger.info(f"Executing workflow: {self.workflow.name} (task_id: {task_id})")

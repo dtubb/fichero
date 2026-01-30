@@ -94,19 +94,19 @@ struct FicheroApp: App {
 
                 FocusedNewChatButton()
 
-                FocusedNewWorkflowButton()
+                FocusedNewComparisonButton()
 
                 Divider()
 
-                Button("New Action...") {
-                    // TODO: Implement new action creation
-                }
-                .disabled(true)  // Enable when implemented
+                FocusedNewWorkflowButton()
 
-                Button("New Automation...") {
-                    // TODO: Implement new automation creation
-                }
-                .disabled(true)  // Enable when implemented
+                FocusedNewChainButton()
+
+                Divider()
+
+                FocusedNewScheduleButton()
+
+                FocusedNewTriggerButton()
             }
 
             // Edit menu
@@ -144,10 +144,22 @@ struct FicheroApp: App {
 
                 Divider()
 
-                Button("Integrations...") {
-                    // TODO: Implement integrations sheet
+                // Integrations submenu (Hazel-like folder/app observers)
+                Menu("Integrations") {
+                    Button("Folder Watchers...") {
+                        appState.showFolderWatchers = true
+                    }
+
+                    Button("App Observers...") {
+                        appState.showAppObservers = true
+                    }
+
+                    Divider()
+
+                    Button("Automation Rules...") {
+                        appState.showAutomationRules = true
+                    }
                 }
-                .disabled(true)  // Enable when implemented
             }
         }
 
@@ -193,8 +205,11 @@ struct LibraryWindow: View {
         case .workflow: viewModeName = "Workflow"
         case .chat: viewModeName = "Chat"
         case .search: viewModeName = "Search"
-        case .activity: viewModeName = "Activity"
+        case .batches: viewModeName = "Batches"
         case .automation: viewModeName = "Automation"
+        case .running: viewModeName = "Running"
+        case .history: viewModeName = "History"
+        case .issues: viewModeName = "Issues"
         }
 
         return "\(library.displayName) > \(viewModeName)"
@@ -282,6 +297,37 @@ struct LibraryWindow: View {
             MCPServersSheet()
                 .environmentObject(appState)
                 .environmentObject(appState.mcpService)
+        }
+        // Integrations sheets
+        .sheet(isPresented: Binding(
+            get: { appState.showFolderWatchers },
+            set: { appState.showFolderWatchers = $0 }
+        )) {
+            IntegrationsPlaceholderSheet(
+                title: "Folder Watchers",
+                description: "Automatically process files when added to watched folders.",
+                icon: "folder.badge.gearshape"
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showAppObservers },
+            set: { appState.showAppObservers = $0 }
+        )) {
+            IntegrationsPlaceholderSheet(
+                title: "App Observers",
+                description: "Trigger workflows based on app events (e.g., when files are saved in specific apps).",
+                icon: "app.badge"
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showAutomationRules },
+            set: { appState.showAutomationRules = $0 }
+        )) {
+            IntegrationsPlaceholderSheet(
+                title: "Automation Rules",
+                description: "Create rules to automatically organize and process documents.",
+                icon: "gearshape.2"
+            )
         }
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
@@ -420,5 +466,54 @@ struct WelcomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+    }
+}
+
+// MARK: - Integrations Placeholder Sheet
+
+/// Placeholder sheet for integrations features (coming soon)
+struct IntegrationsPlaceholderSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let title: String
+    let description: String
+    let icon: String
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text(description)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 300)
+
+            VStack(spacing: 8) {
+                Text("Coming Soon")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+
+                Text("This feature is planned for a future release.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(.orange.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(40)
+        .frame(width: 400, height: 350)
     }
 }

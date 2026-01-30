@@ -25,6 +25,7 @@ from langgraph.types import Send
 from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import TOOLS, get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
+from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -78,10 +79,44 @@ class SystemicErrorDetected(WorkflowExecutionError):
         self.errors = errors
 
 
+def _generate_node_names(workflow: WorkflowDef) -> dict[str, str]:
+    """Generate human-readable node names from workflow definition.
+
+    Uses label if available, otherwise tool name. Ensures uniqueness by
+    appending numbers if needed.
+
+    Args:
+        workflow: The workflow definition
+
+    Returns:
+        Dictionary mapping node ID (UUID) to human-readable name
+    """
+    node_names: dict[str, str] = {}
+    name_counts: dict[str, int] = {}
+
+    for node in workflow.nodes:
+        # Use label if available, otherwise capitalize tool name
+        base_name = node.label or node.tool.replace("_", " ").title()
+
+        # Ensure uniqueness
+        if base_name in name_counts:
+            name_counts[base_name] += 1
+            unique_name = f"{base_name} {name_counts[base_name]}"
+        else:
+            name_counts[base_name] = 1
+            unique_name = base_name
+
+        node_names[node.id] = unique_name
+
+    return node_names
+
+
 def build_graph(
     workflow: WorkflowDef,
     enable_parallel: bool = True,
     event_callback: Any | None = None,
+    checkpointer: Any | None = None,
+    skip_cache: bool = False,
 ) -> StateGraph:
     """Build a LangGraph StateGraph from a workflow definition.
 
@@ -90,10 +125,15 @@ def build_graph(
         enable_parallel: Whether to enable parallel file processing (default: True)
         event_callback: Optional async callback for emitting SSE events during parallel
             processing. Signature: async def callback(event_type: str, data: dict) -> None
+        checkpointer: Optional LangGraph checkpointer for state persistence
+        skip_cache: If True, bypass node result cache (still writes to cache)
 
     Returns:
         Compiled LangGraph ready for execution
     """
+    # Generate human-readable node names for the graph
+    node_names = _generate_node_names(workflow)
+
     # Create state graph
     graph = StateGraph(State)
 
@@ -108,6 +148,8 @@ def build_graph(
         "provider": workflow.provider,
         "model": workflow.model,
         "timeout": workflow.timeout_seconds,
+        "workflow_id": workflow.id,
+        "skip_cache": skip_cache,
     }
 
     # Build edge lookup for auto-wiring
@@ -133,13 +175,14 @@ def build_graph(
                     parallel_edges.add((edge.source, edge.target))
                     logger.info(f"Parallel edge detected: {edge.source} -> {edge.target}")
 
-    # Add nodes
+    # Add nodes using human-readable names
     for node_def in workflow.nodes:
         tool_fn = get_tool(node_def.tool)
         if tool_fn is None:
             raise ValueError(f"Unknown tool: {node_def.tool}")
 
         incoming_edges = edges_by_target.get(node_def.id, [])
+        node_name = node_names[node_def.id]  # Human-readable name
 
         # Check if this node receives parallel fan-out
         is_parallel_target = any(
@@ -154,34 +197,53 @@ def build_graph(
             )
             # Add aggregation node
             agg_fn = _make_aggregation_function(node_def.id)
-            graph.add_node(f"{node_def.id}_process", node_fn)
-            graph.add_node(f"{node_def.id}_aggregate", agg_fn)
+            graph.add_node(f"{node_name}_process", node_fn)
+            graph.add_node(f"{node_name}_aggregate", agg_fn)
         else:
             # Standard node
             node_fn = _make_node_function(
                 node_def, tool_fn, llm_config, workflow_config, incoming_edges
             )
-            graph.add_node(node_def.id, node_fn)
+            graph.add_node(node_name, node_fn)
 
     # Add edges
+    # Group parallel edges by source node (one conditional edge per source)
+    parallel_by_source: dict[str, list[str]] = {}
     for edge in workflow.edges:
         if (edge.source, edge.target) in parallel_edges:
-            # Create fan-out edge using Send API
-            fan_out_fn = _make_fan_out_function(edge.source, edge.target)
-            graph.add_conditional_edges(
-                edge.source,
-                fan_out_fn,
-                [f"{edge.target}_process"]
-            )
-            # Connect process to aggregate
-            graph.add_edge(f"{edge.target}_process", f"{edge.target}_aggregate")
+            if edge.source not in parallel_by_source:
+                parallel_by_source[edge.source] = []
+            parallel_by_source[edge.source].append(edge.target)
+
+    # Add fan-out conditional edges (one per source node)
+    for source_id, target_ids in parallel_by_source.items():
+        source_name = node_names[source_id]
+        fan_out_fn = _make_fan_out_function(source_id, target_ids, node_names)
+        target_process_names = [f"{node_names[t]}_process" for t in target_ids]
+        graph.add_conditional_edges(
+            source_name,
+            fan_out_fn,
+            target_process_names
+        )
+        # Connect each process node to its aggregate
+        for target_id in target_ids:
+            target_name = node_names[target_id]
+            graph.add_edge(f"{target_name}_process", f"{target_name}_aggregate")
+
+    # Add non-parallel edges
+    for edge in workflow.edges:
+        source_name = node_names[edge.source]
+        target_name = node_names[edge.target]
+
+        if (edge.source, edge.target) in parallel_edges:
+            continue  # Already handled above
         elif edge.condition:
             # Conditional edge (for branching)
             condition_fn = _make_condition_function(edge.condition, workflow_config)
             graph.add_conditional_edges(
-                edge.source,
+                source_name,
                 condition_fn,
-                {True: edge.target, False: END}
+                {True: target_name, False: END}
             )
         else:
             # Check if source was parallelized - connect from aggregate
@@ -190,32 +252,34 @@ def build_graph(
                 for e in workflow.edges
             )
             if source_is_parallel:
-                graph.add_edge(f"{edge.source}_aggregate", edge.target)
+                graph.add_edge(f"{source_name}_aggregate", target_name)
             else:
-                graph.add_edge(edge.source, edge.target)
+                graph.add_edge(source_name, target_name)
 
     # Connect START to entry nodes
     entry_nodes = workflow.get_entry_nodes()
     if not entry_nodes:
         raise ValueError("Workflow has no entry nodes")
 
-    for entry in entry_nodes:
-        graph.add_edge(START, entry)
+    for entry_id in entry_nodes:
+        entry_name = node_names[entry_id]
+        graph.add_edge(START, entry_name)
 
     # Connect exit nodes to END
     exit_nodes = workflow.get_exit_nodes()
-    for exit_node in exit_nodes:
+    for exit_id in exit_nodes:
+        exit_name = node_names[exit_id]
         # Check if this exit node was parallelized
         is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == exit_node
+            (e.source, e.target) in parallel_edges and e.target == exit_id
             for e in workflow.edges
         )
         if is_parallel:
-            graph.add_edge(f"{exit_node}_aggregate", END)
+            graph.add_edge(f"{exit_name}_aggregate", END)
         else:
-            graph.add_edge(exit_node, END)
+            graph.add_edge(exit_name, END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def _make_node_function(
@@ -239,27 +303,36 @@ def _make_node_function(
         workflow_config: Workflow-level configuration
         incoming_edges: List of edges where this node is the target (for auto-wiring)
     """
-    # Build node-specific LLM config if provider/model specified on node
+    # Build node-specific LLM config if provider/model specified on node or in config
     node_llm_config = llm_config
-    print(f"[DEBUG] Node provider_name: '{node_def.provider_name}', model_name: '{node_def.model_name}'")
-    print(f"[DEBUG] Workflow default provider: '{llm_config.provider}', model: '{llm_config.model}'")
-    if node_def.provider_name or node_def.model_name:
+    node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
+    node_model = node_def.model_name or node_def.config.get("model_name", "")
+    if node_provider or node_model:
         node_llm_config = LLMConfig(
-            provider=node_def.provider_name or llm_config.provider,
-            model=node_def.model_name or llm_config.model,
+            provider=node_provider or llm_config.provider,
+            model=node_model or llm_config.model,
         )
-        print(f"[DEBUG] Using node-specific LLM: provider='{node_llm_config.provider}', model='{node_llm_config.model}'")
+    else:
+        # No explicit provider on node — try category default from settings
+        tool_def = get_tool_def(node_def.tool)
+        if tool_def and tool_def.uses_llm:
+            try:
+                from fichero.app_db import get_app_db
+                cat_default = get_app_db().get_default_model_for_category(tool_def.category)
+                if cat_default:
+                    node_llm_config = LLMConfig(
+                        provider=cat_default[0],
+                        model=cat_default[1],
+                    )
+            except Exception as e:
+                logger.debug(f"Could not load category default for {tool_def.category}: {e}")
 
     async def node_function(state: State) -> dict:
         """Execute the tool and update state."""
         node_id = node_def.id
         node_label = node_def.label or node_def.tool
 
-        # Log what we're about to do - clearly!
-        print(f"[STEP] ▶ Running: {node_label} (tool: {node_def.tool})")
-        print(f"[STEP]   Provider: {node_llm_config.provider or 'NOT SET'}")
-        print(f"[STEP]   Model: {node_llm_config.model or 'NOT SET'}")
-        logger.info(f"Executing node: {node_id} (tool: {node_def.tool})")
+        logger.info(f"Running: {node_label} (tool: {node_def.tool}, provider: {node_llm_config.provider or 'NOT SET'})")
 
         try:
             # Convert input_mappings to inputs dict for resolver
@@ -347,14 +420,24 @@ def _make_node_function(
     return node_function
 
 
-def _make_fan_out_function(source_node_id: str, target_node_id: str):
+def _make_fan_out_function(
+    source_node_id: str,
+    target_node_ids: list[str],
+    node_names: dict[str, str]
+):
     """Create a function that fans out to parallel processing using Send API.
 
-    For each file from the source node, creates a Send() to process it in parallel.
+    For each file from the source node, creates Send() objects to process it
+    in parallel across all target nodes.
+
+    Args:
+        source_node_id: UUID of source node
+        target_node_ids: List of target node UUIDs
+        node_names: Mapping from UUID to human-readable name
     """
     def fan_out(state: State) -> list[Send]:
         """Fan out to parallel file processing."""
-        # Get files from source node output
+        # Get files from source node output (still uses UUID as key in outputs)
         source_output = state.get("outputs", {}).get(source_node_id, {})
         files = source_output.get("files", [])
         documents = source_output.get("documents", [])
@@ -364,37 +447,39 @@ def _make_fan_out_function(source_node_id: str, target_node_id: str):
             return []
 
         total = len(files)
-        print(f"[PARALLEL] Fanning out {total} files for parallel processing")
+        logger.info(f"Fanning out {total} files to {len(target_node_ids)} targets")
 
-        # Create Send for each file
+        # Create Send for each file × each target
         sends = []
-        for i, file_path in enumerate(files):
-            # Find matching document metadata
-            doc = None
-            if i < len(documents):
-                doc = documents[i]
-            elif documents:
-                # Try to match by path
-                for d in documents:
-                    if isinstance(d, dict) and d.get("path") == file_path:
-                        doc = d
-                        break
+        for target_node_id in target_node_ids:
+            target_name = node_names[target_node_id]
+            for i, file_path in enumerate(files):
+                # Find matching document metadata
+                doc = None
+                if i < len(documents):
+                    doc = documents[i]
+                elif documents:
+                    # Try to match by path
+                    for d in documents:
+                        if isinstance(d, dict) and d.get("path") == file_path:
+                            doc = d
+                            break
 
-            sends.append(Send(
-                f"{target_node_id}_process",
-                {
-                    # Pass single file info for this branch
-                    "parallel_file": file_path,
-                    "parallel_document": doc,
-                    "parallel_index": i,
-                    "parallel_total": total,
-                    # Preserve essential state
-                    "task_id": state.get("task_id", ""),
-                    "workflow_id": state.get("workflow_id", ""),
-                    "library_path": state.get("library_path", ""),
-                    "outputs": state.get("outputs", {}),
-                }
-            ))
+                sends.append(Send(
+                    f"{target_name}_process",
+                    {
+                        # Pass single file info for this branch
+                        "parallel_file": file_path,
+                        "parallel_document": doc,
+                        "parallel_index": i,
+                        "parallel_total": total,
+                        # Preserve essential state
+                        "task_id": state.get("task_id", ""),
+                        "workflow_id": state.get("workflow_id", ""),
+                        "library_path": state.get("library_path", ""),
+                        "outputs": state.get("outputs", {}),
+                    }
+                ))
 
         return sends
 
@@ -416,16 +501,34 @@ def _make_parallel_node_function(
         event_callback: Optional async callback for emitting SSE events.
             Signature: async def callback(event_type: str, data: dict) -> None
     """
-    # Build node-specific LLM config if provider/model specified on node
+    # Build node-specific LLM config if provider/model specified on node or in config
     node_llm_config = llm_config
-    print(f"[DEBUG] Node provider_name: '{node_def.provider_name}', model_name: '{node_def.model_name}'")
-    print(f"[DEBUG] Workflow default provider: '{llm_config.provider}', model: '{llm_config.model}'")
-    if node_def.provider_name or node_def.model_name:
+    node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
+    node_model = node_def.model_name or node_def.config.get("model_name", "")
+    if node_provider or node_model:
         node_llm_config = LLMConfig(
-            provider=node_def.provider_name or llm_config.provider,
-            model=node_def.model_name or llm_config.model,
+            provider=node_provider or llm_config.provider,
+            model=node_model or llm_config.model,
         )
-        print(f"[DEBUG] Using node-specific LLM: provider='{node_llm_config.provider}', model='{node_llm_config.model}'")
+    else:
+        # No explicit provider on node — try category default from settings
+        tool_def = get_tool_def(node_def.tool)
+        if tool_def and tool_def.uses_llm:
+            try:
+                from fichero.app_db import get_app_db
+                cat_default = get_app_db().get_default_model_for_category(tool_def.category)
+                if cat_default:
+                    node_llm_config = LLMConfig(
+                        provider=cat_default[0],
+                        model=cat_default[1],
+                    )
+            except Exception as e:
+                logger.debug(f"Could not load category default for {tool_def.category}: {e}")
+
+    # Extract caching config
+    workflow_id = workflow_config.get("workflow_id", "") if workflow_config else ""
+    skip_cache = workflow_config.get("skip_cache", False) if workflow_config else False
+    is_cacheable = node_def.tool in CACHEABLE_TOOLS
 
     async def parallel_node_function(state: State) -> dict:
         """Process a single file in parallel."""
@@ -437,6 +540,62 @@ def _make_parallel_node_function(
         document = state.get("parallel_document")
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
+
+        # Get library path for cache access
+        library_path = state.get("library_path", "")
+
+        # --- Cache Check ---
+        cache = None
+        cache_key = None
+        if is_cacheable and library_path and not skip_cache:
+            try:
+                from pathlib import Path
+                db_path = Path(library_path) / "fichero.duckdb"
+                if db_path.exists():
+                    cache = get_node_cache(db_path)
+                    cache_key = compute_cache_key(
+                        workflow_id=workflow_id,
+                        node_id=node_id,
+                        tool=node_def.tool,
+                        config=node_def.config,
+                        provider=node_llm_config.provider,
+                        model=node_llm_config.model,
+                        file_path=file_path,
+                    )
+
+                    # Check cache
+                    cached_result = cache.get(cache_key)
+                    if cached_result is not None:
+                        print(f"[PARALLEL] [{index + 1}/{total}] CACHE HIT: {file_path}")
+                        logger.info(f"Cache hit for {file_path}")
+
+                        # Emit file_complete event for cached result
+                        if event_callback:
+                            try:
+                                await event_callback("file_complete", {
+                                    "node_id": node_id,
+                                    "file_path": file_path,
+                                    "file_index": index,
+                                    "file_total": total,
+                                    "progress": float(index + 1) / max(total, 1),
+                                    "cached": True,
+                                })
+                            except Exception as cb_err:
+                                logger.warning(f"Failed to emit cached file_complete event: {cb_err}")
+
+                        # Return cached result
+                        return {
+                            "parallel_results": {node_id: [{
+                                "file": file_path,
+                                "index": index,
+                                "total": total,
+                                "result": cached_result,
+                                "success": True,
+                                "cached": True,
+                            }]},
+                        }
+            except Exception as cache_err:
+                logger.warning(f"Cache check failed: {cache_err}")
 
         # Emit file_start event via callback
         if event_callback:
@@ -508,6 +667,22 @@ def _make_parallel_node_function(
                 }
 
             print(f"[PARALLEL] [{index + 1}/{total}] Completed: {file_path}")
+
+            # --- Cache Write ---
+            if cache and cache_key and is_cacheable:
+                try:
+                    cache.set(
+                        cache_key=cache_key,
+                        result=result,
+                        workflow_id=workflow_id,
+                        node_id=node_id,
+                        tool=node_def.tool,
+                        file_path=file_path,
+                    )
+                    logger.debug(f"Cached result for {file_path}")
+                except Exception as cache_err:
+                    logger.warning(f"Cache write failed: {cache_err}")
+
             # Emit file_complete event
             if event_callback:
                 try:

@@ -5,6 +5,7 @@ import OSLog
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChainService")
 
 /// Service for managing workflow chains via the backend API.
+/// Observers should use Combine to subscribe to $chains instead of NotificationCenter.
 @MainActor
 class ChainService: ObservableObject {
     private let api: APIClient
@@ -64,7 +65,7 @@ class ChainService: ObservableObject {
         let chain: WorkflowChain = try await api.post("/chains", body: request)
         logger.info("Created chain: \(chain.name)")
 
-        // Refresh list
+        // Refresh list - observers subscribe to $chains via Combine
         await loadChains()
 
         return chain

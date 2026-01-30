@@ -15,7 +15,7 @@ struct ContentView: View {
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var conversationService: ConversationServiceGenerated
-    @EnvironmentObject var importService: ImportService
+    @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var windowState: WindowState
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
@@ -37,9 +37,10 @@ struct ContentView: View {
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") private var viewDisplayMode: ViewDisplayMode = .icon
     @SceneStorage("currentLayoutMode") private var currentLayoutMode: LayoutMode = .standard
+    @SceneStorage("sidebarMode") private var sidebarMode: SidebarMode = .library
 
     // Column visibility persistence
-    @SceneStorage("sidebarWidth") private var sidebarWidth: Double = 220
+    @SceneStorage("sidebarWidth") private var sidebarWidth: Double = 280
     @SceneStorage("contentWidth") private var contentWidth: Double = 600
     @SceneStorage("inspectorWidth") private var inspectorWidth: Double = 250
     @SceneStorage("showSidebar") private var showSidebar: Bool = true
@@ -87,12 +88,30 @@ struct ContentView: View {
         case .chat(let conversation):
             // Show actual conversation title, or "Chat" if no conversation selected
             viewName = conversation?.title ?? "Chat"
+        case .comparison(let comparison):
+            // Show comparison prompt snippet, or "Comparison" if none selected
+            if let comp = comparison {
+                let truncated = comp.prompt.count > 30 ? String(comp.prompt.prefix(30)) + "..." : comp.prompt
+                viewName = truncated
+            } else {
+                viewName = "Comparison"
+            }
         case .workflow(let workflow):
             viewName = workflow?.name ?? "Workflow"
-        case .activity:
-            viewName = "Activity Monitor"
+        case .chain(let chain):
+            viewName = chain?.name ?? "Chain"
+        case .batches:
+            viewName = "Batches"
+        case .batch(let batch):
+            viewName = batch.map { "Batch \(String($0.batchId.prefix(8)))" } ?? "Batch"
         case .automation:
             viewName = "Automation"
+        case .schedule(let schedule):
+            viewName = schedule?.name ?? "Schedule"
+        case .trigger(let trigger):
+            viewName = trigger?.name ?? "Trigger"
+        case .activity:
+            viewName = "Activity"
         }
 
         return "\(libraryName) > \(viewName)"
@@ -146,24 +165,71 @@ struct ContentView: View {
         return false
     }
 
+    /// Whether to show the navigation toolbar (layout/view pickers, add button)
+    /// Only show for content modes (library, search, chat, workflows)
+    private var showNavigationToolbar: Bool {
+        switch viewMode {
+        case .library, .search, .chat, .comparison, .workflow, .chain:
+            return true
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            return false
+        }
+    }
+
+    /// Whether to show the inspector toggle button
+    /// Only show for modes that have an inspector view
+    private var showInspectorToggle: Bool {
+        switch viewMode {
+        case .library, .search, .chat, .comparison, .workflow, .chain:
+            return true
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            return false
+        }
+    }
+
+    /// Whether to show the view mode picker (icon/list/table/map)
+    /// Only makes sense for Library and Search modes
+    private var showViewModePicker: Bool {
+        switch sidebarMode {
+        case .library, .search:
+            return true
+        case .chat, .workflows, .automation, .batches, .activity:
+            return false
+        }
+    }
+
+    /// Whether to show the layout mode picker (none/standard/widescreen)
+    /// Show for modes that have preview/inspector layouts
+    private var showLayoutPicker: Bool {
+        switch sidebarMode {
+        case .library, .search, .chat, .workflows:
+            return true
+        case .automation, .batches, .activity:
+            return false
+        }
+    }
+
     // MARK: - View Helpers
 
     @ViewBuilder
     private var sidebarContent: some View {
         SidebarView(
+            sidebarMode: $sidebarMode,
             viewMode: $viewMode,
             selectedItemId: $selectedSidebarItemId,
             libraryManager: LibraryManager.shared,
+            itemRegistry: itemRegistry,
+            apiClient: apiClient,
             onCreateChatWithDocuments: { documentIds in
                 chatSelectedDocuments = Set(documentIds)
-            },
-            itemRegistry: itemRegistry
+            }
         )
         .environmentObject(savedSearchService)
         .environmentObject(conversationService)
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
-        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 300)
+        .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
+        .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
 
     @ViewBuilder
@@ -207,20 +273,16 @@ struct ContentView: View {
         case .library, .search:
             EditorView(document: detailDocument)
 
-        case .chat:
-            // Chat doesn't have a traditional preview
+        case .chat, .comparison:
+            // Chat and comparison don't have a traditional preview
             EmptyView()
 
-        case .workflow:
-            // Workflow doesn't have a traditional preview
+        case .workflow, .chain:
+            // Workflow and chain don't have a traditional preview
             EmptyView()
 
-        case .activity:
-            // Activity doesn't have a traditional preview
-            EmptyView()
-
-        case .automation:
-            // Automation doesn't have a traditional preview
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            // Activity/automation modes don't have a traditional preview
             EmptyView()
         }
     }
@@ -234,7 +296,7 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(250)
                 .frame(width: 250)
 
-        case .chat:
+        case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)
                 .navigationSplitViewColumnWidth(250)
                 .frame(width: 250)
@@ -249,13 +311,19 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(280)
             .frame(width: 280)
 
-        case .activity:
-            // Activity monitor doesn't need an inspector
-            EmptyView()
-                .navigationSplitViewColumnWidth(0)
+        case .chain:
+            // Chain editor - uses workflow inspector for now
+            WorkflowInspector(
+                workflow: $editingWorkflow,
+                onAddNode: { tool, position in
+                    addNodeFromTool(tool, at: position)
+                }
+            )
+            .navigationSplitViewColumnWidth(280)
+            .frame(width: 280)
 
-        case .automation:
-            // Automation view doesn't need an inspector
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            // Activity/automation modes don't need an inspector
             EmptyView()
                 .navigationSplitViewColumnWidth(0)
         }
@@ -375,70 +443,80 @@ struct ContentView: View {
         }
         .toolbar {
             // Left side: Layout picker, View mode picker, Plus button
-            ToolbarItemGroup(placement: .navigation) {
-                // Layout mode picker (None/Standard/Widescreen) with icons
-                Picker("Layout", selection: $currentLayoutMode) {
-                    ForEach(LayoutMode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .labelStyle(.iconOnly)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .help("Layout: \(currentLayoutMode.rawValue)")
-                .onChange(of: currentLayoutMode) { _, newMode in
-                    withAnimation {
-                        // Sync toolbar with View menu previewMode
-                        switch newMode {
-                        case .none:
-                            viewSettings.previewMode = .none
-                        case .standard:
-                            viewSettings.previewMode = .standard
-                        case .widescreen:
-                            viewSettings.previewMode = .widescreen
+            // Conditional based on sidebar mode
+            if showNavigationToolbar {
+                ToolbarItemGroup(placement: .navigation) {
+                    // Layout mode picker (None/Standard/Widescreen) - only for modes with preview
+                    if showLayoutPicker {
+                        Picker("Layout", selection: $currentLayoutMode) {
+                            ForEach(LayoutMode.allCases) { mode in
+                                Label(mode.rawValue, systemImage: mode.icon)
+                                    .labelStyle(.iconOnly)
+                                    .tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .help("Layout: \(currentLayoutMode.rawValue)")
+                        .onChange(of: currentLayoutMode) { _, newMode in
+                            withAnimation {
+                                // Sync toolbar with View menu previewMode
+                                switch newMode {
+                                case .none:
+                                    viewSettings.previewMode = .none
+                                case .standard:
+                                    viewSettings.previewMode = .standard
+                                case .widescreen:
+                                    viewSettings.previewMode = .widescreen
+                                }
+                            }
                         }
                     }
-                }
 
-                // View mode picker (Icon/List/Table/Map)
-                Picker("View", selection: $viewDisplayMode) {
-                    ForEach(ViewDisplayMode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .labelStyle(.iconOnly)
-                            .tag(mode)
+                    // View mode picker (Icon/List/Table/Map) - only for Library/Search
+                    if showViewModePicker {
+                        Picker("View", selection: $viewDisplayMode) {
+                            ForEach(ViewDisplayMode.allCases) { mode in
+                                Label(mode.rawValue, systemImage: mode.icon)
+                                    .labelStyle(.iconOnly)
+                                    .tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .help("View as: \(viewDisplayMode.rawValue)")
+                        .onChange(of: viewDisplayMode) { _, newMode in
+                            // Sync toolbar with View menu libraryLayout
+                            switch newMode {
+                            case .icon:
+                                viewSettings.libraryLayout = .icons
+                            case .list:
+                                viewSettings.libraryLayout = .list
+                            case .table:
+                                viewSettings.libraryLayout = .table
+                            case .map:
+                                viewSettings.libraryLayout = .map
+                            }
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
-                .help("View as: \(viewDisplayMode.rawValue)")
-                .onChange(of: viewDisplayMode) { _, newMode in
-                    // Sync toolbar with View menu libraryLayout
-                    switch newMode {
-                    case .icon:
-                        viewSettings.libraryLayout = .icons
-                    case .list:
-                        viewSettings.libraryLayout = .list
-                    case .table:
-                        viewSettings.libraryLayout = .table
-                    case .map:
-                        viewSettings.libraryLayout = .map
-                    }
-                }
 
-                // Add menu (Plus button)
-                AddItemMenu(registry: itemRegistry, style: .button)
-                    .help("Add new item (⌘N)")
+                    // Add menu (Plus button)
+                    AddItemMenu(registry: itemRegistry, style: .button)
+                        .help("Add new item (⌘N)")
+                }
             }
 
             // Far right: Inspector toggle (after search widget, explicit trailing position)
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: {
-                    withAnimation {
-                        showInspectorSidebar.toggle()
+            // Only show for content modes that use inspector
+            if showInspectorToggle {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: {
+                        withAnimation {
+                            showInspectorSidebar.toggle()
+                        }
+                    }) {
+                        Image(systemName: "sidebar.right")
                     }
-                }) {
-                    Image(systemName: "sidebar.right")
+                    .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
                 }
-                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
             }
         }
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
@@ -503,7 +581,7 @@ struct ContentView: View {
                 conversationService: conversationService,
                 savedSearchService: savedSearchService,
                 appState: appState,
-                viewSettings: viewSettings,
+                sidebarMode: $sidebarMode,
                 viewMode: $viewMode,
                 selectedSidebarItemId: $selectedSidebarItemId,
                 browserSelection: $browserSelection,
@@ -556,6 +634,14 @@ extension ContentView {
                 displayMode: viewDisplayMode
             )
 
+        case .comparison(let comparison):
+            // Model comparison view
+            if let comp = comparison {
+                ComparisonDetailView(comparisonSummary: comp)
+            } else {
+                ModelComparisonView()
+            }
+
          case .workflow(let workflow):
             if let selectedWorkflow = workflow {
                 // Edit mode - show workflow canvas
@@ -565,22 +651,83 @@ extension ContentView {
                     displayMode: viewDisplayMode
                 )
             } else {
-                // Library mode - show workflow browser
-                WorkflowLibraryView(
-                    displayMode: viewDisplayMode,
-                    onOpenWorkflow: { workflowItem in
-                        viewMode = .workflow(workflowItem)
-                    }
+                // No workflow selected - show placeholder
+                ContentUnavailableView(
+                    "Workflows",
+                    systemImage: "flowchart",
+                    description: Text("Select a workflow or chain from the sidebar to edit")
                 )
             }
 
-        case .activity:
-            // Activity monitor - batch and workflow execution tracking
-            ActivityMonitorView()
+        case .chain(let chain):
+            if let selectedChain = chain {
+                // Chain editor view
+                ChainEditorView(chain: selectedChain)
+            } else {
+                ContentUnavailableView(
+                    "Create Chain",
+                    systemImage: "link.badge.plus",
+                    description: Text("Chain creation view")
+                )
+            }
+
+        case .batches:
+            // Batch jobs - content shown in sidebar, main area shows details
+            ContentUnavailableView(
+                "Batches",
+                systemImage: "square.stack.3d.up",
+                description: Text("Select a batch in the sidebar to view details")
+            )
+
+        case .batch(let batch):
+            // Batch detail view
+            if let batch = batch {
+                BatchDetailView(batch: batch, libraryManager: LibraryManager.shared)
+            } else {
+                ContentUnavailableView(
+                    "Create Batch",
+                    systemImage: "square.stack.3d.up.badge.plus",
+                    description: Text("Batch creation view coming soon")
+                )
+            }
 
         case .automation:
-            // Automation view - schedules and file triggers
-            AutomationView()
+            // Automation - content shown in sidebar, main area shows details
+            ContentUnavailableView(
+                "Automation",
+                systemImage: "timer",
+                description: Text("Select a schedule or trigger in the sidebar")
+            )
+
+        case .schedule(let schedule):
+            // Schedule detail/creation view
+            if let schedule = schedule {
+                ScheduleDetailView(schedule: schedule)
+            } else {
+                // New schedule creation - use full-page editor
+                ScheduleEditorView(existingSchedule: nil)
+            }
+
+        case .trigger(let trigger):
+            // Trigger detail/creation view
+            if let trigger = trigger {
+                TriggerDetailView(trigger: trigger)
+            } else {
+                // New trigger creation - use full-page editor
+                TriggerEditorView(existingTrigger: nil)
+            }
+
+        case .activity(let selectedRun):
+            // Activity - all workflow runs shown in sidebar, main area shows run details
+            if let run = selectedRun {
+                ActivityDetailView(selectedRun: run)
+            } else {
+                ContentUnavailableView(
+                    "Activity",
+                    systemImage: "clock",
+                    description: Text("Select a workflow run in the sidebar to view details")
+                )
+            }
         }
     }
 

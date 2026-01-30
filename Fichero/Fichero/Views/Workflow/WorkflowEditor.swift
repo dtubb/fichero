@@ -1,10 +1,16 @@
 import SwiftUI
 import OSLog
 
+// swiftlint:disable file_length
+
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowEditor")
+
+// TODO: Refactor WorkflowEditor - extract canvas and output sections
+// File is 1002 lines, target <1000. Type body is 397 lines, target <350
 
 /// Workflow editor content view - canvas with optional output log
 /// This view goes in the content column, with WorkflowInspector in the detail column
+// swiftlint:disable:next type_body_length
 struct WorkflowEditor: View {
     /// Reference to the selected workflow from sidebar (for display info)
     let selectedWorkflow: WorkflowSidebarItem?
@@ -24,6 +30,12 @@ struct WorkflowEditor: View {
     // Canvas state (passed to WorkflowCanvasView)
     @State private var scale: CGFloat = 1.0
     @State private var snapToGrid: Bool = true
+
+    // Diagram preview state
+    @State private var showDiagramPreview: Bool = false
+    @State private var diagramImage: NSImage?
+    @State private var diagramLoading: Bool = false
+    @State private var diagramError: String?
 
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
@@ -61,7 +73,14 @@ struct WorkflowEditor: View {
                 onRun: runWorkflow,
                 onSave: saveWorkflow,
                 onExport: exportWorkflow,
-                onResetZoom: resetZoom
+                onResetZoom: resetZoom,
+                onPreviewDiagram: {
+                    // Auto-save before showing diagram preview
+                    Task {
+                        await saveWorkflow()
+                        showDiagramPreview = true
+                    }
+                }
             )
 
             // Canvas and output log
@@ -126,6 +145,13 @@ struct WorkflowEditor: View {
                 Text(error)
             }
         }
+        .sheet(isPresented: $showDiagramPreview) {
+            WorkflowDiagramPreview(
+                workflowId: editingWorkflow.id,
+                workflowName: editingWorkflow.name,
+                isPresented: $showDiagramPreview
+            )
+        }
     }
 
     // MARK: - Actions
@@ -136,6 +162,7 @@ struct WorkflowEditor: View {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func runWorkflow() {
         isRunning = true
         showOutputLog = true
@@ -714,6 +741,237 @@ private struct WorkflowNodeRow: View {
         case "if", "switch", "loop", "merge": return .yellow
         case "agent": return .pink
         default: return .gray
+        }
+    }
+}
+
+// MARK: - Workflow Diagram Preview
+
+/// Sheet view showing the LangGraph visualization and Python code for a workflow
+struct WorkflowDiagramPreview: View {
+    let workflowId: String
+    let workflowName: String
+    @Binding var isPresented: Bool
+
+    @EnvironmentObject var apiClient: APIClient
+
+    @State private var diagramImage: NSImage?
+    @State private var pythonCode: String?
+    @State private var isLoading: Bool = true
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Workflow Diagram & Code")
+                    .font(.headline)
+
+                Spacer()
+
+                Text(workflowName)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Button("Done") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.escape)
+            }
+            .padding()
+            .background(.bar)
+
+            Divider()
+
+            // Content - split view with diagram on left, code on right
+            if isLoading {
+                ProgressView("Loading diagram and code...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = error {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.orange)
+                    Text("Failed to load")
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") {
+                        Task {
+                            await loadContent()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HSplitView {
+                    // Left: Diagram
+                    VStack(spacing: 0) {
+                        Text("LangGraph Diagram")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.bar)
+
+                        if let image = diagramImage {
+                            ScrollView([.horizontal, .vertical]) {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .padding()
+                            }
+                            .background(Color(nsColor: .textBackgroundColor))
+                        } else {
+                            VStack {
+                                Image(systemName: "flowchart")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
+                                Text("No diagram")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(minWidth: 300)
+
+                    // Right: Python Code
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Generated Python Code")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if pythonCode != nil {
+                                Button {
+                                    if let code = pythonCode {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(code, forType: .string)
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                }
+                                .buttonStyle(.plain)
+                                .help("Copy to clipboard")
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.bar)
+
+                        if let code = pythonCode {
+                            ScrollView {
+                                Text(code)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8)
+                            }
+                            .background(Color(nsColor: .textBackgroundColor))
+                        } else {
+                            VStack {
+                                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
+                                Text("No code")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(minWidth: 400)
+                }
+            }
+        }
+        .frame(minWidth: 900, minHeight: 600)
+        .task {
+            guard !Task.isCancelled else { return }
+            await loadContent()
+        }
+    }
+
+    private func loadContent() async {
+        isLoading = true
+        error = nil
+
+        // Load diagram and code in parallel
+        async let diagramTask: Void = loadDiagram()
+        async let codeTask: Void = loadCode()
+
+        await diagramTask
+        await codeTask
+
+        isLoading = false
+    }
+
+    private func loadDiagram() async {
+        do {
+            let url = apiClient.baseURL
+                .appendingPathComponent("workflow-execution")
+                .appendingPathComponent("workflows")
+                .appendingPathComponent(workflowId)
+                .appendingPathComponent("visualization.png")
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            if let libraryPath = apiClient.currentLibraryPath {
+                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return
+            }
+            diagramImage = NSImage(data: data)
+        } catch {
+            // Diagram loading failure is not fatal
+        }
+    }
+
+    private func loadCode() async {
+        do {
+            let url = apiClient.baseURL
+                .appendingPathComponent("workflow-execution")
+                .appendingPathComponent("workflows")
+                .appendingPathComponent(workflowId)
+                .appendingPathComponent("code")
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            if let libraryPath = apiClient.currentLibraryPath {
+                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                if let errorJson = try? JSONDecoder().decode([String: String].self, from: data),
+                   let detail = errorJson["detail"] {
+                    self.error = detail
+                }
+                return
+            }
+
+            // Parse JSON response
+            struct CodeResponse: Codable {
+                let pythonCode: String
+
+                enum CodingKeys: String, CodingKey {
+                    case pythonCode = "python_code"
+                }
+            }
+            if let codeResponse = try? JSONDecoder().decode(CodeResponse.self, from: data) {
+                pythonCode = codeResponse.pythonCode
+            }
+        } catch {
+            // Code loading failure sets error only if diagram also failed
+            if diagramImage == nil {
+                self.error = error.localizedDescription
+            }
         }
     }
 }

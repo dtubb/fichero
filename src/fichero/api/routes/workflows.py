@@ -61,6 +61,7 @@ class ToolResponse(BaseModel):
     input_ports: list[PortResponse]
     output_ports: list[PortResponse]
     config_schema: dict = {}
+    config_defaults: dict = {}  # Default config values for new nodes
     default_output_schema: dict = {}
     default_prompt: str = ""  # Default prompt for LLM tools (shown in UI, empty if none)
     uses_llm: bool
@@ -198,6 +199,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         input_ports=[_port_to_response(p) for p in tool.input_ports],
         output_ports=[_port_to_response(p) for p in tool.output_ports],
         config_schema=tool.config_schema or {},
+        config_defaults=tool.config_defaults or {},
         default_output_schema=tool.default_output_schema or {},
         default_prompt=tool.default_prompt or "",
         uses_llm=tool.uses_llm,

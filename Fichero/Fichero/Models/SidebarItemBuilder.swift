@@ -247,4 +247,34 @@ enum SidebarItemBuilder {
             category: .workflow
         )
     }
+
+    /// Build chain items (flat list - chains don't have folder paths yet)
+    static func buildChainItems(from chains: [WorkflowChain], libraryId: UUID) -> [SidebarItem] {
+        chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
+    }
+
+    /// Build comparison items (flat list)
+    static func buildComparisonItems(from comparisons: [ComparisonSummary], libraryId: UUID) -> [SidebarItem] {
+        comparisons.map { SidebarItem.fromComparison($0, libraryId: libraryId) }
+    }
+
+    /// Build schedule items (flat list - schedules don't have folder paths)
+    static func buildScheduleItems(from schedules: [ScheduleInfo], libraryId: UUID) -> [SidebarItem] {
+        schedules.map { SidebarItem.fromSchedule($0, libraryId: libraryId) }
+    }
+
+    /// Build trigger items (flat list)
+    static func buildTriggerItems(from triggers: [TriggerInfo], libraryId: UUID) -> [SidebarItem] {
+        triggers.map { SidebarItem.fromTrigger($0, libraryId: libraryId) }
+    }
+
+    /// Build batch items (flat list)
+    static func buildBatchItems(from batches: [BatchInfo], libraryId: UUID) -> [SidebarItem] {
+        batches.map { SidebarItem.fromBatch($0, libraryId: libraryId) }
+    }
+
+    /// Build activity items (flat list)
+    static func buildActivityItems(from activities: [ActivityItem], libraryId: UUID) -> [SidebarItem] {
+        activities.map { SidebarItem.fromActivityRun($0, libraryId: libraryId) }
+    }
 }

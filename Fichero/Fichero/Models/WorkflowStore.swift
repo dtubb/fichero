@@ -128,6 +128,11 @@ class WorkflowStore: ObservableObject {
     }
 
     func deleteWorkflow(_ id: String) async throws {
+        // Validate ID format
+        guard isValidWorkflowId(id) else {
+            throw WorkflowStoreError.notFound("Invalid workflow ID format")
+        }
+
         do {
             try await workflowService.deleteWorkflow(id)
             workflows.removeAll { $0.id == id }
@@ -138,12 +143,34 @@ class WorkflowStore: ObservableObject {
     }
 
     func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
+        // Validate ID format
+        guard isValidWorkflowId(id) else {
+            throw WorkflowStoreError.notFound("Invalid workflow ID format")
+        }
+
         do {
             return try await workflowService.getWorkflow(id)
         } catch {
             self.error = error
             throw error
         }
+    }
+
+    // MARK: - Input Validation
+
+    /// Validate workflow ID format (UUID or reasonable identifier)
+    private func isValidWorkflowId(_ id: String) -> Bool {
+        // Must not be empty, must be reasonable length, must not contain dangerous chars
+        guard !id.isEmpty,
+              id.count <= 100,
+              !id.contains("\n"),
+              !id.contains("\r"),
+              !id.contains(".."),
+              !id.contains("/"),
+              !id.contains("\\") else {
+            return false
+        }
+        return true
     }
 
     func importWorkflow(name: String = "", description: String = "", workflowData: [String: Any]) async throws -> WorkflowSidebarItem {

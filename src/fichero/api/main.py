@@ -221,6 +221,8 @@ from fichero.api.routes import (
     model_comparison,
     chains,
     artifacts,
+    settings,
+    local_models,
 )
 
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
@@ -243,3 +245,5 @@ app.include_router(actions.router, prefix="/api", tags=["actions"])
 app.include_router(model_comparison.router, prefix="/api", tags=["model-comparison"])
 app.include_router(chains.router, prefix="/api", tags=["chains"])
 app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])
+app.include_router(settings.router, tags=["settings"])
+app.include_router(local_models.router, prefix="/api", tags=["local-models"])

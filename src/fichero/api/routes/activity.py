@@ -5,6 +5,9 @@ Endpoints for monitoring workflow and batch activity:
 - Query historical activities
 - Real-time activity streaming via SSE
 - Activity statistics and metrics
+
+NOTE: All activity data is stored per-library in the library's database file.
+Routes require the X-Fichero-Library-Path header.
 """
 
 import json
@@ -12,10 +15,12 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from fichero.db import Database
+from fichero.api.main import get_library_database
 from fichero.workflows.activity import (
     Activity,
     ActivityFilter,
@@ -50,6 +55,8 @@ class ActivityResponse(BaseModel):
 
     @classmethod
     def from_activity(cls, activity: Activity) -> "ActivityResponse":
+        # Convert metadata values to strings for Swift client compatibility
+        string_metadata = {k: str(v) if v is not None else None for k, v in activity.metadata.items()}
         return cls(
             id=activity.id,
             type=activity.type.value,
@@ -60,7 +67,7 @@ class ActivityResponse(BaseModel):
             batch_id=activity.batch_id,
             thread_id=activity.thread_id,
             node_id=activity.node_id,
-            metadata=activity.metadata,
+            metadata=string_metadata,
             duration_ms=activity.duration_ms,
             error=activity.error,
         )
@@ -98,6 +105,7 @@ class ActivityStatsResponse(BaseModel):
 
 @router.get("", response_model=list[ActivityResponse])
 async def list_activities(
+    db: Database = Depends(get_library_database),
     types: Optional[str] = Query(None, description="Comma-separated activity types"),
     levels: Optional[str] = Query(None, description="Comma-separated levels (info,warning,error)"),
     workflow_id: Optional[str] = None,
@@ -115,7 +123,7 @@ async def list_activities(
     Supports filtering by type, level, workflow/batch/thread IDs, time range,
     and full-text search in messages.
     """
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
 
     # Parse types
     type_list = None
@@ -133,17 +141,18 @@ async def list_activities(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid activity level: {e}")
 
-    # Parse timestamps
+    # Parse timestamps (handle ISO8601 with Z suffix)
     since_dt = None
     until_dt = None
     if since:
         try:
-            since_dt = datetime.fromisoformat(since)
+            # Replace Z with +00:00 for fromisoformat compatibility
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid 'since' datetime format")
     if until:
         try:
-            until_dt = datetime.fromisoformat(until)
+            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid 'until' datetime format")
 
@@ -166,6 +175,7 @@ async def list_activities(
 
 @router.get("/recent", response_model=list[ActivityResponse])
 async def get_recent_activities(
+    db: Database = Depends(get_library_database),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[ActivityResponse]:
     """
@@ -174,13 +184,14 @@ async def get_recent_activities(
     This is faster than querying the database and useful for
     real-time dashboards.
     """
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
     activities = tracker.get_recent(limit)
     return [ActivityResponse.from_activity(a) for a in activities]
 
 
 @router.get("/stats", response_model=ActivityStatsResponse)
 async def get_activity_stats(
+    db: Database = Depends(get_library_database),
     hours: int = Query(24, ge=1, le=720, description="Number of hours to analyze"),
 ) -> ActivityStatsResponse:
     """
@@ -189,7 +200,7 @@ async def get_activity_stats(
     Returns counts by type and level, error/warning counts,
     average workflow duration, and success rate.
     """
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
 
     until = datetime.now()
     since = until - timedelta(hours=hours)
@@ -200,6 +211,7 @@ async def get_activity_stats(
 
 @router.get("/stream")
 async def stream_activities(
+    db: Database = Depends(get_library_database),
     types: Optional[str] = Query(None, description="Comma-separated activity types"),
     levels: Optional[str] = Query(None, description="Comma-separated levels"),
     workflow_id: Optional[str] = None,
@@ -211,7 +223,7 @@ async def stream_activities(
     Clients receive activity events as they occur, filtered by
     the provided criteria.
     """
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
 
     # Parse filter
     type_list = None
@@ -261,14 +273,21 @@ async def stream_activities(
 
 
 @router.websocket("/ws")
-async def websocket_activity_stream(websocket: WebSocket):
+async def websocket_activity_stream(
+    websocket: WebSocket,
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+):
     """
     WebSocket endpoint for real-time activity streaming.
 
     Clients can send filter updates and receive activity events.
     """
     await websocket.accept()
-    tracker = get_activity_tracker()
+
+    # Get database for library
+    from fichero.db import db_manager
+    db = db_manager.get_database(x_fichero_library_path)
+    tracker = get_activity_tracker(str(db.path))
     sub_id = tracker.subscribe()
 
     try:
@@ -306,10 +325,11 @@ async def websocket_activity_stream(websocket: WebSocket):
 @router.get("/workflow/{workflow_id}", response_model=list[ActivityResponse])
 async def get_workflow_activity(
     workflow_id: str,
+    db: Database = Depends(get_library_database),
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[ActivityResponse]:
     """Get all activity for a specific workflow."""
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
 
     filter = ActivityFilter(
         workflow_id=workflow_id,
@@ -323,10 +343,11 @@ async def get_workflow_activity(
 @router.get("/batch/{batch_id}", response_model=list[ActivityResponse])
 async def get_batch_activity(
     batch_id: str,
+    db: Database = Depends(get_library_database),
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[ActivityResponse]:
     """Get all activity for a specific batch."""
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
 
     filter = ActivityFilter(
         batch_id=batch_id,
@@ -339,6 +360,7 @@ async def get_batch_activity(
 
 @router.delete("/cleanup")
 async def cleanup_old_activities(
+    db: Database = Depends(get_library_database),
     days: int = Query(30, ge=1, le=365, description="Delete activities older than N days"),
 ) -> dict[str, Any]:
     """
@@ -346,7 +368,7 @@ async def cleanup_old_activities(
 
     Returns the number of deleted activities.
     """
-    tracker = get_activity_tracker()
+    tracker = get_activity_tracker(str(db.path))
     older_than = datetime.now() - timedelta(days=days)
     deleted = await tracker.store.delete_old(older_than)
     return {"deleted": deleted, "older_than": older_than.isoformat()}

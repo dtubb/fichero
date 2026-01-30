@@ -13,7 +13,7 @@ struct LibraryImageView: View {
     let imageType: ImageType
 
     // Access the shared services from the current library
-    @EnvironmentObject var storageService: StorageService
+    @EnvironmentObject var storageService: StorageServiceGenerated
 
     @State private var image: Image?
     @State private var isLoading = false

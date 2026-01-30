@@ -44,10 +44,13 @@ class ItemTypeRegistry: ObservableObject {
     var importFiles: (() -> Void)?
     var createSearch: (() -> Void)?
     var createChat: (() -> Void)?
+    var createComparison: (() -> Void)?
     var createWorkflow: (() -> Void)?
+    var createChain: (() -> Void)?
+    var createSchedule: (() -> Void)?
+    var createTrigger: (() -> Void)?
 
     // Future handlers (to be implemented)
-    var createComparison: (() -> Void)?
     var createAgent: (() -> Void)?
     var createAction: (() -> Void)?
     var createAutomation: (() -> Void)?
@@ -104,6 +107,16 @@ class ItemTypeRegistry: ObservableObject {
             ))
         }
 
+        if let handler = createComparison {
+            items.append(ItemTypeDefinition(
+                id: "comparison",
+                name: "Comparison",
+                icon: "arrow.left.arrow.right",
+                category: .ai,
+                handler: handler
+            ))
+        }
+
         if let handler = createWorkflow {
             items.append(ItemTypeDefinition(
                 id: "workflow",
@@ -115,7 +128,37 @@ class ItemTypeRegistry: ObservableObject {
             ))
         }
 
-        // Automation category (future)
+        if let handler = createChain {
+            items.append(ItemTypeDefinition(
+                id: "chain",
+                name: "Chain",
+                icon: "link",
+                category: .ai,
+                handler: handler
+            ))
+        }
+
+        // Automation category
+        if let handler = createSchedule {
+            items.append(ItemTypeDefinition(
+                id: "schedule",
+                name: "Schedule",
+                icon: "calendar.badge.clock",
+                category: .automation,
+                handler: handler
+            ))
+        }
+
+        if let handler = createTrigger {
+            items.append(ItemTypeDefinition(
+                id: "trigger",
+                name: "Trigger",
+                icon: "bolt.badge.automatic",
+                category: .automation,
+                handler: handler
+            ))
+        }
+
         if let handler = createAutomation {
             items.append(ItemTypeDefinition(
                 id: "automation",

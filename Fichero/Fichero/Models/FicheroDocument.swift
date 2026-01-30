@@ -67,7 +67,7 @@ struct FicheroDocument: FileDocument, Codable {
             self.chatContext = ChatContext()
         case .search:
             self.searchContext = SearchContext()
-        case .activity, .automation:
+        case .batches, .automation, .running, .history, .issues:
             // Activity and Automation views don't need persistent context
             break
         }
@@ -184,8 +184,11 @@ enum ViewMode: String, Codable {
     case workflow
     case chat
     case search
-    case activity
+    case batches
     case automation
+    case running
+    case history
+    case issues
 
     var displayName: String {
         switch self {
@@ -193,8 +196,11 @@ enum ViewMode: String, Codable {
         case .workflow: return "Workflow"
         case .chat: return "Chat"
         case .search: return "Search"
-        case .activity: return "Activity"
+        case .batches: return "Batches"
         case .automation: return "Automation"
+        case .running: return "Running"
+        case .history: return "History"
+        case .issues: return "Issues"
         }
     }
 
@@ -204,8 +210,11 @@ enum ViewMode: String, Codable {
         case .workflow: return "arrow.triangle.branch"
         case .chat: return "bubble.left.and.bubble.right"
         case .search: return "magnifyingglass"
-        case .activity: return "chart.bar"
-        case .automation: return "clock.badge.checkmark"
+        case .batches: return "square.stack.3d.up"
+        case .automation: return "timer"
+        case .running: return "play.circle"
+        case .history: return "clock"
+        case .issues: return "exclamationmark.triangle"
         }
     }
 }

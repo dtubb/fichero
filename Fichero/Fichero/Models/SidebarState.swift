@@ -31,6 +31,11 @@ class SidebarState: ObservableObject {
     @Published var isCreatingFolder: Bool = false
     @Published var creatingFolderInlineId: String?
 
+    // Automation creation state
+    @Published var showingScheduleCreation: Bool = false
+    @Published var showingTriggerCreation: Bool = false
+    @Published var selectedWorkflowForAutomation: WorkflowSidebarItem?
+
     // Drag and drop state
     @Published var isProcessingDrop: Bool = false
     @Published var dropProgress: Double = 0.0

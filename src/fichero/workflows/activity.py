@@ -84,6 +84,8 @@ class Activity:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
+        # Convert all metadata values to strings for Swift client compatibility
+        string_metadata = {k: str(v) if v is not None else None for k, v in self.metadata.items()}
         return {
             "id": self.id,
             "type": self.type.value,
@@ -94,7 +96,7 @@ class Activity:
             "batch_id": self.batch_id,
             "thread_id": self.thread_id,
             "node_id": self.node_id,
-            "metadata": self.metadata,
+            "metadata": string_metadata,
             "duration_ms": self.duration_ms,
             "error": self.error,
         }
@@ -193,6 +195,22 @@ class ActivityStore:
                 )
             """)
 
+            # Workflow runs table - stores run-level data including code and logs
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workflow_runs (
+                    thread_id TEXT PRIMARY KEY,
+                    workflow_id TEXT NOT NULL,
+                    workflow_name TEXT NOT NULL,
+                    python_code TEXT,
+                    execution_log TEXT,
+                    status TEXT DEFAULT 'running',
+                    started_at TIMESTAMP NOT NULL,
+                    completed_at TIMESTAMP,
+                    duration_ms FLOAT,
+                    error TEXT
+                )
+            """)
+
             # Indexes for efficient queries
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activities_timestamp
@@ -214,12 +232,21 @@ class ActivityStore:
                 CREATE INDEX IF NOT EXISTS idx_activities_level
                 ON activities(level)
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_id
+                ON workflow_runs(workflow_id)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_workflow_runs_started_at
+                ON workflow_runs(started_at DESC)
+            """)
         finally:
             conn.close()
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""
         def _save():
+            logger.info(f"ActivityStore.save: connecting to {self.db_path}")
             conn = duckdb.connect(self.db_path)
             try:
                 conn.execute("""
@@ -241,6 +268,10 @@ class ActivityStore:
                     activity.duration_ms,
                     activity.error,
                 ])
+                logger.info(f"ActivityStore.save: INSERT successful for {activity.id}")
+            except Exception as e:
+                logger.error(f"ActivityStore.save: INSERT failed: {e}")
+                raise
             finally:
                 conn.close()
 
@@ -415,6 +446,177 @@ class ActivityStore:
 
         return await asyncio.to_thread(_delete)
 
+    # =========================================================================
+    # Workflow Run Methods
+    # =========================================================================
+
+    async def save_workflow_run(
+        self,
+        thread_id: str,
+        workflow_id: str,
+        workflow_name: str,
+        python_code: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+    ) -> None:
+        """Save a new workflow run record."""
+        def _save():
+            conn = duckdb.connect(self.db_path)
+            try:
+                conn.execute("""
+                    INSERT INTO workflow_runs
+                    (thread_id, workflow_id, workflow_name, python_code, status, started_at)
+                    VALUES (?, ?, ?, ?, 'running', ?)
+                    ON CONFLICT (thread_id) DO UPDATE SET
+                        python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
+                        workflow_name = EXCLUDED.workflow_name
+                """, [
+                    thread_id,
+                    workflow_id,
+                    workflow_name,
+                    python_code,
+                    started_at or datetime.utcnow(),
+                ])
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_save)
+
+    async def update_workflow_run(
+        self,
+        thread_id: str,
+        status: Optional[str] = None,
+        execution_log: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        error: Optional[str] = None,
+        completed_at: Optional[datetime] = None,
+    ) -> None:
+        """Update an existing workflow run record."""
+        def _update():
+            conn = duckdb.connect(self.db_path)
+            try:
+                updates = []
+                params = []
+
+                if status is not None:
+                    updates.append("status = ?")
+                    params.append(status)
+                if execution_log is not None:
+                    updates.append("execution_log = ?")
+                    params.append(execution_log)
+                if duration_ms is not None:
+                    updates.append("duration_ms = ?")
+                    params.append(duration_ms)
+                if error is not None:
+                    updates.append("error = ?")
+                    params.append(error)
+                if completed_at is not None:
+                    updates.append("completed_at = ?")
+                    params.append(completed_at)
+
+                if updates:
+                    params.append(thread_id)
+                    conn.execute(f"""
+                        UPDATE workflow_runs
+                        SET {', '.join(updates)}
+                        WHERE thread_id = ?
+                    """, params)
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_update)
+
+    async def append_execution_log(self, thread_id: str, log_line: str) -> None:
+        """Append a line to the execution log."""
+        def _append():
+            conn = duckdb.connect(self.db_path)
+            try:
+                conn.execute("""
+                    UPDATE workflow_runs
+                    SET execution_log = COALESCE(execution_log, '') || ? || '\n'
+                    WHERE thread_id = ?
+                """, [log_line, thread_id])
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_append)
+
+    async def get_workflow_run(self, thread_id: str) -> Optional[dict[str, Any]]:
+        """Get a workflow run by thread_id."""
+        def _get():
+            conn = duckdb.connect(self.db_path)
+            try:
+                result = conn.execute("""
+                    SELECT thread_id, workflow_id, workflow_name, python_code,
+                           execution_log, status, started_at, completed_at,
+                           duration_ms, error
+                    FROM workflow_runs
+                    WHERE thread_id = ?
+                """, [thread_id]).fetchone()
+
+                if result:
+                    return {
+                        "thread_id": result[0],
+                        "workflow_id": result[1],
+                        "workflow_name": result[2],
+                        "python_code": result[3],
+                        "execution_log": result[4],
+                        "status": result[5],
+                        "started_at": result[6].isoformat() if result[6] else None,
+                        "completed_at": result[7].isoformat() if result[7] else None,
+                        "duration_ms": result[8],
+                        "error": result[9],
+                    }
+                return None
+            finally:
+                conn.close()
+
+        return await asyncio.to_thread(_get)
+
+    async def list_workflow_runs(
+        self,
+        workflow_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """List workflow runs, optionally filtered by workflow_id."""
+        def _list():
+            conn = duckdb.connect(self.db_path)
+            try:
+                if workflow_id:
+                    result = conn.execute("""
+                        SELECT thread_id, workflow_id, workflow_name, status,
+                               started_at, completed_at, duration_ms, error
+                        FROM workflow_runs
+                        WHERE workflow_id = ?
+                        ORDER BY started_at DESC
+                        LIMIT ?
+                    """, [workflow_id, limit]).fetchall()
+                else:
+                    result = conn.execute("""
+                        SELECT thread_id, workflow_id, workflow_name, status,
+                               started_at, completed_at, duration_ms, error
+                        FROM workflow_runs
+                        ORDER BY started_at DESC
+                        LIMIT ?
+                    """, [limit]).fetchall()
+
+                return [
+                    {
+                        "thread_id": row[0],
+                        "workflow_id": row[1],
+                        "workflow_name": row[2],
+                        "status": row[3],
+                        "started_at": row[4].isoformat() if row[4] else None,
+                        "completed_at": row[5].isoformat() if row[5] else None,
+                        "duration_ms": row[6],
+                        "error": row[7],
+                    }
+                    for row in result
+                ]
+            finally:
+                conn.close()
+
+        return await asyncio.to_thread(_list)
+
 
 class ActivityTracker:
     """
@@ -487,9 +689,11 @@ class ActivityTracker:
     async def _save_activity(self, activity: Activity) -> None:
         """Save activity to persistent storage."""
         try:
+            logger.info(f"Saving activity to DB: {activity.type.value} - {activity.message[:50]}")
             await self.store.save(activity)
+            logger.info(f"Activity saved successfully: {activity.id}")
         except Exception as e:
-            logger.error(f"Failed to save activity: {e}")
+            logger.error(f"Failed to save activity: {e}", exc_info=True)
 
     async def _notify_subscribers(self, activity: Activity) -> None:
         """Notify all subscribers of new activity."""
@@ -767,16 +971,54 @@ class ActivityTracker:
         )
 
 
-# Global activity tracker instance
-_activity_tracker: Optional[ActivityTracker] = None
+# Per-library activity tracker instances
+# Key: database path string, Value: ActivityTracker instance
+_activity_trackers: dict[str, ActivityTracker] = {}
+_tracker_lock = __import__('threading').Lock()
 
 
 def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
-    """Get or create the global activity tracker."""
-    global _activity_tracker
-    if _activity_tracker is None:
-        if db_path is None:
-            from fichero.app_db import get_db_path
-            db_path = get_db_path()
-        _activity_tracker = ActivityTracker(db_path)
-    return _activity_tracker
+    """Get or create activity tracker for a library.
+
+    Each library has its own ActivityTracker storing activities in that
+    library's database. This ensures activity data is kept with the library.
+
+    Args:
+        db_path: Path to the library's database file. REQUIRED for proper
+                 per-library tracking. If None, falls back to app database
+                 (not recommended).
+
+    Returns:
+        ActivityTracker instance for the specified library
+    """
+    if db_path is None:
+        # Fallback to app database - not ideal but maintains backward compatibility
+        from fichero.app_db import get_db_path
+        db_path = get_db_path()
+        logger.warning(
+            "get_activity_tracker() called without db_path - using app database. "
+            "Activity data should be stored per-library."
+        )
+
+    # Ensure we're using the string path
+    db_path = str(db_path)
+    logger.info(f"get_activity_tracker called with db_path: {db_path}")
+
+    with _tracker_lock:
+        if db_path not in _activity_trackers:
+            logger.info(f"Creating NEW ActivityTracker for: {db_path}")
+            _activity_trackers[db_path] = ActivityTracker(db_path)
+        else:
+            logger.debug(f"Reusing existing ActivityTracker for: {db_path}")
+        return _activity_trackers[db_path]
+
+
+def close_activity_tracker(db_path: str) -> None:
+    """Close and remove activity tracker for a library.
+
+    Call when closing a library to clean up resources.
+    """
+    with _tracker_lock:
+        if db_path in _activity_trackers:
+            del _activity_trackers[db_path]
+            logger.info(f"Closed ActivityTracker for: {db_path}")

@@ -1,12 +1,13 @@
 import SwiftUI
 import OSLog
+import FicheroAPIClient
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIProviderAddModelsSheet")
 
 /// Sheet for adding models to a provider (uses shared AIModelSelectionView)
 struct AIProviderAddModelsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let provider: ProviderResponse
+    let provider: Components.Schemas.ProviderResponse
     let onAdd: () async -> Void
 
     @State private var selectedModel: ModelInfo?
@@ -15,7 +16,7 @@ struct AIProviderAddModelsSheet: View {
     // For HuggingFace, show the full browser
     @State private var selectedHFModel: HFModelInfo?
 
-    @EnvironmentObject var providerService: ProviderService
+    @EnvironmentObject var providerService: ProviderServiceGenerated
 
     var body: some View {
         VStack(spacing: 0) {

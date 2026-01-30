@@ -2,29 +2,60 @@
 Describe Tool
 
 Generates descriptions of images using vision LLM.
-Saves results to Artifact and updates Document metadata.
+Inherits from vision_base.py - only defines describe-specific config and prompt.
 """
 
 from __future__ import annotations
 
-import base64
 import logging
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from fichero.workflows.types import State, PortDef, DataType
+from fichero.workflows.types import State
 from fichero.workflows.registry import register_tool
-from fichero.llm import vision, LLMConfig
+from fichero.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
+from fichero.workflows.tools.vision_base import (
+    VISION_INPUT_PORTS,
+    VISION_CONFIG_SCHEMA,
+    VisionToolConfig,
+    process_vision,
+)
+from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Prompt Building (defined first so decorator can use it)
+# Tool-Specific Configuration
 # =============================================================================
 
-def _build_describe_prompt(detail_level: str, focus: str) -> str:
+TOOL_CONFIG = VisionToolConfig(
+    artifact_type="description",
+    update_page_content=False,      # Descriptions aren't the doc's text
+    trigger_embedding=False,
+    supports_apple_vision=False,    # Need LLM for descriptions
+    metadata_field="description",   # Store in metadata for quick access
+)
+
+# Describe-specific config (added to VISION_CONFIG_SCHEMA)
+DESCRIBE_CONFIG = {
+    "detail_level": {
+        "type": "string",
+        "enum": ["brief", "detailed", "comprehensive"],
+        "default": "detailed",
+        "description": "Detail level",
+    },
+    "focus": {
+        "type": "string",
+        "description": "Focus area",
+    },
+}
+
+
+# =============================================================================
+# Prompt Building
+# =============================================================================
+
+def _build_prompt(detail_level: str, focus: str) -> str:
     """Build the description prompt."""
     detail_instructions = {
         "brief": "Provide a brief, one-sentence description.",
@@ -44,13 +75,10 @@ def _build_describe_prompt(detail_level: str, focus: str) -> str:
 
 
 def build_describe_prompt(config: dict) -> str:
-    """Build the description prompt from config.
-
-    This is exposed to the UI so users can see and edit the prompt.
-    """
+    """Build prompt from config (exposed to UI)."""
     detail_level = config.get("detail_level", "detailed")
     focus = config.get("focus", "")
-    return _build_describe_prompt(detail_level, focus)
+    return _build_prompt(detail_level, focus)
 
 
 # =============================================================================
@@ -60,40 +88,22 @@ def build_describe_prompt(config: dict) -> str:
 @register_tool(
     name="describe",
     display_name="Describe",
-    description="Generate descriptions of images using vision LLM. Saves to database.",
+    description="Generate image descriptions",
     category="vision",
     icon="eye",
     color="blue",
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=True,
-    input_ports=[
-        PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES, required=True, description="Image files to describe"),
-        PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False, description="Document metadata for saving results"),
-    ],
-    output_ports=[
-        PortDef(id="description", name="Description", port_type="output", data_type=DataType.TEXT, description="Combined description"),
-        PortDef(id="descriptions", name="Descriptions", port_type="output", data_type=DataType.ARRAY, description="Array of individual descriptions"),
-        PortDef(id="structured", name="Structured", port_type="output", data_type=DataType.JSON, description="Full results with file info"),
-        PortDef(id="artifacts", name="Artifacts", port_type="output", data_type=DataType.JSON, description="Created artifact IDs"),
-    ],
-    config_schema={
-        "detail_level": {"type": "string", "enum": ["brief", "detailed", "comprehensive"], "default": "detailed", "description": "Level of detail in description"},
-        "focus": {"type": "string", "description": "What to focus on (e.g., 'people', 'objects', 'text', 'scene')"},
-        "prompt": {"type": "string", "description": "Custom prompt (overrides default)"},
-        "save_to_db": {"type": "boolean", "default": True, "description": "Save description to document in database"},
+    input_ports=VISION_INPUT_PORTS,
+    output_ports=BASE_OUTPUT_PORTS,
+    config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, DESCRIBE_CONFIG),
+    config_defaults={
+        "vision_mode": "llm",
+        "detail_level": "detailed",
+        "save_to_db": True,
     },
-    default_output_schema={
-        "type": "object",
-        "properties": {
-            "description": {"type": "string", "description": "Image description"},
-            "subjects": {"type": "array", "items": {"type": "string"}, "description": "Main subjects in image"},
-            "setting": {"type": "string", "description": "Setting or context"},
-        }
-    },
-    # Default prompt shown in UI (with default config)
-    default_prompt=_build_describe_prompt("detailed", ""),
-    # Dynamic prompt builder based on config
+    default_prompt=_build_prompt("detailed", ""),
     prompt_builder=build_describe_prompt,
     sort_order=11,
 )
@@ -102,164 +112,47 @@ async def describe(
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Generate descriptions of images using vision LLM.
+    """Generate descriptions of images using vision AI."""
 
-    Args:
-        inputs: Resolved inputs from workflow
-        state: Current workflow state
-        llm_config: LLM configuration
-
-    Returns:
-        Dict with descriptions and artifact IDs
-    """
+    # Get inputs
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
+    context = inputs.get("context")
+    input_metadata = inputs.get("metadata")
+
+    # Get describe-specific config
     detail_level = inputs.get("detail_level", "detailed")
     focus = inputs.get("focus", "")
-    prompt_override = inputs.get("prompt")
-    save_to_db = inputs.get("save_to_db", True)
-
-    library_path = state.get("library_path", "")
-
-    if isinstance(files, str):
-        files = [files]
-
-    if not files:
-        return {"description": "", "descriptions": [], "artifacts": [], "error": "No input files provided"}
-
-    # Build path -> document_id mapping
-    path_to_doc = {}
-    if documents:
-        for doc in documents:
-            if isinstance(doc, dict) and doc.get("path"):
-                path_to_doc[doc["path"]] = doc.get("id")
 
     # Build prompt
-    if prompt_override:
-        prompt = prompt_override
-    else:
-        prompt = _build_describe_prompt(detail_level, focus)
+    prompt = inputs.get("prompt") or _build_prompt(detail_level, focus)
 
-    results = []
-    descriptions = []
-    artifact_ids = []
-
-    for file_path in files:
-        try:
-            image_uri = _file_to_data_uri(file_path)
-
-            description = await vision(
-                images=[image_uri],
-                prompt=prompt,
-                config=llm_config,
-            )
-
-            result = {
-                "file": file_path,
-                "description": description,
-            }
-
-            if save_to_db and library_path:
-                artifact_id = await _save_description(
-                    file_path=file_path,
-                    description=description,
-                    document_id=path_to_doc.get(file_path),
-                    library_path=library_path,
-                    llm_config=llm_config,
-                    task_id=state.get("task_id"),
-                )
-                if artifact_id:
-                    result["artifact_id"] = artifact_id
-                    artifact_ids.append(artifact_id)
-
-            results.append(result)
-            descriptions.append(description)
-
-        except Exception as e:
-            logger.error(f"Failed to describe {file_path}: {e}")
-            results.append({
-                "file": file_path,
-                "description": "",
-                "error": str(e),
-            })
-            descriptions.append("")
-
-    return {
-        "description": "\n\n".join(descriptions),
-        "descriptions": descriptions,
-        "results": results,
-        "artifacts": artifact_ids,
-    }
-
-
-async def _save_description(
-    file_path: str,
-    description: str,
-    document_id: str | None,
-    library_path: str,
-    llm_config: LLMConfig,
-    task_id: str | None,
-) -> str | None:
-    """Save description to database as Artifact."""
-    try:
-        from fichero.db import db_manager
-        from fichero.models import Document, Artifact
-
-        db = db_manager.get_database(library_path)
-
-        doc = None
-        if document_id:
-            doc = db.get(Document, document_id)
-        if not doc:
-            docs = db.query(Document, path=file_path)
-            if docs:
-                doc = docs[0]
-
-        if not doc:
-            logger.warning(f"Document not found for path: {file_path}")
-            return None
-
-        artifact = Artifact(
-            document_id=doc.id,
-            artifact_type="description",
-            content=description,
-            provider=llm_config.provider,
-            model=llm_config.model,
-            run_id=task_id,
-        )
-        db.save(artifact)
-        logger.info(f"Created description artifact {artifact.id} for document {doc.id}")
-
-        # Update document metadata with description
-        if "description" not in doc.metadata:
-            doc.metadata["description"] = description
-            doc.updated_at = datetime.now()
-            db.save(doc)
-
-        return artifact.id
-
-    except Exception as e:
-        logger.error(f"Failed to save description for {file_path}: {e}")
-        return None
-
-
-def _file_to_data_uri(file_path: str) -> str:
-    """Convert a file to a base64 data URI."""
-    path = Path(file_path)
-    suffix = path.suffix.lower()
-    mime_types = {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".tiff": "image/tiff",
-        ".tif": "image/tiff",
-        ".bmp": "image/bmp",
-    }
-    mime_type = mime_types.get(suffix, "image/jpeg")
-
-    with open(path, "rb") as f:
-        data = base64.b64encode(f.read()).decode("utf-8")
-
-    return f"data:{mime_type};base64,{data}"
+    # Process with shared logic - pass all inherited config
+    return await process_vision(
+        files=files,
+        documents=documents,
+        prompt=prompt,
+        llm_config=llm_config,
+        library_path=state.get("library_path", ""),
+        task_id=state.get("task_id"),
+        tool_config=TOOL_CONFIG,
+        # Vision-specific
+        vision_mode="llm",  # Describe always uses LLM
+        max_image_dimension=inputs.get("max_image_dimension", 2048),
+        # Inherited from BASE_CONFIG
+        temperature=inputs.get("temperature"),
+        max_tokens=inputs.get("max_tokens"),
+        output_format=inputs.get("output_format", "text"),
+        output_options={
+            "choices": inputs.get("choices"),
+            "max_words": inputs.get("max_words"),
+            "max_items": inputs.get("max_items"),
+        },
+        reference_values=inputs.get("reference_values"),
+        match_mode=inputs.get("match_mode", "prefer"),
+        context=context,
+        input_metadata=input_metadata,
+        save_to_db=inputs.get("save_to_db", True),
+        save_to_file_flag=inputs.get("save_to_file", False),
+        metadata_field=inputs.get("metadata_field") or "description",
+    )

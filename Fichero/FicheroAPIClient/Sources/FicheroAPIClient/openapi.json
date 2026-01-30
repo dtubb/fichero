@@ -4075,6 +4075,68 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/history": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Thread History",
+        "description": "Get the full checkpoint history for a workflow execution thread.\n\nReturns all checkpoints (state snapshots) in chronological order,\nshowing the state at each step of execution. This enables:\n- Debugging workflow execution step-by-step\n- Understanding what each node produced\n- Time-travel debugging (viewing state at any point)\n\nArgs:\n    thread_id: Thread ID\n    limit: Maximum number of checkpoints to return (default 100)\n\nReturns:\n    Full checkpoint history with state at each step\n\nRaises:\n    404: Thread not found",
+        "operationId": "get_thread_history_api_workflow_execution_threads__thread_id__history_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/threads": {
       "get": {
         "tags": [
@@ -4167,6 +4229,422 @@
                     "type": "string"
                   },
                   "title": "Response Delete Thread Api Workflow Execution Threads  Thread Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/workflows/{workflow_id}/visualization": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Workflow Visualization",
+        "description": "Get visualization (Mermaid diagram) for a workflow.\n\nReturns Mermaid code that can be rendered as a graph diagram.\nUse https://mermaid.live or any Mermaid renderer to visualize.\n\nArgs:\n    workflow_id: Workflow ID\n    xray: If True, show internal subgraph details\n\nReturns:\n    Mermaid diagram code and workflow metadata",
+        "operationId": "get_workflow_visualization_api_workflow_execution_workflows__workflow_id__visualization_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "xray",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Xray"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVisualizationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/workflows/{workflow_id}/visualization.png": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Workflow Visualization Png",
+        "description": "Get visualization as PNG image for a workflow.\n\nReturns the workflow graph as a PNG image.\n\nArgs:\n    workflow_id: Workflow ID\n    xray: If True, show internal subgraph details\n\nReturns:\n    PNG image of the workflow graph",
+        "operationId": "get_workflow_visualization_png_api_workflow_execution_workflows__workflow_id__visualization_png_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "xray",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Xray"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/workflows/{workflow_id}/code": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Workflow Code",
+        "description": "Export workflow as Python code.\n\nGenerates Python code that recreates this workflow using LangGraph.\nThe code can be run standalone or modified for custom use cases.\n\nArgs:\n    workflow_id: Workflow ID\n\nReturns:\n    Python code as a string",
+        "operationId": "get_workflow_code_api_workflow_execution_workflows__workflow_id__code_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCodeExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/workflows/{workflow_id}/cache/stats": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Workflow Cache Stats",
+        "description": "Get cache statistics for a workflow.\n\nShows how many node results are cached, which tools are cached, etc.\n\nArgs:\n    workflow_id: Workflow ID\n\nReturns:\n    Cache statistics",
+        "operationId": "get_workflow_cache_stats_api_workflow_execution_workflows__workflow_id__cache_stats_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheStatsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/workflows/{workflow_id}/cache": {
+      "delete": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Clear Workflow Cache",
+        "description": "Clear all cached results for a workflow.\n\nThis will cause all nodes to be re-executed on the next run.\n\nArgs:\n    workflow_id: Workflow ID\n\nReturns:\n    Number of entries deleted",
+        "operationId": "clear_workflow_cache_api_workflow_execution_workflows__workflow_id__cache_delete",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheClearResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/cache": {
+      "delete": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Clear All Cache",
+        "description": "Clear all cached node results.\n\nThis will cause all nodes in all workflows to be re-executed on next run.\n\nReturns:\n    Number of entries deleted",
+        "operationId": "clear_all_cache_api_workflow_execution_cache_delete",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheClearResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/threads/{thread_id}/run": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Workflow Run",
+        "description": "Get workflow run data including Python code and execution log.\n\nReturns the saved Python code and execution log for a completed run.\nUseful for debugging and understanding what happened during execution.\n\nArgs:\n    thread_id: Thread ID\n\nReturns:\n    Workflow run data with code and logs\n\nRaises:\n    404: Run not found",
+        "operationId": "get_workflow_run_api_workflow_execution_threads__thread_id__run_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/cache/stats": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get All Cache Stats",
+        "description": "Get overall cache statistics.\n\nShows total cached entries across all workflows.\n\nReturns:\n    Cache statistics",
+        "operationId": "get_all_cache_stats_api_workflow_execution_cache_stats_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheStatsResponse"
                 }
               }
             }
@@ -5579,6 +6057,15 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -5629,6 +6116,15 @@
               "minimum": 1,
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -5683,6 +6179,15 @@
               "title": "Hours"
             },
             "description": "Number of hours to analyze"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -5762,6 +6267,15 @@
               "nullable": true,
               "title": "Batch Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -5815,6 +6329,15 @@
               "minimum": 1,
               "default": 100,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -5876,6 +6399,15 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -5929,6 +6461,15 @@
               "title": "Days"
             },
             "description": "Delete activities older than N days"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -5966,6 +6507,17 @@
         "summary": "Create Schedule",
         "description": "Create a new workflow schedule.",
         "operationId": "create_schedule_api_schedules_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -6047,6 +6599,15 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6095,6 +6656,15 @@
               "type": "string",
               "title": "Schedule Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6137,6 +6707,15 @@
               "type": "string",
               "title": "Schedule Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6148,6 +6727,67 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Delete Schedule Api Schedules  Schedule Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "schedules",
+          "schedules"
+        ],
+        "summary": "Update Schedule",
+        "description": "Update a schedule.",
+        "operationId": "update_schedule_api_schedules__schedule_id__put",
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Schedule Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
                 }
               }
             }
@@ -6182,6 +6822,15 @@
             "schema": {
               "type": "string",
               "title": "Schedule Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -6227,6 +6876,15 @@
               "type": "string",
               "title": "Schedule Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6270,6 +6928,15 @@
             "schema": {
               "type": "string",
               "title": "Schedule Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -6325,6 +6992,15 @@
               "default": 50,
               "title": "Limit"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6364,6 +7040,17 @@
         "summary": "Create Trigger",
         "description": "Create a new file trigger.",
         "operationId": "create_trigger_api_triggers_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -6445,6 +7132,15 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6493,6 +7189,15 @@
               "type": "string",
               "title": "Trigger Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6535,6 +7240,15 @@
               "type": "string",
               "title": "Trigger Id"
             }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
           }
         ],
         "responses": {
@@ -6546,6 +7260,67 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Delete Trigger Api Triggers  Trigger Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "triggers",
+          "triggers"
+        ],
+        "summary": "Update Trigger",
+        "description": "Update a file trigger.",
+        "operationId": "update_trigger_api_triggers__trigger_id__put",
+        "parameters": [
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trigger Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTriggerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResponse"
                 }
               }
             }
@@ -6580,6 +7355,15 @@
             "schema": {
               "type": "string",
               "title": "Trigger Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -6624,6 +7408,15 @@
             "schema": {
               "type": "string",
               "title": "Trigger Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -6678,6 +7471,15 @@
               "type": "integer",
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -8553,6 +9355,130 @@
         }
       }
     },
+    "/api/model-comparison/models-by-tier": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Models Grouped By Tier",
+        "description": "Get all models grouped by performance/cost tier.\n\nReturns models organized into:\n- frontier: Best quality, highest cost (GPT-4o, Claude 3.5 Sonnet, etc.)\n- mid: Good quality, moderate cost (GPT-4o-mini, Claude Haiku, etc.)\n- budget: Basic quality, low cost (GPT-3.5, etc.)\n- local: Free, runs locally (Llama, Mistral via Ollama)",
+        "operationId": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare-vision": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Vision Models",
+        "description": "Compare vision models on the same image(s).\n\nSends the same image(s) to multiple vision-capable models\nand returns comparison results with timing and cost metrics.\n\nImages can be:\n- URLs (https://...)\n- Base64 data URIs (data:image/jpeg;base64,...)",
+        "operationId": "compare_vision_models_api_model_comparison_compare_vision_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisionCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare-tool": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Tool Across Models",
+        "description": "Compare models running the same workflow tool.\n\nRuns a workflow tool (describe, summarize, classify, etc.) with\nmultiple models and compares their outputs.\n\nAvailable tools can be found via the /api/workflows/tools endpoint.",
+        "operationId": "compare_tool_across_models_api_model_comparison_compare_tool_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/tools": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "List Available Tools",
+        "description": "List available workflow tools that can be used for comparison.\n\nReturns tools that support LLM comparison (have uses_llm=True).",
+        "operationId": "list_available_tools_api_model_comparison_tools_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chains": {
       "post": {
         "tags": [
@@ -9128,6 +10054,88 @@
         }
       }
     },
+    "/api/artifacts/": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "List All Artifacts",
+        "description": "List all artifacts in the library.\n\nReturns artifacts sorted by creation date (newest first).",
+        "operationId": "list_all_artifacts_api_artifacts__get",
+        "parameters": [
+          {
+            "name": "artifact_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by artifact type",
+              "title": "Artifact Type"
+            },
+            "description": "Filter by artifact type"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Max results",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Max results"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Offset for pagination",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Offset for pagination"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/artifacts/types": {
       "get": {
         "tags": [
@@ -9174,10 +10182,328 @@
           }
         }
       }
+    },
+    "/api/settings/ai-defaults": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Get Ai Defaults",
+        "description": "Get default AI models for each category.",
+        "operationId": "get_ai_defaults_api_settings_ai_defaults_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIDefaults"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Set Ai Defaults",
+        "description": "Set default AI models for each category.",
+        "operationId": "set_ai_defaults_api_settings_ai_defaults_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIDefaults"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Set Ai Defaults Api Settings Ai Defaults Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Reset Ai Defaults",
+        "description": "Reset all AI default settings to empty.",
+        "operationId": "reset_ai_defaults_api_settings_ai_defaults_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Reset Ai Defaults Api Settings Ai Defaults Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models": {
+      "get": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "List Local Models",
+        "description": "List all local models, optionally filtered by type.\n\nQuery params:\n    model_type: \"whisper\" or \"embeddings\" (optional, lists all if omitted)",
+        "operationId": "list_local_models_api_local_models_get",
+        "parameters": [
+          {
+            "name": "model_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Model Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/disk-usage": {
+      "get": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Disk Usage",
+        "description": "Get total disk usage by model type.",
+        "operationId": "disk_usage_api_local_models_disk_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/download/{model_type}/{model_id}": {
+      "post": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Download Model",
+        "description": "Start downloading a model in the background.\n\nArgs:\n    model_type: \"whisper\" or \"embeddings\"\n    model_id: Model identifier (e.g., \"base\" for Whisper, \"intfloat/multilingual-e5-large\" for embeddings)",
+        "operationId": "download_model_api_local_models_download__model_type___model_id__post",
+        "parameters": [
+          {
+            "name": "model_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Type"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/{model_type}/{model_id}": {
+      "delete": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Delete Model",
+        "description": "Delete a downloaded model.\n\nArgs:\n    model_type: \"whisper\" or \"embeddings\"\n    model_id: Model identifier",
+        "operationId": "delete_model_api_local_models__model_type___model_id__delete",
+        "parameters": [
+          {
+            "name": "model_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Type"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AIDefaults": {
+        "properties": {
+          "vision_provider": {
+            "type": "string",
+            "title": "Vision Provider",
+            "default": ""
+          },
+          "vision_model": {
+            "type": "string",
+            "title": "Vision Model",
+            "default": ""
+          },
+          "text_provider": {
+            "type": "string",
+            "title": "Text Provider",
+            "default": ""
+          },
+          "text_model": {
+            "type": "string",
+            "title": "Text Model",
+            "default": ""
+          },
+          "audio_provider": {
+            "type": "string",
+            "title": "Audio Provider",
+            "default": ""
+          },
+          "audio_model": {
+            "type": "string",
+            "title": "Audio Model",
+            "default": ""
+          },
+          "video_provider": {
+            "type": "string",
+            "title": "Video Provider",
+            "default": ""
+          },
+          "video_model": {
+            "type": "string",
+            "title": "Video Model",
+            "default": ""
+          },
+          "temperature": {
+            "type": "string",
+            "title": "Temperature",
+            "default": ""
+          },
+          "max_tokens": {
+            "type": "string",
+            "title": "Max Tokens",
+            "default": ""
+          },
+          "prompt_prefix": {
+            "type": "string",
+            "title": "Prompt Prefix",
+            "default": ""
+          },
+          "embeddings_model": {
+            "type": "string",
+            "title": "Embeddings Model",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AIDefaults",
+        "description": "Default AI model configuration per category."
+      },
       "APIKeyRequest": {
         "properties": {
           "api_key": {
@@ -9694,6 +11020,64 @@
         ],
         "title": "Body_import_file_api_documents_import_post"
       },
+      "CacheClearResponse": {
+        "properties": {
+          "entries_deleted": {
+            "type": "integer",
+            "title": "Entries Deleted"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries_deleted",
+          "message"
+        ],
+        "title": "CacheClearResponse",
+        "description": "Response after clearing cache."
+      },
+      "CacheStatsResponse": {
+        "properties": {
+          "total_entries": {
+            "type": "integer",
+            "title": "Total Entries"
+          },
+          "workflows_cached": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Workflows Cached"
+          },
+          "nodes_cached": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Nodes Cached"
+          },
+          "tools_cached": {
+            "type": "integer",
+            "title": "Tools Cached"
+          },
+          "oldest_entry": {
+            "type": "string",
+            "nullable": true,
+            "title": "Oldest Entry"
+          },
+          "newest_entry": {
+            "type": "string",
+            "nullable": true,
+            "title": "Newest Entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_entries",
+          "tools_cached"
+        ],
+        "title": "CacheStatsResponse",
+        "description": "Response with cache statistics."
+      },
       "CategoryToolsResponse": {
         "properties": {
           "category": {
@@ -10000,6 +11384,94 @@
         ],
         "title": "ChatResponse",
         "description": "Response model for chat."
+      },
+      "CheckpointHistoryResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "total_steps": {
+            "type": "integer",
+            "title": "Total Steps"
+          },
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/CheckpointSnapshot"
+            },
+            "type": "array",
+            "title": "Checkpoints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "workflow_id",
+          "workflow_name",
+          "total_steps",
+          "checkpoints"
+        ],
+        "title": "CheckpointHistoryResponse",
+        "description": "Response with full checkpoint history for a thread."
+      },
+      "CheckpointSnapshot": {
+        "properties": {
+          "checkpoint_id": {
+            "type": "string",
+            "title": "Checkpoint Id"
+          },
+          "parent_checkpoint_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Checkpoint Id"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "timestamp": {
+            "type": "string",
+            "nullable": true,
+            "title": "Timestamp"
+          },
+          "node_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Name"
+          },
+          "state_values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "State Values"
+          },
+          "writes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Writes"
+          },
+          "next_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Nodes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checkpoint_id",
+          "step"
+        ],
+        "title": "CheckpointSnapshot",
+        "description": "A single checkpoint in the execution history."
       },
       "CompareRequest": {
         "properties": {
@@ -10969,6 +12441,16 @@
             },
             "type": "array",
             "title": "Interrupt After"
+          },
+          "force_new": {
+            "type": "boolean",
+            "title": "Force New",
+            "default": false
+          },
+          "skip_cache": {
+            "type": "boolean",
+            "title": "Skip Cache",
+            "default": false
           }
         },
         "type": "object",
@@ -13247,6 +14729,60 @@
         "title": "ThreadListResponse",
         "description": "Response with list of execution threads."
       },
+      "ToolCompareRequest": {
+        "properties": {
+          "tool_name": {
+            "type": "string",
+            "title": "Tool Name",
+            "description": "Name of the workflow tool (describe, summarize, classify, etc.)"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Tool-specific inputs (files, text, etc.)"
+          },
+          "models": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Models to compare",
+            "default": [
+              {
+                "provider": "openai",
+                "model": "gpt-4o"
+              },
+              {
+                "provider": "anthropic",
+                "model": "claude-3-5-sonnet-20241022"
+              }
+            ]
+          },
+          "tool_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Tool Config",
+            "description": "Optional tool configuration overrides"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "description": "Timeout per model",
+            "default": 120
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool_name",
+          "inputs"
+        ],
+        "title": "ToolCompareRequest",
+        "description": "Request to compare models running a workflow tool."
+      },
       "ToolListResponse": {
         "properties": {
           "categories": {
@@ -13308,6 +14844,12 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Config Schema",
+            "default": {}
+          },
+          "config_defaults": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Defaults",
             "default": {}
           },
           "default_output_schema": {
@@ -13781,6 +15323,102 @@
         "title": "UpdateMCPServerRequest",
         "description": "Request to update an existing MCP server."
       },
+      "UpdateScheduleRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name",
+            "description": "Display name for the schedule"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id",
+            "description": "ID of workflow to execute"
+          },
+          "config": {
+            "$ref": "#/components/schemas/ScheduleConfigRequest",
+            "nullable": true,
+            "description": "Schedule configuration"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Inputs",
+            "description": "Workflow inputs"
+          },
+          "use_batch": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Use Batch",
+            "description": "Use batch execution"
+          },
+          "batch_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Batch Items",
+            "description": "Batch input items"
+          },
+          "max_concurrent": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Max Concurrent",
+            "description": "Max concurrent batch items"
+          }
+        },
+        "type": "object",
+        "title": "UpdateScheduleRequest",
+        "description": "Request to update an existing schedule."
+      },
+      "UpdateTriggerRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name",
+            "description": "Display name for the trigger"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id",
+            "description": "ID of workflow to execute"
+          },
+          "config": {
+            "$ref": "#/components/schemas/TriggerConfigRequest",
+            "nullable": true,
+            "description": "Trigger configuration"
+          },
+          "inputs_template": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Inputs Template",
+            "description": "Template for workflow inputs"
+          },
+          "use_batch": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Use Batch",
+            "description": "Batch multiple files"
+          },
+          "max_concurrent": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Max Concurrent",
+            "description": "Max concurrent batch items"
+          }
+        },
+        "type": "object",
+        "title": "UpdateTriggerRequest",
+        "description": "Request to update an existing file trigger."
+      },
       "UserModelResponse": {
         "properties": {
           "id": {
@@ -13872,6 +15510,85 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VisionCompareRequest": {
+        "properties": {
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images",
+            "description": "Image URLs or base64 data URIs"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "Prompt for vision analysis",
+            "default": "Describe this image in detail"
+          },
+          "models": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Vision-capable models to compare",
+            "default": [
+              {
+                "provider": "openai",
+                "model": "gpt-4o"
+              },
+              {
+                "provider": "anthropic",
+                "model": "claude-3-5-sonnet-20241022"
+              }
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Image detail level: auto, low, high",
+            "default": "auto"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "description": "Timeout per model",
+            "default": 120
+          }
+        },
+        "type": "object",
+        "required": [
+          "images"
+        ],
+        "title": "VisionCompareRequest",
+        "description": "Request to compare vision models."
+      },
+      "WorkflowCodeExportResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "python_code": {
+            "type": "string",
+            "title": "Python Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "workflow_name",
+          "python_code"
+        ],
+        "title": "WorkflowCodeExportResponse",
+        "description": "Response with exported Python code for the workflow."
       },
       "WorkflowDef": {
         "properties": {
@@ -14034,6 +15751,99 @@
         ],
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
+      },
+      "WorkflowRunResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "python_code": {
+            "type": "string",
+            "nullable": true,
+            "title": "Python Code"
+          },
+          "execution_log": {
+            "type": "string",
+            "nullable": true,
+            "title": "Execution Log"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "type": "number",
+            "nullable": true,
+            "title": "Duration Ms"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "workflow_id",
+          "workflow_name",
+          "status"
+        ],
+        "title": "WorkflowRunResponse",
+        "description": "Response with workflow run data (code, logs, etc.)."
+      },
+      "WorkflowVisualizationResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "mermaid_code": {
+            "type": "string",
+            "title": "Mermaid Code"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "title": "Edge Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "workflow_name",
+          "mermaid_code",
+          "node_count",
+          "edge_count"
+        ],
+        "title": "WorkflowVisualizationResponse",
+        "description": "Response with workflow visualization data."
       }
     }
   }

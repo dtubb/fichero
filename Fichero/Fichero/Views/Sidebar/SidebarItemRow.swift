@@ -20,6 +20,7 @@ struct SidebarItemRow: View {
     let item: SidebarItem
     let allCachedItems: [SidebarItem]
     @Binding var expandedItems: Set<String>
+    @Binding var selectedItemId: String?
     @ObservedObject var renameState: RenameStateManager
     @ObservedObject var deleteState: DeleteStateManager
     @ObservedObject var libraryManager: LibraryManager
@@ -38,11 +39,19 @@ struct SidebarItemRow: View {
     private var savedSearchService: SavedSearchServiceGenerated? { library?.savedSearchServiceGenerated }
     private var conversationService: ConversationServiceGenerated? { library?.conversationServiceGenerated }
     private var workflowStore: WorkflowStore? { library?.workflowStore }
+    private var chainService: ChainService? { library?.chainService }
+    private var automationService: AutomationServiceGenerated? { library?.automationService }
 
     @State private var isDropTargeted = false
     @FocusState private var isRenameFocused: Bool
     @State private var isCommittingRename = false
     @State private var isPulsing = false  // For workflow running animation
+
+    // Optional callbacks for automation actions (pause/resume/trigger/cancel)
+    var onAutomationPause: (() -> Void)?
+    var onAutomationResume: (() -> Void)?
+    var onAutomationTrigger: (() -> Void)?
+    var onAutomationCancel: (() -> Void)?
 
     /// Determines if this item represents a folder type document.
     private var isFolder: Bool {
@@ -83,6 +92,7 @@ struct SidebarItemRow: View {
                         item: child,
                         allCachedItems: allCachedItems,
                         expandedItems: $expandedItems,
+                        selectedItemId: $selectedItemId,
                         renameState: renameState,
                         deleteState: deleteState,
                         libraryManager: libraryManager
@@ -92,11 +102,6 @@ struct SidebarItemRow: View {
                 }
             } label: {
                 itemLabel
-                    .listRowBackground(
-                        isDropTargeted
-                            ? Color.accentColor.opacity(SidebarConstants.dropTargetOpacity)
-                            : Color.clear
-                    )
                     .draggable(item.id)
                     .dropDestination(for: String.self) { droppedIDs, _ in
                         handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
@@ -107,16 +112,17 @@ struct SidebarItemRow: View {
                         SidebarItemContextMenu(
                             item: item,
                             renameState: renameState,
-                            deleteState: deleteState
+                            deleteState: deleteState,
+                            onPause: onAutomationPause,
+                            onResume: onAutomationResume,
+                            onTrigger: onAutomationTrigger,
+                            onCancel: onAutomationCancel
                         )
                     }
             }
         } else if isFolder {
             // Empty folder - still needs to accept drops
             itemLabel
-                .listRowBackground(
-                    isDropTargeted ? Color.accentColor.opacity(SidebarConstants.dropTargetOpacity) : Color.clear
-                )
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropIntoFolder(
@@ -130,17 +136,16 @@ struct SidebarItemRow: View {
                     SidebarItemContextMenu(
                         item: item,
                         renameState: renameState,
-                        deleteState: deleteState
+                        deleteState: deleteState,
+                        onPause: onAutomationPause,
+                        onResume: onAutomationResume,
+                        onTrigger: onAutomationTrigger,
+                        onCancel: onAutomationCancel
                     )
                 }
         } else {
             // Regular document - can be dragged and can accept drops to become siblings
             itemLabel
-                .listRowBackground(
-                    isDropTargeted
-                        ? Color.accentColor.opacity(SidebarConstants.dropTargetNonFolderOpacity)
-                        : Color.clear
-                )
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
@@ -151,7 +156,11 @@ struct SidebarItemRow: View {
                     SidebarItemContextMenu(
                         item: item,
                         renameState: renameState,
-                        deleteState: deleteState
+                        deleteState: deleteState,
+                        onPause: onAutomationPause,
+                        onResume: onAutomationResume,
+                        onTrigger: onAutomationTrigger,
+                        onCancel: onAutomationCancel
                     )
                 }
         }
@@ -238,6 +247,12 @@ struct SidebarItemRow: View {
             return .green
         case .workflow:
             return .purple
+        case .automation:
+            return .teal
+        case .batch:
+            return .indigo
+        case .activity:
+            return .cyan
         case .library:
             return .blue
         }
@@ -525,6 +540,22 @@ extension SidebarItemRow {
             case .workflow:
                 _ = try await itemLibrary.workflowStore.renameWorkflow(actualId, to: newName)
                 logger.debug(" Renamed workflow \(actualId) to '\(newName)'")
+            case .chain(var chain):
+                chain.name = newName
+                _ = try await itemLibrary.chainService.updateChain(chain)
+                logger.debug(" Renamed chain \(actualId) to '\(newName)'")
+            case .schedule(let schedule):
+                _ = try await itemLibrary.automationService.updateSchedule(
+                    scheduleId: schedule.scheduleId,
+                    newName: newName
+                )
+                logger.debug(" Renamed schedule \(actualId) to '\(newName)'")
+            case .trigger(let trigger):
+                _ = try await itemLibrary.automationService.updateTrigger(
+                    triggerId: trigger.triggerId,
+                    newName: newName
+                )
+                logger.debug(" Renamed trigger \(actualId) to '\(newName)'")
             default:
                 logger.debug(" ⚠️ Unknown item type for rename")
             }

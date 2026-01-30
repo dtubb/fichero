@@ -4,7 +4,7 @@ import OSLog
 /// Structured logger for context menu operations.
 private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarContextMenu")
 
-/// Context menu for sidebar items (rename, delete).
+/// Context menu for sidebar items (rename, delete, and type-specific actions).
 ///
 /// Provides standard actions for sidebar items with keyboard shortcuts.
 /// Actions are disabled based on item capabilities (see `SidebarItem.ItemType` extensions).
@@ -13,8 +13,21 @@ struct SidebarItemContextMenu: View {
     @ObservedObject var renameState: RenameStateManager
     @ObservedObject var deleteState: DeleteStateManager
 
+    // Optional callbacks for automation actions
+    var onPause: (() -> Void)?
+    var onResume: (() -> Void)?
+    var onTrigger: (() -> Void)?  // For schedules - "Run Now"
+    var onCancel: (() -> Void)?   // For batches - "Cancel"
+
     var body: some View {
         Group {
+            // Type-specific actions first
+            automationActions
+
+            if hasTypeSpecificActions {
+                Divider()
+            }
+
             Button(action: { renameItem(item) }, label: {
                 Label("Rename", systemImage: "pencil")
             })
@@ -28,6 +41,74 @@ struct SidebarItemContextMenu: View {
             })
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(!item.itemType.canBeDeleted)
+        }
+    }
+
+    @ViewBuilder
+    private var automationActions: some View {
+        switch item.itemType {
+        case .schedule(let schedule):
+            if schedule.status == "active" {
+                Button {
+                    onPause?()
+                } label: {
+                    Label("Pause", systemImage: "pause")
+                }
+
+                Button {
+                    onTrigger?()
+                } label: {
+                    Label("Run Now", systemImage: "play.fill")
+                }
+            } else if schedule.status == "paused" {
+                Button {
+                    onResume?()
+                } label: {
+                    Label("Resume", systemImage: "play")
+                }
+            }
+
+        case .trigger(let trigger):
+            if trigger.status == "active" {
+                Button {
+                    onPause?()
+                } label: {
+                    Label("Pause", systemImage: "pause")
+                }
+            } else if trigger.status == "paused" {
+                Button {
+                    onResume?()
+                } label: {
+                    Label("Resume", systemImage: "play")
+                }
+            }
+
+        case .batch(let batch):
+            if batch.status == "running" || batch.status == "pending" {
+                Button {
+                    onPause?()
+                } label: {
+                    Label("Pause", systemImage: "pause")
+                }
+
+                Button {
+                    onCancel?()
+                } label: {
+                    Label("Cancel", systemImage: "xmark.circle")
+                }
+            }
+
+        default:
+            EmptyView()
+        }
+    }
+
+    private var hasTypeSpecificActions: Bool {
+        switch item.itemType {
+        case .schedule, .trigger, .batch:
+            return true
+        default:
+            return false
         }
     }
 
@@ -49,9 +130,9 @@ struct SidebarItemContextMenu: View {
 extension SidebarItem.ItemType {
     var canBeRenamed: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow, .folder:
+        case .document, .savedSearch, .conversation, .workflow, .folder, .chain, .schedule, .trigger:
             return true
-        case .libraryHeader:
+        case .comparison, .batch, .activityRun, .libraryHeader:
             return false
         }
     }
@@ -60,7 +141,9 @@ extension SidebarItem.ItemType {
         switch self {
         case .document, .savedSearch, .conversation, .workflow, .folder:
             return true
-        case .libraryHeader:
+        case .chain, .schedule, .trigger, .batch:
+            return true
+        case .comparison, .activityRun, .libraryHeader:
             return false
         }
     }

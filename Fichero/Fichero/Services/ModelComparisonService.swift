@@ -10,7 +10,9 @@ final class ModelComparisonService: ObservableObject {
     @Published var lastResult: ComparisonResult?
     @Published var history: [ComparisonResult] = []
     @Published var presets: [ComparisonPreset] = []
-    @Published var availableModels: [ModelInfo] = []
+    @Published var availableModels: [ComparisonModelInfo] = []
+    @Published var modelsByTier: ModelsByTier?
+    @Published var availableTools: [ComparisonToolInfo] = []
     @Published var error: String?
 
     private let baseURL = "http://localhost:8765/api/model-comparison"
@@ -59,7 +61,7 @@ final class ModelComparisonService: ObservableObject {
         do {
             guard let url = URL(string: "\(baseURL)/models") else { return }
             let (data, _) = try await URLSession.shared.data(from: url)
-            let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
+            let response = try JSONDecoder().decode(ComparisonModelsResponse.self, from: data)
             availableModels = response.models
         } catch {
             logger.error("Failed to load models: \(error.localizedDescription)")
@@ -115,6 +117,111 @@ final class ModelComparisonService: ObservableObject {
             logger.error("Failed to load history: \(error.localizedDescription)")
         }
     }
+
+    // MARK: - Vision Comparison
+
+    func compareVision(
+        images: [String],
+        prompt: String = "Describe this image in detail",
+        models: [ModelSpec],
+        detail: String = "auto"
+    ) async {
+        isComparing = true
+        error = nil
+
+        do {
+            guard let url = URL(string: "\(baseURL)/compare-vision") else { throw ComparisonError.invalidURL }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let body = VisionCompareRequest(
+                images: images,
+                prompt: prompt,
+                models: models.map { $0.toDict() },
+                detail: detail
+            )
+            request.httpBody = try JSONEncoder().encode(body)
+
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let result = try JSONDecoder().decode(ComparisonResult.self, from: data)
+
+            lastResult = result
+            history.insert(result, at: 0)
+            logger.info("Vision comparison complete: \(result.comparisonId)")
+        } catch {
+            self.error = error.localizedDescription
+            logger.error("Vision comparison failed: \(error.localizedDescription)")
+        }
+
+        isComparing = false
+    }
+
+    // MARK: - Tool Comparison
+
+    func compareTool(
+        toolName: String,
+        inputs: [String: Any],
+        models: [ModelSpec],
+        toolConfig: [String: Any]? = nil
+    ) async {
+        isComparing = true
+        error = nil
+
+        do {
+            guard let url = URL(string: "\(baseURL)/compare-tool") else { throw ComparisonError.invalidURL }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let body = ToolCompareRequest(
+                toolName: toolName,
+                inputs: inputs,
+                models: models.map { $0.toDict() },
+                toolConfig: toolConfig
+            )
+            request.httpBody = try JSONEncoder().encode(body)
+
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let result = try JSONDecoder().decode(ComparisonResult.self, from: data)
+
+            lastResult = result
+            history.insert(result, at: 0)
+            logger.info("Tool comparison complete: \(result.comparisonId)")
+        } catch {
+            self.error = error.localizedDescription
+            logger.error("Tool comparison failed: \(error.localizedDescription)")
+        }
+
+        isComparing = false
+    }
+
+    // MARK: - Load Models By Tier
+
+    func loadModelsByTier() async {
+        do {
+            guard let url = URL(string: "\(baseURL)/models-by-tier") else { return }
+            let (data, _) = try await URLSession.shared.data(from: url)
+            modelsByTier = try JSONDecoder().decode(ModelsByTier.self, from: data)
+        } catch {
+            logger.error("Failed to load models by tier: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Load Available Tools
+
+    func loadTools() async {
+        do {
+            guard let url = URL(string: "\(baseURL)/tools") else { return }
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(ToolsResponse.self, from: data)
+            availableTools = response.tools
+        } catch {
+            logger.error("Failed to load tools: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - Data Models
@@ -162,7 +269,7 @@ struct ModelRequestSpec: Codable {
     let temperature: Double
 }
 
-struct AnyCodableValue: Codable {
+struct ComparisonAnyCodableValue: Codable {
     let value: Any
 
     init(from decoder: Decoder) throws {
@@ -236,7 +343,7 @@ struct ModelResult: Codable, Identifiable {
     }
 }
 
-struct ModelInfo: Codable, Identifiable {
+struct ComparisonModelInfo: Codable, Identifiable {
     var id: String { "\(provider)/\(model)" }
     let provider: String
     let model: String
@@ -282,8 +389,8 @@ struct ModelCostEstimate: Codable {
     }
 }
 
-struct ModelsResponse: Codable {
-    let models: [ModelInfo]
+struct ComparisonModelsResponse: Codable {
+    let models: [ComparisonModelInfo]
 }
 
 struct PresetsResponse: Codable {
@@ -292,6 +399,161 @@ struct PresetsResponse: Codable {
 
 struct HistoryResponse: Codable {
     let history: [ComparisonResult]
+}
+
+struct VisionCompareRequest: Encodable {
+    let images: [String]
+    let prompt: String
+    let models: [[String: Any]]
+    let detail: String
+
+    enum CodingKeys: String, CodingKey {
+        case images, prompt, models, detail
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(images, forKey: .images)
+        try container.encode(prompt, forKey: .prompt)
+        try container.encode(detail, forKey: .detail)
+        let modelSpecs = models.map { dict -> ModelRequestSpec in
+            ModelRequestSpec(
+                provider: dict["provider"] as? String ?? "",
+                model: dict["model"] as? String ?? "",
+                temperature: dict["temperature"] as? Double ?? 0.7
+            )
+        }
+        try container.encode(modelSpecs, forKey: .models)
+    }
+}
+
+struct ToolCompareRequest: Encodable {
+    let toolName: String
+    let inputs: [String: Any]
+    let models: [[String: Any]]
+    let toolConfig: [String: Any]?
+
+    enum CodingKeys: String, CodingKey {
+        case toolName = "tool_name"
+        case inputs, models
+        case toolConfig = "tool_config"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(toolName, forKey: .toolName)
+        let modelSpecs = models.map { dict -> ModelRequestSpec in
+            ModelRequestSpec(
+                provider: dict["provider"] as? String ?? "",
+                model: dict["model"] as? String ?? "",
+                temperature: dict["temperature"] as? Double ?? 0.7
+            )
+        }
+        try container.encode(modelSpecs, forKey: .models)
+        // Encode inputs as JSON data
+        let inputsData = try JSONSerialization.data(withJSONObject: inputs)
+        let inputsJson = try JSONDecoder().decode([String: ComparisonDynamicValue].self, from: inputsData)
+        try container.encode(inputsJson, forKey: .inputs)
+        if let config = toolConfig {
+            let configData = try JSONSerialization.data(withJSONObject: config)
+            let configJson = try JSONDecoder().decode([String: ComparisonDynamicValue].self, from: configData)
+            try container.encode(configJson, forKey: .toolConfig)
+        }
+    }
+}
+
+struct ComparisonDynamicValue: Codable {
+    let value: Any
+
+    init(_ value: Any) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let string = try? container.decode(String.self) {
+            value = string
+        } else if let int = try? container.decode(Int.self) {
+            value = int
+        } else if let double = try? container.decode(Double.self) {
+            value = double
+        } else if let bool = try? container.decode(Bool.self) {
+            value = bool
+        } else if let array = try? container.decode([ComparisonDynamicValue].self) {
+            value = array.map { $0.value }
+        } else if let dict = try? container.decode([String: ComparisonDynamicValue].self) {
+            value = dict.mapValues { $0.value }
+        } else {
+            value = ""
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch value {
+        case let string as String:
+            try container.encode(string)
+        case let int as Int:
+            try container.encode(int)
+        case let double as Double:
+            try container.encode(double)
+        case let bool as Bool:
+            try container.encode(bool)
+        case let array as [Any]:
+            try container.encode(array.map { ComparisonDynamicValue($0) })
+        case let dict as [String: Any]:
+            try container.encode(dict.mapValues { ComparisonDynamicValue($0) })
+        default:
+            try container.encodeNil()
+        }
+    }
+}
+
+struct ModelsByTier: Codable {
+    let frontier: [TieredModelInfo]
+    let mid: [TieredModelInfo]
+    let budget: [TieredModelInfo]
+    let local: [TieredModelInfo]
+}
+
+struct TieredModelInfo: Codable, Identifiable {
+    var id: String { "\(provider)/\(model)" }
+    let provider: String
+    let model: String
+    let inputPrice: Double
+    let outputPrice: Double
+    let tier: String
+
+    enum CodingKeys: String, CodingKey {
+        case provider, model, tier
+        case inputPrice = "input_price"
+        case outputPrice = "output_price"
+    }
+}
+
+struct ComparisonToolInfo: Codable, Identifiable {
+    var id: String { name }
+    let name: String
+    let displayName: String
+    let description: String
+    let category: String
+    let inputPorts: [ToolPortInfo]
+
+    enum CodingKeys: String, CodingKey {
+        case name, description, category
+        case displayName = "display_name"
+        case inputPorts = "input_ports"
+    }
+}
+
+struct ToolPortInfo: Codable {
+    let id: String
+    let name: String
+    let required: Bool
+}
+
+struct ToolsResponse: Codable {
+    let tools: [ComparisonToolInfo]
 }
 
 enum ComparisonError: LocalizedError {

@@ -11,9 +11,10 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.db import Database, db_manager
 from fichero.workflows.scheduler import (
     WorkflowScheduler,
     Schedule,
@@ -21,8 +22,8 @@ from fichero.workflows.scheduler import (
     ScheduleType,
     ScheduleStatus,
     ScheduleRun,
-    get_scheduler,
 )
+from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,17 @@ class CreateScheduleRequest(BaseModel):
     use_batch: bool = Field(False, description="Use batch execution")
     batch_items: list[dict[str, Any]] = Field(default_factory=list, description="Batch input items")
     max_concurrent: int = Field(5, description="Max concurrent batch items")
+
+
+class UpdateScheduleRequest(BaseModel):
+    """Request to update an existing schedule."""
+    name: Optional[str] = Field(None, description="Display name for the schedule")
+    workflow_id: Optional[str] = Field(None, description="ID of workflow to execute")
+    config: Optional[ScheduleConfigRequest] = Field(None, description="Schedule configuration")
+    inputs: Optional[dict[str, Any]] = Field(None, description="Workflow inputs")
+    use_batch: Optional[bool] = Field(None, description="Use batch execution")
+    batch_items: Optional[list[dict[str, Any]]] = Field(None, description="Batch input items")
+    max_concurrent: Optional[int] = Field(None, description="Max concurrent batch items")
 
 
 class ScheduleResponse(BaseModel):
@@ -124,23 +136,52 @@ class ScheduleRunResponse(BaseModel):
         )
 
 
-def _get_scheduler() -> WorkflowScheduler:
-    """Get scheduler or raise 503 if not initialized."""
-    scheduler = get_scheduler()
-    if not scheduler:
+# Per-library scheduler instances
+_schedulers: dict[str, WorkflowScheduler] = {}
+
+
+async def get_library_database(
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+) -> Database:
+    """Get database for current library."""
+    if not x_fichero_library_path:
         raise HTTPException(
-            status_code=503,
-            detail="Scheduler not initialized"
+            status_code=400,
+            detail="Missing X-Fichero-Library-Path header"
         )
-    return scheduler
+    try:
+        return db_manager.get_database(x_fichero_library_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to access library database: {str(e)}"
+        )
+
+
+async def get_scheduler(
+    db: Database = Depends(get_library_database)
+) -> WorkflowScheduler:
+    """Get or create scheduler for the current library."""
+    db_path = str(db.path)
+
+    if db_path not in _schedulers:
+        workflow_store = WorkflowStore(db)
+        scheduler = WorkflowScheduler(db_path, workflow_store)
+        await scheduler.start()
+        _schedulers[db_path] = scheduler
+        logger.info(f"Created scheduler for library: {db_path}")
+
+    return _schedulers[db_path]
 
 
 # Endpoints
 
 @router.post("", response_model=ScheduleResponse)
-async def create_schedule(request: CreateScheduleRequest) -> ScheduleResponse:
+async def create_schedule(
+    request: CreateScheduleRequest,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleResponse:
     """Create a new workflow schedule."""
-    scheduler = _get_scheduler()
 
     try:
         config = ScheduleConfig(
@@ -179,9 +220,9 @@ async def list_schedules(
     workflow_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
 ) -> list[ScheduleResponse]:
     """List schedules with optional filtering."""
-    scheduler = _get_scheduler()
 
     status_enum = ScheduleStatus(status) if status else None
 
@@ -196,9 +237,11 @@ async def list_schedules(
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
-async def get_schedule(schedule_id: str) -> ScheduleResponse:
+async def get_schedule(
+    schedule_id: str,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleResponse:
     """Get schedule by ID."""
-    scheduler = _get_scheduler()
 
     schedule = await scheduler.get_schedule(schedule_id)
     if not schedule:
@@ -208,9 +251,11 @@ async def get_schedule(schedule_id: str) -> ScheduleResponse:
 
 
 @router.delete("/{schedule_id}")
-async def delete_schedule(schedule_id: str) -> dict:
+async def delete_schedule(
+    schedule_id: str,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> dict:
     """Delete a schedule."""
-    scheduler = _get_scheduler()
 
     # Verify schedule exists
     schedule = await scheduler.get_schedule(schedule_id)
@@ -221,10 +266,71 @@ async def delete_schedule(schedule_id: str) -> dict:
     return {"message": f"Schedule {schedule_id} deleted"}
 
 
+@router.put("/{schedule_id}", response_model=ScheduleResponse)
+async def update_schedule(
+    schedule_id: str,
+    request: UpdateScheduleRequest,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleResponse:
+    """Update a schedule."""
+
+    # Verify schedule exists
+    schedule = await scheduler.get_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+
+    try:
+        # Update fields if provided
+        if request.name is not None:
+            schedule.name = request.name
+
+        if request.workflow_id is not None:
+            schedule.workflow_id = request.workflow_id
+
+        if request.config is not None:
+            schedule.config = ScheduleConfig(
+                schedule_type=ScheduleType(request.config.schedule_type),
+                cron_expression=request.config.cron_expression,
+                interval_seconds=request.config.interval_seconds,
+                run_at=request.config.run_at,
+                timezone=request.config.timezone,
+                start_date=request.config.start_date,
+                end_date=request.config.end_date,
+                max_runs=request.config.max_runs,
+            )
+
+        if request.inputs is not None:
+            schedule.inputs = request.inputs
+
+        if request.use_batch is not None:
+            schedule.use_batch = request.use_batch
+
+        if request.batch_items is not None:
+            schedule.batch_items = request.batch_items
+
+        if request.max_concurrent is not None:
+            schedule.max_concurrent = request.max_concurrent
+
+        schedule.updated_at = datetime.utcnow()
+
+        # Save updated schedule
+        await scheduler.update_schedule(schedule)
+
+        return ScheduleResponse.from_schedule(schedule)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Failed to update schedule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{schedule_id}/pause", response_model=ScheduleResponse)
-async def pause_schedule(schedule_id: str) -> ScheduleResponse:
+async def pause_schedule(
+    schedule_id: str,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleResponse:
     """Pause an active schedule."""
-    scheduler = _get_scheduler()
 
     try:
         schedule = await scheduler.pause_schedule(schedule_id)
@@ -234,9 +340,11 @@ async def pause_schedule(schedule_id: str) -> ScheduleResponse:
 
 
 @router.post("/{schedule_id}/resume", response_model=ScheduleResponse)
-async def resume_schedule(schedule_id: str) -> ScheduleResponse:
+async def resume_schedule(
+    schedule_id: str,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleResponse:
     """Resume a paused schedule."""
-    scheduler = _get_scheduler()
 
     try:
         schedule = await scheduler.resume_schedule(schedule_id)
@@ -246,9 +354,11 @@ async def resume_schedule(schedule_id: str) -> ScheduleResponse:
 
 
 @router.post("/{schedule_id}/trigger", response_model=ScheduleRunResponse)
-async def trigger_schedule(schedule_id: str) -> ScheduleRunResponse:
+async def trigger_schedule(
+    schedule_id: str,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
+) -> ScheduleRunResponse:
     """Manually trigger a schedule to run now."""
-    scheduler = _get_scheduler()
 
     try:
         run = await scheduler.trigger_now(schedule_id)
@@ -261,9 +371,9 @@ async def trigger_schedule(schedule_id: str) -> ScheduleRunResponse:
 async def get_schedule_runs(
     schedule_id: str,
     limit: int = 50,
+    scheduler: WorkflowScheduler = Depends(get_scheduler),
 ) -> list[ScheduleRunResponse]:
     """Get run history for a schedule."""
-    scheduler = _get_scheduler()
 
     # Verify schedule exists
     schedule = await scheduler.get_schedule(schedule_id)

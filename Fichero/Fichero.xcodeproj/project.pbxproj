@@ -18,14 +18,12 @@
 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
 		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
 		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
-		845 /* ArtifactService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846 /* ArtifactService.swift */; };
 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
 		026 /* ProviderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125 /* ProviderService.swift */; };
 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
-		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
 		038 /* WorkflowChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137 /* WorkflowChain.swift */; };
 		039 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
@@ -39,7 +37,11 @@
 		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
+		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
+		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
+		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
+		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
 		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
 		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
@@ -48,7 +50,45 @@
 		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
 		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
+		845 /* ArtifactService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846 /* ArtifactService.swift */; };
+		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
+		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		A13E7C1C2F27E01E00EC9EE1 /* ActivityRunRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */; };
+		A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */; };
+		A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */; };
+		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
+		A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */; };
+		A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */; };
+		A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */; };
+		A13E7C232F27E01E00EC9EE1 /* BatchesSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */; };
+		A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */; };
+		A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
+		A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
+		A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */; };
+		A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */; };
+		A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */; };
+		A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */; };
+		A13E7C342F27F32E00EC9EE1 /* TriggerRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */; };
+		A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */; };
+		A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */; };
+		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
+		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
+		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
+		A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */; };
+		A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */; };
+		A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
+		A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */; };
+		A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */; };
+		A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */; };
+		A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
+		A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */; };
+		A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */; };
+		A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
+		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
+		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
+		A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
@@ -78,10 +118,7 @@
 		A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */; };
 		A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA012F110D520021909D /* CanvasHelpers.swift */; };
 		A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
-		A1A3AA232F1115E80021909D /* ActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA222F1115E80021909D /* ActivityService.swift */; };
-		A1A3AA262F1115F90021909D /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */; };
 		A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
-		A1A3AA2B2F113E850021909D /* AutomationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA292F113E850021909D /* AutomationView.swift */; };
 		A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA342F11665B0021909D /* IntegrationsView.swift */; };
 		A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
 		A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
@@ -109,7 +146,6 @@
 		A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */; };
 		A1BFB2F02F043FA100EAA55A /* BackendConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */; };
 		A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */; };
-		A1BFB3F92F057B6C00EAA55A /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3F82F057B6C00EAA55A /* SearchService.swift */; };
 		A1BFB4012F057B9300EAA55A /* ImageViewerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */; };
 		A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */; };
 		A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */; };
@@ -139,7 +175,14 @@
 		A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */; };
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
 		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
+		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
 		B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E04EE1958EB4E23A7E1E328 /* WindowState.swift */; };
+		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
+		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
+		F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */; };
+		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
+		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
+		MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -160,6 +203,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
 		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -171,14 +215,12 @@
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
 		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
-		846 /* ArtifactService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactService.swift; sourceTree = "<group>"; };
 		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
 		125 /* ProviderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderService.swift; sourceTree = "<group>"; };
 		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
 		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
 		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
-		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
 		137 /* WorkflowChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChain.swift; sourceTree = "<group>"; };
 		138 /* ChainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainService.swift; sourceTree = "<group>"; };
@@ -192,9 +234,14 @@
 		146 /* ChatServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceGenerated.swift; sourceTree = "<group>"; };
 		148 /* DocumentServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentServiceGenerated.swift; sourceTree = "<group>"; };
 		149 /* WorkflowExecutionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionObserver.swift; sourceTree = "<group>"; };
+		151 /* ChainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEditorView.swift; sourceTree = "<group>"; };
+		152 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
+		153 /* TriggerCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCreationSheet.swift; sourceTree = "<group>"; };
+		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
+		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
 		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
 		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
@@ -203,9 +250,47 @@
 		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
 		4127 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
+		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
+		846 /* ArtifactService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactService.swift; sourceTree = "<group>"; };
 		9E04EE1958EB4E23A7E1E328 /* WindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowState.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
+		A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRunRow.swift; sourceTree = "<group>"; };
+		A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivitySidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationSidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchesSidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsSidebarContent.swift; sourceTree = "<group>"; };
+		A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeBar.swift; sourceTree = "<group>"; };
+		A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeIcon.swift; sourceTree = "<group>"; };
+		A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
+		A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleRow.swift; sourceTree = "<group>"; };
+		A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerRow.swift; sourceTree = "<group>"; };
+		A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionRow.swift; sourceTree = "<group>"; };
+		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
+		AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTypes.swift; sourceTree = "<group>"; };
+		A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCodeView.swift; sourceTree = "<group>"; };
+		A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityConsoleView.swift; sourceTree = "<group>"; };
+		A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDiagramView.swift; sourceTree = "<group>"; };
+		A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityErrorsView.swift; sourceTree = "<group>"; };
+		A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityGraphView.swift; sourceTree = "<group>"; };
+		A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
+		A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityOverviewView.swift; sourceTree = "<group>"; };
+		A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressView.swift; sourceTree = "<group>"; };
+		A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewHelpers.swift; sourceTree = "<group>"; };
+		A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchRow.swift; sourceTree = "<group>"; };
+		A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
+		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
 		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
 		A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
 		A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
@@ -236,10 +321,7 @@
 		A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowOutputLog.swift; sourceTree = "<group>"; };
 		A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPortView.swift; sourceTree = "<group>"; };
 		A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolBlocks.swift; sourceTree = "<group>"; };
-		A1A3AA222F1115E80021909D /* ActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityService.swift; sourceTree = "<group>"; };
-		A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMonitorView.swift; sourceTree = "<group>"; };
 		A1A3AA272F113E6F0021909D /* AutomationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationService.swift; sourceTree = "<group>"; };
-		A1A3AA292F113E850021909D /* AutomationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationView.swift; sourceTree = "<group>"; };
 		A1A3AA342F11665B0021909D /* IntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsView.swift; sourceTree = "<group>"; };
 		A1A3AA372F1166660021909D /* IntegrationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsService.swift; sourceTree = "<group>"; };
 		A1A3AB162F11CCC70021909D /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
@@ -268,7 +350,6 @@
 		A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConnectionView.swift; sourceTree = "<group>"; };
 		A1BFB2F12F04420A00EAA55A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImageView.swift; sourceTree = "<group>"; };
-		A1BFB3F82F057B6C00EAA55A /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchService.swift; sourceTree = "<group>"; };
 		A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckerboardPattern.swift; sourceTree = "<group>"; };
 		A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
 		A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerComponents.swift; sourceTree = "<group>"; };
@@ -298,7 +379,12 @@
 		A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarStateManagers.swift; sourceTree = "<group>"; };
 		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
+		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
+		FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatchDetailView.swift; sourceTree = "<group>"; };
+		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
+		IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
+		MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelServiceGenerated.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -368,25 +454,28 @@
 		411 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A1A3AA252F1115F90021909D /* Activity */,
+				A13E7C452F280BE900EC9EE1 /* Activity */,
+				A1A3A9FD2F110D260021909D /* Agents */,
 				A1FB1D7A2F0420310023093C /* AIProviders */,
+				A1A3AA2A2F113E850021909D /* Automation */,
+				5EEA8EB9BA7AE70A4833233E /* Batch */,
 				4118 /* Chat */,
+				A1BFB2D62F042C6D00EAA55A /* Components */,
 				102 /* ContentView.swift */,
+				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
+				A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */,
+				A1A3AA352F11665B0021909D /* Integrations */,
 				A1FB1D802F0420A90023093C /* Library */,
+				A1A3A9BF2F1028480021909D /* MCPServers */,
+				A1BFB2D92F042CBB00EAA55A /* Menu */,
+				A13E80A42F2AD78100EC9EE1 /* ModelComparison */,
 				4115 /* Search */,
 				4117 /* Settings */,
-				4111 /* Sidebar */,
-				4116 /* Workflow */,
-				A1BFB2D62F042C6D00EAA55A /* Components */,
-				A1BFB2D92F042CBB00EAA55A /* Menu */,
 				A1BFB2DB2F042E5100EAA55A /* Settings */,
-				A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */,
+				4111 /* Sidebar */,
 				A1BFB4102F057C4000EAA55A /* Toolbars */,
-				A1A3A9BF2F1028480021909D /* MCPServers */,
-				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
-				A1A3A9FD2F110D260021909D /* Agents */,
-				A1A3AA252F1115F90021909D /* Activity */,
-				A1A3AA2A2F113E850021909D /* Automation */,
-				A1A3AA352F11665B0021909D /* Integrations */,
+				4116 /* Workflow */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -402,6 +491,9 @@
 				A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */,
 				A1FB1D992F0420D50023093C /* SidebarView.swift */,
 				A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */,
+				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
+				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
+				A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -435,6 +527,8 @@
 				A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */,
 				A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */,
 				139 /* WorkflowChainListView.swift */,
+				151 /* ChainEditorView.swift */,
+				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -451,6 +545,7 @@
 			children = (
 				117 /* ChatView.swift */,
 				A1FB1D7C2F0420930023093C /* ChatInspector.swift */,
+				38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -508,16 +603,25 @@
 				4127 /* DragDropService.swift */,
 				A1BFB2E32F0439FE00EAA55A /* ImportService.swift */,
 				A1BFB2E62F043D2300EAA55A /* StorageService.swift */,
-				A1BFB3F82F057B6C00EAA55A /* SearchService.swift */,
 				A1A3A9F32F1028E70021909D /* MCPService.swift */,
 				A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */,
 				140 /* WorkflowStreamService.swift */,
 				149 /* WorkflowExecutionObserver.swift */,
 				141 /* AppleScriptSupport.swift */,
-				A1A3AA222F1115E80021909D /* ActivityService.swift */,
 				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
 				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
 				846 /* ArtifactService.swift */,
+				A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */,
+				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
+				A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */,
+				A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */,
+				AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */,
+				A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */,
+				A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */,
+				MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */,
+				IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */,
+				A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */,
+				A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -538,6 +642,45 @@
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5EEA8EB9BA7AE70A4833233E /* Batch */ = {
+			isa = PBXGroup;
+			children = (
+				FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */,
+			);
+			path = Batch;
+			sourceTree = "<group>";
+		};
+		A13E7C1B2F27E01E00EC9EE1 /* Modes */ = {
+			isa = PBXGroup;
+			children = (
+				A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */,
+				A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */,
+				A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */,
+				A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */,
+				A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */,
+				A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */,
+				A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */,
+				A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */,
+				A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */,
+			);
+			path = Modes;
+			sourceTree = "<group>";
+		};
+		A13E7C452F280BE900EC9EE1 /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Activity;
+			sourceTree = "<group>";
+		};
+		A13E80A42F2AD78100EC9EE1 /* ModelComparison */ = {
+			isa = PBXGroup;
+			children = (
+				A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */,
+			);
+			path = ModelComparison;
 			sourceTree = "<group>";
 		};
 		A1A3A9BF2F1028480021909D /* MCPServers */ = {
@@ -564,7 +707,16 @@
 		A1A3AA252F1115F90021909D /* Activity */ = {
 			isa = PBXGroup;
 			children = (
-				A1A3AA242F1115F90021909D /* ActivityMonitorView.swift */,
+				A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */,
+				A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */,
+				A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */,
+				A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */,
+				A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */,
+				A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */,
+				A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */,
+				A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */,
+				A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */,
+				A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */,
 			);
 			path = Activity;
 			sourceTree = "<group>";
@@ -572,7 +724,12 @@
 		A1A3AA2A2F113E850021909D /* Automation */ = {
 			isa = PBXGroup;
 			children = (
-				A1A3AA292F113E850021909D /* AutomationView.swift */,
+				16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
+				7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
+				152 /* ScheduleCreationSheet.swift */,
+				75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
+				C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
+				153 /* TriggerCreationSheet.swift */,
 			);
 			path = Automation;
 			sourceTree = "<group>";
@@ -597,10 +754,14 @@
 		A1BFB2D62F042C6D00EAA55A /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
-				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
 				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
+				A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
 				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
+				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
+				A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
+				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
+				A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
+				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -815,13 +976,25 @@
 				A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */,
 				A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */,
 				A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */,
+				A13E7C1C2F27E01E00EC9EE1 /* ActivityRunRow.swift in Sources */,
+				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
+				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
+				A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */,
+				A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */,
+				A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */,
+				A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */,
+				A13E7C232F27E01E00EC9EE1 /* BatchesSidebarContent.swift in Sources */,
+				A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */,
 				A1BFB4042F057B9300EAA55A /* ScrollWheelZoom.swift in Sources */,
 				A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */,
 				A1BFB4062F057B9300EAA55A /* MagnifierPanel.swift in Sources */,
 				A1BFB4072F057B9300EAA55A /* CheckerboardPattern.swift in Sources */,
 				A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */,
-				A1A3AA262F1115F90021909D /* ActivityMonitorView.swift in Sources */,
+				A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */,
+				A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */,
+				A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */,
 				A1BFB45D2F0AAC3700EAA55A /* LibraryViewToolbar.swift in Sources */,
+				A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
 				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
@@ -829,8 +1002,9 @@
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
-				A1A3AA2B2F113E850021909D /* AutomationView.swift in Sources */,
+				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
+				A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */,
 				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
 				838 /* PerformanceService.swift in Sources */,
@@ -854,17 +1028,37 @@
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
 				038 /* WorkflowChain.swift in Sources */,
 				039 /* ChainService.swift in Sources */,
+				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
+				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
+				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
+				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
+				MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */,
+				IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */,
+				A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */,
 				040 /* WorkflowChainListView.swift in Sources */,
+				150 /* ChainEditorView.swift in Sources */,
+				154 /* ScheduleCreationSheet.swift in Sources */,
+				155 /* TriggerCreationSheet.swift in Sources */,
 				A1A3AA1A2F110D520021909D /* AgentNodeBlockView.swift in Sources */,
 				A1A3AA1B2F110D520021909D /* SimpleWorkflowView.swift in Sources */,
+				A13E7C342F27F32E00EC9EE1 /* TriggerRow.swift in Sources */,
+				A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */,
 				A1A3AA1C2F110D520021909D /* WorkflowOutputLog.swift in Sources */,
 				A1A3AA1D2F110D520021909D /* WorkflowPortView.swift in Sources */,
 				A1A3AA1E2F110D520021909D /* WorkflowInspector.swift in Sources */,
 				A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */,
-				A1A3AA232F1115E80021909D /* ActivityService.swift in Sources */,
 				A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */,
 				A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */,
 				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
+				A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */,
+				A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */,
+				A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */,
+				A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */,
+				A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */,
+				A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */,
+				A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */,
+				A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */,
+				A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */,
 				A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */,
 				A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */,
 				A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */,
@@ -896,6 +1090,7 @@
 				018 /* ChatView.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
+				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
 				845 /* ArtifactService.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
@@ -923,6 +1118,9 @@
 				A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */,
 				041 /* WorkflowStreamService.swift in Sources */,
 				048 /* WorkflowExecutionObserver.swift in Sources */,
+				A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */,
+				A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */,
+				A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */,
 				042 /* AppleScriptSupport.swift in Sources */,
 				A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */,
 				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
@@ -934,9 +1132,15 @@
 				036 /* WorkflowStore.swift in Sources */,
 				GTE2 /* GeneratedTypeExtensions.swift in Sources */,
 				A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */,
-				A1BFB3F92F057B6C00EAA55A /* SearchService.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
 				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
+				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
+				E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */,
+				71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */,
+				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
+				8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */,
+				F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */,
+				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

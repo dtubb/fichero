@@ -37,4 +37,7 @@ enum SidebarConstants {
 
     /// Maximum characters for item names
     static let maxNameLength = 255
+
+    // Note: Selection styling is handled by SwiftUI's native List selection
+    // which uses the system accent color (following Apple's Food Truck pattern)
 }

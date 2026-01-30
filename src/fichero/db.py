@@ -718,16 +718,29 @@ class Database:
         except Exception:
             return {"indexed_count": 0, "table_exists": False}
 
+    def _get_embedding_model_name(self) -> str:
+        """Get configured embedding model, defaulting to multilingual-e5-large."""
+        try:
+            from fichero.app_db import get_app_db
+            model = get_app_db().get_setting("default_embeddings_model")
+            if model:
+                return model
+        except Exception:
+            pass
+        return DEFAULT_MODEL
+
     def _ensure_embedder(self) -> None:
         """Lazy-load the embedding model.
 
         Uses FastEmbed (ONNX-based, no scikit-learn dependency).
+        Reads configured model from app settings, falls back to DEFAULT_MODEL.
         """
         if self._embedder is None:
             try:
                 from fastembed import TextEmbedding
-                self._embedder = TextEmbedding(model_name=DEFAULT_MODEL)
-                logger.debug("Loaded embedding model: %s", DEFAULT_MODEL)
+                model_name = self._get_embedding_model_name()
+                self._embedder = TextEmbedding(model_name=model_name)
+                logger.debug("Loaded embedding model: %s", model_name)
             except ImportError:
                 raise ImportError(
                     "fastembed not installed. "
@@ -1159,6 +1172,103 @@ class Database:
         except Exception as e:
             logger.warning(f"provider_refs table creation failed: {e}")
 
+    def _migrate_activity_tables(self):
+        """Ensure activity tracking tables exist.
+
+        Creates the activities table for storing workflow execution events.
+        This enables the Activity sidebar to show historical data.
+        """
+        try:
+            # Activities table - stores workflow, node, and batch events
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS activities (
+                    id TEXT PRIMARY KEY,
+                    type TEXT NOT NULL,
+                    level TEXT NOT NULL,
+                    timestamp TIMESTAMP NOT NULL,
+                    message TEXT NOT NULL,
+                    workflow_id TEXT,
+                    batch_id TEXT,
+                    thread_id TEXT,
+                    node_id TEXT,
+                    metadata JSON,
+                    duration_ms FLOAT,
+                    error TEXT
+                )
+            """)
+
+            # Indexes for efficient queries
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_timestamp
+                ON activities(timestamp DESC)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_type
+                ON activities(type)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_workflow_id
+                ON activities(workflow_id)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_batch_id
+                ON activities(batch_id)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_thread_id
+                ON activities(thread_id)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_activities_level
+                ON activities(level)
+            """)
+
+            logger.info("Activity tables migration completed")
+
+        except Exception as e:
+            logger.warning(f"Activity tables migration failed: {e}")
+
+    def _migrate_checkpoint_tables(self):
+        """Ensure LangGraph checkpoint tables exist.
+
+        Creates the checkpoints and checkpoint_writes tables for workflow
+        state persistence. This enables viewing Graph history in Activity sidebar.
+        """
+        try:
+            # Checkpoints table - stores workflow execution state
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS checkpoints (
+                    thread_id TEXT NOT NULL,
+                    checkpoint_ns TEXT NOT NULL DEFAULT '',
+                    checkpoint_id TEXT NOT NULL,
+                    parent_checkpoint_id TEXT,
+                    type TEXT,
+                    checkpoint BLOB,
+                    metadata BLOB,
+                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+                )
+            """)
+
+            # Writes table - stores pending checkpoint writes
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS checkpoint_writes (
+                    thread_id TEXT NOT NULL,
+                    checkpoint_ns TEXT NOT NULL DEFAULT '',
+                    checkpoint_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    idx INTEGER NOT NULL,
+                    channel TEXT NOT NULL,
+                    type TEXT,
+                    value BLOB,
+                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+                )
+            """)
+
+            logger.info("Checkpoint tables migration completed")
+
+        except Exception as e:
+            logger.warning(f"Checkpoint tables migration failed: {e}")
+
 
 # Multi-library database manager for package documents
 class DatabaseManager:
@@ -1203,6 +1313,8 @@ class DatabaseManager:
                 db._migrate_workflow_table()
                 db._migrate_saved_search_table()
                 db._migrate_provider_refs_table()
+                db._migrate_activity_tables()
+                db._migrate_checkpoint_tables()
 
                 self._databases[package_str] = db
                 logger.info(f"Database connection created: {db_path}")

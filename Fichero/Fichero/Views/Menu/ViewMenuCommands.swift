@@ -6,7 +6,7 @@ struct ViewMenuCommands: View {
     @EnvironmentObject var viewSettings: ViewSettings
 
     var body: some View {
-        SidebarModeSection(viewSettings: viewSettings)
+        SidebarModeSection()
 
         Divider()
 
@@ -32,70 +32,57 @@ struct ViewMenuCommands: View {
 
 // MARK: - Sidebar Mode Section
 
-/// Sidebar mode selection commands (Navigate, Search, Chat, Workflows, Activity)
+/// Sidebar mode selection commands (7 modes with keyboard shortcuts)
+/// Uses @FocusedValue to update the current window's sidebar mode (reads from focusedSceneValue)
 struct SidebarModeSection: View {
-    @ObservedObject var viewSettings: ViewSettings
+    @FocusedValue(\.sidebarMode) var sidebarMode
+
+    /// Current mode, defaulting to .library if no window is focused
+    private var currentMode: SidebarMode {
+        sidebarMode?.wrappedValue ?? .library
+    }
 
     var body: some View {
         Section("Sidebar") {
-            SidebarModeButton(
-                mode: .navigate,
-                label: "Navigate",
-                icon: "list.bullet.indent",
-                shortcut: "1",
-                current: viewSettings.sidebarMode
-            ) {
-                viewSettings.sidebarMode = .navigate
+            // Content modes (1-4)
+            ForEach([SidebarMode.library, .search, .chat, .workflows], id: \.self) { mode in
+                SidebarModeButton(
+                    mode: mode,
+                    label: mode.label,
+                    icon: mode.icon,
+                    shortcut: mode.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = mode
+                }
             }
 
-            SidebarModeButton(
-                mode: .search,
-                label: "Search",
-                icon: "magnifyingglass",
-                shortcut: "2",
-                current: viewSettings.sidebarMode
-            ) {
-                viewSettings.sidebarMode = .search
+            Divider()
+
+            // Automation modes (5-6)
+            ForEach([SidebarMode.batches, .automation], id: \.self) { mode in
+                SidebarModeButton(
+                    mode: mode,
+                    label: mode.label,
+                    icon: mode.icon,
+                    shortcut: mode.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = mode
+                }
             }
 
-            SidebarModeButton(
-                mode: .chat,
-                label: "Chat",
-                icon: "bubble.left.and.bubble.right",
-                shortcut: "3",
-                current: viewSettings.sidebarMode
-            ) {
-                viewSettings.sidebarMode = .chat
-            }
+            Divider()
 
-            SidebarModeButton(
-                mode: .workflows,
-                label: "Workflows",
-                icon: "arrow.triangle.branch",
-                shortcut: "4",
-                current: viewSettings.sidebarMode
-            ) {
-                viewSettings.sidebarMode = .workflows
-            }
-
+            // Activity mode (7) - unified view of all workflow runs
             SidebarModeButton(
                 mode: .activity,
-                label: "Activity",
-                icon: "chart.bar",
-                shortcut: "5",
-                current: viewSettings.sidebarMode
+                label: SidebarMode.activity.label,
+                icon: SidebarMode.activity.icon,
+                shortcut: SidebarMode.activity.shortcutNumber,
+                current: currentMode
             ) {
-                viewSettings.sidebarMode = .activity
-            }
-
-            SidebarModeButton(
-                mode: .automation,
-                label: "Automation",
-                icon: "clock.badge.checkmark",
-                shortcut: "6",
-                current: viewSettings.sidebarMode
-            ) {
-                viewSettings.sidebarMode = .automation
+                sidebarMode?.wrappedValue = .activity
             }
         }
     }

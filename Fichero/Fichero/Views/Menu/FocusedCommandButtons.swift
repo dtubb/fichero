@@ -27,6 +27,10 @@ struct SidebarActions {
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
+    let createChain: (() -> Void)?
+    let createComparison: (() -> Void)?
+    let createSchedule: (() -> Void)?
+    let createTrigger: (() -> Void)?
 }
 
 /// Information about the current sidebar selection
@@ -282,5 +286,53 @@ struct FocusedNewWorkflowButton: View {
         }
         .keyboardShortcut("n", modifiers: [.command, .control, .shift])
         .disabled(sidebarActions == nil)
+    }
+}
+
+/// Button that creates a new chain
+struct FocusedNewChainButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Chain") {
+            sidebarActions?.createChain?()
+        }
+        .disabled(sidebarActions?.createChain == nil)
+    }
+}
+
+/// Button that creates a new comparison
+struct FocusedNewComparisonButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Comparison") {
+            sidebarActions?.createComparison?()
+        }
+        .disabled(sidebarActions?.createComparison == nil)
+    }
+}
+
+/// Button that creates a new schedule
+struct FocusedNewScheduleButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Schedule") {
+            sidebarActions?.createSchedule?()
+        }
+        .disabled(sidebarActions?.createSchedule == nil)
+    }
+}
+
+/// Button that creates a new trigger
+struct FocusedNewTriggerButton: View {
+    @FocusedValue(\.sidebarActions) private var sidebarActions
+
+    var body: some View {
+        Button("New Trigger") {
+            sidebarActions?.createTrigger?()
+        }
+        .disabled(sidebarActions?.createTrigger == nil)
     }
 }

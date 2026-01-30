@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import FicheroAPIClient
 import OpenAPIRuntime
 
@@ -103,6 +104,37 @@ extension Components.Schemas.TriggerResponse: @retroactive Identifiable {
 }
 
 extension Components.Schemas.ActionResponse: @retroactive Identifiable {}
+
+extension Components.Schemas.ProviderResponse: @retroactive Identifiable {}
+
+extension Components.Schemas.UserModelResponse: @retroactive Identifiable {}
+
+extension Components.Schemas.ProviderCatalogResponse: @retroactive Identifiable {
+    public var id: String { providerType }
+
+    /// Alias for _type to match legacy naming
+    public var providerType: String { _type }
+
+    /// Convert color string to SwiftUI Color
+    public var swiftUIColor: Color {
+        switch color.lowercased() {
+        case "blue": return .blue
+        case "green": return .green
+        case "orange": return .orange
+        case "purple": return .purple
+        case "red": return .red
+        case "gray", "grey": return .gray
+        case "pink": return .pink
+        case "yellow": return .yellow
+        case "cyan": return .cyan
+        case "indigo": return .indigo
+        case "mint": return .mint
+        case "teal": return .teal
+        default: return .accentColor
+        }
+    }
+}
+
 
 // MARK: - OpenAPIObjectContainer Helpers
 

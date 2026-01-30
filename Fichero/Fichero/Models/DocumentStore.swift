@@ -301,6 +301,26 @@ class DocumentStore: ObservableObject {
 
     /// Import a file into a specific location.
     func importFile(at url: URL, parentId: String? = nil) async throws -> Document {
+        // Validate URL exists and is readable
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw DocumentStoreError.fileNotFound(url.path)
+        }
+
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            throw DocumentStoreError.fileNotReadable(url.path)
+        }
+
+        // Sanitize filename to prevent header injection
+        let filename = url.lastPathComponent
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        // Validate filename is not empty after sanitization
+        guard !filename.isEmpty else {
+            throw DocumentStoreError.invalidFilename
+        }
+
         // Create form data for file upload
         var request = URLRequest(url: URL(string: "http://127.0.0.1:8765/api/documents/import")!)
         request.httpMethod = "POST"
@@ -310,8 +330,12 @@ class DocumentStore: ObservableObject {
 
         // Add library path header for multi-library support
         if let libraryPath = api.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            logger.info("Importing to library: \(libraryPath)")
+            // Sanitize library path to prevent header injection
+            let sanitizedPath = libraryPath
+                .replacingOccurrences(of: "\r", with: "")
+                .replacingOccurrences(of: "\n", with: "")
+            request.setValue(sanitizedPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            logger.info("Importing to library: \(sanitizedPath)")
         } else {
             logger.warning("WARNING: No library path set for import!")
         }
@@ -320,13 +344,16 @@ class DocumentStore: ObservableObject {
 
         // Add parentId if provided
         if let parentId = parentId {
+            // Validate parentId format (should be UUID-like)
+            guard parentId.count <= 100, !parentId.contains("\r"), !parentId.contains("\n") else {
+                throw DocumentStoreError.invalidParentId
+            }
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"parent_id\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(parentId)\r\n".data(using: .utf8)!)
         }
 
         // Add file - backend determines MIME type from file content
-        let filename = url.lastPathComponent
         let fileData = try Data(contentsOf: url)
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -342,12 +369,31 @@ class DocumentStore: ObservableObject {
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw DocumentStoreError.invalidResponse
+        }
+
+        // Handle specific error codes
+        switch httpResponse.statusCode {
+        case 200:
+            break // Success
+        case 400:
+            throw DocumentStoreError.badRequest
+        case 401, 403:
+            throw DocumentStoreError.unauthorized
+        case 404:
+            throw DocumentStoreError.notFound
+        case 413:
+            throw DocumentStoreError.fileTooLarge
+        case 500...599:
+            throw DocumentStoreError.serverError(httpResponse.statusCode)
+        default:
             throw URLError(.badServerResponse)
         }
 
-        let document = try JSONDecoder().decode(Document.self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let document = try decoder.decode(Document.self, from: data)
 
         // Reload collections to show the newly imported file
         // This handles both root-level imports and imports into nested folders
@@ -508,6 +554,47 @@ struct DocumentHierarchy {
     /// Breadcrumb path from root to this document.
     var breadcrumb: [Document] {
         ancestors + [document]
+    }
+}
+
+// MARK: - Document Store Errors
+
+/// Errors specific to DocumentStore operations
+enum DocumentStoreError: Error, LocalizedError {
+    case fileNotFound(String)
+    case fileNotReadable(String)
+    case invalidFilename
+    case invalidParentId
+    case invalidResponse
+    case badRequest
+    case unauthorized
+    case notFound
+    case fileTooLarge
+    case serverError(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound(let path):
+            return "File not found: \(path)"
+        case .fileNotReadable(let path):
+            return "Cannot read file: \(path)"
+        case .invalidFilename:
+            return "Invalid or empty filename"
+        case .invalidParentId:
+            return "Invalid parent folder ID"
+        case .invalidResponse:
+            return "Invalid server response"
+        case .badRequest:
+            return "Invalid request"
+        case .unauthorized:
+            return "Unauthorized access"
+        case .notFound:
+            return "Resource not found"
+        case .fileTooLarge:
+            return "File is too large to upload"
+        case .serverError(let code):
+            return "Server error (HTTP \(code))"
+        }
     }
 }
 

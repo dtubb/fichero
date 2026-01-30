@@ -1,5 +1,8 @@
 import SwiftUI
 
+// TODO: Refactor DocumentInspector - extract artifacts section to separate view component
+// Type body is 438 lines, target <350. See: ai/inbox/document-inspector-refactor.md
+
 /// Tab selection for document inspector
 enum InspectorTab: String, CaseIterable, Identifiable {
     case info = "Info"
@@ -20,10 +23,11 @@ enum InspectorTab: String, CaseIterable, Identifiable {
 }
 
 /// Inspector panel showing document metadata and details
+// swiftlint:disable:next type_body_length
 struct DocumentInspector: View {
     let document: Document?
 
-    @EnvironmentObject private var artifactService: ArtifactService
+    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @State private var artifacts: [Artifact] = []
     @State private var isLoadingArtifacts = false
     @State private var expandedArtifactTypes: Set<String> = []

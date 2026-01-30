@@ -2,189 +2,95 @@
 Entity Extraction Tool
 
 Extract named entities (people, places, dates, organizations) from text.
-Saves results to Artifact and updates Document metadata.
+Inherits from llm_base.py for shared config and processing.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
-from fichero.llm import chat, LLMConfig
+from fichero.workflows.tools.llm_base import (
+    BASE_INPUT_PORTS,
+    BASE_OUTPUT_PORTS,
+    BASE_CONFIG_SCHEMA,
+    merge_config_schema,
+    merge_ports,
+    LLMToolConfig,
+    process_text,
+    parse_output,
+)
+from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
 
 
-@register_tool(
-    name="extract_entities",
-    display_name="Extract Entities",
-    description="Extract named entities (people, places, dates, organizations) from text",
-    category="llm",
-    icon="person.text.rectangle",
-    color="purple",
-    uses_llm=True,
-    supports_batch=True,
-    supports_structured_output=True,
-    input_ports=[
-        PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to extract entities from"),
-        PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False, description="Document metadata for saving"),
-    ],
-    output_ports=[
-        PortDef(id="entities", name="Entities", port_type="output", data_type=DataType.JSON, description="Extracted entities by category"),
-        PortDef(id="artifacts", name="Artifacts", port_type="output", data_type=DataType.JSON, description="Created artifact IDs"),
-    ],
-    config_schema={
-        "entity_types": {
-            "type": "array",
-            "items": {"type": "string"},
-            "default": ["people", "organizations", "locations", "dates"],
-            "description": "Types of entities to extract",
-        },
-        "include_context": {"type": "boolean", "default": False, "description": "Include surrounding context for each entity"},
-        "deduplicate": {"type": "boolean", "default": True, "description": "Remove duplicate entities"},
-        "save_to_db": {"type": "boolean", "default": True, "description": "Save entities to database"},
-    },
-    default_output_schema={
-        "type": "object",
-        "properties": {
-            "people": {"type": "array", "items": {"type": "string"}},
-            "organizations": {"type": "array", "items": {"type": "string"}},
-            "locations": {"type": "array", "items": {"type": "string"}},
-            "dates": {"type": "array", "items": {"type": "string"}},
-        }
-    },
-    sort_order=32,
+# =============================================================================
+# Tool-Specific Configuration
+# =============================================================================
+
+TOOL_CONFIG = LLMToolConfig(
+    artifact_type="entities",
+    update_page_content=False,
+    trigger_embedding=False,
+    metadata_field="entities",
 )
-async def extract_entities(
-    inputs: dict[str, Any],
-    state: State,
-    llm_config: LLMConfig,
-) -> dict[str, Any]:
-    """Extract named entities from text.
 
-    Args:
-        inputs: Resolved inputs from workflow
-        state: Current workflow state
-        llm_config: LLM configuration
+# Entities-specific config (added to BASE_CONFIG_SCHEMA)
+ENTITIES_CONFIG = {
+    "entity_types": {
+        "type": "array",
+        "items": {"type": "string"},
+        "default": ["people", "organizations", "locations", "dates"],
+        "description": "Entity types",
+    },
+    "include_context": {
+        "type": "boolean",
+        "default": False,
+        "description": "Show context",
+    },
+    "deduplicate": {
+        "type": "boolean",
+        "default": True,
+        "description": "Remove duplicates",
+    },
+}
 
-    Returns:
-        Dict with extracted entities by category
-    """
-    text = inputs.get("text", "")
-    documents = inputs.get("documents", [])
-    entity_types = inputs.get("entity_types", ["people", "organizations", "locations", "dates"])
-    include_context = inputs.get("include_context", False)
-    deduplicate = inputs.get("deduplicate", True)
-    save_to_db = inputs.get("save_to_db", True)
+# Input ports for entities
+ENTITIES_INPUT_PORTS = merge_ports(
+    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to extract entities from")],
+    BASE_INPUT_PORTS,
+)
 
-    library_path = state.get("library_path", "")
-
-    if not text:
-        return {"entities": {}, "artifacts": [], "error": "No text provided"}
-
-    prompt = _build_extraction_prompt(text, entity_types, include_context)
-
-    try:
-        response = await chat(
-            messages=[{"role": "user", "content": prompt}],
-            config=llm_config,
-        )
-
-        # Parse JSON response
-        entities = _parse_entities_response(response, entity_types)
-
-        # Deduplicate if requested
-        if deduplicate:
-            for entity_type in entities:
-                if isinstance(entities[entity_type], list):
-                    entities[entity_type] = list(set(entities[entity_type]))
-
-        artifact_ids = []
-
-        # Save to database
-        if save_to_db and library_path and documents:
-            for doc in documents[:1]:
-                if isinstance(doc, dict) and doc.get("id"):
-                    artifact_id = await _save_entities(
-                        document_id=doc["id"],
-                        entities=entities,
-                        library_path=library_path,
-                        llm_config=llm_config,
-                        task_id=state.get("task_id"),
-                    )
-                    if artifact_id:
-                        artifact_ids.append(artifact_id)
-
-        return {
-            "entities": entities,
-            "artifacts": artifact_ids,
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to extract entities: {e}")
-        return {"entities": {}, "artifacts": [], "error": str(e)}
+# Output ports include entities-specific output
+ENTITIES_OUTPUT_PORTS = merge_ports(
+    [PortDef(id="entities", name="Entities", port_type="output", data_type=DataType.JSON, description="Extracted entities by category")],
+    BASE_OUTPUT_PORTS,
+)
 
 
-async def _save_entities(
-    document_id: str,
-    entities: dict[str, Any],
-    library_path: str,
-    llm_config: LLMConfig,
-    task_id: str | None,
-) -> str | None:
-    """Save entities to database as Artifact."""
-    try:
-        from fichero.db import db_manager
-        from fichero.models import Document, Artifact
+# =============================================================================
+# Prompt Building
+# =============================================================================
 
-        db = db_manager.get_database(library_path)
-
-        doc = db.get(Document, document_id)
-        if not doc:
-            logger.warning(f"Document not found: {document_id}")
-            return None
-
-        artifact = Artifact(
-            document_id=doc.id,
-            artifact_type="entities",
-            data=entities,
-            provider=llm_config.provider,
-            model=llm_config.model,
-            run_id=task_id,
-        )
-        db.save(artifact)
-        logger.info(f"Created entities artifact {artifact.id} for document {doc.id}")
-
-        # Update document metadata with entities
-        doc.metadata["entities"] = entities
-        doc.updated_at = datetime.now()
-        db.save(doc)
-
-        return artifact.id
-
-    except Exception as e:
-        logger.error(f"Failed to save entities: {e}")
-        return None
+TYPE_DESCRIPTIONS = {
+    "people": "names of individuals, including full names and nicknames",
+    "organizations": "companies, institutions, agencies, groups",
+    "locations": "places, addresses, cities, countries, geographic features",
+    "dates": "dates, time periods, years, centuries",
+    "events": "named events, meetings, conferences",
+    "products": "product names, brands, models",
+    "monetary": "monetary amounts, currencies",
+}
 
 
-def _build_extraction_prompt(text: str, entity_types: list[str], include_context: bool) -> str:
+def _build_extraction_prompt(entity_types: list[str], include_context: bool) -> str:
     """Build the entity extraction prompt."""
-    type_descriptions = {
-        "people": "names of individuals, including full names and nicknames",
-        "organizations": "companies, institutions, agencies, groups",
-        "locations": "places, addresses, cities, countries, geographic features",
-        "dates": "dates, time periods, years, centuries",
-        "events": "named events, meetings, conferences",
-        "products": "product names, brands, models",
-        "monetary": "monetary amounts, currencies",
-    }
-
     types_text = "\n".join([
-        f"- {t}: {type_descriptions.get(t, t)}"
+        f"- {t}: {TYPE_DESCRIPTIONS.get(t, t)}"
         for t in entity_types
     ])
 
@@ -211,32 +117,134 @@ Example format:
     "dates": ["January 1920", "1945"]
 }}
 
-Text:
-{text}
-
-Return only valid JSON, no other text.
-"""
+Return only valid JSON, no other text."""
 
 
-def _parse_entities_response(response: str, entity_types: list[str]) -> dict[str, list]:
-    """Parse the LLM response into structured entities."""
-    # Try to extract JSON from response
-    try:
-        # Look for JSON in the response
-        start = response.find("{")
-        end = response.rfind("}") + 1
-        if start >= 0 and end > start:
-            json_str = response[start:end]
-            entities = json.loads(json_str)
+def build_entities_prompt(config: dict) -> str:
+    """Build prompt from config (exposed to UI)."""
+    entity_types = config.get("entity_types", ["people", "organizations", "locations", "dates"])
+    include_context = config.get("include_context", False)
+    return _build_extraction_prompt(entity_types, include_context)
 
-            # Ensure all requested types exist
-            for entity_type in entity_types:
-                if entity_type not in entities:
-                    entities[entity_type] = []
 
-            return entities
-    except json.JSONDecodeError:
-        pass
+# =============================================================================
+# Tool Registration
+# =============================================================================
 
-    # Fallback: return empty structure
-    return {t: [] for t in entity_types}
+@register_tool(
+    name="extract_entities",
+    display_name="Extract Entities",
+    description="Extract named entities (people, places, dates, organizations) from text",
+    category="llm",
+    icon="person.text.rectangle",
+    color="purple",
+    uses_llm=True,
+    supports_batch=True,
+    supports_structured_output=True,
+    input_ports=ENTITIES_INPUT_PORTS,
+    output_ports=ENTITIES_OUTPUT_PORTS,
+    config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, ENTITIES_CONFIG),
+    default_prompt=_build_extraction_prompt(["people", "organizations", "locations", "dates"], False),
+    prompt_builder=build_entities_prompt,
+    sort_order=33,
+)
+async def extract_entities(
+    inputs: dict[str, Any],
+    state: State,
+    llm_config: LLMConfig,
+) -> dict[str, Any]:
+    """Extract named entities from text."""
+
+    # Get inputs
+    text = inputs.get("text", "")
+    documents = inputs.get("documents", [])
+    context = inputs.get("context")
+    input_metadata = inputs.get("metadata")
+
+    # Get entities-specific config
+    entity_types = inputs.get("entity_types", ["people", "organizations", "locations", "dates"])
+    include_context = inputs.get("include_context", False)
+    deduplicate = inputs.get("deduplicate", True)
+
+    if not text:
+        return {
+            "entities": {},
+            "text": "",
+            "value": None,
+            "texts": [],
+            "values": [],
+            "results": [],
+            "artifacts": [],
+            "error": "No text provided",
+        }
+
+    # Build prompt
+    prompt = inputs.get("prompt") or _build_extraction_prompt(entity_types, include_context)
+
+    # Process with shared logic - use json output format
+    result = await process_text(
+        text=text,
+        prompt=prompt,
+        llm_config=llm_config,
+        library_path=state.get("library_path", ""),
+        task_id=state.get("task_id"),
+        tool_config=TOOL_CONFIG,
+        documents=documents,
+        # Inherited from BASE_CONFIG
+        temperature=inputs.get("temperature"),
+        max_tokens=inputs.get("max_tokens"),
+        output_format="json",  # Always JSON for entities
+        output_options={
+            "choices": inputs.get("choices"),
+            "max_words": inputs.get("max_words"),
+            "max_items": inputs.get("max_items"),
+        },
+        reference_values=inputs.get("reference_values"),
+        match_mode=inputs.get("match_mode", "prefer"),
+        context=context,
+        input_metadata=input_metadata,
+        save_to_db=inputs.get("save_to_db", True),
+        save_to_file_flag=inputs.get("save_to_file", False),
+        metadata_field=inputs.get("metadata_field") or "entities",
+    )
+
+    # Get parsed entities
+    entities = result.get("value", {})
+
+    # If value is a string (parsing failed), try to parse it
+    if isinstance(entities, str):
+        entities = parse_output(entities, "json") or {}
+
+    # Ensure it's a dict
+    if not isinstance(entities, dict):
+        entities = {}
+
+    # Ensure all requested types exist
+    for entity_type in entity_types:
+        if entity_type not in entities:
+            entities[entity_type] = []
+
+    # Deduplicate if requested
+    if deduplicate:
+        for entity_type in entities:
+            if isinstance(entities[entity_type], list):
+                # Preserve order while deduplicating
+                seen = set()
+                unique = []
+                for item in entities[entity_type]:
+                    item_key = str(item).lower() if isinstance(item, str) else str(item)
+                    if item_key not in seen:
+                        seen.add(item_key)
+                        unique.append(item)
+                entities[entity_type] = unique
+
+    return {
+        "entities": entities,
+        "text": result.get("text", ""),
+        "value": entities,
+        "texts": result.get("texts", []),
+        "values": [entities],
+        "results": result.get("results", []),
+        "artifacts": result.get("artifacts", []),
+        "error": result.get("error"),
+    }

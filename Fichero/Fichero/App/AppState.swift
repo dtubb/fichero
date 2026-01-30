@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import OSLog
+import FicheroAPIClient
 
 /// Global app state including backend connection and provider management
 @MainActor
@@ -15,7 +16,7 @@ class AppState: ObservableObject {
 
     // MARK: - Provider Management
 
-    @Published var providers: [ProviderResponse] = []
+    @Published var providers: [Components.Schemas.ProviderResponse] = []
     @Published var showProvidersSettings: Bool = false
     @Published var showAddProvider: Bool = false
     @Published var hasCheckedProviders: Bool = false
@@ -25,18 +26,25 @@ class AppState: ObservableObject {
 
     @Published var showMCPServers: Bool = false
 
+    // MARK: - Integrations (Hazel-like folder/app observers)
+
+    @Published var showFolderWatchers: Bool = false
+    @Published var showAppObservers: Bool = false
+    @Published var showAutomationRules: Bool = false
+
     // MARK: - Services
 
     private let apiClient = APIClient()  // App-wide APIClient for global services
-    let providerService: ProviderService  // Public for @EnvironmentObject injection
+    private let ficheroClient = FicheroClient()  // App-wide FicheroClient for generated services
+    let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppState")
 
     // MARK: - Initialization
 
     init() {
-        // Initialize services with app-wide APIClient
-        self.providerService = ProviderService(apiClient: apiClient)
+        // Initialize services with app-wide FicheroClient
+        self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
 
         // Check API health on launch
@@ -128,6 +136,29 @@ class AppState: ObservableObject {
     func showAddProviderFromMenu() {
         isFirstLaunchProviderSetup = false
         showAddProvider = true
+    }
+
+    // MARK: - AI Defaults
+
+    func fetchAIDefaults() async throws -> AIDefaults {
+        let result: AIDefaults = try await apiClient.get("/settings/ai-defaults")
+        return result
+    }
+
+    func saveAIDefaults(_ defaults: AIDefaults) async throws {
+        let _: StatusResponse = try await apiClient.put("/settings/ai-defaults", body: defaults)
+    }
+
+    func resetAIDefaults() async throws {
+        let url = URL(string: "http://127.0.0.1:8765/api/settings/ai-defaults")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
     }
 
 }

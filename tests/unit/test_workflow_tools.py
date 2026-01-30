@@ -234,15 +234,16 @@ class TestTranscribeTool:
         )
         test_image.write_bytes(jpeg_data)
 
-        # Mock the vision LLM call
-        with patch('fichero.workflows.tools.transcribe.vision', new_callable=AsyncMock) as mock_vision:
+        # Mock the vision LLM call (imported from fichero.llm in vision_base)
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
             mock_vision.return_value = "Transcribed text from image"
 
-            # Don't save to DB for this test
+            # Don't save to DB for this test, use LLM mode (not Apple Vision)
             result = await transcribe(
                 {
                     "files": [str(test_image)],
                     "save_to_db": False,
+                    "vision_mode": "llm",  # Use LLM, not Apple Vision OCR
                 },
                 mock_state,
                 mock_llm_config,
@@ -264,7 +265,7 @@ class TestDescribeTool:
         result = await describe({}, mock_state, mock_llm_config)
 
         assert result["error"] == "No input files provided"
-        assert result["description"] == ""
+        assert result["text"] == ""
 
     @pytest.mark.asyncio
     async def test_describe_with_files(self, mock_llm_config, mock_state, tmp_path):
@@ -283,7 +284,7 @@ class TestDescribeTool:
         )
         test_image.write_bytes(jpeg_data)
 
-        with patch('fichero.workflows.tools.describe.vision', new_callable=AsyncMock) as mock_vision:
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
             mock_vision.return_value = "A test image description"
 
             result = await describe(
@@ -295,8 +296,9 @@ class TestDescribeTool:
                 mock_llm_config,
             )
 
-            assert result["description"] == "A test image description"
-            assert len(result["descriptions"]) == 1
+            # describe uses standard output ports (text, texts)
+            assert result["text"] == "A test image description"
+            assert len(result["texts"]) == 1
 
 
 # =============================================================================
@@ -321,7 +323,8 @@ class TestSummarizeTool:
         """Test summarize_file with text."""
         from fichero.workflows.tools.summarize import summarize_file
 
-        with patch('fichero.workflows.tools.summarize.chat', new_callable=AsyncMock) as mock_chat:
+        # Patch chat in fichero.llm (where it's imported from in process_text)
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
             mock_chat.return_value = "This is a summary."
 
             result = await summarize_file(
@@ -351,7 +354,7 @@ class TestSummarizeTool:
         """Test summarize_collection with folder summaries."""
         from fichero.workflows.tools.summarize import summarize_collection
 
-        with patch('fichero.workflows.tools.summarize.chat', new_callable=AsyncMock) as mock_chat:
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
             mock_chat.return_value = "Collection overview."
 
             result = await summarize_collection(
@@ -388,7 +391,7 @@ class TestExtractEntitiesTool:
 
         mock_response = '{"people": ["John Smith"], "organizations": ["Acme Corp"], "locations": ["New York"], "dates": ["2024"]}'
 
-        with patch('fichero.workflows.tools.entities.chat', new_callable=AsyncMock) as mock_chat:
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
             mock_chat.return_value = mock_response
 
             result = await extract_entities(
@@ -468,10 +471,10 @@ class TestDatabaseSaving:
         mock_db.query.return_value = [mock_doc]
         mock_db.get.return_value = mock_doc
 
-        with patch('fichero.workflows.tools.transcribe.vision', new_callable=AsyncMock) as mock_vision:
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
             mock_vision.return_value = "Transcribed content"
 
-            # db_manager is imported inside _save_transcription, so patch it in fichero.db
+            # db_manager is imported inside save_artifact
             with patch('fichero.db.db_manager') as mock_manager:
                 mock_manager.get_database.return_value = mock_db
 
@@ -480,6 +483,7 @@ class TestDatabaseSaving:
                         "files": [str(test_image)],
                         "documents": [{"id": "doc123", "path": str(test_image)}],
                         "save_to_db": True,
+                        "vision_mode": "llm",  # Use LLM, not Apple Vision OCR
                     },
                     mock_state,
                     mock_llm_config,
@@ -489,6 +493,578 @@ class TestDatabaseSaving:
                 assert result["text"] == "Transcribed content"
                 # Artifacts list may be empty since db is mocked
                 assert "artifacts" in result
+
+
+class TestSaveArtifact:
+    """Test save_artifact function directly."""
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_by_document_id(self):
+        """Test save_artifact finds document by ID and creates artifact."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc123"
+        mock_doc.name = "test.jpg"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+
+        tool_config = LLMToolConfig(
+            artifact_type="description",
+            update_page_content=False,
+            trigger_embedding=False,
+            metadata_field="description",
+        )
+
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id="doc123",
+                file_path=None,
+                content="A beautiful sunset image",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id="task1",
+                tool_config=tool_config,
+            )
+
+            # Should find doc by ID
+            mock_db.get.assert_called_once()
+            # Should save artifact and document
+            assert mock_db.save.call_count == 2  # artifact + metadata update
+            # Should return artifact ID
+            assert result is not None
+            # Metadata should be updated
+            assert mock_doc.metadata["description"] == "A beautiful sunset image"
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_by_file_path(self):
+        """Test save_artifact falls back to path query when no ID."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc456"
+        mock_doc.name = "photo.jpg"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = None  # ID lookup fails
+        mock_db.query.return_value = [mock_doc]  # Path lookup succeeds
+
+        tool_config = LLMToolConfig(
+            artifact_type="description",
+            metadata_field="description",
+        )
+
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id=None,
+                file_path="/photos/photo.jpg",
+                content="Photo content",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id=None,
+                tool_config=tool_config,
+            )
+
+            # Should query by path
+            mock_db.query.assert_called_once()
+            assert result is not None
+            assert mock_doc.metadata["description"] == "Photo content"
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_document_not_found(self):
+        """Test save_artifact returns None when document not found."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = None
+        mock_db.query.return_value = []
+
+        tool_config = LLMToolConfig(artifact_type="test", metadata_field="test")
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id="nonexistent",
+                file_path="/nonexistent/file.jpg",
+                content="content",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id=None,
+                tool_config=tool_config,
+            )
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_empty_library_path(self):
+        """Test save_artifact returns None with empty library_path."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="test", metadata_field="test")
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        result = await save_artifact(
+            document_id="doc1",
+            file_path=None,
+            content="content",
+            data=None,
+            library_path="",
+            llm_config=llm_config,
+            task_id=None,
+            tool_config=tool_config,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_with_structured_data(self):
+        """Test save_artifact saves structured data to metadata."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc789"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+
+        tool_config = LLMToolConfig(
+            artifact_type="entities",
+            metadata_field="entities",
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        structured_data = {"people": ["John", "Jane"], "places": ["NYC"]}
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id="doc789",
+                file_path=None,
+                content="raw text",
+                data=structured_data,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id=None,
+                tool_config=tool_config,
+            )
+
+            assert result is not None
+            # When data is provided, it should be stored instead of content
+            assert mock_doc.metadata["entities"] == structured_data
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_metadata_field_override(self):
+        """Test metadata_field parameter overrides tool_config."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc1"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+
+        tool_config = LLMToolConfig(
+            artifact_type="description",
+            metadata_field="description",
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            await save_artifact(
+                document_id="doc1",
+                file_path=None,
+                content="custom field content",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id=None,
+                tool_config=tool_config,
+                metadata_field="custom_field",
+            )
+
+            # Should use override field, not tool_config field
+            assert "custom_field" in mock_doc.metadata
+            assert "description" not in mock_doc.metadata
+
+
+class TestSaveToFile:
+    """Test save_to_file function."""
+
+    @pytest.mark.asyncio
+    async def test_save_text_to_file(self, tmp_path):
+        """Test saving text content to file."""
+        from fichero.workflows.tools.llm_base import save_to_file, LLMToolConfig
+
+        tool_config = LLMToolConfig(
+            artifact_type="description",
+            metadata_field="description",
+        )
+
+        result = await save_to_file(
+            content="A detailed image description",
+            data=None,
+            library_path=str(tmp_path),
+            document_id="abc123",
+            file_path=None,
+            tool_config=tool_config,
+            output_format="text",
+        )
+
+        assert result is not None
+        # Check file exists
+        output_file = Path(result)
+        assert output_file.exists()
+        assert output_file.read_text() == "A detailed image description"
+        # Check path structure
+        assert "storage/outputs/ab" in result
+        assert "abc123_description.txt" in result
+
+    @pytest.mark.asyncio
+    async def test_save_json_to_file(self, tmp_path):
+        """Test saving structured data to JSON file."""
+        from fichero.workflows.tools.llm_base import save_to_file, LLMToolConfig
+
+        tool_config = LLMToolConfig(
+            artifact_type="entities",
+            metadata_field="entities",
+        )
+
+        data = {"people": ["John", "Jane"], "count": 2}
+
+        result = await save_to_file(
+            content="raw text",
+            data=data,
+            library_path=str(tmp_path),
+            document_id="xyz789",
+            file_path=None,
+            tool_config=tool_config,
+            output_format="json",
+        )
+
+        assert result is not None
+        output_file = Path(result)
+        assert output_file.exists()
+        assert output_file.suffix == ".json"
+        import json
+        saved_data = json.loads(output_file.read_text())
+        assert saved_data == data
+
+    @pytest.mark.asyncio
+    async def test_save_to_file_no_library_path(self):
+        """Test save_to_file returns None with empty library_path."""
+        from fichero.workflows.tools.llm_base import save_to_file, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="test", metadata_field="test")
+
+        result = await save_to_file(
+            content="content",
+            data=None,
+            library_path="",
+            document_id="doc1",
+            file_path=None,
+            tool_config=tool_config,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_save_to_file_uses_filename_fallback(self, tmp_path):
+        """Test save_to_file uses source filename when no doc_id."""
+        from fichero.workflows.tools.llm_base import save_to_file, LLMToolConfig
+
+        tool_config = LLMToolConfig(
+            artifact_type="transcription",
+            metadata_field="transcription",
+        )
+
+        result = await save_to_file(
+            content="OCR text here",
+            data=None,
+            library_path=str(tmp_path),
+            document_id=None,
+            file_path="/photos/vacation_photo.jpg",
+            tool_config=tool_config,
+            output_format="text",
+        )
+
+        assert result is not None
+        assert "vacation_photo_transcription.txt" in result
+        assert Path(result).read_text() == "OCR text here"
+
+
+class TestProcessVisionSave:
+    """Test process_vision save integration."""
+
+    @pytest.mark.asyncio
+    async def test_process_vision_saves_artifact(self, mock_llm_config, tmp_path):
+        """Test process_vision calls save_artifact with correct params."""
+        from fichero.workflows.tools.vision_base import process_vision, VisionToolConfig
+
+        # Create test image
+        test_image = tmp_path / "test.jpg"
+        jpeg_data = base64.b64decode(
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof"
+            "Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwh"
+            "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAAR"
+            "CAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAA"
+            "AAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+            "AAIRAxEAPwCwAB//2Q=="
+        )
+        test_image.write_bytes(jpeg_data)
+
+        tool_config = VisionToolConfig(
+            artifact_type="description",
+            update_page_content=False,
+            trigger_embedding=False,
+            supports_apple_vision=False,
+            metadata_field="description",
+        )
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc_abc"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
+            mock_vision.return_value = "A test description"
+
+            with patch('fichero.db.db_manager') as mock_manager:
+                mock_manager.get_database.return_value = mock_db
+
+                result = await process_vision(
+                    files=[str(test_image)],
+                    documents=[{"id": "doc_abc", "path": str(test_image)}],
+                    prompt="Describe this image",
+                    llm_config=mock_llm_config,
+                    library_path="/test/lib.fichero",
+                    task_id="task1",
+                    tool_config=tool_config,
+                    save_to_db=True,
+                    metadata_field="description",
+                )
+
+                assert result["text"] == "A test description"
+                assert len(result["artifacts"]) == 1
+                # Verify db.save was called (artifact + doc metadata)
+                assert mock_db.save.call_count == 2
+                assert mock_doc.metadata["description"] == "A test description"
+
+    @pytest.mark.asyncio
+    async def test_process_vision_save_to_file(self, mock_llm_config, tmp_path):
+        """Test process_vision writes output to file when flag is set."""
+        from fichero.workflows.tools.vision_base import process_vision, VisionToolConfig
+
+        # Create test image
+        test_image = tmp_path / "test.jpg"
+        jpeg_data = base64.b64decode(
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof"
+            "Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwh"
+            "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAAR"
+            "CAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAA"
+            "AAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+            "AAIRAxEAPwCwAB//2Q=="
+        )
+        test_image.write_bytes(jpeg_data)
+
+        # Use tmp_path as library_path so file save works
+        library_path = str(tmp_path / "lib.fichero")
+        Path(library_path).mkdir()
+
+        tool_config = VisionToolConfig(
+            artifact_type="description",
+            supports_apple_vision=False,
+            metadata_field="description",
+        )
+
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
+            mock_vision.return_value = "Saved to file description"
+
+            result = await process_vision(
+                files=[str(test_image)],
+                documents=[{"id": "file_doc", "path": str(test_image)}],
+                prompt="Describe this",
+                llm_config=mock_llm_config,
+                library_path=library_path,
+                task_id=None,
+                tool_config=tool_config,
+                save_to_db=False,
+                save_to_file_flag=True,
+            )
+
+            assert result["text"] == "Saved to file description"
+            assert len(result["output_files"]) == 1
+            # Verify file was written
+            output_path = Path(result["output_files"][0])
+            assert output_path.exists()
+            assert output_path.read_text() == "Saved to file description"
+
+    @pytest.mark.asyncio
+    async def test_process_vision_no_save(self, mock_llm_config, tmp_path):
+        """Test process_vision with both save options disabled."""
+        from fichero.workflows.tools.vision_base import process_vision, VisionToolConfig
+
+        test_image = tmp_path / "test.jpg"
+        jpeg_data = base64.b64decode(
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof"
+            "Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwh"
+            "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAAR"
+            "CAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAA"
+            "AAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+            "AAIRAxEAPwCwAB//2Q=="
+        )
+        test_image.write_bytes(jpeg_data)
+
+        tool_config = VisionToolConfig(
+            artifact_type="test",
+            supports_apple_vision=False,
+            metadata_field="test",
+        )
+
+        with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
+            mock_vision.return_value = "Result text"
+
+            result = await process_vision(
+                files=[str(test_image)],
+                documents=[],
+                prompt="Test",
+                llm_config=mock_llm_config,
+                library_path=str(tmp_path),
+                task_id=None,
+                tool_config=tool_config,
+                save_to_db=False,
+                save_to_file_flag=False,
+            )
+
+            assert result["text"] == "Result text"
+            assert result["artifacts"] == []
+            assert result["output_files"] == []
+
+
+class TestProcessTextSave:
+    """Test process_text save integration."""
+
+    @pytest.mark.asyncio
+    async def test_process_text_saves_artifact(self, mock_llm_config):
+        """Test process_text saves to database correctly."""
+        from fichero.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "text_doc1"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+
+        tool_config = LLMToolConfig(
+            artifact_type="summary",
+            metadata_field="summary",
+        )
+
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "A concise summary"
+
+            with patch('fichero.db.db_manager') as mock_manager:
+                mock_manager.get_database.return_value = mock_db
+
+                result = await process_text(
+                    text="Long text to summarize...",
+                    prompt="Summarize this",
+                    llm_config=mock_llm_config,
+                    library_path="/test/lib.fichero",
+                    task_id="task1",
+                    tool_config=tool_config,
+                    documents=[{"id": "text_doc1", "path": "/test/doc.txt"}],
+                    save_to_db=True,
+                    metadata_field="summary",
+                )
+
+                assert result["text"] == "A concise summary"
+                assert len(result["artifacts"]) == 1
+                assert mock_doc.metadata["summary"] == "A concise summary"
+
+    @pytest.mark.asyncio
+    async def test_process_text_save_to_file(self, mock_llm_config, tmp_path):
+        """Test process_text exports to file."""
+        from fichero.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        library_path = str(tmp_path / "lib.fichero")
+        Path(library_path).mkdir()
+
+        tool_config = LLMToolConfig(
+            artifact_type="rewrite",
+            metadata_field="rewrite",
+        )
+
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "Rewritten text content"
+
+            result = await process_text(
+                text="Original text",
+                prompt="Rewrite this",
+                llm_config=mock_llm_config,
+                library_path=library_path,
+                task_id=None,
+                tool_config=tool_config,
+                documents=[{"id": "rw_doc", "path": "/test/doc.txt"}],
+                save_to_db=False,
+                save_to_file_flag=True,
+            )
+
+            assert result["text"] == "Rewritten text content"
+            assert len(result["output_files"]) == 1
+            output_path = Path(result["output_files"][0])
+            assert output_path.exists()
+            assert output_path.read_text() == "Rewritten text content"
+
+    @pytest.mark.asyncio
+    async def test_process_text_no_documents_skips_db_save(self, mock_llm_config):
+        """Test process_text skips DB save when no documents provided."""
+        from fichero.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        tool_config = LLMToolConfig(
+            artifact_type="summary",
+            metadata_field="summary",
+        )
+
+        with patch('fichero.llm.chat', new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "Summary result"
+
+            result = await process_text(
+                text="Input text",
+                prompt="Summarize",
+                llm_config=mock_llm_config,
+                library_path="/test/lib.fichero",
+                task_id=None,
+                tool_config=tool_config,
+                documents=[],  # Empty documents
+                save_to_db=True,
+            )
+
+            assert result["text"] == "Summary result"
+            assert result["artifacts"] == []  # No save without documents
 
 
 if __name__ == "__main__":

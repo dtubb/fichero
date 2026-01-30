@@ -41,7 +41,7 @@ struct DataLoadingModifiers: ViewModifier {
 struct ChangeHandlerModifiers: ViewModifier {
     let documentStore: DocumentStore
     @Binding var viewMode: AppViewMode
-    let viewSettings: ViewSettings
+    @Binding var sidebarMode: SidebarMode
     @Binding var browserSelection: Set<String>
     @Binding var detailDocument: Document?
 
@@ -55,7 +55,7 @@ struct ChangeHandlerModifiers: ViewModifier {
             .onChange(of: viewMode) { _, newMode in
                 handleViewModeChange(newMode)
             }
-            .onChange(of: viewSettings.sidebarMode) { _, newMode in
+            .onChange(of: sidebarMode) { _, newMode in
                 handleSidebarModeChange(newMode)
             }
             .onChange(of: browserSelection) { _, newSelection in
@@ -170,8 +170,8 @@ struct MainContentModifiers: ViewModifier {
     let conversationService: ConversationServiceGenerated
     let savedSearchService: SavedSearchServiceGenerated
     let appState: AppState
-    let viewSettings: ViewSettings
 
+    @Binding var sidebarMode: SidebarMode
     @Binding var viewMode: AppViewMode
     @Binding var selectedSidebarItemId: String?
     @Binding var browserSelection: Set<String>
@@ -197,7 +197,7 @@ struct MainContentModifiers: ViewModifier {
             .modifier(ChangeHandlerModifiers(
                 documentStore: documentStore,
                 viewMode: $viewMode,
-                viewSettings: viewSettings,
+                sidebarMode: $sidebarMode,
                 browserSelection: $browserSelection,
                 detailDocument: $detailDocument,
                 handleViewModeChange: handleViewModeChange,
@@ -256,7 +256,7 @@ struct MainContentModifiers: ViewModifier {
 
     private func handleSidebarModeChange(_ newMode: SidebarMode) {
         switch newMode {
-        case .navigate:
+        case .library:
             if case .library = viewMode { return }
             viewMode = .library(nil)
         case .search:
@@ -265,10 +265,12 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .chat(nil)
         case .workflows:
             viewMode = .workflow(nil)
-        case .activity:
-            viewMode = .activity
+        case .batches:
+            viewMode = .batches
         case .automation:
             viewMode = .automation
+        case .activity:
+            viewMode = .activity(nil)
         }
     }
 

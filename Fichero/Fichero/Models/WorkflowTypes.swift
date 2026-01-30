@@ -186,7 +186,8 @@ struct WorkflowNode: Codable, Identifiable {
         self.outputPorts = toolInfo.outputPorts
         self.inputMappings = []
         self.inputs = nil
-        self.config = nil
+        // Use config defaults from tool if available
+        self.config = toolInfo.configDefaults.isEmpty ? nil : toolInfo.configDefaults
         self.outputSchema = toolInfo.defaultOutputSchema.map { OutputSchema(jsonSchema: $0) }
         self.providerName = nil
         self.modelName = nil
@@ -336,6 +337,7 @@ struct ToolInfo: Codable, Identifiable {
     let inputPorts: [PortInfo]
     let outputPorts: [PortInfo]
     let configSchema: [String: AnyCodableValue]
+    let configDefaults: [String: AnyCodableValue]  // Default config values for new nodes
     let defaultOutputSchema: [String: AnyCodableValue]?  // Default structured output schema
     let defaultPrompt: String?  // Default prompt for LLM tools (from backend)
     let usesLLM: Bool
@@ -352,6 +354,7 @@ struct ToolInfo: Codable, Identifiable {
         case inputPorts = "input_ports"
         case outputPorts = "output_ports"
         case configSchema = "config_schema"
+        case configDefaults = "config_defaults"
         case defaultOutputSchema = "default_output_schema"
         case defaultPrompt = "default_prompt"
         case usesLLM = "uses_llm"
@@ -372,6 +375,7 @@ struct ToolInfo: Codable, Identifiable {
         inputPorts: [PortInfo],
         outputPorts: [PortInfo],
         configSchema: [String: AnyCodableValue] = [:],
+        configDefaults: [String: AnyCodableValue] = [:],
         defaultOutputSchema: [String: AnyCodableValue]? = nil,
         defaultPrompt: String? = nil,
         usesLLM: Bool,
@@ -389,6 +393,7 @@ struct ToolInfo: Codable, Identifiable {
         self.inputPorts = inputPorts
         self.outputPorts = outputPorts
         self.configSchema = configSchema
+        self.configDefaults = configDefaults
         self.defaultOutputSchema = defaultOutputSchema
         self.defaultPrompt = defaultPrompt
         self.usesLLM = usesLLM

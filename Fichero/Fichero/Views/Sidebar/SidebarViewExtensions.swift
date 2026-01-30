@@ -11,6 +11,10 @@ struct SidebarBottomToolbar: View {
     let createWorkflow: () -> Void
     let createFolder: () -> Void
     let importFiles: (IngestMode) -> Void
+    // Optional automation creation callbacks
+    var createComparison: (() -> Void)?
+    var createSchedule: (() -> Void)?
+    var createTrigger: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -22,11 +26,31 @@ struct SidebarBottomToolbar: View {
                 Button(action: createChat) {
                     Label("New Chat", systemImage: "bubble.left.and.bubble.right")
                 }
+                if let createComparison = createComparison {
+                    Button(action: createComparison) {
+                        Label("New Comparison", systemImage: "arrow.left.arrow.right")
+                    }
+                }
                 Button(action: createWorkflow) {
                     Label("New Workflow", systemImage: "arrow.triangle.branch")
                 }
 
                 Divider()
+
+                if let createSchedule = createSchedule {
+                    Button(action: createSchedule) {
+                        Label("New Schedule", systemImage: "clock")
+                    }
+                }
+                if let createTrigger = createTrigger {
+                    Button(action: createTrigger) {
+                        Label("New Trigger", systemImage: "bolt")
+                    }
+                }
+
+                if createSchedule != nil || createTrigger != nil {
+                    Divider()
+                }
 
                 Button(action: createFolder) {
                     Label("New Folder", systemImage: "folder.badge.plus")
@@ -67,20 +91,19 @@ struct SidebarBottomToolbar: View {
             .help("Import Files (⌘I)")
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.ultraThinMaterial)
         .frame(height: 28)
+        .frame(maxWidth: .infinity)  // Ensure full width
+        .background(.bar)  // Match mode bar background style
     }
 }
 
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
-    /// Applies standard sidebar styling (list style, transparency, and minimum width).
+    /// Applies standard sidebar styling (minimum width only).
+    /// Note: Individual content views apply their own .listStyle(.sidebar) to their List.
     func sidebarStyle() -> some View {
         self
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)  // Transparent sidebar background
             .frame(minWidth: SidebarConstants.minimumWidth)
     }
 }
@@ -194,6 +217,10 @@ struct SidebarFocusedValuesConfig {
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
+    var createChain: (() -> Void)?
+    var createComparison: (() -> Void)?
+    var createSchedule: (() -> Void)?
+    var createTrigger: (() -> Void)?
 }
 
 extension View {
@@ -207,7 +234,11 @@ extension View {
                 deleteItem: config.deleteItem,
                 createSearch: config.createSearch,
                 createChat: config.createChat,
-                createWorkflow: config.createWorkflow
+                createWorkflow: config.createWorkflow,
+                createChain: config.createChain,
+                createComparison: config.createComparison,
+                createSchedule: config.createSchedule,
+                createTrigger: config.createTrigger
             ))
             .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
                 selectedItem: config.selectedItem,

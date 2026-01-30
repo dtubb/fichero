@@ -105,6 +105,15 @@ class AppDatabase:
             )
         """)
 
+        # Settings table (key-value store for app preferences)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key VARCHAR PRIMARY KEY,
+                value VARCHAR NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create indexes
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)")
@@ -260,6 +269,115 @@ class AppDatabase:
             )
             for row in results
         ]
+
+    def get_default_model(self) -> tuple[str, str] | None:
+        """Get the default provider and model.
+
+        Checks category defaults first (text), then falls back to
+        the legacy is_default column on models table.
+
+        Returns:
+            Tuple of (provider_type, model_id) or None if no default is set.
+        """
+        # Try text default from settings table first
+        cat_default = self.get_default_model_for_category("llm")
+        if cat_default:
+            return cat_default
+
+        # Legacy fallback: check is_default column on models table
+        result = self.conn.execute("""
+            SELECT p.provider_type, m.model_id
+            FROM models m
+            JOIN providers p ON m.provider_id = p.id
+            WHERE m.is_default = TRUE AND m.enabled = TRUE AND p.enabled = TRUE
+            ORDER BY m.updated_at DESC
+            LIMIT 1
+        """).fetchone()
+
+        if result:
+            return (result[0], result[1])
+        return None
+
+    # =========================================================================
+    # Settings (key-value store)
+    # =========================================================================
+
+    def get_setting(self, key: str) -> str | None:
+        """Get a setting value by key."""
+        result = self.conn.execute(
+            "SELECT value FROM settings WHERE key = ?", [key]
+        ).fetchone()
+        return result[0] if result else None
+
+    def set_setting(self, key: str, value: str):
+        """Set a setting value (upsert)."""
+        from datetime import datetime
+        now = datetime.now()
+        self.conn.execute("""
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT (key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """, [key, value, now])
+        self.conn.commit()
+
+    def delete_setting(self, key: str):
+        """Delete a setting."""
+        self.conn.execute("DELETE FROM settings WHERE key = ?", [key])
+        self.conn.commit()
+
+    def get_ai_defaults(self) -> dict[str, str]:
+        """Get all AI default settings as a dict."""
+        keys = [
+            "default_vision_provider", "default_vision_model",
+            "default_text_provider", "default_text_model",
+            "default_audio_provider", "default_audio_model",
+            "default_video_provider", "default_video_model",
+            "default_temperature", "default_max_tokens",
+            "default_prompt_prefix", "default_embeddings_model",
+        ]
+        result = {}
+        for key in keys:
+            val = self.get_setting(key)
+            if val:
+                result[key] = val
+        return result
+
+    def get_default_model_for_category(self, category: str) -> tuple[str, str] | None:
+        """Get default (provider_type, model_id) for a tool category.
+
+        Category mapping:
+        - "vision" -> default_vision_provider / default_vision_model
+        - "llm"    -> default_text_provider / default_text_model
+        - "audio"  -> default_audio_provider / default_audio_model
+        - "video"  -> default_video_provider / default_video_model
+
+        Returns:
+            Tuple of (provider_type, model_id) or None if not configured.
+        """
+        cat_map = {"vision": "vision", "llm": "text", "audio": "audio", "video": "video"}
+        prefix = cat_map.get(category)
+        if not prefix:
+            return None
+        provider = self.get_setting(f"default_{prefix}_provider")
+        model = self.get_setting(f"default_{prefix}_model")
+        if provider and model:
+            return (provider, model)
+        return None
+
+    def reset_ai_defaults(self):
+        """Delete all AI default settings."""
+        keys = [
+            "default_vision_provider", "default_vision_model",
+            "default_text_provider", "default_text_model",
+            "default_audio_provider", "default_audio_model",
+            "default_video_provider", "default_video_model",
+            "default_temperature", "default_max_tokens",
+            "default_prompt_prefix", "default_embeddings_model",
+        ]
+        for key in keys:
+            self.delete_setting(key)
 
     def delete_model(self, model_id: str):
         """Delete a model."""

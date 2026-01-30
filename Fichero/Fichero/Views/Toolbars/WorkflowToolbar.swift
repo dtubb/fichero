@@ -17,6 +17,7 @@ struct WorkflowToolbar: View {
     let onSave: () async -> Void
     let onExport: () -> Void
     let onResetZoom: () -> Void
+    var onPreviewDiagram: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -79,6 +80,14 @@ struct WorkflowToolbar: View {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .help("Export Workflow")
+
+                // Preview LangGraph diagram
+                if let onPreview = onPreviewDiagram {
+                    Button(action: onPreview) {
+                        Image(systemName: "flowchart")
+                    }
+                    .help("Preview LangGraph Diagram")
+                }
 
                 // Run button
                 Button(action: onRun) {

@@ -35,18 +35,22 @@ class LibraryManager: ObservableObject {
         let ficheroClient: FicheroClient  // Generated API client
         let documentStore: DocumentStore
         let savedSearchServiceGenerated: SavedSearchServiceGenerated  // Generated saved search service
-        let searchService: SearchService
+        let searchService: SearchServiceGenerated
         let conversationServiceGenerated: ConversationServiceGenerated  // Generated conversation service
         let chatServiceGenerated: ChatServiceGenerated  // Generated chat service
         let workflowStore: WorkflowStore
         let workflowServiceGenerated: WorkflowServiceGenerated  // Generated workflow service
         let workflowStreamService: WorkflowStreamService  // SSE streaming for workflow execution
-        let importService: ImportService
+        let importService: ImportServiceGenerated
         let documentServiceGenerated: DocumentServiceGenerated
-        let storageService: StorageService
-        let providerService: ProviderService
-        let modelService: ModelService
-        let artifactService: ArtifactService
+        let storageService: StorageServiceGenerated
+        let providerService: ProviderServiceGenerated
+        let modelService: ModelServiceGenerated
+        let artifactService: ArtifactServiceGenerated
+        let activityService: ActivityServiceGenerated
+        let batchService: BatchServiceGenerated
+        let automationService: AutomationServiceGenerated
+        let chainService: ChainService
 
         // Security-scoped resource tracking
         private var isAccessingSecurityScope: Bool = false
@@ -59,12 +63,12 @@ class LibraryManager: ObservableObject {
             id: UUID? = nil,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
-            searchService: SearchService? = nil,
+            searchService: SearchServiceGenerated? = nil,
             workflowStore: WorkflowStore? = nil,
-            importService: ImportService? = nil,
-            storageService: StorageService? = nil,
-            providerService: ProviderService? = nil,
-            modelService: ModelService? = nil,
+            importService: ImportServiceGenerated? = nil,
+            storageService: StorageServiceGenerated? = nil,
+            providerService: ProviderServiceGenerated? = nil,
+            modelService: ModelServiceGenerated? = nil,
             startAccessing: Bool = false
         ) {
             self.id = id ?? UUID()
@@ -89,18 +93,22 @@ class LibraryManager: ObservableObject {
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
             self.savedSearchServiceGenerated = SavedSearchServiceGenerated(ficheroClient: self.ficheroClient)
-            self.searchService = searchService ?? SearchService(apiClient: self.apiClient)
+            self.searchService = searchService ?? SearchServiceGenerated(ficheroClient: self.ficheroClient)
             self.conversationServiceGenerated = ConversationServiceGenerated(ficheroClient: self.ficheroClient)
             self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
             self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient)
-            self.importService = importService ?? ImportService(apiClient: self.apiClient)
+            self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
             self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
-            self.storageService = storageService ?? StorageService(apiClient: self.apiClient)
-            self.providerService = providerService ?? ProviderService(apiClient: self.apiClient)
-            self.modelService = modelService ?? ModelService(apiClient: self.apiClient)
-            self.artifactService = ArtifactService(apiClient: self.apiClient)
+            self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)
+            self.providerService = providerService ?? ProviderServiceGenerated(ficheroClient: self.ficheroClient)
+            self.modelService = modelService ?? ModelServiceGenerated(ficheroClient: self.ficheroClient)
+            self.artifactService = ArtifactServiceGenerated(ficheroClient: self.ficheroClient)
+            self.activityService = ActivityServiceGenerated(ficheroClient: self.ficheroClient)
+            self.batchService = BatchServiceGenerated(ficheroClient: self.ficheroClient)
+            self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)
+            self.chainService = ChainService(apiClient: self.apiClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {
@@ -397,10 +405,18 @@ class LibraryManager: ObservableObject {
     // MARK: - Public Helpers
 
     /// Check if a library URL is a temporary unsaved library
+    /// Uses standardized paths to prevent path traversal attacks
     func isTemporaryLibrary(_ url: URL) -> Bool {
-        let tempDir = FileManager.default.temporaryDirectory
-        return url.path.hasPrefix(tempDir.path) &&
-               url.lastPathComponent.hasPrefix("Untitled-")
+        let tempDir = FileManager.default.temporaryDirectory.standardizedFileURL
+        let standardizedURL = url.standardizedFileURL
+
+        // Ensure the path doesn't contain directory traversal
+        guard !standardizedURL.path.contains("..") else {
+            return false
+        }
+
+        return standardizedURL.path.hasPrefix(tempDir.path) &&
+               standardizedURL.lastPathComponent.hasPrefix("Untitled-")
     }
 
     // MARK: - Private Helpers
@@ -539,7 +555,22 @@ extension LibraryManager {
         logger.info("Restoring \(paths.count) saved libraries")
 
         for path in paths {
+            // Validate path is not empty and doesn't contain dangerous characters
+            guard !path.isEmpty,
+                  !path.contains(".."),
+                  path.hasPrefix("/") else {
+                logger.warning("Skipping invalid library path: \(path)")
+                continue
+            }
+
             let url = URL(fileURLWithPath: path)
+
+            // Additional security check: ensure it's a .fichero package
+            guard url.pathExtension == "fichero" else {
+                logger.warning("Skipping non-fichero path: \(path)")
+                continue
+            }
+
             if FileManager.default.fileExists(atPath: path) {
                 let library = openLibrary(at: url)
                 logger.info("Restored library: \(library.displayName)")

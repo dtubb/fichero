@@ -15,13 +15,13 @@ struct DocumentTabView: View {
     // All services come from the environment (shared per-library, not per-tab)
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
-    @EnvironmentObject var searchService: SearchService
+    @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var workflowStore: WorkflowStore
-    @EnvironmentObject var importService: ImportService
+    @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var documentService: DocumentServiceGenerated
-    @EnvironmentObject var storageService: StorageService
+    @EnvironmentObject var storageService: StorageServiceGenerated
     @EnvironmentObject var windowState: WindowState
 
     // Get the library reference
@@ -104,15 +104,45 @@ struct DocumentTabView: View {
                 // Search tab view (will create later)
                 SearchPlaceholderView()
 
-            case .activity:
-                // Activity monitor view
-                ActivityMonitorView()
-                    .environmentObject(apiClient)
+            case .batches:
+                // Batch jobs view
+                ContentUnavailableView(
+                    "Batches",
+                    systemImage: "square.stack.3d.up",
+                    description: Text("Select a batch in the sidebar to view details")
+                )
 
             case .automation:
                 // Automation view for schedules and triggers
-                AutomationView()
-                    .environmentObject(apiClient)
+                ContentUnavailableView(
+                    "Automation",
+                    systemImage: "timer",
+                    description: Text("Select a schedule or trigger in the sidebar")
+                )
+
+            case .running:
+                // Running workflows view
+                ContentUnavailableView(
+                    "Running Workflows",
+                    systemImage: "play.circle",
+                    description: Text("Select a running workflow in the sidebar to view progress")
+                )
+
+            case .history:
+                // Activity history view
+                ContentUnavailableView(
+                    "Activity History",
+                    systemImage: "clock",
+                    description: Text("Select a history item in the sidebar to view details")
+                )
+
+            case .issues:
+                // Issues view
+                ContentUnavailableView(
+                    "Issues",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("Select an issue in the sidebar to view details")
+                )
             }
         } else {
             Text("Library not found")

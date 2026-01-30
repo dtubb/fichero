@@ -1,5 +1,8 @@
 import Foundation
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ProviderService")
 
 /// Service for managing AI providers via the backend API.
 /// API keys are stored in macOS Keychain via the Python backend.
@@ -11,6 +14,26 @@ class ProviderService: ObservableObject {
         self.api = apiClient
     }
 
+    // MARK: - Input Validation
+
+    /// Validate an identifier to prevent path traversal attacks
+    private func validateIdentifier(_ identifier: String, type: String) throws {
+        // Reject identifiers containing path traversal sequences
+        let invalidPatterns = ["..", "/", "\\", "%2e", "%2f", "%5c"]
+        for pattern in invalidPatterns {
+            if identifier.lowercased().contains(pattern) {
+                logger.error("Invalid \(type) detected: contains forbidden pattern")
+                throw ProviderServiceError.invalidInput("Invalid \(type) format")
+            }
+        }
+        // Allow alphanumeric, hyphen, underscore, and dot (for provider types like "openai")
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        if identifier.unicodeScalars.contains(where: { !allowedCharacters.contains($0) }) {
+            logger.error("Invalid \(type) detected: contains invalid characters")
+            throw ProviderServiceError.invalidInput("Invalid \(type) format")
+        }
+    }
+
     // MARK: - Catalog (read-only provider info)
 
     /// List all available provider types from the catalog.
@@ -20,7 +43,8 @@ class ProviderService: ObservableObject {
 
     /// Get catalog info for a specific provider type.
     func getCatalogEntry(_ providerType: String) async throws -> ProviderCatalogEntry {
-        try await api.get("/providers/catalog/\(providerType)")
+        try validateIdentifier(providerType, type: "provider type")
+        return try await api.get("/providers/catalog/\(providerType)")
     }
 
     // MARK: - User Provider Configuration
@@ -38,6 +62,7 @@ class ProviderService: ObservableObject {
         apiBase: String? = nil,
         apiKey: String? = nil
     ) async throws -> ProviderResponse {
+        try validateIdentifier(providerType, type: "provider type")
         let request = CreateProviderRequest(
             providerType: providerType,
             name: name,
@@ -49,7 +74,8 @@ class ProviderService: ObservableObject {
 
     /// Get a specific provider configuration.
     func getProvider(_ id: String) async throws -> ProviderResponse {
-        try await api.get("/providers/\(id)")
+        try validateIdentifier(id, type: "provider ID")
+        return try await api.get("/providers/\(id)")
     }
 
     /// Update a provider configuration.
@@ -60,6 +86,7 @@ class ProviderService: ObservableObject {
         enabled: Bool? = nil,
         apiKey: String? = nil
     ) async throws -> ProviderResponse {
+        try validateIdentifier(id, type: "provider ID")
         let request = UpdateProviderRequest(
             name: name,
             apiBase: apiBase,
@@ -71,6 +98,7 @@ class ProviderService: ObservableObject {
 
     /// Delete a provider and its models.
     func deleteProvider(_ id: String) async throws {
+        try validateIdentifier(id, type: "provider ID")
         try await api.delete("/providers/\(id)")
     }
 
@@ -78,30 +106,35 @@ class ProviderService: ObservableObject {
 
     /// Store API key for a provider type in Keychain.
     func setAPIKey(providerType: String, apiKey: String) async throws {
+        try validateIdentifier(providerType, type: "provider type")
         let request = SetAPIKeyRequest(apiKey: apiKey)
         let _: StatusResponse = try await api.post("/providers/\(providerType)/api-key", body: request)
     }
 
     /// Delete API key for a provider type from Keychain.
     func deleteAPIKey(providerType: String) async throws {
+        try validateIdentifier(providerType, type: "provider type")
         try await api.delete("/providers/\(providerType)/api-key")
     }
 
     /// Check if API key exists for a provider type.
     func checkAPIKeyStatus(providerType: String) async throws -> APIKeyStatus {
-        try await api.get("/providers/\(providerType)/api-key/status")
+        try validateIdentifier(providerType, type: "provider type")
+        return try await api.get("/providers/\(providerType)/api-key/status")
     }
 
     // MARK: - Models
 
     /// List available models for a provider type from LiteLLM registry.
     func listAvailableModels(providerType: String) async throws -> [ModelInfo] {
-        try await api.get("/providers/models/\(providerType)")
+        try validateIdentifier(providerType, type: "provider type")
+        return try await api.get("/providers/models/\(providerType)")
     }
 
     /// List user's configured models for a provider.
     func listProviderModels(providerId: String) async throws -> [UserModelResponse] {
-        try await api.get("/providers/\(providerId)/models")
+        try validateIdentifier(providerId, type: "provider ID")
+        return try await api.get("/providers/\(providerId)/models")
     }
 
     /// Add a model to a provider.
@@ -111,6 +144,8 @@ class ProviderService: ObservableObject {
         name: String? = nil,
         isDefault: Bool = false
     ) async throws -> UserModelResponse {
+        try validateIdentifier(providerId, type: "provider ID")
+        try validateIdentifier(modelId, type: "model ID")
         let request = AddModelRequest(
             providerId: providerId,
             modelId: modelId,
@@ -122,6 +157,8 @@ class ProviderService: ObservableObject {
 
     /// Remove a model from a provider.
     func removeModel(providerId: String, modelId: String) async throws {
+        try validateIdentifier(providerId, type: "provider ID")
+        try validateIdentifier(modelId, type: "model ID")
         try await api.delete("/providers/\(providerId)/models/\(modelId)")
     }
 
@@ -129,11 +166,14 @@ class ProviderService: ObservableObject {
 
     /// Test connection to a provider.
     func testConnection(providerType: String) async throws -> ConnectionTestResponse {
-        try await api.post("/providers/\(providerType)/test", body: EmptyBody())
+        try validateIdentifier(providerType, type: "provider type")
+        return try await api.post("/providers/\(providerType)/test", body: EmptyBody())
     }
 }
 
 // MARK: - Request Models
+
+struct EmptyBody: Codable {}
 
 struct CreateProviderRequest: Encodable {
     let providerType: String
@@ -427,5 +467,18 @@ struct ConnectionTestResponse: Codable {
         case message
         case latencyMs = "latency_ms"
         case modelTested = "model_tested"
+    }
+}
+
+// MARK: - Errors
+
+enum ProviderServiceError: LocalizedError {
+    case invalidInput(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidInput(let message):
+            return "Invalid input: \(message)"
+        }
     }
 }

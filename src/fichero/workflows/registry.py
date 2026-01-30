@@ -42,6 +42,7 @@ def register_tool(
     input_ports: list[PortDef] | None = None,
     output_ports: list[PortDef] | None = None,
     config_schema: dict[str, Any] | None = None,
+    config_defaults: dict[str, Any] | None = None,
     default_output_schema: dict[str, Any] | None = None,
     default_prompt: str | None = None,
     prompt_builder: Callable[[dict[str, Any]], str] | None = None,
@@ -93,6 +94,7 @@ def register_tool(
             input_ports=input_ports or default_input,
             output_ports=output_ports or default_output,
             config_schema=config_schema or {},
+            config_defaults=config_defaults or {},
             default_output_schema=default_output_schema,
             default_prompt=default_prompt,
             prompt_builder=prompt_builder,
@@ -109,9 +111,21 @@ def register_tool(
     return decorator
 
 
+# Aliases for tools (map UI name → implementation)
+TOOL_ALIASES: dict[str, str] = {
+    "summarize": "summarize_file",  # Generic summarize uses summarize_file
+}
+
+
 def get_tool(name: str) -> Callable | None:
     """Get a tool function by name."""
-    return TOOLS.get(name)
+    # Check direct registration first
+    if name in TOOLS:
+        return TOOLS[name]
+    # Check aliases
+    if name in TOOL_ALIASES:
+        return TOOLS.get(TOOL_ALIASES[name])
+    return None
 
 
 def get_tool_def(name: str) -> ToolDef | None:
@@ -135,7 +149,7 @@ def get_categories() -> list[str]:
     """Get all unique tool categories."""
     categories = set(t.category for t in TOOL_DEFS.values())
     # Return in preferred order
-    order = ["source", "vision", "transform", "llm", "convert", "logic", "sink", "utility"]
+    order = ["source", "vision", "audio", "video", "transform", "llm", "convert", "logic", "sink", "utility"]
     result = [c for c in order if c in categories]
     # Add any categories not in our preferred order
     for c in sorted(categories):
@@ -836,9 +850,15 @@ def _register_builtin_tools():
 # =============================================================================
 
 def _load_tool_implementations():
-    """Load actual tool implementations."""
+    """Load actual tool implementations.
+
+    Importing the tools module triggers all @register_tool decorators,
+    which override the basic built-in definitions with full config schemas.
+    """
     try:
-        from fichero.workflows.tools import transcribe  # noqa: F401
+        # Import the entire tools module to trigger all @register_tool decorators
+        # This ensures tools have their full config schemas (including prompt field)
+        from fichero.workflows import tools  # noqa: F401
         logger.debug("Loaded tool implementations")
     except ImportError as e:
         logger.debug(f"Tool implementations not loaded: {e}")

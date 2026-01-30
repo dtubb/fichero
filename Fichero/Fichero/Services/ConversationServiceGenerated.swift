@@ -190,8 +190,8 @@ class ConversationServiceGenerated: ObservableObject {
 
     /// Parse untyped OpenAPI container to ConversationSummary
     private func parseConversationSummary(from container: OpenAPIObjectContainer) throws -> ConversationSummary {
-        guard let dict = container.value as? [String: Any],
-              let id = dict["id"] as? String,
+        let dict = container.value as [String: Any]
+        guard let id = dict["id"] as? String,
               let title = dict["title"] as? String else {
             throw ConversationServiceError.invalidData
         }
@@ -240,8 +240,8 @@ class ConversationServiceGenerated: ObservableObject {
 
     /// Parse untyped OpenAPI container to ConversationAPI
     private func parseConversationAPI(from container: OpenAPIObjectContainer) throws -> ConversationAPI {
-        guard let dict = container.value as? [String: Any],
-              let id = dict["id"] as? String,
+        let dict = container.value as [String: Any]
+        guard let id = dict["id"] as? String,
               let title = dict["title"] as? String else {
             throw ConversationServiceError.invalidData
         }

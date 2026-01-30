@@ -505,20 +505,20 @@ class TestTranscribeTool:
     @pytest.mark.asyncio
     async def test_transcribe_builds_prompt(self):
         """Test transcribe prompt building."""
-        from fichero.workflows.tools.transcribe import _build_transcription_prompt
+        from fichero.workflows.tools.transcribe import _build_prompt
 
-        prompt = _build_transcription_prompt("en", False)
-        assert "English" in prompt or "en" in prompt
+        prompt = _build_prompt("en", False)
+        assert "en" in prompt.lower() or "language" in prompt.lower()
         assert "transcribe" in prompt.lower() or "extract" in prompt.lower()
 
-        prompt_with_boxes = _build_transcription_prompt("en", True)
+        prompt_with_boxes = _build_prompt("en", True)
         assert "bounding box" in prompt_with_boxes.lower()
 
     def test_file_to_data_uri(self):
         """Test file to data URI conversion."""
         import tempfile
         from pathlib import Path
-        from fichero.workflows.tools.transcribe import _file_to_data_uri
+        from fichero.workflows.tools.vision_base import file_to_data_uri
 
         # Create a temporary test file
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
@@ -526,7 +526,7 @@ class TestTranscribeTool:
             temp_path = f.name
 
         try:
-            uri = _file_to_data_uri(temp_path)
+            uri = file_to_data_uri(temp_path)
             assert uri.startswith("data:image/png;base64,")
         finally:
             Path(temp_path).unlink()

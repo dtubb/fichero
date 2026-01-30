@@ -767,6 +767,58 @@ class FileWatcherManager:
         logger.info(f"Resumed file trigger {trigger_id}")
         return trigger
 
+    async def update_trigger(self, trigger: FileTrigger) -> FileTrigger:
+        """Update an existing file trigger.
+
+        Args:
+            trigger: FileTrigger object with updated fields
+
+        Returns:
+            Updated FileTrigger object
+        """
+        # Verify trigger exists
+        existing = await self.get_trigger(trigger.trigger_id)
+        if not existing:
+            raise ValueError(f"Trigger {trigger.trigger_id} not found")
+
+        # If workflow_id changed, validate new workflow exists
+        if trigger.workflow_id != existing.workflow_id:
+            workflow = await self.workflow_store.get(trigger.workflow_id)
+            if not workflow:
+                raise ValueError(f"Workflow {trigger.workflow_id} not found")
+
+        # If watch path changed and trigger is active, re-setup watcher
+        config_changed = (
+            trigger.config.watch_path != existing.config.watch_path
+            or trigger.config.recursive != existing.config.recursive
+            or trigger.config.events != existing.config.events
+            or trigger.config.filter_mode != existing.config.filter_mode
+            or trigger.config.filter_pattern != existing.config.filter_pattern
+        )
+
+        if config_changed and trigger.status == TriggerStatus.ACTIVE:
+            # Remove old handler
+            if trigger.trigger_id in self._handlers:
+                del self._handlers[trigger.trigger_id]
+
+            # Cancel pending tasks
+            if trigger.trigger_id in self._pending_tasks:
+                for task in self._pending_tasks[trigger.trigger_id]:
+                    task.cancel()
+                del self._pending_tasks[trigger.trigger_id]
+
+            # Setup new watcher
+            self._setup_watcher(trigger)
+
+        # Save to database
+        await self._save_trigger(trigger)
+
+        # Update cache
+        self._triggers[trigger.trigger_id] = trigger
+
+        logger.info(f"Updated file trigger {trigger.trigger_id}")
+        return trigger
+
     async def delete_trigger(self, trigger_id: str) -> None:
         """Delete a file trigger."""
         # Remove from handlers

@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Workflow Chain Models
 
 /// A workflow chain connects multiple workflows together
-struct WorkflowChain: Identifiable, Codable, Equatable {
+struct WorkflowChain: Identifiable, Codable, Equatable, Hashable {
     let id: String
     var name: String
     var description: String
@@ -43,7 +43,7 @@ struct WorkflowChain: Identifiable, Codable, Equatable {
 }
 
 /// A single step in a workflow chain
-struct ChainStep: Identifiable, Codable, Equatable {
+struct ChainStep: Identifiable, Codable, Equatable, Hashable {
     let id: String
     var workflowId: String
     var name: String
@@ -84,7 +84,7 @@ struct ChainStep: Identifiable, Codable, Equatable {
 }
 
 /// Maps output from one workflow to input of the next
-struct OutputMapping: Codable, Equatable {
+struct OutputMapping: Codable, Equatable, Hashable {
     var sourcePath: String
     var targetKey: String
     var transform: String?
@@ -103,7 +103,7 @@ struct OutputMapping: Codable, Equatable {
 }
 
 /// Condition for executing a chain step
-struct ChainStepCondition: Codable, Equatable {
+struct ChainStepCondition: Codable, Equatable, Hashable {
     var expression: String
     var trueStep: String?
     var falseStep: String?

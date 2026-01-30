@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Manages rename state for sidebar items.
 /// Use @StateObject in parent view, pass as @ObservedObject to children.
+@MainActor
 class RenameStateManager: ObservableObject {
     @Published var renamingItemId: String?
     @Published var editingName: String = ""
@@ -19,6 +20,7 @@ class RenameStateManager: ObservableObject {
 
 /// Manages delete confirmation state for sidebar items.
 /// Use @StateObject in parent view, pass as @ObservedObject to children.
+@MainActor
 class DeleteStateManager: ObservableObject {
     @Published var showingDeleteConfirmation = false
     @Published var showingDeleteError = false

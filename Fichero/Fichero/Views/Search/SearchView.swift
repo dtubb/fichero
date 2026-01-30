@@ -23,7 +23,7 @@ struct SearchView: View {
     @State private var searchError: String?
     @State private var isSaving: Bool = false
 
-    @EnvironmentObject var searchService: SearchService
+    @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
 
@@ -545,7 +545,7 @@ extension SearchView {
                 logger.info("Calling searchService.search with enhanced parameters...")
                 let filterDict = buildFilterDictionary()
 
-                let response = try await searchService.search(
+                let response = try await searchService.searchCompatible(
                     query: queryText,
                     limit: 50,
                     minScore: 0.0,
