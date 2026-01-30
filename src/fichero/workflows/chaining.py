@@ -141,6 +141,8 @@ class WorkflowChain(BaseModel):
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+    folder_path: str = "/"              # Folder organization path
+    sort_order: int = 0                 # Sort order within folder
 
     def get_step(self, step_id: str) -> ChainStep | None:
         """Get step by ID."""

@@ -388,6 +388,8 @@ class WorkflowDef(BaseModel):
     version: str = "1.0"
     created_at: str | None = None
     updated_at: str | None = None
+    folder_path: str = "/"              # Folder organization path
+    sort_order: int = 0                 # Sort order within folder
 
     def get_entry_nodes(self) -> list[str]:
         """Find nodes with no incoming edges (entry points)."""
