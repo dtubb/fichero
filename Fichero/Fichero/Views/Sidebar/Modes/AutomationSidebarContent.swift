@@ -69,40 +69,21 @@ struct AutomationSidebarContent: View {
         let totalCount = schedules.count + triggers.count
 
         Section {
-            // Schedules subsection (always show to allow creating new)
-            schedulesSubsection(schedules)
-
-            // Triggers subsection (always show to allow creating new)
-            triggersSubsection(triggers)
-
-            // Empty state hint
-            if schedules.isEmpty && triggers.isEmpty && !isLoading {
-                Text("Use + buttons above to add automation")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                    .padding(.vertical, 4)
-            }
-        } header: {
-            LibrarySectionHeader(
-                library: library,
-                itemCount: totalCount,
-                isCurrentLibrary: library.id == windowState.libraryId
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func schedulesSubsection(_ schedules: [ScheduleInfo]) -> some View {
-        DisclosureGroup {
-            // Build SidebarItems for consistent rendering
+            // Build SidebarItems for schedules
             let scheduleItems = schedules.map { schedule in
                 SidebarItem.fromSchedule(schedule, libraryId: windowState.libraryId)
             }
 
+            // Build SidebarItems for triggers
+            let triggerItems = triggers.map { trigger in
+                SidebarItem.fromTrigger(trigger, libraryId: windowState.libraryId)
+            }
+
+            // Schedules (flat list)
             ForEach(scheduleItems) { item in
                 SidebarItemRow(
                     item: item,
-                    allCachedItems: scheduleItems,
+                    allCachedItems: scheduleItems + triggerItems,
                     expandedItems: Binding(
                         get: { sidebarState.expandedItems },
                         set: { sidebarState.expandedItems = $0 }
@@ -117,42 +98,12 @@ struct AutomationSidebarContent: View {
                 )
                 .tag(item.id)
             }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "clock")
-                    .foregroundStyle(.orange)
-                    .frame(width: 16)
-                Text("Schedules")
-                    .font(.subheadline)
-                Spacer()
-                Text("\(schedules.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                Button {
-                    viewMode = .schedule(nil)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .help("New Schedule")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func triggersSubsection(_ triggers: [TriggerInfo]) -> some View {
-        DisclosureGroup {
-            // Build SidebarItems for consistent rendering
-            let triggerItems = triggers.map { trigger in
-                SidebarItem.fromTrigger(trigger, libraryId: windowState.libraryId)
-            }
-
+            // Triggers (flat list)
             ForEach(triggerItems) { item in
                 SidebarItemRow(
                     item: item,
-                    allCachedItems: triggerItems,
+                    allCachedItems: scheduleItems + triggerItems,
                     expandedItems: Binding(
                         get: { sidebarState.expandedItems },
                         set: { sidebarState.expandedItems = $0 }
@@ -167,27 +118,20 @@ struct AutomationSidebarContent: View {
                 )
                 .tag(item.id)
             }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "bolt")
-                    .foregroundStyle(.yellow)
-                    .frame(width: 16)
-                Text("Triggers")
-                    .font(.subheadline)
-                Spacer()
-                Text("\(triggers.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                Button {
-                    viewMode = .trigger(nil)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .help("New Trigger")
+            // Empty state
+            if schedules.isEmpty && triggers.isEmpty && !isLoading {
+                Text("No automation items")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .padding(.vertical, 4)
             }
+        } header: {
+            LibrarySectionHeader(
+                library: library,
+                itemCount: totalCount,
+                isCurrentLibrary: library.id == windowState.libraryId
+            )
         }
     }
 
