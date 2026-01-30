@@ -100,7 +100,7 @@ struct NodePopover: View {
             }
         }
         .frame(width: 320)
-        .frame(minHeight: 200)
+        .frame(minHeight: 400, maxHeight: 600)
         .background(Color(.windowBackgroundColor))
         .task {
             guard !Task.isCancelled else { return }
