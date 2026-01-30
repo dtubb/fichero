@@ -463,12 +463,19 @@ async def process_audio(
 
             # Save to database
             if save_to_db and library_path:
+                # Set proper provider/model labels for local processing
+                save_config = llm_config
+                if audio_mode == "local_whisper":
+                    save_config = LLMConfig(provider="Local", model=f"Whisper-{whisper_model_size}")
+                elif audio_mode == "apple_speech":
+                    save_config = LLMConfig(provider="Apple", model="Speech Recognition")
+
                 artifact_id = await save_artifact(
                     file_path=file_path,
                     content=text,
                     document_id=path_to_doc.get(file_path),
                     library_path=library_path,
-                    llm_config=llm_config,
+                    llm_config=save_config,
                     task_id=task_id,
                     tool_config=tool_config,
                     metadata_field=metadata_field,

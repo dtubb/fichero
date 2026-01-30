@@ -439,12 +439,18 @@ async def process_vision(
 
             # Save to database
             if save_to_db and library_path:
+                # Set proper provider/model labels for local processing
+                save_config = effective_config
+                if vision_mode == "apple":
+                    from fichero.llm import LLMConfig
+                    save_config = LLMConfig(provider="Apple", model="Vision")
+
                 artifact_id = await save_artifact(
                     file_path=file_path,
                     content=text,
                     document_id=path_to_doc.get(file_path),
                     library_path=library_path,
-                    llm_config=effective_config,
+                    llm_config=save_config,
                     task_id=task_id,
                     tool_config=tool_config,
                     metadata_field=metadata_field,
