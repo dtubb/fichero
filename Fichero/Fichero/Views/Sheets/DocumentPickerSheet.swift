@@ -252,7 +252,6 @@ private struct DocumentPickerRow: View {
     )
     .environmentObject(LibraryManager.shared)
     .environmentObject(DocumentStore(
-        apiClient: LibraryManager.shared.globalLibrary!.apiClient,
-        libraryId: LibraryManager.globalLibraryId
+        apiClient: LibraryManager.shared.globalLibrary!.apiClient
     ))
 }
