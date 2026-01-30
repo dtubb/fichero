@@ -12,6 +12,8 @@ struct WorkflowChain: Identifiable, Codable, Equatable, Hashable {
     var initialInputs: [String: AnyCodableValue]
     var createdAt: Date
     var updatedAt: Date
+    var folderPath: String
+    var sortOrder: Int
 
     init(
         id: String = UUID().uuidString,
@@ -21,7 +23,9 @@ struct WorkflowChain: Identifiable, Codable, Equatable, Hashable {
         entryStep: String? = nil,
         initialInputs: [String: AnyCodableValue] = [:],
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        folderPath: String = "/",
+        sortOrder: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -31,6 +35,8 @@ struct WorkflowChain: Identifiable, Codable, Equatable, Hashable {
         self.initialInputs = initialInputs
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
     }
 
     enum CodingKeys: String, CodingKey {
@@ -39,6 +45,8 @@ struct WorkflowChain: Identifiable, Codable, Equatable, Hashable {
         case initialInputs = "initial_inputs"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case folderPath = "folder_path"
+        case sortOrder = "sort_order"
     }
 }
 

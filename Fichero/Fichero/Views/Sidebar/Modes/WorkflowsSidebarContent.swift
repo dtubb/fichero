@@ -164,10 +164,11 @@ struct WorkflowsSidebarContent: View {
         }
     }
 
-    /// Extract workflow items from a collection
+    /// Extract workflow and folder items from a collection
     private func workflowItems(from items: [SidebarItem]) -> [SidebarItem] {
         items.filter { item in
             if case .workflow = item.itemType { return true }
+            if case .folder = item.itemType { return true }  // Include folders for hierarchy
             return false
         }
     }

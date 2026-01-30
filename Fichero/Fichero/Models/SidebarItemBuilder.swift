@@ -248,9 +248,18 @@ enum SidebarItemBuilder {
         )
     }
 
-    /// Build chain items (flat list - chains don't have folder paths yet)
+    /// Build chain items with folder hierarchy
     static func buildChainItems(from chains: [WorkflowChain], libraryId: UUID) -> [SidebarItem] {
-        chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
+        return buildHierarchyFromPath(
+            items: chains,
+            libraryId: libraryId,
+            extractPath: { $0.folderPath },
+            extractSortOrder: { $0.sortOrder },
+            buildItem: { chain, _ in
+                SidebarItem.fromChain(chain, libraryId: libraryId)
+            },
+            category: .workflow  // Chains use same category as workflows
+        )
     }
 
     /// Build comparison items (flat list)
