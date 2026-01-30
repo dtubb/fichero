@@ -592,6 +592,14 @@
   - Files: WorkflowCanvasView.swift, WorkflowCanvasView+DropHandling.swift, WorkflowTypes.swift
   - Status: Completed - New nodes now inherit correct defaults based on tool category (audio→audioProvider/Model, vision→visionProvider/Model, etc.)
 
+- [x] TODO-132: Fix Artifact Labels for Local Processing (P1, High)
+  - Category: Backend
+  - Depends on: None
+  - Description: Artifacts from local processing (Apple Vision, Apple Speech, Local Whisper) had null provider/model fields
+  - Fix: Set proper provider/model labels before saving artifacts based on processing mode
+  - Files: audio_base.py (local_whisper→"Local"/"Whisper-{size}", apple_speech→"Apple"/"Speech Recognition"), vision_base.py (apple→"Apple"/"Vision")
+  - Status: Completed - All artifacts now properly labeled in UI regardless of processing engine
+
 ### Phase 10D: Frontend-Backend Sync Tests (P1, High)
 - [ ] TODO-116: Add Contract Tests for Generated Types (P1, High)
   - Category: Infrastructure
