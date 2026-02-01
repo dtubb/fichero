@@ -89,7 +89,7 @@
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
 		A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
 		A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */; };
-		A1624FD02F2ED23D0019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FF72F2EE5880019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
@@ -207,12 +207,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		A14AD1BC2F2E422C001CF205 /* CopyFiles */ = {
+		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
 			dstSubfolder = Resources;
 			files = (
-				A1624FD02F2ED23D0019C019 /* FicheroBackend.app in CopyFiles */,
+				A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */,
 			);
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -307,8 +307,8 @@
 		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
 		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
 		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
-		A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
 		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
+		A1624FF72F2EE5880019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
 		A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
 		A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
 		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
@@ -444,7 +444,7 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */,
+				A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
 				A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */,
 				A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */,
 				A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */,
@@ -878,7 +878,7 @@
 				510 /* Sources */,
 				300 /* Frameworks */,
 				520 /* Resources */,
-				A14AD1BC2F2E422C001CF205 /* CopyFiles */,
+				A1624FF62F2EE5710019C019 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -1329,9 +1329,7 @@
 		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
@@ -1365,9 +1363,7 @@
 		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
