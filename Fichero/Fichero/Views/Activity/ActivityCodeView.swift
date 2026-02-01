@@ -132,7 +132,7 @@ struct ActivityCodeView: View {
         isLoading = true
         error = nil
         do {
-            let activityService = try ActivityServiceGenerated(apiClient: apiClient)
+            let activityService = ActivityServiceGenerated(apiClient: apiClient)
             workflowRun = try await activityService.getWorkflowRun(threadId: threadId)
         } catch {
             self.error = error.localizedDescription

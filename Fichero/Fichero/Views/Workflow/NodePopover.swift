@@ -114,7 +114,7 @@ struct NodePopover: View {
         .onChange(of: visionMode) { _, newValue in
             // Load providers when switching to LLM mode
             if newValue == "llm" && providers.isEmpty {
-                Task {
+                Task { @MainActor in
                     await loadProviders()
                 }
             }

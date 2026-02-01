@@ -28,7 +28,7 @@ class SearchServiceGenerated: ObservableObject {
         limit: Int = 10,
         minScore: Double = 0.0,
         searchType: String = "hybrid",
-        filters: [String: Any]? = nil,
+        filters: [String: any Sendable]? = nil,
         sortBy: String = "relevance",
         sortDirection: String = "desc",
         offset: Int = 0
@@ -153,7 +153,7 @@ class SearchServiceGenerated: ObservableObject {
     func saveSearch(
         query: String,
         isSmartSearch: Bool = true,
-        filters: [String: Any]? = nil,
+        filters: [String: any Sendable]? = nil,
         searchType: String = "hybrid",
         sortBy: String = "relevance",
         sortDirection: String = "desc",
@@ -199,7 +199,7 @@ class SearchServiceGenerated: ObservableObject {
         searchId: String,
         query: String? = nil,
         isSmartSearch: Bool? = nil,
-        filters: [String: Any]? = nil,
+        filters: [String: any Sendable]? = nil,
         searchType: String? = nil,
         sortBy: String? = nil,
         sortDirection: String? = nil,
@@ -317,8 +317,8 @@ class SearchServiceGenerated: ObservableObject {
         useFuzzyMatch: Bool = false,
         highlightResults: Bool = true
     ) async throws -> SearchResponse {
-        // Convert [String: String] to [String: Any] for the generated API
-        let filtersAsAny: [String: Any]? = filters
+        // Convert [String: String] to [String: any Sendable] for the generated API
+        let filtersAsAny: [String: any Sendable]? = filters
 
         let response = try await search(
             query: query,
@@ -341,7 +341,7 @@ class SearchServiceGenerated: ObservableObject {
         // Convert filters_applied from OpenAPIObjectContainer to [String: String]
         var filtersApplied: [String: String]?
         if let filtersPayload = generated.filtersApplied,
-           let filtersDict = filtersPayload.additionalProperties.value as? [String: Any] {
+           let filtersDict = filtersPayload.additionalProperties.value as [String: any Sendable]? {
             var dict: [String: String] = [:]
             for (key, value) in filtersDict {
                 if let stringValue = value as? String {
@@ -370,7 +370,7 @@ class SearchServiceGenerated: ObservableObject {
     private func convertToManualSearchResult(_ generated: Components.Schemas.SearchResult) -> SearchResult {
         // Convert metadata from OpenAPIObjectContainer to [String: AnyCodable]
         var metadata: [String: AnyCodable] = [:]
-        if let metadataDict = generated.metadata.additionalProperties.value as? [String: Any] {
+        if let metadataDict = generated.metadata.additionalProperties.value as [String: any Sendable]? {
             for (key, value) in metadataDict {
                 metadata[key] = AnyCodable(value)
             }
@@ -392,7 +392,7 @@ class SearchServiceGenerated: ObservableObject {
         var indexedCount = 0
         var tableExists = false
 
-        if let dict = container.value as? [String: Any] {
+        if let dict = container.value as? [String: any Sendable] {
             if let count = dict["indexed_count"] as? Int {
                 indexedCount = count
             }
@@ -409,7 +409,7 @@ class SearchServiceGenerated: ObservableObject {
         var status = "unknown"
         var message: String?
 
-        if let dict = container.value as? [String: Any] {
+        if let dict = container.value as? [String: any Sendable] {
             if let statusValue = dict["status"] as? String {
                 status = statusValue
             }
@@ -426,7 +426,7 @@ class SearchServiceGenerated: ObservableObject {
         var documentId = defaultDocId
         var embedded = false
 
-        if let dict = container.value as? [String: Any] {
+        if let dict = container.value as? [String: any Sendable] {
             if let docId = dict["document_id"] as? String {
                 documentId = docId
             }

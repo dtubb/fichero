@@ -6,6 +6,7 @@ import OSLog
 ///
 /// This class handles macOS security-scoped bookmarks to persist folder access permissions
 /// across app launches. Required for accessing files outside the app's sandbox.
+@MainActor
 class FolderAccessManager: ObservableObject {
     static let shared = FolderAccessManager()
 

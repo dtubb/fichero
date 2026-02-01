@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 struct FicheroDocument: FileDocument, Codable {
     // MARK: - FileDocument Conformance
 
-    static var readableContentTypes: [UTType] = [.ficheroSession]
+    static let readableContentTypes: [UTType] = [.ficheroSession]
 
     // MARK: - Library Identity
 

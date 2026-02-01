@@ -200,7 +200,7 @@ struct ActivityDetailView: View {
         error = nil
 
         do {
-            let activityService = try ActivityServiceGenerated(apiClient: apiClient)
+            let activityService = ActivityServiceGenerated(apiClient: apiClient)
 
             // Load all activity events for this run
             // Prefer threadId (identifies a specific run) over workflowId

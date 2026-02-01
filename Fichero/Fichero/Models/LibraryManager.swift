@@ -24,6 +24,7 @@ class LibraryManager: ObservableObject {
 
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
+    @MainActor
     class LibraryReference: Identifiable, ObservableObject {
         let id: UUID
         let url: URL
@@ -53,7 +54,7 @@ class LibraryManager: ObservableObject {
         let chainService: ChainService
 
         // Security-scoped resource tracking
-        private var isAccessingSecurityScope: Bool = false
+        private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
 
         @MainActor
         init(
@@ -117,7 +118,7 @@ class LibraryManager: ObservableObject {
         }
 
         /// Start accessing the security-scoped resource
-        func startAccessingSecurityScope() {
+        nonisolated func startAccessingSecurityScope() {
             guard !isAccessingSecurityScope else { return }
             if url.startAccessingSecurityScopedResource() {
                 isAccessingSecurityScope = true
@@ -125,7 +126,7 @@ class LibraryManager: ObservableObject {
         }
 
         /// Stop accessing the security-scoped resource
-        func stopAccessingSecurityScope() {
+        nonisolated func stopAccessingSecurityScope() {
             guard isAccessingSecurityScope else { return }
             url.stopAccessingSecurityScopedResource()
             isAccessingSecurityScope = false
@@ -177,7 +178,7 @@ class LibraryManager: ObservableObject {
         logger.info("Loaded Global library at: \(globalURL.path)")
 
         // Initialize backend database, load data, then ensure Inbox folder exists
-        Task {
+        Task { @MainActor in
             await initializeBackendDatabase(for: library)
             await loadLibraryData(for: library)
             await ensureInboxFolder(for: library)
@@ -228,7 +229,7 @@ class LibraryManager: ObservableObject {
         saveOpenLibraryPaths()
 
         // Initialize the backend database connection, load data, and ensure Inbox
-        Task {
+        Task { @MainActor in
             await initializeBackendDatabase(for: library)
             await loadLibraryData(for: library)
             await ensureInboxFolder(for: library)
@@ -274,7 +275,7 @@ class LibraryManager: ObservableObject {
         logger.info("Created new unsaved library '\(displayName)' with APIClient-\(String(describing: clientId))")
 
         // Initialize the backend database, load data, and ensure Inbox
-        Task {
+        Task { @MainActor in
             await initializeBackendDatabase(for: library)
             await loadLibraryData(for: library)
             await ensureInboxFolder(for: library)
@@ -391,7 +392,7 @@ class LibraryManager: ObservableObject {
             // If we moved from temp, backend will reconnect automatically on next request
             // If we created new (Save As on already-saved library), initialize the database
             if !isTempLibrary {
-                Task {
+                Task { @MainActor in
                     await initializeBackendDatabase(for: library)
                 }
             }
@@ -476,24 +477,18 @@ class LibraryManager: ObservableObject {
 
     /// Load all data for a library (documents, searches, conversations, workflows)
     private func loadLibraryData(for library: LibraryReference) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                guard !Task.isCancelled else { return }
-                await library.documentStore.loadCollections()
-            }
-            group.addTask {
-                guard !Task.isCancelled else { return }
-                await library.workflowStore.loadWorkflows()
-            }
-            group.addTask {
-                guard !Task.isCancelled else { return }
-                try? await library.conversationServiceGenerated.loadConversations()
-            }
-            group.addTask {
-                guard !Task.isCancelled else { return }
-                try? await library.savedSearchServiceGenerated.loadSavedSearches()
-            }
-        }
+        guard !Task.isCancelled else { return }
+        await library.documentStore.loadCollections()
+
+        guard !Task.isCancelled else { return }
+        await library.workflowStore.loadWorkflows()
+
+        guard !Task.isCancelled else { return }
+        try? await library.conversationServiceGenerated.loadConversations()
+
+        guard !Task.isCancelled else { return }
+        try? await library.savedSearchServiceGenerated.loadSavedSearches()
+
         logger.info("Loaded all data for library: \(library.displayName)")
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 /// View shown when backend is not running
 struct BackendConnectionView: View {
     @ObservedObject var appState: AppState
+    @EnvironmentObject var backendService: EmbeddedBackendService
 
     var body: some View {
         VStack(spacing: 24) {
@@ -17,7 +18,21 @@ struct BackendConnectionView: View {
                 .fontWeight(.semibold)
 
             // Status message
-            if appState.isCheckingBackend {
+            if backendService.status == .starting {
+                // Backend is starting - show progress
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+
+                    Text("Starting backend server...")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("This may take 30-40 seconds on first launch")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } else if appState.isCheckingBackend {
                 ProgressView()
                     .scaleEffect(0.8)
                 Text("Checking backend connection...")

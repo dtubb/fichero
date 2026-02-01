@@ -34,7 +34,7 @@ class DocumentServiceGenerated: ObservableObject {
         logger.info("Creating collection: \(name)")
 
         // Build optional fields using additionalProperties
-        var optionalData: [String: Any] = [:]
+        var optionalData: [String: any Sendable] = [:]
         if let parentId = parentId { optionalData["parent_id"] = parentId }
 
         let container = try OpenAPIObjectContainer(unvalidatedValue: optionalData)
@@ -81,7 +81,7 @@ class DocumentServiceGenerated: ObservableObject {
         logger.info("Creating document: \(name)")
 
         // Build metadata and optional fields
-        var optionalData: [String: Any] = [:]
+        var optionalData: [String: any Sendable] = [:]
         if let parentId = parentId { optionalData["parent_id"] = parentId }
         if let metadata = metadata { optionalData["metadata"] = metadata }
 
@@ -242,7 +242,7 @@ class DocumentServiceGenerated: ObservableObject {
         logger.info("Updating document: \(id)")
 
         // Build all fields using additionalProperties
-        var data: [String: Any] = [:]
+        var data: [String: any Sendable] = [:]
         if let name = name { data["name"] = name }
         if let metadata = metadata { data["metadata"] = metadata }
 

@@ -4,6 +4,7 @@ import Combine
 import QuartzCore
 
 /// Performance monitoring and benchmarking service
+@MainActor
 class PerformanceService: ObservableObject {
 
     /// Container for benchmark statistics
@@ -229,7 +230,7 @@ class PerformanceService: ObservableObject {
 /// Performance benchmark helper class
 class PerformanceBenchmark {
     private let name: String
-    private let service: PerformanceService
+    private weak var service: PerformanceService?
     private let startTime: TimeInterval
 
     init(name: String, service: PerformanceService) {
@@ -238,16 +239,10 @@ class PerformanceBenchmark {
         self.startTime = CACurrentMediaTime()
     }
 
+    @MainActor
     func end() {
         let endTime = CACurrentMediaTime()
         let duration = endTime - startTime
-        service.recordBenchmark(name, duration: duration)
-    }
-
-    deinit {
-        // Automatically end benchmark if not manually ended
-        if startTime > 0 {
-            end()
-        }
+        service?.recordBenchmark(name, duration: duration)
     }
 }

@@ -6,29 +6,53 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppleScript
 
 // MARK: - Async Helper
 
+/// Thread-safe result box for runAsyncWithoutBlocking
+private final class ResultBox<T>: @unchecked Sendable {
+    private var result: Result<T, Error>?
+    private let lock = NSLock()
+
+    func set(_ newValue: Result<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        result = newValue
+    }
+
+    func get() -> Result<T, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
+}
+
+/// Sendable wrapper for CFRunLoop
+private struct SendableCFRunLoop: @unchecked Sendable {
+    let runLoop: CFRunLoop
+}
+
 /// Helper to run async code from synchronous AppleScript commands without blocking the main thread.
 /// Uses RunLoop to process events while waiting for the async operation to complete.
-private func runAsyncWithoutBlocking<T>(_ operation: @escaping () async throws -> T) throws -> T {
-    var result: Result<T, Error>?
+private func runAsyncWithoutBlocking<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) throws -> T {
+    let resultBox = ResultBox<T>()
     let runLoop = RunLoop.current
+    let sendableRunLoop = SendableCFRunLoop(runLoop: runLoop.getCFRunLoop())
 
-    Task {
+    Task { @MainActor in
         do {
             let value = try await operation()
-            result = .success(value)
+            resultBox.set(.success(value))
         } catch {
-            result = .failure(error)
+            resultBox.set(.failure(error))
         }
-        CFRunLoopStop(runLoop.getCFRunLoop())
+        CFRunLoopStop(sendableRunLoop.runLoop)
     }
 
     // Process events until the async operation completes
     // This allows the main thread to remain responsive
-    while result == nil {
+    while resultBox.get() == nil {
         runLoop.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
     }
 
-    switch result! {
+    switch resultBox.get()! {
     case .success(let value):
         return value
     case .failure(let error):
@@ -118,7 +142,7 @@ class FicheroRunWorkflowCommand: NSScriptCommand {
             return nil
         }
 
-        let inputs = evaluatedArguments?["inputs"] as? [String: Any] ?? [:]
+        let inputs = evaluatedArguments?["inputs"] as? [String: any Sendable] ?? [:]
 
         logger.info("AppleScript: run workflow \(workflowId)")
 
@@ -220,7 +244,7 @@ class FicheroRunChainCommand: NSScriptCommand {
             return nil
         }
 
-        let inputs = evaluatedArguments?["inputs"] as? [String: Any] ?? [:]
+        let inputs = evaluatedArguments?["inputs"] as? [String: any Sendable] ?? [:]
 
         logger.info("AppleScript: run chain \(chainId)")
 
@@ -365,6 +389,7 @@ class FicheroGetDocumentInfoCommand: NSScriptCommand {
 // MARK: - AppleScript Bridge
 
 /// Bridge to communicate with the Fichero backend API for AppleScript commands
+@MainActor
 class AppleScriptBridge {
     static let shared = AppleScriptBridge()
 
@@ -380,13 +405,13 @@ class AppleScriptBridge {
 
     // MARK: - Workflow Operations
 
-    func runWorkflow(workflowId: String, inputs: [String: Any]) async throws -> String {
+    func runWorkflow(workflowId: String, inputs: [String: any Sendable]) async throws -> String {
         let url = baseURL.appendingPathComponent("workflow-execution/execute")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body: [String: Any] = [
+        let body: [String: any Sendable] = [
             "workflow_id": workflowId,
             "inputs": inputs,
         ]
@@ -432,15 +457,15 @@ class AppleScriptBridge {
 
     // MARK: - Chain Operations
 
-    func runChain(chainId: String, inputs: [String: Any]) async throws -> String {
+    func runChain(chainId: String, inputs: [String: any Sendable]) async throws -> String {
         let url = baseURL.appendingPathComponent("chains/\(chainId)/execute")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body: [String: Any] = [
+        let body: [String: any Sendable] = [
             "inputs": inputs,
-            "input_files": [],
+            "input_files": [] as [String],
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -499,9 +524,9 @@ class AppleScriptBridge {
         return result?["id"] as? String ?? ""
     }
 
-    func getDocumentInfo(documentId: String) async throws -> [String: Any] {
+    func getDocumentInfo(documentId: String) async throws -> [String: any Sendable] {
         let url = baseURL.appendingPathComponent("documents/\(documentId)")
         let (data, _) = try await session.data(from: url)
-        return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        return try JSONSerialization.jsonObject(with: data) as? [String: any Sendable] ?? [:]
     }
 }

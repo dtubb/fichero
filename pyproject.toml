@@ -1,231 +1,110 @@
-# This project was generated with 0.3.23 using template: https://github.com/beeware/briefcase-template @ v0.3.23
+# =============================================================================
+# Fichero Backend - Briefcase Configuration
+# =============================================================================
+# This configuration builds a Python backend app that gets embedded inside the
+# Swift Fichero.app as a nested .app bundle.
+#
+# Development workflow:
+#   - Use `briefcase dev -a fichero-backend` for testing bundled backend
+#   - Use `uvicorn fichero.api.main:app --reload` for hot-reload development
+#
+# Production build:
+#   - Run: ./scripts/build_backend_bundle.sh
+#   - Output: build/fichero-backend/macos/app/FicheroBackend.app
+#   - This .app is copied into Fichero.app/Contents/Resources/ by Xcode
+# =============================================================================
+
 [tool.briefcase]
 project_name = "Fichero"
 bundle = "ca.tubb.fichero"
 version = "0.1.0.dev1"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
-author = "dtubb"
-author_email = "daniel@tuI addplease do``   bb.ca"
+author = "Daniel Tubb"
+author_email = "dtubb@me.com"
 
-# GUI Application
-[tool.briefcase.app.fichero]
-formal_name = "Fichero"
-description = "Document Processing and Transcription"
-long_description = """Fichero processes archival materials (documents in JPG, PDF, TIFF format), and crops, splits, enhances contrast, removes backgrounds, and then transcribes text using AI LLMs, before exporting them to Word documents.
-"""
-icon = "src/fichero/resources/icons/fichero"
+# =============================================================================
+# Briefcase App Definition - Embedded Backend
+# =============================================================================
+# This section defines the backend app that Briefcase will bundle.
+# The app is a headless FastAPI server (console_app=true, no GUI).
+#
+# Sources:
+#   - src/fichero: Main backend code (API, workflows, database, etc.)
+#   - src/fichero_backend: Briefcase entry point wrapper
+# =============================================================================
+
+[tool.briefcase.app.fichero-backend]
+formal_name = "FicheroBackend"
+description = "Backend API server for Fichero macOS app"
+long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
+console_app = true  # Headless app (no window, runs in background)
 sources = [
-    "src/fichero",
-    "src/fichero/resources",
+    "src/fichero",          # Main backend code
+    "src/fichero_backend",  # Briefcase entry point
 ]
-test_sources = [
-    "tests",
-]
-console_app = false
 requires = [
-    "toga-core>=0.5.1,<0.6.0",
-    # Core dependencies that work across all platforms
-    "python-dotenv>=1.0.0",
-    "Pillow>=10.0.0",
-    "numpy>=1.20.0",
-    "requests>=2.25.0",
-    "cryptography>=3.0.0",
-    "ruamel.yaml>=0.17.0",
-    "pathvalidate>=3.0.0",
-    "aiofiles>=24.0.0,<25.0.0",
-    "aiohttp>=3.8.0,<4.0.0",
-    # Data layer - Pydantic + DuckDB
-    "pydantic>=2.0.0,<3.0.0",
-    "duckdb>=1.0.0,<2.0.0",
-    # CLI dependencies moved to desktop-only platforms
-    # AI/ML dependencies for all platforms
-    "openai>=1.0.0",
-    "dashscope>=1.20.0",
-]
-test_requires = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",  # For FastAPI TestClient
-    #"openai>=1.86.0,<2.0.0",
-    #"pathvalidate>=3.2.3,<4.0.0",
-    #"cryptography>=45.0.0,<46.0.0",
-]
-
-# Platform-specific configurations for GUI
-[tool.briefcase.app.fichero.macOS]
-universal_build = false  # ARM64 only - opencv-python lacks x86_64 wheels for latest versions
-min_os_version = "14.0"  # Sonoma+ required for docling-parse wheels
-requirement_installer_args = ["--platform", "macosx_14_0_arm64"]
-requires = [
-    "toga-cocoa>=0.5.1,<0.6.0",
-    "toga>=0.5.1,<0.6.0",
-    "std-nslog~=1.0.3",
-    "pyobjc-core>=11.1",  # Core PyObjC support
-    "pyobjc-framework-Cocoa>=11.1",  # macOS system icons and UI integration
-    "rubicon-objc>=0.4.0,<1.0.0",  # Objective-C bridge for NSOutlineView sidebar
-    # CLI dependencies for macOS
-    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
-    "rich>=14.0.0,<15.0.0",
-    "srsly>=2.5.1,<3.0.0",
-    "tqdm>=4.67.1,<5.0.0",
-    # Document processing dependencies
-    "pdf2image>=1.17.0,<2.0.0",
-    "pymupdf>=1.25.0,<2.0.0",  # PDF page extraction
-    "exifread>=3.3.1,<4.0.0",
-    "python-docx>=1.1.2,<2.0.0",
-    "langchain>=0.3.25,<0.4.0",
-    "langchain-core>=0.3.79,<0.4.0",
-    "langgraph>=0.2.50",
-    "langchain-ollama>=0.3.3,<1.0.0",
-    "langchain-mcp-adapters>=0.2.0,<1.0.0",
-    "nest-asyncio>=1.6.0,<2.0.0",
-    # macOS-specific optional dependencies
-    "opencv-python",  # Generally works well on macOS
-    "rawpy>=0.25.0,<1.0.0",  # RAW image support
-    "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0", # OCR support
-    # Data layer dependencies (Pydantic + DuckDB + LanceDB)
-    "pydantic>=2.0.0,<3.0.0",  # Data models
-    "duckdb>=1.0.0,<2.0.0",  # Embedded analytical database
-    "lancedb>=0.25.0,<1.0.0",  # Vector DB with native Pydantic support
-    # Document extraction (PDFs, Office docs, EPUBs)
-    "kreuzberg>=0.5.0",  # Multi-format document extraction
-    "docling>=2.0.0",  # IBM structured document parser
-    # Embeddings for semantic search (ONNX-based, no scikit-learn)
-    "fastembed>=0.4.0",
-    # Local audio transcription
-    "openai-whisper>=20231117",
-    # AI/ML dependencies inherited from main requires
+    # FastAPI & Server
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "httpx",
+    # Data Layer
+    "pydantic",
+    "pydantic-settings",
+    "duckdb",
+    "lancedb",
+    # AI/LLM
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langgraph",
+    "langchain-ollama",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-google-genai",
+    "langchain-aws",
+    "langchain-cohere",
+    "langchain-mistralai",
+    "langchain-mcp-adapters",
+    "mcp",
+    "nest-asyncio",
+    "litellm",
+    "openai",
+    "dashscope",
+    # Document Processing
+    "Pillow",
+    "numpy",
+    "PyMuPDF",
+    "kreuzberg",
+    "fastembed",
+    "pyobjc-framework-Vision",
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-Cocoa",
+    # Utilities
+    "python-dotenv",
+    "pathvalidate",
+    "aiofiles",
+    "aiohttp",
+    "typer",
+    "rich",
+    "requests",
+    "cryptography",
+    "ruamel.yaml",
+    "apscheduler",
+    "watchdog",
 ]
 
-[tool.briefcase.app.fichero.linux]
-# Flatpak configuration for Linux packaging
-flatpak_sdk = "org.freedesktop.Sdk"
-flatpak_runtime = "org.freedesktop.Platform"
-flatpak_runtime_version = "24.08"
+[tool.briefcase.app.fichero-backend.macOS]
+universal_build = false  # arm64-only (Apple Silicon)
+min_os_version = "15.0"
 
-requires = [
-    "toga-gtk>=0.5.1,<0.6.0",
-    "toga>=0.5.1,<0.6.0",
-    "pygobject < 3.52.1",
-    # CLI dependencies for Linux
-    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
-    "rich>=14.0.0,<15.0.0",
-    "srsly>=2.5.1,<3.0.0",
-    "tqdm>=4.67.1,<5.0.0",
-    # Document processing dependencies
-    "pdf2image>=1.17.0,<2.0.0",
-    "exifread>=3.3.1,<4.0.0",
-    "python-docx>=1.1.2,<2.0.0",
-    "langchain>=0.3.25,<0.4.0",
-    "langchain-core>=0.3.79,<0.4.0",
-    "langgraph>=0.2.50",
-    "langchain-ollama>=0.3.3,<1.0.0",
-    "langchain-mcp-adapters>=0.2.0,<1.0.0",
-    "nest-asyncio>=1.6.0,<2.0.0",
-    # Linux-specific optional dependencies
-    "opencv-python",  # Generally works well on Linux
-    "rawpy>=0.25.0,<1.0.0",  # RAW image support
-    "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0",  # OCR support
-    # Data layer
-    "pydantic>=2.0.0,<3.0.0",
-    "duckdb>=1.0.0,<2.0.0",
-    "lancedb>=0.25.0,<1.0.0",
-    "kreuzberg>=0.5.0",
-    "docling>=2.0.0",  # IBM structured document parser
-    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
-    # AI/ML dependencies
-    "openai>=1.0.0",
-    "dashscope>=1.20.0",
-]
+# Entitlements for network server (listens on port 8765)
+entitlement."com.apple.security.network.server" = true
+entitlement."com.apple.security.network.client" = true
 
-# Flatpak finish arguments (permissions)
-# Explicitly ensure session-bus is available (Briefcase default is broken)
-finish_arg."socket=session-bus" = true
-
-[tool.briefcase.app.fichero.windows]
-requires = [
-    "toga-winforms>=0.5.1,<0.6.0",
-    "toga>=0.5.1,<0.6.0",
-    # CLI dependencies for Windows
-    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
-    "rich>=14.0.0,<15.0.0",
-    "srsly>=2.5.1,<3.0.0",
-    "tqdm>=4.67.1,<5.0.0",
-    # Document processing dependencies
-    "pdf2image>=1.17.0,<2.0.0",
-    "exifread>=3.3.1,<4.0.0",
-    "python-docx>=1.1.2,<2.0.0",
-    "langchain>=0.3.25,<0.4.0",
-    "langchain-ollama>=0.3.3,<1.0.0",
-    "nest-asyncio>=1.6.0,<2.0.0",
-    # Windows-specific optional dependencies
-    "opencv-python",  # Generally works well on Windows
-    "rawpy>=0.25.0,<1.0.0",  # RAW image support
-    "python-magic>=0.4.27,<1.0.0",  # File type detection
-    "pytesseract>=0.3.13,<1.0.0",  # OCR support
-    # Data layer
-    "pydantic>=2.0.0,<3.0.0",
-    "duckdb>=1.0.0,<2.0.0",
-    "lancedb>=0.25.0,<1.0.0",
-    "kreuzberg>=0.5.0",
-    "docling>=2.0.0",  # IBM structured document parser
-    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
-    # AI/ML dependencies
-    "openai>=1.0.0",
-    "dashscope>=1.20.0",
-]
-
-[tool.briefcase.app.fichero.iOS]
-bundle = "ca.tubb.fichero"
-requires = [
-    "toga-core>=0.5.1,<0.6.0",
-    "toga-iOS>=0.5.1,<0.6.0",
-    "toga>=0.5.1,<0.6.0",
-    # Core dependencies that work on iOS
-    "python-dotenv>=1.0.0",
-    "Pillow>=10.0.0",
-    "numpy>=1.20.0",
-    "requests>=2.25.0",
-    "cryptography>=3.0.0",
-    "ruamel.yaml>=0.17.0",
-    "pathvalidate>=3.0.0",
-    "aiofiles>=24.0.0,<25.0.0",
-    "aiohttp>=3.8.0,<4.0.0",
-    # Additional dependencies needed by core modules
-    # iOS-specific logging
-    "std-nslog~=1.0.3",
-]
-
-# Note: iOS excludes problematic dependencies like srsly, rich, typer, tqdm,
-# opencv-python, rawpy, python-magic, pytesseract, pdf2image, exifread,
-# python-docx, langchain, langchain-ollama, psutil, openai, dashscope
-
-[tool.briefcase.app.fichero.android]
-requires = [
-    "toga-android>=0.5.1,<0.6.0",
-    "toga-core>=0.5.1,<0.6.0",
-    # Core dependencies that work on Android (explicitly listed to avoid inheritance)
-    "python-dotenv>=1.0.0",
-    "Pillow>=10.0.0",
-    "numpy>=1.20.0",
-    "requests>=2.25.0",
-    "cryptography>=3.0.0",
-    "ruamel.yaml>=0.17.0",
-    "pathvalidate>=3.0.0",
-    "aiofiles>=24.0.0,<25.0.0",
-    "aiohttp>=3.8.0,<4.0.0",
-    # Explicitly exclude AI/ML dependencies that require Rust compilation
-    # Note: openai, dashscope, jiter are NOT included here
-    # Note: pyjnius excluded due to Python 3.10+ compatibility issues
-]
-
-# Note: Android excludes problematic dependencies that require Rust compilation
-# or native extensions: openai, dashscope, srsly, rich, typer, tqdm,
-# opencv-python, rawpy, python-magic, pytesseract, pdf2image, exifread,
-# python-docx, langchain, langchain-ollama
+# Hide backend from Dock (background-only app)
+info."LSUIElement" = true
 
 # Build system requirements
 [build-system]
@@ -238,46 +117,73 @@ where = ["src"]
 [tool.setuptools.package-data]
 fichero = ["resources/**/*"]
 
+# =============================================================================
+# Standard Python Package Configuration
+# =============================================================================
+# This section defines the package for pip installation and uvicorn development.
+# Used when running: uvicorn fichero.api.main:app --reload
+#
+# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.fichero-backend]
+# TOML doesn't support variable inheritance, so both sections must be maintained.
+# =============================================================================
+
 [project]
 name = "fichero"
 version = "0.1.0.dev1"
-description = "Document Processing and Transcription"
+description = "Backend API server for Fichero macOS app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "toga-core>=0.5.1,<0.6.0",
-    "python-dotenv>=1.0.0",
-    "Pillow>=10.0.0",
-    "numpy>=1.20.0",
-    "requests>=2.25.0",
-    "cryptography>=3.0.0",
-    "ruamel.yaml>=0.17.0",
-    "pathvalidate>=3.0.0",
-    "aiofiles>=24.0.0,<25.0.0",
-    "aiohttp>=3.8.0,<4.0.0",
-    "pydantic>=2.0.0,<3.0.0",
-    "duckdb>=1.0.0,<2.0.0",
-    "openai>=1.0.0",
-    "dashscope>=1.20.0",
-    "toga-cocoa>=0.5.1,<0.6.0",
-    "rubicon-objc>=0.4.0,<1.0.0",
-    "typer>=0.12.5,<1.0.0",  # Loosened for docling compatibility
-    "rich>=14.0.0,<15.0.0",
-    "lancedb>=0.25.0,<1.0.0",
-    "fastembed>=0.4.0",  # ONNX-based embeddings (no scikit-learn)
-    "kreuzberg>=0.5.0",
-    "docling>=2.0.0",
-    # FastAPI backend for SwiftUI frontend
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "python-multipart>=0.0.5",
-    # Unified LLM interface (100+ providers, cost tracking)
-    "litellm>=1.55.0",
-    # Local audio transcription (Whisper)
-    "openai-whisper>=20231117",
-    # Automation & Scheduling
-    "apscheduler>=3.10.0,<4.0.0",
-    "watchdog>=4.0.0,<5.0.0",
+    # Core utilities
+    "python-dotenv",
+    "pathvalidate",
+    "aiofiles",
+    "aiohttp",
+    # FastAPI backend for Swift frontend
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "httpx",
+    # Data layer
+    "pydantic",
+    "pydantic-settings",
+    "duckdb",
+    "lancedb",
+    # AI/LLM
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langgraph",
+    "langchain-ollama",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-google-genai",
+    "langchain-aws",
+    "langchain-cohere",
+    "langchain-mistralai",
+    "langchain-mcp-adapters",
+    "mcp",
+    "nest-asyncio",
+    "litellm",
+    "openai",
+    "dashscope",
+    # Document processing
+    "Pillow",
+    "numpy",
+    "PyMuPDF",
+    "kreuzberg",
+    "fastembed",
+    "pyobjc-framework-Vision",
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-Cocoa",
+    # Utilities
+    "typer",
+    "rich",
+    "requests",
+    "cryptography",
+    "ruamel.yaml",
+    "apscheduler",
+    "watchdog",
 ]
 
 [project.scripts]

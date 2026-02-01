@@ -118,7 +118,7 @@ struct DocumentPickerSheet: View {
     private func runBatch() {
         guard !selection.isEmpty else { return }
 
-        Task {
+        Task { @MainActor in
             await runBatchWorkflow(workflowId: workflowId, documentIds: Array(selection))
             dismiss()
         }
@@ -126,7 +126,7 @@ struct DocumentPickerSheet: View {
 
     @MainActor
     private func runBatchWorkflow(workflowId: String, documentIds: [String]) async {
-        guard let globalLibrary = libraryManager.globalLibrary else {
+        guard libraryManager.globalLibrary != nil else {
             print("Error: No global library available")
             return
         }

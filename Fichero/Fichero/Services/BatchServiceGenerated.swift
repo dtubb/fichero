@@ -42,7 +42,7 @@ class BatchServiceGenerated: ObservableObject {
     ///   - maxConcurrent: Maximum concurrent executions (1-50)
     func createBatch(
         workflowId: String,
-        items: [[String: Any]],
+        items: [[String: any Sendable]],
         maxConcurrent: Int = 5
     ) async throws -> Components.Schemas.BatchResponse {
         // Convert items to array of ItemsPayloadPayload
@@ -246,7 +246,7 @@ extension BatchServiceGenerated {
         let items: [BatchItemInfo]? = response.items?.map { item in
             // Convert inputs from InputsPayload (which has additionalProperties: OpenAPIObjectContainer) to [String: String]
             var converted: [String: String] = [:]
-            if let inputsDict = item.inputs.additionalProperties.value as? [String: Any] {
+            if let inputsDict = item.inputs.additionalProperties.value as [String: any Sendable]? {
                 for (key, value) in inputsDict {
                     if let str = value as? String {
                         converted[key] = str

@@ -6,6 +6,9 @@ import AppKit
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroApp")
 
+    // Backend service - manages embedded Python backend
+    @StateObject private var backendService = EmbeddedBackendService()
+
     // Backend connection state
     @StateObject private var appState = AppState()
     @StateObject private var viewSettings = ViewSettings()
@@ -15,6 +18,7 @@ struct FicheroApp: App {
 
     // Environment to open windows
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Restore libraries synchronously before any windows appear
@@ -48,9 +52,23 @@ struct FicheroApp: App {
         logger.info("Created new library: \(newLibrary.displayName)")
     }
 
+    @MainActor
+    private func showBackendError(_ error: Error) async {
+        let alert = NSAlert()
+        alert.messageText = "Backend Failed to Start"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Quit")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
             LibraryWindow()
+                .environmentObject(backendService)
                 .environmentObject(appState)
                 .environmentObject(viewSettings)
                 .environmentObject(libraryManager)
@@ -58,6 +76,17 @@ struct FicheroApp: App {
                 .frame(minWidth: 1100, minHeight: 700)
                 .onOpenURL { url in
                     handleOpenURL(url)
+                }
+                .task {
+                    // Start backend on app launch
+                    do {
+                        try await backendService.start()
+                        logger.info("Backend started successfully")
+                    } catch {
+                        logger.error("Failed to start backend: \(error.localizedDescription)")
+                        // Show error alert to user
+                        await showBackendError(error)
+                    }
                 }
         }
         .defaultSize(width: 1400, height: 900)
@@ -170,6 +199,13 @@ struct FicheroApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appState)
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .background {
+                // App going to background - stop backend gracefully
+                logger.info("App entering background, stopping backend...")
+                backendService.stop()
+            }
         }
     }
 }

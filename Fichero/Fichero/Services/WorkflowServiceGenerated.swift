@@ -25,7 +25,7 @@ class WorkflowServiceGenerated: ObservableObject {
     }
 
     /// Fetch the dynamic prompt for a tool based on config
-    func getToolPrompt(toolName: String, config: [String: Any]) async throws -> String? {
+    func getToolPrompt(toolName: String, config: [String: any Sendable]) async throws -> String? {
         // Build the request body
         let configContainer = try OpenAPIObjectContainer(unvalidatedValue: config)
 
@@ -239,7 +239,7 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("renameWorkflow: id=\(id), newName=\(newName), libraryPath=\(libraryPath)")
 
         // Build patch body using additionalProperties
-        let patchData: [String: Any] = ["name": newName]
+        let patchData: [String: any Sendable] = ["name": newName]
         let container = try OpenAPIObjectContainer(unvalidatedValue: patchData)
 
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
@@ -266,7 +266,7 @@ class WorkflowServiceGenerated: ObservableObject {
         sortOrder: Int? = nil
     ) async throws -> WorkflowResponse {
         // Build patch body with only non-nil fields
-        var patchData: [String: Any] = [:]
+        var patchData: [String: any Sendable] = [:]
         if let name = name { patchData["name"] = name }
         if let description = description { patchData["description"] = description }
         if let folderPath = folderPath { patchData["folder_path"] = folderPath }
@@ -328,8 +328,15 @@ class WorkflowServiceGenerated: ObservableObject {
         description: String = "",
         workflowData: [String: AnyCodable]
     ) async throws -> WorkflowResponse {
+        // Convert AnyCodable values to Sendable
+        // Note: Force cast is required - compiler warns it "always succeeds" but using 'as'
+        // gives error "type 'Any' does not conform to the 'Sendable' protocol"
+        // This is a known Swift 6 limitation with Any/Sendable type erasure
+        let sendableData: [String: any Sendable] = workflowData.mapValues { value -> any Sendable in
+            value.value as! any Sendable  // swiftlint:disable:this force_cast
+        }
         let dataContainer = try OpenAPIObjectContainer(
-            unvalidatedValue: workflowData.mapValues { $0.value }
+            unvalidatedValue: sendableData
         )
         let bodyPayload = Operations.ImportWorkflowApiWorkflowsImportPost.Input.Body.JsonPayload(
             additionalProperties: dataContainer
@@ -706,8 +713,8 @@ extension WorkflowServiceGenerated {
     }
 
     /// Convert AnyCodableValue dictionary to standard dictionary for OpenAPIObjectContainer
-    private func convertAnyCodableValueToDict(_ dict: [String: AnyCodableValue]) -> [String: Any] {
-        var result: [String: Any] = [:]
+    private func convertAnyCodableValueToDict(_ dict: [String: AnyCodableValue]) -> [String: any Sendable] {
+        var result: [String: any Sendable] = [:]
         for (key, value) in dict {
             switch value {
             case .string(let str): result[key] = str
@@ -722,7 +729,7 @@ extension WorkflowServiceGenerated {
         return result
     }
 
-    private func convertAnyCodableValueToAny(_ value: AnyCodableValue) -> Any {
+    private func convertAnyCodableValueToAny(_ value: AnyCodableValue) -> any Sendable {
         switch value {
         case .string(let str): return str
         case .int(let num): return num
@@ -774,8 +781,8 @@ extension WorkflowServiceGenerated {
 extension WorkflowServiceGenerated {
     private func convertObjectContainerToDict(
         _ container: OpenAPIRuntime.OpenAPIObjectContainer
-    ) -> [String: Any] {
-        return container.value as [String: Any]
+    ) -> [String: any Sendable] {
+        return container.value as [String: any Sendable]
     }
 
     private func convertObjectContainerToAnyCodableDict(
@@ -792,7 +799,7 @@ extension WorkflowServiceGenerated {
     }
 
     /// Convert Any value to AnyCodableValue (used for port default values)
-    private func convertAnyToAnyCodableValue(_ value: Any) -> AnyCodableValue {
+    private func convertAnyToAnyCodableValue(_ value: any Sendable) -> AnyCodableValue {
         switch value {
         case let str as String:
             return .string(str)
@@ -802,9 +809,9 @@ extension WorkflowServiceGenerated {
             return .double(num)
         case let bool as Bool:
             return .bool(bool)
-        case let arr as [Any]:
+        case let arr as [any Sendable]:
             return .array(arr.map { convertAnyToAnyCodableValue($0) })
-        case let dict as [String: Any]:
+        case let dict as [String: any Sendable]:
             var result: [String: AnyCodableValue] = [:]
             for (key, val) in dict {
                 result[key] = convertAnyToAnyCodableValue(val)

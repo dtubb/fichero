@@ -88,6 +88,8 @@
 		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
 		A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
+		A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */; };
+		A1624FD02F2ED23D0019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
@@ -204,6 +206,17 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A14AD1BC2F2E422C001CF205 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Resources;
+			files = (
+				A1624FD02F2ED23D0019C019 /* FicheroBackend.app in CopyFiles */,
+			);
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -292,7 +305,10 @@
 		A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
 		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
+		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
 		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
+		A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
+		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
 		A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
 		A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
 		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
@@ -428,6 +444,7 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
+				A1624FCF2F2ED23D0019C019 /* FicheroBackend.app */,
 				A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */,
 				A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */,
 				A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */,
@@ -441,6 +458,7 @@
 		410 /* Fichero */ = {
 			isa = PBXGroup;
 			children = (
+				A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */,
 				A1BFB2C72F042C0500EAA55A /* App */,
 				202 /* Fichero.entitlements */,
 				142 /* Fichero.sdef */,
@@ -627,6 +645,7 @@
 				IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */,
 				A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */,
 				A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */,
+				A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -859,6 +878,7 @@
 				510 /* Sources */,
 				300 /* Frameworks */,
 				520 /* Resources */,
+				A14AD1BC2F2E422C001CF205 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -1065,6 +1085,7 @@
 				A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */,
 				A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */,
 				A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */,
+				A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */,
 				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
 				A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */,
 				A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */,
@@ -1308,6 +1329,9 @@
 		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
@@ -1330,21 +1354,26 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.1.0.dev1;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.tubb.Fichero;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
 		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = Fichero/Fichero.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Fichero/FicheroRelease.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1363,11 +1392,12 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.1.0.dev1;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.tubb.Fichero;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -1384,7 +1414,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dtubb.FicheroTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Debug;
@@ -1402,7 +1432,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dtubb.FicheroTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Release;
@@ -1420,7 +1450,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dtubb.FicheroUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Debug;
@@ -1438,7 +1468,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dtubb.FicheroUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Release;
@@ -1452,7 +1482,7 @@
 				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
 				811 /* Release configuration for PBXNativeTarget "Fichero" */,
 			);
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		710 /* Build configuration list for PBXProject "Fichero" */ = {
 			isa = XCConfigurationList;
@@ -1460,7 +1490,7 @@
 				800 /* Debug configuration for PBXProject "Fichero" */,
 				801 /* Release configuration for PBXProject "Fichero" */,
 			);
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
@@ -1468,7 +1498,7 @@
 				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
 				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
 			);
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
@@ -1476,7 +1506,7 @@
 				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
 				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
 			);
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 

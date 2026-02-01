@@ -177,14 +177,15 @@ struct DraggableActionCard: View {
         .onDrag {
             isDragging = true
             // Record usage when dragged
-            Task {
+            Task { @MainActor in
                 await service.recordUse(action.id)
             }
             return NSItemProvider(object: ActionDragData(action: action))
         }
         .onChange(of: isDragging) { _, _ in
             // Reset dragging state after a delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.5))
                 isDragging = false
             }
         }

@@ -10,7 +10,7 @@ private let logger = Logger(subsystem: "com.fichero.app", category: "Sidebar")
 
 /// Environment key for automation refresh callback (used by editor views to trigger sidebar refresh)
 private struct AutomationRefreshKey: EnvironmentKey {
-    static let defaultValue: (() -> Void)? = nil
+    nonisolated(unsafe) static let defaultValue: (() -> Void)? = nil
 }
 
 extension EnvironmentValues {

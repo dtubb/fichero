@@ -302,6 +302,7 @@ class AutomationServiceGenerated: ObservableObject {
 
 // MARK: - App Type Convenience Methods
 
+@MainActor
 private let iso8601Formatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -356,7 +357,7 @@ extension AutomationServiceGenerated {
     private func convertToScheduleInfo(_ response: Components.Schemas.ScheduleResponse) -> ScheduleInfo {
         // Convert inputs from generated type to [String: String]
         var inputs: [String: String]?
-        if let inputsDict = response.inputs.additionalProperties.value as? [String: Any] {
+        if let inputsDict = response.inputs.additionalProperties.value as [String: any Sendable]? {
             var converted: [String: String] = [:]
             for (key, value) in inputsDict {
                 if let str = value as? String {
@@ -373,7 +374,7 @@ extension AutomationServiceGenerated {
         let genBatchItems = response.batchItems
         if !genBatchItems.isEmpty {
             let converted = genBatchItems.compactMap { item -> [String: String]? in
-                guard let itemDict = item.additionalProperties.value as? [String: Any] else { return nil }
+                guard let itemDict = item.additionalProperties.value as [String: any Sendable]? else { return nil }
                 var dict: [String: String] = [:]
                 for (key, value) in itemDict {
                     if let str = value as? String {
@@ -425,7 +426,7 @@ extension AutomationServiceGenerated {
     private func convertToTriggerInfo(_ response: Components.Schemas.TriggerResponse) -> TriggerInfo {
         // Convert inputs template
         var inputsTemplate: [String: String]?
-        if let templateDict = response.inputsTemplate.additionalProperties.value as? [String: Any] {
+        if let templateDict = response.inputsTemplate.additionalProperties.value as [String: any Sendable]? {
             var converted: [String: String] = [:]
             for (key, value) in templateDict {
                 if let str = value as? String {

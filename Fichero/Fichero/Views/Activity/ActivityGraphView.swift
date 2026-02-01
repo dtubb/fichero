@@ -229,7 +229,7 @@ struct ActivityGraphView: View {
         error = nil
 
         do {
-            let activityService = try ActivityServiceGenerated(apiClient: apiClient)
+            let activityService = ActivityServiceGenerated(apiClient: apiClient)
             history = try await activityService.getCheckpointHistory(threadId: threadId)
 
             // Auto-select first checkpoint with a node name, or the last one

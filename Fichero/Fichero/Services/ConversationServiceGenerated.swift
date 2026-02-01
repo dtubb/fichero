@@ -102,7 +102,7 @@ class ConversationServiceGenerated: ObservableObject {
         folderPath: String? = nil
     ) async throws -> ConversationAPI {
         // Build request using additionalProperties since fields are optional
-        var data: [String: Any] = [:]
+        var data: [String: any Sendable] = [:]
         if let title = title { data["title"] = title }
         if let folderPath = folderPath { data["folder_path"] = folderPath }
         let container = try OpenAPIObjectContainer(unvalidatedValue: data)
@@ -190,7 +190,7 @@ class ConversationServiceGenerated: ObservableObject {
 
     /// Parse untyped OpenAPI container to ConversationSummary
     private func parseConversationSummary(from container: OpenAPIObjectContainer) throws -> ConversationSummary {
-        let dict = container.value as [String: Any]
+        let dict = container.value as [String: any Sendable]
         guard let id = dict["id"] as? String,
               let title = dict["title"] as? String else {
             throw ConversationServiceError.invalidData
@@ -240,13 +240,13 @@ class ConversationServiceGenerated: ObservableObject {
 
     /// Parse untyped OpenAPI container to ConversationAPI
     private func parseConversationAPI(from container: OpenAPIObjectContainer) throws -> ConversationAPI {
-        let dict = container.value as [String: Any]
+        let dict = container.value as [String: any Sendable]
         guard let id = dict["id"] as? String,
               let title = dict["title"] as? String else {
             throw ConversationServiceError.invalidData
         }
 
-        let messages = dict["messages"] as? [[String: Any]] ?? []
+        let messages = dict["messages"] as? [[String: any Sendable]] ?? []
 
         return ConversationAPI(
             id: id,

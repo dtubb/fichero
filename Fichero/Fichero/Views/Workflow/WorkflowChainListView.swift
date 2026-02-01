@@ -490,8 +490,9 @@ struct NewChainSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         isCreating = true
+                        let localSteps = steps
                         Task {
-                            await onCreate(name, description, steps)
+                            await onCreate(name, description, localSteps)
                             dismiss()
                         }
                     }

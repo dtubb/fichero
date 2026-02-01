@@ -271,7 +271,8 @@ struct ZoomableImagePreview: View {
                 scale = fitScale
             }
             // Center the content after a brief delay to let the scale apply
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.25))
                 imageCoordinator?.centerContent()
             }
         }
@@ -414,7 +415,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             // Auto-show loupe at center when enabled and no position exists
             // Use slight delay to let view settle before drawing
             if loupeEnabled && imageView.loupePosition == nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak imageView] in
+                Task { @MainActor [weak imageView] in
+                    try? await Task.sleep(for: .milliseconds(50))
                     guard let imageView = imageView,
                           imageView.loupeEnabled,
                           imageView.loupePosition == nil else { return }
@@ -503,6 +505,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         var needsInitialCenter: Bool = false
         private var initialMagnification: CGFloat = 1.0
 
+        @MainActor
         @objc func boundsDidChange(_ notification: Notification) {
             updateVisibleRect()
         }
@@ -513,6 +516,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             return true
         }
 
+        @MainActor
         @objc func handleDoubleClick(_ gesture: NSClickGestureRecognizer) {
             guard let scrollView = scrollView else { return }
 
@@ -531,6 +535,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             }
         }
 
+        @MainActor
         @objc func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
             // Check if cursor is over loupe - if so, zoom the loupe instead of main image
             if let trackingView = imageView as? TrackingImageView,
@@ -559,6 +564,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         /// Scroll to a normalized position (0-1 coordinates)
+        @MainActor
         func scrollToNormalizedPosition(_ normalizedOrigin: CGPoint) {
             guard let scrollView = scrollView,
                   let imageView = imageView as? NSImageView,
@@ -581,6 +587,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 
+        @MainActor
         func updateVisibleRect() {
             guard let scrollView = scrollView,
                   let imageView = imageView as? NSImageView,
@@ -616,6 +623,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         /// Calculate the scale needed to fit the image in the scroll view
+        @MainActor
         func calculateFitScale() -> CGFloat? {
             guard let scrollView = scrollView,
                   let imageView = imageView as? NSImageView,
@@ -633,6 +641,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         /// Center the content in the scroll view
+        @MainActor
         func centerContent() {
             guard let scrollView = scrollView,
                   let imageView = imageView as? NSImageView,

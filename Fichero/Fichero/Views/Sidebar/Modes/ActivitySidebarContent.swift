@@ -148,7 +148,7 @@ struct ActivitySidebarContent: View {
 
             // Trigger parent to refresh history when a workflow completes (count decreases)
             if newCount < oldCount {
-                Task {
+                Task { @MainActor in
                     // Brief delay to let backend save activity record
                     try? await Task.sleep(for: .milliseconds(500))
                     onRefresh?()

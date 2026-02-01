@@ -126,7 +126,7 @@ struct LibraryView: View {
             WorkflowPickerSheet(
                 selectedDocumentIds: selectedDocumentIdsForBatch,
                 onSelect: { workflowId in
-                    Task {
+                    Task { @MainActor in
                         await runBatchWorkflow(workflowId: workflowId)
                     }
                 }
@@ -435,7 +435,7 @@ extension LibraryView {
         }
 
         // Get API client from environment
-        guard let globalLibrary = libraryManager.globalLibrary else {
+        guard libraryManager.globalLibrary != nil else {
             print("Error: No global library available")
             return
         }

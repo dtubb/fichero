@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "EmbeddedBackend")
@@ -9,7 +10,7 @@ final class EmbeddedBackendService: ObservableObject {
     @Published var status: BackendStatus = .stopped
     @Published var errorMessage: String?
 
-    private var process: Process?
+    private var backendPID: pid_t?
     private let backendURL = URL(string: "http://127.0.0.1:8765")!
 
     enum BackendStatus {
@@ -27,60 +28,67 @@ final class EmbeddedBackendService: ObservableObject {
         status = .starting
 
         #if DEBUG
-        // Development mode: expect external backend
+        // Development mode: Try external backend first, fall back to embedded
         logger.info("DEBUG mode: Checking for external backend on port 8765")
-        logger.info("Start backend with: PYTHONPATH=src uvicorn fichero.api.main:app --reload --port 8765")
 
         do {
-            try await waitForBackend(timeout: 3)
+            try await waitForBackend(timeout: 2)
             status = .running
             logger.info("Connected to external backend")
+            return
         } catch {
-            status = .failed
-            errorMessage = """
-            Backend not running. Please start it with:
-            cd \(FileManager.default.currentDirectoryPath)
-            PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
-            """
-            throw BackendError.notRunning
+            logger.info("No external backend found, launching embedded backend...")
         }
-        #else
-        // Production mode: launch embedded backend
+        #endif
+
+        // Launch embedded backend (DEBUG fallback or RELEASE always)
         try launchEmbeddedBackend()
         try await waitForBackend(timeout: 30)
         status = .running
         logger.info("Embedded backend started successfully")
-        #endif
     }
 
     /// Stop the embedded backend
     func stop() {
-        guard let process = process else { return }
-
-        logger.info("Stopping embedded backend...")
-
-        // Graceful shutdown
-        if process.isRunning {
-            process.terminate()
-
-            // Wait up to 5 seconds for graceful shutdown
-            DispatchQueue.global().async {
-                for _ in 0..<50 {
-                    if !process.isRunning {
-                        break
-                    }
-                    Thread.sleep(forTimeInterval: 0.1)
-                }
-
-                // Force kill if still running
-                if process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                }
-            }
+        guard let pid = backendPID else {
+            logger.info("No backend PID tracked, nothing to stop")
+            return
         }
 
-        self.process = nil
+        logger.info("Stopping embedded backend (PID: \(pid))...")
+
+        // Clear state immediately
+        backendPID = nil
         status = .stopped
+
+        // Graceful shutdown - send SIGTERM
+        kill(pid, SIGTERM)
+
+        // Wait up to 5 seconds for graceful shutdown in background
+        Task.detached {
+            for _ in 0..<50 {
+                // Check if process is still running
+                if kill(pid, 0) != 0 {
+                    // Process no longer exists
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+
+            // Force kill if still running
+            if kill(pid, 0) == 0 {
+                logger.warning("Backend didn't shut down gracefully, force killing...")
+                kill(pid, SIGKILL)
+            }
+        }
+    }
+
+    deinit {
+        // Clean up backend on service deallocation
+        if let pid = backendPID {
+            logger.info("EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
+            kill(pid, SIGTERM)
+        }
     }
 
     // MARK: - Private Helpers
@@ -90,63 +98,45 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.bundleNotFound
         }
 
-        let pythonPath = "\(resourcePath)/python/bin/python3"
-        let scriptPath = "\(resourcePath)/python/start_backend.py"
+        // Path to nested Briefcase backend app (arm64)
+        let backendAppPath = "\(resourcePath)/FicheroBackend.app"
 
-        // Check if files exist
-        guard FileManager.default.fileExists(atPath: pythonPath) else {
-            logger.error("Python executable not found at: \(pythonPath)")
-            throw BackendError.pythonNotFound
+        // Check if backend app exists
+        guard FileManager.default.fileExists(atPath: backendAppPath) else {
+            logger.error("Backend app not found at: \(backendAppPath)")
+            logger.error("Build backend with: ./scripts/build_backend_bundle.sh")
+            throw BackendError.backendAppNotFound
         }
 
-        guard FileManager.default.fileExists(atPath: scriptPath) else {
-            logger.error("Backend script not found at: \(scriptPath)")
-            throw BackendError.scriptNotFound
-        }
+        let backendAppURL = URL(fileURLWithPath: backendAppPath)
 
-        // Create process
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: pythonPath)
-        process.arguments = [scriptPath]
+        logger.info("Launching nested backend app at: \(backendAppPath)")
 
-        // Set up environment
-        var environment = ProcessInfo.processInfo.environment
-        environment["PYTHONHOME"] = "\(resourcePath)/python"
-        environment["PYTHONPATH"] = "\(resourcePath)/python/lib/python3.10/site-packages"
-        environment["TOKENIZERS_PARALLELISM"] = "false"
-        process.environment = environment
+        // Launch the nested Briefcase app using modern NSWorkspaceOpenConfiguration
+        // activates: false - Don't bring to front
+        // hides: true - Hide from Dock
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.hides = true
 
-        // Set up output pipes for logging
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
+        NSWorkspace.shared.openApplication(at: backendAppURL, configuration: configuration) { [weak self] app, error in
+            Task { @MainActor in
+                if let error = error {
+                    logger.error("Failed to launch backend app: \(error)")
+                    return
+                }
 
-        // Log backend output
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                logger.info("[Backend] \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
+                if let app = app {
+                    logger.info("Backend app launched successfully (PID: \(app.processIdentifier))")
+                    self?.backendPID = app.processIdentifier
+                }
             }
         }
-
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                logger.error("[Backend] \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
-            }
-        }
-
-        // Launch
-        logger.info("Launching Python backend at: \(pythonPath)")
-        try process.run()
-
-        self.process = process
     }
 
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
-        let healthURL = backendURL.appendingPathComponent("health")
+        let healthURL = backendURL.appendingPathComponent("api/health")
 
         while Date().timeIntervalSince(startTime) < timeout {
             if Task.isCancelled {
@@ -189,8 +179,8 @@ final class EmbeddedBackendService: ObservableObject {
 enum BackendError: LocalizedError {
     case notRunning
     case bundleNotFound
-    case pythonNotFound
-    case scriptNotFound
+    case backendAppNotFound
+    case launchFailed(Error)
     case timeout
 
     var errorDescription: String? {
@@ -199,10 +189,10 @@ enum BackendError: LocalizedError {
             return "Backend is not running"
         case .bundleNotFound:
             return "App bundle resources not found"
-        case .pythonNotFound:
-            return "Python interpreter not found in bundle"
-        case .scriptNotFound:
-            return "Backend script not found in bundle"
+        case .backendAppNotFound:
+            return "Backend app not found in bundle. Run: ./scripts/build_backend_bundle.sh"
+        case .launchFailed(let error):
+            return "Failed to launch backend app: \(error.localizedDescription)"
         case .timeout:
             return "Backend failed to start within timeout"
         }

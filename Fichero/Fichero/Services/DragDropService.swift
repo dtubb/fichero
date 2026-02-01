@@ -2,6 +2,40 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Combine
 
+/// Thread-safe array wrapper for concurrent operations
+actor ThreadSafeArray<T> {
+    private var array: [T] = []
+
+    func append(_ element: T) {
+        array.append(element)
+    }
+
+    func getAll() -> [T] {
+        return array
+    }
+
+    var isEmpty: Bool {
+        array.isEmpty
+    }
+}
+
+/// Thread-safe value wrapper for concurrent operations
+actor ThreadSafeValue<T> {
+    private var value: T
+
+    init(_ initialValue: T) {
+        self.value = initialValue
+    }
+
+    func set(_ newValue: T) {
+        self.value = newValue
+    }
+
+    func get() -> T {
+        return value
+    }
+}
+
 /// Service for handling drag and drop operations with proper synchronization and error handling
 @MainActor
 class DragDropService: ObservableObject {
@@ -31,13 +65,12 @@ class DragDropService: ObservableObject {
     }
 
     // MARK: - Chat Drop Handling
-    func handleChatDrop(providers: [NSItemProvider], completion: @escaping ([String]) -> Void) {
+    func handleChatDrop(providers: [NSItemProvider], completion: @escaping @Sendable ([String]) -> Void) {
         dragDropModel.startProcessing()
         self.benchmark = performanceService?.startBenchmark("chat_drop")
 
-        var documentIds: [String] = []
+        let documentIds = ThreadSafeArray<String>()
         let operationCount = providers.count
-        let operationQueue = DispatchQueue(label: "com.fichero.dragdrop.chat", attributes: .concurrent)
 
         // Track completed operations
         let completedOperations = AtomicInt(value: 0)
@@ -62,8 +95,9 @@ class DragDropService: ObservableObject {
                             self.dragDropModel.endProcessing()
                             self.benchmark?.end()
 
-                            if !documentIds.isEmpty {
-                                completion(documentIds)
+                            let ids = await documentIds.getAll()
+                            if !ids.isEmpty {
+                                completion(ids)
                             }
                         }
                     }
@@ -91,8 +125,8 @@ class DragDropService: ObservableObject {
                 }
 
                 // Thread-safe append
-                operationQueue.async(flags: .barrier) {
-                    documentIds.append(docId)
+                Task { @MainActor in
+                    await documentIds.append(docId)
                 }
             }
 
@@ -113,8 +147,9 @@ class DragDropService: ObservableObject {
                             self.dragDropModel.endProcessing()
                             self.benchmark?.end()
 
-                            if !documentIds.isEmpty {
-                                completion(documentIds)
+                            let ids = await documentIds.getAll()
+                            if !ids.isEmpty {
+                                completion(ids)
                             }
                         }
                     }
@@ -142,18 +177,18 @@ class DragDropService: ObservableObject {
                 }
 
                 // Thread-safe append
-                operationQueue.async(flags: .barrier) {
-                    documentIds.append(docId)
+                Task { @MainActor in
+                    await documentIds.append(docId)
                 }
             }
         }
     }
 
     // MARK: - Library Drop Handling
-    func handleLibrarySectionDrop(providers: [NSItemProvider], completion: @escaping (Bool) -> Void) {
+    func handleLibrarySectionDrop(providers: [NSItemProvider], completion: @escaping @Sendable (Bool) -> Void) {
         self.benchmark = performanceService?.startBenchmark("library_drop")
         let benchmark = performanceService?.startBenchmark("library_drop")
-        var handled = false
+        let handled = ThreadSafeValue<Bool>(false)
         let operationCount = providers.count
         let completedOperations = AtomicInt(value: 0)
 
@@ -175,7 +210,8 @@ class DragDropService: ObservableObject {
                         if completed == operationCount {
                             self.dragDropModel.endProcessing()
                             self.benchmark?.end()
-                            completion(handled)
+                            let wasHandled = await handled.get()
+                            completion(wasHandled)
                         }
                     }
                 }
@@ -203,9 +239,11 @@ class DragDropService: ObservableObject {
 
                 // Handle the file drop
                 Task { @MainActor in
-                    self.handleFileDropOnLibrary(url: url) { success in
+                    self.handleFileDropOnLibrary(url: url) { @MainActor success in
                         if success {
-                            handled = true
+                            Task { @MainActor in
+                                await handled.set(true)
+                            }
                             self.dragDropModel.incrementSuccessCount()
                         } else {
                             self.dragDropModel.incrementFailureCount()
@@ -225,9 +263,9 @@ class DragDropService: ObservableObject {
 
     // MARK: - File Drop Handling
     @MainActor
-    private func handleFileDropOnLibrary(url: URL, completion: @escaping (Bool) -> Void) {
+    private func handleFileDropOnLibrary(url: URL, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
 
-        Task {
+        Task { @MainActor in
             do {
                 // Import file as a top-level document (no parent)
                 if let importedDoc = try await documentStore?.importFile(at: url, parentId: nil) {

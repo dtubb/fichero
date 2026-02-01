@@ -116,7 +116,7 @@ class SavedSearchServiceGenerated: ObservableObject {
         folderPath: String? = nil
     ) async throws -> SavedSearchAPI {
         // Build request using additionalProperties since all fields are optional
-        var data: [String: Any] = [:]
+        var data: [String: any Sendable] = [:]
         if let query = query { data["query"] = query }
         if let isSmartSearch = isSmartSearch { data["is_smart_search"] = isSmartSearch }
         if let filters = filters { data["filters"] = filters }

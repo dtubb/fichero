@@ -206,7 +206,7 @@ class ErrorService: ObservableObject {
         recoveryAction: @escaping () async throws -> Void,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
-        Task {
+        Task { @MainActor in
             do {
                 try await recoveryAction()
                 logger.info("Successfully recovered from error: \(errorModel.id.uuidString, privacy: .public)")

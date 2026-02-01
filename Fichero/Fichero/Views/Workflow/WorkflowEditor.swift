@@ -80,7 +80,7 @@ struct WorkflowEditor: View {
                 onResetZoom: resetZoom,
                 onPreviewDiagram: {
                     // Auto-save before showing diagram preview
-                    Task {
+                    Task { @MainActor in
                         await saveWorkflow()
                         showDiagramPreview = true
                     }
@@ -190,7 +190,7 @@ struct WorkflowEditor: View {
 
         logger.info("Run workflow: \(editingWorkflow.name)")
 
-        Task {
+        Task { @MainActor in
             do {
                 // IMPORTANT: Save workflow before running to ensure backend has latest version
                 logger.info("Auto-saving workflow before execution...")
@@ -258,7 +258,7 @@ struct WorkflowEditor: View {
                     name: editingWorkflow.name,
                     threadId: threadId,
                     onCancel: { [weak workflowStreamService] in
-                        Task {
+                        Task { @MainActor in
                             try? await workflowStreamService?.stopWorkflow(threadId: threadId)
                         }
                     }
@@ -365,7 +365,7 @@ struct WorkflowEditor: View {
             showSaveSuccess = true
 
             // Hide success message after 2 seconds
-            Task {
+            Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { return }
                 showSaveSuccess = false
@@ -380,7 +380,7 @@ struct WorkflowEditor: View {
 
     private func exportWorkflow() {
         logger.info("Export workflow: \(editingWorkflow.name)")
-        Task {
+        Task { @MainActor in
             await WorkflowExporter.exportToFile(
                 editingWorkflow.id,
                 name: editingWorkflow.name,
@@ -814,7 +814,7 @@ struct WorkflowDiagramPreview: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Button("Retry") {
-                        Task {
+                        Task { @MainActor in
                             await loadContent()
                         }
                     }

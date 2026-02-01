@@ -441,7 +441,7 @@ extension ChatView {
         errorMessage = nil
         isLoading = true
 
-        Task {
+        Task { @MainActor in
             do {
                 Self.logger.info("Sending message: \(query)")
 

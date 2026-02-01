@@ -402,8 +402,8 @@ struct ActivityProgressView: View {
         defer { isLoadingTimeline = false }
 
         do {
-            let service = try ActivityServiceGenerated(apiClient: apiClient)
-            let run = try await service.getWorkflowRun(threadId: threadId)
+            let service = ActivityServiceGenerated(apiClient: apiClient)
+            _ = try await service.getWorkflowRun(threadId: threadId)
 
             // Convert progress timeline from dictionary to typed model
             // Note: progressTimeline may not be available in current backend schema

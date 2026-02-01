@@ -4,7 +4,6 @@ Unified media loader that routes to appropriate specialized loaders.
 Supported loaders:
 - IIIF: URL-based IIIF manifests
 - PDF: PyMuPDF for page rendering + text extraction
-- Docling: IBM's structured document parser (optional, for complex docs)
 - Image: PIL + rawpy + system tools for HEIC/JXL
 - Document: Kreuzberg for Office docs, EPUBs, plain text
 """
@@ -20,14 +19,19 @@ from fichero.loaders.pdf_loader import PDFLoader, PDF_FORMATS
 
 logger = logging.getLogger(__name__)
 
+# Docling disabled (requires PyTorch which dropped x86_64 macOS support in 2.6.0+)
 # Check for optional Docling
-try:
-    from fichero.loaders.docling_loader import DoclingLoader, DOCLING_FORMATS
-    _HAS_DOCLING = DoclingLoader.is_available()
-except ImportError:
-    _HAS_DOCLING = False
-    DoclingLoader = None
-    DOCLING_FORMATS = set()
+# try:
+#     from fichero.loaders.docling_loader import DoclingLoader, DOCLING_FORMATS
+#     _HAS_DOCLING = DoclingLoader.is_available()
+# except ImportError:
+#     _HAS_DOCLING = False
+#     DoclingLoader = None
+#     DOCLING_FORMATS = set()
+
+_HAS_DOCLING = False
+DoclingLoader = None
+DOCLING_FORMATS = set()
 
 
 class UnifiedLoader:
@@ -47,7 +51,7 @@ class UnifiedLoader:
         self,
         pdf_dpi: int = 300,
         iiif_max_dimension: int = 1500,
-        use_docling: bool = True,
+        # use_docling: bool = True,  # Disabled - requires PyTorch (no x86_64 wheels)
     ):
         """
         Initialize unified loader.
@@ -55,7 +59,6 @@ class UnifiedLoader:
         Args:
             pdf_dpi: Resolution for PDF page rendering
             iiif_max_dimension: Max dimension for IIIF image downloads
-            use_docling: If True (default) and Docling is available, use it for structured docs
         """
         self.loaders: list[MediaLoader] = [
             IIIFLoader(max_dimension=iiif_max_dimension),  # Check IIIF first (URL-based)
@@ -63,10 +66,11 @@ class UnifiedLoader:
             ImageLoader(),
         ]
 
-        # Add Docling before DocumentLoader if available (default: on)
-        if use_docling and _HAS_DOCLING and DoclingLoader:
-            self.loaders.append(DoclingLoader())
-            logger.info("Docling loader enabled for structured document parsing")
+        # Docling disabled (requires PyTorch which dropped x86_64 macOS support)
+        # # Add Docling before DocumentLoader if available (default: on)
+        # if use_docling and _HAS_DOCLING and DoclingLoader:
+        #     self.loaders.append(DoclingLoader())
+        #     logger.info("Docling loader enabled for structured document parsing")
 
         # DocumentLoader (Kreuzberg) handles everything else
         self.loaders.append(DocumentLoader())
@@ -139,9 +143,10 @@ class UnifiedLoader:
             "iiif": IIIFLoader,
         }
 
-        # Add Docling if available
-        if _HAS_DOCLING and DoclingLoader:
-            hint_map["docling"] = DoclingLoader
+        # Docling disabled (requires PyTorch which dropped x86_64 macOS support)
+        # # Add Docling if available
+        # if _HAS_DOCLING and DoclingLoader:
+        #     hint_map["docling"] = DoclingLoader
 
         loader_class = hint_map.get(hint.lower())
         if loader_class:

@@ -29,7 +29,7 @@ class ChatServiceGenerated: ObservableObject {
         model: String? = nil
     ) async throws -> ChatAPIResponse {
         // Build optional fields using additionalProperties
-        var optionalData: [String: Any] = [:]
+        var optionalData: [String: any Sendable] = [:]
         if let conversationId = conversationId { optionalData["conversation_id"] = conversationId }
         if let documentIds = documentIds { optionalData["document_ids"] = documentIds }
         if let provider = provider { optionalData["provider"] = provider }
@@ -78,7 +78,7 @@ class ChatServiceGenerated: ObservableObject {
     /// Extract text from documents (populates page_content for search/chat).
     func extractText(documentIds: [String]? = nil, force: Bool = false) async throws -> ExtractTextResponse {
         // Build request using additionalProperties since document_ids is optional
-        var data: [String: Any] = ["force": force]
+        var data: [String: any Sendable] = ["force": force]
         if let documentIds = documentIds { data["document_ids"] = documentIds }
 
         let container = try OpenAPIObjectContainer(unvalidatedValue: data)

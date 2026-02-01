@@ -136,7 +136,7 @@ extension ChatInspector {
                     } else {
                         showSearchResults = true
                         // Debounced search
-                        Task {
+                        Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             if searchText == newValue {
                                 await performSearch()

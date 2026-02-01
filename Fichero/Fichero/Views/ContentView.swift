@@ -380,7 +380,7 @@ struct ContentView: View {
 
                     HStack(spacing: 16) {
                         Button("Retry") {
-                            Task {
+                            Task { @MainActor in
                                 await appState.checkBackendHealth()
                             }
                         }
@@ -560,7 +560,7 @@ struct ContentView: View {
             if case .workflow(let oldWorkflow) = oldMode, let workflow = oldWorkflow {
                 // Capture the editing workflow content before it changes
                 let workflowToSave = editingWorkflow
-                Task {
+                Task { @MainActor in
                     await autoSaveWorkflow(workflowId: workflow.id, workflow: workflowToSave)
                 }
             }
@@ -569,7 +569,7 @@ struct ContentView: View {
             // Auto-save workflow when app quits
             if case .workflow(let workflow) = viewMode, let workflowItem = workflow {
                 let workflowToSave = editingWorkflow
-                Task {
+                Task { @MainActor in
                     await autoSaveWorkflow(workflowId: workflowItem.id, workflow: workflowToSave)
                 }
             }
@@ -820,7 +820,7 @@ extension ContentView {
     // MARK: - Conversations
 
     func refreshConversations() {
-        Task {
+        Task { @MainActor in
             do {
                 try await conversationService.loadConversations()
             } catch {
@@ -832,7 +832,7 @@ extension ContentView {
     // MARK: - Saved Searches
 
     func refreshSavedSearches() {
-        Task {
+        Task { @MainActor in
             do {
                 try await savedSearchService.loadSavedSearches()
             } catch {
@@ -853,7 +853,7 @@ extension ContentView {
             targetParentId = doc?.id
         }
 
-        Task {
+        Task { @MainActor in
             isImporting = true
             importError = nil
 
@@ -896,7 +896,7 @@ extension ContentView {
 
                 // Refresh collections to show newly imported items
                 if successCount > 0 {
-                    Task {
+                    Task { @MainActor in
                         await documentStore.loadCollections()
                         logger.info("Successfully imported \(successCount) file(s)")
                     }

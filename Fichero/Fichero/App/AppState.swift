@@ -48,7 +48,7 @@ class AppState: ObservableObject {
         self.mcpService = MCPService(apiClient: apiClient)
 
         // Check API health on launch
-        Task {
+        Task { @MainActor in
             await checkBackendHealth()
         }
     }
