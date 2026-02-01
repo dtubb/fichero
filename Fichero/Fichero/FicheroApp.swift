@@ -2,9 +2,25 @@ import SwiftUI
 import OSLog
 import AppKit
 
+// MARK: - App Delegate
+
+/// Custom AppDelegate to handle app lifecycle events (especially termination)
+final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroAppDelegate")
+    weak var backendService: EmbeddedBackendService?
+
+    func applicationWillTerminate(_ notification: Notification) {
+        logger.info("App will terminate - stopping backend...")
+        backendService?.stop()
+    }
+}
+
 @main
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroApp")
+
+    // App delegate for lifecycle events
+    @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
 
     // Backend service - manages embedded Python backend
     @StateObject private var backendService = EmbeddedBackendService()
@@ -18,7 +34,6 @@ struct FicheroApp: App {
 
     // Environment to open windows
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Restore libraries synchronously before any windows appear
@@ -78,6 +93,9 @@ struct FicheroApp: App {
                     handleOpenURL(url)
                 }
                 .task {
+                    // Connect backend service to app delegate for termination handling
+                    appDelegate.backendService = backendService
+
                     // Start backend on app launch
                     do {
                         try await backendService.start()
@@ -199,13 +217,6 @@ struct FicheroApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appState)
-        }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            if newPhase == .background {
-                // App going to background - stop backend gracefully
-                logger.info("App entering background, stopping backend...")
-                backendService.stop()
-            }
         }
     }
 }

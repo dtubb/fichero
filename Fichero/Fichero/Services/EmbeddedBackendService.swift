@@ -11,6 +11,7 @@ final class EmbeddedBackendService: ObservableObject {
     @Published var errorMessage: String?
 
     private var backendPID: pid_t?
+    private var isExternalBackend = false  // Track if using external vs embedded backend
     private let backendURL = URL(string: "http://127.0.0.1:8765")!
 
     enum BackendStatus {
@@ -34,10 +35,13 @@ final class EmbeddedBackendService: ObservableObject {
         do {
             try await waitForBackend(timeout: 2)
             status = .running
-            logger.info("Connected to external backend")
+            isExternalBackend = true
+            logger.info("✅ Connected to external backend (will not manage lifecycle)")
+            logger.warning("⚠️  External backend will NOT be stopped when app quits (user-managed)")
             return
         } catch {
             logger.info("No external backend found, launching embedded backend...")
+            isExternalBackend = false
         }
         #endif
 
@@ -50,12 +54,20 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// Stop the embedded backend
     func stop() {
-        guard let pid = backendPID else {
-            logger.info("No backend PID tracked, nothing to stop")
+        // Don't stop external backends (user-managed)
+        if isExternalBackend {
+            logger.info("🔌 Using external backend - leaving it running (user-managed)")
+            status = .stopped
             return
         }
 
-        logger.info("Stopping embedded backend (PID: \(pid))...")
+        guard let pid = backendPID else {
+            logger.info("ℹ️  No embedded backend PID tracked (may not have launched yet or using external)")
+            status = .stopped
+            return
+        }
+
+        logger.info("🛑 Stopping embedded backend (PID: \(pid))...")
 
         // Clear state immediately
         backendPID = nil
@@ -64,29 +76,40 @@ final class EmbeddedBackendService: ObservableObject {
         // Graceful shutdown - send SIGTERM
         kill(pid, SIGTERM)
 
-        // Wait up to 5 seconds for graceful shutdown in background
-        Task.detached {
-            for _ in 0..<50 {
-                // Check if process is still running
-                if kill(pid, 0) != 0 {
-                    // Process no longer exists
-                    break
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+        // Wait up to 5 seconds for graceful shutdown (synchronous)
+        // This must be synchronous so applicationWillTerminate waits for it
+        for attempt in 0..<50 {
+            // Check if process is still running
+            if kill(pid, 0) != 0 {
+                // Process no longer exists
+                logger.info("✅ Backend stopped gracefully after \(attempt * 100)ms")
+                return
             }
+            // Sleep for 100ms
+            Thread.sleep(forTimeInterval: 0.1)
+        }
 
-            // Force kill if still running
+        // Force kill if still running after 5 seconds
+        if kill(pid, 0) == 0 {
+            logger.warning("⚠️ Backend didn't shut down gracefully after 5s, force killing...")
+            kill(pid, SIGKILL)
+
+            // Give it one more second to die
+            Thread.sleep(forTimeInterval: 1.0)
+
             if kill(pid, 0) == 0 {
-                logger.warning("Backend didn't shut down gracefully, force killing...")
-                kill(pid, SIGKILL)
+                logger.error("❌ Failed to kill backend process (PID: \(pid))")
+            } else {
+                logger.info("✅ Backend force-killed successfully")
             }
         }
     }
 
     deinit {
-        // Clean up backend on service deallocation
-        if let pid = backendPID {
-            logger.info("EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
+        // Clean up backend on service deallocation (shouldn't happen in normal app lifecycle)
+        if let pid = backendPID, !isExternalBackend {
+            logger.warning("⚠️  EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
+            logger.warning("⚠️  This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
             kill(pid, SIGTERM)
         }
     }
@@ -98,40 +121,38 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.bundleNotFound
         }
 
-        // Path to nested Briefcase backend app (arm64)
+        // Path to nested Briefcase backend app's executable
         let backendAppPath = "\(resourcePath)/FicheroBackend.app"
+        let executablePath = "\(backendAppPath)/Contents/MacOS/FicheroBackend"
 
-        // Check if backend app exists
-        guard FileManager.default.fileExists(atPath: backendAppPath) else {
-            logger.error("Backend app not found at: \(backendAppPath)")
+        // Check if backend executable exists
+        guard FileManager.default.fileExists(atPath: executablePath) else {
+            logger.error("Backend executable not found at: \(executablePath)")
             logger.error("Build backend with: ./scripts/build_backend_bundle.sh")
             throw BackendError.backendAppNotFound
         }
 
-        let backendAppURL = URL(fileURLWithPath: backendAppPath)
+        logger.info("Launching backend process: \(executablePath)")
 
-        logger.info("Launching nested backend app at: \(backendAppPath)")
+        // Use Process for direct process control - much simpler than NSWorkspace
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = []
 
-        // Launch the nested Briefcase app using modern NSWorkspaceOpenConfiguration
-        // activates: false - Don't bring to front
-        // hides: true - Hide from Dock
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
-        configuration.hides = true
+        // Redirect output to /dev/null (or we could log it)
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
 
-        NSWorkspace.shared.openApplication(at: backendAppURL, configuration: configuration) { [weak self] app, error in
-            Task { @MainActor in
-                if let error = error {
-                    logger.error("Failed to launch backend app: \(error)")
-                    return
-                }
+        // Launch the process
+        try process.run()
 
-                if let app = app {
-                    logger.info("Backend app launched successfully (PID: \(app.processIdentifier))")
-                    self?.backendPID = app.processIdentifier
-                }
-            }
-        }
+        let pid = process.processIdentifier
+        logger.info("✅ Backend process launched successfully (PID: \(pid))")
+
+        // Store PID and process reference
+        backendPID = pid
+        isExternalBackend = false
+        logger.info("📍 Tracking embedded backend PID: \(pid)")
     }
 
     private func waitForBackend(timeout: TimeInterval) async throws {
