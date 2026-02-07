@@ -38,14 +38,16 @@ class AppState: ObservableObject {
     private let ficheroClient = FicheroClient()  // App-wide FicheroClient for generated services
     let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
+    let modelService: ModelService  // Public for @EnvironmentObject injection (HuggingFace browsing)
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppState")
 
     // MARK: - Initialization
 
     init() {
-        // Initialize services with app-wide FicheroClient
+        // Initialize services with app-wide clients
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
+        self.modelService = ModelService(apiClient: apiClient)
 
         // Check API health on launch
         Task { @MainActor in

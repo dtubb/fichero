@@ -22,6 +22,7 @@ struct ProvidersSettingsSheet: View {
             ProvidersView()
                 .environmentObject(appState)
                 .environmentObject(appState.providerService)
+                .environmentObject(appState.modelService)
         }
         .frame(width: 700, height: 500)
     }
