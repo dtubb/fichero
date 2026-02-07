@@ -733,7 +733,7 @@ def get_langchain_model(config: LLMConfig):
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
-            base_url=config.api_base or "https://api-inference.huggingface.co/v1",
+            base_url=config.api_base or "https://router.huggingface.co/v1",
             **common_params,
         )
     else:

@@ -91,7 +91,7 @@ api_servers:
     
   huggingface:
     api_key: ""
-    base_url: "https://api-inference.huggingface.co/v1"
+    base_url: "https://router.huggingface.co/v1"
 
   deepseek:
     api_key: ""
