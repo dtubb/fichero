@@ -139,6 +139,24 @@
 
 - [x] TODO-042: Plan Workflow Engine Development (P1, High)
   - Depends on: None
+- [x] TODO-144: Implement Hugging Face Thinking Models Support (P1, High)
+  - Category: Backend, AI
+  - Depends on: None
+  - Description: Add support for thinking/reasoning models (NuMarkdown, DeepSeek, Qwen) via HF Inference API
+  - Features implemented:
+    - parse_thinking_response() - Extract reasoning and answer from <think>/<answer> format
+    - is_thinking_model() - Auto-detect thinking models by name patterns
+    - vision_inference_api() - Direct HF Inference API integration with error handling
+    - Automatic routing in vision_base.py based on model name
+    - Updated HF provider description to mention thinking models
+  - Tests: 16 passing unit tests (8 parsing, 6 detection, 2 validation), 7 HTTP tests deferred to integration
+  - Files modified:
+    - src/fichero/llm.py (~120 lines added)
+    - src/fichero/workflows/tools/vision_base.py (~40 lines routing logic)
+    - src/fichero/providers.py (description update)
+    - tests/unit/test_llm.py (324 lines, comprehensive test coverage)
+  - Documentation: ai/tasks/huggingface-thinking-models-plan.md, ai/tasks/huggingface-thinking-models-summary.md
+  - Status: Backend complete, ready for manual testing with NuMarkdown model
 
 ## Infrastructure (Can be done in parallel) [P2]
 - [x] TODO-047: Fix XCTestPlan Configuration (P0, High)
@@ -663,6 +681,51 @@
   - Blocked until TODO-125 regenerates OpenAPI spec with correct types
 
 ### Sidebar UX Improvements (P1)
+- [x] TODO-141: Fix Workflow Sidebar ID Prefix Mismatch (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Fixed chain/comparison ID prefix mismatch causing selection state issues
+  - Changes:
+    - WorkflowsSidebarContent.swift: Changed "chain-" to "chain:" to match SidebarItem.fromChain()
+    - ChatSidebarContent.swift: Changed "comparison-" to "comparison:" to match SidebarItem.fromComparison()
+  - Files: WorkflowsSidebarContent.swift, ChatSidebarContent.swift
+  - Status: Completed - IDs now consistent with colon separator pattern
+
+- [x] TODO-142: Investigate Remaining Workflow Sidebar Alignment Issue (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-141
+  - Description: User reports workflows sidebar still "jumping to the right" despite ID prefix fix
+  - Root causes found:
+    1. WorkflowsSidebarContent used custom ChainSidebarRow instead of SidebarItemRow
+    2. ChatSidebarContent used custom ComparisonSidebarRow instead of SidebarItemRow
+    3. WorkflowInspector/ChainInspector width was 280pt (others 250pt) causing layout shifts
+    4. BatchesSidebarContent had ProgressView causing flicker when loading
+  - Fixes applied:
+    - Removed ChainSidebarRow, now uses SidebarItem.fromChain() + SidebarItemRow
+    - Removed ComparisonSidebarRow, now uses SidebarItem.fromComparison() + SidebarItemRow
+    - Standardized inspector widths to 250pt (ContentView.swift lines 311, 322)
+    - Fixed BatchesSidebarContent to show stable structure, moved loading check to empty state
+    - Deleted dead code: ActivityRunRow.swift
+    - Removed custom AccentColor.colorset for system color integration
+    - Updated SidebarSectionHeader.swift: .accent → Color.accentColor
+  - Files: WorkflowsSidebarContent.swift, ChatSidebarContent.swift, ContentView.swift, BatchesSidebarContent.swift, SidebarSectionHeader.swift
+  - Status: Completed - All sidebar modes now use consistent rendering pattern
+
+- [x] TODO-143: Make View Menu and Toolbar Context-Aware (P1, High)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Hide view/layout options that don't make sense for current mode
+  - Implementation:
+    - View menu (Icons/List/Table/Map): Only show for Library and Search modes
+    - Preview menu (None/Standard/Widescreen): Only show for Library, Search, and Chat modes
+    - Toolbar layout picker: Removed from Workflows mode
+  - Result by mode:
+    - Library/Search: All view options + layout options
+    - Chat: Layout options only
+    - Workflows/Batches/Automation/Activity: No view or layout options
+  - Files: ViewMenuCommands.swift, ContentView.swift
+  - Status: Completed - Context-aware menus using @FocusedValue(\.sidebarMode)
+
 - [ ] TODO-127: Universal Creation - Enable All Create Commands Everywhere (P1, High)
   - Category: Frontend
   - Depends on: None
@@ -690,3 +753,93 @@
   - Description: Add context menu, toolbar button, and menu item to trigger batch workflow execution
   - Files: DocumentBrowserView.swift, WorkflowDetailView.swift, FicheroApp.swift, WorkflowPickerSheet.swift
   - Status: Planned - task.md and context.md created
+
+### UI State Persistence (@SceneStorage) (P1)
+- [>] TODO-133: Test State Persistence - Selected Sidebar Item (P1, High)
+  - Category: Frontend, Infrastructure
+  - Depends on: None
+  - Description: Verify selectedSidebarItemId persists correctly across window close/reopen
+  - Test cases: Select document, close window, reopen → should restore selection
+  - Files: ContentView.swift (selectedSidebarItemId @SceneStorage)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-134: Test State Persistence - View Mode Restoration (P1, High)
+  - Category: Frontend, Infrastructure
+  - Depends on: None
+  - Description: Verify viewMode (AppViewMode enum) serializes/deserializes correctly
+  - Test cases:
+    - Library mode with document selected
+    - Workflow mode with workflow open
+    - Chat mode with conversation active
+    - Search mode with saved search
+  - Edge cases: Referenced object deleted, invalid UUID, nil references
+  - Files: ContentView.swift (restoreViewMode, serializeViewMode)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-135: Test State Persistence - Column Visibility (P1, Medium)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Verify panel visibility (sidebar/content/inspector) persists correctly
+  - Test cases: Hide inspector, close window, reopen → inspector should stay hidden
+  - Files: ContentView.swift (columnVisibilityRaw @SceneStorage)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-136: Test State Persistence - Browser Selection (P1, Medium)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Verify multi-document selection persists (Set<String> encoded to Data)
+  - Test cases: Select 3 documents, close window, reopen → all 3 should be selected
+  - Edge cases: Selected document deleted, corrupted Data encoding
+  - Files: ContentView.swift (browserSelectionData @SceneStorage with JSON encoding)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-137: Test Cross-Window State Isolation (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-133, TODO-134
+  - Description: Verify each window maintains independent state
+  - Test scenario:
+    - Open Window A → select Document X, Workflow mode
+    - Open Window B → select Document Y, Library mode
+    - Close both windows, reopen both
+    - Window A should restore Workflow/Document X
+    - Window B should restore Library/Document Y
+  - Files: ContentView.swift (@SceneStorage per-window behavior)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-138: Test Cross-Launch State Persistence (P1, High)
+  - Category: Frontend
+  - Depends on: TODO-133, TODO-134
+  - Description: Verify state persists after app quit and relaunch
+  - Test scenario:
+    - Set specific state (viewMode, selection, panels)
+    - Quit app completely (⌘Q)
+    - Relaunch app
+    - All state should be restored exactly as before
+  - Files: ContentView.swift (all @SceneStorage properties)
+  - Status: Implementation complete, needs manual testing
+
+- [ ] TODO-139: Handle State Persistence Edge Cases (P2, Medium)
+  - Category: Frontend
+  - Depends on: TODO-134
+  - Description: Gracefully handle corrupted or invalid persisted state
+  - Edge cases to test:
+    - ViewMode references deleted workflow/document/conversation
+    - Browser selection contains deleted document IDs
+    - Corrupted JSON data in browserSelectionData
+    - Invalid enum rawValue in columnVisibilityRaw
+  - Expected behavior: Fall back to safe defaults (library mode, no selection)
+  - Files: ContentView.swift (restorePersistedState, restoreViewMode)
+  - Status: Basic implementation complete, needs edge case testing
+
+- [ ] TODO-140: Document State Persistence Strategy (P2, Low)
+  - Category: Documentation
+  - Depends on: TODO-138
+  - Description: Document @SceneStorage implementation for future developers
+  - Content to document:
+    - Which state uses @SceneStorage vs @State vs @AppStorage
+    - How viewMode serialization works (type + ID pattern)
+    - How complex types are encoded (JSON to Data)
+    - Per-window vs app-wide state distinction
+    - How to add new persisted state
+  - Location: ai/contexts/frontend/ or docs/
+  - Status: Not started
