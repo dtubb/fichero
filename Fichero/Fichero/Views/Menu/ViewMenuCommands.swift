@@ -114,49 +114,64 @@ struct SidebarModeButton: View {
 // MARK: - Library Layout Section
 
 /// Library layout selection commands (Icons, List, Table, Map)
+/// Only shown for Library and Search modes
 struct LibraryLayoutSection: View {
     @ObservedObject var viewSettings: ViewSettings
+    @FocusedValue(\.sidebarMode) var sidebarMode
+
+    /// Only show view options for modes that need them (Library, Search)
+    private var shouldShowViewOptions: Bool {
+        guard let mode = sidebarMode?.wrappedValue else { return false }
+        switch mode {
+        case .library, .search:
+            return true
+        case .chat, .workflows, .automation, .batches, .activity:
+            return false
+        }
+    }
 
     var body: some View {
-        Section("View") {
-            LibraryLayoutButton(
-                layout: .icons,
-                label: "as Icons",
-                icon: "square.grid.2x2",
-                shortcut: "1",
-                current: viewSettings.libraryLayout
-            ) {
-                viewSettings.libraryLayout = .icons
-            }
+        if shouldShowViewOptions {
+            Section("View") {
+                LibraryLayoutButton(
+                    layout: .icons,
+                    label: "as Icons",
+                    icon: "square.grid.2x2",
+                    shortcut: "1",
+                    current: viewSettings.libraryLayout
+                ) {
+                    viewSettings.libraryLayout = .icons
+                }
 
-            LibraryLayoutButton(
-                layout: .list,
-                label: "as List",
-                icon: "list.bullet",
-                shortcut: "2",
-                current: viewSettings.libraryLayout
-            ) {
-                viewSettings.libraryLayout = .list
-            }
+                LibraryLayoutButton(
+                    layout: .list,
+                    label: "as List",
+                    icon: "list.bullet",
+                    shortcut: "2",
+                    current: viewSettings.libraryLayout
+                ) {
+                    viewSettings.libraryLayout = .list
+                }
 
-            LibraryLayoutButton(
-                layout: .table,
-                label: "as Table",
-                icon: "tablecells",
-                shortcut: "3",
-                current: viewSettings.libraryLayout
-            ) {
-                viewSettings.libraryLayout = .table
-            }
+                LibraryLayoutButton(
+                    layout: .table,
+                    label: "as Table",
+                    icon: "tablecells",
+                    shortcut: "3",
+                    current: viewSettings.libraryLayout
+                ) {
+                    viewSettings.libraryLayout = .table
+                }
 
-            LibraryLayoutButton(
-                layout: .map,
-                label: "as Map",
-                icon: "rectangle.3.group",
-                shortcut: "4",
-                current: viewSettings.libraryLayout
-            ) {
-                viewSettings.libraryLayout = .map
+                LibraryLayoutButton(
+                    layout: .map,
+                    label: "as Map",
+                    icon: "rectangle.3.group",
+                    shortcut: "4",
+                    current: viewSettings.libraryLayout
+                ) {
+                    viewSettings.libraryLayout = .map
+                }
             }
         }
     }
@@ -193,39 +208,54 @@ struct LibraryLayoutButton: View {
 // MARK: - Preview Mode Section
 
 /// Preview mode selection commands (None, Standard, Widescreen)
+/// Only shown for modes with preview panes (Library, Search, Chat)
 struct PreviewModeSection: View {
     @ObservedObject var viewSettings: ViewSettings
+    @FocusedValue(\.sidebarMode) var sidebarMode
+
+    /// Only show preview options for modes that have preview panes
+    private var shouldShowPreviewOptions: Bool {
+        guard let mode = sidebarMode?.wrappedValue else { return false }
+        switch mode {
+        case .library, .search, .chat:
+            return true
+        case .workflows, .automation, .batches, .activity:
+            return false
+        }
+    }
 
     var body: some View {
-        Section("Preview") {
-            PreviewModeButton(
-                mode: .none,
-                label: "None",
-                icon: "square",
-                shortcut: "5",
-                current: viewSettings.previewMode
-            ) {
-                viewSettings.previewMode = .none
-            }
+        if shouldShowPreviewOptions {
+            Section("Preview") {
+                PreviewModeButton(
+                    mode: .none,
+                    label: "None",
+                    icon: "square",
+                    shortcut: "5",
+                    current: viewSettings.previewMode
+                ) {
+                    viewSettings.previewMode = .none
+                }
 
-            PreviewModeButton(
-                mode: .standard,
-                label: "Standard",
-                icon: "rectangle.split.1x2",
-                shortcut: "6",
-                current: viewSettings.previewMode
-            ) {
-                viewSettings.previewMode = .standard
-            }
+                PreviewModeButton(
+                    mode: .standard,
+                    label: "Standard",
+                    icon: "rectangle.split.1x2",
+                    shortcut: "6",
+                    current: viewSettings.previewMode
+                ) {
+                    viewSettings.previewMode = .standard
+                }
 
-            PreviewModeButton(
-                mode: .widescreen,
-                label: "Widescreen",
-                icon: "rectangle.split.2x1",
-                shortcut: "7",
-                current: viewSettings.previewMode
-            ) {
-                viewSettings.previewMode = .widescreen
+                PreviewModeButton(
+                    mode: .widescreen,
+                    label: "Widescreen",
+                    icon: "rectangle.split.2x1",
+                    shortcut: "7",
+                    current: viewSettings.previewMode
+                ) {
+                    viewSettings.previewMode = .widescreen
+                }
             }
         }
     }

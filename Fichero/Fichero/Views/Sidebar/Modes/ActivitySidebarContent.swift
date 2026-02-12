@@ -266,6 +266,7 @@ struct ActivitySidebarContent: View {
         } label: {
             runRowLabel(run)
         }
+        .tag("run-\(run.id)")  // Tag on DisclosureGroup for List selection
     }
 
     @ViewBuilder
@@ -303,7 +304,6 @@ struct ActivitySidebarContent: View {
                     .font(.caption)
             }
         }
-        .tag("run-\(run.id)")
     }
 
     @ViewBuilder
@@ -378,15 +378,20 @@ private func runsByWorkflow(
     historicalRuns: [UUID: [ActivityItem]]
 ) -> [ActivityWorkflowGroup: [ActivityRun]] {
     var groups: [ActivityWorkflowGroup: [ActivityRun]] = [:]
+    var seenThreadIds = Set<String>()  // Track threadIds to avoid duplicates
 
     // Add active executions (currently all go to global library)
     if library.id == LibraryManager.globalLibraryId {
         for execution in activeExecutions.values {
             let workflowName = cleanWorkflowName(execution.name)
-            let groupKey = ActivityWorkflowGroup(id: execution.id, displayName: workflowName)
+            // Use consistent grouping logic with historical runs
+            let groupKey = ActivityWorkflowGroup(
+                id: ActivityWorkflowGroup.key(workflowId: execution.id, workflowName: workflowName),
+                displayName: workflowName
+            )
             let status = mapExecutionStatus(execution.status)
             let run = ActivityRun(
-                id: execution.threadId,
+                id: execution.threadId,  // Use threadId as ID for consistency
                 workflowId: execution.id,
                 threadId: execution.threadId,
                 workflowName: workflowName,
@@ -399,12 +404,21 @@ private func runsByWorkflow(
                 isLive: execution.isRunning
             )
             groups[groupKey, default: []].append(run)
+            seenThreadIds.insert(execution.threadId)  // Mark this threadId as seen
         }
     }
 
-    // Add historical runs for this library
+    // Add historical runs for this library (skip if already in active executions)
     let libraryRuns = historicalRuns[library.id] ?? []
     for item in libraryRuns where item.type != "workflow_started" {
+        // Skip items without threadId (shouldn't happen in normal operation)
+        guard let threadId = item.threadId else { continue }
+
+        // Skip if this execution is already shown as active
+        if seenThreadIds.contains(threadId) {
+            continue
+        }
+
         let status = mapActivityType(item.type)
         let workflowName = extractWorkflowName(from: item)
         let groupKey = ActivityWorkflowGroup(
@@ -412,9 +426,9 @@ private func runsByWorkflow(
             displayName: workflowName
         )
         let run = ActivityRun(
-            id: item.id,
+            id: threadId,  // Use threadId consistently
             workflowId: item.workflowId,
-            threadId: item.threadId,
+            threadId: threadId,
             workflowName: workflowName,
             timestamp: item.parsedTimestamp ?? Date(),
             status: status,
@@ -425,6 +439,7 @@ private func runsByWorkflow(
             isLive: false
         )
         groups[groupKey, default: []].append(run)
+        seenThreadIds.insert(threadId)
     }
 
     // Sort runs within each group by timestamp (newest first)

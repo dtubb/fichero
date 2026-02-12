@@ -40,6 +40,11 @@
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
+		200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF2B2F3D501800D7851A /* ContentView+State.swift */; };
+		200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */; };
+		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
+		200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
+		200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -54,7 +59,6 @@
 		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
 		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
-		A13E7C1C2F27E01E00EC9EE1 /* ActivityRunRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */; };
 		A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */; };
 		A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */; };
 		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
@@ -214,6 +218,7 @@
 			files = (
 				A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */,
 			);
+			runOnlyForDeploymentPostprocessing = 1;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -253,6 +258,11 @@
 		152 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
 		153 /* TriggerCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCreationSheet.swift; sourceTree = "<group>"; };
 		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
+		200BCF2B2F3D501800D7851A /* ContentView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+State.swift"; sourceTree = "<group>"; };
+		200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+ViewBuilders.swift"; sourceTree = "<group>"; };
+		200BCF372F3D548000D7851A /* ContentView+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Persistence.swift"; sourceTree = "<group>"; };
+		200BCF392F3D548000D7851A /* ContentView+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Navigation.swift"; sourceTree = "<group>"; };
+		200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Actions.swift"; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
@@ -272,7 +282,6 @@
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
-		A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRunRow.swift; sourceTree = "<group>"; };
 		A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivitySidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationSidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchesSidebarContent.swift; sourceTree = "<group>"; };
@@ -365,7 +374,7 @@
 		A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewContexts.swift; sourceTree = "<group>"; };
 		A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabView.swift; sourceTree = "<group>"; };
 		A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConnectionView.swift; sourceTree = "<group>"; };
-		A1BFB2F12F04420A00EAA55A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A1BFB2F12F04420A00EAA55A /* t must be i.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "t must be i.plist"; sourceTree = "<group>"; };
 		A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImageView.swift; sourceTree = "<group>"; };
 		A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckerboardPattern.swift; sourceTree = "<group>"; };
 		A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
@@ -458,15 +467,15 @@
 		410 /* Fichero */ = {
 			isa = PBXGroup;
 			children = (
-				A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */,
 				A1BFB2C72F042C0500EAA55A /* App */,
 				202 /* Fichero.entitlements */,
 				142 /* Fichero.sdef */,
 				101 /* FicheroApp.swift */,
-				A1BFB2F12F04420A00EAA55A /* Info.plist */,
+				A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */,
 				412 /* Models */,
 				414 /* Resources */,
 				413 /* Services */,
+				A1BFB2F12F04420A00EAA55A /* t must be i.plist */,
 				A1BFB4182F06A98700EAA55A /* Utilities */,
 				411 /* Views */,
 			);
@@ -485,6 +494,11 @@
 				4118 /* Chat */,
 				A1BFB2D62F042C6D00EAA55A /* Components */,
 				102 /* ContentView.swift */,
+				200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */,
+				200BCF392F3D548000D7851A /* ContentView+Navigation.swift */,
+				200BCF372F3D548000D7851A /* ContentView+Persistence.swift */,
+				200BCF2B2F3D501800D7851A /* ContentView+State.swift */,
+				200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */,
 				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
 				A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */,
 				A1A3AA352F11665B0021909D /* Integrations */,
@@ -495,10 +509,10 @@
 				4115 /* Search */,
 				4117 /* Settings */,
 				A1BFB2DB2F042E5100EAA55A /* Settings */,
+				A1D8BCE72F2CD054006D91D7 /* Sheets */,
 				4111 /* Sidebar */,
 				A1BFB4102F057C4000EAA55A /* Toolbars */,
 				4116 /* Workflow */,
-				A1D8BCE72F2CD054006D91D7 /* Sheets */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -680,7 +694,6 @@
 			isa = PBXGroup;
 			children = (
 				A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */,
-				A13E7C132F27E01E00EC9EE1 /* ActivityRunRow.swift */,
 				A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */,
 				A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */,
 				A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */,
@@ -941,7 +954,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1640;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					500 = {
 						CreatedOnToolsVersion = 15.1;
@@ -1010,7 +1023,6 @@
 				A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */,
 				A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */,
 				A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */,
-				A13E7C1C2F27E01E00EC9EE1 /* ActivityRunRow.swift in Sources */,
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
 				A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */,
@@ -1035,9 +1047,11 @@
 				001 /* FicheroApp.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
+				200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
 				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
+				200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */,
 				A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */,
 				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
@@ -1064,6 +1078,7 @@
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
 				038 /* WorkflowChain.swift in Sources */,
 				039 /* ChainService.swift in Sources */,
+				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
 				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
 				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
 				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
@@ -1125,6 +1140,7 @@
 				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
 				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
+				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
@@ -1139,6 +1155,7 @@
 				044 /* WorkflowServiceGenerated.swift in Sources */,
 				045 /* SavedSearchServiceGenerated.swift in Sources */,
 				046 /* ConversationServiceGenerated.swift in Sources */,
+				200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */,
 				047 /* ChatServiceGenerated.swift in Sources */,
 				049 /* DocumentServiceGenerated.swift in Sources */,
 				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
@@ -1242,6 +1259,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1265,6 +1283,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -1306,6 +1325,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1322,6 +1342,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -1329,19 +1350,23 @@
 		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = Fichero/Fichero.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Fichero/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1363,9 +1388,9 @@
 		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = Fichero/FicheroRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1375,9 +1400,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Fichero/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1403,7 +1431,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
@@ -1421,7 +1448,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
@@ -1439,7 +1465,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
@@ -1457,7 +1482,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;

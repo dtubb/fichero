@@ -44,8 +44,8 @@ struct ChatSidebarContent: View {
         .scrollContentBackground(.hidden)  // Transparent background for sidebar
         .onChange(of: selectedItemId) { _, newId in
             // When a comparison is selected, update viewMode
-            if let newId = newId, newId.hasPrefix("comparison-") {
-                let comparisonId = String(newId.dropFirst("comparison-".count))
+            if let newId = newId, newId.hasPrefix("comparison:") {
+                let comparisonId = String(newId.dropFirst("comparison:".count))
                 if let comparison = comparisons.first(where: { $0.id == comparisonId }) {
                     viewMode = .comparison(comparison)
                 }
@@ -60,7 +60,7 @@ struct ChatSidebarContent: View {
                         return false
                     }
                 let chatIds = Set(allChats.map { $0.id })
-                let comparisonIds = Set(comparisons.map { "comparison-\($0.id)" })
+                let comparisonIds = Set(comparisons.map { "comparison:\($0.id)" })
                 let validIds = chatIds.union(comparisonIds)
 
                 if !validIds.contains(selectedId) {
@@ -90,17 +90,18 @@ struct ChatSidebarContent: View {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {
             let chats = chatItems(from: libraryHeader.children ?? [])
+            // Convert comparisons to SidebarItems
+            let comparisonItems = comparisons.map { SidebarItem.fromComparison($0, libraryId: libraryId) }
+
+            // Combine chats and comparisons into a single array
+            let allItems = chats + comparisonItems
 
             // Library section - flat structure for proper List selection
             Section {
-                // Render chats directly (no DisclosureGroup nesting)
-                renderChatItems(chats)
-
-                // Render comparisons directly
-                renderComparisonItems()
+                renderItems(allItems)
 
                 // Empty state
-                if chats.isEmpty && comparisons.isEmpty && !isLoadingComparisons {
+                if allItems.isEmpty && !isLoadingComparisons {
                     Text("No conversations or comparisons yet")
                         .foregroundStyle(.secondary)
                         .font(.caption)
@@ -109,7 +110,7 @@ struct ChatSidebarContent: View {
             } header: {
                 LibrarySectionHeader(
                     library: library,
-                    itemCount: chats.count + comparisons.count,
+                    itemCount: allItems.count,
                     isCurrentLibrary: library.id == windowState.libraryId
                 )
             }
@@ -125,7 +126,7 @@ struct ChatSidebarContent: View {
     }
 
     @ViewBuilder
-    private func renderChatItems(_ items: [SidebarItem]) -> some View {
+    private func renderItems(_ items: [SidebarItem]) -> some View {
         ForEach(items) { item in
             SidebarItemRow(
                 item: item,
@@ -140,24 +141,6 @@ struct ChatSidebarContent: View {
                 libraryManager: libraryManager
             )
             .tag(item.id)
-        }
-    }
-
-    @ViewBuilder
-    private func renderComparisonItems() -> some View {
-        ForEach(comparisons) { comparison in
-            ComparisonSidebarRow(
-                comparison: comparison,
-                onViewDetails: { selected in
-                    // Select this comparison - detail view will show based on selection
-                    selectedItemId = "comparison-\(selected.id)"
-                },
-                onRerun: { toRerun in
-                    // TODO: Navigate to model comparison view with prompt pre-filled
-                    logger.info("Re-run comparison: \(toRerun.prompt)")
-                }
-            )
-            .tag("comparison-\(comparison.id)")
         }
     }
 
@@ -216,67 +199,6 @@ struct ComparisonHistoryResponse: Codable {
 // MARK: - Comparison Sidebar Row
 
 /// Row displaying a comparison in the sidebar
-struct ComparisonSidebarRow: View {
-    let comparison: ComparisonSummary
-    var onViewDetails: ((ComparisonSummary) -> Void)?
-    var onRerun: ((ComparisonSummary) -> Void)?
-    var onDelete: ((ComparisonSummary) -> Void)?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.left.arrow.right")
-                .foregroundStyle(.purple)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(truncatedPrompt)
-                    .lineLimit(1)
-
-                HStack(spacing: 4) {
-                    Text("\(comparison.modelsCompared.count) models")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-
-                    if comparison.totalCostUsd > 0 {
-                        Text("• $\(String(format: "%.4f", comparison.totalCostUsd))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .contextMenu {
-            Button {
-                onViewDetails?(comparison)
-            } label: {
-                Label("View Details", systemImage: "info.circle")
-            }
-
-            Button {
-                onRerun?(comparison)
-            } label: {
-                Label("Re-run", systemImage: "arrow.clockwise")
-            }
-
-            // Note: Delete is disabled - no backend endpoint exists yet
-            // Uncomment when DELETE /api/model-comparison/{id} is implemented
-            // Divider()
-            // Button(role: .destructive) {
-            //     onDelete?(comparison)
-            // } label: {
-            //     Label("Delete", systemImage: "trash")
-            // }
-        }
-    }
-
-    private var truncatedPrompt: String {
-        let prompt = comparison.prompt
-        if prompt.count > 40 {
-            return String(prompt.prefix(40)) + "..."
-        }
-        return prompt
-    }
-}
 
 #Preview {
     ChatSidebarContent(

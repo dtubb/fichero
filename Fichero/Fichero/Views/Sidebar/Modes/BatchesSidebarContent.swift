@@ -28,46 +28,48 @@ struct BatchesSidebarContent: View {
 
     var body: some View {
         List(selection: $selectedItemId) {
-            if isLoading && batches.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .listRowSeparator(.hidden)
-            } else {
-                // Always show all open libraries (Global first, then others)
-                ForEach(libraryManager.openLibraries, id: \.id) { library in
-                    let libraryBatches = batchesForLibrary(library)
-                    Section {
-                        // Build SidebarItems for consistent rendering
-                        let batchItems = libraryBatches.map { batch in
-                            SidebarItem.fromBatch(batch, libraryId: library.id)
-                        }
-
-                        ForEach(batchItems) { item in
-                            SidebarItemRow(
-                                item: item,
-                                allCachedItems: batchItems,
-                                expandedItems: Binding(
-                                    get: { sidebarState.expandedItems },
-                                    set: { sidebarState.expandedItems = $0 }
-                                ),
-                                selectedItemId: $selectedItemId,
-                                renameState: renameState,
-                                deleteState: deleteState,
-                                libraryManager: libraryManager,
-                                onAutomationPause: batchActionCallback(item, .pause),
-                                onAutomationResume: nil,  // Batches don't have resume
-                                onAutomationTrigger: nil,
-                                onAutomationCancel: batchActionCallback(item, .cancel)
-                            )
-                            .tag(item.id)
-                        }
-                    } header: {
-                        LibrarySectionHeader(
-                            library: library,
-                            itemCount: libraryBatches.count,
-                            isCurrentLibrary: library.id == windowState.libraryId
-                        )
+            // Always show all open libraries (Global first, then others)
+            ForEach(libraryManager.openLibraries, id: \.id) { library in
+                let libraryBatches = batchesForLibrary(library)
+                Section {
+                    // Build SidebarItems for consistent rendering
+                    let batchItems = libraryBatches.map { batch in
+                        SidebarItem.fromBatch(batch, libraryId: library.id)
                     }
+
+                    ForEach(batchItems) { item in
+                        SidebarItemRow(
+                            item: item,
+                            allCachedItems: batchItems,
+                            expandedItems: Binding(
+                                get: { sidebarState.expandedItems },
+                                set: { sidebarState.expandedItems = $0 }
+                            ),
+                            selectedItemId: $selectedItemId,
+                            renameState: renameState,
+                            deleteState: deleteState,
+                            libraryManager: libraryManager,
+                            onAutomationPause: batchActionCallback(item, .pause),
+                            onAutomationResume: nil,  // Batches don't have resume
+                            onAutomationTrigger: nil,
+                            onAutomationCancel: batchActionCallback(item, .cancel)
+                        )
+                        .tag(item.id)
+                    }
+
+                    // Empty state (only show when not loading)
+                    if batchItems.isEmpty && !isLoading {
+                        Text("No batches yet")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .padding(.vertical, 8)
+                    }
+                } header: {
+                    LibrarySectionHeader(
+                        library: library,
+                        itemCount: libraryBatches.count,
+                        isCurrentLibrary: library.id == windowState.libraryId
+                    )
                 }
             }
         }

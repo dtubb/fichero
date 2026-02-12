@@ -92,8 +92,8 @@ struct WorkflowsSidebarContent: View {
 
     private func handleSelectionChange(_ newId: String?) {
         // When a chain is selected, update viewMode
-        guard let newId = newId, newId.hasPrefix("chain-") else { return }
-        let chainId = String(newId.dropFirst("chain-".count))
+        guard let newId = newId, newId.hasPrefix("chain:") else { return }
+        let chainId = String(newId.dropFirst("chain:".count))
         if let chain = chains.first(where: { $0.id == chainId }) {
             viewMode = .chain(chain)
         }
@@ -102,7 +102,7 @@ struct WorkflowsSidebarContent: View {
     private func handleViewModeChange(_ newMode: AppViewMode) {
         // Sync viewMode -> selection
         if case .chain(let chain?) = newMode {
-            selectedItemId = "chain-\(chain.id)"
+            selectedItemId = "chain:\(chain.id)"
         }
     }
 
@@ -116,7 +116,7 @@ struct WorkflowsSidebarContent: View {
                 return false
             }
         let workflowIds = Set(allWorkflows.map { $0.id })
-        let chainIds = Set(chains.map { "chain-\($0.id)" })
+        let chainIds = Set(chains.map { "chain:\($0.id)" })
         let validIds = workflowIds.union(chainIds)
 
         if !validIds.contains(selectedId) {
@@ -131,33 +131,28 @@ struct WorkflowsSidebarContent: View {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {
             let workflows = workflowItems(from: libraryHeader.children ?? [])
-            // Filter chains by library (TODO: Backend should support library filtering)
-            let libraryChains = chains // For now show all chains under global library only
+            // Convert chains to SidebarItems (only in global library for now)
             let showChains = libraryId == LibraryManager.globalLibraryId
+            let chainItems = showChains ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) } : []
+
+            // Combine workflows and chains into a single array
+            let allItems = workflows + chainItems
 
             // Library section - flat structure for proper List selection
             Section {
-                // Render workflows directly (no DisclosureGroup nesting)
-                renderWorkflowItems(workflows)
-
-                // Render chains directly (only in global library for now)
-                if showChains {
-                    renderChainItems()
-                }
+                renderItems(allItems)
 
                 // Empty state
-                let chainCount = showChains ? libraryChains.count : 0
-                if workflows.isEmpty && chainCount == 0 {
+                if allItems.isEmpty {
                     Text("No workflows or chains yet")
                         .foregroundStyle(.secondary)
                         .font(.caption)
                         .padding(.vertical, 8)
                 }
             } header: {
-                let chainCount = showChains ? libraryChains.count : 0
                 LibrarySectionHeader(
                     library: library,
-                    itemCount: workflows.count + chainCount,
+                    itemCount: allItems.count,
                     isCurrentLibrary: library.id == windowState.libraryId
                 )
             }
@@ -174,7 +169,7 @@ struct WorkflowsSidebarContent: View {
     }
 
     @ViewBuilder
-    private func renderWorkflowItems(_ items: [SidebarItem]) -> some View {
+    private func renderItems(_ items: [SidebarItem]) -> some View {
         ForEach(items) { item in
             SidebarItemRow(
                 item: item,
@@ -189,30 +184,6 @@ struct WorkflowsSidebarContent: View {
                 libraryManager: libraryManager
             )
             .tag(item.id)
-        }
-    }
-
-    @ViewBuilder
-    private func renderChainItems() -> some View {
-        ForEach(chains) { chain in
-            ChainSidebarRow(
-                chain: chain,
-                onRename: { chainToRename in
-                    self.chainToRename = chainToRename
-                    chainRenameText = chainToRename.name
-                    showingChainRenameAlert = true
-                },
-                onExecute: { chainToExecute in
-                    Task {
-                        await executeChain(chainToExecute)
-                    }
-                },
-                onDelete: { chainToDelete in
-                    self.chainToDelete = chainToDelete
-                    showingChainDeleteConfirmation = true
-                }
-            )
-            .tag("chain-\(chain.id)")
         }
     }
 
@@ -256,54 +227,6 @@ struct WorkflowsSidebarContent: View {
             // TODO: Navigate to activity view to show execution progress
         } catch {
             logger.error("Failed to execute chain: \(error.localizedDescription)")
-        }
-    }
-}
-
-// MARK: - Chain Sidebar Row
-
-/// Row displaying a chain in the sidebar
-struct ChainSidebarRow: View {
-    let chain: WorkflowChain
-    var onRename: ((WorkflowChain) -> Void)?
-    var onExecute: ((WorkflowChain) -> Void)?
-    var onDelete: ((WorkflowChain) -> Void)?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "link")
-                .foregroundStyle(.blue)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(chain.name)
-                    .lineLimit(1)
-
-                Text("\(chain.steps.count) step\(chain.steps.count == 1 ? "" : "s")")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .contextMenu {
-            Button {
-                onRename?(chain)
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-
-            Button {
-                onExecute?(chain)
-            } label: {
-                Label("Execute", systemImage: "play.fill")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                onDelete?(chain)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
         }
     }
 }

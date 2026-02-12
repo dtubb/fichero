@@ -91,19 +91,19 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .icon: return "square.grid.2x2"
-        case .list: return "list.bullet"
-        case .table: return "tablecells"
-        case .map: return "map"
+        case .icon: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .table: "tablecells"
+        case .map: "map"
         }
     }
 
     var description: String {
         switch self {
-        case .icon: return "Grid of icons"
-        case .list: return "Linear list"
-        case .table: return "Table view"
-        case .map: return "Visual map"
+        case .icon: "Grid of icons"
+        case .list: "Linear list"
+        case .table: "Table view"
+        case .map: "Visual map"
         }
     }
 }

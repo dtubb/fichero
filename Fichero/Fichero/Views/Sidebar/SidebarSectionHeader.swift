@@ -61,7 +61,7 @@ struct LibrarySectionHeader: View {
             if isCurrentLibrary {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(Color.accentColor)
             }
 
             if library.id == LibraryManager.globalLibraryId {

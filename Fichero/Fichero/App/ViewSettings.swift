@@ -26,39 +26,39 @@ enum SidebarMode: String, CaseIterable {
     /// SF Symbol icon name for this mode
     var icon: String {
         switch self {
-        case .library: return "folder"
-        case .search: return "magnifyingglass"
-        case .chat: return "bubble.left.and.bubble.right"
-        case .workflows: return "bolt"
-        case .batches: return "shippingbox"
-        case .automation: return "gearshape.2"
-        case .activity: return "clock"
+        case .library: "folder"
+        case .search: "magnifyingglass"
+        case .chat: "bubble.left.and.bubble.right"
+        case .workflows: "bolt"
+        case .batches: "shippingbox"
+        case .automation: "gearshape.2"
+        case .activity: "clock"
         }
     }
 
     /// Display label for menus
     var label: String {
         switch self {
-        case .library: return "Library"
-        case .search: return "Search"
-        case .chat: return "Chat"
-        case .workflows: return "Workflows"
-        case .batches: return "Batches"
-        case .automation: return "Automation"
-        case .activity: return "Activity"
+        case .library: "Library"
+        case .search: "Search"
+        case .chat: "Chat"
+        case .workflows: "Workflows"
+        case .batches: "Batches"
+        case .automation: "Automation"
+        case .activity: "Activity"
         }
     }
 
     /// Keyboard shortcut number (1-7)
     var shortcutNumber: String {
         switch self {
-        case .library: return "1"
-        case .search: return "2"
-        case .chat: return "3"
-        case .workflows: return "4"
-        case .batches: return "5"
-        case .automation: return "6"
-        case .activity: return "7"
+        case .library: "1"
+        case .search: "2"
+        case .chat: "3"
+        case .workflows: "4"
+        case .batches: "5"
+        case .automation: "6"
+        case .activity: "7"
         }
     }
 }
@@ -72,10 +72,10 @@ enum LibraryLayout: String, CaseIterable, Codable {
 
     var icon: String {
         switch self {
-        case .icons: return "square.grid.2x2"
-        case .list: return "list.bullet"
-        case .table: return "tablecells"
-        case .map: return "rectangle.3.group"
+        case .icons: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .table: "tablecells"
+        case .map: "rectangle.3.group"
         }
     }
 }
