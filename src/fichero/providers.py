@@ -141,7 +141,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
     ProviderType.huggingface: ProviderInfo(
         type=ProviderType.huggingface,
         name="Hugging Face",
-        description="Inference API, Inference Endpoints, TGI",
+        description="Inference API with thinking models (NuMarkdown, DeepSeek, Qwen)",
         api_key_env="HUGGINGFACE_API_KEY",
         api_key_url="https://huggingface.co/settings/tokens",
         supports_vision=True,

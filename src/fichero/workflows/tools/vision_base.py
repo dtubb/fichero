@@ -423,13 +423,45 @@ async def process_vision(
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
                 image_uri = file_to_data_uri(file_path, max_dimension=max_image_dimension)
-                text = await vision(
-                    images=[image_uri],
-                    prompt=final_prompt,
-                    config=effective_config,
-                )
-                # Parse output according to format
-                parsed = parse_output(text, output_format, output_options)
+
+                # Check if we should use HF Inference API for thinking models
+                from fichero.llm import is_thinking_model, vision_inference_api, parse_thinking_response
+
+                if is_thinking_model(effective_config.model):
+                    # Use Inference API for thinking models
+                    logger.info(f"Using HF Inference API for thinking model: {effective_config.model}")
+                    try:
+                        text = await vision_inference_api(
+                            images=[image_uri],
+                            prompt=final_prompt,
+                            model=effective_config.model,
+                            api_key=effective_config.api_key,
+                            temperature=effective_config.temperature,
+                            max_tokens=effective_config.max_tokens,
+                        )
+
+                        # Parse thinking response
+                        answer, thinking = parse_thinking_response(text)
+
+                        # Log thinking process if present
+                        if thinking:
+                            logger.info(f"Model thinking process: {thinking[:200]}...")
+
+                        # Use answer for further processing
+                        parsed = parse_output(answer, output_format, output_options)
+
+                    except Exception as e:
+                        logger.error(f"HF Inference API failed: {e}")
+                        raise
+                else:
+                    # Use standard LangChain router for regular models
+                    text = await vision(
+                        images=[image_uri],
+                        prompt=final_prompt,
+                        config=effective_config,
+                    )
+                    # Parse output according to format
+                    parsed = parse_output(text, output_format, output_options)
 
             # Apply reference matching
             if reference_values:
