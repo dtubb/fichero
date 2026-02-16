@@ -8,6 +8,9 @@ ehthumbs.db
 Thumbs.db
 .vscode/
 .cursor/
+.idea/
+*.swp
+*.swo
 
 # Python
 __pycache__/
@@ -31,7 +34,6 @@ logs/
 **/.swiftpm/xcode/xcuserdata/
 fichero-swiftui/derived_data/
 fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app/
-
 # Local tooling
 .claude/
 .aider*
@@ -53,5 +55,3 @@ cpu_worker.log
 io_worker.log
 dump.rdb
 .empty/
-
-fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app/
