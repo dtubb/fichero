@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Scope: this is agent workflow guidance. User/developer run/build docs live in `README.md` and folder-level READMEs.
+
 ## Project Overview
 
 Fichero is a macOS document management application with AI processing capabilities. It uses a **hybrid architecture**:
@@ -15,7 +17,6 @@ Fichero is a macOS document management application with AI processing capabiliti
 
 ```bash
 # Start the FastAPI backend server (required for Swift app to function)
-cd /Users/danieltubb/code/fichero_main/fichero
 PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
@@ -28,7 +29,7 @@ The backend must be running on port 8765 before launching the Swift app.
 xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug
 
 # Run SwiftLint (code quality)
-swiftlint lint --path fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero-swiftui/fichero-swiftui/
 ```
 
 **Preferred method**: Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run (⌘R).
@@ -209,6 +210,7 @@ See `ai/tasks/TODO-125/` and `ai/tasks/TODO-126/` for current cleanup tasks.
 ## AI Task Management System
 
 This project uses a structured task management system in the `ai/` folder for organizing development work.
+Canonical AI workspace location: `ai/` at repository root.
 
 ### Directory Structure
 

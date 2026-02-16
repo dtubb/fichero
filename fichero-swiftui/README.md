@@ -19,7 +19,7 @@ xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -c
 From repo root:
 
 ```bash
-swiftlint lint --path fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero-swiftui/fichero-swiftui/
 ```
 
 ## Notes

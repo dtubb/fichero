@@ -35,3 +35,9 @@ When backend API routes or schemas change, regenerate and copy the OpenAPI schem
 ```bash
 ./fichero-api/scripts/sync_openapi_schema.sh
 ```
+
+## Clean local generated artifacts
+
+```bash
+./fichero-api/scripts/clean_local_artifacts.sh
+```

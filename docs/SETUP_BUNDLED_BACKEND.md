@@ -10,7 +10,7 @@ The following has been implemented:
 - ✅ Briefcase configuration in `pyproject.toml`
 - ✅ Build script (`fichero-api/scripts/build_backend_bundle.sh`)
 - ✅ Xcode copy script (`fichero-api/scripts/xcode_copy_backend.sh`)
-- ✅ Swift backend service (`fichero-swiftui/Services/EmbeddedBackendService.swift`)
+- ✅ Swift backend service (`fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`)
 - ✅ FicheroApp.swift updated to launch backend
 - ✅ Backend successfully built with Briefcase
 
@@ -18,7 +18,7 @@ The following has been implemented:
 
 ### Step 1: Add EmbeddedBackendService.swift to Xcode
 
-1. Open `fichero-swiftui.xcodeproj` in Xcode
+1. Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode
 2. In Project Navigator, locate `fichero-swiftui/Services/` folder
 3. **Right-click on Services folder** → Add Files to "Fichero"
 4. Navigate to: `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`
@@ -43,7 +43,7 @@ The following has been implemented:
    ```
 7. **Expand "Input Files"** and add:
    ```
-   ${PROJECT_DIR}/build/fichero-backend/macos/app/FicheroBackend.app
+   ${PROJECT_DIR}/../fichero-api/build/fichero-backend/macos/app/FicheroBackend.app
    ```
 8. **Expand "Output Files"** and add:
    ```
@@ -68,7 +68,6 @@ Build Phases
 Before building in Xcode, build the Python backend:
 
 ```bash
-cd /Users/danieltubb/code/fichero_main/fichero
 ./fichero-api/scripts/build_backend_bundle.sh
 ```
 
@@ -106,7 +105,7 @@ Next steps:
 
 **If build fails with "Backend bundle not found":**
 - Make sure you ran `./fichero-api/scripts/build_backend_bundle.sh` first
-- Check that `build/fichero-backend/macos/app/FicheroBackend.app` exists
+- Check that `fichero-api/build/fichero-backend/macos/app/FicheroBackend.app` exists
 
 ---
 
@@ -146,7 +145,6 @@ When running in DEBUG configuration:
 
 **Start external backend:**
 ```bash
-cd /Users/danieltubb/code/fichero_main/fichero
 PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
 ```
 
@@ -186,7 +184,7 @@ After setup, verify everything works:
 
 ### ✅ Backend Bundle Exists
 ```bash
-ls -lh "build/fichero-backend/macos/app/FicheroBackend.app"
+ls -lh "fichero-api/build/fichero-backend/macos/app/FicheroBackend.app"
 ```
 
 ### ✅ Backend Copied to App
@@ -224,7 +222,7 @@ curl http://127.0.0.1:8765/health
 
 **Fix:** Make sure script is executable:
 ```bash
-chmod +x scripts/xcode_copy_backend.sh
+chmod +x fichero-api/scripts/xcode_copy_backend.sh
 ```
 
 ### "Backend app not found in bundle"

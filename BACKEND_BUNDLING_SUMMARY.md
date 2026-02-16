@@ -15,7 +15,7 @@ All code for bundling the Python backend inside Fichero.app has been created and
    - `fichero-api/scripts/xcode_copy_backend.sh` - Copies backend into Swift app during build
 
 3. **Swift Integration**
-   - `fichero-swiftui/Services/EmbeddedBackendService.swift` - Manages backend lifecycle
+   - `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` - Manages backend lifecycle
    - Updated `FicheroApp.swift` - Launches backend on app startup
 
 4. **Configuration**
@@ -37,8 +37,8 @@ build/fichero-backend/macos/app/FicheroBackend.app
 ### Quick Setup (5 minutes)
 
 1. **Add Swift file to Xcode:**
-   - Open `fichero-swiftui.xcodeproj`
-   - Add `fichero-swiftui/Services/EmbeddedBackendService.swift` to project
+   - Open `fichero-swiftui/fichero-swiftui.xcodeproj`
+   - Add `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` to project
    - (Right-click Services folder → Add Files)
 
 2. **Add build script:**

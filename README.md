@@ -61,12 +61,16 @@ Document management and AI processing for macOS. Organize, search, chat, and run
 
 **Start the backend:**
 ```bash
-cd /Users/danieltubb/code/fichero_main/fichero
 PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 **Run the Swift app:**
 Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run.
+
+**Lint the Swift app:**
+```bash
+swiftlint lint fichero-swiftui/fichero-swiftui/
+```
 
 ## Features
 
@@ -113,6 +117,14 @@ docs = ingest_folder(
 
 - `fichero-api/` - Backend package and Briefcase config ([README](fichero-api/README.md))
 - `fichero-swiftui/` - SwiftUI app and Xcode project ([README](fichero-swiftui/README.md))
+- `ai/` - Canonical AI task/workflow workspace
+
+### Top-level folder ownership
+
+- `runtime`: `fichero-api/`, `fichero-swiftui/`
+- `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero-swiftui/derived_data/`
+- `reference`: `docs/`, `ai/`
+- `archive/delete-candidate`: moved under `/Users/danieltubb/code/fichero_main/to-delete/`
 
 ### Python Backend (`fichero-api/src/fichero/`)
 
@@ -152,3 +164,17 @@ Resources/         # Assets, config
 ```bash
 PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
 ```
+
+## Local cleanup
+
+```bash
+./fichero-api/scripts/clean_local_artifacts.sh
+```
+
+## Validation
+
+```bash
+./fichero-api/scripts/validate_repo.sh
+```
+
+See `docs/VALIDATION.md` for details and current known blockers.
