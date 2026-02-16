@@ -188,4 +188,10 @@ dependencies = [
 
 [project.scripts]
 fichero = "fichero.__main__:main"
-fichero-mcp = "fichero.mcp_server:main" 
+fichero-mcp = "fichero.mcp_server:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: mark async tests that run with the asyncio event loop",
+    "anyio: mark async tests compatible with anyio backends",
+]
