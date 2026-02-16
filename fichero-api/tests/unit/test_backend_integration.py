@@ -67,17 +67,20 @@ class TestDatabaseSearch:
             db.embed(doc)
 
         with patch.object(db, '_embed_text', return_value=[0.1] * 384):
-            results = db.search("employment terms")
+            results, total_count, _stats = db.search("employment terms")
 
         assert len(results) >= 1
+        assert total_count >= 1
         assert results[0].document_id == doc.id
         db.close()
 
     def test_search_empty_query_returns_empty(self, tmp_path):
         """Search with empty query returns empty list."""
         db = Database(tmp_path / "test.duckdb")
-        results = db.search("")
+        results, total_count, stats = db.search("")
         assert results == []
+        assert total_count == 0
+        assert stats.get("search_type") == "none"
         db.close()
 
     def test_embedding_stats(self, tmp_path):
