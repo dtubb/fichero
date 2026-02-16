@@ -22,6 +22,11 @@ from fichero.providers import PROVIDERS as PROVIDER_CATALOG, get_provider_info
 logger = logging.getLogger(__name__)
 
 
+def _safe_isoformat(value) -> str:
+    """Return ISO string when value behaves like datetime, else now."""
+    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+
+
 def _read_file_content(path: str | None, max_chars: int = 5000) -> str | None:
     """Read text content from file path.
 
@@ -430,8 +435,8 @@ async def duplicate_conversation(
         "id": new_conv.id,
         "title": new_conv.title,
         "message_count": len(new_conv.messages),
-        "created_at": new_conv.created_at.isoformat(),
-        "updated_at": new_conv.updated_at.isoformat(),
+        "created_at": _safe_isoformat(getattr(new_conv, "created_at", None)),
+        "updated_at": _safe_isoformat(getattr(new_conv, "updated_at", None)),
         "folder_path": new_conv.folder_path,
         "sort_order": new_conv.sort_order
     }

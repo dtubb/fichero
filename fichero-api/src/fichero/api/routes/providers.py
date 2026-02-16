@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _safe_isoformat(value) -> str:
+    """Return ISO string when value behaves like datetime, else current time."""
+    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+
+
 # =============================================================================
 # Dependencies
 # =============================================================================
@@ -614,7 +619,7 @@ async def create_provider(
         enabled=provider.enabled,
         sort_order=provider.sort_order,
         has_api_key=has_api_key(request.provider_type),
-        created_at=provider.created_at.isoformat(),
+        created_at=_safe_isoformat(getattr(provider, "created_at", None)),
     )
 
 
@@ -1321,5 +1326,4 @@ async def remove_model_from_provider(
 
     app_db.delete_model(model_id)
     return {"status": "deleted"}
-
 

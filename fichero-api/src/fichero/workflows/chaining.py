@@ -598,7 +598,9 @@ class ChainExecutor:
                             workflow_id=step.workflow_id,
                             status=ChainStepStatus.SKIPPED,
                         )
-                        result.step_results.append(step_result)
+                        step_results = list(result.step_results or [])
+                        step_results.append(step_result)
+                        result.step_results = step_results
 
                         await self._emit_event(ChainProgressEvent(
                             event_type=ChainEventType.STEP_SKIPPED,
@@ -627,7 +629,9 @@ class ChainExecutor:
                     execution_id=execution_id,
                     step_index=step_index,
                 )
-                result.step_results.append(step_result)
+                step_results = list(result.step_results or [])
+                step_results.append(step_result)
+                result.step_results = step_results
 
                 # Handle step failure
                 if step_result.status == ChainStepStatus.FAILED:

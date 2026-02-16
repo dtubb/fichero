@@ -64,7 +64,8 @@ class PDFLoader(MediaLoader):
         try:
             doc = fitz.open(str(path))
             metadata["page_count"] = len(doc)
-            metadata["pdf_metadata"] = dict(doc.metadata) if doc.metadata else {}
+            pdf_metadata = getattr(doc, "metadata", None)
+            metadata["pdf_metadata"] = dict(pdf_metadata) if pdf_metadata else {}
 
             # Calculate zoom factor for desired DPI (PyMuPDF default is 72 DPI)
             zoom = self.dpi / 72.0

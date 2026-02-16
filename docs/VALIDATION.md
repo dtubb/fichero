@@ -31,4 +31,4 @@ Current validation status:
 
 Pylint baseline policy:
 - `validate_repo.sh` runs `pylint --errors-only` with `fichero-api/.pylintrc`.
-- Current baseline disables only `no-member` to avoid false positives from dynamic frameworks.
+- Global `no-member` is not disabled; use narrow inline suppressions only for dynamic runtime APIs.

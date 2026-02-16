@@ -234,6 +234,7 @@ class FileWatcherManager:
         self._handlers: dict[str, FileWatchHandler] = {}
         self._pending_events: dict[str, list[tuple[str, str]]] = {}  # trigger_id -> [(event_type, path)]
         self._batch_tasks: dict[str, asyncio.Task] = {}
+        self._pending_tasks: dict[str, list[asyncio.Task]] = {}
 
         self._init_database()
 

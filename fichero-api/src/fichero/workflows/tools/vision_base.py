@@ -163,15 +163,15 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
             raise ValueError(f"CGImage creation failed: {image_path}")
 
         # Create text recognition request
-        request = Vision.VNRecognizeTextRequest.alloc().init()
-        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+        request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
 
         # Set language hints
         lang_map = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE", "pt": "pt-BR"}
         request.setRecognitionLanguages_([lang_map.get(language, language)])
 
         # Perform request
-        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, None)
+        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, None)  # pylint: disable=no-member
         success = handler.performRequests_error_([request], None)
 
         if not success:

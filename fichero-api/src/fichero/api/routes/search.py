@@ -6,6 +6,7 @@ Semantic search using LanceDB vector embeddings.
 
 import logging
 from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from pydantic import BaseModel
@@ -14,6 +15,11 @@ from fichero.db import Database, SearchResult
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _safe_isoformat(value) -> str:
+    """Return ISO string when value behaves like datetime, else now."""
+    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
 
 
 # Import the get_library_database dependency
@@ -218,7 +224,7 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
         sort_direction=saved.sort_direction,
         folder_path=saved.folder_path,
         sort_order=saved.sort_order,
-        created_at=saved.created_at.isoformat(),
+        created_at=_safe_isoformat(getattr(saved, "created_at", None)),
     )
 
 
@@ -237,7 +243,7 @@ async def list_saved_searches(db: Database = Depends(get_library_database)) -> L
             sort_direction=s.sort_direction,
             folder_path=s.folder_path,
             sort_order=s.sort_order,
-            created_at=s.created_at.isoformat(),
+            created_at=_safe_isoformat(getattr(s, "created_at", None)),
         )
         for s in searches
     ]
@@ -296,7 +302,7 @@ async def update_saved_search(
         sort_direction=saved.sort_direction,
         folder_path=saved.folder_path,
         sort_order=saved.sort_order,
-        created_at=saved.created_at.isoformat(),
+        created_at=_safe_isoformat(getattr(saved, "created_at", None)),
     )
 
 
@@ -332,7 +338,7 @@ async def duplicate_saved_search(search_id: str, db: Database = Depends(get_libr
         sort_direction=new_saved.sort_direction,
         folder_path=new_saved.folder_path,
         sort_order=new_saved.sort_order,
-        created_at=new_saved.created_at.isoformat(),
+        created_at=_safe_isoformat(getattr(new_saved, "created_at", None)),
     )
 
 

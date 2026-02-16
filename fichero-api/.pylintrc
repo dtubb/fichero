@@ -1,4 +1,3 @@
 [MESSAGES CONTROL]
-# Baseline policy: keep errors-only checks strict, but ignore no-member false
-# positives from dynamic frameworks (Pydantic v2 FieldInfo, PyObjC, etc.).
-disable=no-member
+# Keep global checks strict; prefer targeted inline suppressions only when
+# dynamic runtime frameworks (e.g., PyObjC Vision APIs) cannot be statically inferred.

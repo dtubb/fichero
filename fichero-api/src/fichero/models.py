@@ -142,20 +142,27 @@ class Document(BaseModel):
     # Typed accessors for common metadata
     # =========================================================================
 
+    def _metadata_value(self, key: str, default: Any = None) -> Any:
+        """Read metadata values defensively for static analyzers and runtime safety."""
+        metadata = self.__dict__.get("metadata")
+        if not isinstance(metadata, dict):
+            return default
+        return metadata.get(key, default)
+
     @property
     def source_type(self) -> str:
         """Source type: 'local', 'iiif', 'url', 's3'."""
-        return self.metadata.get("source_type", "local")
+        return self._metadata_value("source_type", "local")
 
     @property
     def source_url(self) -> str | None:
         """Original URL if imported from remote source."""
-        return self.metadata.get("source_url")
+        return self._metadata_value("source_url")
 
     @property
     def derived_from(self) -> str | None:
         """ID of document this was derived from (e.g., PDF → extracted page)."""
-        return self.metadata.get("derived_from")
+        return self._metadata_value("derived_from")
 
     @property
     def thumbnail_path(self) -> str | None:
@@ -178,47 +185,47 @@ class Document(BaseModel):
     @property
     def full_path(self) -> str | None:
         """Path to full-resolution file in library."""
-        return self.metadata.get("full_path")
+        return self._metadata_value("full_path")
 
     @property
     def checksum(self) -> str | None:
         """File checksum (sha256)."""
-        return self.metadata.get("checksum")
+        return self._metadata_value("checksum")
 
     @property
     def file_size(self) -> int | None:
         """File size in bytes."""
-        return self.metadata.get("file_size")
+        return self._metadata_value("file_size")
 
     @property
     def width(self) -> int | None:
         """Image/video width in pixels."""
-        return self.metadata.get("width")
+        return self._metadata_value("width")
 
     @property
     def height(self) -> int | None:
         """Image/video height in pixels."""
-        return self.metadata.get("height")
+        return self._metadata_value("height")
 
     @property
     def duration(self) -> float | None:
         """Audio/video duration in seconds."""
-        return self.metadata.get("duration")
+        return self._metadata_value("duration")
 
     @property
     def page_count(self) -> int | None:
         """Number of pages (for PDFs)."""
-        return self.metadata.get("page_count")
+        return self._metadata_value("page_count")
 
     @property
     def iiif_manifest(self) -> str | None:
         """IIIF manifest URL."""
-        return self.metadata.get("iiif_manifest")
+        return self._metadata_value("iiif_manifest")
 
     @property
     def iiif_canvas_id(self) -> str | None:
         """IIIF canvas identifier."""
-        return self.metadata.get("iiif_canvas_id")
+        return self._metadata_value("iiif_canvas_id")
 
     # =========================================================================
     # Storage paths (computed from storage module)
@@ -281,7 +288,7 @@ class Document(BaseModel):
         Bookmarks survive file moves/renames and work in sandboxed apps.
         Returns decoded bytes from base64-encoded metadata.
         """
-        b64 = self.metadata.get("bookmark")
+        b64 = self._metadata_value("bookmark")
         if b64:
             try:
                 return base64.b64decode(b64)
