@@ -85,7 +85,7 @@ security find-identity -v -p codesigning
 cd /Users/danieltubb/code/fichero_main/fichero
 
 # Build backend with Briefcase
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 **What this does:**
@@ -105,7 +105,7 @@ open fichero-swiftui/Fichero.xcodeproj
 
 **What happens during Xcode build:**
 1. Compiles Swift code
-2. Runs build script: `scripts/xcode_copy_backend.sh`
+2. Runs build script: `fichero-api/scripts/xcode_copy_backend.sh`
 3. Copies `macOS/FicheroBackend.app` → `Fichero.app/Contents/Resources/`
 4. Results in single `Fichero.app` with backend embedded
 
@@ -151,7 +151,7 @@ open fichero-swiftui/Fichero.xcodeproj
 
 ```bash
 # 1. Build backend
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 
 # 2. Archive Swift app in Xcode
 # Product → Archive
@@ -249,7 +249,7 @@ def main():
 
 ```bash
 # Add to: Target → Build Phases → Run Script
-${PROJECT_DIR}/scripts/xcode_copy_backend.sh
+${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh
 ```
 
 ---
@@ -264,7 +264,7 @@ ${PROJECT_DIR}/scripts/xcode_copy_backend.sh
 
 **Fix:** Build backend first
 ```bash
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 ### "Backend failed to start"
@@ -297,7 +297,7 @@ When you modify Python backend code:
 
 ```bash
 # 1. Rebuild backend bundle
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 
 # 2. Rebuild Swift app in Xcode (⌘B)
 # Build script will copy new backend bundle automatically
@@ -333,13 +333,13 @@ Created files for nested app bundling:
 
 1. **Test backend build:**
    ```bash
-   ./scripts/build_backend_bundle.sh
+   ./fichero-api/scripts/build_backend_bundle.sh
    ```
 
 2. **Add Xcode build script:**
    - Open Fichero.xcodeproj
    - Target → Build Phases → + → New Run Script Phase
-   - Add: `${PROJECT_DIR}/scripts/xcode_copy_backend.sh`
+   - Add: `${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh`
 
 3. **Update FicheroApp.swift:**
    - Add `@StateObject var backendService = EmbeddedBackendService()`

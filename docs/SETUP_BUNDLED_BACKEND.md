@@ -8,8 +8,8 @@ The following has been implemented:
 
 - ✅ Backend entry point (`fichero-api/src/fichero_backend/__main__.py`)
 - ✅ Briefcase configuration in `pyproject.toml`
-- ✅ Build script (`scripts/build_backend_bundle.sh`)
-- ✅ Xcode copy script (`scripts/xcode_copy_backend.sh`)
+- ✅ Build script (`fichero-api/scripts/build_backend_bundle.sh`)
+- ✅ Xcode copy script (`fichero-api/scripts/xcode_copy_backend.sh`)
 - ✅ Swift backend service (`fichero-swiftui/Services/EmbeddedBackendService.swift`)
 - ✅ FicheroApp.swift updated to launch backend
 - ✅ Backend successfully built with Briefcase
@@ -39,7 +39,7 @@ The following has been implemented:
 5. **Name it:** "Copy Backend Bundle" (click on "Run Script" to rename)
 6. **In the script box, paste:**
    ```bash
-   ${PROJECT_DIR}/scripts/xcode_copy_backend.sh
+   ${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh
    ```
 7. **Expand "Input Files"** and add:
    ```
@@ -69,7 +69,7 @@ Before building in Xcode, build the Python backend:
 
 ```bash
 cd /Users/danieltubb/code/fichero_main/fichero
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 **Expected output:**
@@ -105,7 +105,7 @@ Next steps:
 - Should see: `✅ Backend bundle copied successfully (180M)`
 
 **If build fails with "Backend bundle not found":**
-- Make sure you ran `./scripts/build_backend_bundle.sh` first
+- Make sure you ran `./fichero-api/scripts/build_backend_bundle.sh` first
 - Check that `build/fichero-backend/macos/app/FicheroBackend.app` exists
 
 ---
@@ -231,7 +231,7 @@ chmod +x scripts/xcode_copy_backend.sh
 
 **Fix:** Build backend first:
 ```bash
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 ### Backend launches but app hangs

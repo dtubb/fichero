@@ -11,8 +11,8 @@ All code for bundling the Python backend inside Fichero.app has been created and
    - `fichero-api/src/fichero_backend/__main__.py` - Starts FastAPI without hot-reload
 
 2. **Build Scripts**
-   - `scripts/build_backend_bundle.sh` - Builds backend with Briefcase
-   - `scripts/xcode_copy_backend.sh` - Copies backend into Swift app during build
+   - `fichero-api/scripts/build_backend_bundle.sh` - Builds backend with Briefcase
+   - `fichero-api/scripts/xcode_copy_backend.sh` - Copies backend into Swift app during build
 
 3. **Swift Integration**
    - `fichero-swiftui/Services/EmbeddedBackendService.swift` - Manages backend lifecycle
@@ -43,12 +43,12 @@ build/fichero-backend/macos/app/FicheroBackend.app
 
 2. **Add build script:**
    - Xcode → Fichero target → Build Phases
-   - Add Run Script Phase: `${PROJECT_DIR}/scripts/xcode_copy_backend.sh`
+   - Add Run Script Phase: `${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh`
 
 3. **Build and run:**
    ```bash
    # Terminal 1: Build backend
-   ./scripts/build_backend_bundle.sh
+   ./fichero-api/scripts/build_backend_bundle.sh
 
    # Xcode: Build and run (⌘R)
    ```
@@ -146,7 +146,7 @@ PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --reload
 
 After Xcode setup:
 
-- [ ] Backend builds: `./scripts/build_backend_bundle.sh`
+- [ ] Backend builds: `./fichero-api/scripts/build_backend_bundle.sh`
 - [ ] Xcode builds: Press ⌘B
 - [ ] Backend copied: Check `DerivedData/.../Fichero.app/Contents/Resources/FicheroBackend.app`
 - [ ] App launches: Press ⌘R
@@ -193,7 +193,7 @@ After Xcode setup:
 
 - **Setup Guide:** `docs/SETUP_BUNDLED_BACKEND.md` ← START HERE
 - **Architecture:** `docs/BUNDLING_BACKEND.md`
-- **Build Backend:** `./scripts/build_backend_bundle.sh`
+- **Build Backend:** `./fichero-api/scripts/build_backend_bundle.sh`
 - **This Summary:** `BACKEND_BUNDLING_SUMMARY.md`
 
 ---

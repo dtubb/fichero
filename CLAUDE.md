@@ -88,7 +88,7 @@ The Swift frontend uses **Apple's Swift OpenAPI Generator** to create type-safe 
 **Key files:**
 - `fichero-swiftui/FicheroAPIClient/` - Local Swift package with generated client
 - `fichero-api/tests/contracts/openapi.json` - OpenAPI schema (source of truth)
-- `scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
+- `fichero-api/scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
 
 **Usage:**
 ```swift
@@ -107,7 +107,7 @@ let workflows = try response.ok.body.json
 
 **When Python API changes:**
 ```bash
-./scripts/sync_openapi_schema.sh
+./fichero-api/scripts/sync_openapi_schema.sh
 ```
 
 See `ai/contexts/frontend/api_client.md` for detailed documentation

@@ -26,5 +26,5 @@ PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fic
 From repo root:
 
 ```bash
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
