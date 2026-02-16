@@ -8,6 +8,7 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -97,3 +98,16 @@ def db(test_package):
     (e.g., to set up test data before making API requests).
     """
     return db_manager.get_database(test_package)
+
+
+@pytest.fixture
+def mock_db(monkeypatch):
+    """
+    Mock package database used by API route tests.
+
+    Patches db_manager.get_database() so route dependency injection
+    resolves to a controllable MagicMock instance.
+    """
+    mock = MagicMock()
+    monkeypatch.setattr(db_manager, "get_database", lambda _path: mock)
+    return mock
