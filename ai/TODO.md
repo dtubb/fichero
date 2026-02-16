@@ -478,7 +478,7 @@
     - SearchService.swift (generated types differ: SearchResult fields, no SearchStats schema)
     - ModelService.swift (complex UI types similar to ProviderService)
   - Pattern: Follow WorkflowServiceGenerated.swift as reference implementation
-  - See: ai/contexts/frontend/api_migration_guide.md
+  - See: docs/contexts/frontend/api_migration_guide.md
 
 - [ ] TODO-106: Migrate Complex Services to Generated Client (P2, Medium)
   - Category: Frontend
@@ -841,5 +841,5 @@
     - How complex types are encoded (JSON to Data)
     - Per-window vs app-wide state distinction
     - How to add new persisted state
-  - Location: ai/contexts/frontend/ or docs/
+  - Location: docs/contexts/frontend/ or docs/
   - Status: Not started

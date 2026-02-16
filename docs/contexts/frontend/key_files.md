@@ -116,7 +116,7 @@
 - **Package.swift** - Local Swift package for generated client
 - **.build/.../Types.swift** - Generated types from OpenAPI spec
 - Uses Swift OpenAPI Generator plugin
-- See `ai/contexts/frontend/api_migration_guide.md` for patterns
+- See `docs/contexts/frontend/api_migration_guide.md` for patterns
 
 #### Provider Models
 - **Provider.swift** - Provider configuration model

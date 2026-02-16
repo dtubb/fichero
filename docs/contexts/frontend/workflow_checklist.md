@@ -364,11 +364,11 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 - [ ] Changed workflow → Update this file
 
 ### Doc Locations
-- `ai/contexts/frontend/overview.md` - High-level architecture
-- `ai/contexts/frontend/key_files.md` - File organization
-- `ai/contexts/frontend/SWIFTUI_PRINCIPLES.md` - Code patterns
-- `ai/contexts/frontend/development_standards.md` - Standards and guidelines
-- `ai/contexts/frontend/workflow_checklist.md` - This file
+- `docs/contexts/frontend/overview.md` - High-level architecture
+- `docs/contexts/frontend/key_files.md` - File organization
+- `docs/contexts/frontend/SWIFTUI_PRINCIPLES.md` - Code patterns
+- `docs/contexts/frontend/development_standards.md` - Standards and guidelines
+- `docs/contexts/frontend/workflow_checklist.md` - This file
 
 ---
 
@@ -377,7 +377,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 ### Quick Links
 - Backend API: http://localhost:8765/docs
 - Sample Code: `/Users/dtubb/code/fichero_main/fichero/sample_code`
-- Frontend Docs: `/Users/dtubb/code/fichero_main/fichero/ai/contexts/frontend/`
+- Frontend Docs: `/Users/dtubb/code/fichero_main/fichero/docs/contexts/frontend/`
 - TODO List: `/Users/dtubb/code/fichero_main/fichero/ai/TODO.md`
 
 ### MCP Tools
