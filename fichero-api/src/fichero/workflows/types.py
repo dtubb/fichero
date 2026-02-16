@@ -324,6 +324,12 @@ class NodeDef(BaseModel):
         """Convert null to empty list for list fields."""
         return v if v is not None else []
 
+    @field_validator('label', 'description', 'provider_name', 'model_name', mode='before')
+    @classmethod
+    def convert_none_to_empty_string(cls, v):
+        """Convert null to empty string for optional string fields."""
+        return v if v is not None else ""
+
     def model_dump_for_storage(self) -> dict:
         """Get a minimal dict for database storage (excludes ports).
 
@@ -352,14 +358,14 @@ class EdgeDef(BaseModel):
     target_port: str = Field(default="input", description="Input port ID on target node")
 
     # Conditional routing (for IF/Switch nodes)
-    condition: str = Field(
-        default="",
+    condition: str | None = Field(
+        default=None,
         description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional"
     )
 
     # Visual styling
     animated: bool = False          # Show animated flow
-    label: str = ""                 # Label on edge (empty for none)
+    label: str | None = None        # Label on edge (None for none)
 
 
 class WorkflowDef(BaseModel):
@@ -390,6 +396,12 @@ class WorkflowDef(BaseModel):
     updated_at: str | None = None
     folder_path: str = "/"              # Folder organization path
     sort_order: int = 0                 # Sort order within folder
+
+    @field_validator('description', mode='before')
+    @classmethod
+    def convert_none_to_empty_description(cls, v):
+        """Convert null workflow descriptions to empty string."""
+        return v if v is not None else ""
 
     def get_entry_nodes(self) -> list[str]:
         """Find nodes with no incoming edges (entry points)."""
