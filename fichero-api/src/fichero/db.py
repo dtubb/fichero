@@ -271,9 +271,26 @@ class Database:
             self._lance_db = lancedb.connect(str(self._lance_path))
         return self._lance_db
 
+    def _lance_tables(self) -> list[str]:
+        """Return LanceDB table names across API versions."""
+        raw_tables = self.lance.list_tables() if hasattr(self.lance, "list_tables") else self.lance.table_names()
+        if hasattr(raw_tables, "tables"):
+            raw_tables = raw_tables.tables
+        elif isinstance(raw_tables, dict):
+            raw_tables = raw_tables.get("tables", raw_tables)
+        table_names: list[str] = []
+        for table in raw_tables:
+            if isinstance(table, str):
+                table_names.append(table)
+            elif hasattr(table, "name"):
+                table_names.append(str(table.name))
+            else:
+                table_names.append(str(table))
+        return table_names
+
     def save_vectors(self, table_name: str, data: list[dict]) -> None:
         """Save data to LanceDB table (creates or appends)."""
-        if table_name in self.lance.table_names():
+        if table_name in self._lance_tables():
             table = self.lance.open_table(table_name)
             table.add(data)
         else:
@@ -286,7 +303,7 @@ class Database:
         limit: int = 10
     ) -> list[dict]:
         """Search LanceDB table by vector similarity."""
-        if table_name not in self.lance.table_names():
+        if table_name not in self._lance_tables():
             return []
 
         table = self.lance.open_table(table_name)
@@ -364,7 +381,7 @@ class Database:
             True if deleted
         """
         try:
-            if "embeddings" not in self.lance.table_names():
+            if "embeddings" not in self._lance_tables():
                 return False
 
             # Validate doc_id to prevent injection
@@ -397,7 +414,7 @@ class Database:
             True if embedding exists
         """
         try:
-            if "embeddings" not in self.lance.table_names():
+            if "embeddings" not in self._lance_tables():
                 return False
 
             # Sanitize doc_id to prevent injection
@@ -496,7 +513,7 @@ class Database:
             fulltext_results = []
             
             # Check if embeddings table exists
-            has_embeddings = "embeddings" in self.lance.table_names()
+            has_embeddings = "embeddings" in self._lance_tables()
             
             # Perform semantic search if requested and available
             if search_type in ["semantic", "hybrid"] and has_embeddings:
@@ -709,7 +726,7 @@ class Database:
             Dict with indexed_count, table_exists
         """
         try:
-            if "embeddings" not in self.lance.table_names():
+            if "embeddings" not in self._lance_tables():
                 return {"indexed_count": 0, "table_exists": False}
 
             table = self.lance.open_table("embeddings")
