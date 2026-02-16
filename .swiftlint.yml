@@ -1,0 +1,6 @@
+included:
+  - fichero-swiftui/fichero-swiftui
+
+excluded:
+  - fichero-swiftui/fichero-swiftui/Services/*Generated.swift
+  - fichero-swiftui/fichero-swiftui/fichero-api-client
