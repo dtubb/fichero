@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Add src directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 def test_workflow_api_imports():
     """Test that we can import the workflow API module without errors."""
@@ -33,13 +33,12 @@ def test_workflow_api_imports():
             print(f"✅ Function {func_name} is available")
 
         print("✅ All expected API functions are available")
-        return True
 
     except Exception as e:
         print(f"❌ Failed to import workflow API: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_types():
@@ -72,13 +71,12 @@ def test_workflow_types():
         print("✅ WorkflowDef works correctly")
 
         print("✅ All workflow types work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow types test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_registry():
@@ -101,13 +99,12 @@ def test_workflow_registry():
             print(f"✅ Tool '{tool}' is available")
 
         print("✅ Workflow registry works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow registry test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

@@ -6,13 +6,15 @@ import sys
 import importlib.util
 from pathlib import Path
 
+SRC_DIR = Path(__file__).resolve().parents[2] / "src"
+
 def test_workflow_routes_directly():
     """Test workflow routes by loading the module directly."""
     print("Testing workflow routes directly...")
 
     try:
         # Load the workflow routes module directly without going through the full API import chain
-        workflow_routes_path = Path("src/fichero/api/routes/workflows.py")
+        workflow_routes_path = SRC_DIR / "fichero" / "api" / "routes" / "workflows.py"
 
         spec = importlib.util.spec_from_file_location("workflows", workflow_routes_path)
         workflows_module = importlib.util.module_from_spec(spec)
@@ -38,13 +40,12 @@ def test_workflow_routes_directly():
                 print(f"⚠️  Function {func_name} is NOT available")
 
         print("✅ Workflow routes module loaded successfully")
-        return True
 
     except Exception as e:
         print(f"❌ Failed to load workflow routes directly: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_types():
@@ -52,7 +53,7 @@ def test_workflow_types():
     print("\nTesting workflow types...")
 
     try:
-        sys.path.insert(0, str(Path("src")))
+        sys.path.insert(0, str(SRC_DIR))
         from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
         # Test creating basic workflow components
@@ -78,13 +79,12 @@ def test_workflow_types():
         print("✅ WorkflowDef works correctly")
 
         print("✅ All workflow types work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow types test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_registry():
@@ -92,7 +92,7 @@ def test_workflow_registry():
     print("\nTesting workflow registry...")
 
     try:
-        sys.path.insert(0, str(Path("src")))
+        sys.path.insert(0, str(SRC_DIR))
         from fichero.workflows.registry import list_tools, get_tool_def
 
         # Test that we can list tools
@@ -108,13 +108,12 @@ def test_workflow_registry():
             print(f"✅ Tool '{tool}' is available")
 
         print("✅ Workflow registry works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow registry test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

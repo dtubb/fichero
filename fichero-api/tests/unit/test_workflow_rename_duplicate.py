@@ -92,13 +92,12 @@ def test_workflow_rename():
             print(f"✅ Successfully renamed to: '{test_name}'")
 
         print("✅ All workflow rename functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow rename test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_duplicate():
@@ -228,13 +227,12 @@ def test_workflow_duplicate():
             print(f"✅ Duplicated '{test_name}' -> '{duplicated_temp.name}'")
 
         print("✅ All workflow duplicate functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow duplicate test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_duplicate_with_complex_content():
@@ -337,13 +335,12 @@ def test_workflow_duplicate_with_complex_content():
         print("✅ All edges copied correctly")
 
         print("✅ Complex workflow duplicate functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed complex workflow duplicate test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_rename_preserves_relationships():
@@ -422,13 +419,12 @@ def test_workflow_rename_preserves_relationships():
         print("✅ All relationships preserved during rename")
 
         print("✅ Relationship preservation during rename works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed relationship preservation test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

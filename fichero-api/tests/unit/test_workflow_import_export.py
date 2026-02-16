@@ -99,13 +99,12 @@ def test_workflow_export():
         print("✅ Exported data is JSON-serializable")
 
         print("✅ All workflow export functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow export test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_import():
@@ -202,13 +201,12 @@ def test_workflow_import():
         print("✅ Imported edge structure is correct")
 
         print("✅ All workflow import functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow import test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_import_export_cycle():
@@ -284,13 +282,12 @@ def test_workflow_import_export_cycle():
         print("✅ Exported workflow matches original after import")
         print("✅ Import/export cycle preserves workflow structure")
         print("✅ All workflow import/export cycle functionality works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow import/export cycle test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_invalid_import_data():
@@ -310,7 +307,7 @@ def test_invalid_import_data():
                 raise ValueError("Invalid workflow data: missing nodes or edges")
 
             print("❌ Should have raised an error for missing nodes/edges")
-            return False
+            raise
         except ValueError:
             print("✅ Correctly handled missing nodes/edges in import data")
 
@@ -340,16 +337,15 @@ def test_invalid_import_data():
             print("✅ Correctly handles valid data with empty nodes/edges")
         except Exception as e:
             print(f"❌ Failed to handle valid empty data: {e}")
-            return False
+            raise
 
         print("✅ Invalid import data handling works correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed invalid import data test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

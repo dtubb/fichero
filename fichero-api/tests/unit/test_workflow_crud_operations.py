@@ -81,13 +81,12 @@ def test_workflow_model_crud():
         print("✅ Workflow validation works correctly")
 
         print("✅ All Workflow model CRUD operations work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed Workflow model CRUD test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_types_crud():
@@ -149,13 +148,12 @@ def test_workflow_types_crud():
         print("✅ WorkflowDef updates work correctly")
 
         print("✅ All WorkflowDef CRUD operations work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed WorkflowDef CRUD test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_tool_registry_operations():
@@ -191,13 +189,12 @@ def test_tool_registry_operations():
             print(f"✅ Tool {tool.name} has all required properties")
 
         print("✅ All tool registry operations work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed tool registry test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_workflow_conversion():
@@ -205,7 +202,7 @@ def test_workflow_conversion():
     print("\nTesting workflow conversion...")
 
     try:
-        from fichero.api.routes.workflows import _convert_to_langgraph_format, _convert_steps_to_langgraph_format
+        from fichero.api.routes.workflows import _dict_to_node_def, _dict_to_edge_def
 
         # Create a test workflow in database format
         db_workflow = Workflow(
@@ -253,36 +250,33 @@ def test_workflow_conversion():
             ]
         )
 
-        # Test conversion to LangGraph format
-        workflow_def = _convert_to_langgraph_format(db_workflow)
+        # Test conversion helpers used by workflow routes
+        converted_nodes = [_dict_to_node_def(node_dict, enrich_ports=False) for node_dict in db_workflow.nodes]
+        converted_edges = [_dict_to_edge_def(edge_dict) for edge_dict in db_workflow.edges]
 
-        # Verify conversion
-        assert workflow_def.id == "test-convert-workflow", "ID should be preserved"
-        assert workflow_def.name == "Conversion Test Workflow", "Name should be preserved"
-        assert len(workflow_def.nodes) == 2, "Should have 2 nodes"
-        assert len(workflow_def.edges) == 1, "Should have 1 edge"
-        print("✅ Database to LangGraph conversion works correctly")
+        assert len(converted_nodes) == 2, "Should convert 2 nodes"
+        assert len(converted_edges) == 1, "Should convert 1 edge"
+        print("✅ Workflow route conversion helpers run correctly")
 
         # Verify node conversion
-        transcribe_node = next((n for n in workflow_def.nodes if n.id == "transcribe_node"), None)
+        transcribe_node = next((n for n in converted_nodes if n.id == "transcribe_node"), None)
         assert transcribe_node is not None, "Transcribe node should exist"
         assert transcribe_node.tool == "transcribe", "Node tool should be preserved"
         print("✅ Node conversion works correctly")
 
         # Verify edge conversion
-        edge = workflow_def.edges[0]
+        edge = converted_edges[0]
         assert edge.source == "transcribe_node", "Edge source should match"
         assert edge.target == "summarize_node", "Edge target should match"
         print("✅ Edge conversion works correctly")
 
         print("✅ All workflow conversion operations work correctly")
-        return True
 
     except Exception as e:
         print(f"❌ Failed workflow conversion test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():
