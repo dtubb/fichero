@@ -53,3 +53,5 @@ cpu_worker.log
 io_worker.log
 dump.rdb
 .empty/
+
+fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app/
