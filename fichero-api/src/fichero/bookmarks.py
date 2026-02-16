@@ -218,10 +218,12 @@ def is_bookmark_stale(bookmark_data: bytes) -> bool:
     Returns:
         True if stale, False otherwise
     """
-    if not _HAS_RUBICON:
-        return False
-
     if not bookmark_data:
+        return True
+
+    if not _HAS_RUBICON:
+        # Without bookmark resolution support, treat unknown bookmark payloads
+        # conservatively as stale.
         return True
 
     try:
