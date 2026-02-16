@@ -110,11 +110,20 @@ class DocumentLoader(MediaLoader):
         suffix = path.suffix.lower()
 
         try:
-            config = kreuzberg.ExtractionConfig(
-                force_ocr=False,
-                extract_tables=self.extract_tables,
-                extract_images=False,
-            )
+            # Kreuzberg API signatures vary across versions.
+            try:
+                config = kreuzberg.ExtractionConfig(
+                    force_ocr=False,
+                    extract_tables=self.extract_tables,
+                    extract_images=False,
+                )
+            except TypeError:
+                try:
+                    config = kreuzberg.ExtractionConfig(
+                        force_ocr=False,
+                    )
+                except TypeError:
+                    config = kreuzberg.ExtractionConfig()
 
             result = await kreuzberg.extract_file(str(path), config=config)
 

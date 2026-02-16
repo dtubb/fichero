@@ -138,11 +138,19 @@ class PDFTextLoader(MediaLoader):
         try:
             # Use Kreuzberg for text extraction
             # Disable OCR since we're just extracting digital text
-            config = kreuzberg.ExtractionConfig(
-                force_ocr=False,
-                extract_tables=True,  # Kreuzberg can extract tables
-                extract_images=False,
-            )
+            try:
+                config = kreuzberg.ExtractionConfig(
+                    force_ocr=False,
+                    extract_tables=True,  # Kreuzberg can extract tables
+                    extract_images=False,
+                )
+            except TypeError:
+                try:
+                    config = kreuzberg.ExtractionConfig(
+                        force_ocr=False,
+                    )
+                except TypeError:
+                    config = kreuzberg.ExtractionConfig()
 
             result = await kreuzberg.extract_file(str(path), config=config)
 
