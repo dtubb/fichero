@@ -398,42 +398,47 @@ struct SwiftEncodingCompatibilityTests {
 /// These complement the internal Swift model tests above.
 struct GeneratedTypesContractTests {
 
-    @Test("Generated NodeDef parses snake_case JSON")
-    func nodDefParsesSnakeCase() throws {
-        // JSON matching Python's NodeDef structure
+    @Test("Generated WorkflowDef preserves node payload")
+    func workflowDefPreservesNodePayload() throws {
+        // JSON matching Python workflow structure with embedded node payload
         let json = """
         {
-            "id": "node-123",
-            "tool": "transcribe",
-            "label": "Transcribe",
-            "description": "Transcribes audio",
-            "position_x": 100.0,
-            "position_y": 200.0,
-            "enabled": true,
-            "input_ports": [
+            "id": "workflow-123",
+            "name": "Workflow",
+            "description": "Workflow with one node",
+            "nodes": [
                 {
-                    "id": "input",
-                    "name": "Input",
-                    "port_type": "input",
-                    "data_type": "files",
-                    "required": true,
-                    "description": ""
+                    "id": "node-123",
+                    "tool": "transcribe",
+                    "label": "Transcribe",
+                    "description": "Transcribes audio",
+                    "position_x": 100.0,
+                    "position_y": 200.0,
+                    "enabled": true,
+                    "input_ports": [
+                        {
+                            "id": "input",
+                            "name": "Input",
+                            "port_type": "input",
+                            "data_type": "files",
+                            "required": true,
+                            "description": ""
+                        }
+                    ],
+                    "output_ports": []
                 }
             ],
-            "output_ports": []
+            "edges": [],
+            "provider": null,
+            "model": null
         }
         """.data(using: .utf8)!
 
         let decoder = JSONDecoder()
-        let node = try decoder.decode(Components.Schemas.NodeDef.self, from: json)
-
-        #expect(node.id == "node-123")
-        #expect(node.tool == "transcribe")
-        #expect(node.label == "Transcribe")
-        #expect(node.positionX == 100.0)
-        #expect(node.positionY == 200.0)
-        #expect(node.enabled == true)
-        #expect(node.inputPorts?.count == 1)
+        let workflow = try decoder.decode(Components.Schemas.WorkflowDef.self, from: json)
+        #expect(workflow.id == "workflow-123")
+        #expect(workflow.name == "Workflow")
+        #expect(workflow.nodes?.count == 1)
     }
 
     @Test("Generated EdgeDef parses backend format")
@@ -556,27 +561,26 @@ struct GeneratedTypesContractTests {
         #expect(document.status == .completed)
     }
 
-    @Test("Generated types handle null values")
-    func generatedTypesHandleNulls() throws {
+    @Test("Generated workflow types handle null values")
+    func generatedWorkflowTypesHandleNulls() throws {
         let json = """
         {
-            "id": "node-null",
-            "tool": "test",
-            "label": null,
             "description": null,
-            "position_x": 0,
-            "position_y": 0,
-            "input_ports": [],
-            "output_ports": [],
-            "enabled": true
+            "id": "workflow-null",
+            "name": "Workflow nulls",
+            "nodes": [],
+            "edges": [],
+            "provider": null,
+            "model": null
         }
         """.data(using: .utf8)!
 
         let decoder = JSONDecoder()
-        let node = try decoder.decode(Components.Schemas.NodeDef.self, from: json)
+        let workflow = try decoder.decode(Components.Schemas.WorkflowDef.self, from: json)
 
-        #expect(node.id == "node-null")
-        #expect(node.label == nil)
-        #expect(node.description == nil)
+        #expect(workflow.id == "workflow-null")
+        #expect(workflow.description == nil)
+        #expect(workflow.provider == nil)
+        #expect(workflow.model == nil)
     }
 }

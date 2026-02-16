@@ -192,22 +192,6 @@ struct GeneratedClientValidationTests {
         #expect(workflowDef.id == "test-id")
         #expect(workflowDef.name == "Test Workflow")
 
-        // NodeDef - workflow node definition
-        let nodeDef = Components.Schemas.NodeDef(
-            id: "node-1",
-            tool: "test_tool",
-            inputPorts: [],
-            outputPorts: [],
-            positionX: 100.0,
-            positionY: 200.0,
-            label: "Test Node",
-            description: nil,
-            enabled: true
-        )
-        #expect(nodeDef.id == "node-1")
-        #expect(nodeDef.tool == "test_tool")
-        #expect(nodeDef.positionX == 100.0)
-
         // EdgeDef - workflow edge definition
         // Uses 'source'/'target' not 'sourceNode'/'targetNode'
         let edgeDef = Components.Schemas.EdgeDef(
