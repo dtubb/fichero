@@ -5,9 +5,9 @@ import SwiftUI
 // Responsibility: Complex view builders for sidebar, content, preview, inspector
 
 extension ContentView {
-    
+
     // MARK: - Sidebar
-    
+
     @ViewBuilder
     var sidebarContent: some View {
         SidebarView(
@@ -28,9 +28,9 @@ extension ContentView {
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
-    
+
     // MARK: - Center Content (with Layout Modes)
-    
+
     @ViewBuilder
     var centerContent: some View {
         switch currentLayoutMode {
@@ -62,9 +62,9 @@ extension ContentView {
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }
-    
+
     // MARK: - Preview View
-    
+
     /// Preview/editor view for selected item
     @ViewBuilder
     var previewView: some View {
@@ -82,9 +82,9 @@ extension ContentView {
             EmptyView()
         }
     }
-    
+
     // MARK: - Inspector View
-    
+
     /// Inspector/info sidebar view (right column - fixed width)
     @ViewBuilder
     var inspectorView: some View {
@@ -124,16 +124,16 @@ extension ContentView {
                 .navigationSplitViewColumnWidth(0)
         }
     }
-    
+
     // MARK: - Detail View (Right Column)
-    
+
     @ViewBuilder
     var detailView: some View {
         inspectorView
     }
-    
+
     // MARK: - Breadcrumb
-    
+
     @ViewBuilder
     func breadcrumbView(for doc: Document) -> some View {
         HStack(spacing: 4) {

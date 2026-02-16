@@ -5,9 +5,9 @@ import SwiftUI
 // Responsibility: Main content view routing based on AppViewMode
 
 extension ContentView {
-    
+
     // MARK: - Content View Router (Middle Column)
-    
+
     @ViewBuilder
     var contentView: some View {
         switch viewMode {

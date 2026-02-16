@@ -8,9 +8,9 @@ import OSLog
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
 
 extension ContentView {
-    
+
     // MARK: - Document Change Handler
-    
+
     @MainActor
     func handleDocumentChange(_ change: DocumentChange) {
         switch change {
@@ -33,9 +33,9 @@ extension ContentView {
             break
         }
     }
-    
+
     // MARK: - UI Actions
-    
+
     func toggleSidebar() {
         withAnimation {
             if columnVisibility == .all {
@@ -55,9 +55,9 @@ extension ContentView {
             }
         }
     }
-    
+
     // MARK: - Workflow Actions
-    
+
     func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {
         let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
         editingWorkflow.nodes.append(newNode)

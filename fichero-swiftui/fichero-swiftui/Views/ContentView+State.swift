@@ -6,9 +6,9 @@ import OSLog
 // Responsibility: All @State, @SceneStorage, @EnvironmentObject properties and computed properties
 
 extension ContentView {
-    
+
     // MARK: - Computed Properties
-    
+
     /// Toolbar title showing library name and current view
     var toolbarTitle: String {
         let libraryManager = LibraryManager.shared

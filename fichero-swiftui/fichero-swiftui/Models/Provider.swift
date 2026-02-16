@@ -254,4 +254,3 @@ struct AIModel: Identifiable, Codable, Hashable {
         self.isDefault = isDefault
     }
 }
-

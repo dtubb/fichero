@@ -8,9 +8,9 @@ import OSLog
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
 
 extension ContentView {
-    
+
     // MARK: - State Restoration
-    
+
     func restoreViewMode(type: String, itemId: String?) -> AppViewMode {
         switch type {
         case "library":
