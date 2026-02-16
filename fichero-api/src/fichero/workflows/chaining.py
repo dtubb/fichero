@@ -14,6 +14,7 @@ Features:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import uuid
 from datetime import datetime
@@ -834,7 +835,7 @@ class ChainExecutor:
         """Emit a progress event."""
         if self.event_callback:
             try:
-                if asyncio.iscoroutinefunction(self.event_callback):
+                if inspect.iscoroutinefunction(self.event_callback):
                     await self.event_callback(event)
                 else:
                     self.event_callback(event)
