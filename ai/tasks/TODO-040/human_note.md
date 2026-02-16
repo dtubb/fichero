@@ -1,1 +1,0 @@
-remove uncessary new folder idalogue in sidebar to create new folder. do it inline, and it would be untitled as is mac custom

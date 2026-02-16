@@ -117,13 +117,13 @@ docs = ingest_folder(
 
 - `fichero-api/` - Backend package and Briefcase config ([README](fichero-api/README.md))
 - `fichero-swiftui/` - SwiftUI app and Xcode project ([README](fichero-swiftui/README.md))
-- `ai/` - Canonical AI task/workflow workspace
+- `docs/agent-workflow/` - Agent workflow docs, task list, and templates
 
 ### Top-level folder ownership
 
 - `runtime`: `fichero-api/`, `fichero-swiftui/`
 - `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero-swiftui/derived_data/`
-- `reference`: `docs/`, `ai/`
+- `reference`: `docs/`
 - `archive/delete-candidate`: moved under `/Users/danieltubb/code/fichero_main/to-delete/`
 
 ### Python Backend (`fichero-api/src/fichero/`)

@@ -1,1 +1,0 @@
-Make sure FicheroTestsa nd FicheroUITests are conencted to the xcode orpiecjt file, as it rightn ow says htey're both missing in the Fichero.xctestplan file, when I click on it, its red, investigate and fix.

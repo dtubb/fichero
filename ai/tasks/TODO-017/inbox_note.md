@@ -1,1 +1,0 @@
-Review @README.md and write a more concise 100 character sumamry of the app for @README.md and @ai/AI_README.md.

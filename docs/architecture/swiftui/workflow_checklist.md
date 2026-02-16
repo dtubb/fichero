@@ -33,7 +33,7 @@ git pull origin main
 
 **Planning**:
 - [ ] Understand the requirement/bug
-- [ ] Check `ai/TODO.md` for task details
+- [ ] Check `docs/agent-workflow/TODO.md` for task details
 - [ ] Read relevant context files (`key_files.md`, `SWIFTUI_PRINCIPLES.md`)
 - [ ] Identify affected files (use `key_files.md`)
 - [ ] Check if files need splitting (> 400 lines?)
@@ -264,14 +264,14 @@ git push origin feature-branch-name
 ## Common Tasks Quick Reference
 
 ### Adding a New Feature
-1. Read `ai/TODO.md` for task details
+1. Read `docs/agent-workflow/TODO.md` for task details
 2. Check `key_files.md` for affected files
 3. Review `SWIFTUI_PRINCIPLES.md` for patterns
 4. Implement following workflow above
 5. Run SwiftLint and build
 6. Test manually
 7. Commit with descriptive message
-8. Update `ai/TODO.md` task status
+8. Update `docs/agent-workflow/TODO.md` task status
 
 ### Fixing a Bug
 1. Reproduce the bug
@@ -378,7 +378,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 - Backend API: http://localhost:8765/docs
 - Sample Code: `/Users/dtubb/code/fichero_main/fichero/sample_code`
 - Frontend Docs: `/Users/dtubb/code/fichero_main/fichero/docs/architecture/swiftui/`
-- TODO List: `/Users/dtubb/code/fichero_main/fichero/ai/TODO.md`
+- TODO List: `/Users/dtubb/code/fichero_main/fichero/docs/agent-workflow/TODO.md`
 
 ### MCP Tools
 - **Sosumi**: `searchAppleDocumentation("swiftui drag drop")`

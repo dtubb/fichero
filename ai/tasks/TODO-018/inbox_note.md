@@ -1,1 +1,0 @@
-Idea: Review and update `ai/workflows/TASK_WORKFLOW.md`, and comapre with `ai/workflows/INBOX_WORKFLOW.md`. make task_wrokflow.md more concise, remove repetition, and give clear insturctions for AI to proceed to implement a task. add human reivew nad github commit like worfklow,

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 Scope: this is agent workflow guidance. User/developer run/build docs live in `README.md` and folder-level READMEs.
 
@@ -205,39 +205,32 @@ Workflows are defined as visual graphs in the Swift UI but executed in Python vi
    - Avoid creating manual Swift types that shadow generated types
    - Keep `GeneratedTypeExtensions.swift` minimal (just Identifiable conformances)
 
-See `ai/tasks/TODO-125/` and `ai/tasks/TODO-126/` for current cleanup tasks.
+See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/swiftui/api_client.md` for current API-client cleanup context.
 
 ## AI Task Management System
 
-This project uses a structured task management system in the `ai/` folder for organizing development work.
-Canonical AI workspace location: `ai/` at repository root.
+This project uses a structured task management system in `docs/agent-workflow/`.
+Canonical location: `docs/agent-workflow/`.
 
 ### Directory Structure
 
-```
-ai/
-├── TODO.md                  # Master task list (never rewrite from scratch)
-├── AI_README.md             # Quick start guide for AI agents
-├── inbox/                   # New ideas before becoming tasks
-├── tasks/                   # Individual task folders (TODO-XXX/)
-│   └── TODO-XXX/
-│       ├── task.md          # Step-by-step instructions
-│       ├── context.md       # Background information
-│       └── summaries/       # Completion reports
+``` 
+docs/agent-workflow/
+├── README.md                # Quick start guide
+├── TODO.md                  # Master task list
+├── inbox/                   # Planning notes
 ├── workflows/               # Process documentation
 │   ├── INBOX_WORKFLOW.md    # How to process inbox items
 │   └── TASK_WORKFLOW.md     # How to execute tasks
-├── contexts/                # System architecture documentation
 └── templates/               # Templates for new tasks
 ```
 
 ### Task Management Workflow
 
-1. **Check inbox first**: `ls ai/inbox/` - if files exist, process them via `ai/workflows/INBOX_WORKFLOW.md`
-2. **Pick a task**: Choose from `ai/TODO.md` - tasks marked `[ ]` are available
-3. **Follow task file**: Each task has a `task.md` with step-by-step instructions
-4. **Update status**: Change `[ ]` to `[>]` when starting, `[x]` when complete
-5. **Save summaries**: Document completion in `tasks/TODO-XXX/summaries/`
+1. **Check inbox first**: `ls docs/agent-workflow/inbox/` - if files exist, process them via `docs/agent-workflow/workflows/INBOX_WORKFLOW.md`
+2. **Pick a task**: Choose from `docs/agent-workflow/TODO.md` - tasks marked `[ ]` are available
+3. **Update status**: Change `[ ]` to `[>]` when starting, `[x]` when complete
+4. **Save artifacts**: Keep long-form historical artifacts outside the repo (delete staging/archive area)
 
 ### Important Rules
 
@@ -346,7 +339,7 @@ This project has the following MCP (Model Context Protocol) servers configured:
 - `simctl-manager` - Direct simulator control (list, create, boot, shutdown, erase, install, launch, delete)
 - `run-on-device` - Comprehensive device deployment with environment variables and logging
 
-**3. sosumi** (`https://sosumi.ai/mcp`) - Official Apple documentation:
+**3. sosumi** (`https://sosumi.docs/agent-workflow/mcp`) - Official Apple documentation:
 - `searchAppleDocumentation` - Search Apple Developer docs
 - `fetchAppleDocumentation` - Fetch docs by path (Swift, SwiftUI, HIG)
 
