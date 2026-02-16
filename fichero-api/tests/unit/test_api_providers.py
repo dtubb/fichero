@@ -8,6 +8,8 @@ These are unit tests that don't require a running server.
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
+import tempfile
+from pathlib import Path
 
 # Create test client for the API
 from fichero.api.main import app
@@ -313,7 +315,14 @@ class TestAPIHealth:
 
     def test_stats(self):
         """Test GET /stats"""
-        response = client.get(f"{API_BASE}/stats")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            library_path = Path(tmpdir) / "test.fichero"
+            library_path.mkdir(parents=True, exist_ok=True)
+
+            response = client.get(
+                f"{API_BASE}/stats",
+                headers={"X-Fichero-Library-Path": str(library_path)},
+            )
 
         assert response.status_code == 200
         data = response.json()
