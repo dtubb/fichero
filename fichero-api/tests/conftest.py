@@ -7,6 +7,8 @@ Provides fixtures for package documents testing with proper isolation.
 import pytest
 import tempfile
 import shutil
+import inspect
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -15,6 +17,33 @@ from fastapi.testclient import TestClient
 from fichero.api.main import app
 from fichero.db import db_manager
 from fichero.app_db import AppDatabase
+
+
+def pytest_collection_modifyitems(items):
+    """
+    Auto-mark coroutine tests so they run with the installed anyio plugin.
+    """
+    for item in items:
+        test_obj = getattr(item, "obj", None)
+        if test_obj is not None and inspect.iscoroutinefunction(test_obj):
+            item.add_marker(pytest.mark.anyio)
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """
+    Fallback async test runner for suites using `@pytest.mark.asyncio`
+    without pytest-asyncio installed.
+    """
+    test_obj = getattr(pyfuncitem, "obj", None)
+    if test_obj is not None and inspect.iscoroutinefunction(test_obj):
+        kwargs = {
+            name: pyfuncitem.funcargs[name]
+            for name in pyfuncitem._fixtureinfo.argnames
+            if name in pyfuncitem.funcargs
+        }
+        asyncio.run(test_obj(**kwargs))
+        return True
+    return None
 
 
 @pytest.fixture
