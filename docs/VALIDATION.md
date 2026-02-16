@@ -21,7 +21,11 @@ Prerequisites:
 - `briefcase` installed if OpenAPI sync dependencies require full backend environment
 
 Known current blockers (as of 2026-02-16):
-- Swift tests fail due to generated type mismatch in test code (e.g. `Components.Schemas.NodeDef`).
-- SwiftLint reports existing violations in generated and hand-written Swift files.
-- `pylint --errors-only` reports existing backend errors.
-- Python unit test suite has existing failures/errors unrelated to folder restructure.
+- `pylint --errors-only` reports existing backend errors (tracked in #126).
+- SwiftLint reports many existing warnings in hand-written Swift files (non-blocking in current script).
+
+Current validation status:
+- Xcode build: passing
+- Xcode test target compile: passing (`build-for-testing`)
+- Python unit tests: passing (`787 passed, 16 skipped`)
+- OpenAPI sync + parity: passing
