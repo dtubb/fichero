@@ -1344,3 +1344,6 @@ class DatabaseManager:
 
 # Global database manager for package documents
 db_manager = DatabaseManager()
+
+# Backward-compatibility alias used by older tests/tooling that patch `fichero.db.db`.
+db = db_manager

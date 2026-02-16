@@ -146,6 +146,17 @@ def detect_file_type(path: Path) -> FileType:
 # Single File Ingestion
 # =============================================================================
 
+def _resolve_default_db():
+    """
+    Resolve legacy module-level db fallback for callers/tests that do not
+    pass an explicit db argument.
+    """
+    from fichero import db as db_module
+
+    candidate = getattr(db_module, "db", None)
+    return candidate if hasattr(candidate, "save") else None
+
+
 def ingest_file(
     path: Path,
     mode: IngestMode = IngestMode.LINK,
@@ -176,6 +187,8 @@ def ingest_file(
     from fichero.bookmarks import create_bookmark
 
     if save and db is None:
+        db = _resolve_default_db()
+    if save and db is None:
         raise ValueError("db parameter required when save=True")
 
     path = Path(path).resolve()
@@ -194,7 +207,7 @@ def ingest_file(
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
-        dest = _copy_to_library(path, package_path)
+        dest = _copy_to_library(path) if package_path is None else _copy_to_library(path, package_path)
         doc = Document(
             name=path.name,
             path=str(dest),
@@ -451,6 +464,8 @@ def ingest_folder(
     Returns:
         List of created Documents
     """
+    if db is None:
+        db = _resolve_default_db()
     if db is None:
         raise ValueError("db parameter is required")
 
