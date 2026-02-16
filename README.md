@@ -66,7 +66,7 @@ PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 **Run the Swift app:**
-Open `fichero-swiftui/Fichero.xcodeproj` in Xcode and run.
+Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run.
 
 ## Features
 

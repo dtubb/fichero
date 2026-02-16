@@ -18,7 +18,7 @@ The following has been implemented:
 
 ### Step 1: Add EmbeddedBackendService.swift to Xcode
 
-1. Open `Fichero.xcodeproj` in Xcode
+1. Open `fichero-swiftui.xcodeproj` in Xcode
 2. In Project Navigator, locate `fichero-swiftui/Services/` folder
 3. **Right-click on Services folder** → Add Files to "Fichero"
 4. Navigate to: `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`

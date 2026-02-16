@@ -8,7 +8,7 @@ echo "Adding New Files to Xcode Project"
 echo "======================================"
 echo ""
 
-PROJECT_PATH="fichero-swiftui/Fichero.xcodeproj"
+PROJECT_PATH="fichero-swiftui/fichero-swiftui.xcodeproj"
 
 # Check if project exists
 if [ ! -d "$PROJECT_PATH" ]; then

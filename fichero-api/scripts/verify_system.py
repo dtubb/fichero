@@ -394,7 +394,7 @@ def run_swift_tests() -> tuple[int, int]:
         [
             "xcodebuild",
             "test",
-            "-project", str(REPO_ROOT / "fichero-swiftui/Fichero.xcodeproj"),
+            "-project", str(REPO_ROOT / "fichero-swiftui/fichero-swiftui.xcodeproj"),
             "-scheme", "Fichero",
             "-destination", "platform=macOS",
             "-quiet"

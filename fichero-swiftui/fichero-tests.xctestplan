@@ -14,14 +14,14 @@
   "testTargets" : [
     {
       "target" : {
-        "containerPath" : "container:Fichero.xcodeproj",
+        "containerPath" : "container:fichero-swiftui.xcodeproj",
         "identifier" : "A10521A82EFDC92400B28C3E",
         "name" : "FicheroTests"
       }
     },
     {
       "target" : {
-        "containerPath" : "container:Fichero.xcodeproj",
+        "containerPath" : "container:fichero-swiftui.xcodeproj",
         "identifier" : "A10521C02EFDC94100B28C3E",
         "name" : "FicheroUITests"
       }

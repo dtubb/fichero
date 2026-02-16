@@ -14,7 +14,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:TestPlan.xctestplan"
+            reference = "container:fichero-tests.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
@@ -27,7 +27,7 @@
                BlueprintIdentifier = "A10521A82EFDC92400B28C3E"
                BuildableName = "FicheroTests.xctest"
                BlueprintName = "FicheroTests"
-               ReferencedContainer = "container:Fichero.xcodeproj">
+               ReferencedContainer = "container:fichero-swiftui.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -49,7 +49,7 @@
             BlueprintIdentifier = "500"
             BuildableName = "Fichero.app"
             BlueprintName = "Fichero"
-            ReferencedContainer = "container:Fichero.xcodeproj">
+            ReferencedContainer = "container:fichero-swiftui.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -65,7 +65,7 @@
             BlueprintIdentifier = "500"
             BuildableName = "Fichero.app"
             BlueprintName = "Fichero"
-            ReferencedContainer = "container:Fichero.xcodeproj">
+            ReferencedContainer = "container:fichero-swiftui.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
    </ProfileAction>

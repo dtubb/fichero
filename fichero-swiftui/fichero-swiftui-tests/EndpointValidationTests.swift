@@ -22,7 +22,7 @@ import FicheroAPIClient
 
 /// Path to the Python-exported endpoints file
 private func endpointsFilePath() -> URL {
-    // From: Fichero/FicheroTests/EndpointValidationTests.swift
+    // From: fichero-swiftui/fichero-swiftui-tests/EndpointValidationTests.swift
     // To: tests/contracts/endpoints.json
     let thisFile = URL(fileURLWithPath: #file)
     return thisFile

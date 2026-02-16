@@ -30,7 +30,7 @@ logs/
 **/*.xcuserstate
 **/.swiftpm/xcode/xcuserdata/
 fichero-swiftui/derived_data/
-fichero-swiftui/Fichero/Resources/FicheroBackend.app/
+fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app/
 
 # Local tooling
 .claude/

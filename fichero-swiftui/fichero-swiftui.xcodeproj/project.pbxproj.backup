@@ -139,7 +139,7 @@
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
 		A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
-		A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
+		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
 		A1BFB2C52F042C0500EAA55A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSettings.swift; sourceTree = "<group>"; };
 		A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProviderSheet.swift; sourceTree = "<group>"; };
@@ -222,7 +222,7 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */,
+				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
 				A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */,
 				A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */,
 				410 /* Fichero */,

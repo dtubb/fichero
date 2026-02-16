@@ -380,7 +380,7 @@ function_body_length:
 
 # Disable for generated files
 excluded:
-  - Fichero/FicheroAPIClient/
+  - fichero-swiftui/fichero-api-client/
   - FicheroBackend.app/
 
 # Allow longer lines for documentation

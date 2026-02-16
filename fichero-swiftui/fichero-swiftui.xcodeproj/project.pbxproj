@@ -315,11 +315,11 @@
 		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
 		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
 		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
-		A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
+		A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
 		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
 		A1624FF72F2EE5880019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../fichero-api/build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
-		A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FicheroTests.xctestplan; sourceTree = "<group>"; };
-		A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestPlan.xctestplan; sourceTree = "<group>"; };
+		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
+		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
 		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
 		A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerDetailView.swift; sourceTree = "<group>"; };
 		A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersSheet.swift; sourceTree = "<group>"; };
@@ -419,12 +419,12 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10521AA2EFDC92400B28C3E /* FicheroTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = FicheroTests;
+			path = fichero-swiftui-tests;
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* FicheroUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = FicheroUITests;
+			path = fichero-swiftui-ui-tests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -454,9 +454,9 @@
 			isa = PBXGroup;
 			children = (
 				A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
-				A18B76672EFDCD6E001C9EC2 /* TestPlan.xctestplan */,
-				A151C6DE2EFDCD4300E46CE0 /* FicheroTests.xctestplan */,
-				A16FDD632EFDCD17003296BF /* FicheroTests.xctestplan */,
+				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
+				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
+				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
 				410 /* Fichero */,
 				A10521AA2EFDC92400B28C3E /* FicheroTests */,
 				A10521C22EFDC94100B28C3E /* FicheroUITests */,
@@ -1533,7 +1533,7 @@
 /* Begin XCLocalSwiftPackageReference section */
 		A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = FicheroAPIClient;
+			relativePath = fichero-api-client;
 		};
 /* End XCLocalSwiftPackageReference section */
 

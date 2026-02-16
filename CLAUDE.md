@@ -25,13 +25,13 @@ The backend must be running on port 8765 before launching the Swift app.
 
 ```bash
 # Build the Swift app
-xcodebuild -project fichero-swiftui/Fichero.xcodeproj -scheme Fichero -configuration Debug
+xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug
 
 # Run SwiftLint (code quality)
 swiftlint lint --path fichero-swiftui/fichero-swiftui/
 ```
 
-**Preferred method**: Open `fichero-swiftui/Fichero.xcodeproj` in Xcode and run (⌘R).
+**Preferred method**: Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run (⌘R).
 
 ### Testing
 
@@ -40,7 +40,7 @@ swiftlint lint --path fichero-swiftui/fichero-swiftui/
 PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
 
 # Swift tests (run from Xcode or command line)
-xcodebuild test -project fichero-swiftui/Fichero.xcodeproj -scheme Fichero
+xcodebuild test -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero
 ```
 
 ## Architecture
@@ -79,14 +79,14 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 - **`Views/Workflow/`**: Visual node editor for building LangGraph workflows
 - **`Services/`**: API client communicating with FastAPI backend
 - **`Models/`**: Swift data models mirroring Python Pydantic models
-- **`FicheroAPIClient/`**: Generated type-safe API client (local Swift package)
+- **`fichero-api-client/`**: Generated type-safe API client (local Swift package)
 
 ### Swift API Client (OpenAPI Generator)
 
 The Swift frontend uses **Apple's Swift OpenAPI Generator** to create type-safe API clients from the Python backend's OpenAPI schema. This ensures Swift and Python stay in sync.
 
 **Key files:**
-- `fichero-swiftui/FicheroAPIClient/` - Local Swift package with generated client
+- `fichero-swiftui/fichero-api-client/` - Local Swift package with generated client
 - `fichero-api/tests/contracts/openapi.json` - OpenAPI schema (source of truth)
 - `fichero-api/scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
 

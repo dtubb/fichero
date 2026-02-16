@@ -19,7 +19,7 @@ import FicheroAPIClient
 /// Path to the contract fixtures directory
 /// Navigate from FicheroTests to the shared contracts folder
 private func contractsPath() -> URL {
-    // From: Fichero/FicheroTests/ContractTests.swift
+    // From: fichero-swiftui/fichero-swiftui-tests/ContractTests.swift
     // To: tests/contracts/fixtures/
     let thisFile = URL(fileURLWithPath: #file)
     return thisFile

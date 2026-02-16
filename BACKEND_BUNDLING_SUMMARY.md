@@ -37,7 +37,7 @@ build/fichero-backend/macos/app/FicheroBackend.app
 ### Quick Setup (5 minutes)
 
 1. **Add Swift file to Xcode:**
-   - Open `Fichero.xcodeproj`
+   - Open `fichero-swiftui.xcodeproj`
    - Add `fichero-swiftui/Services/EmbeddedBackendService.swift` to project
    - (Right-click Services folder → Add Files)
 

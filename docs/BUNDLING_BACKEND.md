@@ -98,7 +98,7 @@ cd /Users/danieltubb/code/fichero_main/fichero
 
 ```bash
 # Open Xcode
-open fichero-swiftui/Fichero.xcodeproj
+open fichero-swiftui/fichero-swiftui.xcodeproj
 
 # Build (⌘B) or Run (⌘R)
 ```
@@ -132,7 +132,7 @@ cd /Users/danieltubb/code/fichero_main/fichero
 PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
 
 # Terminal 2: Run Swift app from Xcode
-open fichero-swiftui/Fichero.xcodeproj
+open fichero-swiftui/fichero-swiftui.xcodeproj
 # Press ⌘R
 ```
 
@@ -337,7 +337,7 @@ Created files for nested app bundling:
    ```
 
 2. **Add Xcode build script:**
-   - Open Fichero.xcodeproj
+   - Open fichero-swiftui.xcodeproj
    - Target → Build Phases → + → New Run Script Phase
    - Add: `${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh`
 

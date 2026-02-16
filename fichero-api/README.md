@@ -28,3 +28,10 @@ From repo root:
 ```bash
 ./fichero-api/scripts/build_backend_bundle.sh
 ```
+
+## Keep Swift client in sync
+When backend API routes or schemas change, regenerate and copy the OpenAPI schema into the Swift package used by the app:
+
+```bash
+./fichero-api/scripts/sync_openapi_schema.sh
+```
