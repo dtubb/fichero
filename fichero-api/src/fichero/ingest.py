@@ -186,11 +186,6 @@ def ingest_file(
     """
     from fichero.bookmarks import create_bookmark
 
-    if save and db is None:
-        db = _resolve_default_db()
-    if save and db is None:
-        raise ValueError("db parameter required when save=True")
-
     path = Path(path).resolve()
 
     if not path.exists():
@@ -198,6 +193,11 @@ def ingest_file(
 
     if not path.is_file():
         raise ValueError(f"Not a file: {path}")
+
+    if save and db is None:
+        db = _resolve_default_db()
+    if save and db is None:
+        raise ValueError("db parameter required when save=True")
 
     # Determine file type
     file_type = detect_file_type(path)
@@ -464,11 +464,6 @@ def ingest_folder(
     Returns:
         List of created Documents
     """
-    if db is None:
-        db = _resolve_default_db()
-    if db is None:
-        raise ValueError("db parameter is required")
-
     folder = Path(folder).resolve()
 
     if not folder.exists():
@@ -476,6 +471,11 @@ def ingest_folder(
 
     if not folder.is_dir():
         raise ValueError(f"Not a folder: {folder}")
+
+    if db is None:
+        db = _resolve_default_db()
+    if db is None:
+        raise ValueError("db parameter is required")
 
     # Create folder if requested
     folder_id = parent_id
