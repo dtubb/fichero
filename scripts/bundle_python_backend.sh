@@ -8,7 +8,7 @@ set -e
 # 1. Downloads Python-Apple-support (pre-compiled Python for macOS)
 # 2. Installs all dependencies into the bundle
 # 3. Signs all .so files with your developer certificate
-# 4. Copies everything to Fichero/Resources/python/
+# 4. Copies everything to fichero-swiftui/Resources/python/
 #
 # Usage:
 #   ./scripts/bundle_python_backend.sh
@@ -20,7 +20,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BUNDLE_DIR="$PROJECT_ROOT/Fichero/Fichero/Resources/python"
+BUNDLE_DIR="$PROJECT_ROOT/fichero-swiftui/fichero-swiftui/Resources/python"
 TEMP_DIR="/tmp/fichero_python_bundle"
 
 # Python version (must match your development environment)

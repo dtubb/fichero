@@ -61,12 +61,12 @@ Document management and AI processing for macOS. Organize, search, chat, and run
 
 **Start the backend:**
 ```bash
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765
+cd /Users/danieltubb/code/fichero_main/fichero
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 **Run the Swift app:**
-Open `Fichero/Fichero.xcodeproj` in Xcode and run.
+Open `fichero-swiftui/Fichero.xcodeproj` in Xcode and run.
 
 ## Features
 
@@ -111,7 +111,10 @@ docs = ingest_folder(
 
 ## Project Structure
 
-### Python Backend (`src/fichero/`)
+- `fichero-api/` - Backend package and Briefcase config ([README](fichero-api/README.md))
+- `fichero-swiftui/` - SwiftUI app and Xcode project ([README](fichero-swiftui/README.md))
+
+### Python Backend (`fichero-api/src/fichero/`)
 
 ```
 api/               # FastAPI routes (documents, search, chat, workflows, providers)
@@ -128,7 +131,7 @@ bookmarks.py       # macOS security-scoped bookmarks
 resources/         # Config defaults, locales
 ```
 
-### Swift App (`Fichero/Fichero/`)
+### Swift App (`fichero-swiftui/fichero-swiftui/`)
 
 ```
 Views/
@@ -147,5 +150,5 @@ Resources/         # Assets, config
 ## Tests
 
 ```bash
-PYTHONPATH=src .venv/bin/pytest tests/unit/ --ignore=tests/unit/_archived
+PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
 ```

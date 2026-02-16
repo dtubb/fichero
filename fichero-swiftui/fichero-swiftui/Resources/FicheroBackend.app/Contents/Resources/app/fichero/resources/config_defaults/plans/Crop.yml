@@ -1,0 +1,44 @@
+title: "Crop"
+description: >
+  Minimal workflow for testing crop tool - processes images with contour-based cropping.
+
+vars:
+  name: "Fichero"
+  language: "es"
+  version: "0.1.0"
+  project_folder: ''
+  documents_folder: ''
+  assets_folder: ''
+
+workflows:
+  # Crop only workflow - for testing crop tool with OutputView
+  CropTest:
+    - build_documents_manifest
+    - crop
+
+commands:
+  - name: build_documents_manifest
+    worker_type: "io"
+    help: "Generate the documents manifest listing"
+    function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    args:
+      source_folder: "documents"
+      output_manifest: "assets/manifests/documents_manifest.jsonl"
+    outputs:
+      - "assets/manifests/documents_manifest.jsonl"
+
+  - name: crop
+    worker_type: "cpu"
+    help: "Crop document pages to remove borders"
+    function: "fichero.tools.crop.crop_batch"
+    args:
+      source_folder: "documents"
+      source_manifest: "assets/manifests/documents_manifest.jsonl"
+      output_folder: "assets/cropped"
+      model_path: "models/yolov8_trained_best.pt"
+      output_format: "jpg"
+      contour_template: "auto"
+      contour_padding: 30
+    outputs:
+      - "assets/cropped"
+      - "assets/cropped/crop_manifest.jsonl"

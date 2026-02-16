@@ -1,0 +1,24 @@
+{
+  "name": "qwen_translation",
+  "description": "Document translation and analysis using Qwen",
+  "llm": {
+    "backend": "qwen",
+    "model": "qwen-max",
+    "temperature": 0.0,
+    "api_key": null
+  },
+  "steps": [
+    {
+      "name": "translate",
+      "prompt": "Translate the following historical Spanish document to English, preserving the formal tone and historical context:",
+      "combine": true,
+      "json": false
+    },
+    {
+      "name": "modernize",
+      "prompt": "Rewrite this historical Spanish text in modern Spanish, making it easier to understand while preserving the essential meaning:",
+      "combine": true,
+      "json": false
+    }
+  ]
+} 

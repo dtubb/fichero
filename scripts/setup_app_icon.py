@@ -8,8 +8,8 @@ import json
 
 # Paths
 project_root = Path(__file__).parent.parent
-source_icon = project_root / "src/fichero/resources/icons/fichero-1920.png"
-appiconset = project_root / "Fichero/Fichero/Resources/Assets.xcassets/AppIcon.appiconset"
+source_icon = project_root / "fichero-api/src/fichero/resources/icons/fichero-1920.png"
+appiconset = project_root / "fichero-swiftui/fichero-swiftui/Resources/Assets.xcassets/AppIcon.appiconset"
 
 # macOS icon sizes needed (actual pixel dimensions)
 SIZES = [

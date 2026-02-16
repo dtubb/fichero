@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Fichero is a macOS document management application with AI processing capabilities. It uses a **hybrid architecture**:
-- **Swift/SwiftUI frontend** (`Fichero/`) for the native macOS app
-- **Python/FastAPI backend** (`src/fichero/`) for document processing, AI workflows, and data storage
+- **Swift/SwiftUI frontend** (`fichero-swiftui/`) for the native macOS app
+- **Python/FastAPI backend** (`fichero-api/src/fichero/`) for document processing, AI workflows, and data storage
 - **Dual database system**: DuckDB for metadata + LanceDB for vector embeddings
 
 ## Development Commands
@@ -15,8 +15,8 @@ Fichero is a macOS document management application with AI processing capabiliti
 
 ```bash
 # Start the FastAPI backend server (required for Swift app to function)
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765
+cd /Users/danieltubb/code/fichero_main/fichero
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 The backend must be running on port 8765 before launching the Swift app.
@@ -25,22 +25,22 @@ The backend must be running on port 8765 before launching the Swift app.
 
 ```bash
 # Build the Swift app
-xcodebuild -project Fichero/Fichero.xcodeproj -scheme Fichero -configuration Debug
+xcodebuild -project fichero-swiftui/Fichero.xcodeproj -scheme Fichero -configuration Debug
 
 # Run SwiftLint (code quality)
-swiftlint lint --path Fichero/Fichero/
+swiftlint lint --path fichero-swiftui/fichero-swiftui/
 ```
 
-**Preferred method**: Open `Fichero/Fichero.xcodeproj` in Xcode and run (⌘R).
+**Preferred method**: Open `fichero-swiftui/Fichero.xcodeproj` in Xcode and run (⌘R).
 
 ### Testing
 
 ```bash
 # Python unit tests (ignore archived tests)
-PYTHONPATH=src .venv/bin/pytest tests/unit/ --ignore=tests/unit/_archived
+PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
 
 # Swift tests (run from Xcode or command line)
-xcodebuild test -project Fichero/Fichero.xcodeproj -scheme Fichero
+xcodebuild test -project fichero-swiftui/Fichero.xcodeproj -scheme Fichero
 ```
 
 ## Architecture
@@ -86,8 +86,8 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 The Swift frontend uses **Apple's Swift OpenAPI Generator** to create type-safe API clients from the Python backend's OpenAPI schema. This ensures Swift and Python stay in sync.
 
 **Key files:**
-- `Fichero/FicheroAPIClient/` - Local Swift package with generated client
-- `tests/contracts/openapi.json` - OpenAPI schema (source of truth)
+- `fichero-swiftui/FicheroAPIClient/` - Local Swift package with generated client
+- `fichero-api/tests/contracts/openapi.json` - OpenAPI schema (source of truth)
 - `scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
 
 **Usage:**
@@ -167,7 +167,7 @@ The Swift app **cannot function without the Python backend running**. Always sta
 
 ### Security-Scoped Bookmarks
 
-In LINK mode, the app uses macOS security-scoped bookmarks (`bookmarks.py`) to maintain access to files outside the sandbox. This requires proper entitlements in `Fichero/Fichero.entitlements`.
+In LINK mode, the app uses macOS security-scoped bookmarks (`bookmarks.py`) to maintain access to files outside the sandbox. This requires proper entitlements in `fichero-swiftui/fichero-swiftui/Fichero.entitlements`.
 
 ### LiteLLM Integration
 
@@ -364,7 +364,7 @@ Examples:
 
 ### File System Operations
 
-**filesystem** (`@modelcontextprotocol/server-filesystem`) - Scoped to `/Users/dtubb/code/fichero_main/fichero/`:
+**filesystem** (`@modelcontextprotocol/server-filesystem`) - Scoped to `/Users/danieltubb/code/fichero_main/fichero/`:
 - `read_text_file` - Read file contents (supports head/tail)
 - `read_multiple_files` - Read multiple files efficiently
 - `write_file` - Create or overwrite files
@@ -437,7 +437,7 @@ The `docs/` folder contains detailed API documentation:
 
 - **Port conflicts**: Backend must run on port 8765 (hardcoded in Swift app)
 - **PYTHONPATH**: Must be set to `src` when running backend or tests
-- **Archived tests**: Always ignore `tests/unit/_archived` directory
+- **Archived tests**: Always ignore `fichero-api/tests/unit/_archived` directory
 - **SwiftUI state**: Use `@MainActor` for view models that update UI state
 - **Workflow parameters**: Always validate parameter types match tool expectations
 - **TODO.md updates**: Never rewrite the entire file - use targeted edits only

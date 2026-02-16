@@ -138,9 +138,10 @@ def get_pyproject_packages(pyproject_path: Path) -> Set[str]:
 
 def main():
     project_root = Path(__file__).parent.parent
+    api_root = project_root / "fichero-api"
     source_dirs = [
-        project_root / "src" / "fichero",
-        project_root / "src" / "fichero_backend",
+        api_root / "src" / "fichero",
+        api_root / "src" / "fichero_backend",
     ]
 
     print("🔍 Scanning Python files for imports...")
@@ -163,7 +164,7 @@ def main():
             required_packages.add(normalize_package_name(pkg))
 
     print("📦 Reading pyproject.toml...")
-    pyproject_path = project_root / "pyproject.toml"
+    pyproject_path = api_root / "pyproject.toml"
     declared_packages = get_pyproject_packages(pyproject_path)
     print(f"   Found {len(declared_packages)} declared packages\n")
 

@@ -1,0 +1,349 @@
+title: "Transcribe Multi-Provider"
+description: >
+  Multi-provider transcription workflow for comparing OCR quality across:
+  - Qwen VL OCR (DashScope) - Fast, async, optimized for documents
+  - Qwen VL Max (DashScope) - Higher quality vision model
+  - GPT-4o (OpenAI) - OpenAI's flagship vision model
+
+  Each workflow outputs to a separate folder for easy comparison.
+  Includes segmentation, recombine, and fuzzy clean steps.
+
+vars:
+  name: "Fichero"
+  language: "es"
+  version: "0.1.0"
+  project_folder: ''
+  documents_folder: ''
+  assets_folder: ''
+
+  # Segmentation settings
+  segment_tile_size: 2048
+  segment_overlap: 256
+
+workflows:
+  # =============================================================================
+  # DIRECT TRANSCRIPTION (no segmentation) - Default workflows
+  # =============================================================================
+
+  # Qwen VL OCR - Direct
+  QwenOCR:
+    - build_documents_manifest
+    - prepare_images
+    - transcribe_qwen_ocr_direct
+    - fuzzy_clean_qwen_ocr_direct
+
+  # Qwen VL Max - Direct
+  QwenVLMax:
+    - build_documents_manifest
+    - prepare_images
+    - transcribe_qwen_vl_max_direct
+    - fuzzy_clean_qwen_vl_max_direct
+
+  # GPT-4o - Direct
+  GPT4o:
+    - build_documents_manifest
+    - prepare_images
+    - transcribe_gpt4o_direct
+    - fuzzy_clean_gpt4o_direct
+
+  # =============================================================================
+  # COMPARE ALL - Run all 3 providers
+  # =============================================================================
+
+  CompareAll:
+    - build_documents_manifest
+    - prepare_images
+    # Qwen OCR pipeline
+    - transcribe_qwen_ocr_direct
+    - fuzzy_clean_qwen_ocr_direct
+    # Qwen VL Max pipeline
+    - transcribe_qwen_vl_max_direct
+    - fuzzy_clean_qwen_vl_max_direct
+    # GPT-4o pipeline
+    - transcribe_gpt4o_direct
+    - fuzzy_clean_gpt4o_direct
+
+commands:
+  # =============================================================================
+  # COMMON STEPS
+  # =============================================================================
+
+  - name: build_documents_manifest
+    worker_type: "io"
+    help: "Generate the documents manifest listing"
+    function: "fichero.tools.build_documents_manifest.build_documents_manifest_batch"
+    output_scope: "folder"  # Manifest is folder-level
+    args:
+      source_folder: "documents"
+      output_manifest: "assets/manifests/documents_manifest.jsonl"
+    outputs:
+      - "assets/manifests/documents_manifest.jsonl"
+
+  - name: prepare_images
+    worker_type: "io"
+    help: "Prepare images (apply EXIF rotation and compress) for better processing"
+    function: "fichero.tools.prepare_images.prepare_images_batch"
+    output_scope: "file"  # Each output corresponds to a source file
+    args:
+      source_folder: "documents"
+      source_manifest: "assets/manifests/documents_manifest.jsonl"
+      output_folder: "assets/prepared"
+      output_format: "jpg"
+      compression_quality: 85
+      add_documents_prefix: false
+    outputs:
+      - "assets/prepared"
+      - "assets/prepared/prepare_images_manifest.jsonl"
+
+  - name: segment
+    worker_type: "cpu"
+    help: "Segment large images into smaller tiles for better transcription"
+    function: "fichero.tools.segment.segment_batch"
+    output_scope: "file"  # Segments are derived from source files
+    args:
+      source_folder: "assets/prepared"
+      source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
+      output_folder: "assets/segmented"
+      tile_size: "{segment_tile_size}"
+      overlap: "{segment_overlap}"
+      output_format: "jpg"
+    outputs:
+      - "assets/segmented"
+      - "assets/segmented/segment_manifest.jsonl"
+
+  # =============================================================================
+  # QWEN VL OCR - Segmented Pipeline
+  # =============================================================================
+
+  - name: transcribe_qwen_ocr
+    worker_type: "io"
+    help: "Transcribe segmented images using Qwen VL OCR"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/segmented"
+      source_manifest: "assets/segmented/segment_manifest.jsonl"
+      output_folder: "assets/transcriptions_qwen_ocr"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
+      use_async: true
+      max_concurrent: 15
+    outputs:
+      - "assets/transcriptions_qwen_ocr"
+      - "assets/transcriptions_qwen_ocr/transcriptions_manifest.jsonl"
+
+  - name: recombine_qwen_ocr
+    worker_type: "cpu"
+    help: "Recombine Qwen OCR segmented transcriptions back into documents"
+    function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    output_scope: "file"  # Recombined outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_qwen_ocr"
+      source_manifest: "assets/transcriptions_qwen_ocr/transcriptions_manifest.jsonl"
+      output_folder: "assets/recombined_qwen_ocr"
+    outputs:
+      - "assets/recombined_qwen_ocr"
+      - "assets/recombined_qwen_ocr/recombine_manifest.jsonl"
+
+  - name: fuzzy_clean_qwen_ocr
+    worker_type: "cpu"
+    help: "Clean up Qwen OCR transcriptions"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/recombined_qwen_ocr"
+      source_manifest: "assets/recombined_qwen_ocr/recombine_manifest.jsonl"
+      output_folder: "assets/cleaned_qwen_ocr"
+    outputs:
+      - "assets/cleaned_qwen_ocr"
+      - "assets/cleaned_qwen_ocr/transcription_manifest.jsonl"
+
+  # =============================================================================
+  # QWEN VL MAX - Segmented Pipeline
+  # =============================================================================
+
+  - name: transcribe_qwen_vl_max
+    worker_type: "io"
+    help: "Transcribe segmented images using Qwen VL Max"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/segmented"
+      source_manifest: "assets/segmented/segment_manifest.jsonl"
+      output_folder: "assets/transcriptions_qwen_vl_max"
+      provider: "dashscope"
+      model: "qwen-vl-max"
+      use_async: true
+      max_concurrent: 10
+    outputs:
+      - "assets/transcriptions_qwen_vl_max"
+      - "assets/transcriptions_qwen_vl_max/transcriptions_manifest.jsonl"
+
+  - name: recombine_qwen_vl_max
+    worker_type: "cpu"
+    help: "Recombine Qwen VL Max segmented transcriptions back into documents"
+    function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    output_scope: "file"  # Recombined outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_qwen_vl_max"
+      source_manifest: "assets/transcriptions_qwen_vl_max/transcriptions_manifest.jsonl"
+      output_folder: "assets/recombined_qwen_vl_max"
+    outputs:
+      - "assets/recombined_qwen_vl_max"
+      - "assets/recombined_qwen_vl_max/recombine_manifest.jsonl"
+
+  - name: fuzzy_clean_qwen_vl_max
+    worker_type: "cpu"
+    help: "Clean up Qwen VL Max transcriptions"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/recombined_qwen_vl_max"
+      source_manifest: "assets/recombined_qwen_vl_max/recombine_manifest.jsonl"
+      output_folder: "assets/cleaned_qwen_vl_max"
+    outputs:
+      - "assets/cleaned_qwen_vl_max"
+      - "assets/cleaned_qwen_vl_max/transcription_manifest.jsonl"
+
+  # =============================================================================
+  # GPT-4o - Segmented Pipeline
+  # =============================================================================
+
+  - name: transcribe_gpt4o
+    worker_type: "io"
+    help: "Transcribe segmented images using GPT-4o"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/segmented"
+      source_manifest: "assets/segmented/segment_manifest.jsonl"
+      output_folder: "assets/transcriptions_gpt4o"
+      provider: "openai"
+      model: "gpt-4o"
+      base_url: "https://api.openai.com/v1"
+      use_async: true
+      max_concurrent: 5
+    outputs:
+      - "assets/transcriptions_gpt4o"
+      - "assets/transcriptions_gpt4o/transcriptions_manifest.jsonl"
+
+  - name: recombine_gpt4o
+    worker_type: "cpu"
+    help: "Recombine GPT-4o segmented transcriptions back into documents"
+    function: "fichero.tools.recombine_segments.recombine_segments_batch"
+    output_scope: "file"  # Recombined outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_gpt4o"
+      source_manifest: "assets/transcriptions_gpt4o/transcriptions_manifest.jsonl"
+      output_folder: "assets/recombined_gpt4o"
+    outputs:
+      - "assets/recombined_gpt4o"
+      - "assets/recombined_gpt4o/recombine_manifest.jsonl"
+
+  - name: fuzzy_clean_gpt4o
+    worker_type: "cpu"
+    help: "Clean up GPT-4o transcriptions"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/recombined_gpt4o"
+      source_manifest: "assets/recombined_gpt4o/recombine_manifest.jsonl"
+      output_folder: "assets/cleaned_gpt4o"
+    outputs:
+      - "assets/cleaned_gpt4o"
+      - "assets/cleaned_gpt4o/transcription_manifest.jsonl"
+
+  # =============================================================================
+  # DIRECT (NO SEGMENTATION) - For smaller/standard images
+  # =============================================================================
+
+  - name: transcribe_qwen_ocr_direct
+    worker_type: "io"
+    help: "Transcribe directly using Qwen VL OCR (no segmentation)"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/prepared"
+      source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
+      output_folder: "assets/transcriptions_qwen_ocr"
+      provider: "dashscope"
+      model: "qwen-vl-ocr"
+      use_async: true
+      max_concurrent: 15
+    outputs:
+      - "assets/transcriptions_qwen_ocr"
+      - "assets/transcriptions_qwen_ocr/transcriptions_manifest.jsonl"
+
+  - name: fuzzy_clean_qwen_ocr_direct
+    worker_type: "cpu"
+    help: "Clean up Qwen OCR transcriptions (direct)"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_qwen_ocr"
+      source_manifest: "assets/transcriptions_qwen_ocr/transcriptions_manifest.jsonl"
+      output_folder: "assets/cleaned_qwen_ocr"
+    outputs:
+      - "assets/cleaned_qwen_ocr"
+      - "assets/cleaned_qwen_ocr/transcription_manifest.jsonl"
+
+  - name: transcribe_qwen_vl_max_direct
+    worker_type: "io"
+    help: "Transcribe directly using Qwen VL Max (no segmentation)"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/prepared"
+      source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
+      output_folder: "assets/transcriptions_qwen_vl_max"
+      provider: "dashscope"
+      model: "qwen-vl-max"
+      use_async: true
+      max_concurrent: 10
+    outputs:
+      - "assets/transcriptions_qwen_vl_max"
+      - "assets/transcriptions_qwen_vl_max/transcriptions_manifest.jsonl"
+
+  - name: fuzzy_clean_qwen_vl_max_direct
+    worker_type: "cpu"
+    help: "Clean up Qwen VL Max transcriptions (direct)"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_qwen_vl_max"
+      source_manifest: "assets/transcriptions_qwen_vl_max/transcriptions_manifest.jsonl"
+      output_folder: "assets/cleaned_qwen_vl_max"
+    outputs:
+      - "assets/cleaned_qwen_vl_max"
+      - "assets/cleaned_qwen_vl_max/transcription_manifest.jsonl"
+
+  - name: transcribe_gpt4o_direct
+    worker_type: "io"
+    help: "Transcribe directly using GPT-4o (no segmentation)"
+    function: "fichero.tools.transcribe.transcribe_batch"
+    output_scope: "file"  # Each transcription belongs to its source image
+    args:
+      source_folder: "assets/prepared"
+      source_manifest: "assets/prepared/prepare_images_manifest.jsonl"
+      output_folder: "assets/transcriptions_gpt4o"
+      provider: "openai"
+      model: "gpt-4o"
+      base_url: "https://api.openai.com/v1"
+      use_async: true
+      max_concurrent: 5
+    outputs:
+      - "assets/transcriptions_gpt4o"
+      - "assets/transcriptions_gpt4o/transcriptions_manifest.jsonl"
+
+  - name: fuzzy_clean_gpt4o_direct
+    worker_type: "cpu"
+    help: "Clean up GPT-4o transcriptions (direct)"
+    function: "fichero.tools.fuzzy_clean.fuzzy_clean_batch"
+    output_scope: "file"  # Cleaned outputs map back to original source files
+    args:
+      source_folder: "assets/transcriptions_gpt4o"
+      source_manifest: "assets/transcriptions_gpt4o/transcriptions_manifest.jsonl"
+      output_folder: "assets/cleaned_gpt4o"
+    outputs:
+      - "assets/cleaned_gpt4o"
+      - "assets/cleaned_gpt4o/transcription_manifest.jsonl"

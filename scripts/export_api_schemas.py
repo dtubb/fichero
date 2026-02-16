@@ -11,9 +11,9 @@ Usage:
     python scripts/export_api_schemas.py
 
 Output:
-    tests/contracts/schemas/      - JSON Schema files
-    tests/contracts/fixtures/     - Sample JSON fixtures
-    tests/contracts/manifest.json - Model manifest
+    fichero-api/tests/contracts/schemas/      - JSON Schema files
+    fichero-api/tests/contracts/fixtures/     - Sample JSON fixtures
+    fichero-api/tests/contracts/manifest.json - Model manifest
 """
 
 import json
@@ -22,9 +22,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-# Add src to path
+# Add API src to path
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "fichero-api" / "src"))
 
 from fichero.workflows.types import (
     WorkflowDef,
@@ -234,7 +234,7 @@ def validate_fixture(model_class, fixture: dict) -> bool:
 
 def main():
     # Create output directories
-    base_dir = Path(__file__).parent.parent / "tests" / "contracts"
+    base_dir = Path(__file__).parent.parent / "fichero-api" / "tests" / "contracts"
     schemas_dir = base_dir / "schemas"
     fixtures_dir = base_dir / "fixtures"
 

@@ -72,4 +72,4 @@ echo ""
 # Enable model validation in Python startup as well (logs warning if out of sync)
 export FICHERO_VALIDATE_MODELS=1
 
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765 --reload
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765 --reload

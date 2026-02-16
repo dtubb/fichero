@@ -6,11 +6,11 @@ This guide walks you through the final setup steps to enable the embedded Python
 
 The following has been implemented:
 
-- ✅ Backend entry point (`src/fichero_backend/__main__.py`)
+- ✅ Backend entry point (`fichero-api/src/fichero_backend/__main__.py`)
 - ✅ Briefcase configuration in `pyproject.toml`
 - ✅ Build script (`scripts/build_backend_bundle.sh`)
 - ✅ Xcode copy script (`scripts/xcode_copy_backend.sh`)
-- ✅ Swift backend service (`Fichero/Services/EmbeddedBackendService.swift`)
+- ✅ Swift backend service (`fichero-swiftui/Services/EmbeddedBackendService.swift`)
 - ✅ FicheroApp.swift updated to launch backend
 - ✅ Backend successfully built with Briefcase
 
@@ -19,9 +19,9 @@ The following has been implemented:
 ### Step 1: Add EmbeddedBackendService.swift to Xcode
 
 1. Open `Fichero.xcodeproj` in Xcode
-2. In Project Navigator, locate `Fichero/Services/` folder
+2. In Project Navigator, locate `fichero-swiftui/Services/` folder
 3. **Right-click on Services folder** → Add Files to "Fichero"
-4. Navigate to: `Fichero/Fichero/Services/EmbeddedBackendService.swift`
+4. Navigate to: `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`
 5. **Make sure:** ✅ "Copy items if needed" is UNCHECKED
 6. **Make sure:** ✅ "Fichero" target is CHECKED
 7. Click "Add"
@@ -43,7 +43,7 @@ The following has been implemented:
    ```
 7. **Expand "Input Files"** and add:
    ```
-   ${PROJECT_DIR}/build/fichero-backend/macos/app/Fichero Backend.app
+   ${PROJECT_DIR}/build/fichero-backend/macos/app/FicheroBackend.app
    ```
 8. **Expand "Output Files"** and add:
    ```
@@ -68,7 +68,7 @@ Build Phases
 Before building in Xcode, build the Python backend:
 
 ```bash
-cd /Users/dtubb/code/fichero_main/fichero
+cd /Users/danieltubb/code/fichero_main/fichero
 ./scripts/build_backend_bundle.sh
 ```
 
@@ -82,7 +82,7 @@ cd /Users/dtubb/code/fichero_main/fichero
 [fichero-backend] Building App...
 
 ✅ Backend bundle ready!
-   Location: build/fichero-backend/macos/app/Fichero Backend.app
+   Location: build/fichero-backend/macos/app/FicheroBackend.app
    Size: 180M
 
 Next steps:
@@ -106,7 +106,7 @@ Next steps:
 
 **If build fails with "Backend bundle not found":**
 - Make sure you ran `./scripts/build_backend_bundle.sh` first
-- Check that `build/fichero-backend/macos/app/Fichero Backend.app` exists
+- Check that `build/fichero-backend/macos/app/FicheroBackend.app` exists
 
 ---
 
@@ -126,7 +126,7 @@ Next steps:
 **If you see "DEBUG mode: Checking for external backend":**
 - This means you're running in DEBUG configuration
 - The app expects an external backend on port 8765
-- **Either:** Start external backend: `PYTHONPATH=src uvicorn fichero.api.main:app --reload`
+- **Either:** Start external backend: `PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --reload`
 - **Or:** Change to Release build configuration in Xcode
 
 ---
@@ -146,8 +146,8 @@ When running in DEBUG configuration:
 
 **Start external backend:**
 ```bash
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
+cd /Users/danieltubb/code/fichero_main/fichero
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
 ```
 
 **Benefits:**
@@ -186,7 +186,7 @@ After setup, verify everything works:
 
 ### ✅ Backend Bundle Exists
 ```bash
-ls -lh "build/fichero-backend/macos/app/Fichero Backend.app"
+ls -lh "build/fichero-backend/macos/app/FicheroBackend.app"
 ```
 
 ### ✅ Backend Copied to App
@@ -281,7 +281,7 @@ All files involved in bundling:
 ├── scripts/
 │   ├── build_backend_bundle.sh              # Build backend with Briefcase
 │   └── xcode_copy_backend.sh                # Copy backend to app bundle
-├── Fichero/Fichero/
+├── fichero-swiftui/fichero-swiftui/
 │   ├── Services/
 │   │   └── EmbeddedBackendService.swift     # Swift backend launcher
 │   └── FicheroApp.swift                     # App entry (updated)
@@ -289,7 +289,7 @@ All files involved in bundling:
     └── fichero-backend/
         └── macos/
             └── app/
-                └── Fichero Backend.app      # Built by Briefcase
+                └── FicheroBackend.app      # Built by Briefcase
 ```
 
 ---

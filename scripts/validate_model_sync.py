@@ -3,8 +3,8 @@
 Validate that Python Pydantic models and Swift types are in sync.
 
 This script compares field definitions between:
-- Python: src/fichero/workflows/types.py
-- Swift: Fichero/Fichero/Models/WorkflowTypes.swift
+- Python: fichero-api/src/fichero/workflows/types.py
+- Swift: fichero-swiftui/fichero-swiftui/Models/WorkflowTypes.swift
 
 Run this before launching the backend to catch model drift early.
 """
@@ -269,8 +269,8 @@ def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
 
-    python_file = project_root / "src" / "fichero" / "workflows" / "types.py"
-    swift_file = project_root / "Fichero" / "Fichero" / "Models" / "WorkflowTypes.swift"
+    python_file = project_root / "fichero-api" / "src" / "fichero" / "workflows" / "types.py"
+    swift_file = project_root / "fichero-swiftui" / "fichero-swiftui" / "Models" / "WorkflowTypes.swift"
 
     if not python_file.exists():
         print(f"Error: Python file not found: {python_file}")

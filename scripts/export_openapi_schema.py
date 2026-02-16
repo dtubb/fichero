@@ -10,8 +10,8 @@ Usage:
     python scripts/export_openapi_schema.py
 
 Output:
-    tests/contracts/openapi.json - Full OpenAPI 3.0 schema
-    tests/contracts/endpoints.json - Simplified endpoint list for Swift validation
+    fichero-api/tests/contracts/openapi.json - Full OpenAPI 3.0 schema
+    fichero-api/tests/contracts/endpoints.json - Simplified endpoint list for Swift validation
 
 The Swift app can validate its API calls against these files.
 """
@@ -20,8 +20,8 @@ import json
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add API src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "fichero-api" / "src"))
 
 from fichero.api.main import app
 
@@ -152,7 +152,7 @@ def main():
     openapi_schema["openapi"] = "3.0.3"
 
     # Create output directory
-    output_dir = Path(__file__).parent.parent / "tests" / "contracts"
+    output_dir = Path(__file__).parent.parent / "fichero-api" / "tests" / "contracts"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save full OpenAPI schema

@@ -1,7 +1,4 @@
-# Python
-__pycache__/
-
-# OS
+# OS / editor
 .DS_Store
 .DS_Store?
 ._*
@@ -9,57 +6,50 @@ __pycache__/
 .Trashes
 ehthumbs.db
 Thumbs.db
+.vscode/
+.cursor/
 
-# Project specific
-scripts/not_working/
-*.ipynb_checkpoints/ 
-
-# Ignore
-
-.gitignore
-old_tools/
-.empty/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.dist-info/
+.pytest_cache/
+.venv/
 venv/
+.ipynb_checkpoints/
 
-output.txt
-cat_with_pages.sh
-.gitignore
-excel_output/
-old code/
-build
-dist
-dump.rdb
-examples/
-logs
-src/fichero/resources/create_icons.sh
-old code/
-toga-examples/
+# Build / generated
+.build/
+build/
+dist/
+logs/
 
-cpu_worker.log
-io_worker.log
+# Swift / Xcode user-local
+**/xcuserdata/
+**/*.xcuserstate
+**/.swiftpm/xcode/xcuserdata/
+fichero-swiftui/derived_data/
+fichero-swiftui/Fichero/Resources/FicheroBackend.app/
 
-/old documents
-/.venv
-/.pytest_cache
-/.cursor
-
-/.claude
-/.claude
+# Local tooling
+.claude/
 .aider*
 opencode.json
-Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserInterfaceState.xcuserstate
-.pytest_cache
-.vscode
-.briefcase 
-sample_code
-/Fichero/derived_data
-.briefcase
-.build
-.vscode
-.gitignore
-sample_code
-Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserInterfaceState.xcuserstate
-Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserInterfaceState.xcuserstate
-.gitignore
-Fichero/Fichero.xcodeproj/project.xcworkspace/xcuserdata/dtubb.xcuserdatad/UserInterfaceState.xcuserstate
-Fichero/Fichero/Resources/FicheroBackend.app
+
+# Project archives / large references
+sample_code/
+
+# Legacy paths still seen in historical docs
+old_tools/
+old code/
+old documents/
+examples/
+toga-examples/
+
+# Misc
+output.txt
+cpu_worker.log
+io_worker.log
+dump.rdb
+.empty/

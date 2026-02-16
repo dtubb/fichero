@@ -12,7 +12,7 @@ sudo rm -rfv /Library/Caches/com.apple.iconservices.store
 rm -rfv ~/Library/Caches/com.apple.iconservices
 
 # Touch the icon files to force re-read
-touch /Users/dtubb/code/fichero_main/fichero/Fichero/Fichero/Resources/Assets.xcassets/AppIcon.appiconset/*.png
+touch /Users/danieltubb/code/fichero_main/fichero/fichero-swiftui/fichero-swiftui/Resources/Assets.xcassets/AppIcon.appiconset/*.png
 
 echo "✅ Icon cache cleared!"
 echo ""

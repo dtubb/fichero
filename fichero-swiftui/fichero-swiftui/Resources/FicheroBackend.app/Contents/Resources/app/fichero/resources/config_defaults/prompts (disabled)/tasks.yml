@@ -1,0 +1,148 @@
+catalogue:
+  description: "Generate catalog entries with summaries and metadata"
+  steps:
+    - name: summary_short
+      prompt: catalogue_summary_short.txt
+      combine: true
+    - name: summary_long
+      prompt: catalogue_summary_long.txt
+      combine: true
+    - name: metadata
+      prompt: catalogue_metadata.txt
+      combine: false
+      json: true
+
+comprehensive:
+  description: "Generate comprehensive case analysis with summaries, timeline, NER, and metadata"
+  steps:
+    - name: summary_short
+      prompt: catalogue_summary_short.txt
+      combine: true
+    - name: summary_long
+      prompt: catalogue_summary_long.txt
+      combine: true
+    - name: timeline
+      prompt: timeline_extract.txt
+      combine: true
+      json: true
+    - name: ner
+      prompt: ner_extract.txt
+      combine: false
+      json: true
+    - name: dublin_core
+      prompt: catalogue_metadata.txt
+      combine: false
+      json: true
+
+translate:
+  description: "Translate documents to target language"
+  steps:
+    - name: translate
+      prompt: translate_source.txt
+      combine: true
+    - name: review
+      prompt: translate_review.txt
+      combine: true
+
+timeline:
+  description: "Extract and format timeline of events"
+  steps:
+    - name: extract
+      prompt: timeline_extract.txt
+      combine: true
+      json: true
+    - name: format
+      prompt: timeline_format.txt
+      combine: true
+
+ner:
+  description: "Extract named entities"
+  steps:
+    - name: extract
+      prompt: ner_extract.txt
+      combine: false
+      json: true
+    - name: validate
+      prompt: ner_validate.txt
+      combine: false
+      json: true
+
+legal_analysis:
+  description: "Extract key legal elements and analysis"
+  steps:
+    - name: claims
+      prompt: legal_claims.txt
+      combine: true
+      json: true
+    - name: arguments
+      prompt: legal_arguments.txt
+      combine: true
+      json: true
+    - name: decisions
+      prompt: legal_decisions.txt
+      combine: true
+      json: true
+
+procedural:
+  description: "Extract procedural information and case flow"
+  steps:
+    - name: stages
+      prompt: procedural_stages.txt
+      combine: true
+      json: true
+    - name: motions
+      prompt: procedural_motions.txt
+      combine: true
+      json: true
+    - name: deadlines
+      prompt: procedural_deadlines.txt
+      combine: true
+      json: true
+
+relationships:
+  description: "Map relationships between entities and their roles"
+  steps:
+    - name: extract
+      prompt: relationships_extract.txt
+      combine: true
+      json: true
+    - name: validate
+      prompt: relationships_validate.txt
+      combine: true
+      json: true
+
+citations:
+  description: "Extract and analyze legal citations and references"
+  steps:
+    - name: extract
+      prompt: citations_extract.txt
+      combine: true
+      json: true
+    - name: analyze
+      prompt: citations_analyze.txt
+      combine: true
+      json: true
+
+evidence:
+  description: "Extract and categorize evidence presented"
+  steps:
+    - name: extract
+      prompt: evidence_extract.txt
+      combine: true
+      json: true
+    - name: categorize
+      prompt: evidence_categorize.txt
+      combine: true
+      json: true
+
+jurisdiction:
+  description: "Extract jurisdictional information and applicable laws"
+  steps:
+    - name: extract
+      prompt: jurisdiction_extract.txt
+      combine: true
+      json: true
+    - name: validate
+      prompt: jurisdiction_validate.txt
+      combine: true
+      json: true 

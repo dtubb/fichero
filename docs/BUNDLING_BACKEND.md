@@ -82,7 +82,7 @@ security find-identity -v -p codesigning
 ### Step 1: Build Backend Bundle
 
 ```bash
-cd /Users/dtubb/code/fichero_main/fichero
+cd /Users/danieltubb/code/fichero_main/fichero
 
 # Build backend with Briefcase
 ./scripts/build_backend_bundle.sh
@@ -92,13 +92,13 @@ cd /Users/dtubb/code/fichero_main/fichero
 1. Runs `briefcase create macOS --app fichero-backend`
 2. Runs `briefcase build macOS --app fichero-backend`
 3. Runs `briefcase package macOS --app fichero-backend`
-4. Output: `macOS/Fichero Backend.app` (complete, ready to embed)
+4. Output: `macOS/FicheroBackend.app` (complete, ready to embed)
 
 ### Step 2: Build Swift App
 
 ```bash
 # Open Xcode
-open Fichero/Fichero.xcodeproj
+open fichero-swiftui/Fichero.xcodeproj
 
 # Build (⌘B) or Run (⌘R)
 ```
@@ -106,7 +106,7 @@ open Fichero/Fichero.xcodeproj
 **What happens during Xcode build:**
 1. Compiles Swift code
 2. Runs build script: `scripts/xcode_copy_backend.sh`
-3. Copies `macOS/Fichero Backend.app` → `Fichero.app/Contents/Resources/`
+3. Copies `macOS/FicheroBackend.app` → `Fichero.app/Contents/Resources/`
 4. Results in single `Fichero.app` with backend embedded
 
 ### Step 3: Run
@@ -128,11 +128,11 @@ open Fichero/Fichero.xcodeproj
 
 ```bash
 # Terminal 1: Start backend with hot-reload
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
+cd /Users/danieltubb/code/fichero_main/fichero
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
 
 # Terminal 2: Run Swift app from Xcode
-open Fichero/Fichero.xcodeproj
+open fichero-swiftui/Fichero.xcodeproj
 # Press ⌘R
 ```
 
@@ -233,7 +233,7 @@ requires = [
 ]
 ```
 
-### src/fichero_backend/__main__.py
+### fichero-api/src/fichero_backend/__main__.py
 
 ```python
 def main():
@@ -279,7 +279,7 @@ Category: EmbeddedBackend
 
 Check if backend app is signed:
 ```bash
-codesign -dv --verbose=4 "macOS/Fichero Backend.app"
+codesign -dv --verbose=4 "macOS/FicheroBackend.app"
 ```
 
 ### Port 8765 already in use
@@ -319,11 +319,11 @@ Created files for nested app bundling:
 
 ```
 ✅ pyproject.toml                              (backend app config)
-✅ src/fichero_backend/__init__.py             (backend module)
-✅ src/fichero_backend/__main__.py             (backend entry point)
+✅ fichero-api/src/fichero_backend/__init__.py             (backend module)
+✅ fichero-api/src/fichero_backend/__main__.py             (backend entry point)
 ✅ scripts/build_backend_bundle.sh             (Briefcase build script)
 ✅ scripts/xcode_copy_backend.sh               (Xcode build script)
-✅ Fichero/Services/EmbeddedBackendService.swift  (Swift launcher)
+✅ fichero-swiftui/Services/EmbeddedBackendService.swift  (Swift launcher)
 ✅ docs/BUNDLING_BACKEND.md                    (this file)
 ```
 

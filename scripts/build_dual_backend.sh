@@ -16,10 +16,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+API_ROOT="$PROJECT_ROOT/fichero-api"
 
 # Check for --rebuild flag
 REBUILD=false
-if [ "$1" = "--rebuild" ]; then
+if [ "${1:-}" = "--rebuild" ]; then
     REBUILD=true
 fi
 
@@ -27,7 +28,7 @@ echo "🔨 Building Fichero Backend (arm64)"
 echo "===================================="
 echo ""
 
-cd "$PROJECT_ROOT"
+cd "$API_ROOT"
 
 # Clean build if --rebuild flag is set
 if [ "$REBUILD" = true ]; then

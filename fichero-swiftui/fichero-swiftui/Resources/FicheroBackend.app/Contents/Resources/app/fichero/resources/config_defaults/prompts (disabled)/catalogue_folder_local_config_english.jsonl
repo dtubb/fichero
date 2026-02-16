@@ -1,0 +1,6 @@
+{
+  "name":"Config catalogue_folder_local_config_english",
+  "description":"LLM processing configuration",
+  "intelligent_chunking":true,
+  "chunk_overlap":200.0
+}

@@ -1,0 +1,315 @@
+title: "preferences_title"
+description: "preferences_description"
+window_title: "preferences_window_title"
+window_size: [450, 550]
+
+sections:
+  # Tab 1: Defaults - Plan/workflow selection
+  - id: "defaults"
+    title: "preferences_defaults_title"
+    sections:
+      - title: "preferences_processing_defaults_title"
+        description: "preferences_processing_defaults_description"
+        fields:
+          - id: "defaults.plan"
+            type: "selection"
+            label: "preferences_default_plan"
+            options: []  # Will be populated dynamically
+            help: "preferences_default_plan_help"
+          - id: "defaults.workflow"
+            type: "selection"
+            label: "preferences_default_workflow"
+            options: []  # Will be populated dynamically
+            help: "preferences_default_workflow_help"
+          - id: "preferences.folder_processing_order"
+            type: "selection"
+            label: "preferences_folder_order"
+            options: ["option_alphabetical", "option_reverse_alphabetical", "option_least_images_first", "option_most_images_first"]
+            help: "preferences_folder_order_help"
+
+  # Tab 2: AI Providers - Provider + model for each task type
+  - id: "ai_providers"
+    title: "preferences_ai_providers_title"
+    sections:
+      - title: "preferences_transcription_title"
+        description: "preferences_transcription_description"
+        fields:
+          - id: "ai_defaults.transcription.provider"
+            type: "selection"
+            label: "preferences_transcription_provider"
+            options: ["option_dashscope", "option_openai", "option_lmstudio", "option_huggingface", "option_apple"]
+            help: "preferences_transcription_provider_help"
+          - id: "ai_defaults.transcription.model"
+            type: "text_input"
+            label: "preferences_transcription_model"
+            placeholder: "qwen-vl-max"
+            help: "preferences_transcription_model_help"
+
+      - title: "preferences_llm_title"
+        description: "preferences_llm_description"
+        fields:
+          - id: "ai_defaults.llm.provider"
+            type: "selection"
+            label: "preferences_llm_provider"
+            options: ["option_qwen", "option_openai", "option_claude", "option_ollama", "option_lmstudio", "option_huggingface", "option_deepseek", "option_groq", "option_together"]
+            help: "preferences_llm_provider_help"
+          - id: "ai_defaults.llm.model"
+            type: "text_input"
+            label: "preferences_llm_model"
+            placeholder: "qwen-max"
+            help: "preferences_llm_model_help"
+
+      - title: "preferences_describe_title"
+        description: "preferences_describe_description"
+        fields:
+          - id: "ai_defaults.describe.provider"
+            type: "selection"
+            label: "preferences_describe_provider"
+            options: ["option_dashscope", "option_openai", "option_lmstudio", "option_huggingface", "option_apple"]
+            help: "preferences_describe_provider_help"
+          - id: "ai_defaults.describe.model"
+            type: "text_input"
+            label: "preferences_describe_model"
+            placeholder: "qwen-vl-max"
+            help: "preferences_describe_model_help"
+
+  # Tab 3: API Keys - All credentials in one place
+  - id: "api_keys"
+    title: "preferences_api_keys_title"
+    sections:
+      - title: "preferences_qwen_title"
+        fields:
+          - id: "api_servers.qwen.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "sk-..."
+            help: "preferences_qwen_api_key_help"
+
+      - title: "preferences_openai_title"
+        fields:
+          - id: "api_servers.openai.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "sk-..."
+            help: "preferences_openai_api_key_help"
+
+      - title: "preferences_claude_title"
+        fields:
+          - id: "api_servers.claude.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "sk-ant-..."
+            help: "preferences_claude_api_key_help"
+
+      - title: "preferences_deepseek_title"
+        fields:
+          - id: "api_servers.deepseek.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "sk-..."
+            help: "preferences_deepseek_api_key_help"
+
+      - title: "preferences_groq_title"
+        fields:
+          - id: "api_servers.groq.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "gsk_..."
+            help: "preferences_groq_api_key_help"
+
+      - title: "preferences_together_title"
+        fields:
+          - id: "api_servers.together.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: ""
+            help: "preferences_together_api_key_help"
+
+      - title: "preferences_huggingface_title"
+        fields:
+          - id: "api_servers.huggingface.api_key"
+            type: "text_input"
+            label: "preferences_api_key"
+            placeholder: "hf_..."
+            help: "preferences_huggingface_api_key_help"
+
+      - title: "preferences_ollama_title"
+        fields:
+          - id: "api_servers.ollama.base_url"
+            type: "text_input"
+            label: "preferences_base_url"
+            placeholder: "http://localhost:11434"
+            help: "preferences_ollama_url_help"
+
+      - title: "preferences_lmstudio_title"
+        fields:
+          - id: "api_servers.lmstudio.base_url"
+            type: "text_input"
+            label: "preferences_base_url"
+            placeholder: "http://localhost:1234/v1"
+            help: "preferences_lmstudio_url_help"
+
+  # Tab 4: AI Settings - Advanced AI configuration
+  - id: "ai_settings"
+    title: "preferences_ai_advanced_title"
+    sections:
+      - title: "preferences_ai_global_title"
+        description: "preferences_ai_global_description"
+        fields:
+          - id: "ai_defaults.temperature"
+            type: "number_input"
+            label: "preferences_temperature"
+            min: 0.0
+            max: 2.0
+            step: 0.1
+            help: "preferences_temperature_help"
+          - id: "ai_defaults.max_tokens"
+            type: "number_input"
+            label: "preferences_max_tokens"
+            min: 256
+            max: 16384
+            help: "preferences_max_tokens_help"
+          - id: "ai_defaults.timeout"
+            type: "number_input"
+            label: "preferences_timeout"
+            min: 30
+            max: 600
+            help: "preferences_timeout_help"
+
+      - title: "preferences_transcription_title"
+        fields:
+          - id: "ai_defaults.transcription.temperature"
+            type: "number_input"
+            label: "preferences_temperature"
+            min: 0.0
+            max: 2.0
+            step: 0.1
+            help: "preferences_transcription_temperature_help"
+          - id: "ai_defaults.transcription.max_tokens"
+            type: "number_input"
+            label: "preferences_max_tokens"
+            min: 256
+            max: 16384
+            help: "preferences_transcription_max_tokens_help"
+          - id: "ai_defaults.transcription.image_size"
+            type: "selection"
+            label: "preferences_image_size"
+            options: ["option_image_original", "option_image_gigantic", "option_image_extra_large", "option_image_large", "option_image_medium", "option_image_small"]
+            help: "preferences_image_size_help"
+
+      - title: "preferences_llm_title"
+        fields:
+          - id: "ai_defaults.llm.temperature"
+            type: "number_input"
+            label: "preferences_temperature"
+            min: 0.0
+            max: 2.0
+            step: 0.1
+            help: "preferences_llm_temperature_help"
+          - id: "ai_defaults.llm.max_tokens"
+            type: "number_input"
+            label: "preferences_max_tokens"
+            min: 256
+            max: 16384
+            help: "preferences_llm_max_tokens_help"
+
+      - title: "preferences_describe_title"
+        fields:
+          - id: "ai_defaults.describe.temperature"
+            type: "number_input"
+            label: "preferences_temperature"
+            min: 0.0
+            max: 2.0
+            step: 0.1
+            help: "preferences_describe_temperature_help"
+          - id: "ai_defaults.describe.max_tokens"
+            type: "number_input"
+            label: "preferences_max_tokens"
+            min: 256
+            max: 8192
+            help: "preferences_describe_max_tokens_help"
+
+  # Tab 5: Performance - Backend and worker configuration
+  - id: "performance"
+    title: "preferences_performance_title"
+    sections:
+      - title: "preferences_backend_title"
+        description: "preferences_backend_description"
+        fields:
+          - id: "workers.backend"
+            type: "selection"
+            label: "preferences_backend_type"
+            options: ["option_python"]
+            help: "preferences_backend_type_help"
+
+      - title: "preferences_workers_title"
+        description: "preferences_workers_description"
+        fields:
+          - id: "workers.cpu_workers"
+            type: "number_input"
+            label: "preferences_cpu_workers"
+            min: 1
+            max: 32
+            help: "preferences_cpu_workers_help"
+          - id: "auto_calculate_workers"
+            type: "button"
+            label: "preferences_auto_calculate"
+            help: "preferences_auto_calculate_help"
+
+      - title: "preferences_api_rate_limits_title"
+        description: "preferences_api_rate_limits_description"
+        fields:
+          - id: "api_rate_limits.global_max_concurrent"
+            type: "number_input"
+            label: "preferences_global_max_concurrent"
+            min: 1
+            max: 100
+            help: "preferences_global_max_concurrent_help"
+          - id: "api_rate_limits.dashscope.max_concurrent"
+            type: "number_input"
+            label: "preferences_max_concurrent"
+            min: 1
+            max: 100
+            help: "preferences_dashscope_max_concurrent_help"
+          - id: "api_rate_limits.dashscope.max_retries"
+            type: "number_input"
+            label: "preferences_max_retries"
+            min: 0
+            max: 10
+            help: "preferences_max_retries_help"
+
+  # Tab 6: Library - Storage and collection settings
+  - id: "library"
+    title: "preferences_library_title"
+    sections:
+      - title: "preferences_library_storage_title"
+        description: "preferences_library_storage_description"
+        platform: "desktop"
+        fields:
+          - id: "library.library_path"
+            type: "text_input"
+            label: "preferences_library_path"
+            placeholder: "~/Library/Application Support/ca.tubb.fichero/library"
+            help: "preferences_library_path_help"
+          - id: "library.processing_output_path"
+            type: "text_input"
+            label: "preferences_processing_output_path"
+            placeholder: "~/Library/Application Support/ca.tubb.fichero/processed"
+            help: "preferences_processing_output_path_help"
+          - id: "library.reset_paths_to_default"
+            type: "button"
+            label: "preferences_library_reset_paths_to_default"
+            help: "preferences_library_reset_paths_to_default_help"
+
+      - title: "preferences_collection_settings_title"
+        description: "preferences_collection_settings_description"
+        fields:
+          - id: "library.default_collection_type"
+            type: "selection"
+            label: "preferences_default_collection_type"
+            options: ["option_copy", "option_link"]
+            help: "preferences_default_collection_type_help"
+          - id: "library.auto_copy_collections"
+            type: "switch"
+            label: "preferences_auto_copy_collections"
+            help: "preferences_auto_copy_collections_help"

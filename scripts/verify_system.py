@@ -66,7 +66,7 @@ def check_backend_health() -> bool:
             return False
     except httpx.ConnectError:
         print_fail("Backend is not running on port 8765")
-        print_info("Start with: PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765")
+        print_info("Start with: PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765")
         return False
     except Exception as e:
         print_fail(f"Error connecting to backend: {e}")
@@ -320,8 +320,8 @@ def run_unit_tests() -> tuple[int, int]:
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv/bin/pytest"),
-            str(PROJECT_ROOT / "tests/unit/"),
-            "--ignore=tests/unit/_archived",
+            str(PROJECT_ROOT / "fichero-api/tests/unit/"),
+            "--ignore=fichero-api/tests/unit/_archived",
             "-q",
             "--tb=no"
         ],
@@ -358,7 +358,7 @@ def run_integration_tests() -> tuple[int, int]:
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv/bin/pytest"),
-            str(PROJECT_ROOT / "tests/integration/test_api_contract_changes.py"),
+            str(PROJECT_ROOT / "fichero-api/tests/integration/test_api_contract_changes.py"),
             "-v",
             "--tb=short"
         ],
@@ -389,7 +389,7 @@ def run_swift_tests() -> tuple[int, int]:
         [
             "xcodebuild",
             "test",
-            "-project", str(PROJECT_ROOT / "Fichero/Fichero.xcodeproj"),
+            "-project", str(PROJECT_ROOT / "fichero-swiftui/Fichero.xcodeproj"),
             "-scheme", "Fichero",
             "-destination", "platform=macOS",
             "-quiet"

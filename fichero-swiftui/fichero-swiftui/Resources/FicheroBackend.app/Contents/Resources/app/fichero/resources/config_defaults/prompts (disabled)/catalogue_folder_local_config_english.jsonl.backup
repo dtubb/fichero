@@ -1,0 +1,22 @@
+{
+  "name":"Config catalogue_folder_local_config_english",
+  "description":"LLM processing configuration",
+  "intelligent_chunking":true,
+  "chunk_overlap":200.0,
+  "llm":{
+    "backend":"openai",
+    "model":"gpt-4o-mini",
+    "temperature":0.1,
+    "max_tokens":4000.0,
+    "top_p":0.9,
+    "frequency_penalty":0.0,
+    "presence_penalty":0.0,
+    "timeout":120.0,
+    "retry_attempts":3.0,
+    "retry_delay":5.0
+  },
+  "prompts":{
+    "system_prompt":"You are a helpful assistant that processes documents accurately and thoroughly.",
+    "user_prompt_template":"Please process the following content:\n\n{content}"
+  }
+}

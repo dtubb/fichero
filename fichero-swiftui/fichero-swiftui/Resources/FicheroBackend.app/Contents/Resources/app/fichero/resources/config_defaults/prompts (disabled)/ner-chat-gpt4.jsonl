@@ -1,0 +1,49 @@
+{
+  "name": "ner_chat_gpt4_processing",
+  "description": "Extract named entities from multi-page documents using GPT-4 with page-based chunking",
+  "llm": {
+    "backend": "chatgpt",
+    "model": "gpt-4.1-nano",
+    "temperature": 0.0,
+    "max_tokens": 16384,
+    "top_p": 0.95,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "stop_sequences": [],
+    "timeout": 300,
+    "retry_attempts": 3,
+    "retry_delay": 5
+  },
+  "steps": [
+    {
+      "name": "extract_ner_from_chunks",
+      "prompt": "You are analyzing a colelction of documents. Extract ALL named entities from these pages. For each entity found, note the page number and any available context.\n\nIdentify and classify:\n- Persons (full names, titles, roles, etc.)\n- Organizations (companies, institutions, agencies, etc.)\n- Locations (cities, states, countries, addresses, etc.)\n- Dates (specific dates, date ranges, years, etc.)\n- Key Events (meetings, incidents, transactions, etc.)\n- Legal References (case numbers, statutes, regulations, etc.)\n\nIMPORTANT:\n- Include ALL occurrences with their page numbers\n- Preserve exact spelling and names, but capitalize names. \n- Include context when available and well supported\n\nReturn as JSON with these exact keys:\n{\n  \"persons\": [{\"name\": \"...\", \"pages\": [1], \"context\": \"...\"}],\n  \"organizations\": [{\"name\": \"...\", \"pages\": [1], \"context\": \"...\"}],\n  \"locations\": [{\"name\": \"...\", \"pages\": [1], \"context\": \"...\"}],\n  \"dates\": [{\"date\": \"...\", \"pages\": [1], \"context\": \"...\"}],\n  \"events\": [{\"event\": \"...\", \"pages\": [1], \"context\": \"...\"}],\n  \"legal_refs\": [{\"reference\": \"...\", \"pages\": [1], \"context\": \"...\"}]\n}\n\nReturn ONLY valid JSON. Say nothing else.",
+      "async": true,
+      "async_batch_size": 10,
+      "chunking_strategy": "page_based",
+      "pages_per_chunk": 5,
+      "json": true,
+      "debug": true,
+      "llm": {
+        "backend": "chatgpt",
+        "model": "gpt-4.1-nano",
+        "temperature": 0.0,
+        "max_tokens": 16384
+      }
+    },
+    {
+      "name": "final_refinement",
+      "prompt": "Review and combine these NER results from multiple chunks of a document:\n\n{previous_result}\n\nPerform these refinements:\n1. Merge entities with the same name, combining their page numbers\n2. Keep ALL page references - never drop page numbers\n3. If contexts differ for the same entity, make it the most informative and accurate\n4. Identify relationships between entities (e.g., 'John Smith works at Acme Corp', but only if clear and well supported by evidence)\n5. Merge and select best spelling for entities that are duplicated, or have irregular misspellings.\n6. Extract key entities that appear repeatedly (5+ pages)\n7. Sort page numbers in ascending order\n\nReturn as JSON with these exact keys:\n{\n  \"persons\": [{\"name\": \"...\", \"pages\": [1, 3, 5], \"context\": \"...\"}],\n  \"organizations\": [{\"name\": \"...\", \"pages\": [...], \"context\": \"...\"}],\n  \"locations\": [{\"name\": \"...\", \"pages\": [...], \"context\": \"...\"}],\n  \"dates\": [{\"date\": \"...\", \"pages\": [...], \"context\": \"...\"}],\n  \"events\": [{\"event\": \"...\", \"pages\": [...], \"context\": \"...\"}],\n  \"legal_refs\": [{\"reference\": \"...\", \"pages\": [...], \"context\": \"...\"}],\n}\n\nReturn ONLY valid JSON. Say nothing else.",
+      "async": false,
+      "use_previous": true,
+      "json": true,
+      "debug": true,
+      "llm": {
+        "backend": "chatgpt",
+        "model": "gpt-4.1",
+        "temperature": 0.0,
+        "max_tokens": 1000000000
+      }
+    }
+  ]
+} 

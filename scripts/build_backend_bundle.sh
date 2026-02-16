@@ -12,17 +12,18 @@ set -e
 #   ./scripts/build_backend_bundle.sh
 #
 # Output:
-#   macOS/Fichero Backend.app (ready to embed)
+#   macOS/FicheroBackend.app (ready to embed)
 ###############################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+API_ROOT="$PROJECT_ROOT/fichero-api"
 
 echo "🔨 Building Fichero Backend with Briefcase"
 echo "==========================================="
 echo ""
 
-cd "$PROJECT_ROOT"
+cd "$API_ROOT"
 
 # Check if Briefcase is installed
 if ! command -v briefcase &> /dev/null; then
@@ -62,7 +63,7 @@ echo "🔨 Building and packaging backend app..."
 briefcase package macOS --app fichero-backend --identity "$SIGNING_IDENTITY"
 
 # The built app is in build/fichero-backend/macos/app/
-BACKEND_APP_SOURCE="build/fichero-backend/macos/app/Fichero Backend.app"
+BACKEND_APP_SOURCE="build/fichero-backend/macos/app/FicheroBackend.app"
 
 # Verify output
 if [ -d "$BACKEND_APP_SOURCE" ]; then

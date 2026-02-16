@@ -1,0 +1,30 @@
+{
+  "name": "document_analysis",
+  "description": "Multi-step document analysis pipeline",
+  "llm": {
+    "backend": "ollama",
+    "model": "mistral",
+    "temperature": 0.0
+  },
+  "steps": [
+    {
+      "name": "summarize",
+      "prompt": "Please provide a concise summary of the following text in 2-3 sentences:",
+      "combine": true,
+      "json": false
+    },
+    {
+      "name": "extract_entities",
+      "prompt": "Extract all people, places, dates, and organizations mentioned in this text. Return as JSON with keys: people, places, dates, organizations. Each should be an array of strings.",
+      "combine": false,
+      "json": true
+    },
+    {
+      "name": "classify",
+      "prompt": "Classify this document into one or more of these categories: legal, financial, personal, administrative, religious, military. Return as JSON with key 'categories' containing an array of applicable categories.",
+      "combine": true,
+      "json": true,
+      "use_previous": false
+    }
+  ]
+} 

@@ -1,0 +1,13 @@
+Redacta un resumen conciso del caso judicial en exactamente 100 palabras. El resumen debe incluir:
+
+- Hechos principales del caso
+- Partes involucradas
+- Naturaleza del proceso
+- Resultado o decisión principal
+
+⚠️ Importante: 
+- Toda la información debe basarse únicamente en la transcripción original
+- No añadas contexto externo ni interpretación moderna
+- El resumen debe ser EXACTAMENTE 100 palabras
+
+TEXTO: {text} 
