@@ -1582,7 +1582,11 @@ def _build_workflow_with_checkpointer(
 
     # Add fan-out conditional edges (one per source node)
     for source_id, target_ids in parallel_by_source.items():
-        fan_out_fn = _make_fan_out_function(source_id, target_ids)
+        fan_out_fn = _make_fan_out_function(
+            source_id,
+            target_ids,
+            {target_id: target_id for target_id in target_ids},
+        )
         graph.add_conditional_edges(
             source_id,
             fan_out_fn,

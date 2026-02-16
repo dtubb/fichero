@@ -909,7 +909,7 @@ async def process_text(
     try:
         # Call LLM
         response = await chat(
-            messages=[{"role": "user", "content": full_prompt}],
+            [{"role": "user", "content": full_prompt}],
             config=effective_config,
         )
 

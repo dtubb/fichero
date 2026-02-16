@@ -354,7 +354,7 @@ def retry_on_failure(
                             func.__name__,
                             str(e)
                         )
-                else:
+                except Exception:
                     # Re-raise non-retryable exceptions immediately
                     raise
             

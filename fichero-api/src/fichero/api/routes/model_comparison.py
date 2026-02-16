@@ -324,19 +324,19 @@ async def list_available_tools():
 
     Returns tools that support LLM comparison (have uses_llm=True).
     """
-    from fichero.workflows.registry import get_all_tools
+    from fichero.workflows.registry import list_tools
 
     tools = []
-    for name, tool_info in get_all_tools().items():
-        if tool_info.get("uses_llm", False):
+    for tool_def in list_tools():
+        if tool_def.uses_llm:
             tools.append({
-                "name": name,
-                "display_name": tool_info.get("display_name", name),
-                "description": tool_info.get("description", ""),
-                "category": tool_info.get("category", "other"),
+                "name": tool_def.name,
+                "display_name": tool_def.display_name,
+                "description": tool_def.description,
+                "category": tool_def.category,
                 "input_ports": [
                     {"id": p.id, "name": p.name, "required": p.required}
-                    for p in tool_info.get("input_ports", [])
+                    for p in tool_def.input_ports
                 ],
             })
 

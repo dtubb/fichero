@@ -21,10 +21,9 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
-if TYPE_CHECKING:
-    from fichero.llm import LLMConfig
+from fichero.llm import LLMConfig
 
 from fichero.workflows.types import PortDef, DataType
 
@@ -191,7 +190,7 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
     """
     try:
         import Speech
-        from Foundation import NSURL
+        from Foundation import NSURL, NSLocale  # pylint: disable=no-name-in-module
     except ImportError:
         raise ValueError(
             "Apple Speech framework not available. "
@@ -217,7 +216,6 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
     locale_id = lang_map.get(language, language)
 
     # Create recognizer
-    from Foundation import NSLocale
     locale = NSLocale.alloc().initWithLocaleIdentifier_(locale_id)
     recognizer = Speech.SFSpeechRecognizer.alloc().initWithLocale_(locale)
 

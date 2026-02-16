@@ -97,25 +97,25 @@ class ProgressEventListener:
 class DocumentState(BaseState):
     """Extended state for document processing workflows."""
     # Document tracking
-    documents: list[dict[str, Any]] = field(default_factory=list)
-    current_document: int = 0
-    total_documents: int = 0
+    documents: list[dict[str, Any]]
+    current_document: int
+    total_documents: int
     
     # Execution control
-    cancelled: bool = False
-    paused: bool = False
+    cancelled: bool
+    paused: bool
     
     # Resource management
-    active_tasks: int = 0
-    max_concurrent_tasks: int = 4
+    active_tasks: int
+    max_concurrent_tasks: int
     
     # Performance metrics
-    start_time: float = field(default_factory=time.time)
-    node_times: dict[str, float] = field(default_factory=dict)
+    start_time: float
+    node_times: dict[str, float]
     
     # Retry management
-    retry_counts: dict[str, int] = field(default_factory=dict)
-    max_retries: int = 3
+    retry_counts: dict[str, int]
+    max_retries: int
 
 
 # =============================================================================

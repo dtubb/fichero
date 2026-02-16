@@ -10,6 +10,7 @@ Provides folder watching capabilities for automated workflow execution:
 
 import asyncio
 import fnmatch
+import json
 import logging
 import re
 import uuid

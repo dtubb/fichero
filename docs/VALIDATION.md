@@ -21,7 +21,6 @@ Prerequisites:
 - `briefcase` installed if OpenAPI sync dependencies require full backend environment
 
 Known current blockers (as of 2026-02-16):
-- `pylint --errors-only` reports existing backend errors (tracked in #126).
 - SwiftLint reports many existing warnings in hand-written Swift files (non-blocking in current script).
 
 Current validation status:
@@ -29,3 +28,7 @@ Current validation status:
 - Xcode test target compile: passing (`build-for-testing`)
 - Python unit tests: passing (`787 passed, 16 skipped`)
 - OpenAPI sync + parity: passing
+
+Pylint baseline policy:
+- `validate_repo.sh` runs `pylint --errors-only` with `fichero-api/.pylintrc`.
+- Current baseline disables only `no-member` to avoid false positives from dynamic frameworks.
