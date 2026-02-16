@@ -29,7 +29,7 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
 
 3. **Create or Copy relevant workflow checklist**
    - Determine task type (API endpoint, feature, bug fix, view, etc.)
-   - Copy appropriate checklist from `docs/contexts/[backend|frontend]/workflow_checklist.md`
+   - Copy appropriate checklist from `docs/architecture/[backend|frontend]/workflow_checklist.md`
    - Or update checklist into task folder as `implementation_checklist.md`
    - Customize checklist based on specific task requirements
 
@@ -44,7 +44,7 @@ Systematic workflow for AI to autonomlsy implement tasks, following established 
    - Take notes in `notes.md` for decisions and issues
 
 5. **Apply development standards**
-   - Follow best practices from `docs/contexts/[backend|frontend]/development_standards.md`
+   - Follow best practices from `docs/architecture/[backend|frontend]/development_standards.md`
    - Implement proper error handling
    - Add appropriate logging
    - Follow code style guidelines

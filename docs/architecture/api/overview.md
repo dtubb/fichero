@@ -64,7 +64,7 @@ This generates:
 - `tests/contracts/openapi.json` - Full OpenAPI 3.0 schema
 - `tests/contracts/endpoints.json` - Simplified endpoint list
 
-The Swift frontend uses `swift-openapi-generator` to create type-safe clients from this schema. See `docs/contexts/frontend/api_client.md` for Swift usage.
+The Swift frontend uses `swift-openapi-generator` to create type-safe clients from this schema. See `docs/architecture/swiftui/api_client.md` for Swift usage.
 
 **Important**: Run the sync script after modifying:
 - API routes in `src/fichero/api/routes/`

@@ -111,7 +111,7 @@ let workflows = try response.ok.body.json
 ./fichero-api/scripts/sync_openapi_schema.sh
 ```
 
-See `docs/contexts/frontend/api_client.md` for detailed documentation
+See `docs/architecture/swiftui/api_client.md` for detailed documentation
 
 ### Ingest System
 
@@ -136,7 +136,7 @@ See `docs/ingest_api.md` for detailed API documentation.
 - **Use MCP Tools for Documentation**:
   - `sosumi.searchAppleDocumentation()` - Official Apple SwiftUI docs
   - `ref.searchDocumentation()` - Swift language reference
-- **No NotificationCenter**: Use `@FocusedValue` for menu commands (see `docs/contexts/frontend/SWIFTUI_PRINCIPLES.md`)
+- **No NotificationCenter**: Use `@FocusedValue` for menu commands (see `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md`)
 - **Cache Expensive Work**: Don't rebuild hierarchies on every view update
 - **Handle Cancellation**: All `.task {}` blocks must check `Task.isCancelled`
 - **SwiftLint is configured and required** - run before committing Swift changes
@@ -146,7 +146,7 @@ See `docs/ingest_api.md` for detailed API documentation.
 - Use OSLog for logging (not NSLog or print)
 - Keyboard shortcuts follow Ulysses-style conventions (⌃⌘1-5 for sidebar modes, ⌘1-4 for view modes)
 
-**Required Reading**: `docs/contexts/frontend/SWIFTUI_PRINCIPLES.md` - Mandatory SwiftUI patterns
+**Required Reading**: `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md` - Mandatory SwiftUI patterns
 
 ### Python
 
