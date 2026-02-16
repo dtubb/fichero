@@ -590,7 +590,11 @@ class TestParallelExecution:
         """Test creating a fan-out function."""
         from fichero.workflows.builder import _make_fan_out_function
 
-        fan_out = _make_fan_out_function("source", "transcribe")
+        fan_out = _make_fan_out_function(
+            "source",
+            ["transcribe"],
+            {"transcribe": "transcribe"},
+        )
         assert callable(fan_out), "fan_out should be callable"
 
         # Test with mock state
@@ -616,7 +620,11 @@ class TestParallelExecution:
         """Test fan-out with no files returns empty list."""
         from fichero.workflows.builder import _make_fan_out_function
 
-        fan_out = _make_fan_out_function("source", "transcribe")
+        fan_out = _make_fan_out_function(
+            "source",
+            ["transcribe"],
+            {"transcribe": "transcribe"},
+        )
 
         state = {
             "outputs": {

@@ -265,8 +265,8 @@ class TestDocumentHierarchy:
         test_db.save(file1)
         test_db.save(file2)
 
-        # Query: get all collections
-        collections = test_db.query(Document, doc_type=DocType.folder)
+        # Query: get top-level collections
+        collections = test_db.query(Document, doc_type=DocType.folder, parent_id=None)
         assert len(collections) == 1
 
         # Query: get folders in collection

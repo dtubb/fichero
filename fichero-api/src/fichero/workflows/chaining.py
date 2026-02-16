@@ -385,6 +385,11 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
         ast.Mod: operator.mod,
     }
 
+    # Python 3.14 removed ast.Num/Str/NameConstant aliases, so probe defensively.
+    ast_num = getattr(ast, "Num", None)
+    ast_str = getattr(ast, "Str", None)
+    ast_name_constant = getattr(ast, "NameConstant", None)
+
     def safe_eval_node(node: ast.AST) -> Any:
         """Recursively evaluate an AST node safely."""
         if isinstance(node, ast.Expression):
@@ -394,13 +399,13 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
             # Python 3.8+ uses ast.Constant for all literals
             return node.value
 
-        elif isinstance(node, ast.Num):  # Python 3.7 compatibility
+        elif ast_num is not None and isinstance(node, ast_num):  # Python 3.7 compatibility
             return node.n
 
-        elif isinstance(node, ast.Str):  # Python 3.7 compatibility
+        elif ast_str is not None and isinstance(node, ast_str):  # Python 3.7 compatibility
             return node.s
 
-        elif isinstance(node, ast.NameConstant):  # Python 3.7 compatibility
+        elif ast_name_constant is not None and isinstance(node, ast_name_constant):  # Python 3.7 compatibility
             return node.value
 
         elif isinstance(node, ast.List):
