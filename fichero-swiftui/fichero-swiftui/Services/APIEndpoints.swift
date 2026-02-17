@@ -232,6 +232,6 @@ struct EndpointDefinition {
         EndpointDefinition(method: "GET", pathPattern: "/chat/conversations"),
         EndpointDefinition(method: "GET", pathPattern: "/chat/conversations/{id}"),
         EndpointDefinition(method: "PUT", pathPattern: "/chat/conversations/{id}"),
-        EndpointDefinition(method: "DELETE", pathPattern: "/chat/conversations/{id}"),
+        EndpointDefinition(method: "DELETE", pathPattern: "/chat/conversations/{id}")
     ]
 }
