@@ -17,8 +17,8 @@ struct WorkflowToolbar: View {
     let onSave: () async -> Void
     let onExport: () -> Void
     let onResetZoom: () -> Void
-    var onPreviewDiagram: (() -> Void)? = nil
-    var onRunOnDocuments: (() -> Void)? = nil
+    var onPreviewDiagram: (() -> Void)?
+    var onRunOnDocuments: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
