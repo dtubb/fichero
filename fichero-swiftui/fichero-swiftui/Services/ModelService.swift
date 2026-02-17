@@ -30,7 +30,7 @@ class ModelService: ObservableObject {
         var params: [String: String] = [
             "sort": sort.rawValue,
             "limit": String(limit),
-            "offset": String(offset),
+            "offset": String(offset)
         ]
         if let task = task { params["task"] = task }
         if let search = search { params["search"] = search }
@@ -112,10 +112,10 @@ struct HFModelSearchResponse: Codable {
 }
 
 enum HFSortOrder: String, CaseIterable, Identifiable {
-    case downloads = "downloads"
-    case likes = "likes"
-    case trending = "trending"
-    case lastModified = "lastModified"
+    case downloads
+    case likes
+    case trending
+    case lastModified
 
     var id: String { rawValue }
 
@@ -140,6 +140,6 @@ extension HFTaskCategory {
         HFTaskCategory(id: "automatic-speech-recognition", label: "Speech Recognition"),
         HFTaskCategory(id: "text-to-image", label: "Image Generation"),
         HFTaskCategory(id: "translation", label: "Translation"),
-        HFTaskCategory(id: "summarization", label: "Summarization"),
+        HFTaskCategory(id: "summarization", label: "Summarization")
     ]
 }
