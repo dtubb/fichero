@@ -73,7 +73,11 @@ extension ContentView {
 
         logger.info("Auto-saving workflow: \(workflow.name) (id: \(workflowId))")
         for node in workflow.nodes {
-            print("[DEBUG SAVE] Node \(node.id): providerName=\(node.providerName ?? "nil"), modelName=\(node.modelName ?? "nil")")
+            let provider = node.providerName ?? "nil"
+            let model = node.modelName ?? "nil"
+            print(
+                "[DEBUG SAVE] Node \(node.id): providerName=\(provider), modelName=\(model)"
+            )
         }
         do {
             let definition = workflow.toAPIFormat()

@@ -44,7 +44,7 @@ extension ContentView {
                 ModelComparisonView()
             }
 
-         case .workflow(let workflow):
+        case .workflow(let workflow):
             if let selectedWorkflow = workflow {
                 WorkflowEditor(
                     workflow: selectedWorkflow,
