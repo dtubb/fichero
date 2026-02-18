@@ -19,10 +19,13 @@ struct MainToolbar: View {
             // Left side: Sidebar toggle and Add button
             HStack(spacing: 8) {
                 // Sidebar toggle button
-                Button(action: { showSidebar.toggle() }) {
-                    Label("Toggle Sidebar", systemImage: "sidebar.left")
-                        .labelStyle(.iconOnly)
-                }
+                Button(
+                    action: { showSidebar.toggle() },
+                    label: {
+                        Label("Toggle Sidebar", systemImage: "sidebar.left")
+                            .labelStyle(.iconOnly)
+                    }
+                )
                 .help("Toggle Sidebar")
 
                 // Add item menu
