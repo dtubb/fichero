@@ -48,15 +48,21 @@ struct EditorView: View {
 
             // Actions
             HStack(spacing: 12) {
-                Button(action: { openInFinder(doc) }) {
-                    Image(systemName: "folder")
-                }
+                Button(
+                    action: { openInFinder(doc) },
+                    label: {
+                        Image(systemName: "folder")
+                    }
+                )
                 .buttonStyle(.plain)
                 .help("Reveal in Finder")
 
-                Button(action: { openWithDefault(doc) }) {
-                    Image(systemName: "arrow.up.forward.square")
-                }
+                Button(
+                    action: { openWithDefault(doc) },
+                    label: {
+                        Image(systemName: "arrow.up.forward.square")
+                    }
+                )
                 .buttonStyle(.plain)
                 .help("Open with default app")
             }

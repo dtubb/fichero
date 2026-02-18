@@ -369,7 +369,16 @@ struct NodeProgressBadge: View {
                     positionX: 0,
                     positionY: 0,
                     inputPorts: [],
-                    outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
+                    outputPorts: [
+                        PortInfo(
+                            id: "files",
+                            name: "Files",
+                            portType: "output",
+                            dataType: "files",
+                            required: true,
+                            description: ""
+                        )
+                    ]
                 ),
                 isSelected: false,
                 connectedInputPorts: [],
@@ -387,8 +396,26 @@ struct NodeProgressBadge: View {
                     label: "Transcribe",
                     positionX: 0,
                     positionY: 0,
-                    inputPorts: [PortInfo(id: "input", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
-                    outputPorts: [PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")],
+                    inputPorts: [
+                        PortInfo(
+                            id: "input",
+                            name: "Files",
+                            portType: "input",
+                            dataType: "files",
+                            required: true,
+                            description: ""
+                        )
+                    ],
+                    outputPorts: [
+                        PortInfo(
+                            id: "text",
+                            name: "Text",
+                            portType: "output",
+                            dataType: "text",
+                            required: true,
+                            description: ""
+                        )
+                    ],
                     modelName: "gpt-4o"
                 ),
                 isSelected: true,
@@ -411,8 +438,26 @@ struct NodeProgressBadge: View {
                     label: "Transcribe",
                     positionX: 0,
                     positionY: 0,
-                    inputPorts: [PortInfo(id: "input", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
-                    outputPorts: [PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")]
+                    inputPorts: [
+                        PortInfo(
+                            id: "input",
+                            name: "Files",
+                            portType: "input",
+                            dataType: "files",
+                            required: true,
+                            description: ""
+                        )
+                    ],
+                    outputPorts: [
+                        PortInfo(
+                            id: "text",
+                            name: "Text",
+                            portType: "output",
+                            dataType: "text",
+                            required: true,
+                            description: ""
+                        )
+                    ]
                 ),
                 isSelected: false,
                 connectedInputPorts: ["input"],
@@ -438,8 +483,26 @@ struct NodeProgressBadge: View {
                     label: "Transcribe",
                     positionX: 0,
                     positionY: 0,
-                    inputPorts: [PortInfo(id: "input", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
-                    outputPorts: [PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: "")]
+                    inputPorts: [
+                        PortInfo(
+                            id: "input",
+                            name: "Files",
+                            portType: "input",
+                            dataType: "files",
+                            required: true,
+                            description: ""
+                        )
+                    ],
+                    outputPorts: [
+                        PortInfo(
+                            id: "text",
+                            name: "Text",
+                            portType: "output",
+                            dataType: "text",
+                            required: true,
+                            description: ""
+                        )
+                    ]
                 ),
                 isSelected: false,
                 connectedInputPorts: ["input"],
