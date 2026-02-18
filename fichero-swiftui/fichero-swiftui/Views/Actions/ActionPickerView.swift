@@ -214,7 +214,10 @@ class ActionDragData: NSObject, NSItemProviderWriting, NSItemProviderReading, Tr
         [UTType.actionDragData.identifier]
     }
 
-    func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping (Data?, Error?) -> Void) -> Progress? {
+    func loadData(
+        withTypeIdentifier typeIdentifier: String,
+        forItemProviderCompletionHandler completionHandler: @escaping (Data?, Error?) -> Void
+    ) -> Progress? {
         let encoder = JSONEncoder()
         do {
             let data = try encoder.encode(action)

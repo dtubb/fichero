@@ -101,8 +101,8 @@ struct ScheduleEditorView: View {
             // Timezone
             Section("Timezone") {
                 Picker("Timezone", selection: $timezone) {
-                    ForEach(commonTimezones, id: \.self) { tz in
-                        Text(tz).tag(tz)
+                    ForEach(commonTimezones, id: \.self) { timezoneID in
+                        Text(timezoneID).tag(timezoneID)
                     }
                 }
             }
