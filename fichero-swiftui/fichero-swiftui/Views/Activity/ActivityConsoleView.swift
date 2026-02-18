@@ -110,3 +110,38 @@ struct ActivityConsoleView: View {
         .padding(.vertical, 2)
     }
 }
+
+// MARK: - Preview
+
+#Preview("Empty") {
+    ActivityConsoleView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: [],
+        liveExecution: nil
+    )
+    .frame(width: 600, height: 400)
+}
+
+#Preview("With Logs") {
+    let mockItems = [
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:00",
+            level: "info",
+            message: "Starting workflow execution",
+            source: "workflow_engine"
+        ),
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:05",
+            level: "error",
+            message: "Failed to process document",
+            source: "transcribe_node"
+        )
+    ]
+
+    ActivityConsoleView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: mockItems,
+        liveExecution: nil
+    )
+    .frame(width: 600, height: 400)
+}

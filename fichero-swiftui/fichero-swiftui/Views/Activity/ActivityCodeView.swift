@@ -140,3 +140,14 @@ struct ActivityCodeView: View {
         isLoading = false
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    ActivityCodeView(selectedRun: .workflow(id: "test", batchId: nil))
+        .environmentObject(library.apiClient)
+        .frame(width: 600, height: 500)
+}

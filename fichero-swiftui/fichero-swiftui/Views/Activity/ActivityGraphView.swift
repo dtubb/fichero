@@ -245,3 +245,14 @@ struct ActivityGraphView: View {
         isLoading = false
     }
 }
+// MARK: - Preview
+
+#Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    ActivityGraphView(selectedRun: .workflow(id: "test", batchId: nil))
+        .environmentObject(library.apiClient)
+        .frame(width: 800, height: 600)
+}
+

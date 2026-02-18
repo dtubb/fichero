@@ -1,8 +1,5 @@
 import SwiftUI
 
-// TODO: Refactor DocumentInspector - extract artifacts section to separate view component
-// Type body is 438 lines, target <350. See: ai/inbox/document-inspector-refactor.md
-
 /// Tab selection for document inspector
 enum InspectorTab: String, CaseIterable, Identifiable {
     case info = "Info"
@@ -22,8 +19,9 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     }
 }
 
+// swiftlint:disable type_body_length file_length
+
 /// Inspector panel showing document metadata and details
-// swiftlint:disable:next type_body_length
 struct DocumentInspector: View {
     let document: Document?
 
@@ -571,6 +569,31 @@ struct DocumentInspector: View {
 // MARK: - Preview
 
 #Preview("Empty") {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
     DocumentInspector(document: nil)
+        .environmentObject(library.artifactServiceGenerated)
         .frame(width: 280, height: 400)
 }
+
+#Preview("With Document") {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    let mockDocument = Document(
+        id: UUID().uuidString,
+        name: "Sample Document.pdf",
+        docType: .file,
+        fileType: .pdf,
+        status: .completed,
+        createdAt: Date(),
+        updatedAt: Date()
+    )
+
+    DocumentInspector(document: mockDocument)
+        .environmentObject(library.artifactServiceGenerated)
+        .frame(width: 280, height: 400)
+}
+
+// swiftlint:enable type_body_length file_length

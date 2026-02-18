@@ -442,4 +442,25 @@ struct ScheduleEditorView: View {
     }
 }
 
-// Preview requires app context (APIClient, WorkflowStore)
+// MARK: - Preview
+
+#Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    ScheduleEditorView(
+        schedule: Schedule(
+            id: "test-schedule",
+            name: "Test Schedule",
+            description: "A test schedule",
+            workflowId: "test-workflow",
+            enabled: true,
+            scheduleType: "cron",
+            cronExpression: "0 9 * * *",
+            timezone: "America/New_York"
+        )
+    )
+    .environmentObject(library.automationServiceGenerated)
+    .environmentObject(library.workflowStore)
+    .frame(width: 600, height: 500)
+}

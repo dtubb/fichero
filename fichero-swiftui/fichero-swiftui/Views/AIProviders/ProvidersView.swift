@@ -514,3 +514,15 @@ struct ModelFilters {
     var imageGenOnly = false
     var speechOnly = false
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    ProvidersView()
+        .environmentObject(appState)
+        .environmentObject(appState.providerService)
+        .environmentObject(appState.modelService)
+        .frame(width: 900, height: 600)
+}

@@ -142,3 +142,13 @@ struct MCPServerRow: View {
         .padding(.vertical, 2)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    MCPServersView()
+        .environmentObject(appState.mcpService)
+        .frame(width: 900, height: 600)
+}

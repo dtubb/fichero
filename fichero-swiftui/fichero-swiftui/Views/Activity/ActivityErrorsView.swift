@@ -128,3 +128,40 @@ struct ActivityErrorsView: View {
         .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
     }
 }
+
+// MARK: - Preview
+
+#Preview("No Errors") {
+    ActivityErrorsView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: [],
+        liveExecution: nil
+    )
+    .frame(width: 600, height: 400)
+}
+
+#Preview("With Errors") {
+    let mockItems = [
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:00",
+            level: "error",
+            message: "Failed to transcribe document",
+            source: "transcribe_node",
+            error: "Connection timeout after 30 seconds"
+        ),
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:10",
+            level: "error",
+            message: "Document not found",
+            source: "files_node",
+            error: "File does not exist: /path/to/missing.pdf"
+        )
+    ]
+
+    ActivityErrorsView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: mockItems,
+        liveExecution: nil
+    )
+    .frame(width: 600, height: 400)
+}

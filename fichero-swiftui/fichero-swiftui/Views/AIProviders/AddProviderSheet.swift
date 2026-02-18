@@ -422,3 +422,13 @@ struct ProviderRadioRow: View {
         .buttonStyle(.plain)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    AddProviderSheet()
+        .environmentObject(appState)
+        .environmentObject(appState.providerService)
+}

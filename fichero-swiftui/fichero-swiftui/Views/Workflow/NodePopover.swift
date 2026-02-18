@@ -1,15 +1,11 @@
 import SwiftUI
 import OSLog
 
-// swiftlint:disable file_length
+// swiftlint:disable file_length type_body_length
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
 
-// TODO: Refactor NodePopover into smaller components (type body is 873 lines, target <350)
-// See: ai/inbox/nodepopover-refactor.md for the planned breakdown
-
 /// Popover for configuring a workflow node
-// swiftlint:disable:next type_body_length
 struct NodePopover: View {
     @Binding var node: WorkflowNode
     let onDelete: () -> Void
@@ -886,7 +882,10 @@ struct NodePopover: View {
                                 node.modelName = firstModel
                                 print("[DEBUG] Model set to: \(firstModel)")
                             }
-                            print("[DEBUG] Node after update: providerName=\(node.providerName ?? "nil"), modelName=\(node.modelName ?? "nil")")
+                            print(
+                                "[DEBUG] Node after update: providerName=\(node.providerName ?? "nil"), " +
+                                "modelName=\(node.modelName ?? "nil")"
+                            )
                         }
                     }
                 }
@@ -1111,6 +1110,9 @@ struct NodePopover: View {
 // MARK: - Preview
 
 #Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
     NodePopover(
         node: .constant(WorkflowNode(
             tool: "transcribe",
@@ -1133,4 +1135,10 @@ struct NodePopover: View {
         onDelete: {},
         onDuplicate: {}
     )
+    .environmentObject(library.chatServiceGenerated)
+    .environmentObject(library.documentStore)
+    .environmentObject(library.savedSearchServiceGenerated)
+    .environmentObject(library.workflowServiceGenerated)
 }
+
+// swiftlint:enable file_length type_body_length

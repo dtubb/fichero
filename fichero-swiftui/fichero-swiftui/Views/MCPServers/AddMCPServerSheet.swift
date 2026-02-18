@@ -213,3 +213,12 @@ struct AddMCPServerSheet: View {
         return result
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    AddMCPServerSheet(onAdd: {})
+        .environmentObject(appState.mcpService)
+}

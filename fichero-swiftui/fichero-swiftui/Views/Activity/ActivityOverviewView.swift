@@ -154,3 +154,49 @@ struct ActivityOverviewView: View {
         ActivityViewHelpers.statusText(for: selectedRun.status)
     }
 }
+
+// MARK: - Preview
+
+#Preview("Running") {
+    let mockItems = [
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:00",
+            level: "info",
+            message: "Starting workflow execution",
+            source: "workflow_engine"
+        ),
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:05",
+            level: "info",
+            message: "Processing document 1 of 10",
+            source: "transcribe_node"
+        )
+    ]
+
+    ActivityOverviewView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: mockItems,
+        liveExecution: nil,
+        errorCount: 0
+    )
+    .frame(width: 600, height: 500)
+}
+
+#Preview("With Errors") {
+    let mockItems = [
+        ActivityItem(
+            timestamp: "2024-01-15 10:30:00",
+            level: "error",
+            message: "Failed to process document.pdf",
+            source: "workflow_engine"
+        )
+    ]
+
+    ActivityOverviewView(
+        selectedRun: .workflow(id: "test", batchId: nil),
+        activityItems: mockItems,
+        liveExecution: nil,
+        errorCount: 3
+    )
+    .frame(width: 600, height: 500)
+}

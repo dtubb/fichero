@@ -28,3 +28,15 @@ struct StatusBadge: View {
         }
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    VStack(spacing: 12) {
+        StatusBadge(status: .pending)
+        StatusBadge(status: .processing)
+        StatusBadge(status: .completed)
+        StatusBadge(status: .failed)
+    }
+    .padding()
+}

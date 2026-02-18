@@ -27,3 +27,12 @@ struct ProvidersSettingsSheet: View {
         .frame(width: 700, height: 500)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    ProvidersSettingsSheet()
+        .environmentObject(appState)
+}

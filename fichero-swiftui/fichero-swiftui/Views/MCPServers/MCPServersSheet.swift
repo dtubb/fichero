@@ -42,3 +42,13 @@ struct MCPServersSheet: View {
         .frame(width: 900, height: 600)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    MCPServersSheet()
+        .environmentObject(appState)
+        .environmentObject(appState.mcpService)
+}

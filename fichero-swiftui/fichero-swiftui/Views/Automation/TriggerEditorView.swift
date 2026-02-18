@@ -591,4 +591,24 @@ struct FlowLayout: Layout {
     }
 }
 
-// Preview requires app context (APIClient, WorkflowStore)
+// MARK: - Preview
+
+#Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    TriggerEditorView(
+        trigger: Trigger(
+            id: "test-trigger",
+            name: "Test Trigger",
+            description: "A test trigger",
+            enabled: true,
+            eventType: "document_added",
+            conditions: [:],
+            workflowId: "test-workflow"
+        )
+    )
+    .environmentObject(library.automationServiceGenerated)
+    .environmentObject(library.workflowStore)
+    .frame(width: 700, height: 600)
+}

@@ -224,3 +224,13 @@ struct MCPToolRow: View {
         .padding(.vertical, 2)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    MCPToolsCatalogView()
+        .environmentObject(appState.mcpService)
+        .frame(width: 900, height: 600)
+}

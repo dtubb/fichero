@@ -259,4 +259,18 @@ struct AIModelSelectionView: View {
     }
 }
 
+// MARK: - Preview
+
+#Preview {
+    let appState = AppState()
+
+    AIModelSelectionView(
+        selectedProviderId: .constant("openai"),
+        selectedModelId: .constant("gpt-4"),
+        onModelAdded: {}
+    )
+    .environmentObject(appState.providerService)
+    .frame(width: 400, height: 300)
+}
+
 /// Apple Mail style radio row - icon + name with radio button
