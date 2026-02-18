@@ -60,7 +60,7 @@ struct DocumentTabView: View {
             // Load data for this tab's context
             await loadContext()
         }
-        .onChange(of: document.viewMode) { _, newMode in
+        .onChange(of: document.viewMode) { _, _ in
             // Update last modified when view mode changes
             document.lastModified = Date()
         }
