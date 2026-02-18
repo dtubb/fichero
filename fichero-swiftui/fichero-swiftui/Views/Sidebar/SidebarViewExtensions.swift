@@ -69,17 +69,26 @@ struct SidebarBottomToolbar: View {
 
             // Import menu
             Menu {
-                Button(action: { importFiles(.link) }) {
-                    Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
-                }
+                Button(
+                    action: { importFiles(.link) },
+                    label: {
+                        Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
+                    }
+                )
 
-                Button(action: { importFiles(.copy) }) {
-                    Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
-                }
+                Button(
+                    action: { importFiles(.copy) },
+                    label: {
+                        Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
+                    }
+                )
 
-                Button(action: { importFiles(.move) }) {
-                    Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
-                }
+                Button(
+                    action: { importFiles(.move) },
+                    label: {
+                        Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
+                    }
+                )
             } label: {
                 Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 11))
@@ -148,17 +157,26 @@ extension View {
 
             ToolbarItem(placement: .automatic) {
                 Menu {
-                    Button(action: { config.importFiles(.link) }) {
-                        Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
-                    }
+                    Button(
+                        action: { config.importFiles(.link) },
+                        label: {
+                            Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
+                        }
+                    )
 
-                    Button(action: { config.importFiles(.copy) }) {
-                        Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
-                    }
+                    Button(
+                        action: { config.importFiles(.copy) },
+                        label: {
+                            Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
+                        }
+                    )
 
-                    Button(action: { config.importFiles(.move) }) {
-                        Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
-                    }
+                    Button(
+                        action: { config.importFiles(.move) },
+                        label: {
+                            Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
+                        }
+                    )
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                 }
