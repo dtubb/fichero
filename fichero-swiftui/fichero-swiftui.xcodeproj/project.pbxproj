@@ -56,6 +56,7 @@
 		202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */; };
 		202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
 		202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */; };
+		202674AC2F4779AA008EAB5D /* NodeProviderModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -287,6 +288,7 @@
 		202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFolderNodeConfig.swift; sourceTree = "<group>"; };
 		202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeCollectionNodeConfig.swift; sourceTree = "<group>"; };
 		202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractEntitiesNodeConfig.swift; sourceTree = "<group>"; };
+		202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProviderModelSelector.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -613,6 +615,7 @@
 				151 /* ChainEditorView.swift */,
 				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
 				202674932F475B06008EAB5D /* NodeConfigs */,
+				202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -1099,6 +1102,7 @@
 				A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */,
 				A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */,
 				838 /* PerformanceService.swift in Sources */,
+				202674AC2F4779AA008EAB5D /* NodeProviderModelSelector.swift in Sources */,
 				840 /* ErrorService.swift in Sources */,
 				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
