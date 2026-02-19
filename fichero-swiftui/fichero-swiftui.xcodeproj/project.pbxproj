@@ -57,6 +57,7 @@
 		202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
 		202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */; };
 		202674AC2F4779AA008EAB5D /* NodeProviderModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */; };
+		202674AE2F477AFE008EAB5D /* NodeInputMappings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -289,6 +290,7 @@
 		202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeCollectionNodeConfig.swift; sourceTree = "<group>"; };
 		202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractEntitiesNodeConfig.swift; sourceTree = "<group>"; };
 		202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProviderModelSelector.swift; sourceTree = "<group>"; };
+		202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeInputMappings.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -616,6 +618,7 @@
 				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
 				202674932F475B06008EAB5D /* NodeConfigs */,
 				202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */,
+				202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -1131,6 +1134,7 @@
 				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
 				202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */,
 				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
+				202674AE2F477AFE008EAB5D /* NodeInputMappings.swift in Sources */,
 				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
 				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
 				MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */,
