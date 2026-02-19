@@ -368,7 +368,8 @@ struct TriggerEditorView: View {
                         previewField("Filter Mode", filterMode.capitalized)
                         previewField("Pattern", filterPattern)
                     case "extension":
-                        previewField("Extensions", filterExtensions.isEmpty ? "All" : filterExtensions.joined(separator: ", "))
+                        let extensionText = filterExtensions.isEmpty ? "All" : filterExtensions.joined(separator: ", ")
+                        previewField("Extensions", extensionText)
                     default:
                         EmptyView()
                     }
@@ -597,18 +598,8 @@ struct FlowLayout: Layout {
     let libraryManager = LibraryManager.shared
     let library = libraryManager.globalLibrary!
 
-    TriggerEditorView(
-        trigger: Trigger(
-            id: "test-trigger",
-            name: "Test Trigger",
-            description: "A test trigger",
-            enabled: true,
-            eventType: "document_added",
-            conditions: [:],
-            workflowId: "test-workflow"
-        )
-    )
-    .environmentObject(library.automationServiceGenerated)
-    .environmentObject(library.workflowStore)
+    TriggerEditorView(existingTrigger: nil)
+        .environmentObject(library.automationService)
+        .environmentObject(library.workflowStore)
     .frame(width: 700, height: 600)
 }

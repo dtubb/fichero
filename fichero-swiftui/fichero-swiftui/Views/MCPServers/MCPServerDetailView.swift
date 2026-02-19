@@ -200,26 +200,3 @@ struct MCPServerDetailView: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let appState = AppState()
-    
-    let mockServer = MCPServerResponse(
-        id: "mock-server",
-        name: "Test MCP Server",
-        description: "A test MCP server for preview",
-        transport: "stdio",
-        command: "python",
-        args: ["-m", "mcp_server_time"],
-        env: [:],
-        url: nil,
-        headers: [:],
-        toolNamePrefix: true,
-        enabled: true
-    )
-
-    MCPServerDetailView(server: mockServer, onUpdate: {})
-        .environmentObject(appState.mcpService)
-        .frame(width: 600, height: 500)
-}

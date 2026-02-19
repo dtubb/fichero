@@ -132,8 +132,19 @@ struct ActivityErrorsView: View {
 // MARK: - Preview
 
 #Preview("No Errors") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .completed,
+        isLive: false,
+        childType: nil
+    )
+
     ActivityErrorsView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: [],
         liveExecution: nil
     )
@@ -141,25 +152,50 @@ struct ActivityErrorsView: View {
 }
 
 #Preview("With Errors") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .failed,
+        isLive: false,
+        childType: nil
+    )
+
     let mockItems = [
         ActivityItem(
-            timestamp: "2024-01-15 10:30:00",
+            id: "item-1",
+            type: "log",
             level: "error",
+            timestamp: "2024-01-15 10:30:00",
             message: "Failed to transcribe document",
-            source: "transcribe_node",
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
             error: "Connection timeout after 30 seconds"
         ),
         ActivityItem(
-            timestamp: "2024-01-15 10:30:10",
+            id: "item-2",
+            type: "log",
             level: "error",
+            timestamp: "2024-01-15 10:30:10",
             message: "Document not found",
-            source: "files_node",
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
             error: "File does not exist: /path/to/missing.pdf"
         )
     ]
 
     ActivityErrorsView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: nil
     )

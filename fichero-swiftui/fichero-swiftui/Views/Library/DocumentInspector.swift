@@ -573,7 +573,7 @@ struct DocumentInspector: View {
     let library = libraryManager.globalLibrary!
 
     DocumentInspector(document: nil)
-        .environmentObject(library.artifactServiceGenerated)
+        .environmentObject(library.artifactService)
         .frame(width: 280, height: 400)
 }
 
@@ -583,16 +583,22 @@ struct DocumentInspector: View {
 
     let mockDocument = Document(
         id: UUID().uuidString,
-        name: "Sample Document.pdf",
+        parentId: nil,
         docType: .file,
         fileType: .pdf,
+        name: "Sample Document.pdf",
+        path: nil,
+        sequence: nil,
+        bbox: nil,
         status: .completed,
+        metadata: [:],
+        pageContent: nil,
         createdAt: Date(),
         updatedAt: Date()
     )
 
     DocumentInspector(document: mockDocument)
-        .environmentObject(library.artifactServiceGenerated)
+        .environmentObject(library.artifactService)
         .frame(width: 280, height: 400)
 }
 

@@ -1,4 +1,4 @@
-	import SwiftUI
+import SwiftUI
 import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIModelSelectionView")
@@ -26,7 +26,13 @@ struct AIModelSelectionView: View {
     }
 
     // Full init for select mode
-    init(providerType: String, providerId: String, selectionMode: ModelSelectionMode, selectedModel: Binding<ModelInfo?>, onModelAdded: @escaping () -> Void) {
+    init(
+        providerType: String,
+        providerId: String,
+        selectionMode: ModelSelectionMode,
+        selectedModel: Binding<ModelInfo?>,
+        onModelAdded: @escaping () -> Void
+    ) {
         self.providerType = providerType
         self.providerId = providerId
         self.selectionMode = selectionMode
@@ -71,13 +77,20 @@ struct AIModelSelectionView: View {
         switch sortOrder {
         case .recommended:
             result.sort { model1, model2 in
-                if model1.isRecommended != model2.isRecommended { return model1.isRecommended }
-                return model1.modelId.localizedCaseInsensitiveCompare(model2.modelId) == .orderedAscending
+                if model1.isRecommended != model2.isRecommended {
+                    return model1.isRecommended
+                }
+                let comparison = model1.modelId.localizedCaseInsensitiveCompare(model2.modelId)
+                return comparison == .orderedAscending
             }
         case .name:
             result.sort { $0.modelId.localizedCaseInsensitiveCompare($1.modelId) == .orderedAscending }
         case .cheapest:
-            result.sort { ($0.inputCostPerMillion + $0.outputCostPerMillion) < ($1.inputCostPerMillion + $1.outputCostPerMillion) }
+            result.sort {
+                let cost0 = $0.inputCostPerMillion + $0.outputCostPerMillion
+                let cost1 = $1.inputCostPerMillion + $1.outputCostPerMillion
+                return cost0 < cost1
+            }
         case .context:
             result.sort { ($0.maxInputTokens ?? 0) > ($1.maxInputTokens ?? 0) }
         }
@@ -169,7 +182,10 @@ struct AIModelSelectionView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        let iconName = hasActiveFilters
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle"
+                        Image(systemName: iconName)
                         if hasActiveFilters {
                             Text("Filter (\(activeFilterCount))")
                                 .font(.caption)
@@ -180,7 +196,11 @@ struct AIModelSelectionView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(hasActiveFilters ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
+                    .background(
+                        hasActiveFilters
+                            ? Color.accentColor.opacity(0.1)
+                            : Color(nsColor: .controlBackgroundColor)
+                    )
                     .cornerRadius(6)
                 }
                 .menuStyle(.borderlessButton)
@@ -257,20 +277,6 @@ struct AIModelSelectionView: View {
             }
         }
     }
-}
-
-// MARK: - Preview
-
-#Preview {
-    let appState = AppState()
-
-    AIModelSelectionView(
-        selectedProviderId: .constant("openai"),
-        selectedModelId: .constant("gpt-4"),
-        onModelAdded: {}
-    )
-    .environmentObject(appState.providerService)
-    .frame(width: 400, height: 300)
 }
 
 /// Apple Mail style radio row - icon + name with radio button

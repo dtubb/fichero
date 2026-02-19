@@ -147,7 +147,18 @@ struct ActivityCodeView: View {
     let libraryManager = LibraryManager.shared
     let library = libraryManager.globalLibrary!
 
-    ActivityCodeView(selectedRun: .workflow(id: "test", batchId: nil))
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .completed,
+        isLive: false,
+        childType: nil
+    )
+
+    ActivityCodeView(selectedRun: selectedRun)
         .environmentObject(library.apiClient)
         .frame(width: 600, height: 500)
 }

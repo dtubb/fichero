@@ -11,7 +11,8 @@ struct ActivityConsoleView: View {
             LazyVStack(alignment: .leading, spacing: 4) {
                 if let execution = liveExecution {
                     // Live execution - show node progress
-                    ForEach(Array(execution.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId })), id: \.nodeId) { state in
+                    let sortedStates = execution.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId })
+                    ForEach(Array(sortedStates), id: \.nodeId) { state in
                         nodeLogEntry(state)
                     }
 
@@ -114,8 +115,19 @@ struct ActivityConsoleView: View {
 // MARK: - Preview
 
 #Preview("Empty") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .running,
+        isLive: false,
+        childType: nil
+    )
+
     ActivityConsoleView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: [],
         liveExecution: nil
     )
@@ -123,23 +135,50 @@ struct ActivityConsoleView: View {
 }
 
 #Preview("With Logs") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .running,
+        isLive: false,
+        childType: nil
+    )
+
     let mockItems = [
         ActivityItem(
-            timestamp: "2024-01-15 10:30:00",
+            id: "item-1",
+            type: "log",
             level: "info",
+            timestamp: "2024-01-15 10:30:00",
             message: "Starting workflow execution",
-            source: "workflow_engine"
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
+            error: nil
         ),
         ActivityItem(
-            timestamp: "2024-01-15 10:30:05",
+            id: "item-2",
+            type: "log",
             level: "error",
+            timestamp: "2024-01-15 10:30:05",
             message: "Failed to process document",
-            source: "transcribe_node"
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
+            error: nil
         )
     ]
 
     ActivityConsoleView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: nil
     )

@@ -421,13 +421,3 @@ struct ActivityProgressView: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let libraryManager = LibraryManager.shared
-    let library = libraryManager.globalLibrary!
-
-    ActivityProgressView(selectedRun: .workflow(id: "test", batchId: nil))
-        .environmentObject(library.apiClient)
-        .frame(width: 800, height: 600)
-}

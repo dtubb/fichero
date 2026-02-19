@@ -24,24 +24,3 @@ struct ProviderLogoView: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let mockProvider = Components.Schemas.ProviderCatalogResponse(
-        key: "openai",
-        displayName: "OpenAI",
-        icon: "sparkles",
-        color: "#10A37F",
-        logoAsset: nil,
-        baseURL: "https://api.openai.com/v1",
-        authType: "bearer",
-        apiKeyEnvVar: "OPENAI_API_KEY"
-    )
-
-    HStack(spacing: 20) {
-        ProviderLogoView(entry: mockProvider, size: 32)
-        ProviderLogoView(entry: mockProvider, size: 48)
-        ProviderLogoView(entry: mockProvider, size: 64)
-    }
-    .padding()
-}

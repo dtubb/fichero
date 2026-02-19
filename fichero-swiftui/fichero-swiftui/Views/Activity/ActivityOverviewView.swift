@@ -158,23 +158,50 @@ struct ActivityOverviewView: View {
 // MARK: - Preview
 
 #Preview("Running") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .running,
+        isLive: true,
+        childType: nil
+    )
+
     let mockItems = [
         ActivityItem(
-            timestamp: "2024-01-15 10:30:00",
+            id: "item-1",
+            type: "log",
             level: "info",
+            timestamp: "2024-01-15 10:30:00",
             message: "Starting workflow execution",
-            source: "workflow_engine"
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
+            error: nil
         ),
         ActivityItem(
-            timestamp: "2024-01-15 10:30:05",
+            id: "item-2",
+            type: "log",
             level: "info",
+            timestamp: "2024-01-15 10:30:05",
             message: "Processing document 1 of 10",
-            source: "transcribe_node"
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
+            error: nil
         )
     ]
 
     ActivityOverviewView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: nil,
         errorCount: 0
@@ -183,17 +210,36 @@ struct ActivityOverviewView: View {
 }
 
 #Preview("With Errors") {
+    let selectedRun = SelectedActivityRun(
+        id: "test-run",
+        name: "Test Workflow",
+        workflowId: "workflow-123",
+        threadId: "thread-456",
+        timestamp: Date(),
+        status: .failed,
+        isLive: false,
+        childType: nil
+    )
+
     let mockItems = [
         ActivityItem(
-            timestamp: "2024-01-15 10:30:00",
+            id: "item-1",
+            type: "log",
             level: "error",
+            timestamp: "2024-01-15 10:30:00",
             message: "Failed to process document.pdf",
-            source: "workflow_engine"
+            workflowId: nil,
+            batchId: nil,
+            threadId: nil,
+            nodeId: nil,
+            metadataRaw: nil,
+            durationMs: nil,
+            error: nil
         )
     ]
 
     ActivityOverviewView(
-        selectedRun: .workflow(id: "test", batchId: nil),
+        selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: nil,
         errorCount: 3

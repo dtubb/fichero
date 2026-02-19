@@ -131,7 +131,9 @@ struct AddProviderSheet: View {
                 .disabled(isFirstLaunch && catalog.isEmpty)
 
                 Button(selectedEntry?.isBuiltin == true ? "Add" : "Continue") {
-                    logger.info("Button tapped, selectedEntry=\(selectedEntry?.providerType ?? "nil"), isBuiltin=\(selectedEntry?.isBuiltin ?? false)")
+                    let providerType = selectedEntry?.providerType ?? "nil"
+                    let isBuiltin = selectedEntry?.isBuiltin ?? false
+                    logger.info("Button tapped, selectedEntry=\(providerType), isBuiltin=\(isBuiltin)")
                     // For built-in providers, add directly without config step
                     if let entry = selectedEntry, entry.isBuiltin {
                         logger.info("isBuiltin=true, calling addProvider()")
@@ -423,12 +425,3 @@ struct ProviderRadioRow: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let appState = AppState()
-
-    AddProviderSheet()
-        .environmentObject(appState)
-        .environmentObject(appState.providerService)
-}

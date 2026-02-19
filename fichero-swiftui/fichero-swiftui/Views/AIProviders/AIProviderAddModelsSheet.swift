@@ -97,29 +97,13 @@ struct AIProviderAddModelsSheet: View {
     }
 }
 
-// MARK: - Preview
 
-#Preview {
-    let appState = AppState()
-
-    AIProviderAddModelsSheet(
-        provider: LLMProvider(
-            id: "test-provider",
-            providerType: "openai",
-            providerName: "OpenAI",
-            apiKey: "test-key",
-            models: ["gpt-4", "gpt-3.5-turbo"]
-        ),
-        onSave: { _ in }
-    )
-    .environmentObject(appState.providerService)
-}
 
 /// Card-style row displaying model info with costs and capabilities
 struct ModelInfoRow: View {
     let model: ModelInfo
     let isSelected: Bool
-    var onSelect: (() -> Void)? = nil  // Optional action when tapped
+    var onSelect: (() -> Void)?  // Optional action when tapped
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
