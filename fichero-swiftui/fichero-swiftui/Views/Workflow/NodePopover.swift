@@ -19,34 +19,8 @@ struct NodePopover: View {
     @State private var selectedProviderId: String = ""
     @State private var selectedModelId: String = ""
 
-    // Tool-specific config states
-    @State private var collectionId: String = ""
-    @State private var promptText: String = ""
-    @State private var language: String = "en"
-
-    // Describe config
-    @State private var detailLevel: String = "detailed"
-    @State private var focusText: String = ""
-
-    // Summarize config
-    @State private var summaryStyle: String = "brief"
-    @State private var maxLength: Int = 200
-    @State private var includeThemes: Bool = true
-    @State private var includeStatistics: Bool = true
-
-    // Entity extraction config
-    @State private var entityTypes: Set<String> = ["people", "organizations", "locations", "dates"]
-    @State private var includeContext: Bool = false
-
-    // Vision mode for transcribe/describe
+    // Vision mode for transcribe/describe (used by shouldShowProviderSection)
     @State private var visionMode: String = "apple"  // "apple" or "llm"
-    @State private var maxImageDimension: Double = 2048  // Image size limit for vision API (default 2048)
-
-    // Search config
-    @State private var selectedSearchId: String = ""
-
-    // Files config
-    @State private var selectedFileIds: [String] = []
 
     @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var documentStore: DocumentStore
@@ -165,93 +139,18 @@ struct NodePopover: View {
     // MARK: - Config Helpers
 
     private func initConfigFromNode() {
-        // Initialize state from node.config
-        collectionId = getConfigString("collection_id")
-        promptText = getConfigString("prompt")
-        language = getConfigString("language").isEmpty ? "en" : getConfigString("language")
-
         // Vision mode only applies to tools that support Apple Vision (transcribe)
         // Default to "apple" for transcribe, "llm" for all other vision tools
         if Self.appleVisionTools.contains(node.tool) {
-            visionMode = getConfigString("vision_mode").isEmpty ? "apple" : getConfigString("vision_mode")
+            if let configValue = node.config?["vision_mode"],
+               case .string(let mode) = configValue {
+                visionMode = mode
+            } else {
+                visionMode = "apple"
+            }
         } else {
             visionMode = "llm"  // All other vision tools only support LLM
         }
-
-        // Describe config
-        detailLevel = getConfigString("detail_level").isEmpty ? "detailed" : getConfigString("detail_level")
-        focusText = getConfigString("focus")
-
-        // Summarize config
-        summaryStyle = getConfigString("style").isEmpty ? "brief" : getConfigString("style")
-        maxLength = getConfigInt("max_length", defaultValue: 200)
-        includeThemes = getConfigBool("include_themes", defaultValue: true)
-        includeStatistics = getConfigBool("include_statistics", defaultValue: true)
-
-        // Entity extraction config
-        if let types = getConfigStringArray("entity_types"), !types.isEmpty {
-            entityTypes = Set(types)
-        }
-        includeContext = getConfigBool("include_context", defaultValue: false)
-
-        // Search config
-        selectedSearchId = getConfigString("search_id")
-
-        // Files config
-        if let fileIds = getConfigStringArray("file_ids") {
-            selectedFileIds = fileIds
-        }
-    }
-
-    private func getConfigString(_ key: String) -> String {
-        guard let config = node.config, let value = config[key] else { return "" }
-        if case .string(let str) = value {
-            return str
-        }
-        return ""
-    }
-
-    private func getConfigInt(_ key: String, defaultValue: Int) -> Int {
-        guard let config = node.config, let value = config[key] else { return defaultValue }
-        if case .int(let intVal) = value {
-            return intVal
-        }
-        if case .double(let doubleVal) = value {
-            return Int(doubleVal)
-        }
-        return defaultValue
-    }
-
-    private func getConfigBool(_ key: String, defaultValue: Bool) -> Bool {
-        guard let config = node.config, let value = config[key] else { return defaultValue }
-        if case .bool(let boolVal) = value {
-            return boolVal
-        }
-        return defaultValue
-    }
-
-    private func getConfigStringArray(_ key: String) -> [String]? {
-        guard let config = node.config, let value = config[key] else { return nil }
-        if case .array(let arr) = value {
-            return arr.compactMap { item in
-                if case .string(let str) = item {
-                    return str
-                }
-                return nil
-            }
-        }
-        return nil
-    }
-
-    private func updateConfig(key: String, value: AnyCodableValue) {
-        if node.config == nil {
-            node.config = [:]
-        }
-        node.config?[key] = value
-    }
-
-    private func removeConfig(key: String) {
-        node.config?.removeValue(forKey: key)
     }
 
     // MARK: - Header
