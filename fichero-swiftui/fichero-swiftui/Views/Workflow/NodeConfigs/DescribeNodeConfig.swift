@@ -3,14 +3,14 @@ import SwiftUI
 /// Configuration view for describe node
 struct DescribeNodeConfig: View {
     @Binding var node: WorkflowNode
-    
+
     let toolInfo: ToolInfo?
     let backendPrompt: String?
-    
+
     @State private var detailLevel: String = "detailed"
     @State private var focusText: String = ""
     @State private var promptText: String = ""
-    
+
     /// Get the current default prompt - from backend if available, otherwise nil
     private var currentDefaultPrompt: String? {
         // Use dynamically fetched prompt if available
@@ -20,7 +20,7 @@ struct DescribeNodeConfig: View {
         // Fall back to static default from tool info
         return toolInfo?.defaultPrompt
     }
-    
+
     var body: some View {
         // Describe tool ONLY supports LLM vision (no Apple Vision)
         // The backend hardcodes vision_mode="llm" since it requires semantic understanding
@@ -30,7 +30,7 @@ struct DescribeNodeConfig: View {
                 Text("Detail Level")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 Picker("", selection: $detailLevel) {
                     Text("Brief").tag("brief")
                     Text("Detailed").tag("detailed")
@@ -45,13 +45,13 @@ struct DescribeNodeConfig: View {
                     node.config?["detail_level"] = .string(newValue)
                 }
             }
-            
+
             // Focus
             VStack(alignment: .leading, spacing: 4) {
                 Text("Focus (optional)")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 TextField("e.g., people, objects, text, scene", text: $focusText)
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: focusText) { _, newValue in
@@ -65,13 +65,13 @@ struct DescribeNodeConfig: View {
                         }
                     }
             }
-            
+
             // Custom prompt
             VStack(alignment: .leading, spacing: 4) {
                 Text("Prompt")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 ZStack(alignment: .topLeading) {
                     // Placeholder showing default prompt from backend
                     if promptText.isEmpty, let defaultPrompt = currentDefaultPrompt {
@@ -81,7 +81,7 @@ struct DescribeNodeConfig: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 8)
                     }
-                    
+
                     TextEditor(text: $promptText)
                         .font(.caption)
                         .scrollContentBackground(.hidden)
@@ -103,7 +103,7 @@ struct DescribeNodeConfig: View {
                         node.config?["prompt"] = .string(newValue)
                     }
                 }
-                
+
                 Text("Edit to customize, or clear to use default")
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -113,18 +113,18 @@ struct DescribeNodeConfig: View {
             loadInitialState()
         }
     }
-    
+
     private func loadInitialState() {
         if let configValue = node.config?["detail_level"],
            case .string(let level) = configValue {
             detailLevel = level
         }
-        
+
         if let configValue = node.config?["focus"],
            case .string(let focus) = configValue {
             focusText = focus
         }
-        
+
         if let configValue = node.config?["prompt"],
            case .string(let prompt) = configValue {
             promptText = prompt

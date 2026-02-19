@@ -10,7 +10,7 @@ extension View {
         }
         node.wrappedValue.config?[key] = value
     }
-    
+
     /// Helper to remove a config value from a workflow node
     func removeNodeConfig(_ node: Binding<WorkflowNode>, key: String) {
         node.wrappedValue.config?.removeValue(forKey: key)

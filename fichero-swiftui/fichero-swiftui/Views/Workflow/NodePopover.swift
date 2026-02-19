@@ -154,7 +154,6 @@ struct NodePopover: View {
         }
     }
 
-
     private var summarizeFileConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Style

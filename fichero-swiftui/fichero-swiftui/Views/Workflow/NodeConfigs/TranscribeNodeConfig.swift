@@ -3,15 +3,15 @@ import SwiftUI
 /// Configuration view for transcribe node
 struct TranscribeNodeConfig: View {
     @Binding var node: WorkflowNode
-    
+
     let toolInfo: ToolInfo?
     let backendPrompt: String?
-    
+
     @State private var visionMode: String = "apple"
     @State private var language: String = "en"
     @State private var maxImageDimension: Double = 2048
     @State private var promptText: String = ""
-    
+
     /// Get the current default prompt - from backend if available, otherwise nil
     private var currentDefaultPrompt: String? {
         // Use dynamically fetched prompt if available
@@ -21,7 +21,7 @@ struct TranscribeNodeConfig: View {
         // Fall back to static default from tool info
         return toolInfo?.defaultPrompt
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Vision Mode selector
@@ -29,7 +29,7 @@ struct TranscribeNodeConfig: View {
                 Text("Vision Engine")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 Picker("Vision Engine", selection: $visionMode) {
                     Label("Apple Vision (On-Device)", systemImage: "apple.logo")
                         .tag("apple")
@@ -50,13 +50,13 @@ struct TranscribeNodeConfig: View {
                     }
                 }
             }
-            
+
             // Language
             VStack(alignment: .leading, spacing: 4) {
                 Text("Language")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 TextField("Language code (e.g., en, es, fr)", text: $language)
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: language) { _, newValue in
@@ -66,14 +66,14 @@ struct TranscribeNodeConfig: View {
                         node.config?["language"] = .string(newValue)
                     }
             }
-            
+
             // Image Size (only for LLM mode)
             if visionMode == "llm" {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Max Image Size")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
+
                     Picker("Max Image Size", selection: $maxImageDimension) {
                         Text("512px (Fastest)").tag(512.0)
                         Text("768px (Fast)").tag(768.0)
@@ -89,20 +89,20 @@ struct TranscribeNodeConfig: View {
                         }
                         node.config?["max_image_dimension"] = .int(Int(newValue))
                     }
-                    
+
                     Text("Smaller = faster, original = full detail")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             // Custom prompt (only for LLM mode)
             if visionMode == "llm" {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Prompt")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
+
                     ZStack(alignment: .topLeading) {
                         // Placeholder showing default prompt from backend
                         if promptText.isEmpty, let defaultPrompt = currentDefaultPrompt {
@@ -112,7 +112,7 @@ struct TranscribeNodeConfig: View {
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 8)
                         }
-                        
+
                         TextEditor(text: $promptText)
                             .font(.caption)
                             .scrollContentBackground(.hidden)
@@ -134,7 +134,7 @@ struct TranscribeNodeConfig: View {
                             node.config?["prompt"] = .string(newValue)
                         }
                     }
-                    
+
                     Text("Edit to customize, or clear to use default")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -145,23 +145,23 @@ struct TranscribeNodeConfig: View {
             loadInitialState()
         }
     }
-    
+
     private func loadInitialState() {
         if let configValue = node.config?["vision_mode"],
            case .string(let mode) = configValue {
             visionMode = mode
         }
-        
+
         if let configValue = node.config?["language"],
            case .string(let lang) = configValue {
             language = lang
         }
-        
+
         if let configValue = node.config?["max_image_dimension"],
            case .int(let dimension) = configValue {
             maxImageDimension = Double(dimension)
         }
-        
+
         if let configValue = node.config?["prompt"],
            case .string(let prompt) = configValue {
             promptText = prompt
