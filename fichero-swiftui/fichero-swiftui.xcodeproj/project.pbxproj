@@ -66,6 +66,11 @@
 		202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */; };
 		202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BE2F478647008EAB5D /* SidebarActions.swift */; };
 		202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C12F47865B008EAB5D /* SidebarObservers.swift */; };
+		202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */; };
+		202674C72F4788E0008EAB5D /* WorkflowMiniPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */; };
+		202674C92F4788EB008EAB5D /* WorkflowThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */; };
+		202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */; };
+		202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -307,6 +312,11 @@
 		202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarCreationHandlers.swift; sourceTree = "<group>"; };
 		202674BE2F478647008EAB5D /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
 		202674C12F47865B008EAB5D /* SidebarObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarObservers.swift; sourceTree = "<group>"; };
+		202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowDetailView.swift; sourceTree = "<group>"; };
+		202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowMiniPreview.swift; sourceTree = "<group>"; };
+		202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowThumbnailView.swift; sourceTree = "<group>"; };
+		202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowLibraryRow.swift; sourceTree = "<group>"; };
+		202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkflowSheet.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -529,6 +539,18 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		202674C32F4788B4008EAB5D /* WorkflowLibraryView */ = {
+			isa = PBXGroup;
+			children = (
+				202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */,
+				202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */,
+				202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */,
+				202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */,
+				202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */,
+			);
+			path = WorkflowLibraryView;
+			sourceTree = "<group>";
+		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -651,6 +673,7 @@
 				202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */,
 				202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */,
 				202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */,
+				202674C32F4788B4008EAB5D /* WorkflowLibraryView */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -1147,6 +1170,7 @@
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
 				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
 				A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */,
+				202674C72F4788E0008EAB5D /* WorkflowMiniPreview.swift in Sources */,
 				A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */,
 				A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */,
 				A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */,
@@ -1183,6 +1207,7 @@
 				A13E7C342F27F32E00EC9EE1 /* TriggerRow.swift in Sources */,
 				A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */,
 				202674B82F4783D5008EAB5D /* WorkflowDiagramPreview.swift in Sources */,
+				202674C92F4788EB008EAB5D /* WorkflowThumbnailView.swift in Sources */,
 				A1A3AA1C2F110D520021909D /* WorkflowOutputLog.swift in Sources */,
 				A1A3AA1D2F110D520021909D /* WorkflowPortView.swift in Sources */,
 				A1A3AA1E2F110D520021909D /* WorkflowInspector.swift in Sources */,
@@ -1225,6 +1250,7 @@
 				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,
 				A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */,
 				A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */,
+				202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */,
 				A1FB1D812F0420A90023093C /* LibraryView.swift in Sources */,
 				A1FB1D822F0420A90023093C /* DocumentInspector.swift in Sources */,
 				A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */,
@@ -1260,6 +1286,7 @@
 				028 /* ModelService.swift in Sources */,
 				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
 				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
+				202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */,
 				A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */,
 				202674B02F4781BA008EAB5D /* TrackingImageView.swift in Sources */,
 				A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */,
@@ -1289,6 +1316,7 @@
 				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
 				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
 				202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */,
+				202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */,
 				E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */,
 				71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */,
 				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
