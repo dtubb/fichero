@@ -52,6 +52,10 @@
 		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
 		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
 		202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */; };
+		202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */; };
+		202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */; };
+		202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
+		202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -279,6 +283,10 @@
 		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
 		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
 		202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageZoomToolbar.swift; sourceTree = "<group>"; };
+		202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFileNodeConfig.swift; sourceTree = "<group>"; };
+		202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFolderNodeConfig.swift; sourceTree = "<group>"; };
+		202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeCollectionNodeConfig.swift; sourceTree = "<group>"; };
+		202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractEntitiesNodeConfig.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -473,6 +481,10 @@
 				2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */,
 				2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */,
 				2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */,
+				202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */,
+				202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */,
+				202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */,
+				202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */,
 			);
 			path = NodeConfigs;
 			sourceTree = "<group>";
@@ -1108,10 +1120,12 @@
 				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
 				2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */,
+				202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */,
 				038 /* WorkflowChain.swift in Sources */,
 				039 /* ChainService.swift in Sources */,
 				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
 				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
+				202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */,
 				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
 				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
 				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
@@ -1151,6 +1165,7 @@
 				A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */,
 				A1A3AB2C2F11CCC70021909D /* Run.swift in Sources */,
 				A1A3AB2F2F11CCC70021909D /* Note.swift in Sources */,
+				202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */,
 				841 /* ErrorModel.swift in Sources */,
 				A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */,
 				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
@@ -1225,6 +1240,7 @@
 				037 /* WorkflowExporter.swift in Sources */,
 				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
 				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
+				202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */,
 				E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */,
 				71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */,
 				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,

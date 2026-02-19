@@ -144,6 +144,14 @@ struct NodePopover: View {
                 toolInfo: toolInfo,
                 backendPrompt: backendPrompt
             )
+        case "summarize_file":
+            SummarizeFileNodeConfig(node: $node)
+        case "summarize_folder":
+            SummarizeFolderNodeConfig(node: $node)
+        case "summarize_collection":
+            SummarizeCollectionNodeConfig(node: $node)
+        case "extract_entities":
+            ExtractEntitiesNodeConfig(node: $node)
         default:
             // Use dynamic config view for everything else
             if let info = toolInfo, !info.configSchema.isEmpty {
@@ -151,197 +159,6 @@ struct NodePopover: View {
             } else {
                 EmptyView()
             }
-        }
-    }
-
-    private var summarizeFileConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Style
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Style")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Picker("Style", selection: $summaryStyle) {
-                    Text("Brief").tag("brief")
-                    Text("Detailed").tag("detailed")
-                    Text("Bullets").tag("bullets")
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: summaryStyle) { _, newValue in
-                    updateConfig(key: "style", value: .string(newValue))
-                }
-            }
-
-            // Max length
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Max Words: \(maxLength)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Slider(value: Binding(
-                    get: { Double(maxLength) },
-                    set: { maxLength = Int($0) }
-                ), in: 50...1000, step: 50)
-                .onChange(of: maxLength) { _, newValue in
-                    updateConfig(key: "max_length", value: .int(newValue))
-                }
-            }
-
-            // Custom prompt
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Custom Prompt (optional)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                TextEditor(text: $promptText)
-                    .frame(minHeight: 60)
-                    .font(.caption)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color(.separatorColor), lineWidth: 1)
-                    )
-                    .onChange(of: promptText) { _, newValue in
-                        if newValue.isEmpty {
-                            removeConfig(key: "prompt")
-                        } else {
-                            updateConfig(key: "prompt", value: .string(newValue))
-                        }
-                    }
-            }
-        }
-    }
-
-    // MARK: - Summarize Folder Config
-
-    private var summarizeFolderConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Style
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Style")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Picker("Style", selection: $summaryStyle) {
-                    Text("Brief").tag("brief")
-                    Text("Detailed").tag("detailed")
-                    Text("Bullets").tag("bullets")
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: summaryStyle) { _, newValue in
-                    updateConfig(key: "style", value: .string(newValue))
-                }
-            }
-
-            // Max length
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Max Words: \(maxLength)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Slider(value: Binding(
-                    get: { Double(maxLength) },
-                    set: { maxLength = Int($0) }
-                ), in: 100...2000, step: 100)
-                .onChange(of: maxLength) { _, newValue in
-                    updateConfig(key: "max_length", value: .int(newValue))
-                }
-            }
-
-            // Include themes
-            Toggle("Include Themes", isOn: $includeThemes)
-                .font(.caption)
-                .onChange(of: includeThemes) { _, newValue in
-                    updateConfig(key: "include_themes", value: .bool(newValue))
-                }
-        }
-    }
-
-    // MARK: - Summarize Collection Config
-
-    private var summarizeCollectionConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Style
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Style")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Picker("Style", selection: $summaryStyle) {
-                    Text("Executive").tag("executive")
-                    Text("Detailed").tag("detailed")
-                    Text("Narrative").tag("narrative")
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: summaryStyle) { _, newValue in
-                    updateConfig(key: "style", value: .string(newValue))
-                }
-            }
-
-            // Max length
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Max Words: \(maxLength)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Slider(value: Binding(
-                    get: { Double(maxLength) },
-                    set: { maxLength = Int($0) }
-                ), in: 200...3000, step: 100)
-                .onChange(of: maxLength) { _, newValue in
-                    updateConfig(key: "max_length", value: .int(newValue))
-                }
-            }
-
-            // Include statistics
-            Toggle("Include Statistics", isOn: $includeStatistics)
-                .font(.caption)
-                .onChange(of: includeStatistics) { _, newValue in
-                    updateConfig(key: "include_statistics", value: .bool(newValue))
-                }
-        }
-    }
-
-    // MARK: - Extract Entities Config
-
-    private var extractEntitiesConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Entity types
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Entity Types")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                let entityTypeOptions = ["people", "organizations", "locations", "dates", "events", "products"]
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    ForEach(entityTypeOptions, id: \.self) { type in
-                        Toggle(type.capitalized, isOn: Binding(
-                            get: { entityTypes.contains(type) },
-                            set: { isOn in
-                                if isOn {
-                                    entityTypes.insert(type)
-                                } else {
-                                    entityTypes.remove(type)
-                                }
-                                updateConfig(key: "entity_types", value: .array(entityTypes.map { .string($0) }))
-                            }
-                        ))
-                        .toggleStyle(.checkbox)
-                        .font(.caption)
-                    }
-                }
-            }
-
-            // Include context
-            Toggle("Include Context", isOn: $includeContext)
-                .font(.caption)
-                .onChange(of: includeContext) { _, newValue in
-                    updateConfig(key: "include_context", value: .bool(newValue))
-                }
-
-            Text("Shows surrounding text for each entity")
-                .font(.caption2)
-                .foregroundColor(.secondary)
         }
     }
 
