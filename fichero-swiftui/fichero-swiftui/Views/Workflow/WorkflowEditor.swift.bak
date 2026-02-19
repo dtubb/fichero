@@ -1,9 +1,20 @@
 import SwiftUI
 import OSLog
 
+private struct WorkflowCodeResponse: Codable {
+    let pythonCode: String
+
+    enum CodingKeys: String, CodingKey {
+        case pythonCode = "python_code"
+    }
+}
+
 // swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowEditor")
+
+// TODO: Refactor WorkflowEditor - extract canvas and output sections
+// File is 1002 lines, target <1000. Type body is 397 lines, target <350
 
 /// Workflow editor content view - canvas with optional output log
 /// This view goes in the content column, with WorkflowInspector in the detail column
@@ -535,6 +546,462 @@ struct WorkflowEditor: View {
         } else {
             Text("—")
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Node Card (for Icon view)
+
+/// Card representation of a workflow node for Icon view
+private struct WorkflowNodeCard: View {
+    let node: WorkflowNode
+    var executionState: NodeExecutionState?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Icon with execution state overlay
+            ZStack {
+                Image(systemName: iconForTool(node.tool))
+                    .font(.system(size: 32))
+                    .foregroundStyle(colorForTool(node.tool))
+                    .frame(width: 50, height: 50)
+                    .background(colorForTool(node.tool).opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                // Execution state overlay
+                if let state = executionState {
+                    executionOverlay(for: state)
+                }
+            }
+
+            // Label
+            Text(node.label ?? node.tool)
+                .font(.caption)
+                .fontWeight(.medium)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+
+            // Tool type
+            Text(node.tool)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 140, height: 120)
+        .padding(8)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separatorColor), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 2)
+    }
+
+    private func iconForTool(_ tool: String) -> String {
+        switch tool.lowercased() {
+        case "files", "collection", "search": return "doc.on.doc"
+        case "describe", "analyze": return "eye"
+        case "transcribe": return "waveform"
+        case "summarize", "translate", "classify": return "text.bubble"
+        case "enhance", "crop", "rotate", "segment": return "wand.and.stars"
+        case "to_pdf", "to_word", "to_excel", "to_json": return "arrow.triangle.2.circlepath"
+        case "if", "switch": return "questionmark.diamond"
+        case "loop", "merge": return "arrow.triangle.branch"
+        case "agent": return "brain"
+        default: return "gearshape"
+        }
+    }
+
+    private func colorForTool(_ tool: String) -> Color {
+        switch tool.lowercased() {
+        case "files", "collection", "search": return .green
+        case "describe", "analyze", "transcribe": return .blue
+        case "summarize", "translate", "classify": return .purple
+        case "enhance", "crop", "rotate", "segment": return .orange
+        case "to_pdf", "to_word", "to_excel", "to_json": return .cyan
+        case "if", "switch", "loop", "merge": return .yellow
+        case "agent": return .pink
+        default: return .gray
+        }
+    }
+
+    @ViewBuilder
+    private func executionOverlay(for state: NodeExecutionState) -> some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                switch state.status {
+                case .running, .parallelRunning:
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                        .padding(4)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Circle())
+                case .completed:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .padding(4)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Circle())
+                case .failed:
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                        .padding(4)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Circle())
+                case .idle:
+                    EmptyView()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Node Row (for List view)
+
+/// Row representation of a workflow node for List view
+private struct WorkflowNodeRow: View {
+    let node: WorkflowNode
+    var executionState: NodeExecutionState?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon with execution indicator
+            ZStack {
+                Image(systemName: iconForTool(node.tool))
+                    .font(.title2)
+                    .foregroundStyle(colorForTool(node.tool))
+                    .frame(width: 36, height: 36)
+                    .background(colorForTool(node.tool).opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                // Execution state indicator
+                if let state = executionState, state.status != .idle {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            executionBadge(for: state)
+                        }
+                    }
+                }
+            }
+            .frame(width: 36, height: 36)
+
+            // Info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(node.label ?? node.tool)
+                    .font(.body)
+                    .fontWeight(.medium)
+
+                HStack(spacing: 8) {
+                    Text(node.tool)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if !node.inputMappings.isEmpty {
+                        Text("•")
+                            .foregroundStyle(.tertiary)
+                        Text("\(node.inputMappings.count) input(s)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Show progress for parallel execution
+                    if let state = executionState, state.fileTotal > 0 {
+                        Text("•")
+                            .foregroundStyle(.tertiary)
+                        Text("\(state.successCount + state.errorCount)/\(state.fileTotal)")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Position badge
+            Text("(\(Int(node.positionX)), \(Int(node.positionY)))")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.quaternary)
+                .clipShape(Capsule())
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func executionBadge(for state: NodeExecutionState) -> some View {
+        switch state.status {
+        case .running, .parallelRunning:
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.7)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption2)
+                .foregroundColor(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .font(.caption2)
+                .foregroundColor(.red)
+        case .idle:
+            EmptyView()
+        }
+    }
+
+    private func iconForTool(_ tool: String) -> String {
+        switch tool.lowercased() {
+        case "files", "collection", "search": return "doc.on.doc"
+        case "describe", "analyze": return "eye"
+        case "transcribe": return "waveform"
+        case "summarize", "translate", "classify": return "text.bubble"
+        case "enhance", "crop", "rotate", "segment": return "wand.and.stars"
+        case "to_pdf", "to_word", "to_excel", "to_json": return "arrow.triangle.2.circlepath"
+        case "if", "switch": return "questionmark.diamond"
+        case "loop", "merge": return "arrow.triangle.branch"
+        case "agent": return "brain"
+        default: return "gearshape"
+        }
+    }
+
+    private func colorForTool(_ tool: String) -> Color {
+        switch tool.lowercased() {
+        case "files", "collection", "search": return .green
+        case "describe", "analyze", "transcribe": return .blue
+        case "summarize", "translate", "classify": return .purple
+        case "enhance", "crop", "rotate", "segment": return .orange
+        case "to_pdf", "to_word", "to_excel", "to_json": return .cyan
+        case "if", "switch", "loop", "merge": return .yellow
+        case "agent": return .pink
+        default: return .gray
+        }
+    }
+}
+
+// MARK: - Workflow Diagram Preview
+
+/// Sheet view showing the LangGraph visualization and Python code for a workflow
+struct WorkflowDiagramPreview: View {
+    let workflowId: String
+    let workflowName: String
+    @Binding var isPresented: Bool
+
+    @EnvironmentObject var apiClient: APIClient
+
+    @State private var diagramImage: NSImage?
+    @State private var pythonCode: String?
+    @State private var isLoading: Bool = true
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Workflow Diagram & Code")
+                    .font(.headline)
+
+                Spacer()
+
+                Text(workflowName)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Button("Done") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.escape)
+            }
+            .padding()
+            .background(.bar)
+
+            Divider()
+
+            // Content - split view with diagram on left, code on right
+            if isLoading {
+                ProgressView("Loading diagram and code...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = error {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.orange)
+                    Text("Failed to load")
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") {
+                        Task { @MainActor in
+                            await loadContent()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HSplitView {
+                    // Left: Diagram
+                    VStack(spacing: 0) {
+                        Text("LangGraph Diagram")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.bar)
+
+                        if let image = diagramImage {
+                            ScrollView([.horizontal, .vertical]) {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .padding()
+                            }
+                            .background(Color(nsColor: .textBackgroundColor))
+                        } else {
+                            VStack {
+                                Image(systemName: "flowchart")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
+                                Text("No diagram")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(minWidth: 300)
+
+                    // Right: Python Code
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Generated Python Code")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if pythonCode != nil {
+                                Button {
+                                    if let code = pythonCode {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(code, forType: .string)
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                }
+                                .buttonStyle(.plain)
+                                .help("Copy to clipboard")
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.bar)
+
+                        if let code = pythonCode {
+                            ScrollView {
+                                Text(code)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8)
+                            }
+                            .background(Color(nsColor: .textBackgroundColor))
+                        } else {
+                            VStack {
+                                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
+                                Text("No code")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(minWidth: 400)
+                }
+            }
+        }
+        .frame(minWidth: 900, minHeight: 600)
+        .task {
+            guard !Task.isCancelled else { return }
+            await loadContent()
+        }
+    }
+
+    private func loadContent() async {
+        isLoading = true
+        error = nil
+
+        // Load diagram and code in parallel
+        async let diagramTask: Void = loadDiagram()
+        async let codeTask: Void = loadCode()
+
+        await diagramTask
+        await codeTask
+
+        isLoading = false
+    }
+
+    private func loadDiagram() async {
+        do {
+            let url = apiClient.baseURL
+                .appendingPathComponent("workflow-execution")
+                .appendingPathComponent("workflows")
+                .appendingPathComponent(workflowId)
+                .appendingPathComponent("visualization.png")
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            if let libraryPath = apiClient.currentLibraryPath {
+                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return
+            }
+            diagramImage = NSImage(data: data)
+        } catch {
+            // Diagram loading failure is not fatal
+        }
+    }
+
+    private func loadCode() async {
+        do {
+            let url = apiClient.baseURL
+                .appendingPathComponent("workflow-execution")
+                .appendingPathComponent("workflows")
+                .appendingPathComponent(workflowId)
+                .appendingPathComponent("code")
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            if let libraryPath = apiClient.currentLibraryPath {
+                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                if let errorJson = try? JSONDecoder().decode([String: String].self, from: data),
+                   let detail = errorJson["detail"] {
+                    self.error = detail
+                }
+                return
+            }
+
+            if let codeResponse = try? JSONDecoder().decode(WorkflowCodeResponse.self, from: data) {
+                pythonCode = codeResponse.pythonCode
+            }
+        } catch {
+            // Code loading failure sets error only if diagram also failed
+            if diagramImage == nil {
+                self.error = error.localizedDescription
+            }
         }
     }
 }
