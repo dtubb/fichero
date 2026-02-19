@@ -45,6 +45,12 @@
 		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
 		200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
 		200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
+		202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674942F475B1D008EAB5D /* NodeConfigView.swift */; };
+		202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674962F475B23008EAB5D /* CollectionNodeConfig.swift */; };
+		202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674982F475B33008EAB5D /* SearchNodeConfig.swift */; };
+		2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
+		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
+		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -265,6 +271,12 @@
 		200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Actions.swift"; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
+		202674942F475B1D008EAB5D /* NodeConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeConfigView.swift; sourceTree = "<group>"; };
+		202674962F475B23008EAB5D /* CollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionNodeConfig.swift; sourceTree = "<group>"; };
+		202674982F475B33008EAB5D /* SearchNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchNodeConfig.swift; sourceTree = "<group>"; };
+		2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesNodeConfig.swift; sourceTree = "<group>"; };
+		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
+		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -315,11 +327,11 @@
 		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
 		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
 		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
-		A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
+		A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
 		A1624FF72F2EE5880019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../fichero-api/build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
-		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
-		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero-tests.xctestplan; sourceTree = "<group>"; };
+		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
+		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
 		A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerDetailView.swift; sourceTree = "<group>"; };
 		A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersSheet.swift; sourceTree = "<group>"; };
@@ -417,14 +429,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A10521AA2EFDC92400B28C3E /* FicheroTests */ = {
+		A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = fichero-swiftui-tests;
+			path = "fichero-swiftui-tests";
 			sourceTree = "<group>";
 		};
-		A10521C22EFDC94100B28C3E /* FicheroUITests */ = {
+		A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = fichero-swiftui-ui-tests;
+			path = "fichero-swiftui-ui-tests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -450,6 +462,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		202674932F475B06008EAB5D /* NodeConfigs */ = {
+			isa = PBXGroup;
+			children = (
+				202674942F475B1D008EAB5D /* NodeConfigView.swift */,
+				202674962F475B23008EAB5D /* CollectionNodeConfig.swift */,
+				202674982F475B33008EAB5D /* SearchNodeConfig.swift */,
+				2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */,
+				2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */,
+				2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */,
+			);
+			path = NodeConfigs;
+			sourceTree = "<group>";
+		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -457,14 +482,14 @@
 				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
 				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
 				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
-				410 /* Fichero */,
-				A10521AA2EFDC92400B28C3E /* FicheroTests */,
-				A10521C22EFDC94100B28C3E /* FicheroUITests */,
+				410 /* fichero-swiftui */,
+				A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
+				A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
 				420 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		410 /* Fichero */ = {
+		410 /* fichero-swiftui */ = {
 			isa = PBXGroup;
 			children = (
 				A1BFB2C72F042C0500EAA55A /* App */,
@@ -479,14 +504,13 @@
 				A1BFB4182F06A98700EAA55A /* Utilities */,
 				411 /* Views */,
 			);
-			path = fichero-swiftui;
+			path = "fichero-swiftui";
 			sourceTree = "<group>";
 		};
 		411 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				A1A3AA252F1115F90021909D /* Activity */,
-				A13E7C452F280BE900EC9EE1 /* Activity */,
 				A1A3A9FD2F110D260021909D /* Agents */,
 				A1FB1D7A2F0420310023093C /* AIProviders */,
 				A1A3AA2A2F113E850021909D /* Automation */,
@@ -566,6 +590,7 @@
 				139 /* WorkflowChainListView.swift */,
 				151 /* ChainEditorView.swift */,
 				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
+				202674932F475B06008EAB5D /* NodeConfigs */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -703,13 +728,6 @@
 				A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */,
 			);
 			path = Modes;
-			sourceTree = "<group>";
-		};
-		A13E7C452F280BE900EC9EE1 /* Activity */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Activity;
 			sourceTree = "<group>";
 		};
 		A13E80A42F2AD78100EC9EE1 /* ModelComparison */ = {
@@ -918,7 +936,7 @@
 				A10521AE2EFDC92400B28C3E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10521AA2EFDC92400B28C3E /* FicheroTests */,
+				A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
 			);
 			name = FicheroTests;
 			productName = FicheroTests;
@@ -939,7 +957,7 @@
 				A10521C62EFDC94100B28C3E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10521C22EFDC94100B28C3E /* FicheroUITests */,
+				A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
 			);
 			name = FicheroUITests;
 			productName = FicheroUITests;
@@ -969,7 +987,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 710 /* Build configuration list for PBXProject "Fichero" */;
+			buildConfigurationList = 710 /* Build configuration list for PBXProject "fichero-swiftui" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -978,7 +996,7 @@
 			);
 			mainGroup = 400;
 			packageReferences = (
-				A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */,
+				A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "fichero-api-client" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
@@ -1062,6 +1080,7 @@
 				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
 				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
+				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
 				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
 				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
@@ -1070,12 +1089,14 @@
 				A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */,
 				A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */,
 				A1A3AA132F110D520021909D /* NodePopover.swift in Sources */,
+				2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */,
 				A1A3AA142F110D520021909D /* WorkflowCanvasView.swift in Sources */,
 				A1A3AA152F110D520021909D /* WorkflowEdgeView.swift in Sources */,
 				A1A3AA162F110D520021909D /* WorkflowEditor.swift in Sources */,
 				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
 				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
+				2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */,
 				038 /* WorkflowChain.swift in Sources */,
 				039 /* ChainService.swift in Sources */,
 				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
@@ -1122,6 +1143,7 @@
 				841 /* ErrorModel.swift in Sources */,
 				A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */,
 				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
+				202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */,
 				842 /* SidebarState.swift in Sources */,
 				843 /* DragDropModel.swift in Sources */,
 				844 /* DragDropService.swift in Sources */,
@@ -1140,6 +1162,7 @@
 				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
 				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
+				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
@@ -1160,6 +1183,7 @@
 				049 /* DocumentServiceGenerated.swift in Sources */,
 				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
 				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
+				202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */,
 				028 /* ModelService.swift in Sources */,
 				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
 				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
@@ -1223,7 +1247,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug configuration for PBXProject "Fichero" */ = {
+		800 /* Debug configuration for PBXProject "fichero-swiftui" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -1289,7 +1313,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release configuration for PBXProject "Fichero" */ = {
+		801 /* Release configuration for PBXProject "fichero-swiftui" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -1354,7 +1378,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero-swiftui/Fichero.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "fichero-swiftui/Fichero.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1368,7 +1392,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero-swiftui/Info.plist;
+				INFOPLIST_FILE = "fichero-swiftui/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"ca.tubb.fichero.item\";\n}";
@@ -1392,7 +1416,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero-swiftui/FicheroRelease.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "fichero-swiftui/FicheroRelease.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -1407,7 +1431,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero-swiftui/Info.plist;
+				INFOPLIST_FILE = "fichero-swiftui/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"ca.tubb.fichero.item\";\n}";
@@ -1504,11 +1528,11 @@
 			);
 			defaultConfigurationName = Debug;
 		};
-		710 /* Build configuration list for PBXProject "Fichero" */ = {
+		710 /* Build configuration list for PBXProject "fichero-swiftui" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug configuration for PBXProject "Fichero" */,
-				801 /* Release configuration for PBXProject "Fichero" */,
+				800 /* Debug configuration for PBXProject "fichero-swiftui" */,
+				801 /* Release configuration for PBXProject "fichero-swiftui" */,
 			);
 			defaultConfigurationName = Debug;
 		};
@@ -1531,9 +1555,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "FicheroAPIClient" */ = {
+		A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "fichero-api-client" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = fichero-api-client;
+			relativePath = "fichero-api-client";
 		};
 /* End XCLocalSwiftPackageReference section */
 
