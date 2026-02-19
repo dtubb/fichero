@@ -1,6 +1,14 @@
 import SwiftUI
 import OSLog
 
+private struct WorkflowCodeResponse: Codable {
+    let pythonCode: String
+
+    enum CodingKeys: String, CodingKey {
+        case pythonCode = "python_code"
+    }
+}
+
 // swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowEditor")
@@ -230,7 +238,11 @@ struct WorkflowEditor: View {
 
                         // Debug: Log document progress count
                         if let exec = executionObserver.activeExecutions[workflowId] {
-                            logger.info("[SSE] Document count: \(exec.documentProgress.count), nodeStates: \(exec.nodeStates.count)")
+                            let docCount = exec.documentProgress.count
+                            let nodeStateCount = exec.nodeStates.count
+                            logger.info(
+                                "[SSE] Document count: \(docCount), nodeStates: \(nodeStateCount)"
+                            )
                         }
 
                         // Update executionState from observer (for output log)
@@ -279,9 +291,16 @@ struct WorkflowEditor: View {
                 // Determine final status from observer
                 logger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
                 if let exec = executionObserver.activeExecutions[workflowId] {
-                    logger.info("[SSE] Final documentProgress: \(exec.documentProgress.count), error: \(exec.workflowError ?? "none")")
+                    let docCount = exec.documentProgress.count
+                    let workflowError = exec.workflowError ?? "none"
+                    logger.info(
+                        "[SSE] Final documentProgress: \(docCount), error: \(workflowError)"
+                    )
                     for (_, progress) in exec.documentProgress {
-                        logger.info("[SSE] Document: \(progress.documentName), statuses: \(progress.stepStatuses.count)")
+                        let stepCount = progress.stepStatuses.count
+                        logger.info(
+                            "[SSE] Document: \(progress.documentName), statuses: \(stepCount)"
+                        )
                     }
                 } else {
                     logger.warning("[SSE] No execution found for workflowId: \(workflowId)")
@@ -306,7 +325,11 @@ struct WorkflowEditor: View {
                 if var finalState = executionObserver.getExecutionState(for: workflowId) {
                     finalState.status = finalStatus
                     let statusStr = String(describing: finalStatus)
-                    logger.info("[SSE] Final state: \(finalState.documentProgress.count) docs, status: \(statusStr), error: \(finalState.error ?? "none")")
+                    let docCount = finalState.documentProgress.count
+                    let finalError = finalState.error ?? "none"
+                    logger.info(
+                        "[SSE] Final state: \(docCount) docs, status: \(statusStr), error: \(finalError)"
+                    )
                     executionState = finalState
                 } else {
                     logger.warning("[SSE] No final state from observer, keeping current executionState")
@@ -971,15 +994,7 @@ struct WorkflowDiagramPreview: View {
                 return
             }
 
-            // Parse JSON response
-            struct CodeResponse: Codable {
-                let pythonCode: String
-
-                enum CodingKeys: String, CodingKey {
-                    case pythonCode = "python_code"
-                }
-            }
-            if let codeResponse = try? JSONDecoder().decode(CodeResponse.self, from: data) {
+            if let codeResponse = try? JSONDecoder().decode(WorkflowCodeResponse.self, from: data) {
                 pythonCode = codeResponse.pythonCode
             }
         } catch {
@@ -989,36 +1004,4 @@ struct WorkflowDiagramPreview: View {
             }
         }
     }
-}
-
-// MARK: - Preview
-
-#Preview {
-    struct PreviewWrapper: View {
-        @State private var workflow = Workflow(name: "Test Workflow", description: "A test workflow")
-
-        var body: some View {
-            NavigationSplitView {
-                Text("Sidebar")
-                    .frame(width: 200)
-            } content: {
-                WorkflowEditor(
-                    workflow: nil,  // No sidebar selection in preview
-                    editingWorkflow: $workflow
-                )
-            } detail: {
-                WorkflowInspector(
-                    workflow: $workflow,
-                    onAddNode: { tool, position in
-                        let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
-                        workflow.nodes.append(newNode)
-                    }
-                )
-                .frame(width: 280)
-            }
-        }
-    }
-
-    return PreviewWrapper()
-        .frame(width: 1000, height: 600)
 }

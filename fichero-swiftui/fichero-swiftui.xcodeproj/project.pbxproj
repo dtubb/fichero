@@ -51,6 +51,7 @@
 		2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
 		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
 		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
+		202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -277,6 +278,7 @@
 		2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesNodeConfig.swift; sourceTree = "<group>"; };
 		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
 		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
+		202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageZoomToolbar.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -473,6 +475,14 @@
 				2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */,
 			);
 			path = NodeConfigs;
+			sourceTree = "<group>";
+		};
+		202674A02F4762DA008EAB5D /* ImageViewer */ = {
+			isa = PBXGroup;
+			children = (
+				202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */,
+			);
+			path = ImageViewer;
 			sourceTree = "<group>";
 		};
 		400 = {
@@ -895,6 +905,7 @@
 				A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */,
 				A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */,
 				A1BFB4002F057B9300EAA55A /* ScrollWheelZoom.swift */,
+				202674A02F4762DA008EAB5D /* ImageViewer */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -1162,6 +1173,7 @@
 				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
 				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
+				202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */,
 				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
