@@ -63,6 +63,9 @@
 		202674B42F4783A9008EAB5D /* WorkflowNodeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */; };
 		202674B62F4783BC008EAB5D /* WorkflowNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */; };
 		202674B82F4783D5008EAB5D /* WorkflowDiagramPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */; };
+		202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */; };
+		202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BE2F478647008EAB5D /* SidebarActions.swift */; };
+		202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C12F47865B008EAB5D /* SidebarObservers.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -301,6 +304,9 @@
 		202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeCard.swift; sourceTree = "<group>"; };
 		202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeRow.swift; sourceTree = "<group>"; };
 		202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowDiagramPreview.swift; sourceTree = "<group>"; };
+		202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarCreationHandlers.swift; sourceTree = "<group>"; };
+		202674BE2F478647008EAB5D /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
+		202674C12F47865B008EAB5D /* SidebarObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarObservers.swift; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -513,6 +519,16 @@
 			path = ImageViewer;
 			sourceTree = "<group>";
 		};
+		202674B92F478626008EAB5D /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */,
+				202674BE2F478647008EAB5D /* SidebarActions.swift */,
+				202674C12F47865B008EAB5D /* SidebarObservers.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -593,6 +609,7 @@
 				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
 				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
 				A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */,
+				202674B92F478626008EAB5D /* Components */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -1136,6 +1153,7 @@
 				A1A3AA132F110D520021909D /* NodePopover.swift in Sources */,
 				2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */,
 				A1A3AA142F110D520021909D /* WorkflowCanvasView.swift in Sources */,
+				202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */,
 				A1A3AA152F110D520021909D /* WorkflowEdgeView.swift in Sources */,
 				A1A3AA162F110D520021909D /* WorkflowEditor.swift in Sources */,
 				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
@@ -1198,6 +1216,7 @@
 				202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */,
 				842 /* SidebarState.swift in Sources */,
 				843 /* DragDropModel.swift in Sources */,
+				202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */,
 				844 /* DragDropService.swift in Sources */,
 				A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,
@@ -1266,6 +1285,7 @@
 				GTE2 /* GeneratedTypeExtensions.swift in Sources */,
 				A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
+				202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */,
 				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
 				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
 				202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */,

@@ -55,26 +55,26 @@ struct SidebarView: View {
     @State var cachedLibraryHeaders: [SidebarItem] = []
 
     // Chain service for workflows sidebar (global - not per-library yet)
-    @StateObject private var chainService: ChainService
+    @StateObject var chainService: ChainService
 
     // Chains loaded from ChainService
-    @State private var chains: [WorkflowChain] = []
+    @State var chains: [WorkflowChain] = []
 
     // Automation data (schedules and triggers)
-    @State private var schedules: [ScheduleInfo] = []
-    @State private var triggers: [TriggerInfo] = []
-    @State private var automationIsLoading = false
+    @State var schedules: [ScheduleInfo] = []
+    @State var triggers: [TriggerInfo] = []
+    @State var automationIsLoading = false
 
     // Batch data
-    @State private var batches: [BatchInfo] = []
-    @State private var batchesIsLoading = false
+    @State var batches: [BatchInfo] = []
+    @State var batchesIsLoading = false
 
     // Activity data (historical runs)
-    @State private var historicalRunsByLibrary: [UUID: [ActivityItem]] = [:]
-    @State private var activityIsLoading = false
+    @State var historicalRunsByLibrary: [UUID: [ActivityItem]] = [:]
+    @State var activityIsLoading = false
 
     // Store Combine subscriptions
-    @State private var cancellables = Set<AnyCancellable>()
+    @State var cancellables = Set<AnyCancellable>()
 
     init(
         sidebarMode: Binding<SidebarMode>,
@@ -228,145 +228,6 @@ struct SidebarView: View {
                 isPresented: $sidebarState.showingFileImporter,
                 importFiles: handleImportedFiles
             )
-    }
-
-    /// Set up observers for all library services using Combine
-    /// Uses $property publishers (not objectWillChange) to ensure we read AFTER mutations complete
-    private func setupServiceObservers() {
-        // Cancel existing subscriptions
-        cancellables.removeAll()
-
-        // Observe changes in all libraries' services
-        for library in libraryManager.openLibraries {
-            // Observe document changes - use $collections which fires AFTER mutation
-            library.documentStore.$collections
-                .dropFirst()  // Skip initial value
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
-
-            // Observe saved search changes
-            library.savedSearchServiceGenerated.$savedSearches
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
-
-            // Observe conversation changes
-            library.conversationServiceGenerated.$conversations
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
-
-            // Observe workflow changes - use $workflows which fires AFTER mutation
-            library.workflowStore.$workflows
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
-        }
-
-        // Observe chain changes (global ChainService)
-        chainService.$chains
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { newChains in
-                chains = newChains
-            }
-            .store(in: &cancellables)
-    }
-
-    /// Load automation data (schedules and triggers)
-    private func loadAutomationData() async {
-        guard !automationIsLoading else { return }
-        automationIsLoading = true
-        defer { automationIsLoading = false }
-
-        do {
-            guard let library = libraryManager.openLibraries.first else {
-                logger.warning("No library available to load automation data")
-                return
-            }
-            let automationService = library.automationService
-            async let schedulesTask: [ScheduleInfo] = automationService.listSchedules(limit: 100)
-            async let triggersTask: [TriggerInfo] = automationService.listTriggers(limit: 100)
-
-            let (loadedSchedules, loadedTriggers) = try await (schedulesTask, triggersTask)
-            schedules = loadedSchedules
-            triggers = loadedTriggers
-            logger.info("Loaded \(loadedSchedules.count) schedules and \(loadedTriggers.count) triggers")
-        } catch {
-            logger.error("Failed to load automation data: \(error.localizedDescription)")
-        }
-    }
-
-    /// Load batch data
-    private func loadBatchData() async {
-        guard !batchesIsLoading else { return }
-        batchesIsLoading = true
-        defer { batchesIsLoading = false }
-
-        do {
-            guard let library = libraryManager.openLibraries.first else {
-                logger.warning("No library available for loading batches")
-                return
-            }
-            batches = try await library.batchService.listBatchesAsInfo(status: nil, limit: 100)
-            logger.info("Loaded \(batches.count) batches")
-        } catch {
-            logger.error("Failed to load batch data: \(error.localizedDescription)")
-        }
-    }
-
-    /// Load activity data (historical workflow runs)
-    private func loadActivityData() async {
-        guard !activityIsLoading else { return }
-        activityIsLoading = true
-        defer { activityIsLoading = false }
-
-        let types = [
-            "workflow_completed",
-            "workflow_failed",
-            "workflow_cancelled"
-        ]
-        let since = Date().addingTimeInterval(-7 * 24 * 3600)
-
-        // Load activity from each open library
-        for library in libraryManager.openLibraries {
-            guard !Task.isCancelled else { return }
-
-            do {
-                let activityService = library.activityService
-                let runs = try await activityService.queryActivities(
-                    types: types,
-                    since: since,
-                    limit: 100
-                )
-
-                guard !Task.isCancelled else { return }
-
-                historicalRunsByLibrary[library.id] = runs
-                logger.info("Loaded \(runs.count) activity items from \(library.displayName)")
-            } catch {
-                logger.error("Failed to load activity from \(library.displayName): \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Configure item registry handlers
-    private func setupItemRegistry() {
-        itemRegistry.createFolder = handleCreateNewFolder
-        itemRegistry.importFiles = {
-            importFiles(mode: .link)  // Default to link mode from Add menu
-        }
-        itemRegistry.createSearch = createNewSearch
-        itemRegistry.createChat = createNewChat
-        itemRegistry.createComparison = createNewComparison
-        itemRegistry.createWorkflow = createNewWorkflow
-        itemRegistry.createChain = createNewChain
-        itemRegistry.createSchedule = createNewSchedule
-        itemRegistry.createTrigger = createNewTrigger
     }
 }
 
@@ -554,315 +415,22 @@ extension SidebarView {
             case .workflow:
                 logger.info("Switching to empty workflow view")
                 viewMode = .workflow(nil)
-            case .automation, .batch, .activity:
+                case .automation, .batch, .activity:
                 // Automation-related folders
                 logger.info("Automation folder - just toggling expansion")
-                break
-            case .folder, .library:
+                case .folder, .library:
                 // Regular folders just toggle expansion
                 logger.info("Regular folder - just toggling expansion")
-                break
             }
-        case .libraryHeader:
+            case .libraryHeader:
             // Library headers just toggle expansion
             logger.info("Library header clicked - just toggling expansion")
-            break
-        }
-    }
-}
-
-// MARK: - Creation Methods
-
-extension SidebarView {
-    /// Create a new search - defaults to Global library
-    func createNewSearch() {
-        guard let globalLibrary = libraryManager.globalLibrary else {
-            logger.error("Global library not available")
-            return
-        }
-
-        Task {
-            do {
-                let savedSearch = try await globalLibrary.savedSearchServiceGenerated.saveSearch(
-                    query: "New Search",
-                    isSmartSearch: true
-                )
-                try await globalLibrary.savedSearchServiceGenerated.loadSavedSearches()
-                rebuildCaches()
-                selectedItemId = "search:\(savedSearch.id)"
-                let newSearch = SavedSearch(
-                    id: savedSearch.id,
-                    name: savedSearch.query,
-                    query: savedSearch.query,
-                    isSmartSearch: savedSearch.isSmartSearch,
-                    folderPath: savedSearch.folderPath,
-                    sortOrder: savedSearch.sortOrder
-                )
-                sidebarMode = .search  // Switch to search sidebar
-                viewMode = .search(newSearch)
-            } catch {
-                logger.error("Failed to create search: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Create a new chat - defaults to Global library
-    func createNewChat() {
-        guard let globalLibrary = libraryManager.globalLibrary else {
-            logger.error("Global library not available")
-            return
-        }
-
-        Task {
-            do {
-                let response = try await globalLibrary.chatServiceGenerated.chat(
-                    message: "Hello",
-                    conversationId: nil,
-                    documentIds: nil
-                )
-
-                // Create conversation directly from response (don't rely on lookup which may have timing issues)
-                let newConv = Conversation(
-                    id: response.conversationId,
-                    title: "New Chat",
-                    messages: [
-                        ChatMessage(role: .user, content: "Hello"),
-                        ChatMessage(role: .assistant, content: response.message)
-                    ],
-                    documentScope: [],
-                    folderPath: "/",
-                    sortOrder: 0
-                )
-
-                // Add to service's conversations array
-                globalLibrary.conversationServiceGenerated.conversations.append(newConv)
-
-                // Rebuild caches so sidebar shows the new chat
-                rebuildCaches()
-
-                // Select the new chat
-                selectedItemId = "chat:\(newConv.id)"
-                sidebarMode = .chat  // Switch to chat sidebar
-                viewMode = .chat(newConv)
-                logger.info("Created new chat: \(newConv.id)")
-
-            } catch {
-                logger.error("Failed to create chat: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Create a new workflow - defaults to Global library
-    func createNewWorkflow() {
-        guard let globalLibrary = libraryManager.globalLibrary else {
-            logger.error("Global library not available")
-            return
-        }
-
-        Task {
-            do {
-                let newWorkflowDef = WorkflowDefinition(
-                    id: UUID().uuidString,
-                    name: "New Workflow",
-                    description: "",
-                    provider: "",
-                    model: "",
-                    nodes: [],
-                    edges: [],
-                    folderPath: "/",
-                    sortOrder: 0
-                )
-                let response = try await globalLibrary.workflowServiceGenerated.createWorkflow(newWorkflowDef)
-                await globalLibrary.workflowStore.loadWorkflows()
-                rebuildCaches()
-                let workflowItem = WorkflowSidebarItem(
-                    id: response.id,
-                    name: response.name,
-                    description: response.description,
-                    nodeCount: response.nodes.count,
-                    isEnabled: true,
-                    folderPath: response.folderPath,
-                    sortOrder: response.sortOrder,
-                    createdAt: Date(),
-                    updatedAt: Date()
-                )
-                selectedItemId = "workflow:\(workflowItem.id)"
-                sidebarMode = .workflows  // Switch to workflows sidebar
-                viewMode = .workflow(workflowItem)
-                logger.info("Created new workflow: \(workflowItem.id)")
-            } catch {
-                logger.error("Failed to create workflow: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Create a new folder - defaults to Global library
-    func handleCreateNewFolder() {
-        guard libraryManager.globalLibrary != nil else {
-            logger.error("Global library not available")
-            return
-        }
-        sidebarState.showingNewFolderDialog = true
-        sidebarState.newFolderCategory = .folder
-    }
-
-    /// Create a new chain via ChainService
-    func createNewChain() {
-        logger.info("Creating new chain")
-        Task {
-            do {
-                let chainService = ChainService(apiClient: apiClient)
-                let newChain = try await chainService.createChain(
-                    name: "New Chain",
-                    description: "",
-                    steps: []
-                )
-
-                // Switch to workflows mode and select the new chain
-                sidebarMode = .workflows
-                selectedItemId = "chain-\(newChain.id)"  // Match the tag format in WorkflowsSidebarContent
-                viewMode = .chain(newChain)
-                logger.info("Created new chain: \(newChain.id)")
-            } catch {
-                logger.error("Failed to create chain: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Create a new comparison - opens the comparison view
-    func createNewComparison() {
-        logger.info("Creating new comparison")
-        sidebarMode = .chat
-        viewMode = .comparison(nil)
-    }
-
-    /// Create a new schedule - shows the schedule creation sheet
-    func createNewSchedule() {
-        logger.info("Creating new schedule")
-        sidebarMode = .automation
-        sidebarState.showingScheduleCreation = true
-    }
-
-    /// Create a new trigger - shows the trigger creation sheet
-    func createNewTrigger() {
-        logger.info("Creating new trigger")
-        sidebarMode = .automation
-        sidebarState.showingTriggerCreation = true
-    }
-
-    /// Actually create the folder after user enters name
-    func createFolder(_ name: String) async {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
-        guard let library = targetLibrary else {
-            sidebarState.newFolderErrorMessage = "No library available"
-            return
-        }
-        logger.info("Creating folder '\(name)' in library: \(library.displayName)")
-        do {
-            _ = try await library.documentStore.createCollection(name: name)
-            logger.info("Created folder: \(name)")
-            rebuildCaches()
-        } catch {
-            logger.error("Failed to create folder: \(error)")
-            sidebarState.newFolderErrorMessage = error.localizedDescription
-        }
-    }
-}
-
-// MARK: - Import/Delete/Rename
-
-extension SidebarView {
-    /// Import files to the library that owns the selected item (or Global if none)
-    func importFiles(mode: IngestMode = .link) {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
-        guard targetLibrary != nil else {
-            logger.error("No library available for import")
-            return
-        }
-        sidebarState.selectedImportMode = mode
-        sidebarState.showingFileImporter = true
-    }
-
-    /// Handle imported files from file picker
-    func handleImportedFiles(_ urls: [URL]) async {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
-        guard let library = targetLibrary else {
-            logger.error("No library available for import")
-            return
-        }
-        let mode = sidebarState.selectedImportMode
-        logger.info("Importing \(urls.count) files to library: \(library.displayName)")
-        do {
-            _ = try await library.importService.importFiles(urls, mode: mode)
-            logger.info("Imported \(urls.count) files using mode: \(mode.rawValue)")
-        } catch {
-            logger.error("Failed to import files: \(error)")
-        }
-        await library.documentStore.refresh()
-        rebuildCaches()
-    }
-
-    /// Rename the selected item
-    func handleRenameSelectedItem() {
-        guard let item = selectedItem else { return }
-        renameState.startRename(itemId: item.id, currentName: item.name)
-    }
-
-    /// Delete the selected item
-    func handleDeleteSelectedItem() {
-        guard let item = selectedItem else { return }
-        switch item.itemType {
-        case .libraryHeader:
-            logger.warning("Cannot delete library header")
-        default:
-            deleteState.showDeleteConfirmation(for: item)
-        }
-    }
-
-    /// Perform the actual deletion
-    func performDelete(item: SidebarItem) async {
-        logger.info("performDelete for: \(item.name)")
-        guard let libraryId = item.libraryId,
-              let library = libraryManager.getLibrary(id: libraryId) else {
-            logger.error("Could not find library for deletion")
-            return
-        }
-        do {
-            switch item.itemType {
-            case .document(let doc):
-                try await library.documentStore.deleteDocument(doc)
-            case .savedSearch(let search):
-                try await library.savedSearchServiceGenerated.deleteSavedSearch(search.id)
-            case .conversation(let conversation):
-                try await library.conversationServiceGenerated.deleteConversation(conversation.id)
-            case .workflow(let workflow):
-                try await library.workflowStore.deleteWorkflow(workflow.id)
-            case .chain(let chain):
-                try await library.chainService.deleteChain(chain.id)
-            case .schedule(let schedule):
-                try await library.automationService.deleteSchedule(scheduleId: schedule.scheduleId)
-                await loadAutomationData()  // Refresh automation sidebar
-            case .trigger(let trigger):
-                try await library.automationService.deleteTrigger(triggerId: trigger.triggerId)
-                await loadAutomationData()  // Refresh automation sidebar
-            case .batch(let batch):
-                try await library.batchService.deleteBatch(batchId: batch.batchId)
-                await loadBatchData()  // Refresh batches sidebar
-            case .comparison, .activityRun:
-                logger.warning("This item type cannot be deleted")
-            case .folder:
-                logger.info("Folder deletion not yet implemented")
-            case .libraryHeader:
-                logger.warning("Cannot delete library header")
-            }
-            logger.info("Delete successful")
-            rebuildCaches()
-            selectedItemId = nil
-        } catch {
-            logger.error("Failed to delete: \(error.localizedDescription)")
         }
     }
 }
 
 // NOTE: RenameStateManager, DeleteStateManager, and SidebarConstants
 // are defined in separate files (SidebarStateManagers.swift, SidebarConstants.swift)
+// Creation handlers are in SidebarCreationHandlers.swift
+// Import/Delete/Rename actions are in SidebarActions.swift
+// Service observers and data loading are in SidebarObservers.swift
