@@ -2,25 +2,25 @@ import SwiftUI
 import OSLog
 import FicheroAPIClient
 
+let libraryManagerLogger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryManager")
+
 /// Manages multiple open .fichero libraries
 /// Allows multiple windows and tabs to reference the same library instance
 @MainActor
 class LibraryManager: ObservableObject {
     static let shared = LibraryManager()
 
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryManager")
-
     /// Fixed UUID for the Global library (cross-library searches, chats, workflows)
     static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
     /// All currently open libraries (Global is always last)
-    @Published private(set) var openLibraries: [LibraryReference] = []
+    @Published internal(set) var openLibraries: [LibraryReference] = []
 
     /// The currently active library (used for new tabs/windows)
     @Published var currentLibraryId: UUID?
 
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
-    private var untitledCounter: Int = 1
+    var untitledCounter: Int = 1
 
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
@@ -152,7 +152,7 @@ class LibraryManager: ObservableObject {
 
         // Check if Global library already exists
         if openLibraries.contains(where: { $0.id == Self.globalLibraryId }) {
-            logger.info("Global library already loaded")
+            libraryManagerLogger.info("Global library already loaded")
             return
         }
 
@@ -175,7 +175,7 @@ class LibraryManager: ObservableObject {
         // Always insert Global at the beginning
         openLibraries.insert(library, at: 0)
 
-        logger.info("Loaded Global library at: \(globalURL.path)")
+        libraryManagerLogger.info("Loaded Global library at: \(globalURL.path)")
 
         // Initialize backend database, load data, then ensure Inbox folder exists
         Task { @MainActor in
@@ -189,389 +189,10 @@ class LibraryManager: ObservableObject {
     var globalLibrary: LibraryReference? {
         return openLibraries.first(where: { $0.id == Self.globalLibraryId })
     }
-
-    /// Open a library from a URL
-    /// If already open, returns the existing reference
-    /// - Parameter url: URL to the .fichero package
-    /// - Returns: Library reference that can be shared across windows
-    func openLibrary(at url: URL) -> LibraryReference {
-        // Check if already open
-        if let existing = openLibraries.first(where: { $0.url == url }) {
-            logger.info("Library already open: \(url.lastPathComponent)")
-            return existing
-        }
-
-        // Create document for this library (state is managed by backend)
-        let document = FicheroDocument()
-
-        // Extract display name from file URL (remove .fichero extension)
-        let displayName = url.deletingPathExtension().lastPathComponent
-
-        // Determine if this is a user-opened library (needs security-scoped access)
-        let needsSecurityAccess = !isTemporaryLibrary(url)
-
-        // Create new library reference
-        // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
-        let library = LibraryReference(url: url, document: document, displayName: displayName, startAccessing: needsSecurityAccess)
-
-        // Insert after Global library (which is always first)
-        if openLibraries.first?.id == Self.globalLibraryId {
-            openLibraries.insert(library, at: 1)
-        } else {
-            openLibraries.append(library)
-        }
-
-        currentLibraryId = library.id  // Set as current library
-        let clientId = ObjectIdentifier(library.apiClient)
-        logger.info("Opened library: \(url.lastPathComponent, privacy: .public) with APIClient-\(String(describing: clientId), privacy: .public) (security-scoped: \(needsSecurityAccess))")
-
-        // Save open libraries for restoration on next launch
-        saveOpenLibraryPaths()
-
-        // Initialize the backend database connection, load data, and ensure Inbox
-        Task { @MainActor in
-            await initializeBackendDatabase(for: library)
-            await loadLibraryData(for: library)
-            await ensureInboxFolder(for: library)
-        }
-
-        return library
-    }
-
-    /// Create a new unsaved library
-    /// - Returns: Library reference for a new library (not yet saved to disk)
-    func createNewLibrary() -> LibraryReference {
-        let document = FicheroDocument()
-
-        // Generate Mac-style display name (Untitled, Untitled 2, Untitled 3, etc.)
-        let displayName = untitledCounter == 1 ? "Untitled" : "Untitled \(untitledCounter)"
-
-        // Each new library gets a unique temporary path so they're separate
-        // Use FileManager.default.temporaryDirectory for sandbox compatibility
-        let uuid = UUID().uuidString
-        let temporaryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Untitled-\(uuid).fichero")
-
-        // Create the package structure even for temporary libraries
-        // This ensures the backend database is created in the right place
-        createPackageStructure(at: temporaryURL)
-
-        // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
-        let library = LibraryReference(url: temporaryURL, document: document, displayName: displayName)
-
-        // Insert after Global library (which is always first)
-        if openLibraries.first?.id == Self.globalLibraryId {
-            openLibraries.insert(library, at: 1)
-        } else {
-            openLibraries.append(library)
-        }
-
-        currentLibraryId = library.id  // Set as current library
-
-        // Increment counter for next new library
-        untitledCounter += 1
-
-        let clientId = ObjectIdentifier(library.apiClient)
-        logger.info("Created new unsaved library '\(displayName)' with APIClient-\(String(describing: clientId))")
-
-        // Initialize the backend database, load data, and ensure Inbox
-        Task { @MainActor in
-            await initializeBackendDatabase(for: library)
-            await loadLibraryData(for: library)
-            await ensureInboxFolder(for: library)
-        }
-
-        return library
-    }
-
-    /// Get a library by ID
-    func getLibrary(id: UUID) -> LibraryReference? {
-        return openLibraries.first(where: { $0.id == id })
-    }
-
-    /// Close a library
-    /// Only closes if no windows are using it
-    /// Cannot close the Global library
-    func closeLibrary(_ id: UUID) {
-        // Prevent closing Global library
-        if id == Self.globalLibraryId {
-            logger.warning("Cannot close Global library")
-            return
-        }
-
-        guard let index = openLibraries.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-
-        let library = openLibraries[index]
-        logger.info("Closing library: \(library.url.lastPathComponent)")
-
-        // Stop accessing security-scoped resource before removing
-        library.stopAccessingSecurityScope()
-
-        openLibraries.remove(at: index)
-
-        // Update saved libraries
-        saveOpenLibraryPaths()
-    }
-
-    /// Save a library to a new URL (for Save As or initial save)
-    func saveLibrary(_ id: UUID, to url: URL) throws {
-        guard let index = openLibraries.firstIndex(where: { $0.id == id }) else {
-            throw LibraryError.libraryNotFound
-        }
-
-        let oldLibrary = openLibraries[index]
-        let oldURL = oldLibrary.url
-        let fileManager = FileManager.default
-
-        // Start accessing security-scoped resource from save panel
-        let didStartAccessing = url.startAccessingSecurityScopedResource()
-        logger.info("Security-scoped resource access: \(didStartAccessing)")
-        defer {
-            if didStartAccessing {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        // Check if this is a temporary library
-        let isTempLibrary = isTemporaryLibrary(oldURL)
-
-        do {
-            logger.info("Old URL: \(oldURL.path)")
-            logger.info("New URL: \(url.path)")
-            logger.info("Is temporary library: \(isTempLibrary)")
-            logger.info("Old URL exists: \(fileManager.fileExists(atPath: oldURL.path))")
-
-            if isTempLibrary && fileManager.fileExists(atPath: oldURL.path) {
-                // Temporary libraries can be moved from sandbox temp dir
-                logger.info("Moving temporary library from \(oldURL.path) to \(url.path)")
-
-                // Check if destination already exists
-                if fileManager.fileExists(atPath: url.path) {
-                    logger.warning("Destination exists, removing: \(url.path)")
-                    try fileManager.removeItem(at: url)
-                }
-
-                // Move the entire package directory
-                try fileManager.moveItem(at: oldURL, to: url)
-                logger.info("Successfully moved package from \(oldURL.lastPathComponent) to \(url.lastPathComponent)")
-
-            } else {
-                // Not a temp library, create new package (for Save As on already-saved libraries)
-                createPackageStructure(at: url)
-                logger.info("Created new package at: \(url.lastPathComponent)")
-            }
-
-            // Extract display name from new file URL (remove .fichero extension)
-            let displayName = url.deletingPathExtension().lastPathComponent
-
-            // Stop accessing old library's security-scoped resource if needed
-            oldLibrary.stopAccessingSecurityScope()
-
-            // Create new library reference with saved URL, preserving the ID and reusing APIClient/DocumentStore
-            // Always need security-scoped access for user-saved libraries
-            let library = LibraryReference(
-                url: url,
-                document: oldLibrary.document,
-                displayName: displayName,
-                id: oldLibrary.id,  // IMPORTANT: Preserve library ID so windows don't lose track
-                apiClient: oldLibrary.apiClient,  // Reuse existing APIClient
-                documentStore: oldLibrary.documentStore,  // Reuse existing DocumentStore
-                startAccessing: true  // Always start accessing for saved libraries
-            )
-
-            // Update the API client's library path to the new location
-            library.apiClient.currentLibraryPath = url.path
-            library.ficheroClient.currentLibraryPath = url.path
-
-            // Update the reference in our array
-            openLibraries[index] = library
-            logger.info("Saved library to: \(url.lastPathComponent)")
-
-            // If we moved from temp, backend will reconnect automatically on next request
-            // If we created new (Save As on already-saved library), initialize the database
-            if !isTempLibrary {
-                Task { @MainActor in
-                    await initializeBackendDatabase(for: library)
-                }
-            }
-
-        } catch {
-            logger.error("Failed to save library: \(error.localizedDescription)")
-            throw LibraryError.saveFailed
-        }
-    }
-
-    // MARK: - Public Helpers
-
-    /// Check if a library URL is a temporary unsaved library
-    /// Uses standardized paths to prevent path traversal attacks
-    func isTemporaryLibrary(_ url: URL) -> Bool {
-        let tempDir = FileManager.default.temporaryDirectory.standardizedFileURL
-        let standardizedURL = url.standardizedFileURL
-
-        // Ensure the path doesn't contain directory traversal
-        guard !standardizedURL.path.contains("..") else {
-            return false
-        }
-
-        return standardizedURL.path.hasPrefix(tempDir.path) &&
-               standardizedURL.lastPathComponent.hasPrefix("Untitled-")
-    }
-
-    // MARK: - Private Helpers
-
-    /// Create the .fichero package directory structure
-    private func createPackageStructure(at url: URL) {
-        let fileManager = FileManager.default
-
-        do {
-            // Create the package directory if it doesn't exist
-            if !fileManager.fileExists(atPath: url.path) {
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-                logger.info("Created .fichero package directory: \(url.path)")
-            }
-
-            // Create required subdirectories
-            let contentsDir = url.appendingPathComponent("Contents")
-            try fileManager.createDirectory(at: contentsDir, withIntermediateDirectories: true)
-
-            // Create a simple plist to mark this as a package
-            let infoPlistURL = contentsDir.appendingPathComponent("Info.plist")
-            if !fileManager.fileExists(atPath: infoPlistURL.path) {
-                let plistContent = """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-                <plist version="1.0">
-                <dict>
-                    <key>CFBundleIdentifier</key>
-                    <string>ca.tubb.fichero.library</string>
-                    <key>CFBundleName</key>
-                    <string>\(url.deletingPathExtension().lastPathComponent)</string>
-                </dict>
-                </plist>
-                """
-                try plistContent.write(to: infoPlistURL, atomically: true, encoding: .utf8)
-            }
-
-            logger.info("Package structure ready at: \(url.path)")
-
-        } catch {
-            logger.error("Failed to create package structure: \(error.localizedDescription)")
-        }
-    }
-
-    /// Initialize the backend database for a library
-    private func initializeBackendDatabase(for library: LibraryReference) async {
-        do {
-            struct HealthResponse: Codable {
-                let status: String
-            }
-            let _: HealthResponse = try await library.apiClient.get("/health")
-            logger.info("Initialized backend database for: \(library.displayName)")
-        } catch {
-            logger.error("Failed to initialize backend database: \(error.localizedDescription)")
-        }
-    }
-
-    /// Load all data for a library (documents, searches, conversations, workflows)
-    private func loadLibraryData(for library: LibraryReference) async {
-        guard !Task.isCancelled else { return }
-        await library.documentStore.loadCollections()
-
-        guard !Task.isCancelled else { return }
-        await library.workflowStore.loadWorkflows()
-
-        guard !Task.isCancelled else { return }
-        try? await library.conversationServiceGenerated.loadConversations()
-
-        guard !Task.isCancelled else { return }
-        try? await library.savedSearchServiceGenerated.loadSavedSearches()
-
-        logger.info("Loaded all data for library: \(library.displayName)")
-    }
-
-    /// Ensure every library has a default "Inbox" folder
-    private func ensureInboxFolder(for library: LibraryReference) async {
-        // Check if Inbox folder exists (collections should already be loaded)
-        let hasInbox = library.documentStore.collections.contains { doc in
-            doc.name == "Inbox" && doc.docType == .folder && doc.parentId == nil
-        }
-
-        logger.info("\(library.displayName) library has \(library.documentStore.collections.count) documents, hasInbox: \(hasInbox)")
-
-        if !hasInbox {
-            // Create Inbox folder
-            do {
-                let inbox = try await library.documentServiceGenerated.createCollection(name: "Inbox", parentId: nil)
-                logger.info("✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)")
-
-                // Reload documents to include the new Inbox
-                await library.documentStore.loadCollections()
-                logger.info("Reloaded collections, now have \(library.documentStore.collections.count) documents")
-            } catch {
-                logger.error("❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)")
-            }
-        } else {
-            logger.info("Inbox folder already exists in \(library.displayName) library")
-        }
-    }
 }
 
 enum LibraryError: Error {
     case libraryNotFound
     case saveFailed
     case loadFailed
-}
-
-// MARK: - Library Persistence
-
-extension LibraryManager {
-    private static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
-
-    /// Save current open library paths to UserDefaults
-    func saveOpenLibraryPaths() {
-        let paths = openLibraries
-            .filter { !isTemporaryLibrary($0.url) }
-            .map { $0.url.path }
-        UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
-        logger.info("Saved \(paths.count) library paths to UserDefaults")
-    }
-
-    /// Get previously open library paths
-    func getSavedLibraryPaths() -> [String] {
-        return UserDefaults.standard.stringArray(forKey: Self.openLibraryPathsKey) ?? []
-    }
-
-    /// Restore libraries from saved paths
-    func restoreSavedLibraries() {
-        let paths = getSavedLibraryPaths()
-        logger.info("Restoring \(paths.count) saved libraries")
-
-        for path in paths {
-            // Validate path is not empty and doesn't contain dangerous characters
-            guard !path.isEmpty,
-                  !path.contains(".."),
-                  path.hasPrefix("/") else {
-                logger.warning("Skipping invalid library path: \(path)")
-                continue
-            }
-
-            let url = URL(fileURLWithPath: path)
-
-            // Additional security check: ensure it's a .fichero package
-            guard url.pathExtension == "fichero" else {
-                logger.warning("Skipping non-fichero path: \(path)")
-                continue
-            }
-
-            if FileManager.default.fileExists(atPath: path) {
-                let library = openLibrary(at: url)
-                logger.info("Restored library: \(library.displayName)")
-            } else {
-                logger.warning("Saved library not found: \(path)")
-            }
-        }
-    }
 }

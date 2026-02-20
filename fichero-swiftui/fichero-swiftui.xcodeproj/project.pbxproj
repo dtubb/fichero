@@ -317,6 +317,9 @@
 		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
 		MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */; };
+		852B1713BA5220E613865101 /* LibraryManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */; };
+		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
+		BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -666,6 +669,9 @@
 		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
 		MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelServiceGenerated.swift; sourceTree = "<group>"; };
+		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
+		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
+		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -961,6 +967,9 @@
 				A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */,
 				A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */,
 				377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */,
+				EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */,
+				1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */,
+				BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */,
 				A1A3AB192F11CCC70021909D /* MCPServer.swift */,
 				A1A3AB1A2F11CCC70021909D /* Note.swift */,
 				112 /* Provider.swift */,
@@ -1654,6 +1663,9 @@
 				20D8ED4F2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift in Sources */,
 				A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */,
 				9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */,
+				852B1713BA5220E613865101 /* LibraryManager+Operations.swift in Sources */,
+				C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */,
+				BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */,
 				B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */,
 				A1FB1D9C2F0420D50023093C /* SidebarItemRow.swift in Sources */,
 				A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */,
