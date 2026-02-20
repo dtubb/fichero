@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 1 complete — 3/37 files refactored
+> **Status:** Batch 2 complete — 6/37 files refactored
 
 ---
 
@@ -10,9 +10,9 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 3 |
+| Completed | 6 |
 | In Progress | 0 |
-| Remaining | 34 |
+| Remaining | 31 |
 
 ---
 
@@ -24,15 +24,15 @@
 | 2 | `Views/Automation/TriggerEditorView.swift` | 605→221 | <200 | done | [#146](https://github.com/dtubb/fichero/issues/146) |
 | 3 | `Views/Settings/SettingsView.swift` | 589→33 | <200 | done | [#147](https://github.com/dtubb/fichero/issues/147) |
 
-## Batch 2 — Sidebar & Workflow (NEXT)
+## Batch 2 — Sidebar & Workflow (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 4 | `Views/Sidebar/SidebarItemRow.swift` | 567 | <200 | pending | — |
-| 5 | `Views/Workflow/WorkflowEditor.swift` | 540 | <200 | pending | — |
-| 6 | `Views/Workflow/WorkflowChainListView.swift` | 527 | <200 | pending | — |
+| 4 | `Views/Sidebar/SidebarItemRow.swift` | 567→146 | <200 | done | [#148](https://github.com/dtubb/fichero/issues/148) |
+| 5 | `Views/Workflow/WorkflowEditor.swift` | 540→161 | <200 | done | [#144](https://github.com/dtubb/fichero/issues/144) |
+| 6 | `Views/Workflow/WorkflowChainListView.swift` | 527→147 | <200 | done | [#149](https://github.com/dtubb/fichero/issues/149) |
 
-## Batch 3 — Providers & Activity
+## Batch 3 — Providers & Activity (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
