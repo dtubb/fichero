@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 7 complete — 20/37 files refactored
+> **Status:** Batch 8 complete — 21/37 files refactored
 
 ---
 
@@ -10,10 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 20 |
+| Completed | 21 |
 | In Progress | 0 |
 | Blocked | 1 |
-| Remaining | 16 |
+| Skipped | 1 |
+| Remaining | 14 |
 
 ---
 
@@ -73,14 +74,14 @@
 | 20 | `Views/Activity/ActivityProgressView.swift` | 424→39 | <200 | done | [#163](https://github.com/dtubb/fichero/issues/163) |
 | 21 | `Views/Components/WorkflowExecutionRow.swift` | 420→211 | <200 | done | [#164](https://github.com/dtubb/fichero/issues/164) |
 
-## Batch 8 — Remaining Views (NEXT)
+## Batch 8 — Remaining Views (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 22 | `Views/Library/ArtifactsBrowserView.swift` | 409 | <200 | pending | — |
-| 23 | `Views/Automation/TriggerDetailView.swift` | 401 | <200 | pending | — |
+| 22 | `Views/Library/ArtifactsBrowserView.swift` | 409 | <200 | skipped | — (not in Xcode project) |
+| 23 | `Views/Automation/TriggerDetailView.swift` | 402→144 | <200 | done | [#165](https://github.com/dtubb/fichero/issues/165) |
 
-## Batch 9 — Models
+## Batch 9 — Models (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
