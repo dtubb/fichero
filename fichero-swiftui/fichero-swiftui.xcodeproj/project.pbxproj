@@ -242,6 +242,19 @@
 		'GTE2' = {isa = PBXBuildFile; fileRef = GTE1; };
 		'IMP00012F27F36000EC9EE1' = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1; };
 		'MOD00012F27F36000EC9EE1' = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1; };
+		B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */; };
+		B2A0020200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */; };
+		B2A0020300000000BATCH2S3 /* SidebarItemRow+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */; };
+		B2A0020400000000BATCH2S4 /* SidebarItemRow+Rename.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */; };
+		B2A0020500000000BATCH2W1 /* WorkflowEditor+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */; };
+		B2A0020600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */; };
+		B2A0020700000000BATCH2W3 /* WorkflowEditor+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */; };
+		B2A0020800000000BATCH2C1 /* ChainListContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010800000000BATCH2C1 /* ChainListContent.swift */; };
+		B2A0020900000000BATCH2C2 /* ChainListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010900000000BATCH2C2 /* ChainListRow.swift */; };
+		B2A0020A00000000BATCH2C3 /* ChainStepRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */; };
+		B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */; };
+		B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
+		B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -516,6 +529,19 @@
 		'GTE1' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		'IMP00022F27F36000EC9EE1' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
 		'MOD00022F27F36000EC9EE1' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelServiceGenerated.swift; sourceTree = "<group>"; };
+		B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Label.swift"; sourceTree = "<group>"; };
+		B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+DropHandlers.swift"; sourceTree = "<group>"; };
+		B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Helpers.swift"; sourceTree = "<group>"; };
+		B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Rename.swift"; sourceTree = "<group>"; };
+		B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+Actions.swift"; sourceTree = "<group>"; };
+		B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+NodeViews.swift"; sourceTree = "<group>"; };
+		B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+Preview.swift"; sourceTree = "<group>"; };
+		B2A0010800000000BATCH2C1 /* ChainListContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainListContent.swift; sourceTree = "<group>"; };
+		B2A0010900000000BATCH2C2 /* ChainListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainListRow.swift; sourceTree = "<group>"; };
+		B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainStepRow.swift; sourceTree = "<group>"; };
+		B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailContent.swift; sourceTree = "<group>"; };
+		B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailSheet.swift; sourceTree = "<group>"; };
+		B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChainSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -678,6 +704,10 @@
 				A1FB1D942F0420D50023093C /* SidebarEnvironment.swift */,
 				A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */,
 				A1FB1D962F0420D50023093C /* SidebarItemRow.swift */,
+				B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */,
+				B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */,
+				B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */,
+				B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */,
 				A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */,
 				A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */,
 				A1FB1D992F0420D50023093C /* SidebarView.swift */,
@@ -716,6 +746,9 @@
 				A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */,
 				A1A3AA082F110D520021909D /* WorkflowEdgeView.swift */,
 				A1A3AA092F110D520021909D /* WorkflowEditor.swift */,
+				B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */,
+				B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */,
+				B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */,
 				A1A3AA0A2F110D520021909D /* WorkflowExecutionView.swift */,
 				A1A3AA0B2F110D520021909D /* WorkflowInspector.swift */,
 				A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */,
@@ -733,6 +766,7 @@
 				202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */,
 				202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */,
 				202674C32F4788B4008EAB5D /* WorkflowLibraryView */,
+				B2A003000000000000BATCH2 /* WorkflowChainListView */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -1050,6 +1084,19 @@
 			path = Library;
 			sourceTree = "<group>";
 		};
+		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
+			isa = PBXGroup;
+			children = (
+				B2A0010800000000BATCH2C1 /* ChainListContent.swift */,
+				B2A0010900000000BATCH2C2 /* ChainListRow.swift */,
+				B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */,
+				B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */,
+				B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */,
+				B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */,
+			);
+			path = WorkflowChainListView;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1252,6 +1299,19 @@
 				202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */,
 				A1A3AA152F110D520021909D /* WorkflowEdgeView.swift in Sources */,
 				A1A3AA162F110D520021909D /* WorkflowEditor.swift in Sources */,
+				B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */,
+				B2A0020200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift in Sources */,
+				B2A0020300000000BATCH2S3 /* SidebarItemRow+Helpers.swift in Sources */,
+				B2A0020400000000BATCH2S4 /* SidebarItemRow+Rename.swift in Sources */,
+				B2A0020500000000BATCH2W1 /* WorkflowEditor+Actions.swift in Sources */,
+				B2A0020600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift in Sources */,
+				B2A0020700000000BATCH2W3 /* WorkflowEditor+Preview.swift in Sources */,
+				B2A0020800000000BATCH2C1 /* ChainListContent.swift in Sources */,
+				B2A0020900000000BATCH2C2 /* ChainListRow.swift in Sources */,
+				B2A0020A00000000BATCH2C3 /* ChainStepRow.swift in Sources */,
+				B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */,
+				B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */,
+				B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */,
 				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
 				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,

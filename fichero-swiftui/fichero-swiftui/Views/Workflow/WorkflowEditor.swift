@@ -1,13 +1,7 @@
 import SwiftUI
-import OSLog
-
-// swiftlint:disable file_length
-
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowEditor")
 
 /// Workflow editor content view - canvas with optional output log
 /// This view goes in the content column, with WorkflowInspector in the detail column
-// swiftlint:disable:next type_body_length
 struct WorkflowEditor: View {
     /// Reference to the selected workflow from sidebar (for display info)
     let selectedWorkflow: WorkflowSidebarItem?
@@ -17,25 +11,25 @@ struct WorkflowEditor: View {
 
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
-    @State private var isRunning: Bool = false
-    @State private var isSaving: Bool = false
-    @State private var saveError: String?
-    @State private var showSaveSuccess: Bool = false
-    @State private var showOutputLog: Bool = false
-    @State private var executionState: WorkflowExecutionState?
+    @State var isRunning: Bool = false
+    @State var isSaving: Bool = false
+    @State var saveError: String?
+    @State var showSaveSuccess: Bool = false
+    @State var showOutputLog: Bool = false
+    @State var executionState: WorkflowExecutionState?
 
     // Canvas state (passed to WorkflowCanvasView)
-    @State private var scale: CGFloat = 1.0
-    @State private var snapToGrid: Bool = true
+    @State var scale: CGFloat = 1.0
+    @State var snapToGrid: Bool = true
 
     // Diagram preview state
-    @State private var showDiagramPreview: Bool = false
-    @State private var diagramImage: NSImage?
-    @State private var diagramLoading: Bool = false
-    @State private var diagramError: String?
+    @State var showDiagramPreview: Bool = false
+    @State var diagramImage: NSImage?
+    @State var diagramLoading: Bool = false
+    @State var diagramError: String?
 
     // Document picker state
-    @State private var showDocumentPicker: Bool = false
+    @State var showDocumentPicker: Bool = false
 
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
@@ -47,7 +41,7 @@ struct WorkflowEditor: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     /// Node execution states from the observer (single source of truth)
-    private var nodeStates: [String: NodeExecutionState] {
+    var nodeStates: [String: NodeExecutionState] {
         executionObserver.activeExecutions[editingWorkflow.id]?.nodeStates ?? [:]
     }
 
@@ -99,7 +93,6 @@ struct WorkflowEditor: View {
                     case .table:
                         workflowNodesTableView
                     case .map:
-                        // Map view shows the spatial canvas
                         // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
                         WorkflowCanvasView(
                             workflow: $editingWorkflow,
@@ -163,378 +156,6 @@ struct WorkflowEditor: View {
             )
             .environmentObject(libraryManager)
             .environmentObject(documentStore)
-        }
-    }
-
-    // MARK: - Actions
-
-    private func resetZoom() {
-        withAnimation {
-            scale = 1.0
-        }
-    }
-
-    // swiftlint:disable:next function_body_length
-    private func runWorkflow() {
-        isRunning = true
-        showOutputLog = true
-
-        // Initialize execution state (will be updated from observer)
-        executionState = WorkflowExecutionState(
-            status: .running,
-            documentProgress: []
-        )
-
-        logger.info("Run workflow: \(editingWorkflow.name)")
-
-        Task { @MainActor in
-            do {
-                // IMPORTANT: Save workflow before running to ensure backend has latest version
-                logger.info("Auto-saving workflow before execution...")
-                let definition = editingWorkflow.toAPIFormat()
-
-                // Debug: Log what we're sending to backend
-                logger.info("[DEBUG] Workflow: id=\(definition.id), nodes=\(definition.nodes.count)")
-                for node in definition.nodes {
-                    let configDesc = node.config?.keys.joined(separator: ", ") ?? "nil"
-                    logger.info("[DEBUG] Node \(node.tool): config keys=[\(configDesc)]")
-                }
-
-                if selectedWorkflow != nil {
-                    _ = try await workflowStore.updateWorkflow(definition)
-                } else {
-                    _ = try await workflowStore.saveWorkflow(definition)
-                }
-                logger.info("Workflow saved, now executing with SSE streaming...")
-
-                // Execute workflow with NEW non-blocking API + SSE subscription
-                // Single source of truth: all events go through executionObserver
-                let workflowId = editingWorkflow.id  // Capture ID before closure
-
-                // Track completion with a continuation
-                var streamCompleted = false
-
-                let response = try await workflowStreamService.execute(
-                    workflowId: workflowId,
-                    inputs: [:],
-                    onEvent: { [weak documentStore] event in
-                        // Debug: Log every event (using info level for visibility)
-                        let eventDesc = String(String(describing: event).prefix(100))
-                        logger.info("[SSE] Event: \(eventDesc)")
-
-                        // Update global observer (single source of truth for all UI)
-                        executionObserver.handleEvent(event, for: workflowId)
-
-                        // Debug: Log document progress count
-                        if let exec = executionObserver.activeExecutions[workflowId] {
-                            let docCount = exec.documentProgress.count
-                            let nodeStateCount = exec.nodeStates.count
-                            logger.info(
-                                "[SSE] Document count: \(docCount), nodeStates: \(nodeStateCount)"
-                            )
-                        }
-
-                        // Update executionState from observer (for output log)
-                        executionState = executionObserver.getExecutionState(for: workflowId)
-
-                        // Update document processing status in library view
-                        updateDocumentStatus(for: event, documentStore: documentStore)
-
-                        // Track terminal events
-                        switch event {
-                        case .complete, .error, .systemicError:
-                            streamCompleted = true
-                        default:
-                            break
-                        }
-                    }
-                )
-
-                logger.info("[SSE] Workflow started with thread: \(response.threadId)")
-
-                // Register with global observer for app-wide visibility (with real thread ID)
-                let threadId = response.threadId
-                executionObserver.startExecution(
-                    workflowId: workflowId,
-                    name: editingWorkflow.name,
-                    threadId: threadId,
-                    onCancel: { [weak workflowStreamService] in
-                        Task { @MainActor in
-                            try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                        }
-                    }
-                )
-
-                // Wait for stream to complete (poll observer state)
-                while !streamCompleted {
-                    try await Task.sleep(for: .milliseconds(100))
-                    // Check if we're cancelled
-                    if Task.isCancelled { break }
-                    // Also check observer for completion
-                    if let exec = executionObserver.activeExecutions[workflowId],
-                       !exec.isRunning {
-                        streamCompleted = true
-                    }
-                }
-
-                // Determine final status from observer
-                logger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
-                if let exec = executionObserver.activeExecutions[workflowId] {
-                    let docCount = exec.documentProgress.count
-                    let workflowError = exec.workflowError ?? "none"
-                    logger.info(
-                        "[SSE] Final documentProgress: \(docCount), error: \(workflowError)"
-                    )
-                    for (_, progress) in exec.documentProgress {
-                        let stepCount = progress.stepStatuses.count
-                        logger.info(
-                            "[SSE] Document: \(progress.documentName), statuses: \(stepCount)"
-                        )
-                    }
-                } else {
-                    logger.warning("[SSE] No execution found for workflowId: \(workflowId)")
-                }
-
-                let finalStatus: WorkflowStatus
-                if let execution = executionObserver.activeExecutions[workflowId] {
-                    if execution.workflowError != nil {
-                        finalStatus = .failed
-                        logger.error("Workflow failed: \(execution.workflowError ?? "Unknown error")")
-                    } else {
-                        finalStatus = execution.status == .failed ? .failed : .completed
-                        if finalStatus == .completed {
-                            logger.info("Workflow completed successfully")
-                        }
-                    }
-                } else {
-                    finalStatus = .completed
-                }
-
-                // Final update of execution state from observer (with document progress)
-                if var finalState = executionObserver.getExecutionState(for: workflowId) {
-                    finalState.status = finalStatus
-                    let statusStr = String(describing: finalStatus)
-                    let docCount = finalState.documentProgress.count
-                    let finalError = finalState.error ?? "none"
-                    logger.info(
-                        "[SSE] Final state: \(docCount) docs, status: \(statusStr), error: \(finalError)"
-                    )
-                    executionState = finalState
-                } else {
-                    logger.warning("[SSE] No final state from observer, keeping current executionState")
-                    executionState?.status = finalStatus
-                }
-
-                // End tracking in global observer
-                executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
-
-            } catch {
-                logger.error("Failed to execute workflow: \(error.localizedDescription)")
-                executionState?.status = .failed
-                executionState?.error = error.localizedDescription
-
-                // End tracking with failed status
-                executionObserver.endExecution(workflowId: editingWorkflow.id, status: .failed)
-            }
-
-            isRunning = false
-        }
-    }
-
-    /// Update document processing status in library based on stream events
-    private func updateDocumentStatus(for event: WorkflowStreamEvent, documentStore: DocumentStore?) {
-        guard let documentStore = documentStore else { return }
-
-        switch event {
-        case .fileStart(_, _, let filePath, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
-
-        case .fileComplete(_, _, let filePath, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .completed)
-
-        case .fileError(_, _, let filePath, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
-
-        default:
-            break
-        }
-    }
-
-    @MainActor
-    private func saveWorkflow() async {
-        logger.info("Save workflow: \(editingWorkflow.name)")
-        isSaving = true
-        saveError = nil
-
-        do {
-            let definition = editingWorkflow.toAPIFormat()
-            if selectedWorkflow != nil {
-                _ = try await workflowStore.updateWorkflow(definition)
-            } else {
-                _ = try await workflowStore.saveWorkflow(definition)
-            }
-            logger.info("Successfully saved workflow")
-            showSaveSuccess = true
-
-            // Hide success message after 2 seconds
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled else { return }
-                showSaveSuccess = false
-            }
-        } catch {
-            logger.error("Failed to save workflow: \(error.localizedDescription)")
-            saveError = error.localizedDescription
-        }
-
-        isSaving = false
-    }
-
-    private func exportWorkflow() {
-        logger.info("Export workflow: \(editingWorkflow.name)")
-        Task { @MainActor in
-            await WorkflowExporter.exportToFile(
-                editingWorkflow.id,
-                name: editingWorkflow.name,
-                using: workflowServiceGenerated
-            )
-        }
-    }
-
-    // MARK: - Views
-
-    /// Icon grid view - shows nodes as cards in a grid
-    private var workflowNodesIconView: some View {
-        Group {
-            if editingWorkflow.nodes.isEmpty {
-                ContentUnavailableView(
-                    "No Nodes",
-                    systemImage: "square.grid.2x2",
-                    description: Text("Drag tools from the inspector to add nodes")
-                )
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16)], spacing: 16) {
-                        ForEach(editingWorkflow.nodes) { node in
-                            WorkflowNodeCard(
-                                node: node,
-                                executionState: nodeStates[node.id]
-                            )
-                        }
-                    }
-                    .padding()
-                }
-            }
-        }
-        .background(Color(.textBackgroundColor))
-    }
-
-    /// List view - shows nodes as rows in a list
-    private var workflowNodesListView: some View {
-        Group {
-            if editingWorkflow.nodes.isEmpty {
-                ContentUnavailableView(
-                    "No Nodes",
-                    systemImage: "list.bullet",
-                    description: Text("Drag tools from the inspector to add nodes")
-                )
-            } else {
-                List(editingWorkflow.nodes) { node in
-                    WorkflowNodeRow(
-                        node: node,
-                        executionState: nodeStates[node.id]
-                    )
-                }
-                .listStyle(.plain)
-            }
-        }
-    }
-
-    /// Table view - shows nodes in columns
-    private var workflowNodesTableView: some View {
-        Table(editingWorkflow.nodes) {
-            TableColumn("Status") { node in
-                tableStatusCell(for: node)
-            }
-            .width(60)
-
-            TableColumn("Tool") { node in
-                Text(node.tool)
-                    .font(.body)
-            }
-            .width(min: 100, ideal: 150)
-
-            TableColumn("Label") { node in
-                Text(node.label ?? "—")
-                    .foregroundColor(.secondary)
-            }
-            .width(min: 100, ideal: 150)
-
-            TableColumn("Position") { node in
-                Text("(\(Int(node.positionX)), \(Int(node.positionY)))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .width(min: 80, ideal: 100)
-
-            TableColumn("Progress") { (node: WorkflowNode) in
-                tableProgressCell(for: node)
-            }
-            .width(min: 80, ideal: 100)
-
-            TableColumn("Inputs") { (node: WorkflowNode) in
-                if node.inputMappings.isEmpty {
-                    Text("—")
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("\(node.inputMappings.count) input(s)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .width(min: 80, ideal: 100)
-        }
-    }
-
-    @ViewBuilder
-    private func tableStatusCell(for node: WorkflowNode) -> some View {
-        if let state = nodeStates[node.id] {
-            switch state.status {
-            case .running, .parallelRunning:
-                ProgressView()
-                    .controlSize(.small)
-            case .completed:
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            case .failed:
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
-            case .idle:
-                Text("—")
-                    .foregroundColor(.secondary)
-            }
-        } else {
-            Text("—")
-                .foregroundColor(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func tableProgressCell(for node: WorkflowNode) -> some View {
-        if let state = nodeStates[node.id], state.fileTotal > 0 {
-            HStack(spacing: 4) {
-                Text("\(state.successCount + state.errorCount)/\(state.fileTotal)")
-                    .font(.caption)
-                    .monospacedDigit()
-                if state.errorCount > 0 {
-                    Text("(\(state.errorCount) failed)")
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
-            }
-        } else {
-            Text("—")
-                .foregroundColor(.secondary)
         }
     }
 }

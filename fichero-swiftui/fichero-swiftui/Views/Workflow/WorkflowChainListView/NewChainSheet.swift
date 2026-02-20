@@ -1,0 +1,97 @@
+import SwiftUI
+
+struct NewChainSheet: View {
+    let workflows: [WorkflowSidebarItem]
+    let onCreate: (String, String, [ChainStep]) async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var description = ""
+    @State private var steps: [ChainStep] = []
+    @State private var isCreating = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Chain Details") {
+                    TextField("Name", text: $name)
+                    TextField("Description", text: $description, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
+                Section("Steps") {
+                    if steps.isEmpty {
+                        Text("Add workflows to chain them together")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                            HStack {
+                                Text("\(index + 1).")
+                                    .foregroundStyle(.secondary)
+                                Text(workflowName(for: step.workflowId))
+                                Spacer()
+                                Button {
+                                    steps.remove(at: index)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                        .onMove { from, to in
+                            steps.move(fromOffsets: from, toOffset: to)
+                        }
+                    }
+
+                    Menu {
+                        ForEach(workflows) { workflow in
+                            Button(workflow.name) {
+                                addStep(workflowId: workflow.id)
+                            }
+                        }
+                    } label: {
+                        Label("Add Workflow", systemImage: "plus")
+                    }
+                }
+            }
+            .navigationTitle("New Chain")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        isCreating = true
+                        let localSteps = steps
+                        Task {
+                            await onCreate(name, description, localSteps)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || steps.isEmpty || isCreating)
+                }
+            }
+        }
+        .frame(minWidth: 400, minHeight: 400)
+    }
+
+    private func workflowName(for id: String) -> String {
+        workflows.first { $0.id == id }?.name ?? "Unknown"
+    }
+
+    private func addStep(workflowId: String) {
+        let step = ChainStep(
+            id: UUID().uuidString,
+            workflowId: workflowId,
+            name: "",
+            inputMappings: [],
+            staticInputs: [:],
+            condition: nil,
+            continueOnError: false,
+            timeoutSeconds: 300
+        )
+        steps.append(step)
+    }
+}
