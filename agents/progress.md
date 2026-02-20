@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 5 partial — 14/37 files refactored
+> **Status:** Batch 6 complete — 17/37 files refactored
 
 ---
 
@@ -10,10 +10,10 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 14 |
+| Completed | 17 |
 | In Progress | 0 |
 | Blocked | 1 |
-| Remaining | 22 |
+| Remaining | 19 |
 
 ---
 
@@ -57,15 +57,15 @@
 | 14 | `Views/Workflow/WorkflowOutputLog.swift` | 477→168 | <200 | done | [#157](https://github.com/dtubb/fichero/issues/157) |
 | 15 | `Views/Automation/ScheduleEditorView.swift` | 455→141 | <200 | done | [#158](https://github.com/dtubb/fichero/issues/158) |
 
-## Batch 6 — Sidebar, Providers, Inspectors
+## Batch 6 — Sidebar, Providers, Inspectors (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 16 | `Views/Chat/ComparisonDetailView.swift` | 443 | <200 | pending | — |
-| 17 | `Views/Sidebar/SidebarView.swift` | 436 | <200 | pending | — |
-| 18 | `Views/AIProviders/AddProviderSheet.swift` | 427 | <200 | pending | — |
+| 16 | `Views/Chat/ComparisonDetailView.swift` | 443→46 | <200 | done | [#159](https://github.com/dtubb/fichero/issues/159) |
+| 17 | `Views/Sidebar/SidebarView.swift` | 436→183 | <200 | done | [#160](https://github.com/dtubb/fichero/issues/160) |
+| 18 | `Views/AIProviders/AddProviderSheet.swift` | 427→96 | <200 | done | [#161](https://github.com/dtubb/fichero/issues/161) |
 
-## Batch 7 — Activity, Workflow, Library Views
+## Batch 7 — Activity, Workflow, Library Views (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
