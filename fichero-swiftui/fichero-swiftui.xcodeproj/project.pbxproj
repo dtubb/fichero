@@ -279,6 +279,11 @@
 		B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
 		B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
 		B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
+		B5A0020400000000BATCH5W1 /* WorkflowOutputLog+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */; };
+		B5A0020500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */; };
+		B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */; };
+		B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */; };
+		B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -590,6 +595,11 @@
 		B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+FieldRendering.swift"; sourceTree = "<group>"; };
 		B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+SchemaHelpers.swift"; sourceTree = "<group>"; };
 		B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+StateManagement.swift"; sourceTree = "<group>"; };
+		B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+Models.swift"; sourceTree = "<group>"; };
+		B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+StatusViews.swift"; sourceTree = "<group>"; };
+		B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+ErrorCell.swift"; sourceTree = "<group>"; };
+		B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+EmptyStates.swift"; sourceTree = "<group>"; };
+		B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleEditorView+Category.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -802,6 +812,10 @@
 				A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */,
 				A1A3AA0D2F110D520021909D /* WorkflowNodeView.swift */,
 				A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */,
+				B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */,
+				B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */,
+				B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */,
+				B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */,
 				A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */,
 				A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */,
 				139,
@@ -1032,6 +1046,7 @@
 			children = (
 				16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
 				7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
+				B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
 				152,
 				75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
 				C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
@@ -1571,6 +1586,11 @@
 				AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */,
 				64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */,
 				D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */,
+				B5A0020400000000BATCH5W1 /* WorkflowOutputLog+Models.swift in Sources */,
+				B5A0020500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift in Sources */,
+				B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */,
+				B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */,
+				B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

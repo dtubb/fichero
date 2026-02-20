@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 3 complete — 9/37 files refactored
+> **Status:** Batch 5 partial — 14/37 files refactored
 
 ---
 
@@ -10,9 +10,10 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 9 |
+| Completed | 14 |
 | In Progress | 0 |
-| Remaining | 28 |
+| Blocked | 1 |
+| Remaining | 22 |
 
 ---
 
@@ -40,21 +41,21 @@
 | 8 | `Views/Sidebar/Modes/ActivitySidebarContent.swift` | 509→166 | <200 | done | [#151](https://github.com/dtubb/fichero/issues/151) |
 | 9 | `Views/Chat/ChatInspector.swift` | 509→73 | <200 | done | [#152](https://github.com/dtubb/fichero/issues/152) |
 
-## Batch 4 — Comparison & Batch Views (NEXT)
+## Batch 4 — Comparison & Batch Views (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 10 | `Views/ModelComparison/ModelComparisonView.swift` | 503 | <200 | pending | — |
-| 11 | `Views/Batch/BatchDetailView.swift` | 484 | <200 | pending | — |
-| 12 | `Views/Workflow/DynamicConfigView.swift` | 479 | <200 | pending | — |
+| 10 | `Views/ModelComparison/ModelComparisonView.swift` | 503→39 | <200 | done | [#153](https://github.com/dtubb/fichero/issues/153) |
+| 11 | `Views/Batch/BatchDetailView.swift` | 484→146 | <200 | done | [#154](https://github.com/dtubb/fichero/issues/154) |
+| 12 | `Views/Workflow/DynamicConfigView.swift` | 479→95 | <200 | done | [#155](https://github.com/dtubb/fichero/issues/155) |
 
-## Batch 5 — Actions & Workflow Output
+## Batch 5 — Actions & Workflow Output (PARTIAL)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 13 | `Views/Actions/ActionLibraryView.swift` | 478 | <200 | pending | — |
-| 14 | `Views/Workflow/WorkflowOutputLog.swift` | 477 | <200 | pending | — |
-| 15 | `Views/Automation/ScheduleEditorView.swift` | 455 | <200 | pending | — |
+| 13 | `Views/Actions/ActionLibraryView.swift` | 478 | <200 | blocked | [#156](https://github.com/dtubb/fichero/issues/156) |
+| 14 | `Views/Workflow/WorkflowOutputLog.swift` | 477→168 | <200 | done | [#157](https://github.com/dtubb/fichero/issues/157) |
+| 15 | `Views/Automation/ScheduleEditorView.swift` | 455→141 | <200 | done | [#158](https://github.com/dtubb/fichero/issues/158) |
 
 ## Batch 6 — Sidebar, Providers, Inspectors
 
