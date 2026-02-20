@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 8 complete — 21/37 files refactored
+> **Status:** Batch 9 complete — 24/37 files refactored
 
 ---
 
@@ -10,11 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 21 |
+| Completed | 24 |
 | In Progress | 0 |
 | Blocked | 1 |
 | Skipped | 1 |
-| Remaining | 14 |
+| Remaining | 11 |
 
 ---
 
@@ -81,16 +81,16 @@
 | 22 | `Views/Library/ArtifactsBrowserView.swift` | 409 | <200 | skipped | — (not in Xcode project) |
 | 23 | `Views/Automation/TriggerDetailView.swift` | 402→144 | <200 | done | [#165](https://github.com/dtubb/fichero/issues/165) |
 
-## Batch 9 — Models (NEXT)
+## Batch 9 — Models (DONE — 3/4, LibraryManager deferred to Batch 10)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 24 | `Models/WorkflowTypes.swift` | 695 | <300 | pending | — |
-| 25 | `Models/DocumentStore.swift` | 610 | <300 | pending | — |
-| 26 | `Models/SidebarItem.swift` | 598 | <300 | pending | — |
+| 24 | `Models/WorkflowTypes.swift` | 696→272 | <300 | done | [#166](https://github.com/dtubb/fichero/issues/166) |
+| 25 | `Models/DocumentStore.swift` | 611→185 | <300 | done | [#167](https://github.com/dtubb/fichero/issues/167) |
+| 26 | `Models/SidebarItem.swift` | 599→184 | <300 | done | [#168](https://github.com/dtubb/fichero/issues/168) |
 | 27 | `Models/LibraryManager.swift` | 577 | <300 | pending | — |
 
-## Batch 10 — App Entry Point & Types
+## Batch 10 — App Entry Point & Types (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
