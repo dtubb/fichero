@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 9 complete — 25/37 files refactored
+> **Status:** Batch 10 complete — 27/37 files refactored
 
 ---
 
@@ -10,11 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 25 |
+| Completed | 27 |
 | In Progress | 0 |
 | Blocked | 1 |
 | Skipped | 1 |
-| Remaining | 10 |
+| Remaining | 8 |
 
 ---
 
@@ -90,14 +90,14 @@
 | 26 | `Models/SidebarItem.swift` | 599→184 | <300 | done | [#168](https://github.com/dtubb/fichero/issues/168) |
 | 27 | `Models/LibraryManager.swift` | 577→198 | <300 | done | [#169](https://github.com/dtubb/fichero/issues/169) |
 
-## Batch 10 — App Entry Point & Types (NEXT)
+## Batch 10 — App Entry Point & Types (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 28 | `FicheroApp.swift` | 570 | <300 | pending | — |
-| 29 | `Services/ActivityTypes.swift` | 616 | <300 | pending | — |
+| 28 | `FicheroApp.swift` | 571→223 | <300 | done | [#170](https://github.com/dtubb/fichero/issues/170) |
+| 29 | `Services/ActivityTypes.swift` | 617→230 | <300 | done | [#171](https://github.com/dtubb/fichero/issues/171) |
 
-## Batch 11 — Services (Non-Generated)
+## Batch 11 — Services (Non-Generated) (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
