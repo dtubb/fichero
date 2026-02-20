@@ -284,6 +284,17 @@
 		B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */; };
 		B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */; };
 		B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */; };
+		B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */; };
+		B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */; };
+		B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */; };
+		B6A0020400000000BATCH6S1 /* SidebarView+Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */; };
+		B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */; };
+		B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */; };
+		B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */; };
+		B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */; };
+		B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */; };
+		B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */; };
+		B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -600,6 +611,17 @@
 		B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+ErrorCell.swift"; sourceTree = "<group>"; };
 		B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+EmptyStates.swift"; sourceTree = "<group>"; };
 		B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleEditorView+Category.swift"; sourceTree = "<group>"; };
+		B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Actions.swift"; sourceTree = "<group>"; };
+		B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Models.swift"; sourceTree = "<group>"; };
+		B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Sections.swift"; sourceTree = "<group>"; };
+		B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Environment.swift"; sourceTree = "<group>"; };
+		B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Helpers.swift"; sourceTree = "<group>"; };
+		B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+SelectionHandling.swift"; sourceTree = "<group>"; };
+		B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+ViewComponents.swift"; sourceTree = "<group>"; };
+		B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Helpers.swift"; sourceTree = "<group>"; };
+		B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step1.swift"; sourceTree = "<group>"; };
+		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
+		B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step3.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -769,6 +791,10 @@
 				A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */,
 				A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */,
 				A1FB1D992F0420D50023093C /* SidebarView.swift */,
+				B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */,
+				B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */,
+				B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */,
+				B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */,
 				A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */,
 				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
 				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
@@ -853,6 +879,9 @@
 				B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */,
 				B3A001070000000000BATCH3 /* ChatInspector+Search.swift */,
 				38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */,
+				B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */,
+				B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */,
+				B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */,
 				202674DD2F48972A008EAB5D /* MessageCard.swift */,
 				202674DF2F489737008EAB5D /* ChatStatusViews.swift */,
 				202674E12F48973E008EAB5D /* ChatInputView.swift */,
@@ -1140,6 +1169,10 @@
 			children = (
 				A1FB1D792F0420310023093C /* AIModelCatalog.swift */,
 				A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */,
+				B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */,
+				B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */,
+				B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */,
+				B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */,
 				A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */,
 				A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */,
 				A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */,
@@ -1591,6 +1624,17 @@
 				B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */,
 				B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */,
 				B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */,
+				B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */,
+				B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */,
+				B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */,
+				B6A0020400000000BATCH6S1 /* SidebarView+Environment.swift in Sources */,
+				B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */,
+				B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */,
+				B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */,
+				B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */,
+				B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */,
+				B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */,
+				B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
