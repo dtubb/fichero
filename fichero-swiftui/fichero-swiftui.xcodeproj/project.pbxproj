@@ -78,6 +78,12 @@
 		202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D72F48964E008EAB5D /* SearchMapComponents.swift */; };
 		202674DA2F489665008EAB5D /* SearchResultsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D92F489665008EAB5D /* SearchResultsDisplay.swift */; };
 		202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DB2F489677008EAB5D /* SearchView+Helpers.swift */; };
+		202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DD2F48972A008EAB5D /* MessageCard.swift */; };
+		202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DF2F489737008EAB5D /* ChatStatusViews.swift */; };
+		202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E12F48973E008EAB5D /* ChatInputView.swift */; };
+		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
+		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
+		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -331,6 +337,12 @@
 		202674D72F48964E008EAB5D /* SearchMapComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMapComponents.swift; sourceTree = "<group>"; };
 		202674D92F489665008EAB5D /* SearchResultsDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsDisplay.swift; sourceTree = "<group>"; };
 		202674DB2F489677008EAB5D /* SearchView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SearchView+Helpers.swift"; sourceTree = "<group>"; };
+		202674DD2F48972A008EAB5D /* MessageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCard.swift; sourceTree = "<group>"; };
+		202674DF2F489737008EAB5D /* ChatStatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStatusViews.swift; sourceTree = "<group>"; };
+		202674E12F48973E008EAB5D /* ChatInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputView.swift; sourceTree = "<group>"; };
+		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
+		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
+		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -710,6 +722,12 @@
 				117 /* ChatView.swift */,
 				A1FB1D7C2F0420930023093C /* ChatInspector.swift */,
 				38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */,
+				202674DD2F48972A008EAB5D /* MessageCard.swift */,
+				202674DF2F489737008EAB5D /* ChatStatusViews.swift */,
+				202674E12F48973E008EAB5D /* ChatInputView.swift */,
+				202674E32F489742008EAB5D /* ChatMapGrid.swift */,
+				202674E52F489757008EAB5D /* ChatMessagesList.swift */,
+				202674E72F48976C008EAB5D /* ChatView+Extensions.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -1146,6 +1164,7 @@
 				A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */,
 				A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */,
 				A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */,
+				202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */,
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
@@ -1173,6 +1192,7 @@
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
 				200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */,
+				202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
 				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
@@ -1218,6 +1238,7 @@
 				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
 				202674AE2F477AFE008EAB5D /* NodeInputMappings.swift in Sources */,
 				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
+				202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */,
 				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
 				MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */,
 				IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */,
@@ -1276,6 +1297,7 @@
 				A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */,
 				011 /* SearchView.swift in Sources */,
 				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,
+				202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */,
 				A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */,
 				A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */,
 				202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */,
@@ -1303,7 +1325,9 @@
 				026 /* ProviderService.swift in Sources */,
 				044 /* WorkflowServiceGenerated.swift in Sources */,
 				045 /* SavedSearchServiceGenerated.swift in Sources */,
+				202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */,
 				046 /* ConversationServiceGenerated.swift in Sources */,
+				202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */,
 				200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */,
 				202674B62F4783BC008EAB5D /* WorkflowNodeRow.swift in Sources */,
 				047 /* ChatServiceGenerated.swift in Sources */,
