@@ -67,7 +67,7 @@ Successfully refactored 3 major SwiftUI view files, reducing them from a combine
 
 ---
 
-## Summary Statistics
+## Summary Statistics (Session 2026-02-19)
 
 | File | Before | After | Reduction | % |
 |------|--------|-------|-----------|---|
@@ -79,6 +79,33 @@ Successfully refactored 3 major SwiftUI view files, reducing them from a combine
 **New files created:** 11
 **Lines of extracted code:** 1,330 (includes some expansion from refactoring)
 **All main files:** Below 400-line target ✓
+
+---
+
+## Summary Statistics (Session 2026-02-20)
+
+| File | Before | After | Reduction | % |
+|------|--------|-------|-----------|---|
+| SearchView.swift | 699 | 107 | 592 | 85% |
+| ChatView.swift | 682 | 100 | 582 | 85% |
+| **TOTAL** | **1,381** | **207** | **1,174** | **85%** |
+
+**New files created:** 11
+**Lines of extracted code:** 1,367 (includes some expansion from refactoring)
+**All main files:** Well below 400-line target ✓
+
+---
+
+## Combined Session Statistics
+
+| Metric | Session 1 | Session 2 | Combined |
+|--------|-----------|-----------|----------|
+| Files refactored | 3 | 2 | 5 |
+| Lines before | 2,491 | 1,381 | 3,872 |
+| Lines after | 1,216 | 207 | 1,423 |
+| Lines reduced | 1,275 | 1,174 | 2,449 |
+| Reduction % | 51% | 85% | 63% |
+| New files created | 11 | 11 | 22 |
 
 ---
 
@@ -112,28 +139,64 @@ Completed comprehensive 18-week implementation plan for transforming Library Vie
 
 ---
 
-## Files Analyzed (Not Yet Refactored)
+## Session 2 Refactoring (2026-02-20)
 
-### SearchView.swift (698 lines)
-**Analysis complete** - Ready for extraction:
-- SearchFiltersPanel.swift (~125 lines)
-- SearchResultsDisplay.swift (~160 lines)
-- SearchMapComponents.swift (~80 lines)
-- SearchResultRowFromAPI.swift (~62 lines)
-- SearchView+Helpers.swift (~116 lines)
+### 4. SearchView.swift
+**Reduction:** 699 → 107 lines (592 lines removed, 85% reduction)
 
-**Expected result:** 698 → ~155 lines
+**Files Created:**
+- `Views/Search/SearchFiltersPanel.swift` (189 lines)
+  - Complete filter UI with query, search type, sort options
+  - Document type, file type, and status filters
+  - Content filter and action buttons
+- `Views/Search/SearchResultsDisplay.swift` (179 lines)
+  - Four display modes: icon, list, table, map
+  - Empty state handling
+  - Unified results interface
+- `Views/Search/SearchMapComponents.swift` (87 lines)
+  - SearchMapGrid - grid background shape
+  - SearchResultCard - map view cards with score badges
+- `Views/Search/SearchResultRowFromAPI.swift` (66 lines)
+  - Reusable result row with icon, metadata, highlights
+- `Views/Search/SearchView+Helpers.swift` (126 lines)
+  - Search execution logic
+  - Filter dictionary building
+  - Document loading
+  - Save search functionality
 
-### ChatView.swift (681 lines)
-**Analysis complete** - Ready for extraction:
-- MessageCard.swift (~90 lines)
-- ChatMessagesList.swift (~160 lines)
-- ChatStatusViews.swift (~70 lines)
-- ChatInputView.swift (~25 lines)
-- ChatMapGrid.swift (~25 lines)
-- ChatView+Extensions.swift (~95 lines)
+**Commit:** `6d95bc59` - "refactor: extract SearchView components to separate files"
 
-**Expected result:** 681 → ~320 lines
+---
+
+### 5. ChatView.swift
+**Reduction:** 682 → 100 lines (582 lines removed, 85% reduction)
+
+**Files Created:**
+- `Views/Chat/MessageCard.swift` (161 lines)
+  - MessageBubble - classic chat bubbles with sources
+  - MessageCard - grid/icon view cards
+  - MessageMapCard - spatial map view cards
+- `Views/Chat/ChatMessagesList.swift` (177 lines)
+  - Unified messages list for all display modes
+  - ScrollViewReader integration
+  - Auto-scroll to latest message
+- `Views/Chat/ChatStatusViews.swift` (105 lines)
+  - ChatLoadingIndicator - progress indicator
+  - ChatErrorView - error display
+  - ChatEmptyStateView - welcome screen with sample questions
+  - ChatDropOverlay - document drop target
+- `Views/Chat/ChatInputView.swift` (31 lines)
+  - Text input with send button
+  - Keyboard shortcuts
+- `Views/Chat/ChatMapGrid.swift` (26 lines)
+  - Grid background shape for map view
+- `Views/Chat/ChatView+Extensions.swift` (140 lines)
+  - Data loading (conversations, providers)
+  - Drop handling for documents
+  - Message sending logic
+  - New chat creation
+
+**Commit:** `8a1fd4be` - "refactor: extract ChatView components to separate files"
 
 ---
 
@@ -160,14 +223,14 @@ Completed comprehensive 18-week implementation plan for transforming Library Vie
 ## Next Steps
 
 ### Immediate (Next Session)
-1. Extract SearchView components (698 → ~155 lines)
-2. Extract ChatView components (681 → ~320 lines)
+1. ✅ Extract SearchView components (699 → 107 lines) - **COMPLETED**
+2. ✅ Extract ChatView components (682 → 100 lines) - **COMPLETED**
 3. Address remaining 600-800 line files from refactoring plan
 
 ### Medium Priority Files (400-600 lines)
-- DocumentInspector.swift (605 lines)
-- TriggerEditorView.swift (605 lines)
-- SettingsView.swift (589 lines)
+- DocumentInspector.swift (605 lines) - Next candidate
+- TriggerEditorView.swift (605 lines) - Next candidate
+- SettingsView.swift (589 lines) - Next candidate
 
 ### Library View UX Implementation
 Follow 18-week plan:
