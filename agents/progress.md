@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 6 complete — 17/37 files refactored
+> **Status:** Batch 7 complete — 20/37 files refactored
 
 ---
 
@@ -10,10 +10,10 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 17 |
+| Completed | 20 |
 | In Progress | 0 |
 | Blocked | 1 |
-| Remaining | 19 |
+| Remaining | 16 |
 
 ---
 
@@ -65,15 +65,15 @@
 | 17 | `Views/Sidebar/SidebarView.swift` | 436→183 | <200 | done | [#160](https://github.com/dtubb/fichero/issues/160) |
 | 18 | `Views/AIProviders/AddProviderSheet.swift` | 427→96 | <200 | done | [#161](https://github.com/dtubb/fichero/issues/161) |
 
-## Batch 7 — Activity, Workflow, Library Views (NEXT)
+## Batch 7 — Activity, Workflow, Components (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 19 | `Views/Workflow/WorkflowInspector.swift` | 423 | <200 | pending | — |
-| 20 | `Views/Activity/ActivityProgressView.swift` | 423 | <200 | pending | — |
-| 21 | `Views/Components/WorkflowExecutionRow.swift` | 419 | <200 | pending | — |
+| 19 | `Views/Workflow/WorkflowInspector.swift` | 424→174 | <200 | done | [#162](https://github.com/dtubb/fichero/issues/162) |
+| 20 | `Views/Activity/ActivityProgressView.swift` | 424→39 | <200 | done | [#163](https://github.com/dtubb/fichero/issues/163) |
+| 21 | `Views/Components/WorkflowExecutionRow.swift` | 420→211 | <200 | done | [#164](https://github.com/dtubb/fichero/issues/164) |
 
-## Batch 8 — Remaining Views
+## Batch 8 — Remaining Views (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
