@@ -255,6 +255,17 @@
 		B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */; };
 		B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
 		B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
+		B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */; };
+		B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */; };
+		B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */; };
+		B3A002040000000000BATCH3 /* ChatInspector+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */; };
+		B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001050000000000BATCH3 /* ChatInspector+Header.swift */; };
+		B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */; };
+		B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001070000000000BATCH3 /* ChatInspector+Search.swift */; };
+		B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */; };
+		B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */; };
+		B3A0020A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */; };
+		B3A0020B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -542,6 +553,17 @@
 		B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailContent.swift; sourceTree = "<group>"; };
 		B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailSheet.swift; sourceTree = "<group>"; };
 		B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChainSheet.swift; sourceTree = "<group>"; };
+		B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ModelTypes.swift"; sourceTree = "<group>"; };
+		B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderDetailView.swift"; sourceTree = "<group>"; };
+		B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderSettingsRow.swift"; sourceTree = "<group>"; };
+		B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Actions.swift"; sourceTree = "<group>"; };
+		B3A001050000000000BATCH3 /* ChatInspector+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Header.swift"; sourceTree = "<group>"; };
+		B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+ScopedDocuments.swift"; sourceTree = "<group>"; };
+		B3A001070000000000BATCH3 /* ChatInspector+Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Search.swift"; sourceTree = "<group>"; };
+		B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+DataProcessing.swift"; sourceTree = "<group>"; };
+		B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+RunDisclosure.swift"; sourceTree = "<group>"; };
+		B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+SelectionHandling.swift"; sourceTree = "<group>"; };
+		B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+WorkflowSection.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -783,6 +805,10 @@
 			children = (
 				117,
 				A1FB1D7C2F0420930023093C /* ChatInspector.swift */,
+				B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */,
+				B3A001050000000000BATCH3 /* ChatInspector+Header.swift */,
+				B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */,
+				B3A001070000000000BATCH3 /* ChatInspector+Search.swift */,
 				38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */,
 				202674DD2F48972A008EAB5D /* MessageCard.swift */,
 				202674DF2F489737008EAB5D /* ChatStatusViews.swift */,
@@ -902,6 +928,10 @@
 			children = (
 				A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */,
 				A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */,
+				B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */,
+				B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */,
+				B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */,
+				B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */,
 				A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */,
 				A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */,
 				A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */,
@@ -1059,6 +1089,9 @@
 				A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */,
 				A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */,
 				A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */,
+				B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */,
+				B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */,
+				B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */,
 				A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */,
 			);
 			path = AIProviders;
@@ -1243,6 +1276,10 @@
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
+				B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */,
+				B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */,
+				B3A0020A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift in Sources */,
+				B3A0020B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift in Sources */,
 				A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */,
 				A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */,
 				A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */,
@@ -1286,6 +1323,9 @@
 				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
 				202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */,
 				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
+				B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */,
+				B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */,
+				B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */,
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
 				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
 				A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */,
@@ -1421,6 +1461,10 @@
 				047,
 				049,
 				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
+				B3A002040000000000BATCH3 /* ChatInspector+Actions.swift in Sources */,
+				B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */,
+				B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */,
+				B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */,
 				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
 				202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */,
 				028,
