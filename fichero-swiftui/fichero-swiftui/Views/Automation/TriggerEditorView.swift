@@ -5,7 +5,6 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "TriggerEdit
 
 /// Full-page editor for creating and editing file watch triggers
 /// Similar to workflow canvas - used instead of dialog sheets
-// swiftlint:disable:next type_body_length
 struct TriggerEditorView: View {
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var workflowStore: WorkflowStore
@@ -56,13 +55,47 @@ struct TriggerEditorView: View {
 
     var body: some View {
         HSplitView {
-            // Left panel - Form
-            formPanel
-                .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
+            TriggerEditorFormPanel(
+                name: $name,
+                selectedWorkflowId: $selectedWorkflowId,
+                watchPath: $watchPath,
+                recursive: $recursive,
+                showFolderPicker: $showFolderPicker,
+                eventCreated: $eventCreated,
+                eventModified: $eventModified,
+                eventDeleted: $eventDeleted,
+                eventMoved: $eventMoved,
+                filterMode: $filterMode,
+                filterPattern: $filterPattern,
+                filterExtensions: $filterExtensions,
+                extensionInput: $extensionInput,
+                excludePatterns: $excludePatterns,
+                excludeInput: $excludeInput,
+                showAdvanced: $showAdvanced,
+                debounceSeconds: $debounceSeconds,
+                batchDelaySeconds: $batchDelaySeconds,
+                useBatch: $useBatch,
+                maxConcurrent: $maxConcurrent,
+                error: error
+            )
+            .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
 
-            // Right panel - Preview/Help
-            previewPanel
-                .frame(minWidth: 300, idealWidth: 350)
+            TriggerEditorPreviewPanel(
+                name: name,
+                selectedWorkflowId: selectedWorkflowId,
+                watchPath: watchPath,
+                recursive: recursive,
+                selectedEvents: selectedEvents,
+                filterMode: filterMode,
+                filterPattern: filterPattern,
+                filterExtensions: filterExtensions,
+                excludePatterns: excludePatterns,
+                debounceSeconds: debounceSeconds,
+                useBatch: useBatch,
+                maxConcurrent: maxConcurrent,
+                batchDelaySeconds: batchDelaySeconds
+            )
+            .frame(minWidth: 300, idealWidth: 350)
         }
         .navigationTitle(isEditing ? "Edit Trigger" : "New Trigger")
         .toolbar {
@@ -92,376 +125,7 @@ struct TriggerEditorView: View {
         }
     }
 
-    // MARK: - Form Panel
-
-    @ViewBuilder
-    private var formPanel: some View {
-        Form {
-            // Basic Information
-            Section("Basic Information") {
-                TextField("Name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-
-                Picker("Workflow", selection: $selectedWorkflowId) {
-                    Text("Select workflow...").tag("")
-                    ForEach(workflowStore.workflows) { workflow in
-                        Text(workflow.name).tag(workflow.id)
-                    }
-                }
-            }
-
-            // Watch Path
-            Section("Watch Location") {
-                HStack {
-                    TextField("Watch Path", text: $watchPath)
-                        .textFieldStyle(.roundedBorder)
-
-                    Button {
-                        showFolderPicker = true
-                    } label: {
-                        Image(systemName: "folder")
-                    }
-                }
-
-                Toggle("Include subfolders", isOn: $recursive)
-            }
-
-            // Events to Watch
-            Section("Events") {
-                Toggle("Created", isOn: $eventCreated)
-                Toggle("Modified", isOn: $eventModified)
-                Toggle("Deleted", isOn: $eventDeleted)
-                Toggle("Moved", isOn: $eventMoved)
-            }
-
-            // File Filters
-            Section("File Filters") {
-                Picker("Filter Mode", selection: $filterMode) {
-                    Text("Glob Pattern").tag("glob")
-                    Text("Regex").tag("regex")
-                    Text("Extensions").tag("extension")
-                }
-                .pickerStyle(.segmented)
-
-                filterModeFields
-            }
-
-            // Advanced Options
-            DisclosureGroup("Advanced Options", isExpanded: $showAdvanced) {
-                advancedOptions
-            }
-
-            // Error display
-            if let error = error {
-                Section {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    @ViewBuilder
-    private var filterModeFields: some View {
-        switch filterMode {
-        case "glob":
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Pattern", text: $filterPattern)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-
-                Text("Examples: *.jpg, *.{jpg,png}, **/*.pdf")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-        case "regex":
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Pattern", text: $filterPattern)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-
-                Text("Examples: .*\\.jpg$, \\d{4}-\\d{2}-\\d{2}\\.txt")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-        case "extension":
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    TextField("Add extension", text: $extensionInput)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit {
-                            addExtension()
-                        }
-
-                    Button("Add") {
-                        addExtension()
-                    }
-                    .disabled(extensionInput.isEmpty)
-                }
-
-                if !filterExtensions.isEmpty {
-                    FlowLayout(spacing: 4) {
-                        ForEach(filterExtensions, id: \.self) { ext in
-                            extensionTag(ext)
-                        }
-                    }
-                }
-
-                Text("Enter extensions without dot (e.g., jpg, png, pdf)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-        default:
-            EmptyView()
-        }
-    }
-
-    @ViewBuilder
-    private func extensionTag(_ ext: String) -> some View {
-        HStack(spacing: 4) {
-            Text(".\(ext)")
-                .font(.caption)
-
-            Button {
-                filterExtensions.removeAll { $0 == ext }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.accentColor.opacity(0.2))
-        .cornerRadius(4)
-    }
-
-    @ViewBuilder
-    private var advancedOptions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Exclude patterns
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Exclude Patterns")
-                    .font(.subheadline)
-
-                HStack {
-                    TextField("Add pattern", text: $excludeInput)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit {
-                            addExcludePattern()
-                        }
-
-                    Button("Add") {
-                        addExcludePattern()
-                    }
-                    .disabled(excludeInput.isEmpty)
-                }
-
-                if !excludePatterns.isEmpty {
-                    FlowLayout(spacing: 4) {
-                        ForEach(excludePatterns, id: \.self) { pattern in
-                            excludeTag(pattern)
-                        }
-                    }
-                }
-
-                Text("Patterns like .DS_Store, *.tmp, node_modules/**")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            // Debounce
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Debounce: \(debounceSeconds, specifier: "%.1f")s")
-                    .font(.subheadline)
-
-                Slider(value: $debounceSeconds, in: 0...10, step: 0.5)
-
-                Text("Delay before triggering to avoid rapid-fire events")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Batch delay
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Batch Delay: \(batchDelaySeconds, specifier: "%.1f")s")
-                    .font(.subheadline)
-
-                Slider(value: $batchDelaySeconds, in: 0...30, step: 1)
-
-                Text("Wait to collect multiple files into one batch")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            // Batch settings
-            Toggle("Batch Mode", isOn: $useBatch)
-
-            if useBatch {
-                Stepper("Max \(maxConcurrent) concurrent", value: $maxConcurrent, in: 1...100)
-                    .padding(.leading)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func excludeTag(_ pattern: String) -> some View {
-        HStack(spacing: 4) {
-            Text(pattern)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button {
-                excludePatterns.removeAll { $0 == pattern }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.secondary.opacity(0.2))
-        .cornerRadius(4)
-    }
-
-    // MARK: - Preview Panel
-
-    @ViewBuilder
-    private var previewPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Trigger Preview
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Trigger Preview")
-                        .font(.headline)
-
-                    if !name.isEmpty {
-                        previewField("Name", name)
-                    }
-
-                    if let workflow = workflowStore.workflows.first(where: { $0.id == selectedWorkflowId }) {
-                        previewField("Workflow", workflow.name)
-                    }
-
-                    if !watchPath.isEmpty {
-                        previewField("Watch Path", watchPath)
-                        previewField("Recursive", recursive ? "Yes" : "No")
-                    }
-
-                    previewField("Events", selectedEvents.joined(separator: ", "))
-
-                    switch filterMode {
-                    case "glob", "regex":
-                        previewField("Filter Mode", filterMode.capitalized)
-                        previewField("Pattern", filterPattern)
-                    case "extension":
-                        let extensionText = filterExtensions.isEmpty ? "All" : filterExtensions.joined(separator: ", ")
-                        previewField("Extensions", extensionText)
-                    default:
-                        EmptyView()
-                    }
-
-                    if !excludePatterns.isEmpty {
-                        previewField("Excludes", excludePatterns.joined(separator: ", "))
-                    }
-
-                    previewField("Debounce", String(format: "%.1fs", debounceSeconds))
-
-                    if useBatch {
-                        previewField("Batch Mode", "Enabled (max \(maxConcurrent) concurrent)")
-                        previewField("Batch Delay", String(format: "%.1fs", batchDelaySeconds))
-                    }
-                }
-
-                Divider()
-
-                // Help section
-                helpSection
-            }
-            .padding()
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
-    }
-
-    @ViewBuilder
-    private func previewField(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .trailing)
-
-            Text(value)
-                .font(.body)
-        }
-    }
-
-    @ViewBuilder
-    private var helpSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("File Trigger Help")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Events")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("• Created - New files added")
-                    Text("• Modified - Files changed")
-                    Text("• Deleted - Files removed")
-                    Text("• Moved - Files renamed/moved")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Filter Modes")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("• Glob - Shell-style patterns (*.jpg)")
-                    Text("• Regex - Regular expressions (.*\\.jpg$)")
-                    Text("• Extension - Match by file extension")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     // MARK: - Helpers
-
-    private func addExtension() {
-        let ext = extensionInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-        guard !ext.isEmpty, !filterExtensions.contains(ext) else { return }
-        filterExtensions.append(ext)
-        extensionInput = ""
-    }
-
-    private func addExcludePattern() {
-        let pattern = excludeInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !pattern.isEmpty, !excludePatterns.contains(pattern) else { return }
-        excludePatterns.append(pattern)
-        excludeInput = ""
-    }
 
     private func handleFolderSelection(_ result: Result<[URL], Error>) {
         switch result {
@@ -469,8 +133,8 @@ struct TriggerEditorView: View {
             if let url = urls.first {
                 watchPath = url.path
             }
-        case .failure(let error):
-            logger.error("Failed to select folder: \(error.localizedDescription)")
+        case .failure(let err):
+            logger.error("Failed to select folder: \(err.localizedDescription)")
             self.error = "Failed to select folder"
         }
     }
@@ -544,54 +208,6 @@ struct TriggerEditorView: View {
     }
 }
 
-// MARK: - Flow Layout for Tags
-
-/// Simple flow layout for tags
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                      y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var currentX: CGFloat = 0
-            var currentY: CGFloat = 0
-            var lineHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-
-                if currentX + size.width > maxWidth && currentX > 0 {
-                    currentX = 0
-                    currentY += lineHeight + spacing
-                    lineHeight = 0
-                }
-
-                positions.append(CGPoint(x: currentX, y: currentY))
-                lineHeight = max(lineHeight, size.height)
-                currentX += size.width + spacing
-            }
-
-            self.size = CGSize(width: maxWidth, height: currentY + lineHeight)
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
@@ -601,5 +217,5 @@ struct FlowLayout: Layout {
     TriggerEditorView(existingTrigger: nil)
         .environmentObject(library.automationService)
         .environmentObject(library.workflowStore)
-    .frame(width: 700, height: 600)
+        .frame(width: 700, height: 600)
 }
