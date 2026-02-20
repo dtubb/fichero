@@ -266,6 +266,19 @@
 		B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */; };
 		B3A0020A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */; };
 		B3A0020B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */; };
+		B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */; };
+		B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001020000000000BATCH4 /* ComparisonResultView.swift */; };
+		B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
+		B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001040000000000BATCH4 /* ModelPickerSheet.swift */; };
+		B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001050000000000BATCH4 /* PresetPickerSheet.swift */; };
+		B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */; };
+		B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */; };
+		B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */; };
+		B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */; };
+		B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */; };
+		B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
+		B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
+		B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -564,6 +577,19 @@
 		B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+RunDisclosure.swift"; sourceTree = "<group>"; };
 		B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+SelectionHandling.swift"; sourceTree = "<group>"; };
 		B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+WorkflowSection.swift"; sourceTree = "<group>"; };
+		B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelComparisonView+Sidebar.swift"; sourceTree = "<group>"; };
+		B4A001020000000000BATCH4 /* ComparisonResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonResultView.swift; sourceTree = "<group>"; };
+		B4A001030000000000BATCH4 /* ModelResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelResultCard.swift; sourceTree = "<group>"; };
+		B4A001040000000000BATCH4 /* ModelPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerSheet.swift; sourceTree = "<group>"; };
+		B4A001050000000000BATCH4 /* PresetPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPickerSheet.swift; sourceTree = "<group>"; };
+		B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Header.swift"; sourceTree = "<group>"; };
+		B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Progress.swift"; sourceTree = "<group>"; };
+		B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Configuration.swift"; sourceTree = "<group>"; };
+		B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Items.swift"; sourceTree = "<group>"; };
+		B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Actions.swift"; sourceTree = "<group>"; };
+		B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+FieldRendering.swift"; sourceTree = "<group>"; };
+		B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+SchemaHelpers.swift"; sourceTree = "<group>"; };
+		B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+StateManagement.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -781,6 +807,9 @@
 				139,
 				151,
 				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
+				B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */,
+				B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */,
+				B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */,
 				202674932F475B06008EAB5D /* NodeConfigs */,
 				202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */,
 				202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */,
@@ -919,6 +948,11 @@
 			isa = PBXGroup;
 			children = (
 				FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */,
+				B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */,
+				B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */,
+				B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */,
+				B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */,
+				B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */,
 			);
 			path = Batch;
 			sourceTree = "<group>";
@@ -946,6 +980,11 @@
 			isa = PBXGroup;
 			children = (
 				A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */,
+				B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */,
+				B4A001020000000000BATCH4 /* ComparisonResultView.swift */,
+				B4A001030000000000BATCH4 /* ModelResultCard.swift */,
+				B4A001040000000000BATCH4 /* ModelPickerSheet.swift */,
+				B4A001050000000000BATCH4 /* PresetPickerSheet.swift */,
 			);
 			path = ModelComparison;
 			sourceTree = "<group>";
@@ -1484,6 +1523,11 @@
 				A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */,
 				A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */,
 				A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */,
+				B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */,
+				B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */,
+				B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */,
+				B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */,
+				B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */,
 				042,
 				A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */,
 				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
@@ -1506,7 +1550,15 @@
 				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
 				8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */,
 				F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */,
+				B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */,
+				B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */,
+				B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */,
+				B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */,
+				B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */,
 				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,
+				B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */,
+				B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */,
+				B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */,
 				E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */,
 				AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */,
 				7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */,
