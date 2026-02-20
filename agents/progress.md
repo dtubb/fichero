@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-20
-> **Status:** Batch 2 complete — 6/37 files refactored
+> **Status:** Batch 3 complete — 9/37 files refactored
 
 ---
 
@@ -10,9 +10,9 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 6 |
+| Completed | 9 |
 | In Progress | 0 |
-| Remaining | 31 |
+| Remaining | 28 |
 
 ---
 
@@ -32,15 +32,15 @@
 | 5 | `Views/Workflow/WorkflowEditor.swift` | 540→161 | <200 | done | [#144](https://github.com/dtubb/fichero/issues/144) |
 | 6 | `Views/Workflow/WorkflowChainListView.swift` | 527→147 | <200 | done | [#149](https://github.com/dtubb/fichero/issues/149) |
 
-## Batch 3 — Providers & Activity (NEXT)
+## Batch 3 — Providers & Activity (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 7 | `Views/AIProviders/ProvidersView.swift` | 528 | <200 | pending | — |
-| 8 | `Views/Sidebar/Modes/ActivitySidebarContent.swift` | 509 | <200 | pending | — |
-| 9 | `Views/Chat/ChatInspector.swift` | 509 | <200 | pending | — |
+| 7 | `Views/AIProviders/ProvidersView.swift` | 528→138 | <200 | done | [#150](https://github.com/dtubb/fichero/issues/150) |
+| 8 | `Views/Sidebar/Modes/ActivitySidebarContent.swift` | 509→166 | <200 | done | [#151](https://github.com/dtubb/fichero/issues/151) |
+| 9 | `Views/Chat/ChatInspector.swift` | 509→73 | <200 | done | [#152](https://github.com/dtubb/fichero/issues/152) |
 
-## Batch 4 — Comparison & Batch Views
+## Batch 4 — Comparison & Batch Views (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
