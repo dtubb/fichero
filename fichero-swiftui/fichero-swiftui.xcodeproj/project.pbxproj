@@ -73,6 +73,11 @@
 		202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */; };
 		202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */; };
 		202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */; };
+		202674D42F489633008EAB5D /* SearchFiltersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D32F489633008EAB5D /* SearchFiltersPanel.swift */; };
+		202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */; };
+		202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D72F48964E008EAB5D /* SearchMapComponents.swift */; };
+		202674DA2F489665008EAB5D /* SearchResultsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D92F489665008EAB5D /* SearchResultsDisplay.swift */; };
+		202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DB2F489677008EAB5D /* SearchView+Helpers.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
@@ -321,6 +326,11 @@
 		202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkflowSheet.swift; sourceTree = "<group>"; };
 		202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewComponents.swift; sourceTree = "<group>"; };
 		202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+DisplayModes.swift"; sourceTree = "<group>"; };
+		202674D32F489633008EAB5D /* SearchFiltersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFiltersPanel.swift; sourceTree = "<group>"; };
+		202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultRowFromAPI.swift; sourceTree = "<group>"; };
+		202674D72F48964E008EAB5D /* SearchMapComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMapComponents.swift; sourceTree = "<group>"; };
+		202674D92F489665008EAB5D /* SearchResultsDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsDisplay.swift; sourceTree = "<group>"; };
+		202674DB2F489677008EAB5D /* SearchView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SearchView+Helpers.swift"; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
@@ -644,6 +654,11 @@
 			isa = PBXGroup;
 			children = (
 				110 /* SearchView.swift */,
+				202674D32F489633008EAB5D /* SearchFiltersPanel.swift */,
+				202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */,
+				202674D72F48964E008EAB5D /* SearchMapComponents.swift */,
+				202674D92F489665008EAB5D /* SearchResultsDisplay.swift */,
+				202674DB2F489677008EAB5D /* SearchView+Helpers.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -1152,6 +1167,7 @@
 				A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
 				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
+				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
 				001 /* FicheroApp.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
@@ -1173,6 +1189,7 @@
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
 				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
 				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
+				202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */,
 				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
 				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
@@ -1222,6 +1239,8 @@
 				A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */,
 				A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */,
 				A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */,
+				202674D42F489633008EAB5D /* SearchFiltersPanel.swift in Sources */,
+				202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */,
 				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
 				A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */,
 				A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */,
@@ -1236,6 +1255,7 @@
 				A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */,
 				A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */,
 				A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */,
+				202674DA2F489665008EAB5D /* SearchResultsDisplay.swift in Sources */,
 				A1A3AB252F11CCC70021909D /* Event.swift in Sources */,
 				A1A3AB262F11CCC70021909D /* Trace.swift in Sources */,
 				A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */,
